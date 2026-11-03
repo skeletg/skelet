@@ -33,8 +33,8 @@ var authOnlyResolvers = map[string]string{
 	"AdminTotpEnable":    "the caller's own second factor",
 	"AdminTotpDisable":   "the caller's own second factor, behind a current code",
 	"AdminActions":       "filters the action catalogue through the caller's grants",
-	"SignalsInsights":    "digestPermsFor narrows every section to the caller's grants on the channel",
-	"SignalsChat":        "digestPermsFor narrows every section to the caller's grants on the channel",
+	"SignalsInsights":    "agenttools Perms narrows every section to the caller's grants on the channel",
+	"SignalsChat":        "agenttools Perms narrows every section to the caller's grants on the channel",
 
 	"SaveChatConversation":   "own rows only, keyed by the caller's admin id",
 	"DeleteChatConversation": "own rows only, keyed by the caller's admin id",

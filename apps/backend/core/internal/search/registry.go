@@ -20,7 +20,7 @@ type IndexLifecycle interface {
 // RegisteredIndex pairs a lifecycle with the slug operators address it by - a slug rather than the lifecycle naming
 // itself, because ProductIndexer.Name() is already taken by the Engine contract (it answers "opensearch")
 type RegisteredIndex struct {
-	// Operator-facing: `bin/cli search reindex <slug>` and the search.reindex action
+	// Operator-facing: `skelet cli search reindex <slug>` and the search.reindex action
 	Slug string
 	// Empty for core indexes; a plugin's manifest slug for registered ones, so the
 	// reindex tooling can say WHOSE index just failed

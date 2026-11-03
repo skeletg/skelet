@@ -2,6 +2,7 @@
 package gitx
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path"
@@ -31,6 +32,42 @@ func Show(root, file string) ([]byte, error) {
 	cmd := exec.Command("git", "show", "HEAD:"+file)
 	cmd.Dir = root
 	return cmd.Output()
+}
+
+func Indexed(root, file string) ([]byte, error) {
+	cmd := exec.Command("git", "show", ":"+file)
+	cmd.Dir = root
+	return cmd.Output()
+}
+
+func SkipWorktree(root string, pathspecs ...string) []string {
+	out, err := output(root, append([]string{"ls-files", "-t", "--"}, pathspecs...)...)
+	if err != nil {
+		return nil
+	}
+	var files []string
+	for l := range strings.SplitSeq(out, "\n") {
+		if f, ok := strings.CutPrefix(l, "S "); ok {
+			files = append(files, f)
+		}
+	}
+	return files
+}
+
+func HasTag(root, tag string) bool {
+	_, err := output(root, "rev-parse", "-q", "--verify", "refs/tags/"+tag)
+	return err == nil
+}
+
+// ChangedSince is whether any of paths in the working tree differs from tag - an error when git can't tell
+func ChangedSince(root, tag string, paths ...string) (bool, error) {
+	cmd := exec.Command("git", append([]string{"diff", "--quiet", tag, "--"}, paths...)...)
+	cmd.Dir = root
+	err := cmd.Run()
+	if exit := (*exec.ExitError)(nil); errors.As(err, &exit) && exit.ExitCode() == 1 {
+		return true, nil
+	}
+	return false, err
 }
 
 func SparseOn(root string) bool {

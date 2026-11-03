@@ -138,7 +138,7 @@ func init() {
 	p.RegisterEvent(EventSettled, sdk.EventKindAsync)
 	p.RegisterEvent(EventSettling, sdk.EventKindSync)
 
-	// Run-once Go against the patch's own tx, applied by `bin/cli data-patch up` after schema migrations
+	// Run-once Go against the patch's own tx, applied by `skelet cli data-patch up` after schema migrations
 	p.RegisterDataPatch(sdk.DataPatchRegistration{
 		Namespace: Slug,
 		ID:        Slug + ":seed-example-records",

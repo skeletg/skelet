@@ -1,0 +1,32 @@
+{"Time":"2026-10-31T19:15:47.333176026+01:00","Action":"start","Package":"sumgen/ok"}
+{"Time":"2026-10-31T19:15:47.334525703+01:00","Action":"run","Package":"sumgen/ok","Test":"TestPass"}
+{"Time":"2026-10-31T19:15:47.334568119+01:00","Action":"output","Package":"sumgen/ok","Test":"TestPass","Output":"=== RUN   TestPass\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.334580647+01:00","Action":"output","Package":"sumgen/ok","Test":"TestPass","Output":"    ok_test.go:5: noise that a pass hides\n"}
+{"Time":"2026-10-31T19:15:47.334584017+01:00","Action":"output","Package":"sumgen/ok","Test":"TestPass","Output":"--- PASS: TestPass (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.334586037+01:00","Action":"pass","Package":"sumgen/ok","Test":"TestPass","Elapsed":0}
+{"Time":"2026-10-31T19:15:47.334590026+01:00","Action":"run","Package":"sumgen/ok","Test":"TestSkipDB"}
+{"Time":"2026-10-31T19:15:47.33459116+01:00","Action":"output","Package":"sumgen/ok","Test":"TestSkipDB","Output":"=== RUN   TestSkipDB\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.334593618+01:00","Action":"output","Package":"sumgen/ok","Test":"TestSkipDB","Output":"    ok_test.go:6: no database marked disposable\n"}
+{"Time":"2026-10-31T19:15:47.334596286+01:00","Action":"output","Package":"sumgen/ok","Test":"TestSkipDB","Output":"--- SKIP: TestSkipDB (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.334597622+01:00","Action":"skip","Package":"sumgen/ok","Test":"TestSkipDB","Elapsed":0}
+{"Time":"2026-10-31T19:15:47.334598933+01:00","Action":"run","Package":"sumgen/ok","Test":"TestSkipDB2"}
+{"Time":"2026-10-31T19:15:47.334599989+01:00","Action":"output","Package":"sumgen/ok","Test":"TestSkipDB2","Output":"=== RUN   TestSkipDB2\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.334601326+01:00","Action":"output","Package":"sumgen/ok","Test":"TestSkipDB2","Output":"    ok_test.go:7: no database marked disposable\n"}
+{"Time":"2026-10-31T19:15:47.334602832+01:00","Action":"output","Package":"sumgen/ok","Test":"TestSkipDB2","Output":"--- SKIP: TestSkipDB2 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.33460411+01:00","Action":"skip","Package":"sumgen/ok","Test":"TestSkipDB2","Elapsed":0}
+{"Time":"2026-10-31T19:15:47.334605233+01:00","Action":"run","Package":"sumgen/ok","Test":"TestSkipQuiet"}
+{"Time":"2026-10-31T19:15:47.334606708+01:00","Action":"output","Package":"sumgen/ok","Test":"TestSkipQuiet","Output":"=== RUN   TestSkipQuiet\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.334608223+01:00","Action":"output","Package":"sumgen/ok","Test":"TestSkipQuiet","Output":"--- SKIP: TestSkipQuiet (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.334609876+01:00","Action":"skip","Package":"sumgen/ok","Test":"TestSkipQuiet","Elapsed":0}
+{"Time":"2026-10-31T19:15:47.334613936+01:00","Action":"run","Package":"sumgen/ok","Test":"TestSub"}
+{"Time":"2026-10-31T19:15:47.334615369+01:00","Action":"output","Package":"sumgen/ok","Test":"TestSub","Output":"=== RUN   TestSub\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.334617052+01:00","Action":"run","Package":"sumgen/ok","Test":"TestSub/inner"}
+{"Time":"2026-10-31T19:15:47.334618479+01:00","Action":"output","Package":"sumgen/ok","Test":"TestSub/inner","Output":"=== RUN   TestSub/inner\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.334619823+01:00","Action":"output","Package":"sumgen/ok","Test":"TestSub/inner","Output":"    ok_test.go:10: clickhouse is down\n"}
+{"Time":"2026-10-31T19:15:47.334623271+01:00","Action":"output","Package":"sumgen/ok","Test":"TestSub/inner","Output":"--- SKIP: TestSub/inner (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.334624995+01:00","Action":"skip","Package":"sumgen/ok","Test":"TestSub/inner","Elapsed":0}
+{"Time":"2026-10-31T19:15:47.33462692+01:00","Action":"output","Package":"sumgen/ok","Test":"TestSub","Output":"--- PASS: TestSub (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.334628597+01:00","Action":"pass","Package":"sumgen/ok","Test":"TestSub","Elapsed":0}
+{"Time":"2026-10-31T19:15:47.334630086+01:00","Action":"output","Package":"sumgen/ok","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.334817757+01:00","Action":"output","Package":"sumgen/ok","Output":"ok  \tsumgen/ok\t0.001s\n"}
+{"Time":"2026-10-31T19:15:47.334845707+01:00","Action":"pass","Package":"sumgen/ok","Elapsed":0.002}

@@ -22,7 +22,7 @@ import (
 
 const marker = "skelet.e2e=allowed"
 
-// Read only so go test's cache keys on it: bin/test sets it to a hash of the migration files, so a schema change
+// Read only so go test's cache keys on it: skelet test sets it to a hash of the migration files, so a schema change
 // reruns the database tests whose cached pass would otherwise vouch for the old one
 const SchemaEnv = "SKELET_TEST_SCHEMA"
 

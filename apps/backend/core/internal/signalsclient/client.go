@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
@@ -61,14 +60,17 @@ type Client struct {
 
 // Dialling is lazy, so this never blocks on a service that is not up yet
 // keys sign the tokens this client mints
-func New(addr string, keys auth.ServiceKeys, ttl time.Duration, grants Grants) (*Client, error) {
+func New(addr string, tr Transport, keys auth.ServiceKeys, ttl time.Duration, grants Grants) (*Client, error) {
 	if addr == "" || !keys.Configured() {
 		return nil, nil
 	}
+	creds, err := tr.credentials()
+	if err != nil {
+		return nil, err
+	}
 	// dns re-resolves the name on every reconnect and balances across every address it answers, so a suite scaled to several replicas behind one name shares the load
 	conn, err := grpc.NewClient("dns:///"+addr,
-		// Plaintext - the contract runs on a private network, or one encrypted underneath (docs/env.md)
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithTransportCredentials(creds),
 		grpc.WithDefaultServiceConfig(`{"loadBalancingConfig":[{"round_robin":{}}]}`),
 		grpc.WithChainUnaryInterceptor(deadlineUnary()),
 		grpc.WithChainStreamInterceptor(deadlineStream()),

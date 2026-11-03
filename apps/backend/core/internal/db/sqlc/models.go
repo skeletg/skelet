@@ -59,6 +59,49 @@ func (ns NullCatalogBundleInputType) Value() (driver.Value, error) {
 	return string(ns.CatalogBundleInputType), nil
 }
 
+type CatalogBundlePricing string
+
+const (
+	CatalogBundlePricingSum             CatalogBundlePricing = "sum"
+	CatalogBundlePricingFixed           CatalogBundlePricing = "fixed"
+	CatalogBundlePricingSumMinusPercent CatalogBundlePricing = "sum_minus_percent"
+)
+
+func (e *CatalogBundlePricing) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CatalogBundlePricing(s)
+	case string:
+		*e = CatalogBundlePricing(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CatalogBundlePricing: %T", src)
+	}
+	return nil
+}
+
+type NullCatalogBundlePricing struct {
+	CatalogBundlePricing CatalogBundlePricing `json:"catalog_bundle_pricing"`
+	Valid                bool                 `json:"valid"` // Valid is true if CatalogBundlePricing is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCatalogBundlePricing) Scan(value interface{}) error {
+	if value == nil {
+		ns.CatalogBundlePricing, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CatalogBundlePricing.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCatalogBundlePricing) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CatalogBundlePricing), nil
+}
+
 type CatalogProductKind string
 
 const (
@@ -560,6 +603,9 @@ type Cart struct {
 	OfferCreatedBy         uuid.NullUUID         `json:"offer_created_by"`
 	OrderID                uuid.NullUUID         `json:"order_id"`
 	OfferLinkToken         string                `json:"offer_link_token"`
+	Source                 string                `json:"source"`
+	HandoffToken           string                `json:"handoff_token"`
+	HandoffExpiresAt       sql.NullTime          `json:"handoff_expires_at"`
 }
 
 type CartAppliedCode struct {
@@ -571,20 +617,28 @@ type CartAppliedCode struct {
 	InvalidatedReason sql.NullString `json:"invalidated_reason"`
 }
 
+type CartHandoffRedemption struct {
+	AgentCartID uuid.UUID `json:"agent_cart_id"`
+	CartID      uuid.UUID `json:"cart_id"`
+	RedeemedAt  time.Time `json:"redeemed_at"`
+}
+
 type CartLine struct {
-	ID              uuid.UUID     `json:"id"`
-	CartID          uuid.UUID     `json:"cart_id"`
-	ProductName     string        `json:"product_name"`
-	ProductSku      string        `json:"product_sku"`
-	UnitPrice       int64         `json:"unit_price"`
-	Quantity        float64       `json:"quantity"`
-	CreatedAt       time.Time     `json:"created_at"`
-	UpdatedAt       time.Time     `json:"updated_at"`
-	IsGift          bool          `json:"is_gift"`
-	OfferedByRuleID uuid.NullUUID `json:"offered_by_rule_id"`
-	PriceOverride   bool          `json:"price_override"`
-	IsCustom        bool          `json:"is_custom"`
-	TaxClass        string        `json:"tax_class"`
+	ID               uuid.UUID     `json:"id"`
+	CartID           uuid.UUID     `json:"cart_id"`
+	ProductName      string        `json:"product_name"`
+	ProductSku       string        `json:"product_sku"`
+	UnitPrice        int64         `json:"unit_price"`
+	Quantity         float64       `json:"quantity"`
+	CreatedAt        time.Time     `json:"created_at"`
+	UpdatedAt        time.Time     `json:"updated_at"`
+	IsGift           bool          `json:"is_gift"`
+	OfferedByRuleID  uuid.NullUUID `json:"offered_by_rule_id"`
+	PriceOverride    bool          `json:"price_override"`
+	IsCustom         bool          `json:"is_custom"`
+	TaxClass         string        `json:"tax_class"`
+	BundleHookPriced bool          `json:"bundle_hook_priced"`
+	ConfigKey        string        `json:"config_key"`
 }
 
 type CartLineComponent struct {
@@ -746,15 +800,18 @@ type CatalogProductAttributeSlug struct {
 }
 
 type CatalogProductBundleOption struct {
-	ID            uuid.UUID              `json:"id"`
-	ProductID     uuid.UUID              `json:"product_id"`
-	InputType     CatalogBundleInputType `json:"input_type"`
-	IsRequired    bool                   `json:"is_required"`
-	SortOrder     int32                  `json:"sort_order"`
-	CreatedAt     time.Time              `json:"created_at"`
-	UpdatedAt     time.Time              `json:"updated_at"`
-	MinSelections int32                  `json:"min_selections"`
-	MaxSelections sql.NullInt32          `json:"max_selections"`
+	ID                    uuid.UUID              `json:"id"`
+	ProductID             uuid.UUID              `json:"product_id"`
+	InputType             CatalogBundleInputType `json:"input_type"`
+	IsRequired            bool                   `json:"is_required"`
+	SortOrder             int32                  `json:"sort_order"`
+	CreatedAt             time.Time              `json:"created_at"`
+	UpdatedAt             time.Time              `json:"updated_at"`
+	MinSelections         int32                  `json:"min_selections"`
+	MaxSelections         sql.NullInt32          `json:"max_selections"`
+	RuleCategoryID        uuid.NullUUID          `json:"rule_category_id"`
+	RuleAttributeValueIds []uuid.UUID            `json:"rule_attribute_value_ids"`
+	RuleQuantity          float64                `json:"rule_quantity"`
 }
 
 type CatalogProductBundleOptionContent struct {
@@ -764,12 +821,14 @@ type CatalogProductBundleOptionContent struct {
 }
 
 type CatalogProductBundleSelection struct {
-	ID        uuid.UUID `json:"id"`
-	OptionID  uuid.UUID `json:"option_id"`
-	ProductID uuid.UUID `json:"product_id"`
-	Quantity  float64   `json:"quantity"`
-	IsDefault bool      `json:"is_default"`
-	SortOrder int32     `json:"sort_order"`
+	ID               uuid.UUID `json:"id"`
+	OptionID         uuid.UUID `json:"option_id"`
+	ProductID        uuid.UUID `json:"product_id"`
+	Quantity         float64   `json:"quantity"`
+	IsDefault        bool      `json:"is_default"`
+	SortOrder        int32     `json:"sort_order"`
+	DiscountPercent  int16     `json:"discount_percent"`
+	CustomerQuantity bool      `json:"customer_quantity"`
 }
 
 type CatalogProductCategory struct {
@@ -1782,17 +1841,18 @@ type OrderLine struct {
 }
 
 type OrderLineComponent struct {
-	ID                uuid.UUID `json:"id"`
-	OrderLineID       uuid.UUID `json:"order_line_id"`
-	BundleOptionID    uuid.UUID `json:"bundle_option_id"`
-	BundleSelectionID uuid.UUID `json:"bundle_selection_id"`
-	ProductID         uuid.UUID `json:"product_id"`
-	ProductSku        string    `json:"product_sku"`
-	ProductName       string    `json:"product_name"`
-	UnitPrice         int64     `json:"unit_price"`
-	Quantity          float64   `json:"quantity"`
-	SortOrder         int32     `json:"sort_order"`
-	CreatedAt         time.Time `json:"created_at"`
+	ID                uuid.UUID     `json:"id"`
+	OrderLineID       uuid.UUID     `json:"order_line_id"`
+	BundleOptionID    uuid.NullUUID `json:"bundle_option_id"`
+	BundleSelectionID uuid.NullUUID `json:"bundle_selection_id"`
+	ProductID         uuid.UUID     `json:"product_id"`
+	ProductSku        string        `json:"product_sku"`
+	ProductName       string        `json:"product_name"`
+	UnitPrice         int64         `json:"unit_price"`
+	Quantity          float64       `json:"quantity"`
+	SortOrder         int32         `json:"sort_order"`
+	CreatedAt         time.Time     `json:"created_at"`
+	Returnable        bool          `json:"returnable"`
 }
 
 type OrderLineOption struct {
@@ -1854,13 +1914,14 @@ type OrderReturn struct {
 }
 
 type OrderReturnLine struct {
-	ID              uuid.UUID `json:"id"`
-	ReturnID        uuid.UUID `json:"return_id"`
-	OrderLineID     uuid.UUID `json:"order_line_id"`
-	Quantity        float64   `json:"quantity"`
-	Reason          string    `json:"reason"`
-	RefundUnitCents int64     `json:"refund_unit_cents"`
-	CreatedAt       time.Time `json:"created_at"`
+	ID                   uuid.UUID     `json:"id"`
+	ReturnID             uuid.UUID     `json:"return_id"`
+	OrderLineID          uuid.UUID     `json:"order_line_id"`
+	Quantity             float64       `json:"quantity"`
+	Reason               string        `json:"reason"`
+	RefundUnitCents      int64         `json:"refund_unit_cents"`
+	CreatedAt            time.Time     `json:"created_at"`
+	OrderLineComponentID uuid.NullUUID `json:"order_line_component_id"`
 }
 
 type OrderShipment struct {
@@ -1973,6 +2034,7 @@ type Product struct {
 	MaxOrderQty             sql.NullFloat64    `json:"max_order_qty"`
 	CostCents               sql.NullInt64      `json:"cost_cents"`
 	ConfiguratorLayout      string             `json:"configurator_layout"`
+	KitItemsReturnable      bool               `json:"kit_items_returnable"`
 }
 
 type ProductAlsoBought struct {
@@ -1989,17 +2051,19 @@ type ProductAttributeValue struct {
 }
 
 type ProductChannelListing struct {
-	ProductID      uuid.UUID      `json:"product_id"`
-	ChannelID      uuid.UUID      `json:"channel_id"`
-	Price          sql.NullInt64  `json:"price"`
-	IsPublished    bool           `json:"is_published"`
-	CreatedAt      time.Time      `json:"created_at"`
-	UpdatedAt      time.Time      `json:"updated_at"`
-	Url            sql.NullString `json:"url"`
-	CompareAtPrice sql.NullInt64  `json:"compare_at_price"`
-	SpecialPrice   sql.NullInt64  `json:"special_price"`
-	SpecialFrom    sql.NullTime   `json:"special_from"`
-	SpecialTo      sql.NullTime   `json:"special_to"`
+	ProductID             uuid.UUID            `json:"product_id"`
+	ChannelID             uuid.UUID            `json:"channel_id"`
+	Price                 sql.NullInt64        `json:"price"`
+	IsPublished           bool                 `json:"is_published"`
+	CreatedAt             time.Time            `json:"created_at"`
+	UpdatedAt             time.Time            `json:"updated_at"`
+	Url                   sql.NullString       `json:"url"`
+	CompareAtPrice        sql.NullInt64        `json:"compare_at_price"`
+	SpecialPrice          sql.NullInt64        `json:"special_price"`
+	SpecialFrom           sql.NullTime         `json:"special_from"`
+	SpecialTo             sql.NullTime         `json:"special_to"`
+	BundlePricing         CatalogBundlePricing `json:"bundle_pricing"`
+	BundleDiscountPercent int16                `json:"bundle_discount_percent"`
 }
 
 type ProductChild struct {

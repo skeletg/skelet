@@ -1,0 +1,17 @@
+# shortcut: the first 100 products only, on the home page and in the sitemap - page through browseProducts when the catalog grows
+query HomeProducts {
+  browseProducts(limit: 100) {
+    items {
+      id
+      url
+      name
+      inStock
+      price
+      compareAtPrice
+      onSale
+      mainImage {
+        ...ImageFields
+      }
+    }
+  }
+}

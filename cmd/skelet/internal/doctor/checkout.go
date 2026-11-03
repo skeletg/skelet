@@ -13,11 +13,15 @@ import (
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/compose"
 	"github.com/skeletg/skelet/cmd/skelet/internal/envfile"
+	"github.com/skeletg/skelet/cmd/skelet/internal/hooks"
 	"github.com/skeletg/skelet/cmd/skelet/internal/node"
 	"github.com/skeletg/skelet/cmd/skelet/internal/plugins"
 	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/setup"
+	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 )
+
+var writableCheckout = regexp.MustCompile(`(?m)^\s*-\s*\.:/var/www/skelet\s*$`)
 
 func checkout(root string, out io.Writer, p probes) int {
 	r := &report{out: out}
@@ -25,12 +29,16 @@ func checkout(root string, out io.Writer, p probes) int {
 	tools(r, root)
 
 	// Read first - which env files must exist depends on the target this clone was set up for
-	prof, _ := profile.Load(filepath.Join(root, profile.File))
+	prof := profile.Current(root)
 	target := prof["SKELET_TARGET"]
 	if target != "small" && target != "prod" {
 		target = "dev"
 	}
-	_, files, _ := setup.EnvFiles(root, target)
+	var runs func(string) bool
+	if apps, chosen := prof.Apps(); chosen {
+		runs = func(app string) bool { return slices.Contains(apps, app) }
+	}
+	_, files, _ := setup.EnvFiles(root, target, runs)
 	optional := optionalEnv(root, target)
 	r.section("env files (%s target)", target)
 	for _, f := range files {
@@ -46,13 +54,30 @@ func checkout(root string, out io.Writer, p probes) int {
 
 	r.section("app selection")
 	inDocker := ""
-	if raw, err := os.ReadFile(filepath.Join(root, ".skelet-apps")); err == nil {
-		inDocker = strings.Join(strings.Fields(string(raw)), "")
-		r.pass("in Docker: %s (.skelet-apps; change with skelet setup --docker-apps ...)", or(inDocker, "none - the frontends run on the host"))
+	if docker, ok := prof.List(profile.DockerKey); ok {
+		inDocker = strings.Join(docker, ",")
+		r.pass("in Docker: %s (.env's COMPOSE_PROFILES; change with skelet setup --docker-apps ...)", or(inDocker, "none - the frontends run on the host"))
 	} else {
 		r.pass("none in Docker - the frontends run on the host (skelet setup --docker-apps ... to containerize)")
 	}
+	// A name no storefront goes by - one renamed or removed - starts nothing, quietly
+	for app := range strings.SplitSeq(inDocker, ",") {
+		if app != "" && app != "dashboard" && !slices.Contains(storefronts.Names(root), app) {
+			r.note(".env's COMPOSE_PROFILES names %q, which isn't an app here - storefronts: %s (skelet setup --docker-apps ...)", app, or(strings.Join(storefronts.Names(root), ", "), "none"))
+		}
+	}
+	// Storefronts mount the whole workspace at /var/www/skelet - a service of your own on the /var/www/storefront mount
+	// sees only its own directory, so the shared packages don't resolve
+	if raw, err := os.ReadFile(filepath.Join(root, "docker-compose.override.yml")); err == nil {
+		switch {
+		case strings.Contains(string(raw), "/var/www/storefront"):
+			r.note("docker-compose.override.yml mounts a storefront at /var/www/storefront, the old layout - copy the volumes of the %s service in docker-compose.yml", storefronts.DefaultTemplate)
+		case writableCheckout.Match(raw):
+			r.note("docker-compose.override.yml mounts the whole checkout writable into a storefront - copy the volumes of the %s service in docker-compose.yml", storefronts.DefaultTemplate)
+		}
+	}
 	hostFrontends(r, root, strings.Split(inDocker, ","))
+	sharedPackages(r, root)
 
 	shape(r, root, prof, files)
 	pluginSet(r, root)
@@ -87,11 +112,12 @@ func optionalEnv(root, target string) []string {
 func hostFrontends(r *report, root string, inDocker []string) {
 	r.section("host frontends")
 	var host []string
-	dirs, _ := filepath.Glob(filepath.Join(root, "apps", "channels", "*"))
-	for _, d := range append([]string{filepath.Join(root, "apps", "dashboard")}, dirs...) {
-		if exists(filepath.Join(d, "package.json")) && !slices.Contains(inDocker, filepath.Base(d)) {
-			rel, _ := filepath.Rel(root, d)
-			host = append(host, rel)
+	if exists(filepath.Join(root, "apps", "dashboard", "package.json")) && !slices.Contains(inDocker, "dashboard") {
+		host = append(host, filepath.Join("apps", "dashboard"))
+	}
+	for _, sf := range storefronts.List(root) {
+		if !slices.Contains(inDocker, sf.Name) {
+			host = append(host, filepath.FromSlash(sf.Dir))
 		}
 	}
 	if len(host) == 0 {
@@ -132,36 +158,22 @@ var interpolation = regexp.MustCompile(`\$\{([A-Z][A-Z0-9_]*)\}`)
 
 func shape(r *report, root string, prof profile.Profile, files []string) {
 	r.section("shape")
-	if !exists(filepath.Join(root, profile.File)) {
-		r.note("no .skelet-profile - run skelet setup to record what this clone is meant to be")
+	if _, ok := prof.Get(profile.TargetKey); !ok {
+		r.note("no %s in .env - run skelet setup to record what this clone is meant to be", profile.EnvTarget)
 	} else {
-		get := func(k string) string {
-			if v, ok := prof.Get(k); ok {
-				return v
-			}
-			return "(unset)"
-		}
-		r.pass("target=%s signals=%s ai=%s search=%s", get("SKELET_TARGET"), get("SKELET_SIGNALS"), get("SKELET_AI"), get("SKELET_SEARCH"))
-		r.pass("gateways: %s", or(prof["SKELET_GATEWAYS"], "none"))
-		// The env file is what the backend reads - a profile that disagrees with it is the confusing state, since the
-		// dashboard shows one shape and the API serves another
-		for key, answer := range map[string]string{"SIGNALS_ENABLED": "SKELET_SIGNALS", "AI_ENABLED": "SKELET_AI"} {
-			want, ok := prof.Get(answer)
-			if !ok {
-				continue
-			}
-			got := ""
+		switched := func(key string) string {
 			for _, f := range files {
 				if v, found, _ := envfile.Get(filepath.Join(root, f), key); found {
-					got = v
-					break
+					return v
 				}
 			}
-			if got == want || (got == "" && want == "true") {
-				continue
-			}
-			r.note("%s is %s in %s but the profile says %s - re-run skelet setup", key, or(got, "(unset, defaults true)"), files[0], want)
+			return "(unset, on)"
 		}
+		search := "opensearch"
+		if v, ok, _ := envfile.Get(filepath.Join(root, ".env"), "OPENSEARCH_URL"); ok && v == "" {
+			search = "postgres"
+		}
+		r.pass("target=%s signals=%s ai=%s search=%s", prof[profile.TargetKey], switched("SIGNALS_ENABLED"), switched("AI_ENABLED"), search)
 	}
 
 	// Every variable a compose file interpolates without a default has to come from somewhere, or the service quietly
@@ -239,10 +251,7 @@ func pluginSet(r *report, root string) {
 
 func containers(r *report, root string) compose.Lib {
 	r.section("containers")
-	lib, err := compose.Load(root)
-	if err != nil {
-		r.note("%v - the checks below use compose's defaults", err)
-	}
+	lib := compose.Load(root)
 	ps, _ := compose.Command(root, lib.Env(), "ps", "--status", "running", "--format", "{{.Service}}").Output()
 	running := strings.Fields(string(ps))
 	slices.Sort(running)
@@ -298,9 +307,7 @@ func ports(r *report, root string, lib compose.Lib, p probes) []string {
 		}
 	}
 	// A storefront's published port is its own business, so compose is asked rather than assuming the demo's 3000
-	dirs, _ := filepath.Glob(filepath.Join(root, "apps", "channels", "*"))
-	for _, d := range dirs {
-		name := filepath.Base(d)
+	for _, name := range storefronts.Names(root) {
 		out, _ := compose.Command(root, lib.Env(), "port", name, "3000").Output()
 		switch s := strings.TrimSpace(string(out)); {
 		case s != "":
@@ -308,7 +315,7 @@ func ports(r *report, root string, lib compose.Lib, p probes) []string {
 		case lib.Apps == "":
 			r.pass("%s not in Docker - run it on the host (skelet serve %s)", name, name)
 		default:
-			r.note("%s has no published port (not running, or not in .skelet-apps)", name)
+			r.note("%s has no published port (not running, or not in .env's COMPOSE_PROFILES)", name)
 		}
 	}
 	// Only ports this project publishes count as ours. Probing localhost alone can't tell this stack from another
@@ -357,17 +364,28 @@ func endpoints(r *report, ours []string, p probes) {
 // hygiene is the checkout's own state: the opt-in pre-commit hook, and a WSL clone on the Windows drive
 func hygiene(r *report, root string) {
 	r.section("checkout")
-	hook, err := output(root, "git", "rev-parse", "--git-path", "hooks/pre-commit")
-	if err == nil && !filepath.IsAbs(hook) {
-		hook = filepath.Join(root, hook)
+	hook, err := hooks.Path(root)
+	if err != nil {
+		hook = filepath.Join(root, ".git", "hooks", "pre-commit")
 	}
-	switch raw, err := os.ReadFile(hook); {
-	case err != nil:
+	raw, _ := os.ReadFile(hook)
+	switch hooks.Classify(hook) {
+	case hooks.Missing:
 		r.pass("no pre-commit hook - skelet hooks adds one that runs skelet check, if you want it")
-	case strings.Contains(string(raw), "bin/check"):
+	case hooks.Current:
 		r.pass("pre-commit hook runs skelet check")
+	case hooks.Old:
+		r.bad("the pre-commit hook still runs bin/check, which is gone - skelet hooks updates it")
 	default:
-		r.pass("pre-commit hook is your own - skelet hooks would replace it")
+		if strings.Contains(string(raw), "bin/") {
+			r.note("the pre-commit hook is your own and calls bin/ scripts, which are gone - each is a skelet verb now")
+		} else {
+			r.pass("pre-commit hook is your own - skelet hooks --force would replace it")
+		}
+	}
+	// core.fileMode is off on WSL clones, so a hook can lose its +x without git noticing - and git then skips it
+	if fi, err := os.Stat(hook); err == nil && fi.Mode().Perm()&0o111 == 0 {
+		r.note("the pre-commit hook isn't executable, so git skips it - chmod +x %s", hook)
 	}
 	if release, _ := os.ReadFile("/proc/sys/kernel/osrelease"); strings.Contains(strings.ToLower(string(release)), "microsoft") {
 		if strings.HasPrefix(root, "/mnt/") {

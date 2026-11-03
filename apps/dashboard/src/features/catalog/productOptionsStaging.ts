@@ -8,7 +8,7 @@
 
 import type { ProductOptionInputType, ProductOptionPriceType, ProductOptionRuleInput } from '@/graphql/schema.types'
 import { added, removed } from '@/shared/saving/diff'
-import { collapseOps, isTemp, type OpView } from '@/features/catalog/stagingOps'
+import { CommitError, collapseOps, isTemp, type OpView } from '@/features/catalog/stagingOps'
 import type { SectionDiffEntry } from './productSaveRegistry'
 
 export type SourceProduct = {
@@ -156,7 +156,7 @@ function upsertValueContentRow(v: OptionValue, locale: string, title: string): V
   return content
 }
 
-export { TEMP_PREFIX, isTemp, newTempId } from '@/features/catalog/stagingOps'
+export { CommitError, TEMP_PREFIX, isTemp, newTempId } from '@/features/catalog/stagingOps'
 
 // ─── Op union ───────────────────────────────────────────────────────
 
@@ -750,21 +750,6 @@ function resolveRules(rules: ProductOptionRuleInput[], resolve: (id: string) => 
       actions: r.actions.map((a) => (a.optionId ? { ...a, optionId: resolve(a.optionId) } : a)),
     }
   })
-}
-
-// Thrown when a mid-sequence mutation fails - carries the unapplied tail (temp refs already resolved) so the section
-// can keep just that and a retry resumes instead of re-running committed adds and duplicating rows
-export class CommitError extends Error {
-  remaining: PendingOp[]
-  // Temp ids that became real before the failure - anything else still naming them has to follow
-  idMap: Map<string, string>
-  constructor(cause: unknown, remaining: PendingOp[], idMap: Map<string, string> = new Map()) {
-    super(cause instanceof Error ? cause.message : String(cause))
-    this.name = 'CommitError'
-    this.cause = cause
-    this.remaining = remaining
-    this.idMap = idMap
-  }
 }
 
 export async function commitOps(

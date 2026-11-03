@@ -52,6 +52,38 @@ func (s *listingService) SetProductListingPublished(ctx context.Context, product
 	return listing, nil
 }
 
+// SetBundlePricing sets how a bundle is priced on a channel it's already listed on. Fixed charges the listing's own price, so that price has to be one the channel can serve
+func (s *listingService) SetBundlePricing(ctx context.Context, productID, channelID uuid.UUID, mode BundlePricing, discountPercent int16) (ProductChannelListing, error) {
+	if !mode.Valid() || discountPercent < 0 || discountPercent > 100 {
+		return ProductChannelListing{}, ErrInvalidBundlePricing
+	}
+	if mode != BundlePricingSumMinusPercent {
+		discountPercent = 0 // only the percent mode reads it, so a stale value can't resurface on a later switch back
+	}
+	product, err := s.repo.GetProductByID(ctx, productID)
+	if err != nil {
+		return ProductChannelListing{}, err
+	}
+	if product.Kind != KindBundle {
+		return ProductChannelListing{}, fmt.Errorf("%w: product %q is kind %q", ErrBundleParentNotBundle, product.SKU, string(product.Kind))
+	}
+	listing, err := s.repo.GetProductChannelListing(ctx, productID, channelID)
+	if err != nil {
+		return ProductChannelListing{}, err
+	}
+	if mode == BundlePricingFixed && listing.Price == nil {
+		if err := s.requireInheritableCurrency(ctx, productID, channelID); err != nil {
+			return ProductChannelListing{}, err
+		}
+	}
+	listing, err = s.repo.SetProductChannelListingBundlePricing(ctx, productID, channelID, mode, discountPercent)
+	if err != nil {
+		return ProductChannelListing{}, err
+	}
+	s.publishListingChanged(ctx, listing)
+	return listing, nil
+}
+
 func (s *listingService) requireInheritableCurrency(ctx context.Context, productID, channelID uuid.UUID) error {
 	product, err := s.repo.GetProductByID(ctx, productID)
 	if err != nil {

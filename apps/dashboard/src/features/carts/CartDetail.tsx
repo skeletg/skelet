@@ -44,6 +44,7 @@ import { LinePrice } from './offer/LinePrice'
 import { OfferActions } from './offer/OfferActions'
 import { OfferEditor } from './offer/OfferEditor'
 import { OfferStateBadge } from './offer/OfferStateBadge'
+import { CartStatusBadges } from './CartStatusBadges'
 import { PluginSections } from '@/plugins/detail-sections'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
@@ -116,9 +117,7 @@ export function CartDetail() {
                 <OfferStateBadge state={offer.state} />
               </>
             ) : (
-              <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
-                {cart.status}
-              </Badge>
+              <CartStatusBadges status={cart.status} source={cart.source} />
             )
           }
           meta={

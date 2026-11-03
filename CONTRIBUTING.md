@@ -31,12 +31,12 @@ start, and an issue is the right way to ask for an extension point that's missin
 
 ## Running it yourself
 
-You need Docker; everything else runs in containers. In a clone the front door is
-`./skelet` - install the CLI the way the README shows and the `./` goes.
+You need Docker; everything else runs in containers. The front door is the `skelet`
+CLI - install it the way the README shows, and in a clone it runs that clone's own code.
 
 ```bash
-./skelet setup     # picks apps, writes env files, migrates, boots
-./skelet           # lists every command
+skelet setup     # picks apps, writes env files, migrates, boots
+skelet           # lists every command
 ```
 
 [AGENTS.md](AGENTS.md) is the map of the repo, and [docs/README.md](docs/README.md)

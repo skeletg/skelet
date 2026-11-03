@@ -137,18 +137,36 @@ func (r *postgresRepository) GetListingProductIDByChannelURL(ctx context.Context
 
 func toListing(row db.ProductChannelListing) ProductChannelListing {
 	return ProductChannelListing{
-		ProductID:      row.ProductID,
-		ChannelID:      row.ChannelID,
-		Price:          sqlnull.Int64Ptr(row.Price),
-		IsPublished:    row.IsPublished,
-		URL:            sqlnull.StringPtr(row.Url),
-		CompareAtPrice: sqlnull.Int64Ptr(row.CompareAtPrice),
-		SpecialPrice:   sqlnull.Int64Ptr(row.SpecialPrice),
-		SpecialFrom:    sqlnull.TimePtr(row.SpecialFrom),
-		SpecialTo:      sqlnull.TimePtr(row.SpecialTo),
-		CreatedAt:      row.CreatedAt,
-		UpdatedAt:      row.UpdatedAt,
+		ProductID:             row.ProductID,
+		ChannelID:             row.ChannelID,
+		Price:                 sqlnull.Int64Ptr(row.Price),
+		IsPublished:           row.IsPublished,
+		URL:                   sqlnull.StringPtr(row.Url),
+		CompareAtPrice:        sqlnull.Int64Ptr(row.CompareAtPrice),
+		SpecialPrice:          sqlnull.Int64Ptr(row.SpecialPrice),
+		SpecialFrom:           sqlnull.TimePtr(row.SpecialFrom),
+		SpecialTo:             sqlnull.TimePtr(row.SpecialTo),
+		BundlePricing:         BundlePricing(row.BundlePricing),
+		BundleDiscountPercent: row.BundleDiscountPercent,
+		CreatedAt:             row.CreatedAt,
+		UpdatedAt:             row.UpdatedAt,
 	}
+}
+
+func (r *postgresRepository) SetProductChannelListingBundlePricing(ctx context.Context, productID, channelID uuid.UUID, mode BundlePricing, discountPercent int16) (ProductChannelListing, error) {
+	row, err := r.queries.SetProductChannelListingBundlePricing(ctx, db.SetProductChannelListingBundlePricingParams{
+		ProductID:             productID,
+		ChannelID:             channelID,
+		BundlePricing:         db.CatalogBundlePricing(mode),
+		BundleDiscountPercent: discountPercent,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return ProductChannelListing{}, ErrListingNotFound
+	}
+	if err != nil {
+		return ProductChannelListing{}, fmt.Errorf("set listing bundle pricing: %w", err)
+	}
+	return toListing(row), nil
 }
 
 func (r *postgresRepository) UpsertProductChannelListingPublished(ctx context.Context, productID, channelID uuid.UUID, published bool) (ProductChannelListing, error) {

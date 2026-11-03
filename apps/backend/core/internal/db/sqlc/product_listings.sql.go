@@ -102,7 +102,7 @@ func (q *Queries) GetListingProductIDByChannelURL(ctx context.Context, arg GetLi
 }
 
 const getProductChannelListing = `-- name: GetProductChannelListing :one
-SELECT product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to FROM catalog_product_channel_listings
+SELECT product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to, bundle_pricing, bundle_discount_percent FROM catalog_product_channel_listings
 WHERE product_id = $1 AND channel_id = $2
 `
 
@@ -126,12 +126,14 @@ func (q *Queries) GetProductChannelListing(ctx context.Context, arg GetProductCh
 		&i.SpecialPrice,
 		&i.SpecialFrom,
 		&i.SpecialTo,
+		&i.BundlePricing,
+		&i.BundleDiscountPercent,
 	)
 	return i, err
 }
 
 const listProductChannelListingsByChannel = `-- name: ListProductChannelListingsByChannel :many
-SELECT product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to FROM catalog_product_channel_listings
+SELECT product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to, bundle_pricing, bundle_discount_percent FROM catalog_product_channel_listings
 WHERE channel_id = $1
 ORDER BY product_id
 `
@@ -157,6 +159,8 @@ func (q *Queries) ListProductChannelListingsByChannel(ctx context.Context, chann
 			&i.SpecialPrice,
 			&i.SpecialFrom,
 			&i.SpecialTo,
+			&i.BundlePricing,
+			&i.BundleDiscountPercent,
 		); err != nil {
 			return nil, err
 		}
@@ -172,7 +176,7 @@ func (q *Queries) ListProductChannelListingsByChannel(ctx context.Context, chann
 }
 
 const listProductChannelListingsByProduct = `-- name: ListProductChannelListingsByProduct :many
-SELECT product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to FROM catalog_product_channel_listings
+SELECT product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to, bundle_pricing, bundle_discount_percent FROM catalog_product_channel_listings
 WHERE product_id = $1
 ORDER BY channel_id
 `
@@ -198,6 +202,8 @@ func (q *Queries) ListProductChannelListingsByProduct(ctx context.Context, produ
 			&i.SpecialPrice,
 			&i.SpecialFrom,
 			&i.SpecialTo,
+			&i.BundlePricing,
+			&i.BundleDiscountPercent,
 		); err != nil {
 			return nil, err
 		}
@@ -213,7 +219,7 @@ func (q *Queries) ListProductChannelListingsByProduct(ctx context.Context, produ
 }
 
 const listProductChannelListingsByProductIDs = `-- name: ListProductChannelListingsByProductIDs :many
-SELECT product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to FROM catalog_product_channel_listings
+SELECT product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to, bundle_pricing, bundle_discount_percent FROM catalog_product_channel_listings
 WHERE product_id = ANY($1::uuid[])
 ORDER BY product_id, channel_id
 `
@@ -240,6 +246,8 @@ func (q *Queries) ListProductChannelListingsByProductIDs(ctx context.Context, pr
 			&i.SpecialPrice,
 			&i.SpecialFrom,
 			&i.SpecialTo,
+			&i.BundlePricing,
+			&i.BundleDiscountPercent,
 		); err != nil {
 			return nil, err
 		}
@@ -255,7 +263,7 @@ func (q *Queries) ListProductChannelListingsByProductIDs(ctx context.Context, pr
 }
 
 const listProductChannelListingsByProductIDsForChannel = `-- name: ListProductChannelListingsByProductIDsForChannel :many
-SELECT product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to FROM catalog_product_channel_listings
+SELECT product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to, bundle_pricing, bundle_discount_percent FROM catalog_product_channel_listings
 WHERE product_id = ANY($1::uuid[]) AND channel_id = $2
 ORDER BY product_id
 `
@@ -286,6 +294,8 @@ func (q *Queries) ListProductChannelListingsByProductIDsForChannel(ctx context.C
 			&i.SpecialPrice,
 			&i.SpecialFrom,
 			&i.SpecialTo,
+			&i.BundlePricing,
+			&i.BundleDiscountPercent,
 		); err != nil {
 			return nil, err
 		}
@@ -298,6 +308,49 @@ func (q *Queries) ListProductChannelListingsByProductIDsForChannel(ctx context.C
 		return nil, err
 	}
 	return items, nil
+}
+
+const setProductChannelListingBundlePricing = `-- name: SetProductChannelListingBundlePricing :one
+UPDATE catalog_product_channel_listings
+SET bundle_pricing          = $1,
+    bundle_discount_percent = $2,
+    updated_at              = NOW()
+WHERE product_id = $3 AND channel_id = $4
+RETURNING product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to, bundle_pricing, bundle_discount_percent
+`
+
+type SetProductChannelListingBundlePricingParams struct {
+	BundlePricing         CatalogBundlePricing `json:"bundle_pricing"`
+	BundleDiscountPercent int16                `json:"bundle_discount_percent"`
+	ProductID             uuid.UUID            `json:"product_id"`
+	ChannelID             uuid.UUID            `json:"channel_id"`
+}
+
+// Its own statement so the listing upsert, which every listing form drives, never resets a bundle's pricing
+func (q *Queries) SetProductChannelListingBundlePricing(ctx context.Context, arg SetProductChannelListingBundlePricingParams) (ProductChannelListing, error) {
+	row := q.db.QueryRowContext(ctx, setProductChannelListingBundlePricing,
+		arg.BundlePricing,
+		arg.BundleDiscountPercent,
+		arg.ProductID,
+		arg.ChannelID,
+	)
+	var i ProductChannelListing
+	err := row.Scan(
+		&i.ProductID,
+		&i.ChannelID,
+		&i.Price,
+		&i.IsPublished,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Url,
+		&i.CompareAtPrice,
+		&i.SpecialPrice,
+		&i.SpecialFrom,
+		&i.SpecialTo,
+		&i.BundlePricing,
+		&i.BundleDiscountPercent,
+	)
+	return i, err
 }
 
 const upsertProductChannelListing = `-- name: UpsertProductChannelListing :one
@@ -315,7 +368,7 @@ SET price            = EXCLUDED.price,
     special_from     = EXCLUDED.special_from,
     special_to       = EXCLUDED.special_to,
     updated_at       = NOW()
-RETURNING product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to
+RETURNING product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to, bundle_pricing, bundle_discount_percent
 `
 
 type UpsertProductChannelListingParams struct {
@@ -355,6 +408,8 @@ func (q *Queries) UpsertProductChannelListing(ctx context.Context, arg UpsertPro
 		&i.SpecialPrice,
 		&i.SpecialFrom,
 		&i.SpecialTo,
+		&i.BundlePricing,
+		&i.BundleDiscountPercent,
 	)
 	return i, err
 }
@@ -365,7 +420,7 @@ VALUES ($1, $2, $3)
 ON CONFLICT (product_id, channel_id) DO UPDATE
 SET is_published = EXCLUDED.is_published,
     updated_at   = NOW()
-RETURNING product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to
+RETURNING product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to, bundle_pricing, bundle_discount_percent
 `
 
 type UpsertProductChannelListingPublishedParams struct {
@@ -390,6 +445,8 @@ func (q *Queries) UpsertProductChannelListingPublished(ctx context.Context, arg 
 		&i.SpecialPrice,
 		&i.SpecialFrom,
 		&i.SpecialTo,
+		&i.BundlePricing,
+		&i.BundleDiscountPercent,
 	)
 	return i, err
 }

@@ -14,7 +14,7 @@ x-logging: &logging
 # Nested passwords are plain defaults, not :?, since compose expands them even when the URL is set - the bundled containers refuse an empty one
 # What the internet-facing beacon tier gets - it verifies customer sessions with the public key alone and serves no contract, so it can sign nothing
 x-edge-secrets: &edge-secrets
-  CUSTOMER_JWT_PUBLIC_KEY: ${CUSTOMER_JWT_PUBLIC_KEY:?set CUSTOMER_JWT_PUBLIC_KEY in the root .env (./skelet setup, or ./skelet cli keys customer)}
+  CUSTOMER_JWT_PUBLIC_KEY: ${CUSTOMER_JWT_PUBLIC_KEY:?set CUSTOMER_JWT_PUBLIC_KEY in the root .env (skelet setup, or skelet cli keys customer)}
   CUSTOMER_JWT_PUBLIC_KEY_PREVIOUS: ${CUSTOMER_JWT_PUBLIC_KEY_PREVIOUS:-}
   VALKEY_URL: ${VALKEY_URL-redis://:${VALKEY_PASSWORD:-}@valkey:6379}
   # The evictable half of the split - caches, rate-limit counters and persisted queries live here on an allkeys-lru instance, so an anonymous cache flood is reclaimed instead of filling the noeviction primary and taking auth-token writes down with it - auto-points at valkey-cache when a password exists, unset with no password (Postgres-only) leaves it empty so everything shares the primary (nil) - set it outright to point caches at a managed instance
@@ -36,7 +36,7 @@ x-core-secrets: &core-secrets
   # The two keys that mint sessions - nothing outside core holds either
   ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?set ADMIN_JWT_SECRET in the root .env (openssl rand -hex 32)}
   ADMIN_JWT_SECRET_PREVIOUS: ${ADMIN_JWT_SECRET_PREVIOUS:-}
-  CUSTOMER_JWT_PRIVATE_KEY: ${CUSTOMER_JWT_PRIVATE_KEY:?set CUSTOMER_JWT_PRIVATE_KEY in the root .env (./skelet setup, or ./skelet cli keys customer)}
+  CUSTOMER_JWT_PRIVATE_KEY: ${CUSTOMER_JWT_PRIVATE_KEY:?set CUSTOMER_JWT_PRIVATE_KEY in the root .env (skelet setup, or skelet cli keys customer)}
   REVIEW_VOTER_TOKEN_SECRET: ${REVIEW_VOTER_TOKEN_SECRET:?set REVIEW_VOTER_TOKEN_SECRET in the root .env (openssl rand -hex 32)}
   CONFIG_ENCRYPTION_KEY: ${CONFIG_ENCRYPTION_KEY:?set CONFIG_ENCRYPTION_KEY in the root .env (openssl rand -base64 32)}
   STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
@@ -274,15 +274,20 @@ services:
     logging: *logging
 
   # One replica: its page cache lives in the process, so a purge reaches only the container that answers it (docs/deploying.md)
-  vetrina-demo:
-    image: ${VETRINA_DEMO_IMAGE:-skelet-vetrina-demo:prod}
+  nextjs-vetrina:
+    profiles: ["nextjs-vetrina"]
+    image: ${NEXTJS_VETRINA_IMAGE:-skelet-nextjs-vetrina:prod}
+    init: true
     build:
-      context: ./apps/channels/vetrina-demo
-      dockerfile: Dockerfile.prod
+      # The repo root, the workspace the storefront shares packages through - the Dockerfile's own .dockerignore keeps
+      # the context to what it copies
+      context: .
+      dockerfile: templates/nextjs-vetrina/Dockerfile.prod
       args:
         UPLOAD_ORIGINS: ${UPLOAD_ORIGINS:-}
+        NEXT_PUBLIC_DASHBOARD_ORIGIN: ${NEXT_PUBLIC_DASHBOARD_ORIGIN:-}
     # Own env file - the most exposed container shouldn't hold DB/S3/SMTP creds
-    env_file: [env/prod-vetrina-demo.env]
+    env_file: [env/prod-nextjs-vetrina.env]
     ports: ["127.0.0.1:3000:3000"]
     environment:
       # In-network backend - environment beats env_file
@@ -293,17 +298,35 @@ services:
       STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
     depends_on:
       app: { condition: service_healthy }
-    healthcheck:
-      # node so the standalone image needs no extra binaries
-      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/api/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
     restart: unless-stopped
     deploy:
       resources:
         limits: { memory: 512m, cpus: "1" }
+    logging: *logging
+
+  # Opt-in - `--profile astro-shop` - so a deployment without its env file still starts
+  astro-shop:
+    profiles: ["astro-shop"]
+    image: ${ASTRO_SHOP_IMAGE:-skelet-astro-shop:prod}
+    init: true
+    build:
+      # The repo root, the workspace it shares packages through - the Dockerfile's own .dockerignore keeps the context small
+      context: .
+      dockerfile: templates/astro-shop/Dockerfile.prod
+    # Own env file - the most exposed container shouldn't hold DB/S3/SMTP creds
+    env_file: [env/prod-astro-shop.env]
+    ports: ["127.0.0.1:3001:3000"]
+    environment:
+      BACKEND_INTERNAL_URL: http://app:8080
+      # Shared with the backend, from the same root .env it reads
+      STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
+    depends_on:
+      app: { condition: service_healthy }
+    restart: unless-stopped
+    deploy:
+      resources:
+        # The route cache lives in this process's memory
+        limits: { memory: 384m, cpus: "1" }
     logging: *logging
 
   # Opt-in TLS edge - `--profile edge` - everything else here binds to 127.0.0.1 and expects your own proxy; this is for the deployments that don't have one already
@@ -325,7 +348,7 @@ services:
     depends_on:
       app: { condition: service_healthy }
       dashboard: { condition: service_healthy }
-      vetrina-demo: { condition: service_healthy, required: false }
+      nextjs-vetrina: { condition: service_healthy, required: false }
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
       interval: 15s
