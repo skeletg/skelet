@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"math"
 
 	"github.com/google/uuid"
 
@@ -113,11 +114,45 @@ func refundedMerchandiseFraction(ctx context.Context, repo Repository, o Order) 
 	return f, nil
 }
 
-// ReturnLineInput is one (order line, quantity) requested for return
+// ReturnLineInput is one (order line, quantity) requested for return - or, with ComponentID, a quantity of one component of a bundle line
 type ReturnLineInput struct {
 	OrderLineID uuid.UUID
 	Quantity    float64
 	Reason      string
+	ComponentID *uuid.UUID
+}
+
+// What a return line names - a whole order line, or one component of a bundle line
+type returnKey struct{ line, component uuid.UUID }
+
+// A component unit's refund: its price share of one bundle's refund basis, so the components of a bundle refund to what it cost
+func componentRefundUnit(l OrderLine, c OrderLineComponent, lineUnit int64) int64 {
+	if l.Quantity <= 0 {
+		return 0
+	}
+	var perBundle float64
+	for _, x := range l.Components {
+		perBundle += float64(x.UnitPrice) * x.Quantity / l.Quantity
+	}
+	if perBundle <= 0 {
+		return 0
+	}
+	return int64(math.Round(float64(lineUnit) * float64(c.UnitPrice) / perBundle))
+}
+
+// Component units left to return on their own: shipped bundles' worth, less whole bundles and the component's own returns
+func componentReturnable(o Order, returnable, returnedComp map[uuid.UUID]float64) map[uuid.UUID]float64 {
+	out := map[uuid.UUID]float64{}
+	for _, l := range o.Lines {
+		if l.Quantity <= 0 {
+			continue
+		}
+		for _, c := range l.Components {
+			perBundle := c.Quantity / l.Quantity
+			out[c.ID] = max(returnable[l.ID]*perBundle-returnedComp[c.ID], 0)
+		}
+	}
+	return out
 }
 
 // RequestReturnInput opens an RMA against shipped quantities of an order
@@ -162,6 +197,10 @@ func (s *Service) returnableFor(ctx context.Context, repo Repository, o Order) (
 	if err != nil {
 		return nil, err
 	}
+	returnedComp, err := repo.ReturnedByComponent(ctx, o.ID)
+	if err != nil {
+		return nil, err
+	}
 	cnt, err := repo.CountFulfillments(ctx, o.ID)
 	if err != nil {
 		return nil, err
@@ -173,13 +212,41 @@ func (s *Service) returnableFor(ctx context.Context, repo Repository, o Order) (
 		if legacyFulfilled {
 			shippedQty = l.Quantity
 		}
-		if rem := shippedQty - returned[l.ID]; rem > 0 {
+		// A bundle with any component already back can't go back whole as well - that component would be refunded twice
+		var broken float64
+		for _, c := range l.Components {
+			if per := c.Quantity / l.Quantity; per > 0 && l.Quantity > 0 {
+				broken = max(broken, math.Ceil(returnedComp[c.ID]/per-1e-9))
+			}
+		}
+		if rem := shippedQty - returned[l.ID] - broken; rem > 0 {
 			out[l.ID] = rem
 		} else {
 			out[l.ID] = 0
 		}
 	}
 	return out, nil
+}
+
+// The component-level remainder beside returnableFor's whole lines - a component returned on its own takes from the
+// bundles still whole, then from what is left of its own units
+func (s *Service) componentReturnableFor(ctx context.Context, repo Repository, o Order, returnable map[uuid.UUID]float64) (map[uuid.UUID]float64, error) {
+	returnedComp, err := repo.ReturnedByComponent(ctx, o.ID)
+	if err != nil {
+		return nil, err
+	}
+	shipped := make(map[uuid.UUID]float64, len(returnable))
+	for _, l := range o.Lines {
+		// The bundles a component can still come out of: whole ones left, plus those already broken by component returns
+		var broken float64
+		for _, c := range l.Components {
+			if l.Quantity > 0 && c.Quantity > 0 {
+				broken = max(broken, math.Ceil(returnedComp[c.ID]/(c.Quantity/l.Quantity)-1e-9))
+			}
+		}
+		shipped[l.ID] = returnable[l.ID] + broken
+	}
+	return componentReturnable(o, shipped, returnedComp), nil
 }
 
 // RequestReturn opens a return for shipped quantities - validates the order has shipped, each line belongs to it, and the quantity is within the returnable remainder - Snapshots each line's discounted per-unit basis so the refund survives later edits, then writes the return + lines in one tx
@@ -211,46 +278,78 @@ func (s *Service) RequestReturn(ctx context.Context, in RequestReturnInput) (Ord
 	}
 
 	refundUnit := refundUnitByLine(o)
-	orderedQty := make(map[uuid.UUID]float64, len(o.Lines))
+	lineByID := make(map[uuid.UUID]OrderLine, len(o.Lines))
+	compByID := make(map[uuid.UUID]OrderLineComponent)
 	for _, l := range o.Lines {
-		orderedQty[l.ID] = l.Quantity
+		lineByID[l.ID] = l
+		for _, c := range l.Components {
+			compByID[c.ID] = c
+		}
 	}
 
 	returnable, err := s.returnableForOrder(ctx, o)
 	if err != nil {
 		return OrderReturn{}, err
 	}
+	compReturnable, err := s.componentReturnableFor(ctx, s.repo, o, returnable)
+	if err != nil {
+		return OrderReturn{}, err
+	}
+	exceeds := func(req map[returnKey]float64, whole, comp map[uuid.UUID]float64) bool {
+		for k, qty := range req {
+			if k.component == uuid.Nil && qty > whole[k.line]+1e-9 || k.component != uuid.Nil && qty > comp[k.component]+1e-9 {
+				return true
+			}
+		}
+		return false
+	}
 
 	// Validate + dedupe the requested lines, guarding the returnable remainder
-	reqByLine := make(map[uuid.UUID]float64, len(in.Lines))
-	reasonByLine := make(map[uuid.UUID]string, len(in.Lines))
-	order := make([]uuid.UUID, 0, len(in.Lines))
+	reqByKey := make(map[returnKey]float64, len(in.Lines))
+	reasonByKey := make(map[returnKey]string, len(in.Lines))
+	order := make([]returnKey, 0, len(in.Lines))
 	for _, rl := range in.Lines {
-		if _, ok := orderedQty[rl.OrderLineID]; !ok {
+		l, ok := lineByID[rl.OrderLineID]
+		if !ok {
 			return OrderReturn{}, apperr.New("RETURN_UNKNOWN_LINE", apperr.ClassValidation, "return line does not belong to this order")
+		}
+		key := returnKey{line: l.ID}
+		if rl.ComponentID != nil {
+			if c, ok := compByID[*rl.ComponentID]; !ok || c.OrderLineID != l.ID {
+				return OrderReturn{}, apperr.New("RETURN_UNKNOWN_LINE", apperr.ClassValidation, "return component does not belong to that line")
+			}
+			key.component = *rl.ComponentID
 		}
 		if rl.Quantity <= 0 {
 			return OrderReturn{}, apperr.New("RETURN_INVALID_QTY", apperr.ClassValidation, "return quantity must be positive")
 		}
-		if _, seen := reqByLine[rl.OrderLineID]; !seen {
-			order = append(order, rl.OrderLineID)
-			reasonByLine[rl.OrderLineID] = rl.Reason
+		if _, seen := reqByKey[key]; !seen {
+			order = append(order, key)
+			reasonByKey[key] = rl.Reason
 		}
-		reqByLine[rl.OrderLineID] += rl.Quantity
-		if reqByLine[rl.OrderLineID] > returnable[rl.OrderLineID] {
-			return OrderReturn{}, apperr.New("RETURN_EXCEEDS_SHIPPED", apperr.ClassConflict,
-				"return exceeds the returnable (shipped − already returned) quantity for a line")
+		reqByKey[key] += rl.Quantity
+	}
+	// A bundle returned whole and in components in one request would count its components twice
+	for k := range reqByKey {
+		if k.component != uuid.Nil && reqByKey[returnKey{line: k.line}] > 0 {
+			return OrderReturn{}, apperr.New("RETURN_BUNDLE_MIXED", apperr.ClassValidation, "return a bundle line whole or by its components, not both at once")
 		}
+	}
+	if exceeds(reqByKey, returnable, compReturnable) {
+		return OrderReturn{}, apperr.New("RETURN_EXCEEDS_SHIPPED", apperr.ClassConflict,
+			"return exceeds the returnable (shipped − already returned) quantity for a line")
 	}
 
 	// Remote returns-policy gate - after the native guard, before any write, so a
 	// slow call never holds the tx. fail_open allows, fail_closed refuses
 	if s.remoteReturns != nil {
 		policyLines := make([]RemoteReturnLine, 0, len(order))
-		for _, lineID := range order {
-			policyLines = append(policyLines, RemoteReturnLine{
-				OrderLineID: lineID, Quantity: reqByLine[lineID], Reason: reasonByLine[lineID],
-			})
+		for _, k := range order {
+			pl := RemoteReturnLine{OrderLineID: k.line, Quantity: reqByKey[k], Reason: reasonByKey[k]}
+			if k.component != uuid.Nil {
+				pl.ComponentID = &k.component
+			}
+			policyLines = append(policyLines, pl)
 		}
 		if allowed, reason := s.remoteReturns.Allowed(ctx, RemoteReturnInput{
 			OrderID: o.ID, ChannelID: o.ChannelID, Resolution: string(resolution), RefundTarget: string(target), Lines: policyLines,
@@ -270,11 +369,13 @@ func (s *Service) RequestReturn(ctx context.Context, in RequestReturnInput) (Ord
 		if err != nil {
 			return err
 		}
-		for lineID, qty := range reqByLine {
-			if qty > locked[lineID] {
-				return apperr.New("RETURN_EXCEEDS_SHIPPED", apperr.ClassConflict,
-					"return exceeds the returnable (shipped − already returned) quantity for a line")
-			}
+		lockedComp, err := s.componentReturnableFor(ctx, r, o, locked)
+		if err != nil {
+			return err
+		}
+		if exceeds(reqByKey, locked, lockedComp) {
+			return apperr.New("RETURN_EXCEEDS_SHIPPED", apperr.ClassConflict,
+				"return exceeds the returnable (shipped − already returned) quantity for a line")
 		}
 		ret, err := r.CreateReturn(ctx, OrderReturn{
 			OrderID:      o.ID,
@@ -288,13 +389,14 @@ func (s *Service) RequestReturn(ctx context.Context, in RequestReturnInput) (Ord
 		if err != nil {
 			return err
 		}
-		for _, lineID := range order {
-			if _, err := r.AddReturnLine(ctx, ret.ID, OrderReturnLine{
-				OrderLineID:     lineID,
-				Quantity:        reqByLine[lineID],
-				Reason:          reasonByLine[lineID],
-				RefundUnitCents: refundUnit[lineID],
-			}); err != nil {
+		for _, k := range order {
+			rl := OrderReturnLine{OrderLineID: k.line, Quantity: reqByKey[k], Reason: reasonByKey[k], RefundUnitCents: refundUnit[k.line]}
+			if k.component != uuid.Nil {
+				comp := k.component
+				rl.ComponentID = &comp
+				rl.RefundUnitCents = componentRefundUnit(lineByID[k.line], compByID[comp], refundUnit[k.line])
+			}
+			if _, err := r.AddReturnLine(ctx, ret.ID, rl); err != nil {
 				return err
 			}
 		}
@@ -400,7 +502,11 @@ func (s *Service) ReceiveReturn(ctx context.Context, returnID uuid.UUID) (OrderR
 	restockLines := make([]ReturnLineQty, 0, len(ret.Lines))
 	if ret.Restock {
 		for _, l := range ret.Lines {
-			restockLines = append(restockLines, ReturnLineQty{OrderLineID: l.OrderLineID, Quantity: l.Quantity})
+			rq := ReturnLineQty{OrderLineID: l.OrderLineID, Quantity: l.Quantity}
+			if c, ok := componentOf(o, l.ComponentID); ok {
+				rq.ProductID = &c.ProductID // only that component goes back on the shelf, Quantity in its units
+			}
+			restockLines = append(restockLines, rq)
 		}
 	}
 
@@ -465,7 +571,11 @@ func (s *Service) createExchangeDraft(ctx context.Context, o Order, ret OrderRet
 		if !ok {
 			continue
 		}
-		lines = append(lines, CreateDraftLine{ProductSku: src.ProductSku, Quantity: rl.Quantity, UnitPriceCents: &zero})
+		sku := src.ProductSku
+		if c, ok := componentOf(o, rl.ComponentID); ok {
+			sku = c.ProductSku // a returned component is exchanged for that component, not the whole bundle
+		}
+		lines = append(lines, CreateDraftLine{ProductSku: sku, Quantity: rl.Quantity, UnitPriceCents: &zero})
 	}
 	if len(lines) == 0 {
 		return Order{}, fmt.Errorf("no exchangeable lines resolved")
@@ -734,4 +844,18 @@ func (s *Service) buildRefunded(ctx context.Context, repo Repository, o Order, m
 		MerchandiseFraction: fraction,
 		FullyRefunded:       derivePaymentStatus(totals, o.AmountDue(), o.TotalAmount) == PaymentRefunded,
 	}, nil
+}
+
+func componentOf(o Order, id *uuid.UUID) (OrderLineComponent, bool) {
+	if id == nil {
+		return OrderLineComponent{}, false
+	}
+	for _, l := range o.Lines {
+		for _, c := range l.Components {
+			if c.ID == *id {
+				return c, true
+			}
+		}
+	}
+	return OrderLineComponent{}, false
 }

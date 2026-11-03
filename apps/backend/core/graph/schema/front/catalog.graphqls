@@ -142,6 +142,9 @@ type Product {
   configurableOptions: [Attribute!]!
   # Empty unless kind == BUNDLE.
   bundleOptions:       [BundleOption!]!
+  # How this bundle is priced on the request's store: SUM adds up the picks, FIXED charges price whatever is picked, SUM_MINUS_PERCENT takes bundleDiscountPercent off the sum. Other kinds read SUM
+  bundlePricing:         BundlePricing!
+  bundleDiscountPercent: Int!
   # Empty unless kind == GROUPED.
   groupedMembers:      [GroupedMember!]!
   # Customer-facing custom options (engraving, gift wrap, add-ons, …).
@@ -180,6 +183,12 @@ type PromotionalDisplay {
   pillBgColor:     String!
 }
 
+enum BundlePricing {
+  SUM
+  FIXED
+  SUM_MINUS_PERCENT
+}
+
 enum BundleInputType {
   RADIO
   DROPDOWN
@@ -193,6 +202,9 @@ type BundleOption {
   inputType:  BundleInputType!
   isRequired: Boolean!
   sortOrder:  Int!
+  # How many picks a checkbox/multiselect option takes. 0 is no explicit minimum (a required option still needs one), null no maximum. Single-select ignores both. Add-to-cart enforces them
+  minSelections: Int!
+  maxSelections: Int
   title:      String!
   selections: [BundleSelection!]!
 }
@@ -204,6 +216,10 @@ type BundleSelection {
   quantity:  Float!
   isDefault: Boolean!
   sortOrder: Int!
+  # Whole percent off this pick's price - the cart charges it already discounted
+  discountPercent:  Int!
+  # The customer sets how many of it go in each bundle, quantity being where it starts
+  customerQuantity: Boolean!
 }
 
 # One member SIMPLE product attached to a GROUPED parent. The customer sees each member rendered with its own image/name/qty input on the PDP and can adjust how many of each to add at once.

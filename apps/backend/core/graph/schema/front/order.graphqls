@@ -65,6 +65,17 @@ type OrderLine {
   isGift:      Boolean!
   # Custom-option picks the customer configured (engraving, gift wrap, …).
   options:     [OrderLineOption!]!
+  # A bundle line's picked components, as snapshotted at checkout. Empty for every other line
+  components:  [OrderLineComponent!]!
+}
+
+type OrderLineComponent {
+  id:          ID!
+  sku:         String!
+  name:        String!
+  unitPrice:   Int!
+  # Already multiplied by the parent line quantity, so it is what actually ships
+  quantity:    Float!
 }
 
 # A single product custom-option pick snapshotted onto an order line.
@@ -121,6 +132,8 @@ type OrderReturnLine {
   orderLineId: ID!
   quantity:    Float!
   reason:      String!
+  # Set when one component of a bundle line came back on its own
+  componentId: ID
 }
 
 # Remaining returnable quantity (shipped − already returned) for one order
@@ -156,6 +169,9 @@ input ReturnLineInput {
   orderLineId: ID!
   quantity:    Float!
   reason:      String
+  # One component of a bundle line, from its OrderLine.components - quantity then counts that component's units, the
+  # refund is its share of the line, and only it is restocked. A line is returned whole or by components, not both at once
+  componentId: ID
 }
 
 extend type Order {

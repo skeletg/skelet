@@ -546,11 +546,12 @@ func (r *postgresRepository) SetReturnExchangeOrder(ctx context.Context, returnI
 
 func (r *postgresRepository) AddReturnLine(ctx context.Context, returnID uuid.UUID, line OrderReturnLine) (OrderReturnLine, error) {
 	row, err := r.queries.AddOrderReturnLine(ctx, db.AddOrderReturnLineParams{
-		ReturnID:        returnID,
-		OrderLineID:     line.OrderLineID,
-		Quantity:        line.Quantity,
-		Reason:          line.Reason,
-		RefundUnitCents: line.RefundUnitCents,
+		ReturnID:             returnID,
+		OrderLineID:          line.OrderLineID,
+		Quantity:             line.Quantity,
+		Reason:               line.Reason,
+		RefundUnitCents:      line.RefundUnitCents,
+		OrderLineComponentID: sqlnull.UUID(line.ComponentID),
 	})
 	if err != nil {
 		return OrderReturnLine{}, fmt.Errorf("add return line: %w", err)
@@ -727,7 +728,20 @@ func toOrderReturnLine(row db.OrderReturnLine) OrderReturnLine {
 		Quantity:        row.Quantity,
 		Reason:          row.Reason,
 		RefundUnitCents: row.RefundUnitCents,
+		ComponentID:     sqlnull.UUIDPtr(row.OrderLineComponentID),
 	}
+}
+
+func (r *postgresRepository) ReturnedByComponent(ctx context.Context, orderID uuid.UUID) (map[uuid.UUID]float64, error) {
+	rows, err := r.queries.SumReturnedQtyByComponent(ctx, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("sum returned by component: %w", err)
+	}
+	out := make(map[uuid.UUID]float64, len(rows))
+	for _, row := range rows {
+		out[row.ComponentID] = row.Returned
+	}
+	return out, nil
 }
 
 func (r *postgresRepository) CreateOrder(ctx context.Context, o Order) (Order, error) {

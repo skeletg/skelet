@@ -24,7 +24,7 @@ func rateItemsFromLines(lines []OrderLine) ([]shippingpkg.RateItem, int64) {
 		if l.IsCustom {
 			continue
 		}
-		out = append(out, shippingpkg.RateItem{SKU: l.ProductSku, Quantity: l.Quantity, UnitPriceCents: l.UnitPrice})
+		out = append(out, shippingpkg.LineItems(shippingpkg.RateItem{SKU: l.ProductSku, Quantity: l.Quantity, UnitPriceCents: l.UnitPrice}, l.Quantity, orderLineParts(l))...)
 		subtotal += money.LineTotal(l.UnitPrice, l.Quantity)
 	}
 	return out, subtotal

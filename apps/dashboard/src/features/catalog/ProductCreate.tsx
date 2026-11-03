@@ -51,7 +51,7 @@ const KIND_OPTIONS: { value: ProductKind; label: string; description: string; Ic
   {
     value: 'BUNDLE',
     label: 'Bundle',
-    description: 'A pick-your-mix product: customer chooses components from option menus you define after creation.',
+    description: 'A pick-your-mix product: the customer chooses its contents from options you define after creation. Same contents every time? Use Kit.',
     Icon: LayersIcon,
   },
   {

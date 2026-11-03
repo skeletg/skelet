@@ -164,6 +164,7 @@ query Order($id: ID!) {
         quantity
         reason
         refundUnitCents
+        componentId
       }
       createdAt
       updatedAt

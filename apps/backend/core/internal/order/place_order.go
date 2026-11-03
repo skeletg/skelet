@@ -410,7 +410,7 @@ func (s *Service) resolveShippingCents(ctx context.Context, in PlaceOrderInput, 
 func rateRequestFromCheckout(cc *checkoutContext, discount int64) shippingpkg.RateRequest {
 	items := make([]shippingpkg.RateItem, 0, len(cc.cart.Lines))
 	for _, l := range cc.cart.Lines {
-		items = append(items, shippingpkg.RateItem{SKU: l.ProductSku, Quantity: l.Quantity, UnitPriceCents: l.UnitPrice})
+		items = append(items, shippingpkg.LineItems(shippingpkg.RateItem{SKU: l.ProductSku, Quantity: l.Quantity, UnitPriceCents: l.UnitPrice}, l.Quantity, cartLineParts(l))...)
 	}
 	region := ""
 	if cc.shipping.State != nil {
@@ -760,4 +760,22 @@ func (s *Service) authorizePostPlacement(ctx context.Context, in PlaceOrderInput
 
 type lineValidator interface { // bundle availability plus each line's min/max/step
 	ValidateCheckoutLines(context.Context, cart.Cart) error
+}
+
+// A cart line's components as shipping parts - empty on anything but a bundle line
+func cartLineParts(l cart.CartLine) []shippingpkg.Part {
+	parts := make([]shippingpkg.Part, len(l.Components))
+	for i, c := range l.Components {
+		parts[i] = shippingpkg.Part{SKU: c.ProductSku, Quantity: c.Quantity, UnitPriceCents: c.UnitPrice}
+	}
+	return parts
+}
+
+// An order line's components as shipping parts
+func orderLineParts(l OrderLine) []shippingpkg.Part {
+	parts := make([]shippingpkg.Part, len(l.Components))
+	for i, c := range l.Components {
+		parts[i] = shippingpkg.Part{SKU: c.ProductSku, Quantity: c.Quantity, UnitPriceCents: c.UnitPrice}
+	}
+	return parts
 }

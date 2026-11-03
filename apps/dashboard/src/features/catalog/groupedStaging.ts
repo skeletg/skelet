@@ -1,7 +1,7 @@
 // Staging layer for the Grouped structure editor - mirrors bundleStaging.ts but with only one entity type - Members carry tempIds for
 // session additions, resolved to real ids as adds complete so later updates and deletes write to the right row
 
-import { collapseOps, isTemp, type OpView } from '@/features/catalog/stagingOps'
+import { CommitError, collapseOps, isTemp, type OpView } from '@/features/catalog/stagingOps'
 import type { SectionDiffEntry } from './productSaveRegistry'
 import { added, changed, removed } from '@/shared/saving/diff'
 
@@ -21,7 +21,7 @@ export type GroupedMember = {
   sortOrder: number
 }
 
-export { TEMP_PREFIX, isTemp, newTempId } from '@/features/catalog/stagingOps'
+export { CommitError, TEMP_PREFIX, isTemp, newTempId } from '@/features/catalog/stagingOps'
 
 
 export type AddMemberOp = {
@@ -167,24 +167,30 @@ export async function commitOps(
   const idMap = new Map<string, string>()
   const resolve = (id: string) => idMap.get(id) ?? id
 
-  for (const op of ops) {
-    switch (op.kind) {
-      case 'add-member': {
-        const realId = await committers.addMember({ ...op, parentId })
-        idMap.set(op.tempId, realId)
-        break
+  for (let i = 0; i < ops.length; i++) {
+    const op = ops[i]
+    try {
+      switch (op.kind) {
+        case 'add-member': {
+          const realId = await committers.addMember({ ...op, parentId })
+          idMap.set(op.tempId, realId)
+          break
+        }
+        case 'update-member': {
+          const id = resolve(op.id)
+          await committers.updateMember({ ...op, id })
+          break
+        }
+        case 'remove-member': {
+          const id = resolve(op.id)
+          if (isTemp(id)) break
+          await committers.removeMember({ id })
+          break
+        }
       }
-      case 'update-member': {
-        const id = resolve(op.id)
-        await committers.updateMember({ ...op, id })
-        break
-      }
-      case 'remove-member': {
-        const id = resolve(op.id)
-        if (isTemp(id)) break
-        await committers.removeMember({ id })
-        break
-      }
+    } catch (err) {
+      const remaining = ops.slice(i).map((o): PendingOp => (o.kind === 'add-member' ? o : { ...o, id: resolve(o.id) }))
+      throw new CommitError(err, remaining, idMap)
     }
   }
 

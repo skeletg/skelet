@@ -58,6 +58,12 @@ fragment OrderSummaryFields on Order {
       quantity
       fileUrl
     }
+    components {
+      id
+      sku
+      name
+      quantity
+    }
   }
 }
 

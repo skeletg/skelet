@@ -242,12 +242,16 @@ query Product($id: ID!) {
         }
       }
     }
+    bundlePricing
+    bundleDiscountPercent
     bundleOptions {
       id
       title
       inputType
       isRequired
       sortOrder
+      minSelections
+      maxSelections
       selections {
         id
         quantity
@@ -536,6 +540,32 @@ query ProductConfigurator($id: ID!) {
           ...ProductCustomOptionRuleFields
         }
         options { ...ProductConfiguratorPictures }
+      }
+    }
+  }
+}
+
+# What a bundle's selections carry beyond the Product query - a configurable's variants to pick from, add-on deals and
+# customer-set quantities - a query of its own because the Product query sits at the front surface's complexity cap
+query BundleSelectionExtras($id: ID!) {
+  product(id: $id) {
+    id
+    bundleOptions {
+      id
+      selections {
+        id
+        discountPercent
+        customerQuantity
+        product {
+          id
+          children {
+            id
+            sku
+            name
+            inStock
+            price
+          }
+        }
       }
     }
   }
