@@ -160,13 +160,14 @@ func (t *Tracker) resolveOrder(ctx context.Context, orderID uuid.UUID) (orderRef
 }
 
 // orderActor is who a guest order belongs to: the storefront visitor when one was sent, else a hash of the receipt email,
-// so admin drafts, headless shops and API orders still land and one guest's repeat orders read as one person
+// so admin drafts, headless shops and API orders still land and one guest's repeat orders read as one person - an erased
+// guest's scrubbed address names nobody, so their orders stay off the spine
 func orderActor(cust *uuid.UUID, anon, email string) string {
 	if cust != nil || anon != "" {
 		return anon
 	}
 	email = strings.ToLower(strings.TrimSpace(email))
-	if email == "" {
+	if email == "" || strings.HasSuffix(email, customer.RedactedEmailDomain) {
 		return ""
 	}
 	sum := sha256.Sum256([]byte(email))
