@@ -14,17 +14,18 @@ import (
 
 const addOrderReturnLine = `-- name: AddOrderReturnLine :one
 INSERT INTO order_return_lines (
-    return_id, order_line_id, quantity, reason, refund_unit_cents
-) VALUES ($1, $2, $3, $4, $5)
-RETURNING id, return_id, order_line_id, quantity, reason, refund_unit_cents, created_at
+    return_id, order_line_id, quantity, reason, refund_unit_cents, order_line_component_id
+) VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, return_id, order_line_id, quantity, reason, refund_unit_cents, created_at, order_line_component_id
 `
 
 type AddOrderReturnLineParams struct {
-	ReturnID        uuid.UUID `json:"return_id"`
-	OrderLineID     uuid.UUID `json:"order_line_id"`
-	Quantity        float64   `json:"quantity"`
-	Reason          string    `json:"reason"`
-	RefundUnitCents int64     `json:"refund_unit_cents"`
+	ReturnID             uuid.UUID     `json:"return_id"`
+	OrderLineID          uuid.UUID     `json:"order_line_id"`
+	Quantity             float64       `json:"quantity"`
+	Reason               string        `json:"reason"`
+	RefundUnitCents      int64         `json:"refund_unit_cents"`
+	OrderLineComponentID uuid.NullUUID `json:"order_line_component_id"`
 }
 
 func (q *Queries) AddOrderReturnLine(ctx context.Context, arg AddOrderReturnLineParams) (OrderReturnLine, error) {
@@ -34,6 +35,7 @@ func (q *Queries) AddOrderReturnLine(ctx context.Context, arg AddOrderReturnLine
 		arg.Quantity,
 		arg.Reason,
 		arg.RefundUnitCents,
+		arg.OrderLineComponentID,
 	)
 	var i OrderReturnLine
 	err := row.Scan(
@@ -44,6 +46,7 @@ func (q *Queries) AddOrderReturnLine(ctx context.Context, arg AddOrderReturnLine
 		&i.Reason,
 		&i.RefundUnitCents,
 		&i.CreatedAt,
+		&i.OrderLineComponentID,
 	)
 	return i, err
 }
@@ -122,7 +125,7 @@ func (q *Queries) GetOrderReturn(ctx context.Context, id uuid.UUID) (OrderReturn
 }
 
 const listOrderReturnLinesByReturnIDs = `-- name: ListOrderReturnLinesByReturnIDs :many
-SELECT id, return_id, order_line_id, quantity, reason, refund_unit_cents, created_at FROM order_return_lines
+SELECT id, return_id, order_line_id, quantity, reason, refund_unit_cents, created_at, order_line_component_id FROM order_return_lines
 WHERE return_id = ANY($1::uuid[])
 ORDER BY created_at ASC
 `
@@ -144,6 +147,7 @@ func (q *Queries) ListOrderReturnLinesByReturnIDs(ctx context.Context, dollar_1 
 			&i.Reason,
 			&i.RefundUnitCents,
 			&i.CreatedAt,
+			&i.OrderLineComponentID,
 		); err != nil {
 			return nil, err
 		}
@@ -276,11 +280,49 @@ func (q *Queries) SetOrderReturnExchangeOrder(ctx context.Context, arg SetOrderR
 	return i, err
 }
 
+const sumReturnedQtyByComponent = `-- name: SumReturnedQtyByComponent :many
+SELECT rl.order_line_component_id::uuid AS component_id, COALESCE(SUM(rl.quantity), 0)::NUMERIC(14,4) AS returned
+FROM order_return_lines rl
+JOIN order_returns r ON r.id = rl.return_id
+WHERE r.order_id = $1 AND r.status <> 'rejected' AND rl.order_line_component_id IS NOT NULL
+GROUP BY rl.order_line_component_id
+`
+
+type SumReturnedQtyByComponentRow struct {
+	ComponentID uuid.UUID `json:"component_id"`
+	Returned    float64   `json:"returned"`
+}
+
+// Component units already returned on their own, across all non-rejected returns - counted apart from whole lines,
+// whose quantity is in bundles
+func (q *Queries) SumReturnedQtyByComponent(ctx context.Context, orderID uuid.UUID) ([]SumReturnedQtyByComponentRow, error) {
+	rows, err := q.db.QueryContext(ctx, sumReturnedQtyByComponent, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SumReturnedQtyByComponentRow{}
+	for rows.Next() {
+		var i SumReturnedQtyByComponentRow
+		if err := rows.Scan(&i.ComponentID, &i.Returned); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const sumReturnedQtyByOrderLine = `-- name: SumReturnedQtyByOrderLine :many
 SELECT rl.order_line_id, COALESCE(SUM(rl.quantity), 0)::NUMERIC(14,4) AS returned
 FROM order_return_lines rl
 JOIN order_returns r ON r.id = rl.return_id
-WHERE r.order_id = $1 AND r.status <> 'rejected'
+WHERE r.order_id = $1 AND r.status <> 'rejected' AND rl.order_line_component_id IS NULL
 GROUP BY rl.order_line_id
 `
 

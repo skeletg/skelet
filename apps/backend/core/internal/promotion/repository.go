@@ -88,9 +88,9 @@ type Repository interface {
 	GetRuleContentsByIDs(ctx context.Context, ruleIDs []uuid.UUID, locale string) (map[uuid.UUID]RuleContent, error)
 
 	// Analytics
-	AnalyticsByRule(ctx context.Context, start, end time.Time) ([]RuleAnalytics, error)
-	AnalyticsTotals(ctx context.Context, start, end time.Time) (AnalyticsTotals, error)
-	AnalyticsDaily(ctx context.Context, start, end time.Time, ruleID *uuid.UUID) ([]AnalyticsDailyPoint, error)
+	AnalyticsByRule(ctx context.Context, start, end time.Time, scope AnalyticsScope) ([]RuleAnalytics, error)
+	AnalyticsTotals(ctx context.Context, start, end time.Time, scope AnalyticsScope) (AnalyticsTotals, error)
+	AnalyticsDaily(ctx context.Context, start, end time.Time, ruleID *uuid.UUID, scope AnalyticsScope) ([]AnalyticsDailyPoint, error)
 }
 
 // Which rules a listing may return - every rule, the given channels' rules, and optionally the channel-less global ones
@@ -114,6 +114,12 @@ func NewShopper(customerID *uuid.UUID, email string) Shopper {
 
 // Codes match case-insensitively for the shopper, so every write stores the canonical form ApplyCode looks up
 func normalizeCode(code string) string { return strings.ToUpper(strings.TrimSpace(code)) }
+
+// Every channel only when All says so - empty ChannelIDs reads nothing, so a scope built up conditionally can't widen by accident
+type AnalyticsScope struct {
+	All        bool
+	ChannelIDs []uuid.UUID
+}
 
 type RuleAnalytics struct {
 	RuleID             uuid.UUID
@@ -850,11 +856,19 @@ func toRuleContent(row db.PromotionRuleContent) RuleContent {
 
 // ---- Analytics ----
 
-func (r *postgresRepository) AnalyticsByRule(ctx context.Context, start, end time.Time) ([]RuleAnalytics, error) {
-	rows, err := r.queries.PromotionAnalyticsByRule(ctx, db.PromotionAnalyticsByRuleParams{
-		RedeemedAt:   start,
-		RedeemedAt_2: end,
-	})
+func (r *postgresRepository) AnalyticsByRule(ctx context.Context, start, end time.Time, scope AnalyticsScope) ([]RuleAnalytics, error) {
+	var rows []db.PromotionAnalyticsByRuleRow
+	var err error
+	if scope.All {
+		rows, err = r.queries.PromotionAnalyticsByRule(ctx, db.PromotionAnalyticsByRuleParams{RedeemedAt: start, RedeemedAt_2: end})
+	} else {
+		var scoped []db.PromotionAnalyticsByRuleForChannelsRow
+		scoped, err = r.queries.PromotionAnalyticsByRuleForChannels(ctx, db.PromotionAnalyticsByRuleForChannelsParams{ChannelIds: scope.ChannelIDs, StartTime: start, EndTime: end})
+		rows = make([]db.PromotionAnalyticsByRuleRow, len(scoped))
+		for i, row := range scoped {
+			rows[i] = db.PromotionAnalyticsByRuleRow(row)
+		}
+	}
 	if err != nil {
 		return nil, fmt.Errorf("analytics by rule: %w", err)
 	}
@@ -873,11 +887,16 @@ func (r *postgresRepository) AnalyticsByRule(ctx context.Context, start, end tim
 	return out, nil
 }
 
-func (r *postgresRepository) AnalyticsTotals(ctx context.Context, start, end time.Time) (AnalyticsTotals, error) {
-	row, err := r.queries.PromotionAnalyticsTotals(ctx, db.PromotionAnalyticsTotalsParams{
-		RedeemedAt:   start,
-		RedeemedAt_2: end,
-	})
+func (r *postgresRepository) AnalyticsTotals(ctx context.Context, start, end time.Time, scope AnalyticsScope) (AnalyticsTotals, error) {
+	var row db.PromotionAnalyticsTotalsRow
+	var err error
+	if scope.All {
+		row, err = r.queries.PromotionAnalyticsTotals(ctx, db.PromotionAnalyticsTotalsParams{RedeemedAt: start, RedeemedAt_2: end})
+	} else {
+		var scoped db.PromotionAnalyticsTotalsForChannelsRow
+		scoped, err = r.queries.PromotionAnalyticsTotalsForChannels(ctx, db.PromotionAnalyticsTotalsForChannelsParams{ChannelIds: scope.ChannelIDs, StartTime: start, EndTime: end})
+		row = db.PromotionAnalyticsTotalsRow(scoped)
+	}
 	if err != nil {
 		return AnalyticsTotals{}, fmt.Errorf("analytics totals: %w", err)
 	}
@@ -888,16 +907,23 @@ func (r *postgresRepository) AnalyticsTotals(ctx context.Context, start, end tim
 	}, nil
 }
 
-func (r *postgresRepository) AnalyticsDaily(ctx context.Context, start, end time.Time, ruleID *uuid.UUID) ([]AnalyticsDailyPoint, error) {
+func (r *postgresRepository) AnalyticsDaily(ctx context.Context, start, end time.Time, ruleID *uuid.UUID, scope AnalyticsScope) ([]AnalyticsDailyPoint, error) {
 	var rid uuid.NullUUID
 	if ruleID != nil {
 		rid = uuid.NullUUID{UUID: *ruleID, Valid: true}
 	}
-	rows, err := r.queries.PromotionAnalyticsDaily(ctx, db.PromotionAnalyticsDailyParams{
-		StartTime: start,
-		EndTime:   end,
-		RuleID:    rid,
-	})
+	var rows []db.PromotionAnalyticsDailyRow
+	var err error
+	if scope.All {
+		rows, err = r.queries.PromotionAnalyticsDaily(ctx, db.PromotionAnalyticsDailyParams{StartTime: start, EndTime: end, RuleID: rid})
+	} else {
+		var scoped []db.PromotionAnalyticsDailyForChannelsRow
+		scoped, err = r.queries.PromotionAnalyticsDailyForChannels(ctx, db.PromotionAnalyticsDailyForChannelsParams{ChannelIds: scope.ChannelIDs, StartTime: start, EndTime: end, RuleID: rid})
+		rows = make([]db.PromotionAnalyticsDailyRow, len(scoped))
+		for i, row := range scoped {
+			rows[i] = db.PromotionAnalyticsDailyRow(row)
+		}
+	}
 	if err != nil {
 		return nil, fmt.Errorf("analytics daily: %w", err)
 	}

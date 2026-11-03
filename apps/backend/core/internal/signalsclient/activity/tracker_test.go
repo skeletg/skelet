@@ -230,12 +230,22 @@ func TestAGuestOrderWithoutAVisitorLandsUnderItsEmail(t *testing.T) {
 	}
 }
 
+// An erasure keeps a guest's orders but scrubs their address - a hash of the scrubbed one would rebuild the erased person as one profile
+func TestAnErasedGuestsOrderStaysOffTheSpine(t *testing.T) {
+	tr, fr := newTracker(order.Order{Number: "1101", ChannelID: uuid.New(), Email: "redacted-" + uuid.NewString() + customer.RedactedEmailDomain})
+	_ = tr.onOrderStatusChanged(context.Background(), &order.OrderStatusChanged{OrderID: uuid.New(), ToStatus: "refunded"})
+	if len(fr.calls) != 0 {
+		t.Fatalf("recorded %+v for an erased guest's order", fr.calls)
+	}
+}
+
 // A replayed order must collapse onto the live write - same dedupe key - and sit at the time it was placed, not the time of the replay
 func TestABackfilledOrderLandsAtItsPlacementTime(t *testing.T) {
 	placed := time.Date(2026, 9, 26, 10, 7, 0, 0, time.UTC)
-	o := order.Order{ID: uuid.New(), Number: "ORD-001005", Email: "guest@example.com", ChannelID: uuid.New(), TotalAmount: 1500, CurrencyCode: "USD", CreatedAt: placed}
-	tr, fr := newTracker(o)
-	if err := tr.BackfillOrder(context.Background(), o); err != nil {
+	// a draft opened the day before it was placed - created_at is the wrong day's partition
+	o := order.Order{ID: uuid.New(), Number: "ORD-001005", Email: "guest@example.com", ChannelID: uuid.New(), TotalAmount: 1500, CurrencyCode: "USD", CreatedAt: placed.Add(-24 * time.Hour)}
+	tr, fr := newTracker(order.Order{})
+	if err := tr.BackfillOrder(context.Background(), o, placed); err != nil {
 		t.Fatal(err)
 	}
 	if len(fr.calls) != 1 {

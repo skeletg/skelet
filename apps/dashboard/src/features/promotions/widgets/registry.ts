@@ -11,7 +11,7 @@ import { SkuPicker } from './SkuPicker'
 // same condition params and were drifting apart (tax rules had no widgets at all, so an operator
 // typed the country codes and group slugs that promotions let them pick)
 //
-// Built-in core.* schemas reference these slugs via x-widget; bin/contract-check fails when a Go
+// Built-in core.* schemas reference these slugs via x-widget; skelet check contracts fails when a Go
 // schema asks for one that isn't here. Plugin authors can reuse the slugs or extend this registry
 export const FORM_WIDGETS: WidgetRegistry = {
   'category-picker': CategoryPicker,

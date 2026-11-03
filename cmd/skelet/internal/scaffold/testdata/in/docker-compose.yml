@@ -1,0 +1,642 @@
+# Dev stack - runnable on its own, `docker compose up` is enough - prod lives in docker-compose.prod.yml
+# The project name is pinned so containers/volumes survive a checkout-dir rename
+name: skelet
+
+# json-file is unbounded by default, and a dev stack left up for days (air reload spam, Next.js request logs, ClickHouse
+# query logs) quietly eats disk - same 10 MB x 3 cap as prod, and `skelet logs` still shows plenty of history
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+# Container concerns only - core's roles load env/go.env for app config and the Signals ones env/signals.env, and anything set here SHADOWS those files
+# - HOME because a nameless uid has no home, USER because user.Current() wants it without a passwd entry
+x-backend-base: &backend-base
+  HOME: "/tmp"
+  USER: "skelet"
+  # Mounts /debug/pprof on each process's own health port when set to "true" - off by default, since
+  # those ports are published in dev - go1.27's goroutineleak profile is served there too
+  PPROF_ENABLED: "${PPROF_ENABLED:-}"
+
+# The Signals processes' own environment - signals and ingest, which also migrate both its databases as they boot
+x-signals-env: &signals-env
+  # Signals' own database (signals-db below) - only the suite's processes open it; app and worker
+  # reach everything in it over the contract
+  SIGNALS_DB_URL: "postgres://skelet:skelet@signals-db:5432/skelet_signals?sslmode=disable"
+  # The event spine - derived from the bundled server the way SIGNALS_DB_URL is, override it to
+  # point at a managed ClickHouse
+  SIGNALS_CH_URL: "${SIGNALS_CH_URL:-clickhouse://skelet:skelet@clickhouse:9000/signals}"
+  SIGNALS_QUEUE_URL: "${SIGNALS_QUEUE_URL:-}"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    # Runs as your uid (bin/* wrappers export it, rootless engines get 0) so
+    # bind-mount writes land host-owned - HOME=/tmp - a nameless uid has no home
+    user: "${SKELET_UID:-1000}:${SKELET_GID:-1000}"
+    # A real init to reap the air -> go run -> server process tree
+    init: true
+    # Air (hot reload) instead of the image's plain go run
+    command: air -c .air.toml
+    ports:
+      - "8080:8080"
+    volumes:
+      # The three Go modules together, so the relative replaces between them resolve - skelet go --signals
+      # and skelet test e2e build the suite in this container
+      - ./apps/backend:/var/www/backend
+      - ./.git:/var/www/.git:ro
+      # The core-to-Signals wire contract, owned by neither side - buf runs in here and generates into the backend
+      - ./proto:/var/www/proto
+    environment:
+      GIT_DISCOVERY_ACROSS_FILESYSTEM: "1"
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: "/var/www"
+      <<: *backend-base
+      # true -> app stops claiming scheduler jobs / webhook-queue items / outbox rows; the `worker` profile service owns them - claim-based, so safe either way - enable together: JOBS_EXTERNAL=true + --profile worker
+      JOBS_EXTERNAL: "${JOBS_EXTERNAL:-false}"
+      # Soft dependency - when it's down discovery falls back to the Postgres tier Empty disables the cluster entirely and pins everything to that tier - the bare `-` default is deliberate, so an explicitly empty value stays empty instead of rebounding
+      OPENSEARCH_URL: "${OPENSEARCH_URL-http://opensearch:9200}"
+      # Moves a GraphQL endpoint behind an unguessable path segment - empty keeps /api/<surface>/graphql
+      # Set ADMIN_API_SLUG and the dashboard's VITE_GRAPHQL_URL together, or the SPA loses its API
+      ADMIN_API_SLUG: "${ADMIN_API_SLUG:-}"
+      FRONT_API_SLUG: "${FRONT_API_SLUG:-}"
+    env_file:
+      - env/go.env
+    depends_on:
+      db:
+        condition: service_healthy
+      signals-db:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      # Air compiles the whole server on a cold start - minutes in CI - and start_interval still spots it the moment it's up
+      start_period: 10m
+      start_interval: 5s
+    restart: unless-stopped
+    logging: *logging
+
+  # Same binary in worker role - scheduler jobs, webhook queue and outbox relay, off checkout's CPU and pool slots - DB-claim based, so running it beside a still-claiming app is safe; JOBS_EXTERNAL=true is what moves the work
+  #   JOBS_EXTERNAL=true docker compose --profile worker up
+  worker:
+    profiles: ["worker"]
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    user: "${SKELET_UID:-1000}:${SKELET_GID:-1000}"
+    init: true
+    # Plain go run, not air - two air instances fight over the same build lock and tmp dir on the shared mount - `go run` doesn't forward
+    # SIGTERM so this dies undrained, which is harmless here: claims are leased, and prod runs the binary
+    command: go run ./cmd/server
+    ports:
+      # 8082, not the code's 8081 default - webhook-tester holds 8081 in dev
+      - "8082:8082"
+    volumes:
+      - ./apps/backend:/var/www/backend
+    environment:
+      <<: *backend-base
+      SKELET_ROLE: "worker"
+      WORKER_PORT: "8082"
+      OPENSEARCH_URL: "${OPENSEARCH_URL-http://opensearch:9200}"
+      OTEL_SERVICE_NAME: "skelet-worker"
+    env_file:
+      - env/go.env
+    depends_on:
+      db:
+        condition: service_healthy
+      signals-db:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    logging: *logging
+
+  # Image-transform tier: /media/t/* served by cmd/media, so image decode and resample cannot compete with checkout
+  # Opt-in with `docker compose --profile media up` - additive, since the app keeps serving the same route, so point your proxy at :8083 to actually use it
+  media:
+    profiles: ["media"]
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    user: "${SKELET_UID:-1000}:${SKELET_GID:-1000}"
+    init: true
+    command: go run ./cmd/media
+    ports:
+      - "8083:8083"
+    volumes:
+      - ./apps/backend:/var/www/backend
+    environment:
+      <<: *backend-base
+      MEDIA_PORT: "8083"
+      OTEL_SERVICE_NAME: "skelet-media"
+    env_file:
+      - env/go.env
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    logging: *logging
+
+  # The Signals suite as its own process from its own Go module - the wire contract core calls, the /t surface core proxies here, and the upkeep core's scheduler asks for
+  # Reuses the dev image with both modules mounted, where the suite's replace directive resolves
+  signals:
+    profiles: ["signals"]
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    user: "${SKELET_UID:-1000}:${SKELET_GID:-1000}"
+    init: true
+    working_dir: /var/www/backend/signals
+    # Air, the same hot reload the app gets - rooted one level up so core's packages the suite imports rebuild it too
+    command: air -c .air.toml
+    ports:
+      - "127.0.0.1:${SIGNALS_HOST_PORT:-8090}:8090"
+      # The wire contract core calls - its own listener, since grpc needs one
+      - "127.0.0.1:8092:8092"
+    volumes:
+      - ./apps/backend:/var/www/backend
+    environment:
+      <<: [*backend-base, *signals-env]
+      SIGNALS_PORT: "8090"
+      OTEL_SERVICE_NAME: "skelet-signals"
+      # Core proxies /t and /e here, so the client address arrives in X-Forwarded-For from the compose network
+      TRUSTED_PROXIES: "172.16.0.0/12"
+    env_file:
+      - path: env/signals.env
+        required: false
+    depends_on:
+      valkey:
+        condition: service_healthy
+      signals-db:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10m
+      start_interval: 5s
+    restart: unless-stopped
+    logging: *logging
+
+  # Web-ingest tier: the public /t surface as its own process, so beacon spikes cannot touch checkout
+  # Opt-in with `docker compose --profile ingest up` - additive, since the app keeps serving /t/*, and this takes the traffic when the proxy points here
+  ingest:
+    profiles: ["ingest"]
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    user: "${SKELET_UID:-1000}:${SKELET_GID:-1000}"
+    init: true
+    working_dir: /var/www/backend/signals
+    command: go run ./cmd/ingest
+    ports:
+      - "8091:8091"
+    volumes:
+      - ./apps/backend:/var/www/backend
+    environment:
+      <<: [*backend-base, *signals-env]
+      INGEST_PORT: "8091"
+      # forms/back-in-stock pass through to the app's subscriber graph
+      INGEST_FALLBACK_URL: "http://app:8080"
+      OTEL_SERVICE_NAME: "skelet-ingest"
+      SIGNALS_SERVICE_SECRET: ""
+    env_file:
+      - path: env/signals.env
+        required: false
+    depends_on:
+      valkey:
+        condition: service_healthy
+      signals-db:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8091/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    logging: *logging
+
+  # Dashboard + storefronts sit behind profiles so a clone can run headless - .skelet-apps, which
+  # skelet setup writes, lists the ones that run in Docker; no file = none, and the rest run on the host
+  dashboard:
+    profiles: ["dashboard"]
+    # Same uid story as the app service
+    user: "${SKELET_UID:-1000}:${SKELET_GID:-1000}"
+    # watchexec restarts the dev server under it, so something has to reap what that leaves
+    init: true
+    build:
+      context: .
+      dockerfile: apps/dashboard/Dockerfile
+      # The image installs as the uid the service runs as - pnpm needs to own the tree it links
+      args:
+        SKELET_UID: ${SKELET_UID:-1000}
+        SKELET_GID: ${SKELET_GID:-1000}
+    ports:
+      - "5173:5173"
+    volumes:
+      # Bind the source, keep node_modules/.vite in volumes so the image's
+      # musl install isn't shadowed by whatever the host built
+      - ./apps/dashboard:/var/www/dashboard
+      - dashboard-node-modules:/var/www/dashboard/node_modules
+      - dashboard-vite-cache:/var/www/dashboard/node_modules/.vite
+    environment:
+      - HOME=/tmp
+      # Vite's /api proxy target - non-VITE_ prefix on purpose, VITE_ vars get
+      # inlined into the browser bundle
+      - API_PROXY=http://app:8080
+      # codegen.ts reads this - in-network so skelet pnpm dashboard run codegen just works
+      - GRAPHQL_CODEGEN_URL=${GRAPHQL_CODEGEN_URL:-http://app:8080/api/admin/graphql}
+      # Set both to /api/admin/<ADMIN_API_SLUG>/graphql when the backend slug is on, or the SPA 404s
+      - VITE_GRAPHQL_URL=${VITE_GRAPHQL_URL:-/api/admin/graphql}
+      # The storefront's PUBLIC origin - preview panels put it in the iframe src, so it has to match
+      # the storefront's own NEXT_PUBLIC_DASHBOARD_ORIGIN pair below or the CSP refuses the frame
+      - VITE_STOREFRONT_ORIGIN=${VITE_STOREFRONT_ORIGIN:-http://localhost:3000}
+      # WSL2/macOS bind mounts lose inotify events - polling keeps HMR reliable
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
+    depends_on:
+      - app
+    restart: unless-stopped
+    logging: *logging
+
+  vetrina-demo:
+    profiles: ["vetrina-demo"]
+    user: "${SKELET_UID:-1000}:${SKELET_GID:-1000}"
+    init: true
+    build:
+      context: .
+      dockerfile: apps/channels/vetrina-demo/Dockerfile
+      # Same uid story as the dashboard's install
+      args:
+        SKELET_UID: ${SKELET_UID:-1000}
+        SKELET_GID: ${SKELET_GID:-1000}
+    ports:
+      - "3000:3000"
+    volumes:
+      # Same volume trick as the dashboard (plus SWC's native binary)
+      - ./apps/channels/vetrina-demo:/var/www/storefront
+      - vetrina-demo-node-modules:/var/www/storefront/node_modules
+      - vetrina-demo-next-cache:/var/www/storefront/.next
+    environment:
+      - HOME=/tmp
+      # Server-side fetches use the in-network URL, the browser can't reach it -
+      # client code falls back to NEXT_PUBLIC_BACKEND_URL (host port)
+      - BACKEND_INTERNAL_URL=http://app:8080
+      # In-network for codegen inside the container - the config defaults to the host port Its OWN variable: the root .env sets GRAPHQL_CODEGEN_URL to the admin endpoint when ADMIN_API_SLUG moves it, which would otherwise point this front-surface codegen at the admin schema
+      - GRAPHQL_CODEGEN_URL=${FRONT_GRAPHQL_CODEGEN_URL:-http://app:8080/api/front/graphql}
+      # The dashboard's origin, named in this storefront's frame-ancestors CSP and checked on every
+      # preview postMessage - pairs with the dashboard's VITE_STOREFRONT_ORIGIN
+      - NEXT_PUBLIC_DASHBOARD_ORIGIN=${NEXT_PUBLIC_DASHBOARD_ORIGIN:-http://localhost:5173}
+      # Empty keeps /api/front/graphql - mirrors the backend FRONT_API_SLUG
+      - FRONT_API_SLUG=${FRONT_API_SLUG:-}
+      - NEXT_PUBLIC_BACKEND_URL=http://localhost:8080
+      # A storefront is pinned to one channel in every environment - the default is the uuid
+      # the baseline migration seeds, override in the root .env if your channels differ
+      - STOREFRONT_CHANNEL_ID=${STOREFRONT_CHANNEL_ID:-56d051bc-0131-4476-bc0b-121d80290684}
+      # Must match env/go.env's STOREFRONT_REVALIDATE_SECRET - ./skelet setup copies it into the root .env
+      - STOREFRONT_REVALIDATE_SECRET=${STOREFRONT_REVALIDATE_SECRET:-dev-revalidate-secret-change-me}
+      # The review-vote key core verifies with - ./skelet setup copies env/go.env's into the root .env
+      - REVIEW_VOTER_TOKEN_SECRET=${REVIEW_VOTER_TOKEN_SECRET:-}
+      # Same polling reason as the dashboard
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
+    depends_on:
+      - app
+    restart: unless-stopped
+    logging: *logging
+
+  # Datastores publish on 127.0.0.1 only - dev credentials are trivial (skelet/ skelet) and valkey/opensearch/clickhouse run unauthenticated, so binding them to every interface put a live database on whatever network you were on - WSL2 still forwards localhost, so Windows-side tools keep working
+  db:
+    image: postgres:18-alpine
+    env_file:
+      - env/db.env
+    ports:
+      - "127.0.0.1:${DB_HOST_PORT:-5432}:5432"
+    volumes:
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    logging: *logging
+
+  # Signals' own Postgres - spine, Lens and identity tables live only here - its own database, not necessarily its own
+  # server: prod can point SIGNALS_DB_URL at a second db on the commerce instance
+  signals-db:
+    image: postgres:18-alpine
+    environment:
+      - POSTGRES_USER=skelet
+      - POSTGRES_PASSWORD=skelet
+      - POSTGRES_DB=skelet_signals
+    ports:
+      - "127.0.0.1:${SIGNALS_DB_HOST_PORT:-5433}:5432"
+    volumes:
+      - signals-db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    logging: *logging
+
+  # The event spine's server, up with the suite
+  clickhouse:
+    # Every profile that needs it starts it: the suite and the beacon tier both write the spine
+    profiles: ["signals", "ingest"]
+    image: clickhouse/clickhouse-server:26.7.5
+    environment:
+      - CLICKHOUSE_DB=signals
+      - CLICKHOUSE_USER=skelet
+      - CLICKHOUSE_PASSWORD=skelet
+    ports:
+      - "127.0.0.1:${CLICKHOUSE_HTTP_HOST_PORT:-8123}:8123" # HTTP
+      - "127.0.0.1:${CLICKHOUSE_HOST_PORT:-9000}:9000" # native protocol (clickhouse-go)
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--user=skelet", "--password=skelet", "--query=SELECT 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    restart: unless-stopped
+    logging: *logging
+
+  # JetStream - the optional durable ingest queue (SIGNALS_QUEUE_URL), behind a profile so the default stack keeps the direct spine path
+  # Needs the signals worker consuming, or the stream just accrues to its MaxAge:
+  #   SIGNALS_QUEUE_URL=nats://nats:4222 docker compose --profile queue --profile signals up
+  nats:
+    profiles: ["queue"]
+    image: nats:2.14-alpine
+    command: ["-js", "-sd", "/data", "-m", "8222"]
+    ports:
+      - "127.0.0.1:${NATS_HOST_PORT:-4222}:4222"
+    volumes:
+      - nats-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    logging: *logging
+
+  valkey:
+    image: valkey/valkey:9-alpine
+    ports:
+      - "127.0.0.1:${VALKEY_HOST_PORT:-6379}:6379"
+    volumes:
+      - valkey-data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    logging: *logging
+
+  # Optional dev tools below - nothing in the stack needs them. Each sits behind a profile of its own name,
+  # picked in skelet setup (saved to .skelet-tools) or started ad hoc with `./skelet up <name>`
+
+  # SMTP catcher - anything mailed lands in the web UI on :8025
+  mailpit:
+    image: axllent/mailpit:latest
+    profiles: ["mailpit"]
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # web UI
+    environment:
+      - MP_MAX_MESSAGES=500
+      - MP_SMTP_AUTH_ACCEPT_ANY=true
+      - MP_SMTP_AUTH_ALLOW_INSECURE=true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8025/readyz"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    logging: *logging
+
+  # Catches HTTP requests - point webhooks at http://webhook-tester:8080/any-path,
+  # browse them at http://localhost:8081
+  webhook-tester:
+    image: tarampampam/webhook-tester:latest
+    profiles: ["webhook-tester"]
+    ports:
+      - "8081:8080" # Web UI & Webhook listener
+    environment:
+      - PORT=8080
+    restart: unless-stopped
+    logging: *logging
+
+  # S3-compatible storage, also the recommended self-hosted prod backend
+  # --default-bucket bootstraps the bucket + key from the env vars
+  garage:
+    image: dxflrs/garage:v2.3.0
+    command: ["/garage", "server", "--single-node", "--default-bucket"]
+    environment:
+      - GARAGE_DEFAULT_BUCKET=media
+      - GARAGE_DEFAULT_ACCESS_KEY=skeletdev
+      - GARAGE_DEFAULT_SECRET_KEY=skeletdev-secret-not-for-prod
+    ports:
+      - "9900:3900"   # S3 API (kept on host 9900, same port MinIO used)
+      - "9902:3902"   # web endpoint - anonymous public reads (vhost-addressed)
+      - "127.0.0.1:${GARAGE_ADMIN_HOST_PORT:-9903}:3903"   # admin API (health + metrics)
+    volumes:
+      - ./env/garage.toml:/etc/garage.toml:ro
+      - garage-meta:/var/lib/garage/meta
+      - garage-data:/var/lib/garage/data
+    healthcheck:
+      # No shell in the image - garage status exits non-zero until the cluster's up
+      test: ["CMD", "/garage", "status"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    logging: *logging
+
+  # Single node, security off - prod would run a real cluster behind TLS
+  # Heap capped so the JVM doesn't eat the laptop
+  opensearch:
+    image: opensearchproject/opensearch:3.8.0
+    # Heaviest sidecar (~600MB JVM) - skelet up --lean skips it, search returns empty
+    profiles: ["search"]
+    environment:
+      - discovery.type=single-node
+      - plugins.security.disabled=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - bootstrap.memory_lock=true
+      # Skips 2.12+'s admin-password rule - security's disabled anyway
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "127.0.0.1:${OPENSEARCH_HOST_PORT:-9200}:9200"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "curl -fsS http://localhost:9200/_cluster/health | grep -E '\"status\":\"(green|yellow)\"'"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+    logging: *logging
+
+  # Grafana with Tempo, Prometheus and Loki behind it - takes OTLP traces and metrics on grafana:4318,
+  # UI on :3030 (admin / admin)
+  grafana:
+    image: grafana/otel-lgtm:0.34.0
+    profiles: ["grafana"]
+    environment:
+      - GF_PATHS_DATA=/data/grafana
+    ports:
+      - "127.0.0.1:${GRAFANA_HOST_PORT:-3030}:3000"
+    volumes:
+      - grafana-data:/data
+    restart: unless-stopped
+    logging: *logging
+
+  # Every container's stdout into Grafana's Loki, read through the Docker API
+  grafana-alloy:
+    image: grafana/alloy:v1.20.1
+    profiles: ["grafana"]
+    command: ["run", "--storage.path=/var/lib/alloy/data", "/etc/alloy/config.alloy"]
+    configs:
+      - source: alloy
+        target: /etc/alloy/config.alloy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - grafana-alloy-data:/var/lib/alloy/data
+    depends_on:
+      - grafana
+    restart: unless-stopped
+    logging: *logging
+
+  # Community admin console for Garage - cluster health, bucket browser, keys
+  garage-webui:
+    image: khairul169/garage-webui:latest
+    profiles: ["garage-webui"]
+    depends_on:
+      garage:
+        condition: service_healthy
+    environment:
+      - API_BASE_URL=http://garage:3903
+      - S3_ENDPOINT_URL=http://garage:3900
+    ports:
+      - "9901:3909"   # web console
+    volumes:
+      - ./env/garage.toml:/etc/garage.toml:ro
+    restart: unless-stopped
+    logging: *logging
+
+  # The bucket setup --default-bucket misses: CORS + website access
+  # (Garage has no ACLs, so public reads = website hosting) - idempotent
+  garage-init:
+    image: amazon/aws-cli:latest
+    depends_on:
+      garage:
+        condition: service_healthy
+    environment:
+      - AWS_ACCESS_KEY_ID=skeletdev
+      - AWS_SECRET_ACCESS_KEY=skeletdev-secret-not-for-prod
+      - AWS_DEFAULT_REGION=us-east-1
+    entrypoint: >
+      /bin/sh -c "
+      until aws --endpoint-url http://garage:3900 s3api head-bucket --bucket media 2>/dev/null; do sleep 1; done &&
+      aws --endpoint-url http://garage:3900 s3api put-bucket-cors --bucket media --cors-configuration '{\"CORSRules\":[{\"AllowedOrigins\":[\"*\"],\"AllowedMethods\":[\"GET\",\"PUT\",\"HEAD\"],\"AllowedHeaders\":[\"*\"]}]}' &&
+      aws --endpoint-url http://garage:3900 s3api put-bucket-website --bucket media --website-configuration '{\"IndexDocument\":{\"Suffix\":\"index.html\"}}' &&
+      echo done
+      "
+    restart: "no"
+    logging: *logging
+
+configs:
+  alloy:
+    content: |
+      discovery.docker "containers" {
+        host = "unix:///var/run/docker.sock"
+        filter {
+          name   = "label"
+          values = ["com.docker.compose.project=skelet"]
+        }
+      }
+
+      discovery.relabel "containers" {
+        targets = discovery.docker.containers.targets
+
+        rule {
+          source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+          target_label  = "service_name"
+        }
+        rule {
+          source_labels = ["__meta_docker_container_name"]
+          regex         = "/(.*)"
+          target_label  = "container"
+        }
+      }
+
+      loki.source.docker "containers" {
+        host          = "unix:///var/run/docker.sock"
+        targets       = discovery.docker.containers.targets
+        relabel_rules = discovery.relabel.containers.rules
+        forward_to    = [loki.write.grafana.receiver]
+      }
+
+      loki.write "grafana" {
+        endpoint {
+          url = "http://grafana:3100/loki/api/v1/push"
+        }
+      }
+
+volumes:
+  db-data:
+  signals-db-data:
+  clickhouse-data:
+  nats-data:
+  valkey-data:
+  garage-meta:
+  garage-data:
+  opensearch-data:
+  grafana-data:
+  grafana-alloy-data:
+  dashboard-node-modules:
+  dashboard-vite-cache:
+  vetrina-demo-node-modules:
+  vetrina-demo-next-cache:

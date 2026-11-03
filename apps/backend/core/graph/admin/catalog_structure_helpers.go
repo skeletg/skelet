@@ -1,10 +1,15 @@
 package admin
 
 import (
+	"context"
+	"fmt"
 	"strings"
+
+	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 )
 
 // Selections render as slim Product stand-ins carrying just what the dashboard editor needs - they're SIMPLE products by invariant, so there's no nested bundle data to load
@@ -25,7 +30,16 @@ func toBundleOptionModel(o catalog.BundleOption) *model.BundleOption {
 	for i, s := range o.Selections {
 		selections[i] = toBundleSelectionModel(s)
 	}
+	var rule *model.BundleOptionRule
+	if o.Rule != nil {
+		values := make([]string, len(o.Rule.AttributeValueIDs))
+		for i, v := range o.Rule.AttributeValueIDs {
+			values[i] = v.String()
+		}
+		rule = &model.BundleOptionRule{CategoryID: o.Rule.CategoryID.String(), AttributeValueIds: values, Quantity: o.Rule.Quantity}
+	}
 	return &model.BundleOption{
+		Rule:          rule,
 		ID:            o.ID.String(),
 		InputType:     model.BundleInputType(strings.ToUpper(string(o.InputType))),
 		IsRequired:    o.IsRequired,
@@ -40,12 +54,20 @@ func toBundleOptionModel(o catalog.BundleOption) *model.BundleOption {
 	}
 }
 
+// A configurable selection says so, for the picker and the health check - every other row is the SIMPLE it has to be
+func selectionKind(s catalog.BundleSelection) model.ProductKind {
+	if s.ProductKind == "" {
+		return model.ProductKindSimple
+	}
+	return model.ProductKind(strings.ToUpper(string(s.ProductKind)))
+}
+
 func toBundleSelectionModel(s catalog.BundleSelection) *model.BundleSelection {
 	prod := &model.Product{
 		ID:                  s.ProductID.String(),
 		URL:                 s.ProductURL,
 		Sku:                 s.ProductSKU,
-		Kind:                model.ProductKindSimple,
+		Kind:                selectionKind(s),
 		DefaultPrice:        int32(s.ProductDefaultPrice),
 		DefaultCurrencyCode: s.ProductCurrency,
 	}
@@ -54,11 +76,14 @@ func toBundleSelectionModel(s catalog.BundleSelection) *model.BundleSelection {
 		prod.Name = &name
 	}
 	return &model.BundleSelection{
-		ID:        s.ID.String(),
-		Product:   prod,
-		Quantity:  s.Quantity,
-		IsDefault: s.IsDefault,
-		SortOrder: s.SortOrder,
+		ID:               s.ID.String(),
+		Product:          prod,
+		Quantity:         s.Quantity,
+		IsDefault:        s.IsDefault,
+		SortOrder:        s.SortOrder,
+		FromRule:         s.FromRule,
+		DiscountPercent:  int32(s.DiscountPercent),
+		CustomerQuantity: s.CustomerQuantity,
 	}
 }
 
@@ -92,4 +117,193 @@ func toKitComponentModel(c catalog.KitComponent) *model.KitComponent {
 		CreatedAt: c.CreatedAt,
 		UpdatedAt: c.UpdatedAt,
 	}
+}
+
+var errEmptyBundleOp = apperr.New("BUNDLE_EDIT_EMPTY", apperr.ClassValidation, "a bundle edit has to name one change")
+
+// The bundle's own options and selections by id, then tempIds as adds create them - an id from any other bundle reads as
+// not found, so one call can't reach past the product it was gated on
+type bundleRefs struct {
+	options, selections map[string]uuid.UUID
+}
+
+func (b bundleRefs) option(ref string) (uuid.UUID, error) {
+	if id, ok := b.options[ref]; ok {
+		return id, nil
+	}
+	return uuid.Nil, fmt.Errorf("%w: %s", catalog.ErrBundleOptionNotFound, ref)
+}
+
+func (b bundleRefs) selection(ref string) (uuid.UUID, error) {
+	if id, ok := b.selections[ref]; ok {
+		return id, nil
+	}
+	return uuid.Nil, fmt.Errorf("%w: %s", catalog.ErrBundleSelectionNotFound, ref)
+}
+
+func (r *mutationResolver) applyBundleOps(ctx context.Context, productID uuid.UUID, ops []*model.BundleStructureOpInput) error {
+	current, err := r.CatalogSvc.GetBundleOptions(ctx, productID, "")
+	if err != nil {
+		return err
+	}
+	refs := bundleRefs{options: map[string]uuid.UUID{}, selections: map[string]uuid.UUID{}}
+	for _, o := range current {
+		refs.options[o.ID.String()] = o.ID
+		for _, s := range o.Selections {
+			refs.selections[s.ID.String()] = s.ID
+		}
+	}
+	return r.CatalogSvc.EditBundle(ctx, func(e catalog.BundleEditor) error {
+		for i, op := range ops {
+			if err := applyBundleOp(ctx, e, productID, refs, op); err != nil {
+				return fmt.Errorf("bundle edit %d: %w", i+1, err)
+			}
+		}
+		return nil
+	})
+}
+
+func applyBundleOp(ctx context.Context, e catalog.BundleEditor, productID uuid.UUID, refs bundleRefs, op *model.BundleStructureOpInput) error {
+	name := func(id uuid.UUID, into map[string]uuid.UUID) {
+		if op.TempID != nil {
+			into[*op.TempID] = id
+		}
+		into[id.String()] = id
+	}
+	switch {
+	case op.AddOption != nil:
+		in := op.AddOption
+		if in.ProductID != productID.String() {
+			return fmt.Errorf("%w: option for another product", catalog.ErrBundleOptionNotFound)
+		}
+		opt, err := e.AddBundleOption(ctx, catalog.AddBundleOptionInput{
+			ProductID:     productID,
+			InputType:     catalog.BundleInputType(strings.ToLower(string(in.InputType))),
+			IsRequired:    boolOrDefault(in.IsRequired, true),
+			SortOrder:     int32Or(in.SortOrder, 0),
+			MinSelections: int32Or(in.MinSelections, 0),
+			MaxSelections: in.MaxSelections,
+			Locale:        in.Locale,
+			Title:         in.Title,
+		})
+		if err == nil {
+			name(opt.ID, refs.options)
+		}
+		return err
+	case op.UpdateOption != nil:
+		in := op.UpdateOption
+		id, err := refs.option(in.ID)
+		if err != nil {
+			return err
+		}
+		upd := catalog.UpdateBundleOptionInput{
+			ID: id, IsRequired: in.IsRequired, SortOrder: in.SortOrder, MinSelections: in.MinSelections, MaxSelections: in.MaxSelections,
+			ClearMaxSelections: in.ClearMaxSelections != nil && *in.ClearMaxSelections,
+		}
+		if in.InputType != nil {
+			t := catalog.BundleInputType(strings.ToLower(string(*in.InputType)))
+			upd.InputType = &t
+		}
+		_, err = e.UpdateBundleOption(ctx, upd)
+		return err
+	case op.DeleteOption != nil:
+		id, err := refs.option(*op.DeleteOption)
+		if err != nil {
+			return err
+		}
+		return e.DeleteBundleOption(ctx, id)
+	case op.UpsertContent != nil:
+		id, err := refs.option(op.UpsertContent.OptionID)
+		if err != nil {
+			return err
+		}
+		title := ""
+		if op.UpsertContent.Title != nil {
+			title = *op.UpsertContent.Title
+		}
+		_, err = e.UpsertBundleOptionContent(ctx, catalog.UpsertBundleOptionContentInput{OptionID: id, Locale: op.UpsertContent.Locale, Title: title})
+		return err
+	case op.DeleteContent != nil:
+		id, err := refs.option(op.DeleteContent.OptionID)
+		if err != nil {
+			return err
+		}
+		return e.DeleteBundleOptionContent(ctx, id, op.DeleteContent.Locale)
+	case op.AddSelection != nil:
+		in := op.AddSelection
+		optionID, err := refs.option(in.OptionID)
+		if err != nil {
+			return err
+		}
+		pid, err := parseID(in.ProductID, "product")
+		if err != nil {
+			return err
+		}
+		sel, err := e.AddBundleSelection(ctx, catalog.AddBundleSelectionInput{
+			OptionID: optionID, ProductID: pid,
+			Quantity:         float64Or(in.Quantity, catalog.DefaultStructureQuantity),
+			IsDefault:        boolOrFalse(in.IsDefault),
+			SortOrder:        int32Or(in.SortOrder, 0),
+			DiscountPercent:  ptrOr(discountPtr(in.DiscountPercent), 0),
+			CustomerQuantity: boolOrFalse(in.CustomerQuantity),
+		})
+		if err == nil {
+			name(sel.ID, refs.selections)
+		}
+		return err
+	case op.UpdateSelection != nil:
+		in := op.UpdateSelection
+		id, err := refs.selection(in.ID)
+		if err != nil {
+			return err
+		}
+		_, err = e.UpdateBundleSelection(ctx, catalog.UpdateBundleSelectionInput{
+			ID: id, Quantity: in.Quantity, IsDefault: in.IsDefault, SortOrder: in.SortOrder,
+			DiscountPercent: discountPtr(in.DiscountPercent), CustomerQuantity: in.CustomerQuantity,
+		})
+		return err
+	case op.SetRule != nil:
+		in := op.SetRule
+		id, err := refs.option(in.OptionID)
+		if err != nil {
+			return err
+		}
+		var rule *catalog.BundleOptionRule
+		if in.CategoryID != nil {
+			cat, err := parseID(*in.CategoryID, "category")
+			if err != nil {
+				return err
+			}
+			values, err := parseUUIDs(in.AttributeValueIds)
+			if err != nil {
+				return errInvalidID("attributeValueIds", err)
+			}
+			rule = &catalog.BundleOptionRule{CategoryID: cat, AttributeValueIDs: values, Quantity: float64Or(in.Quantity, catalog.DefaultStructureQuantity)}
+		}
+		_, err = e.SetBundleOptionRule(ctx, id, rule)
+		return err
+	case op.DeleteSelection != nil:
+		id, err := refs.selection(*op.DeleteSelection)
+		if err != nil {
+			return err
+		}
+		return e.DeleteBundleSelection(ctx, id)
+	}
+	return errEmptyBundleOp
+}
+
+// A selection's discount as the catalog takes it - the catalog refuses anything outside 0-100
+func discountPtr(v *int32) *int16 {
+	if v == nil {
+		return nil
+	}
+	d := int16(max(min(*v, 101), -1)) // clamped just past the bounds, so the catalog still refuses it rather than it wrapping
+	return &d
+}
+
+func ptrOr[T any](p *T, def T) T {
+	if p == nil {
+		return def
+	}
+	return *p
 }

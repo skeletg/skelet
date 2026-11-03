@@ -5,7 +5,7 @@ workspaces roaming through the preferences store. None of it is reachable from j
 a real browser against a real stack.
 
 ```
-./skelet up          # dashboard on :5173, admin API on :8080, dev admin seeded
+skelet up          # dashboard on :5173, admin API on :8080, dev admin seeded
 pnpm run test:e2e
 pnpm run test:e2e --headed --project=chromium tabs.spec.ts
 ```

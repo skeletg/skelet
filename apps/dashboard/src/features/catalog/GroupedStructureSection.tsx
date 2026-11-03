@@ -36,6 +36,7 @@ import {
 } from './Catalog.gql'
 import {
   applyOps,
+  CommitError,
   commitOps,
   isTemp,
   newTempId,
@@ -113,7 +114,13 @@ export function GroupedStructureSection({
         await removeMemberMutation({ variables: { id: op.id } })
       },
     }
-    await commitOps(reduced, product.id, committers)
+    try {
+      await commitOps(reduced, product.id, committers)
+    } catch (e) {
+      // keep only the unapplied tail - a retry resumes instead of re-running committed adds and duplicating rows
+      if (e instanceof CommitError) setPendingOps(e.remaining as PendingOp[])
+      throw e
+    }
     setPendingOps([])
   }, [
     reduced,

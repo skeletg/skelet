@@ -64,6 +64,8 @@ export type AddBundleOptionInput = {
 };
 
 export type AddBundleSelectionInput = {
+  customerQuantity?: InputMaybe<Scalars['Boolean']['input']>;
+  discountPercent?: InputMaybe<Scalars['Int']['input']>;
   isDefault?: InputMaybe<Scalars['Boolean']['input']>;
   optionId: Scalars['ID']['input'];
   productId: Scalars['ID']['input'];
@@ -200,6 +202,7 @@ export type AdminCart = {
   kind: CartKind;
   lines: Array<AdminCartLine>;
   offer?: Maybe<AdminCartOffer>;
+  source: Scalars['String']['output'];
   status: Scalars['String']['output'];
   subtotal: Scalars['Int']['output'];
   updatedAt: Scalars['Time']['output'];
@@ -874,6 +877,7 @@ export type BundleOption = {
   isRequired: Scalars['Boolean']['output'];
   maxSelections?: Maybe<Scalars['Int']['output']>;
   minSelections: Scalars['Int']['output'];
+  rule?: Maybe<BundleOptionRule>;
   selections: Array<BundleSelection>;
   sortOrder: Scalars['Int']['output'];
   title: Scalars['String']['output'];
@@ -886,13 +890,54 @@ export type BundleOptionContent = {
   title: Scalars['String']['output'];
 };
 
+export type BundleOptionContentInput = {
+  locale: Scalars['String']['input'];
+  optionId: Scalars['ID']['input'];
+  title?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type BundleOptionRule = {
+  __typename?: 'BundleOptionRule';
+  attributeValueIds: Array<Scalars['ID']['output']>;
+  categoryId: Scalars['ID']['output'];
+  quantity: Scalars['Float']['output'];
+};
+
+export type BundleOptionRuleInput = {
+  attributeValueIds?: InputMaybe<Array<Scalars['ID']['input']>>;
+  categoryId?: InputMaybe<Scalars['ID']['input']>;
+  optionId: Scalars['ID']['input'];
+  quantity?: InputMaybe<Scalars['Float']['input']>;
+};
+
+export type BundlePricing =
+  | 'FIXED'
+  | 'SUM'
+  | 'SUM_MINUS_PERCENT';
+
 export type BundleSelection = {
   __typename?: 'BundleSelection';
+  customerQuantity: Scalars['Boolean']['output'];
+  discountPercent: Scalars['Int']['output'];
+  fromRule: Scalars['Boolean']['output'];
   id: Scalars['ID']['output'];
   isDefault: Scalars['Boolean']['output'];
   product: Product;
   quantity: Scalars['Float']['output'];
   sortOrder: Scalars['Int']['output'];
+};
+
+export type BundleStructureOpInput = {
+  addOption?: InputMaybe<AddBundleOptionInput>;
+  addSelection?: InputMaybe<AddBundleSelectionInput>;
+  deleteContent?: InputMaybe<BundleOptionContentInput>;
+  deleteOption?: InputMaybe<Scalars['ID']['input']>;
+  deleteSelection?: InputMaybe<Scalars['ID']['input']>;
+  setRule?: InputMaybe<BundleOptionRuleInput>;
+  tempId?: InputMaybe<Scalars['ID']['input']>;
+  updateOption?: InputMaybe<UpdateBundleOptionInput>;
+  updateSelection?: InputMaybe<UpdateBundleSelectionInput>;
+  upsertContent?: InputMaybe<BundleOptionContentInput>;
 };
 
 export type BusinessIdField = {
@@ -1289,6 +1334,7 @@ export type CartListItem = {
   offerExpiresAt?: Maybe<Scalars['Time']['output']>;
   offerState?: Maybe<CartOfferState>;
   orderId?: Maybe<Scalars['ID']['output']>;
+  source: Scalars['String']['output'];
   status: Scalars['String']['output'];
   subtotal: Scalars['Int']['output'];
   updatedAt: Scalars['Time']['output'];
@@ -4043,6 +4089,8 @@ export type Mutation = {
   setBlogPostCategories: BlogPost;
   setBlogPostChannelListing: BlogPost;
   setBlogPostTags: BlogPost;
+  setBundlePricing: Product;
+  setBundleStructure: Product;
   setCMSPageChannelListing: CmsPage;
   setCMSPageExperiment: CmsPage;
   setCMSPageRelationships: CmsPage;
@@ -5988,6 +6036,17 @@ export type MutationSetBlogPostTagsArgs = {
 };
 
 
+export type MutationSetBundlePricingArgs = {
+  input: SetBundlePricingInput;
+};
+
+
+export type MutationSetBundleStructureArgs = {
+  ops: Array<BundleStructureOpInput>;
+  productId: Scalars['ID']['input'];
+};
+
+
 export type MutationSetCmsPageChannelListingArgs = {
   input: SetCmsPageChannelListingInput;
 };
@@ -7092,6 +7151,7 @@ export type OrderLineComponent = {
   id: Scalars['ID']['output'];
   name: Scalars['String']['output'];
   quantity: Scalars['Float']['output'];
+  returnable: Scalars['Boolean']['output'];
   sku: Scalars['String']['output'];
   unitPrice: Scalars['Int']['output'];
 };
@@ -7138,6 +7198,7 @@ export type OrderReturn = {
 
 export type OrderReturnLine = {
   __typename?: 'OrderReturnLine';
+  componentId?: Maybe<Scalars['ID']['output']>;
   id: Scalars['ID']['output'];
   orderLineId: Scalars['ID']['output'];
   quantity: Scalars['Float']['output'];
@@ -7274,6 +7335,7 @@ export type Product = ProductOptionOwner & {
   inStock: Scalars['Boolean']['output'];
   kind: ProductKind;
   kitComponents: Array<KitComponent>;
+  kitItemsReturnable: Scalars['Boolean']['output'];
   lengthMm?: Maybe<Scalars['Int']['output']>;
   listings: Array<ProductChannelListing>;
   mainImage?: Maybe<ProductMedia>;
@@ -7373,11 +7435,14 @@ export type ProductAttributeValue = {
 
 export type ProductChannelListing = {
   __typename?: 'ProductChannelListing';
+  bundleDiscountPercent: Scalars['Int']['output'];
+  bundlePricing: BundlePricing;
   channel: Channel;
   channelId: Scalars['ID']['output'];
   compareAtPrice?: Maybe<Scalars['Int']['output']>;
   effectiveCurrency: Scalars['String']['output'];
   effectivePrice?: Maybe<Scalars['Int']['output']>;
+  inStock: Scalars['Boolean']['output'];
   isPublished: Scalars['Boolean']['output'];
   price?: Maybe<Scalars['Int']['output']>;
   productId: Scalars['ID']['output'];
@@ -9498,6 +9563,7 @@ export type RetentionCohort = {
 };
 
 export type ReturnLineInput = {
+  componentId?: InputMaybe<Scalars['ID']['input']>;
   orderLineId: Scalars['ID']['input'];
   quantity: Scalars['Float']['input'];
   reason?: InputMaybe<Scalars['String']['input']>;
@@ -10068,6 +10134,13 @@ export type SetBlogPostChannelListingInput = {
   isPublished: Scalars['Boolean']['input'];
   postId: Scalars['ID']['input'];
   seoNoindex?: InputMaybe<Scalars['Boolean']['input']>;
+};
+
+export type SetBundlePricingInput = {
+  channelId: Scalars['ID']['input'];
+  discountPercent?: InputMaybe<Scalars['Int']['input']>;
+  pricing: BundlePricing;
+  productId: Scalars['ID']['input'];
 };
 
 export type SetCmsPageChannelListingInput = {
@@ -10779,6 +10852,8 @@ export type UpdateBundleOptionInput = {
 };
 
 export type UpdateBundleSelectionInput = {
+  customerQuantity?: InputMaybe<Scalars['Boolean']['input']>;
+  discountPercent?: InputMaybe<Scalars['Int']['input']>;
   id: Scalars['ID']['input'];
   isDefault?: InputMaybe<Scalars['Boolean']['input']>;
   quantity?: InputMaybe<Scalars['Float']['input']>;
@@ -11023,6 +11098,7 @@ export type UpdateProductInput = {
   defaultPrice?: InputMaybe<Scalars['Int']['input']>;
   heightMm?: InputMaybe<Scalars['Int']['input']>;
   id: Scalars['ID']['input'];
+  kitItemsReturnable?: InputMaybe<Scalars['Boolean']['input']>;
   lengthMm?: InputMaybe<Scalars['Int']['input']>;
   maxOrderQty?: InputMaybe<Scalars['Float']['input']>;
   metadata?: InputMaybe<Array<MetadataInput>>;

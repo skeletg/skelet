@@ -28,11 +28,10 @@ Quality
   changelog  (preview) | check | release <version> [date]
 
 Scaffold
-  add        channel <name> [--from <storefront>] [--tracked]
+  add        channel <name> [--template <template> | --from <storefront>] [--tracked] [--workspace]
   rm         channel <name> [-y] [--volumes]
 
 Rarely
   ps, stop, restart, search, release, fixperms, hooks, provider, version
 
   skelet help <command>   detail on one command
-  bin/<script>            the script a verb runs, if you need the source

@@ -111,6 +111,7 @@ func toProductBaseModel(p catalog.Product, productType *model.ProductType, attri
 		MinOrderQty:             p.MinOrderQty,
 		MaxOrderQty:             p.MaxOrderQty,
 		CostCents:               int32PtrFrom64(p.CostCents),
+		KitItemsReturnable:      p.KitItemsReturnable,
 		Listings:                listings,
 		Sku:                     p.SKU,
 		TaxClass:                p.TaxClass,
@@ -294,16 +295,20 @@ func (r *Resolver) renderProductListings(ctx context.Context, p catalog.Product)
 			effective = &v
 		}
 		out = append(out, &model.ProductChannelListing{
-			Channel:           toChannelModel(sv),
-			Price:             priceField,
-			IsPublished:       row.IsPublished,
-			URL:               row.URL,
-			EffectivePrice:    effective,
-			EffectiveCurrency: effectiveCurrency,
-			CompareAtPrice:    int32PtrFrom64(row.CompareAtPrice),
-			SpecialPrice:      int32PtrFrom64(row.SpecialPrice),
-			SpecialFrom:       row.SpecialFrom,
-			SpecialTo:         row.SpecialTo,
+			ProductID:             p.ID.String(),
+			ChannelID:             row.ChannelID.String(),
+			Channel:               toChannelModel(sv),
+			Price:                 priceField,
+			IsPublished:           row.IsPublished,
+			URL:                   row.URL,
+			EffectivePrice:        effective,
+			EffectiveCurrency:     effectiveCurrency,
+			CompareAtPrice:        int32PtrFrom64(row.CompareAtPrice),
+			SpecialPrice:          int32PtrFrom64(row.SpecialPrice),
+			SpecialFrom:           row.SpecialFrom,
+			SpecialTo:             row.SpecialTo,
+			BundlePricing:         model.BundlePricing(strings.ToUpper(string(row.BundlePricing))),
+			BundleDiscountPercent: int32(row.BundleDiscountPercent),
 		})
 	}
 	return out, nil

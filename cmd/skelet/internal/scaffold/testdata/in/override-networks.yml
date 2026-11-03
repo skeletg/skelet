@@ -1,0 +1,11 @@
+services:
+  app:
+    environment:
+      - DEBUG=1
+
+networks:
+  extra:
+    driver: bridge
+
+volumes:
+  scratch-data:
