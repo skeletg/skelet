@@ -54,13 +54,20 @@ func NewTracker(rec *signalsclient.Client, orders orderLookup) *Tracker {
 	return &Tracker{rec: rec, orders: orders}
 }
 
-// BackfillOrder replays a past order's placement at its original time, for orders that never reached the suite - the
-// dedupe key makes a re-run, or an order the suite already holds, a no-op
-func (t *Tracker) BackfillOrder(ctx context.Context, o order.Order) error {
-	return t.onOrderPlaced(events.WithEmittedAt(ctx, o.CreatedAt), &order.OrderPlaced{
+// BackfillOrder replays a past order's placement, for orders that never reached the suite - placedAt must be the time the
+// live event carried, since the dedupe key only collapses a copy in the same daily partition
+func (t *Tracker) BackfillOrder(ctx context.Context, o order.Order, placedAt time.Time) error {
+	held := &Tracker{rec: t.rec, orders: heldOrder(o)} // the gift-card follow-up reads the order the caller already has
+	return held.onOrderPlaced(events.WithEmittedAt(ctx, placedAt), &order.OrderPlaced{
 		OrderID: o.ID, OrderNumber: o.Number, CustomerID: o.CustomerID, Email: o.Email, AnonID: o.AnonID,
 		ChannelID: o.ChannelID, TotalCents: o.TotalAmount, Currency: o.CurrencyCode,
 	})
+}
+
+type heldOrder order.Order
+
+func (h heldOrder) GetByID(context.Context, uuid.UUID) (order.Order, error) {
+	return order.Order(h), nil
 }
 
 func (t *Tracker) Subscribe(bus *events.Bus) {
