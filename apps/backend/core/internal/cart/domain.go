@@ -157,7 +157,9 @@ type Cart struct {
 	ChannelID  uuid.UUID
 	Status     string
 	Kind       string // KindShopper or KindOffer
+	Source     string // SourceWeb or SourceAgent
 	Offer      *Offer // set on an offer only
+	Handoff    *Handoff
 	Email      string // a guest offer's recipient
 	Note       string
 	Checkout   Checkout
@@ -453,6 +455,12 @@ type Repository interface {
 	SetCartMerged(ctx context.Context, cartID uuid.UUID) error
 	SetCartOrder(ctx context.Context, cartID, orderID uuid.UUID) error
 
+	CreateAgentCart(ctx context.Context, channelID uuid.UUID) (Cart, error)
+	StartHandoff(ctx context.Context, cartID uuid.UUID, expiresAt time.Time) (Cart, error) // ErrCartNotActive when the cart isn't an active agent cart
+	GetCartByHandoffToken(ctx context.Context, token string) (Cart, error)
+	RecordHandoffRedemption(ctx context.Context, agentCartID, cartID uuid.UUID) (bool, error) // false when this cart already had the handoff
+	CarryHandoffRedemptions(ctx context.Context, fromCartID, toCartID uuid.UUID) error
+
 	CreateOfferCart(ctx context.Context, in CreateOfferInput) (Cart, error)
 	GetOfferByToken(ctx context.Context, token string) (Cart, error)
 	SetOffer(ctx context.Context, cartID uuid.UUID, in OfferSettings) error
@@ -514,6 +522,7 @@ type CartListItem struct {
 	ChannelID         uuid.UUID
 	Status            string
 	Kind              string
+	Source            string
 	Email             string // the cart's own email - a guest offer's recipient
 	OfferExpiresAt    *time.Time
 	OfferSentAt       *time.Time

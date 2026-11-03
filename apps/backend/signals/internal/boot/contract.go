@@ -1,6 +1,9 @@
 package boot
 
 import (
+	"log/slog"
+	"os"
+
 	"go.uber.org/fx"
 	"google.golang.org/grpc"
 
@@ -51,7 +54,14 @@ type contractDeps struct {
 	Contacts      *RosterContacts
 }
 
-func newGRPCServer(d contractDeps) *grpc.Server {
+func newGRPCServer(d contractDeps) (*grpc.Server, error) {
+	creds, err := signalsgrpc.TLSFromEnv(os.Getenv)
+	if err != nil {
+		return nil, err
+	}
+	if creds != nil {
+		slog.Info("signals contract serves TLS", "cert", os.Getenv(signalsgrpc.EnvTLSCert))
+	}
 	return signalsgrpc.NewServer(signalsgrpc.Deps{
 		Experiment:     d.Experiment,
 		Lens:           d.Lens,
@@ -76,5 +86,6 @@ func newGRPCServer(d contractDeps) *grpc.Server {
 		ServiceKeys:    d.Config.ServiceKeys,
 		Revocations:    d.Revocations,
 		Dev:            d.Config.IsDev(),
-	})
+		Creds:          creds,
+	}), nil
 }

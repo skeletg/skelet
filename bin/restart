@@ -1,6 +1,0 @@
-#!/usr/bin/env bash
-# Restart in place - full recreate is bin/down && bin/dev
-set -e
-cd "$(dirname "$(dirname "$0")")"
-. bin/_lib
-docker compose restart "$@"

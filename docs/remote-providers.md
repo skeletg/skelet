@@ -22,10 +22,10 @@ your endpoint in PCI scope. Gateways are first-party plugins instead.
 # 2. Stand up one POST endpoint that verifies the signature below and answers with the
 #    kind's response shape, then check it against the contract before wiring it to
 #    anything real.
-./skelet provider --url http://localhost:9095/tax --secret rpsec_... --kind tax_provider
+skelet provider --url http://localhost:9095/tax --secret rpsec_... --kind tax_provider
 ```
 
-`./skelet provider` posts the generated example payload for the kind, then tries the
+`skelet provider` posts the generated example payload for the kind, then tries the
 failure cases - forged signature, no signature, wrong key, an hour-old timestamp - and
 tells you whether your endpoint handled each correctly. The request, the signature and
 every kind's payload and response are specified in the rest of this page.
@@ -184,7 +184,7 @@ The contract is pre-1.0 and versioned accordingly:
 
 - a **minor** bump (`0.1.x` -> `0.2.0`) means something broke: a field was removed or
   renamed, a type changed, a kind was removed, or core started requiring something new in
-  responses. Re-run `./skelet provider` against your endpoint before upgrading core.
+  responses. Re-run `skelet provider` against your endpoint before upgrading core.
 - a **patch** bump means additive only: a new kind, or a new optional field. Nothing you
   already handle changed shape.
 
@@ -199,7 +199,7 @@ version bump.
 Machine-readable schemas and a ready-to-post example for every operation live in
 [`apps/backend/core/internal/remoteprovider/contract/`](../apps/backend/core/internal/remoteprovider/contract/)
 as `<name>.schema.json` and `<name>.request.json`. They are generated from core's own
-structs by `./skelet gen`, so they cannot drift from what core actually sends.
+structs by `skelet gen`, so they cannot drift from what core actually sends.
 
 | Kind | What you decide |
 |---|---|
@@ -241,7 +241,7 @@ issues a new one and invalidates the old.
 Then, before you point production at it:
 
 ```bash
-./skelet provider --url https://your-provider.example.com/hook \
+skelet provider --url https://your-provider.example.com/hook \
   --secret rpsec_... --kind tax_provider --timeout-ms 5000
 ```
 

@@ -199,6 +199,11 @@ type CartGiftCard struct {
 	BalanceCents int32  `json:"balanceCents"`
 }
 
+type CartHandoffRedemption struct {
+	Cart      *Cart `json:"cart"`
+	GuestCart bool  `json:"guestCart"`
+}
+
 type CartLine struct {
 	ID                string               `json:"id"`
 	Name              string               `json:"name"`

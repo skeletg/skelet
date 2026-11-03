@@ -184,6 +184,7 @@ type AdminCart struct {
 	CurrencyCode  string           `json:"currencyCode"`
 	Status        string           `json:"status"`
 	Kind          CartKind         `json:"kind"`
+	Source        string           `json:"source"`
 	Email         string           `json:"email"`
 	Offer         *AdminCartOffer  `json:"offer,omitempty"`
 	Lines         []*AdminCartLine `json:"lines"`
@@ -1145,6 +1146,7 @@ type CartListItem struct {
 	CurrencyCode   string          `json:"currencyCode"`
 	Status         string          `json:"status"`
 	Kind           CartKind        `json:"kind"`
+	Source         string          `json:"source"`
 	Email          string          `json:"email"`
 	OfferState     *CartOfferState `json:"offerState,omitempty"`
 	OfferExpiresAt *time.Time      `json:"offerExpiresAt,omitempty"`

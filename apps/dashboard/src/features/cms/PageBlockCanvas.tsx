@@ -15,14 +15,15 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { ChevronDownIcon, ChevronUpIcon, GripVerticalIcon, PlusIcon, SearchIcon, Trash2Icon } from 'lucide-react'
+import { ChevronDownIcon, ChevronRightIcon, ChevronUpIcon, GripVerticalIcon, PlusIcon, SearchIcon, Trash2Icon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { AnimatedPanel } from './AnimatedPanel'
+import { holdInPlace } from './motion'
 import {
   Sheet,
   SheetContent,
@@ -511,6 +512,9 @@ function BlockCard({
   const fields = (desc?.fields ?? []).filter(
     (f) => !f.showIf || String(block.props[f.showIf.key] ?? '') === f.showIf.equals,
   )
+  const mainFields = fields.filter((f) => !f.advanced)
+  const advancedFields = fields.filter((f) => f.advanced)
+  const [advancedOpen, setAdvancedOpen] = useState(false)
 
   function setProp(key: string, val: unknown) {
     const props = { ...block.props }
@@ -543,6 +547,12 @@ function BlockCard({
     const cur = key === 'devices' ? visDevices : visSegments
     setVis(key, cur.includes(item) ? cur.filter((x) => x !== item) : [...cur, item])
   }
+  // Named on the collapsed toggle, so a block with a rule set doesn't look like it has none
+  const advancedSet = [
+    ...advancedFields.filter((f) => block.props[f.key] != null && block.props[f.key] !== '').map((f) => f.label),
+    ...(typeof block.props.viewEvent === 'string' && block.props.viewEvent ? ['view event'] : []),
+    ...(Object.keys(vis).length > 0 ? ['visibility'] : []),
+  ]
 
   return (
     <div
@@ -550,7 +560,7 @@ function BlockCard({
       data-block-card-id={block.id}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
-        'rounded-lg border bg-card transition-colors hover:border-primary/40 hover:shadow-sm',
+        'rounded-lg border bg-card transition-[border-color,box-shadow] duration-200 hover:border-primary/40 hover:shadow-sm',
         isDragging && 'z-10 opacity-70 shadow-lg',
         open && 'ring-1 ring-primary/40',
       )}
@@ -573,7 +583,7 @@ function BlockCard({
             <span className="block text-sm font-medium">{blockLabel(block.type)}</span>
             <span className="block truncate text-xs text-muted-foreground">{shortPreview(block) || 'Not configured'}</span>
           </span>
-          <ChevronDownIcon className={cn('size-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} />
+          <ChevronDownIcon className={cn('size-4 shrink-0 text-muted-foreground transition-transform duration-200', open && 'rotate-180')} />
         </button>
         {!disabled && (
           <button
@@ -586,14 +596,12 @@ function BlockCard({
           </button>
         )}
       </div>
-      {/* Animated expand/collapse - the collapsible-down/up keyframes + reduced-motion guard live in index.css */}
-      <Collapsible open={open}>
-        <CollapsibleContent>
+      <AnimatedPanel open={open}>
           <div className="grid gap-3 border-t p-3">
-          {fields.length === 0 && !desc?.container ? (
-            <p className="text-xs text-muted-foreground">This block has no settings.</p>
+          {mainFields.length === 0 && !desc?.container ? (
+            <p className="text-xs text-muted-foreground">Nothing to set up for this block.</p>
           ) : (
-            fields.map((f) => (
+            mainFields.map((f) => (
               <FieldInput key={f.key} field={f} value={block.props[f.key]} onChange={(v) => setProp(f.key, v)} disabled={disabled} />
             ))
           )}
@@ -609,8 +617,24 @@ function BlockCard({
               </div>
             </div>
           )}
+          <div className="grid border-t pt-2.5">
+          <button
+            type="button"
+            aria-expanded={advancedOpen}
+            onClick={() => setAdvancedOpen((o) => !o)}
+            className="flex items-center gap-1.5 text-left text-xs text-muted-foreground hover:text-foreground"
+          >
+            <ChevronRightIcon className={cn('size-3.5 transition-transform duration-200', advancedOpen && 'rotate-90')} />
+            <span className="font-medium">Advanced</span>
+            <span>· {advancedSet.length > 0 ? `${advancedSet.join(', ')} set` : 'tracking and visibility'}</span>
+          </button>
+          <AnimatedPanel open={advancedOpen}>
+          <div className="grid gap-3 pt-3">
+          {advancedFields.map((f) => (
+            <FieldInput key={f.key} field={f} value={block.props[f.key]} onChange={(v) => setProp(f.key, v)} disabled={disabled} />
+          ))}
           {/* Universal: fire a custom Lens event when this block is first seen */}
-          <div className="grid gap-1.5 border-t pt-3">
+          <div className="grid gap-1.5">
             <Label htmlFor={`${fid}-analytics-view-event`} className="text-xs text-muted-foreground">Analytics - view event</Label>
             <Input id={`${fid}-analytics-view-event`}
               value={typeof block.props.viewEvent === 'string' ? block.props.viewEvent : ''}
@@ -696,10 +720,21 @@ function BlockCard({
             </span>
           </div>
           </div>
-        </CollapsibleContent>
-      </Collapsible>
+          </AnimatedPanel>
+          </div>
+          </div>
+      </AnimatedPanel>
     </div>
   )
+}
+
+// Matched on the attribute rather than built into a selector - a block id is document data, and one with a quote
+// in it would make querySelector throw
+function cardById(id: string): HTMLElement | null {
+  for (const el of document.querySelectorAll<HTMLElement>('[data-block-card-id]')) {
+    if (el.dataset.blockCardId === id) return el
+  }
+  return null
 }
 
 // ---------- add-block menu ----------
@@ -832,7 +867,7 @@ export function PageBlockCanvas({
     }
   }, [customTypesData])
 
-  // Respond to a preview click: open the matching card and scroll to it - Keyed
+  // Respond to a preview click: open the matching card and bring it into view - Keyed
   // on focusNonce (not focusBlockId) so re-clicking the already-selected block
   // re-triggers - Guarded to this canvas's own blocks - a click on a block that
   // lives in another (nested) canvas is ignored here
@@ -843,10 +878,10 @@ export function PageBlockCanvas({
     // focusNonce) by driving local UI - the sanctioned "subscribe to an
     // external system" use of an effect, same as the seed effect in
     // CmsPageDetail - Not a render-derived cascade
+    const el = cardById(focusBlockId)
+    if (el) holdInPlace(el, { reveal: true })
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setOpenId(focusBlockId)
-    const el = document.querySelector(`[data-block-card-id="${focusBlockId}"]`)
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusNonce])
 
@@ -866,6 +901,13 @@ export function PageBlockCanvas({
     onChange(arrayMove(blocks, from, to))
   }
 
+  // What closes over `card` when it opens: the open block's form, if that block sits above it
+  function foldingAbove(id: string | null, card: HTMLElement): number {
+    const open = id ? cardById(id) : null
+    if (!open || !(open.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING)) return 0
+    return open.getBoundingClientRect().height - (open.firstElementChild?.getBoundingClientRect().height ?? 0)
+  }
+
   return (
     <div className="grid gap-2">
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
@@ -881,7 +923,12 @@ export function PageBlockCanvas({
                   key={b.id}
                   block={b}
                   open={openId === b.id}
-                  onToggle={() => setOpenId((cur) => (cur === b.id ? null : b.id))}
+                  onToggle={() => {
+                    const opening = openId !== b.id
+                    const card = cardById(b.id)
+                    if (opening && card) holdInPlace(card, { shrinkAbove: foldingAbove(openId, card) })
+                    setOpenId(opening ? b.id : null)
+                  }}
                   onChange={(next) => onChange(blocks.map((x) => (x.id === next.id ? next : x)))}
                   onDelete={() => {
                     onChange(blocks.filter((x) => x.id !== b.id))

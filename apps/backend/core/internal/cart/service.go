@@ -735,6 +735,9 @@ func CheckCartAccess(ctx context.Context, cart Cart, callerID *uuid.UUID) error 
 	if cart.Status != "active" {
 		return ErrCartNotActive
 	}
+	if cart.Source == SourceAgent && !agentAccess(ctx) {
+		return ErrCartForbidden
+	}
 	if cart.Kind == KindOffer {
 		return checkOfferAccess(ctx, cart, callerID)
 	}

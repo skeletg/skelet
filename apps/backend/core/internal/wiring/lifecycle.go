@@ -30,7 +30,13 @@ func Serve(ctx context.Context, stop context.CancelFunc, port string, handler ht
 	}
 
 	slog.Info("admin GraphQL endpoint", "url", fmt.Sprintf("http://localhost:%s%s", port, adminAPIPath()))
+	if EnvBool("MCP_ENABLED", true) {
+		slog.Info("admin MCP endpoint", "url", fmt.Sprintf("http://localhost:%s%s", port, mcpPath(adminAPIPath())))
+	}
 	slog.Info("storefront GraphQL endpoint", "url", fmt.Sprintf("http://localhost:%s%s", port, frontAPIPath()))
+	if EnvBool("MCP_FRONT_ENABLED", true) {
+		slog.Info("storefront MCP endpoint", "url", fmt.Sprintf("http://localhost:%s%s", port, mcpPath(frontAPIPath())))
+	}
 
 	serveErr := make(chan error, 1) // goroutine so we can also block on the signal ctx - whichever fires first starts the shutdown
 	go func() {

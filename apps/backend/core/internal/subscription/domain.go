@@ -44,6 +44,8 @@ type Subscription struct {
 	CurrentPeriodStart time.Time
 	CurrentPeriodEnd   time.Time
 	NextBillingAt      time.Time
+	// Every billing boundary is this date plus whole intervals - see nextBoundary
+	BillingAnchor time.Time
 	// The saved payment method renewals charge, customer-chosen - nil means renewals can't collect and dun immediately
 	PaymentMethodID *uuid.UUID
 	CanceledAt      *time.Time
@@ -86,6 +88,7 @@ type StartInput struct {
 	CurrentPeriodStart time.Time
 	CurrentPeriodEnd   time.Time
 	NextBillingAt      time.Time
+	BillingAnchor      time.Time
 	ChannelID          *uuid.UUID
 }
 
@@ -100,7 +103,7 @@ type Repository interface {
 	ListByCustomer(ctx context.Context, customerID uuid.UUID) ([]Subscription, error)
 	List(ctx context.Context, status string, limit, offset int32) ([]Subscription, error)
 	ListDue(ctx context.Context, now time.Time, limit int32) ([]Subscription, error)
-	AdvancePeriod(ctx context.Context, id uuid.UUID, start, end, next time.Time) (Subscription, error)
+	AdvancePeriod(ctx context.Context, id uuid.UUID, start, end, next, anchor time.Time) (Subscription, error)
 	SetStatus(ctx context.Context, id uuid.UUID, status string, canceledAt *time.Time) (Subscription, error)
 
 	CreateInvoice(ctx context.Context, subID uuid.UUID, periodStart, periodEnd time.Time, amount int64, currency string, sequence int32) (bool, error)

@@ -140,13 +140,13 @@ func (f *fakeRepo) GetRuleContent(context.Context, uuid.UUID, string) (promotion
 func (f *fakeRepo) GetRuleContentsByIDs(context.Context, []uuid.UUID, string) (map[uuid.UUID]promotion.RuleContent, error) {
 	return nil, nil
 }
-func (f *fakeRepo) AnalyticsByRule(context.Context, time.Time, time.Time) ([]promotion.RuleAnalytics, error) {
+func (f *fakeRepo) AnalyticsByRule(context.Context, time.Time, time.Time, promotion.AnalyticsScope) ([]promotion.RuleAnalytics, error) {
 	return nil, nil
 }
-func (f *fakeRepo) AnalyticsTotals(context.Context, time.Time, time.Time) (promotion.AnalyticsTotals, error) {
+func (f *fakeRepo) AnalyticsTotals(context.Context, time.Time, time.Time, promotion.AnalyticsScope) (promotion.AnalyticsTotals, error) {
 	return promotion.AnalyticsTotals{}, nil
 }
-func (f *fakeRepo) AnalyticsDaily(context.Context, time.Time, time.Time, *uuid.UUID) ([]promotion.AnalyticsDailyPoint, error) {
+func (f *fakeRepo) AnalyticsDaily(context.Context, time.Time, time.Time, *uuid.UUID, promotion.AnalyticsScope) ([]promotion.AnalyticsDailyPoint, error) {
 	return nil, nil
 }
 

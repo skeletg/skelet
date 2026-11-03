@@ -25,8 +25,8 @@ func TestAChannelScopedListIsFilteredBeforeTheLimit(t *testing.T) {
 	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM channels WHERE id = $1`, other) })
 	insert := func(ch uuid.UUID, age string) uuid.UUID {
 		var id uuid.UUID
-		if err := conn.QueryRow(`INSERT INTO subscriptions (product_id, interval_unit, price, currency_code, current_period_start, current_period_end, next_billing_at, channel_id, created_at)
-			VALUES ($1, 'month', 100, 'USD', now(), now(), now(), $2, now() - $3::interval) RETURNING id`, uuid.New(), ch, age).Scan(&id); err != nil {
+		if err := conn.QueryRow(`INSERT INTO subscriptions (product_id, interval_unit, price, currency_code, current_period_start, current_period_end, next_billing_at, billing_anchor, channel_id, created_at)
+			VALUES ($1, 'month', 100, 'USD', now(), now(), now(), now(), $2, now() - $3::interval) RETURNING id`, uuid.New(), ch, age).Scan(&id); err != nil {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM subscriptions WHERE id = $1`, id) })
