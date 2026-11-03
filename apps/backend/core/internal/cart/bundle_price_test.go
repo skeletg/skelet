@@ -123,7 +123,7 @@ func TestBundleSelectionDealsAndCustomerQuantities(t *testing.T) {
 		{ID: mugSel, ProductID: uuid.New(), ProductSKU: "mug", QuantityPerBundle: 1, DiscountPercent: 25},
 		{ID: teaSel, ProductID: uuid.New(), ProductSKU: "tea", QuantityPerBundle: 1, CustomerQuantity: true},
 	}}}}
-	svc := NewService(repo, nil, bundlePricer{prices: map[string]SimplePricing{"mug": {UnitPrice: 1000}, "tea": {UnitPrice: 300}}, snap: snap})
+	svc := NewService(repo, nil, bundlePricer{prices: map[string]SimplePricing{"mug": {UnitPrice: 1000}, "tea": {UnitPrice: 300, QtyStep: 1}}, snap: snap})
 	add := func(q map[uuid.UUID]float64) error {
 		_, err := svc.AddBundleToCart(context.Background(), cartID, nil, AddBundleToCartInput{
 			ProductSku: "set", Quantity: 2, Selections: []AddBundleSelectionInput{{OptionID: optID, SelectionIDs: []uuid.UUID{mugSel, teaSel}}}, Quantities: q,
@@ -146,5 +146,8 @@ func TestBundleSelectionDealsAndCustomerQuantities(t *testing.T) {
 	}
 	if err := add(map[uuid.UUID]float64{teaSel: 0}); !errors.Is(err, ErrBundleSelectionInvalid) {
 		t.Fatalf("zero teas = %v, want ErrBundleSelectionInvalid", err)
+	}
+	if err := add(map[uuid.UUID]float64{teaSel: 0.25}); !errors.Is(err, ErrQuantityOutOfBounds) {
+		t.Fatalf("a quarter tea sold whole = %v, want ErrQuantityOutOfBounds", err)
 	}
 }
