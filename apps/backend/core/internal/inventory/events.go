@@ -205,6 +205,15 @@ func (s *Service) guardCartStock(ctx context.Context, channelID uuid.UUID, sku s
 	if err != nil {
 		return nil // not a catalog product we can resolve → don't gate
 	}
+	// A kit owns no stock, so its components are what can run out - a lookup failure fails open here, placement still reserves fail-closed
+	if comps, err := s.products.KitComponents(ctx, productID); err == nil && len(comps) > 0 {
+		for _, c := range comps {
+			if err := s.guardProductStock(ctx, channelID, c.ProductID, qty*c.Quantity); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	return s.guardProductStock(ctx, channelID, productID, qty)
 }
 

@@ -133,12 +133,18 @@ type OrderLineOption struct {
 	CreatedAt       time.Time
 }
 
-// One picked component under a bundle line - Quantity is the total, already multiplied by the parent quantity, and the option and selection ids are snapshots rather than FKs
+// A bundle line, as against a kit line whose components are its recipe - only a bundle pick carries an option
+func (l OrderLine) IsBundle() bool {
+	return len(l.Components) > 0 && l.Components[0].BundleOptionID != uuid.Nil
+}
+
+// One picked component under a bundle line, or one item of a kit's recipe - Quantity is the total, already multiplied by the parent quantity, and the option and selection ids are snapshots rather than FKs, Nil on a kit item
 type OrderLineComponent struct {
 	ID                uuid.UUID
 	OrderLineID       uuid.UUID
 	BundleOptionID    uuid.UUID
 	BundleSelectionID uuid.UUID
+	Returnable        bool // whether it can come back on its own - always on a bundle, the kit's setting at sale on a kit
 	ProductID         uuid.UUID
 	ProductSku        string
 	ProductName       string

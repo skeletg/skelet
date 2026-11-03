@@ -98,6 +98,7 @@ func (r *mutationResolver) UpdateProduct(ctx context.Context, input model.Update
 		domainInput.CostCents = &v
 	}
 	domainInput.ClearCostCents = input.ClearCostCents != nil && *input.ClearCostCents
+	domainInput.KitItemsReturnable = input.KitItemsReturnable
 	if input.Metadata != nil {
 		m := metadataFromInput(input.Metadata)
 		domainInput.Metadata = &m

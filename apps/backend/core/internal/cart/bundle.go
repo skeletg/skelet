@@ -134,6 +134,12 @@ func (s *Service) priceBundle(ctx context.Context, c Cart, picked []pickedSelect
 		switch {
 		case perr == nil:
 			compUnit = sp.UnitPrice
+			// A shopper-set amount keeps the item's step, so an item sold whole can't go in by the quarter - min and max bound an order of the item alone, not one bundle's share
+			if sel.CustomerQuantity {
+				if err := validateQtyBounds(SimplePricing{QtyStep: sp.QtyStep}, sel.QuantityPerBundle); err != nil {
+					return nil, nil, 0, fmt.Errorf("bundle component %s: %w", sel.ProductSKU, err)
+				}
+			}
 		case errors.Is(perr, ErrProductNotPublished), errors.Is(perr, ErrProductNotPurchasable):
 			return nil, nil, 0, fmt.Errorf("bundle component %s: %w", sel.ProductSKU, perr)
 		}

@@ -130,12 +130,16 @@ func componentRefundUnit(l OrderLine, c OrderLineComponent, lineUnit int64) int6
 	if l.Quantity <= 0 {
 		return 0
 	}
-	var perBundle float64
+	var perBundle, units float64
 	for _, x := range l.Components {
 		perBundle += float64(x.UnitPrice) * x.Quantity / l.Quantity
+		units += x.Quantity / l.Quantity
 	}
-	if perBundle <= 0 {
-		return 0
+	if perBundle <= 0 { // a kit's items often carry no price of their own - then each unit is an even share
+		if units <= 0 {
+			return 0
+		}
+		return int64(math.Round(float64(lineUnit) / units))
 	}
 	return int64(math.Round(float64(lineUnit) * float64(c.UnitPrice) / perBundle))
 }
@@ -315,8 +319,12 @@ func (s *Service) RequestReturn(ctx context.Context, in RequestReturnInput) (Ord
 		}
 		key := returnKey{line: l.ID}
 		if rl.ComponentID != nil {
-			if c, ok := compByID[*rl.ComponentID]; !ok || c.OrderLineID != l.ID {
+			c, ok := compByID[*rl.ComponentID]
+			if !ok || c.OrderLineID != l.ID {
 				return OrderReturn{}, apperr.New("RETURN_UNKNOWN_LINE", apperr.ClassValidation, "return component does not belong to that line")
+			}
+			if !c.Returnable {
+				return OrderReturn{}, apperr.New("RETURN_KIT_WHOLE_ONLY", apperr.ClassValidation, "this kit was sold to be returned whole, not by its items")
 			}
 			key.component = *rl.ComponentID
 		}

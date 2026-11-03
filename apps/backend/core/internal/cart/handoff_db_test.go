@@ -72,9 +72,26 @@ func TestAHandoffMovesTheAgentCartIntoAFreshCartAndClosesIt(t *testing.T) {
 		t.Fatalf("add to a handed-off cart = %v, want ErrCartNotActive", err)
 	}
 
+	// The coupon the agent applied comes along - the shopper was quoted the discounted price
+	var ruleID, codeID uuid.UUID
+	if err := r.conn.QueryRow(`INSERT INTO promotion_rules (slug, name, channel_id) VALUES ($1, 'Spring', $2) RETURNING id`, "ho-"+uuid.NewString()[:8], r.channel).Scan(&ruleID); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = r.conn.Exec(`DELETE FROM promotion_rules WHERE id = $1`, ruleID) })
+	if err := r.conn.QueryRow(`INSERT INTO promotion_codes (rule_id, code) VALUES ($1, 'SPRING10') RETURNING id`, ruleID).Scan(&codeID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.conn.Exec(`INSERT INTO cart_applied_codes (cart_id, rule_id, code_id) VALUES ($1, $2, $3)`, agent.ID, ruleID, codeID); err != nil {
+		t.Fatal(err)
+	}
+
 	got := r.redeem(t, token, nil, nil)
 	if got.ID == agent.ID || got.Source != SourceWeb || got.Status != "active" {
 		t.Fatalf("redeemed into %+v, want a new active web cart", got)
+	}
+	var carried uuid.UUID
+	if err := r.conn.QueryRow(`SELECT code_id FROM cart_applied_codes WHERE cart_id = $1 AND rule_id = $2`, got.ID, ruleID).Scan(&carried); err != nil || carried != codeID {
+		t.Fatalf("applied code on the redeemed cart = %v (%v), want SPRING10 carried over", carried, err)
 	}
 	if l := lineBySku(t, got, "tee"); l.Quantity != 2 || len(got.Lines) != 1 {
 		t.Fatalf("redeemed lines = %+v, want 2 tees", got.Lines)

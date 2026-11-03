@@ -605,7 +605,7 @@ func (q *Queries) ListCollectionsByProductIDs(ctx context.Context, productIds []
 }
 
 const listProductsByCollection = `-- name: ListProductsByCollection :many
-SELECT p.id, p.product_type_id, p.default_price, p.default_currency_code, p.attributes, p.metadata, p.private_metadata, p.created_at, p.updated_at, p.sku, p.seo_noindex, p.canonical_url, p.url, p.url_auto, p.url_template_override, p.tracks_inventory_override, p.kind, p.quantity_decimals, p.quantity_step, p.tax_class, p.variant_mode, p.compare_at_price, p.special_price, p.special_from, p.special_to, p.weight_grams, p.length_mm, p.width_mm, p.height_mm, p.min_order_qty, p.max_order_qty, p.cost_cents, p.configurator_layout
+SELECT p.id, p.product_type_id, p.default_price, p.default_currency_code, p.attributes, p.metadata, p.private_metadata, p.created_at, p.updated_at, p.sku, p.seo_noindex, p.canonical_url, p.url, p.url_auto, p.url_template_override, p.tracks_inventory_override, p.kind, p.quantity_decimals, p.quantity_step, p.tax_class, p.variant_mode, p.compare_at_price, p.special_price, p.special_from, p.special_to, p.weight_grams, p.length_mm, p.width_mm, p.height_mm, p.min_order_qty, p.max_order_qty, p.cost_cents, p.configurator_layout, p.kit_items_returnable
 FROM catalog_collection_products cp
 JOIN catalog_products p ON p.id = cp.product_id
 WHERE cp.collection_id = $1
@@ -662,6 +662,7 @@ func (q *Queries) ListProductsByCollection(ctx context.Context, arg ListProducts
 			&i.MaxOrderQty,
 			&i.CostCents,
 			&i.ConfiguratorLayout,
+			&i.KitItemsReturnable,
 		); err != nil {
 			return nil, err
 		}

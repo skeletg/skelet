@@ -478,11 +478,15 @@ func (s *Service) persistOrderLines(ctx context.Context, orderR Repository, orde
 				UnitPrice:         c.UnitPrice,
 				Quantity:          c.Quantity,
 				SortOrder:         c.SortOrder,
+				Returnable:        true,
 			}); err != nil {
 				return fmt.Errorf("add order line component: %w", err)
 			}
 		}
 		if err := orderR.AddOrderLineStockParts(ctx, orderLine.ID, orderStockParts(l.StockParts)); err != nil {
+			return err
+		}
+		if err := s.addKitItems(ctx, orderR, orderLine.ID, l.ProductSku, l.Quantity, l.StockParts); err != nil {
 			return err
 		}
 		for _, o := range l.Options {
@@ -525,6 +529,26 @@ func (s *Service) stampStockParts(ctx context.Context, lines []cart.CartLine) ([
 		l.StockParts = append(l.StockParts, cart.OptionStockParts(l.Options)...)
 	}
 	return out, nil
+}
+
+// Snapshots a kit line's items onto the order as its components, so they show and can come back one at a time - only for
+// a line stamped with a kit recipe, and with the kit's return setting as it stands at sale
+func (s *Service) addKitItems(ctx context.Context, orderR Repository, lineID uuid.UUID, sku string, qty float64, parts []cart.CartLineStockPart) error {
+	if s.kits == nil || !slices.ContainsFunc(parts, func(p cart.CartLineStockPart) bool { return p.Source == cart.StockPartKit }) {
+		return nil
+	}
+	items, err := s.kits.KitItemsBySKU(ctx, sku)
+	if err != nil {
+		return fmt.Errorf("kit items for %q: %w", sku, err)
+	}
+	for _, it := range items {
+		it.OrderLineID = lineID
+		it.Quantity *= qty
+		if _, err := orderR.AddOrderLineComponent(ctx, it); err != nil {
+			return fmt.Errorf("add kit item: %w", err)
+		}
+	}
+	return nil
 }
 
 func orderStockParts(in []cart.CartLineStockPart) []OrderLineStockPart {
@@ -771,8 +795,11 @@ func cartLineParts(l cart.CartLine) []shippingpkg.Part {
 	return parts
 }
 
-// An order line's components as shipping parts
+// An order line's components as shipping parts - a kit ships as its own SKU, so only a bundle has any
 func orderLineParts(l OrderLine) []shippingpkg.Part {
+	if !l.IsBundle() {
+		return nil
+	}
 	parts := make([]shippingpkg.Part, len(l.Components))
 	for i, c := range l.Components {
 		parts[i] = shippingpkg.Part{SKU: c.ProductSku, Quantity: c.Quantity, UnitPriceCents: c.UnitPrice}

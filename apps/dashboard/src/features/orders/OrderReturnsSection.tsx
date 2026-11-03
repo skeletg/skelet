@@ -72,7 +72,7 @@ export function OrderReturnsSection({ order }: { order: OrderData }) {
     const comp = componentId ? line?.components.find((c) => c.id === componentId) : undefined
     return comp ? `${comp.name || comp.sku} (from ${line?.name ?? lineId})` : (line?.name ?? lineId)
   }
-  // A draft per whole line, and per component of a bundle line - a component comes back on its own, in its own units
+  // A draft per whole line, and per component of a bundle or kit line - a component comes back on its own, in its own units (a kit sold whole-only offers none)
   const draftKey = (lineId: string, componentId?: string) => (componentId ? `${lineId}:${componentId}` : lineId)
 
   // Only shipped orders can be returned (backend enforces too)
@@ -265,7 +265,7 @@ export function OrderReturnsSection({ order }: { order: OrderData }) {
                       className="w-24 tabular-nums"
                     />
                   </div>
-                  {l.components.map((c) => {
+                  {l.components.filter((c) => c.returnable).map((c) => {
                     const key = draftKey(l.id, c.id)
                     const cd = lineDrafts[key] ?? { checked: false, quantity: '1' }
                     return (
@@ -277,7 +277,7 @@ export function OrderReturnsSection({ order }: { order: OrderData }) {
                         />
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-sm">{c.name || c.sku}</div>
-                          <div className="text-[10px] text-muted-foreground">one item from the bundle - refunded at its share</div>
+                          <div className="text-[10px] text-muted-foreground">one item out of the line - refunded at its share</div>
                         </div>
                         <Input
                           type="number"

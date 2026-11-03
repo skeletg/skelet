@@ -111,6 +111,7 @@ func toProductBaseModel(p catalog.Product, productType *model.ProductType, attri
 		MinOrderQty:             p.MinOrderQty,
 		MaxOrderQty:             p.MaxOrderQty,
 		CostCents:               int32PtrFrom64(p.CostCents),
+		KitItemsReturnable:      p.KitItemsReturnable,
 		Listings:                listings,
 		Sku:                     p.SKU,
 		TaxClass:                p.TaxClass,

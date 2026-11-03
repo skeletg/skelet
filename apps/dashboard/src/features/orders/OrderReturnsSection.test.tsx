@@ -98,7 +98,7 @@ describe('returning one component of a bundle', () => {
     const sent: Record<string, unknown>[] = []
     const bundleOrder = {
       id: 'o2', channelId: 'c1', status: 'FULFILLED', currencyCode: 'EUR', returns: [],
-      lines: [{ id: 'l1', name: 'Gift box', sku: 'BOX', quantity: 2, components: [{ id: 'k1', name: 'Mug', sku: 'MUG', unitPrice: 600, quantity: 2 }] }],
+      lines: [{ id: 'l1', name: 'Gift box', sku: 'BOX', quantity: 2, components: [{ id: 'k1', name: 'Mug', sku: 'MUG', unitPrice: 600, quantity: 2, returnable: true }] }],
     } as never
     renderDialog(<OrderReturnsSection order={bundleOrder} />, [
       meMock(),
@@ -111,5 +111,19 @@ describe('returning one component of a bundle', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open return' }))
     await vi.waitFor(() => expect(sent).toHaveLength(1), SLOW)
     expect((sent[0].input as { lines: unknown[] }).lines).toEqual([{ orderLineId: 'l1', componentId: 'k1', quantity: 1 }])
+  })
+})
+
+// What this pins: a kit sold to come back whole offers its line, never its items
+describe('a whole-only kit', () => {
+  it('offers no item on its own', async () => {
+    const kitOrder = {
+      id: 'o3', channelId: 'c1', status: 'FULFILLED', currencyCode: 'EUR', returns: [],
+      lines: [{ id: 'l1', name: 'Mug set', sku: 'SET', quantity: 1, components: [{ id: 'k1', name: 'Mug', sku: 'MUG', unitPrice: 600, quantity: 2, returnable: false }] }],
+    } as never
+    renderDialog(<OrderReturnsSection order={kitOrder} />, [meMock()])
+    fireEvent.click(await screen.findByRole('button', { name: 'New return' }, SLOW))
+    expect(await screen.findByText('Mug set')).toBeTruthy()
+    expect(screen.queryByRole('checkbox', { name: 'Return Mug on its own' })).toBeNull()
   })
 })

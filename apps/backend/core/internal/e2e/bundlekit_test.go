@@ -146,6 +146,8 @@ func TestKitReservesComponentsAndFailsClosed(t *testing.T) {
 		}
 	}
 
+	// Carted while k2 still covers two kits - placement is the last line once the first order takes k2's stock
+	late := h.NewGuestCartSKU(t, f, k.SKU, 2)
 	o, err := h.TryPlace(t, f.Channel, h.NewGuestCartSKU(t, f, k.SKU, 1))
 	if err != nil {
 		t.Fatalf("place kit: %v", err)
@@ -160,8 +162,16 @@ func TestKitReservesComponentsAndFailsClosed(t *testing.T) {
 	}
 	h.Settle(t)
 
-	// k2 has 2 left; qty 2 needs 4 - the expansion must fail the placement, holding nothing
-	if _, err := h.TryPlace(t, f.Channel, h.NewGuestCartSKU(t, f, k.SKU, 2)); err == nil {
+	// k2 has 2 left; qty 2 needs 4 - add-to-cart refuses it up front, checking the components the kit owns no stock of
+	c, err := h.D.Cart.CreateGuestCart(h.Ctx, f.Channel.ID)
+	if err != nil {
+		t.Fatalf("cart: %v", err)
+	}
+	if _, err := h.D.Cart.AddToCart(h.Ctx, c.ID, nil, k.SKU, 2); apperr.CodeOf(err) != "CART_INSUFFICIENT_STOCK" {
+		t.Errorf("adding 2 kits over a short component = %v, want CART_INSUFFICIENT_STOCK", err)
+	}
+	// and a cart filled before the stock went must fail the placement, holding nothing
+	if _, err := h.TryPlace(t, f.Channel, late); err == nil {
 		t.Fatal("placed a kit its components can't cover")
 	} else if !errors.Is(err, inventory.ErrInsufficientStock) {
 		t.Errorf("short-kit error = %v, want ErrInsufficientStock", err)
@@ -575,5 +585,145 @@ func TestABundleComponentIsReturnedOnItsOwn(t *testing.T) {
 	left, err := h.D.Order.ReturnableByOrderLine(h.Ctx, o.ID)
 	if err != nil || left[line.ID] != 1 {
 		t.Errorf("whole bundles still returnable = %v (%v), want the one untouched bundle", left[line.ID], err)
+	}
+}
+
+// A kit listed on the store at price, holding qty of each given component per kit
+func (h *harness) newKit(t *testing.T, f *store, price int64, comps map[uuid.UUID]float64) (catalog.Product, []catalog.KitComponent) {
+	t.Helper()
+	k, err := h.D.Catalog.CreateProduct(h.Ctx, catalog.CreateProductInput{
+		ProductTypeID: f.Product.ProductTypeID, Locale: "en",
+		Name: "E2E Kit " + uuid.NewString()[:8], SKU: "e2e-kit-" + uuid.NewString()[:8],
+		Kind: catalog.KindKit, DefaultCurrencyCode: "USD", DefaultPrice: price,
+	})
+	if err != nil {
+		t.Fatalf("create kit: %v", err)
+	}
+	h.ListOn(t, f.Channel, k.ID, price)
+	var out []catalog.KitComponent
+	for id, qty := range comps {
+		c, err := h.D.Catalog.AddKitComponent(h.Ctx, catalog.AddKitComponentInput{ProductID: k.ID, ComponentProductID: id, Quantity: qty, SortOrder: int32(len(out))})
+		if err != nil {
+			t.Fatalf("kit component: %v", err)
+		}
+		out = append(out, c)
+	}
+	return k, out
+}
+
+// Scenario: a kit with no components would sell an empty box - add-to-cart refuses it, and so does checkout when the merchant empties a kit already in a cart
+func TestAnEmptyKitIsRefused(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 10, 1000)
+	empty, _ := h.newKit(t, f, 900, nil)
+	c, err := h.D.Cart.CreateGuestCart(h.Ctx, f.Channel.ID)
+	if err != nil {
+		t.Fatalf("cart: %v", err)
+	}
+	if _, err := h.D.Cart.AddToCart(h.Ctx, c.ID, nil, empty.SKU, 1); apperr.CodeOf(err) != "PRODUCT_NOT_PURCHASABLE" {
+		t.Errorf("adding an empty kit = %v, want PRODUCT_NOT_PURCHASABLE", err)
+	}
+
+	k, comps := h.newKit(t, f, 900, map[uuid.UUID]float64{h.AddProduct(t, f, 400, true, 10).ID: 1})
+	cartID := h.NewGuestCartSKU(t, f, k.SKU, 1)
+	if err := h.D.Catalog.DeleteKitComponent(h.Ctx, comps[0].ID); err != nil {
+		t.Fatalf("empty the kit: %v", err)
+	}
+	if _, err := h.TryPlace(t, f.Channel, cartID); apperr.CodeOf(err) != "PRODUCT_NOT_PURCHASABLE" {
+		t.Errorf("placing a kit emptied in the cart = %v, want PRODUCT_NOT_PURCHASABLE", err)
+	}
+	h.Settle(t)
+}
+
+// Places and ships qty of the kit, returning the order and its one line
+func (h *harness) shipKit(t *testing.T, f *store, sku string, qty float64) (order.Order, order.OrderLine) {
+	t.Helper()
+	o, err := h.TryPlace(t, f.Channel, h.NewGuestCartSKU(t, f, sku, qty))
+	if err != nil {
+		t.Fatalf("place: %v", err)
+	}
+	for _, status := range []string{"confirmed", "processing"} {
+		if _, err := h.D.Order.UpdateStatus(h.Ctx, o.ID, status); err != nil {
+			t.Fatalf("advance to %s: %v", status, err)
+		}
+	}
+	line := h.OrderLines(t, o.ID)[0]
+	if _, err := h.D.Order.CreateFulfillment(h.Ctx, order.CreateFulfillmentInput{
+		OrderID: o.ID, Lines: []order.FulfillmentLineInput{{OrderLineID: line.ID, Quantity: qty}}, Carrier: "ups", TrackingNumber: "1Z-kit",
+	}); err != nil {
+		t.Fatalf("fulfill: %v", err)
+	}
+	h.Settle(t)
+	full, err := h.D.Order.GetByID(h.Ctx, o.ID)
+	if err != nil {
+		t.Fatalf("order: %v", err)
+	}
+	return full, full.Lines[0]
+}
+
+// Scenario: a kit set to return by item lets one mug come back on its own, refunded at its share and restocked alone - and
+// the setting is the one it was sold under, so switching it off later doesn't take that away
+func TestAKitItemIsReturnedOnItsOwn(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 10, 1000)
+	mug, tea := h.AddProduct(t, f, 600, true, 10), h.AddProduct(t, f, 300, true, 10)
+	k, _ := h.newKit(t, f, 900, map[uuid.UUID]float64{mug.ID: 1, tea.ID: 1})
+	on, off := true, false
+	if _, err := h.D.Catalog.UpdateProduct(h.Ctx, catalog.UpdateProductInput{ID: k.ID, KitItemsReturnable: &on}); err != nil {
+		t.Fatalf("allow item returns: %v", err)
+	}
+	o, line := h.shipKit(t, f, k.SKU, 2)
+	if len(line.Components) != 2 || line.IsBundle() {
+		t.Fatalf("kit line components = %+v, want its two items and not a bundle", line.Components)
+	}
+	var mugComp uuid.UUID
+	for _, c := range line.Components {
+		if c.ProductID == mug.ID {
+			mugComp = c.ID
+			if c.Quantity != 2 || !c.Returnable {
+				t.Errorf("mug component = %+v, want 2 for two kits, returnable", c)
+			}
+		}
+	}
+	if _, err := h.D.Catalog.UpdateProduct(h.Ctx, catalog.UpdateProductInput{ID: k.ID, KitItemsReturnable: &off}); err != nil {
+		t.Fatalf("switch item returns off: %v", err)
+	}
+	mugBefore, teaBefore := h.onHand(t, mug.ID), h.onHand(t, tea.ID)
+
+	ret, err := h.D.Order.RequestReturn(h.Ctx, order.RequestReturnInput{
+		OrderID: o.ID, Restock: true, Lines: []order.ReturnLineInput{{OrderLineID: line.ID, ComponentID: &mugComp, Quantity: 1, Reason: "chipped"}},
+	})
+	if err != nil {
+		t.Fatalf("return a mug: %v", err)
+	}
+	if got := ret.Lines[0].RefundUnitCents; got != 600 { // the mug is worth 600 of the 900 the items list at, and the kit sold at 900
+		t.Errorf("mug refund = %d, want its 600 share", got)
+	}
+	if _, err := h.D.Order.ApproveReturn(h.Ctx, ret.ID); err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+	if _, err := h.D.Order.ReceiveReturn(h.Ctx, ret.ID); err != nil {
+		t.Fatalf("receive: %v", err)
+	}
+	h.Settle(t)
+	if got := h.onHand(t, mug.ID); got != mugBefore+1 {
+		t.Errorf("mugs on hand %v, want %v + 1", got, mugBefore)
+	}
+	if got := h.onHand(t, tea.ID); got != teaBefore {
+		t.Errorf("tea on hand %v, want untouched %v", got, teaBefore)
+	}
+
+	// Sold while the setting is off, the next kit only comes back whole
+	o2, line2 := h.shipKit(t, f, k.SKU, 1)
+	_, err = h.D.Order.RequestReturn(h.Ctx, order.RequestReturnInput{
+		OrderID: o2.ID, Lines: []order.ReturnLineInput{{OrderLineID: line2.ID, ComponentID: &line2.Components[0].ID, Quantity: 1}},
+	})
+	if apperr.CodeOf(err) != "RETURN_KIT_WHOLE_ONLY" {
+		t.Errorf("an item from a whole-only kit = %v, want RETURN_KIT_WHOLE_ONLY", err)
+	}
+	if _, err := h.D.Order.RequestReturn(h.Ctx, order.RequestReturnInput{
+		OrderID: o2.ID, Lines: []order.ReturnLineInput{{OrderLineID: line2.ID, Quantity: 1}},
+	}); err != nil {
+		t.Errorf("the whole kit back = %v, want allowed", err)
 	}
 }

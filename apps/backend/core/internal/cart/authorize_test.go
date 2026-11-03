@@ -89,6 +89,9 @@ func (f fakeRepo) RecordHandoffRedemption(context.Context, uuid.UUID, uuid.UUID)
 func (f fakeRepo) CarryHandoffRedemptions(context.Context, uuid.UUID, uuid.UUID) error {
 	return nil
 }
+func (f fakeRepo) CarryAppliedCodes(context.Context, uuid.UUID, uuid.UUID) error {
+	return nil
+}
 func (f fakeRepo) SaveItem(context.Context, uuid.UUID, string, string, float64) (SavedItem, error) {
 	return SavedItem{}, nil
 }

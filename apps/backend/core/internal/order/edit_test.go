@@ -31,8 +31,12 @@ func TestSyntheticCart(t *testing.T) {
 	lines := []OrderLine{
 		{ID: lineA, ProductSku: "SIMPLE-1", ProductName: "Simple", UnitPrice: 1000, Quantity: 2},
 		{ID: lineB, ProductSku: "BUNDLE-1", ProductName: "Bundle", UnitPrice: 5000, Quantity: 1, Components: []OrderLineComponent{
-			{ProductID: compProduct, ProductSku: "COMP-1", ProductName: "Comp", UnitPrice: 2500, Quantity: 2},
+			{BundleOptionID: uuid.New(), ProductID: compProduct, ProductSku: "COMP-1", ProductName: "Comp", UnitPrice: 2500, Quantity: 2},
 		}},
+		// A kit's items are for show and return - its stock parts are what it takes
+		{ID: uuid.New(), ProductSku: "KIT-1", ProductName: "Kit", UnitPrice: 900, Quantity: 1,
+			Components: []OrderLineComponent{{ProductID: compProduct, ProductSku: "COMP-1", Quantity: 1}},
+			StockParts: []OrderLineStockPart{{ProductID: compProduct, Quantity: 1, Source: "kit"}}},
 	}
 
 	c := syntheticCart(o, lines)
@@ -40,8 +44,11 @@ func TestSyntheticCart(t *testing.T) {
 	if c.ChannelID != chID {
 		t.Errorf("channel id = %v, want %v", c.ChannelID, chID)
 	}
-	if len(c.Lines) != 2 {
-		t.Fatalf("lines = %d, want 2", len(c.Lines))
+	if len(c.Lines) != 3 {
+		t.Fatalf("lines = %d, want 3", len(c.Lines))
+	}
+	if kit := c.Lines[2]; len(kit.Components) != 0 || len(kit.StockParts) != 1 {
+		t.Errorf("kit line = %d components, %d stock parts - want none and its one part", len(kit.Components), len(kit.StockParts))
 	}
 	// Line ID must carry through so reservations link to the order line
 	if c.Lines[0].ID != lineA {

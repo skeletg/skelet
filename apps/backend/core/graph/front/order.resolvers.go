@@ -84,7 +84,7 @@ func (r *mutationResolver) Reorder(ctx context.Context, orderID string) (*model1
 	for _, line := range o.Lines {
 		var addErr error
 		switch {
-		case len(line.Components) > 0:
+		case line.IsBundle():
 			_, addErr = r.CartSvc.AddBundleToCart(ctx, cid, &claims.CustomerID, reorderBundleInput(line))
 		case len(line.Options) > 0:
 			_, addErr = r.CartSvc.AddConfiguredToCart(ctx, cid, &claims.CustomerID, reorderConfiguredInput(line))

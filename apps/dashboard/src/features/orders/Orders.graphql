@@ -86,6 +86,7 @@ query Order($id: ID!) {
         name
         unitPrice
         quantity
+        returnable
       }
       options {
         id

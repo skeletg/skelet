@@ -7151,6 +7151,7 @@ export type OrderLineComponent = {
   id: Scalars['ID']['output'];
   name: Scalars['String']['output'];
   quantity: Scalars['Float']['output'];
+  returnable: Scalars['Boolean']['output'];
   sku: Scalars['String']['output'];
   unitPrice: Scalars['Int']['output'];
 };
@@ -7334,6 +7335,7 @@ export type Product = ProductOptionOwner & {
   inStock: Scalars['Boolean']['output'];
   kind: ProductKind;
   kitComponents: Array<KitComponent>;
+  kitItemsReturnable: Scalars['Boolean']['output'];
   lengthMm?: Maybe<Scalars['Int']['output']>;
   listings: Array<ProductChannelListing>;
   mainImage?: Maybe<ProductMedia>;
@@ -11095,6 +11097,7 @@ export type UpdateProductInput = {
   defaultPrice?: InputMaybe<Scalars['Int']['input']>;
   heightMm?: InputMaybe<Scalars['Int']['input']>;
   id: Scalars['ID']['input'];
+  kitItemsReturnable?: InputMaybe<Scalars['Boolean']['input']>;
   lengthMm?: InputMaybe<Scalars['Int']['input']>;
   maxOrderQty?: InputMaybe<Scalars['Float']['input']>;
   metadata?: InputMaybe<Array<MetadataInput>>;

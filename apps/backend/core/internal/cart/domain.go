@@ -460,6 +460,7 @@ type Repository interface {
 	GetCartByHandoffToken(ctx context.Context, token string) (Cart, error)
 	RecordHandoffRedemption(ctx context.Context, agentCartID, cartID uuid.UUID) (bool, error) // false when this cart already had the handoff
 	CarryHandoffRedemptions(ctx context.Context, fromCartID, toCartID uuid.UUID) error
+	CarryAppliedCodes(ctx context.Context, fromCartID, toCartID uuid.UUID) error // a code the target already has keeps its row
 
 	CreateOfferCart(ctx context.Context, in CreateOfferInput) (Cart, error)
 	GetOfferByToken(ctx context.Context, token string) (Cart, error)

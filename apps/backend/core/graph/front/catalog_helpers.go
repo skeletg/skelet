@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"slices"
 	"strings"
 
 	"github.com/99designs/gqlgen/graphql"
@@ -41,7 +42,7 @@ func (r *productResolver) salableFor(ctx context.Context, productID, channelID u
 }
 
 // A wrapper carries no inventory_items row, so this aggregates children: configurable/grouped are in stock when ANY child is sellable, a bundle only when every option can meet its minimum from selections sellable and listed here
-// No children means out of stock, and for configurable/grouped every child row counts even ones unpublished on this store - an over-approximation that errs toward showing the parent available
+// No children means out of stock - a grouped member, like a bundle pick, only counts when this store sells it, while every configurable child row counts even unpublished ones, an over-approximation that errs toward showing the parent available
 func (r *productResolver) wrapperInStock(ctx context.Context, kind model.ProductKind, pid, channelID uuid.UUID) (bool, error) {
 	switch kind {
 	case model.ProductKindConfigurable:
@@ -64,6 +65,12 @@ func (r *productResolver) wrapperInStock(ctx context.Context, kind model.Product
 		for i, m := range members {
 			ids[i] = m.MemberID
 		}
+		// Only a member this store sells can make the group buyable here, the rule bundles follow
+		listed, err := r.CatalogSvc.FilterVisibleProductIDsForChannel(ctx, ids, channelID)
+		if err != nil {
+			return false, err
+		}
+		ids = slices.DeleteFunc(ids, func(id uuid.UUID) bool { _, ok := listed[id]; return !ok })
 		sellable, err := r.sellableByIDs(ctx, ids, channelID)
 		if err != nil {
 			return false, err
@@ -77,8 +84,7 @@ func (r *productResolver) wrapperInStock(ctx context.Context, kind model.Product
 			return false, err
 		}
 		if len(comps) == 0 {
-			// No components = nothing to gate, same as an untracked simple
-			return true, nil
+			return false, nil // an empty kit can't be added, same as a bundle with nothing to pick
 		}
 		ids := make([]uuid.UUID, len(comps))
 		for i, c := range comps {
