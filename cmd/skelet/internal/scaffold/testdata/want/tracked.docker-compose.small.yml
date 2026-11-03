@@ -1,0 +1,161 @@
+# Small profile - the minimum deployable tenant: one app container runs every backend role, one Postgres, and the ports are offset to run beside the dev stack
+# Commerce only - the Signals suite is the prod stack's. Same images there, so scaling up is a compose file and its env, not a rebuild - see docs/deploying.md for the env files to copy and for --profile edge
+name: skelet-small
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+# Same split as prod: secrets in the root .env (the only file compose
+# interpolates), everything else in env/small.env - see .env.example and docs/env.md
+x-secrets: &secrets
+  ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?set ADMIN_JWT_SECRET in the root .env (openssl rand -hex 32)}
+  CUSTOMER_JWT_PRIVATE_KEY: ${CUSTOMER_JWT_PRIVATE_KEY:?set CUSTOMER_JWT_PRIVATE_KEY in the root .env (./skelet setup, or ./skelet cli keys customer)}
+  EMAIL_LINK_SECRET: ${EMAIL_LINK_SECRET:?set EMAIL_LINK_SECRET in the root .env (openssl rand -hex 32)}
+  REVIEW_VOTER_TOKEN_SECRET: ${REVIEW_VOTER_TOKEN_SECRET:?set REVIEW_VOTER_TOKEN_SECRET in the root .env (openssl rand -hex 32)}
+  CONFIG_ENCRYPTION_KEY: ${CONFIG_ENCRYPTION_KEY:?set CONFIG_ENCRYPTION_KEY in the root .env (openssl rand -base64 32)}
+  STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
+  STORAGE_SIGNING_KEY: ${STORAGE_SIGNING_KEY:-}
+
+# The DSN derives from the one password the db container below uses, so they
+# can't drift - set the URL outright to point at a managed Postgres instead
+x-db-urls: &db-urls
+  DATABASE_URL: ${DATABASE_URL-postgres://skelet:${DB_PASSWORD:?set DB_PASSWORD in the root .env}@db:5432/skelet?sslmode=disable}
+
+services:
+  app:
+    image: ${APP_IMAGE:-skelet-app:prod}
+    env_file: [env/small.env]
+    environment:
+      <<: [*secrets, *db-urls]
+    ports: ["127.0.0.1:18080:8080"]
+    # Object storage is the one dependency that isn't in this file - the app hard-
+    # fails without a bucket - reaches the dev Garage on the host for the measurement
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on:
+      db: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    # Same drain budget as prod - this process owns the background layer too
+    stop_grace_period: 40s
+    logging: *logging
+
+  # Tenant-agnostic image - the SPA calls the relative /api and nginx envsubsts
+  # BACKEND_UPSTREAM at start, so this is the same build for every tenant
+  dashboard:
+    image: ${DASHBOARD_IMAGE:-skelet-dashboard:prod}
+    ports: ["127.0.0.1:18081:8080"]
+    environment:
+      BACKEND_UPSTREAM: http://app:8080
+      UPLOAD_ORIGINS: ${UPLOAD_ORIGINS:-}
+    depends_on:
+      app: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    logging: *logging
+
+  vetrina-demo:
+    image: ${VETRINA_DEMO_IMAGE:-skelet-vetrina-demo:prod}
+    env_file: [env/small-vetrina-demo.env]
+    ports: ["127.0.0.1:13000:3000"]
+    environment:
+      BACKEND_INTERNAL_URL: http://app:8080
+      # The two it shares with the backend, from the same root .env - it gets
+      # neither the encryption key nor a DB password
+      REVIEW_VOTER_TOKEN_SECRET: ${REVIEW_VOTER_TOKEN_SECRET:?set REVIEW_VOTER_TOKEN_SECRET in the root .env (openssl rand -hex 32)}
+      STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
+    depends_on:
+      app: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/api/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+    logging: *logging
+
+  shop:
+    image: ${SHOP_IMAGE:-skelet-shop:prod}
+    env_file: [env/small-shop.env]
+    ports: ["127.0.0.1:13001:3000"]
+    environment:
+      BACKEND_INTERNAL_URL: http://app:8080
+      # The two it shares with the backend, from the same root .env - it gets
+      # neither the encryption key nor a DB password
+      REVIEW_VOTER_TOKEN_SECRET: ${REVIEW_VOTER_TOKEN_SECRET:?set REVIEW_VOTER_TOKEN_SECRET in the root .env (openssl rand -hex 32)}
+      STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
+    depends_on:
+      app: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/api/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+    logging: *logging
+
+
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: skelet
+      # An existing db-data volume keeps the password it was initialized with -
+      # changing this later needs an ALTER USER, not just a restart
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in the root .env}
+      POSTGRES_DB: skelet
+    volumes:
+      - db-data:/var/lib/postgresql
+    ports: ["127.0.0.1:15432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    logging: *logging
+
+  # Opt-in TLS edge - `--profile edge` - this is the profile that needs it most: one box, no proxy in front, and card payments can't happen over plain http
+  caddy:
+    profiles: ["edge"]
+    image: caddy:2-alpine
+    env_file: [env/prod-caddy.env]
+    environment:
+      UPLOAD_ORIGINS: ${UPLOAD_ORIGINS:-}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      app: { condition: service_healthy }
+      dashboard: { condition: service_healthy }
+      vetrina-demo: { condition: service_healthy, required: false }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    logging: *logging
+
+volumes:
+  db-data:
+  caddy-data:
+  caddy-config:

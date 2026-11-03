@@ -47,6 +47,7 @@ import (
 // Construction needs nothing but the datastore, settings and each other - cycle breakers, subscriptions and optional providers are still wired by the entrypoint
 var Services = fx.Module("services",
 	fx.Provide(
+		newAgentTools,
 		newTaxService,
 		newShippingService,
 		newPromotionService,

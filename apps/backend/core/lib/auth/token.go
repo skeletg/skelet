@@ -22,6 +22,7 @@ type jwtClaims struct {
 	ChannelID   uuid.UUID `json:"channel_id,omitempty"`
 	Email       string    `json:"email"`
 	IsSuperuser bool      `json:"is_superuser,omitempty"`
+	Masquerade  bool      `json:"msq,omitempty"`
 	Type        string    `json:"type"` // "admin" | "customer"
 	jwt.RegisteredClaims
 }
@@ -45,6 +46,15 @@ func GenerateToken(adminID, sessionID uuid.UUID, email string, isSuperuser bool,
 }
 
 func GenerateCustomerToken(customerID, channelID uuid.UUID, email string, signer CustomerSigner, ttl time.Duration) (string, error) { // channelID is the store the customer logged into - guard.go matches it against the resolved store, so a wrong-store token reads as signed-out
+	return customerToken(customerID, channelID, email, signer, ttl, false)
+}
+
+// GenerateMasqueradeToken is marked, since the storefront's masquerade landing installs nothing else - a customer's own token in a link would sign the clicker into the sender's account
+func GenerateMasqueradeToken(customerID, channelID uuid.UUID, email string, signer CustomerSigner, ttl time.Duration) (string, error) {
+	return customerToken(customerID, channelID, email, signer, ttl, true)
+}
+
+func customerToken(customerID, channelID uuid.UUID, email string, signer CustomerSigner, ttl time.Duration, masquerade bool) (string, error) {
 	if signer.priv == nil {
 		return "", ErrNoCustomerKey
 	}
@@ -52,6 +62,7 @@ func GenerateCustomerToken(customerID, channelID uuid.UUID, email string, signer
 		CustomerID: customerID,
 		ChannelID:  channelID,
 		Email:      email,
+		Masquerade: masquerade,
 		Type:       "customer",
 		Subject:    customerID.String(),
 		Audience:   jwt.ClaimStrings{audienceCustomer},

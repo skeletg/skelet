@@ -22,11 +22,7 @@ type OfferLinks struct{ repo Repository }
 func NewOfferLinks(repo Repository) *OfferLinks { return &OfferLinks{repo: repo} }
 
 func (l *OfferLinks) Verify(ctx context.Context, token string) (OfferGrant, error) {
-	if len(token) != 22 || l.repo == nil {
-		return OfferGrant{}, ErrOfferLinkInvalid
-	}
-	decoded, err := base64.RawURLEncoding.DecodeString(token)
-	if err != nil || len(decoded) != 16 || base64.RawURLEncoding.EncodeToString(decoded) != token {
+	if !isLinkToken(token) || l.repo == nil {
 		return OfferGrant{}, ErrOfferLinkInvalid
 	}
 	c, err := l.repo.GetOfferByToken(ctx, token)
@@ -40,6 +36,15 @@ func (l *OfferLinks) Verify(ctx context.Context, token string) (OfferGrant, erro
 		return OfferGrant{}, ErrOfferLinkInvalid
 	}
 	return OfferGrant{CartID: c.ID, LinkVersion: c.Offer.LinkVersion}, nil
+}
+
+// The 16 random bytes the database mints for offer and handoff links, in canonical unpadded base64url
+func isLinkToken(token string) bool {
+	if len(token) != 22 {
+		return false
+	}
+	decoded, err := base64.RawURLEncoding.DecodeString(token)
+	return err == nil && len(decoded) == 16 && base64.RawURLEncoding.EncodeToString(decoded) == token
 }
 
 // OfferGrantMiddleware is the links' Middleware, read when the request arrives - the links are wired after the HTTP stack is assembled

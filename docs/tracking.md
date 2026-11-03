@@ -20,17 +20,27 @@ once.
 
 ## Destinations
 
-| Kind | Platform | Needs |
-|---|---|---|
-| `ga4` | Google Analytics 4, Measurement Protocol | analytics |
-| `meta_capi` | Meta Conversions API | ads |
-| `bing_uet` | Microsoft Advertising, UET Conversions API | ads |
-| `openai` | OpenAI Ads Conversions API | ads |
-| `cj` | CJ Affiliate, server-to-server postback | ads, or none with `general/privacy/cj_cookie_necessary` |
-| `awin` | Awin Conversion API | ads, or none with `general/privacy/awin_cookie_necessary` |
-| `klaviyo` | Klaviyo Events API | personalization, plus the email's marketing opt-in |
-| `attentive` | Attentive eCommerce events | personalization, plus the email's marketing opt-in |
-| `webhook` | Your own endpoint, signed JSON | analytics |
+**Every destination is in development.** Each is built from its vendor's documentation and tested against recorded
+requests, but none has yet run against a production account. They are off by default and compiled into no build
+until enabled. Verify one against a real account before relying on it in production:
+
+```bash
+skelet cli plugin enable tracking-ga4                      # compiles it in; restart the backend
+```
+
+| Kind | Plugin | Platform | Needs |
+|---|---|---|---|
+| `ga4` | `tracking-ga4` | Google Analytics 4, Measurement Protocol | analytics |
+| `google_ads` | `tracking-google-ads` | Google Ads conversions, Data Manager API | ads |
+| `google_ads_audience` | `tracking-google-ads` | Google Ads Customer Match list | ads and personalization, plus the account's marketing opt-in; removals need none |
+| `meta_capi` | `tracking-meta` | Meta Conversions API | ads |
+| `bing_uet` | `tracking-bing` | Microsoft Advertising, UET Conversions API | ads |
+| `openai` | `tracking-openai` | OpenAI Ads Conversions API | ads |
+| `cj` | `tracking-cj` | CJ Affiliate, server-to-server postback | ads, or none with `general/privacy/cj_cookie_necessary` |
+| `awin` | `tracking-awin` | Awin Conversion API | ads, or none with `general/privacy/awin_cookie_necessary` |
+| `klaviyo` | `tracking-klaviyo` | Klaviyo Events API | personalization, plus the email's marketing opt-in |
+| `attentive` | `tracking-attentive` | Attentive eCommerce events | personalization, plus the email's marketing opt-in |
+| `webhook` | `tracking-webhook` | Your own endpoint, signed JSON | analytics |
 
 Until the dashboard pages land, set them up from the command line:
 
@@ -47,6 +57,11 @@ worker for large uploads. Their kinds are `catalog_openai` and `catalog_webhook`
 events never go to them. See [catalogue delivery](catalogue-delivery.md) for the shared
 system, account setup and HTTP/SFTP configuration.
 
+## Signing out
+
+**Signing out starts a new visitor.** The next request after a sign-out gets a new visitor id and analytics session,
+so on a shared computer the next person isn't joined to the account that left.
+
 ## GA4 and Google Tag Manager
 
 **The recommended setup loads no script.** Add a `ga4` destination. Page views, product views, checkout steps,
@@ -57,16 +72,65 @@ cart changes and orders reach GA4 through the Measurement Protocol. Each event c
 **Server-side GTM:** set the `ga4` destination's endpoint to your server-side GTM container's URL. The container's GA4
 client receives the same Measurement Protocol requests and fans them out to whatever tags you run there.
 
-**A web GTM container** is optional: set `general/analytics/gtm_container_id`. The storefront then loads it:
+**No Google script runs in the browser.** That keeps every page as fast as it can be, and means each event reaches
+Google once. A web GTM container isn't offered: everything a browser tag would send already goes server to server,
+and a GA4 tag beside the `ga4` destination would count every event twice, since GA4 doesn't dedupe between the two.
 
-- only after the visitor allows a cookie category, with Consent Mode v2 set to denied by default and updated from
-  their choice
-- after the page has loaded and gone idle
-- from your own domain if `general/analytics/gtm_script_origin` names your server-side container
+## Google Ads
 
-Shop events are pushed to its `dataLayer` in GA4's ecommerce shape with an `event_id`, behind an `ecommerce: null`
-reset.
+**Conversions go server to server** through the `google_ads` destination, which sends each purchase to Google's Data
+Manager API - Google's route for imported conversions. It carries:
 
-> **Don't count twice.** GA4 doesn't dedupe between the Measurement Protocol and a browser tag. Use either the `ga4`
-> destination or a GA4 tag in your web container, not both. The ad platforms (Meta, Microsoft, OpenAI) do dedupe on
-> the event id, so their browser pixels and destinations can run side by side.
+- the ad click: `gclid`, `gbraid` or `wbraid`, which the storefront keeps for 90 days with advertising consent
+- the order number, the order value with tax and shipping, and the currency
+- the shopper's email and phone, normalised and SHA-256 hashed as Google specifies - enhanced conversions, which
+  match an order whose click id is gone
+- the visitor's consent, as `adUserData` and `adPersonalization`
+
+A purchase with no click id, email or phone isn't sent: Google could match it to nobody.
+
+**Refunds and cancellations restate the conversion.** Each one sends the order's transaction id again with what the
+order is still worth after every refund so far, and Google Ads replaces the conversion's value. The Data Manager API
+has no retraction, so a fully refunded order's value goes to 0 but it still counts as one conversion.
+
+Setting one up:
+
+1. In Google Ads, create a conversion action whose source is **Website (Import from clicks)** and note its ID.
+2. In a Google Cloud project, enable the **Data Manager API**. Create a service account and download its key, or use
+   an OAuth client's refresh token (an `authorized_user` credentials file).
+3. Give that account access to the Google Ads account, or to a manager account above it.
+4. Add the destination, checking it first with `validate_only`, which records nothing:
+
+```bash
+skelet cli plugin enable tracking-google-ads             # compiles it in; restart the backend
+TRACKING_SECRET="$(cat service-account.json)" skelet cli tracking add --channel <id> --kind google_ads \
+  --name "Google Ads" --set customer_id=1234567890 --set conversion_action_id=<id> --set validate_only=true
+skelet cli tracking test <destination-id>
+```
+
+Set `login_customer_id` when the credentials reach the account through a manager account. Remove `validate_only` once
+the test is accepted.
+
+**Remarketing goes through Customer Match**, not a browser tag - remarketing to anonymous visitors (someone who viewed
+a product and left) needs Google's browser tag and cookies, which the shop doesn't load. The `google_ads_audience`
+destination keeps a Customer Match list of your customers instead:
+
+- **Who joins:** a customer with an account who opted into email marketing, when they buy or sign up while allowing
+  advertising and personalization cookies. Guests never join: nothing would tell the list when they leave.
+- **Who leaves:** anyone who turns email marketing off, or whose account is deleted or erased. Removal is sent whatever
+  their cookie choice.
+- **What is sent:** only the email and phone, normalised and SHA-256 hashed, with the consent behind it.
+- **The list fills from new events.** Customers who opted in before the destination was set up join on their next
+  purchase.
+
+Setting it up:
+
+1. In Google Ads, accept the Customer Match terms and create a customer list (Tools > Shared library > Audience
+   manager > Your data segments > Customer list). Note its ID.
+2. Use the same credentials as the conversions destination, and add it with `--kind google_ads_audience`,
+   `--set user_list_id=<id>` and `--set terms_accepted=true`. Nothing is uploaded until `terms_accepted` is true.
+
+Customer Match needs an Ads account with a good policy and payment history, and a list targets only once enough
+members match Google accounts. Your privacy notice should say that customers who opt into marketing may be shown ads
+on Google through Customer Match. View-through conversions and Consent Mode's modelled conversions depend on a
+browser tag, so they aren't available.

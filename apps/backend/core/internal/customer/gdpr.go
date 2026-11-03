@@ -29,6 +29,9 @@ type DataExport struct {
 }
 
 // Assembles the customer-owned slice of the bundle, profile and addresses - callers append orders and consents from their own services and marshal the result
+// Every address an erasure writes, here and in gdpr.sql's order scrubs, ends in this - a reader can tell a scrubbed address from a real one
+const RedactedEmailDomain = "@anonymized.invalid"
+
 func (s *Service) ExportData(ctx context.Context, customerID uuid.UUID) (DataExport, error) {
 	c, err := s.repo.GetByIDWithAddresses(ctx, customerID)
 	if err != nil {
@@ -75,7 +78,7 @@ func (s *Service) anonymize(ctx context.Context, c Customer) error {
 	// The roster push hangs off this, so the suite's copy drops the address and consent now rather than at the next sweep
 	updated := &CustomerUpdated{
 		CustomerID: c.ID, ChannelID: c.ChannelID,
-		Email: "redacted-" + c.ID.String() + "@anonymized.invalid", FirstName: "Redacted",
+		Email: "redacted-" + c.ID.String() + RedactedEmailDomain, FirstName: "Redacted",
 		ChangedFields: []string{FieldEmail, FieldFirstName, FieldLastName, FieldPhone, FieldIsActive, FieldIsEmailVerified, FieldNote, FieldMetadata},
 		Source:        SourceGDPR,
 	}
@@ -83,7 +86,11 @@ func (s *Service) anonymize(ctx context.Context, c Customer) error {
 		if err := r.Anonymize(ctx, c, string(hash)); err != nil {
 			return nil, err
 		}
-		return []events.Event{updated}, nil
+		erased := &CustomerErased{CustomerID: c.ID, ChannelID: c.ChannelID, Email: c.Email}
+		if c.Phone != nil {
+			erased.Phone = *c.Phone
+		}
+		return []events.Event{updated, erased}, nil
 	})
 	if err != nil {
 		return err

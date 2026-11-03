@@ -75,7 +75,7 @@ func init() { // only this package registers "ai", so no dedup guard - RegisterS
 		Path:    cfgAllowCustomerData,
 		Type:    config.TypeBool,
 		Default: "true",
-		Label:   "Allow the assistant to read individual customer data (profiles, records). Turn off to keep personal data out of the AI provider.",
+		Label:   "Allow the assistant and MCP clients to read individual customer data - profiles, records and the email on orders. Turn off to keep personal data out of AI providers.",
 	})
 	config.Register(config.Definition{
 		Path:    cfgHistoryRetention,

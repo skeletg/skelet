@@ -1,6 +1,7 @@
 package wiring
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
@@ -39,6 +40,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
+	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/sdk"
 )
@@ -209,11 +211,23 @@ func (a OrderProductPricer) ResolveSimplePricing(ctx context.Context, channelID 
 // ResolveSimplePricing returns the canonical name + price for a directly purchasable SKU on the given channel - used by cart.Service.AddToCart to ignore client-supplied pricing so a tampered mutation can't set price to 1 cent - resolves the listing override if any, else the product's default_price - rejects unlisted products and kinds that can't be a direct cart line (ProductKind.IsCartLineEligible)
 func (a CartCatalogAdapter) ResolveSimplePricing(ctx context.Context, channelID uuid.UUID, sku string, customerID *uuid.UUID) (cart.SimplePricing, error) {
 	p, err := a.svc.GetProductBySKU(ctx, sku)
+	if errors.Is(err, catalog.ErrProductNotFound) { // deleted under a cart line: as unsellable as an unpublished one, so checkout refuses it rather than skipping it as a hiccup
+		return cart.SimplePricing{}, fmt.Errorf("sku %q: %w", sku, cart.ErrProductNotPublished)
+	}
 	if err != nil {
 		return cart.SimplePricing{}, err
 	}
 	if !p.Kind.IsCartLineEligible() {
 		return cart.SimplePricing{}, fmt.Errorf("%w: sku %q is kind %q", cart.ErrProductNotPurchasable, sku, p.Kind)
+	}
+	if p.Kind == catalog.KindKit { // a kit with no components would sell an empty box - refused at add and, through this same call, at checkout
+		comps, err := a.svc.KitComponentRefs(ctx, p.ID)
+		if err != nil {
+			return cart.SimplePricing{}, err
+		}
+		if len(comps) == 0 {
+			return cart.SimplePricing{}, fmt.Errorf("%w: kit %q has no components", cart.ErrProductNotPurchasable, sku)
+		}
 	}
 	listings, err := a.svc.ListProductChannelListings(ctx, p.ID)
 	if err != nil {
@@ -456,6 +470,9 @@ func toCartVisibilityGroup(g *catalog.OptionConditionGroup) *cart.OptionVisibili
 
 func (a CartCatalogAdapter) ResolveBundleBySKU(ctx context.Context, channelID uuid.UUID, sku string) (cart.BundleSnapshot, error) {
 	p, err := a.svc.GetProductBySKU(ctx, sku)
+	if errors.Is(err, catalog.ErrProductNotFound) { // a bundle deleted under a cart line is a definite "not sellable here", so checkout refuses it instead of treating it as a lookup hiccup
+		return cart.BundleSnapshot{}, fmt.Errorf("bundle %q: %w", sku, cart.ErrProductNotPublished)
+	}
 	if err != nil {
 		return cart.BundleSnapshot{}, err
 	}
@@ -478,6 +495,12 @@ func (a CartCatalogAdapter) ResolveBundleBySKU(ctx context.Context, channelID uu
 		ProductName: p.SKU, // cart falls back to SKU if this is empty; slug is a reasonable display
 		Options:     make([]cart.BundleOptionSnapshot, len(opts)),
 	}
+	for i := range listings {
+		if l := &listings[i]; l.ChannelID == channelID {
+			snap.Pricing, snap.DiscountPercent = string(l.BundlePricing), l.BundleDiscountPercent
+			snap.FixedPrice = pricing.Resolve(catalog.EffectivePricingInputs(p, l), time.Now()).Price // the same price a simple product's listing resolves to, specials included
+		}
+	}
 	for i, o := range opts {
 		os := cart.BundleOptionSnapshot{
 			ID:            o.ID,
@@ -496,11 +519,84 @@ func (a CartCatalogAdapter) ResolveBundleBySKU(ctx context.Context, channelID uu
 				UnitPrice:         sel.ProductDefaultPrice,
 				QuantityPerBundle: sel.Quantity,
 				IsDefault:         sel.IsDefault,
+				DiscountPercent:   sel.DiscountPercent,
+				CustomerQuantity:  sel.CustomerQuantity,
 			}
 		}
 		snap.Options[i] = os
 	}
+	if err := a.attachBundleVariants(ctx, &snap); err != nil {
+		return cart.BundleSnapshot{}, err
+	}
+	a.dropHiddenDefaults(ctx, channelID, &snap)
 	return snap, nil
+}
+
+// A configurable selection carries its variants, one of which the customer picks - one batched children lookup for the
+// whole bundle, with the variants' display names in the active locale
+func (a CartCatalogAdapter) attachBundleVariants(ctx context.Context, snap *cart.BundleSnapshot) error {
+	var ids []uuid.UUID
+	for _, o := range snap.Options {
+		for _, sel := range o.Selections {
+			ids = append(ids, sel.ProductID)
+		}
+	}
+	children, err := a.svc.ListProductChildrenByParentIDs(ctx, ids)
+	if err != nil || len(children) == 0 {
+		return err
+	}
+	var variantIDs []uuid.UUID
+	for _, kids := range children {
+		for _, k := range kids {
+			variantIDs = append(variantIDs, k.ID)
+		}
+	}
+	names := a.svc.LinkLabelsByIDs(ctx, string(urlrewrite.EntityTypeProduct), variantIDs, locale.Active(ctx, nil))
+	for i := range snap.Options {
+		for j := range snap.Options[i].Selections {
+			sel := &snap.Options[i].Selections[j]
+			kids, ok := children[sel.ProductID]
+			if !ok {
+				continue
+			}
+			sel.Variants = make([]cart.BundleVariantSnapshot, 0, len(kids))
+			for _, k := range kids {
+				name := names[k.ID]
+				if name == "" {
+					name = k.SKU
+				}
+				sel.Variants = append(sel.Variants, cart.BundleVariantSnapshot{ProductID: k.ID, ProductSKU: k.SKU, ProductName: name, UnitPrice: k.DefaultPrice})
+			}
+		}
+	}
+	return nil
+}
+
+// A default the channel doesn't sell would be auto-picked for a customer who left the option alone, failing their add on a product they never chose - so it stops being a default here. It stays a valid pick, so choosing it outright still fails as unpublished. A lookup failure keeps the defaults
+func (a CartCatalogAdapter) dropHiddenDefaults(ctx context.Context, channelID uuid.UUID, snap *cart.BundleSnapshot) {
+	var ids []uuid.UUID
+	for _, o := range snap.Options {
+		for _, sel := range o.Selections {
+			if sel.IsDefault {
+				ids = append(ids, sel.ProductID)
+			}
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	visible, err := a.svc.FilterVisibleProductIDsForChannel(ctx, ids, channelID)
+	if err != nil {
+		return
+	}
+	for i := range snap.Options {
+		for j := range snap.Options[i].Selections {
+			sel := &snap.Options[i].Selections[j]
+			if _, ok := visible[sel.ProductID]; sel.IsDefault && !ok {
+				sel.IsDefault = false
+			}
+		}
+	}
 }
 
 type CatalogProductLookup struct { // satisfies inventory.ProductLookup for the OrderPlacing reservation listener
@@ -546,7 +642,7 @@ func (l OrderLineLookup) GetOrderLines(ctx context.Context, orderID uuid.UUID) (
 	out := make([]inventory.OrderLine, 0, len(o.Lines))
 	for _, line := range o.Lines {
 		done := shipped[line.ID]
-		if len(line.Components) > 0 {
+		if line.IsBundle() { // a kit's components are display - its stock parts below are what it took
 			// Shipments are per ORDER LINE, so a half-shipped bundle counts half of each component gone
 			factor := 0.0
 			if line.Quantity > 0 {
@@ -648,6 +744,37 @@ func (l OrderKitLookup) KitComponentsBySKU(ctx context.Context, sku string) ([]c
 	out := make([]cart.CartLineStockPart, len(refs))
 	for i, r := range refs {
 		out[i] = cart.CartLineStockPart{ProductID: r.ComponentProductID, Quantity: r.Quantity, Source: cart.StockPartKit}
+	}
+	return out, nil
+}
+
+// Default prices only weigh each item's share of a refund, so a kit's own price still splits by what its items are worth
+func (l OrderKitLookup) KitItemsBySKU(ctx context.Context, sku string) ([]order.OrderLineComponent, error) {
+	p, err := l.svc.GetProductBySKU(ctx, sku)
+	if err != nil {
+		if errors.Is(err, catalog.ErrProductNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if p.Kind != catalog.KindKit {
+		return nil, nil
+	}
+	comps, err := l.svc.ListKitComponents(ctx, p.ID, "") // "" names them in the store's default locale
+	if err != nil {
+		return nil, err
+	}
+	out := make([]order.OrderLineComponent, len(comps))
+	for i, c := range comps {
+		out[i] = order.OrderLineComponent{
+			ProductID:   c.ComponentProductID,
+			ProductSku:  c.ComponentSKU,
+			ProductName: cmp.Or(c.ComponentName, c.ComponentSKU),
+			UnitPrice:   c.ComponentDefaultPrice,
+			Quantity:    c.Quantity,
+			SortOrder:   c.SortOrder,
+			Returnable:  p.KitItemsReturnable,
+		}
 	}
 	return out, nil
 }

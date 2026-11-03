@@ -18,7 +18,7 @@
 # omit it, since asserting it over plain http would wrongly pin a browser for a year
 #
 # The CSP and Permissions-Policy lines are GENERATED from apps/backend/core/lib/httpx/securityheaders.go
-# by bin/codegen (cmd/secheadgen) and gated by bin/contract-check, so edit them there.
+# by skelet gen (cmd/secheadgen) and gated by skelet check contracts, so edit them there.
 # Payment SDK hosts (Stripe/Braintree/PayPal) need their script + frame origins; inline
 # styles/scripts stay allowed because Next and Vite inject them
 (security_headers) {
@@ -34,12 +34,11 @@
 	}
 }
 
-# The shop, on the apex domain. Swap the upstream for your own storefront's compose
-# service - the name here is the demo's, not something the stack derives
+# The shop, on the apex domain - STOREFRONT_UPSTREAM in env/prod-caddy.env names your storefront's service
 {$STOREFRONT_DOMAIN:localhost} {
 	import security_headers
 	encode zstd gzip
-	reverse_proxy vetrina-demo:3000
+	reverse_proxy {$STOREFRONT_UPSTREAM:nextjs-vetrina:3000}
 }
 
 # Admin dashboard - its nginx proxies the SPA's /api/* to the backend in-network, so

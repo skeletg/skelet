@@ -16,6 +16,7 @@ type fakeLocRepo struct {
 	lowLimit         int32
 	flatCalled       bool
 	levelCalled      bool
+	channelLowFor    uuid.UUID
 }
 
 func (f *fakeLocRepo) ListLocationsPage(_ context.Context, search string, _ LocationFilter, limit, offset int32) ([]Location, error) {
@@ -30,6 +31,11 @@ func (f *fakeLocRepo) CountLocations(_ context.Context, search string, _ Locatio
 
 func (f *fakeLocRepo) ListLowStockLevels(_ context.Context, limit int32) ([]LowStockLevel, error) {
 	f.levelCalled, f.lowLimit = true, limit
+	return nil, nil
+}
+
+func (f *fakeLocRepo) ListChannelLowStockLevels(_ context.Context, channelID uuid.UUID, limit int32) ([]LowStockLevel, error) {
+	f.channelLowFor, f.lowLimit = channelID, limit
 	return nil, nil
 }
 
@@ -174,5 +180,29 @@ func TestLocationInputErrorsAreTyped(t *testing.T) {
 	blank := ""
 	if _, err := svc.UpdateLocation(ctx, UpdateLocationInput{Name: &blank}); !errors.Is(err, ErrLocationNameRequired) {
 		t.Errorf("update to a blank name = %v, want ErrLocationNameRequired", err)
+	}
+}
+
+type flatToggle bool
+
+func (f flatToggle) FlatModeEnabled(context.Context) bool { return bool(f) }
+
+func TestChannelLowStockFollowsTheInventoryMode(t *testing.T) {
+	cid := uuid.New()
+	repo := &fakeLocRepo{}
+	s := &Service{repo: repo, flatMode: flatToggle(false)}
+	if _, err := s.ListChannelLowStockLevels(context.Background(), cid, 0); err != nil {
+		t.Fatal(err)
+	}
+	if repo.channelLowFor != cid || repo.flatCalled || repo.lowLimit != 200 {
+		t.Errorf("multi-location mode should ask for this channel's warehouses with the default cap, got channel=%s flat=%v limit=%d", repo.channelLowFor, repo.flatCalled, repo.lowLimit)
+	}
+	repo = &fakeLocRepo{}
+	s = &Service{repo: repo, flatMode: flatToggle(true)}
+	if _, err := s.ListChannelLowStockLevels(context.Background(), cid, 5000); err != nil {
+		t.Fatal(err)
+	}
+	if !repo.flatCalled || repo.channelLowFor != uuid.Nil || repo.lowLimit != 1000 {
+		t.Errorf("flat mode should read the global list with the cap, got flat=%v channel=%s limit=%d", repo.flatCalled, repo.channelLowFor, repo.lowLimit)
 	}
 }

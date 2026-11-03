@@ -45,6 +45,10 @@ const (
 	Purchase        = "purchase"
 	Refund          = "refund"
 	SignUp          = "sign_up"
+	// A customer withdrew email marketing, or their account was deleted or erased. Server-only. A destination that
+	// lists it in its default events is built to remove the person, so it gets it whatever the visitor's cookie choice -
+	// taking someone off a list never needs their consent
+	MarketingOptOut = "marketing_opt_out"
 )
 
 // What a browser may report. Cart changes, purchases, refunds and sign-ups happen on the server, which reports them itself -
@@ -79,6 +83,9 @@ type Ecommerce struct {
 	Shipping      float64 `json:"shipping,omitempty"`
 	Coupon        string  `json:"coupon,omitempty"`
 	Items         []Item  `json:"items,omitempty"`
+	// On a refund or cancellation: what the order is worth after it, tax and shipping in, after every refund so far.
+	// For a platform that restates a conversion's value rather than subtracting a refund. Nil elsewhere
+	ValueAfter *float64 `json:"value_after,omitempty"`
 }
 
 type Item struct {

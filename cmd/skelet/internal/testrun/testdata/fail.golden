@@ -1,0 +1,6 @@
+    fail_test.go:7: context <a & b> with a \n kept literal
+    fail_test.go:8: boom:
+        	second line
+--- FAIL: TestFails (0.00s)
+FAIL	sumgen/fail	0.002s
+==> fail: 1 passed, 1 failed, 0 skipped

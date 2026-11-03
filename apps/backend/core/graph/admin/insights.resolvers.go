@@ -9,7 +9,7 @@ import (
 )
 
 func (r *queryResolver) SignalsInsights(ctx context.Context, channelID string, sinceDays *int32) ([]*model.SignalsInsight, error) {
-	// Deterministic scan of notable changes, no LLM - and digestPermsFor treats a missing admin as full bypass (see LoadPermittedChannels), so without this guard an anonymous caller reads every channel's Signals analytics
+	// Deterministic scan of notable changes, no LLM - and the tool permissions treat a missing admin as full bypass (see LoadPermittedChannels), so without this guard an anonymous caller reads every channel's Signals analytics
 	if _, err := auth.RequireActor(ctx); err != nil {
 		return nil, err
 	}
@@ -17,8 +17,8 @@ func (r *queryResolver) SignalsInsights(ctx context.Context, channelID string, s
 	if err != nil {
 		return nil, errInvalidID("channel id", nil)
 	}
-	perms := digestPermsFor(ctx, r.Resolver, cid)
-	if !perms.any() {
+	perms := r.AgentTools.Perms(ctx, cid)
+	if !perms.Any() {
 		return []*model.SignalsInsight{}, nil
 	}
 	days := 30

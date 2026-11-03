@@ -27,17 +27,10 @@ func (f *fakeOptIns) ClaimEmailOptIns(_ context.Context, customerID, _ uuid.UUID
 	return 1, nil
 }
 
-type fakeAccounts map[string]uuid.UUID // verified accounts by email
-
-func (f fakeAccounts) VerifiedCustomerIDByEmail(_ context.Context, _ uuid.UUID, email string) (uuid.UUID, bool, error) {
-	id, ok := f[email]
-	return id, ok, nil
-}
-
 func TestAGuestCheckoutOptInIsKeptAndClaimedOnVerification(t *testing.T) {
 	bus := events.NewBus()
 	f := &fakeOptIns{}
-	registerEmailOptIns(bus, f, fakeAccounts{})
+	registerEmailOptIns(bus, f)
 	ctx := context.Background()
 	ch, cust := uuid.New(), uuid.New()
 
@@ -52,15 +45,13 @@ func TestAGuestCheckoutOptInIsKeptAndClaimedOnVerification(t *testing.T) {
 	}
 }
 
-func TestAGuestOptInForAnAlreadyVerifiedAccountAppliesAtOnce(t *testing.T) {
+func TestAGuestOptInNeverAppliesAtOnceToAnExistingAccount(t *testing.T) {
 	bus := events.NewBus()
 	f := &fakeOptIns{}
-	owner := uuid.New()
-	registerEmailOptIns(bus, f, fakeAccounts{"owner@example.com": owner})
-	ctx := context.Background()
-	_ = bus.DispatchAsyncNow(ctx, &order.OrderPlaced{OrderNumber: "ORD-1", Email: "owner@example.com", ChannelID: uuid.New(), MarketingOptIn: true})
-	_ = bus.DispatchAsyncNow(ctx, &order.OrderPlaced{OrderNumber: "ORD-2", Email: "nobody@example.com", ChannelID: uuid.New(), MarketingOptIn: true})
-	if len(f.recorded) != 2 || len(f.claimed) != 1 || f.claimed[0] != owner {
-		t.Errorf("recorded %v, claimed %v - want both kept and only the verified owner's applied", f.recorded, f.claimed)
+	registerEmailOptIns(bus, f)
+	// Anyone can place an unpaid order under a customer's address - the tick is kept as proof, never applied
+	_ = bus.DispatchAsyncNow(context.Background(), &order.OrderPlaced{OrderNumber: "ORD-1", Email: "owner@example.com", ChannelID: uuid.New(), MarketingOptIn: true})
+	if len(f.recorded) != 1 || len(f.claimed) != 0 {
+		t.Errorf("recorded %v, claimed %v - want it kept and nothing applied", f.recorded, f.claimed)
 	}
 }

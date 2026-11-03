@@ -48,7 +48,9 @@ func Pnpm(root, dir, want string) (have, problem string) {
 
 // Tree is what a frontend's node_modules holds on the host: none, pnpm, or npm - the last an install from before the
 // switch to pnpm, which pnpm won't take over without a terminal to confirm. Empty is none: a container mounting its
-// volume at node_modules leaves an empty directory behind on the host
+// volume at node_modules leaves an empty directory behind on the host. A workspace member's install is recorded once,
+// in the workspace root's node_modules, so its own holds links and no record - and when that root is a dev container's
+// volume, links into a tree the host can't see, which is no host install either. npm marks its own
 func Tree(dir string) string {
 	entries, _ := os.ReadDir(filepath.Join(dir, "node_modules"))
 	switch {
@@ -57,7 +59,27 @@ func Tree(dir string) string {
 	case exists(filepath.Join(dir, "node_modules", ".modules.yaml")):
 		return "pnpm"
 	}
+	if ws := WorkspaceRoot(dir); ws != "" && ws != dir {
+		switch {
+		case exists(filepath.Join(ws, "node_modules", ".modules.yaml")):
+			return "pnpm"
+		case !exists(filepath.Join(dir, "node_modules", ".package-lock.json")):
+			return "none"
+		}
+	}
 	return "npm"
+}
+
+// WorkspaceRoot is the nearest directory at or above dir holding a pnpm-workspace.yaml, or "" when there's none
+func WorkspaceRoot(dir string) string {
+	for d := dir; ; d = filepath.Dir(d) {
+		if exists(filepath.Join(d, "pnpm-workspace.yaml")) {
+			return d
+		}
+		if filepath.Dir(d) == d {
+			return ""
+		}
+	}
 }
 
 func exists(p string) bool {

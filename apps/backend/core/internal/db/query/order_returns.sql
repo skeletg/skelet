@@ -6,8 +6,8 @@ RETURNING *;
 
 -- name: AddOrderReturnLine :one
 INSERT INTO order_return_lines (
-    return_id, order_line_id, quantity, reason, refund_unit_cents
-) VALUES ($1, $2, $3, $4, $5)
+    return_id, order_line_id, quantity, reason, refund_unit_cents, order_line_component_id
+) VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: GetOrderReturn :one
@@ -46,8 +46,17 @@ RETURNING *;
 SELECT rl.order_line_id, COALESCE(SUM(rl.quantity), 0)::NUMERIC(14,4) AS returned
 FROM order_return_lines rl
 JOIN order_returns r ON r.id = rl.return_id
-WHERE r.order_id = $1 AND r.status <> 'rejected'
+WHERE r.order_id = $1 AND r.status <> 'rejected' AND rl.order_line_component_id IS NULL
 GROUP BY rl.order_line_id;
+
+-- name: SumReturnedQtyByComponent :many
+-- Component units already returned on their own, across all non-rejected returns - counted apart from whole lines,
+-- whose quantity is in bundles
+SELECT rl.order_line_component_id::uuid AS component_id, COALESCE(SUM(rl.quantity), 0)::NUMERIC(14,4) AS returned
+FROM order_return_lines rl
+JOIN order_returns r ON r.id = rl.return_id
+WHERE r.order_id = $1 AND r.status <> 'rejected' AND rl.order_line_component_id IS NOT NULL
+GROUP BY rl.order_line_component_id;
 
 -- name: SetOrderReturnExchangeOrder :one
 -- Link the replacement draft opened for an exchange RMA

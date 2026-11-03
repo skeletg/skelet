@@ -10,31 +10,34 @@
       "enabled": true
     },
     "tracking-attentive": {
-      "enabled": true
+      "enabled": false
     },
     "tracking-awin": {
-      "enabled": true
+      "enabled": false
     },
     "tracking-bing": {
-      "enabled": true
+      "enabled": false
     },
     "tracking-cj": {
-      "enabled": true
+      "enabled": false
     },
     "tracking-ga4": {
-      "enabled": true
+      "enabled": false
+    },
+    "tracking-google-ads": {
+      "enabled": false
     },
     "tracking-klaviyo": {
-      "enabled": true
+      "enabled": false
     },
     "tracking-meta": {
-      "enabled": true
+      "enabled": false
     },
     "tracking-openai": {
-      "enabled": true
+      "enabled": false
     },
     "tracking-webhook": {
-      "enabled": true
+      "enabled": false
     }
   }
 }

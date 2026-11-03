@@ -465,3 +465,32 @@ func TestMainImageFallsBackToTheFirstImage(t *testing.T) {
 		t.Errorf("MainImage = %v, want nil with no media", got)
 	}
 }
+
+func TestBundleBuyable(t *testing.T) {
+	a, b, gone := uuid.New(), uuid.New(), uuid.New()
+	canBuy := func(id uuid.UUID) bool { return id != gone }
+	sels := func(ids ...uuid.UUID) []catalog.BundleSelection {
+		out := make([]catalog.BundleSelection, len(ids))
+		for i, id := range ids {
+			out[i] = catalog.BundleSelection{ProductID: id}
+		}
+		return out
+	}
+	for _, tc := range []struct {
+		name string
+		opts []catalog.BundleOption
+		want bool
+	}{
+		{"a required option with one buyable pick", []catalog.BundleOption{{IsRequired: true, Selections: sels(a, gone)}}, true},
+		{"a required option whose only pick is gone", []catalog.BundleOption{{IsRequired: true, Selections: sels(gone)}}, false},
+		{"a minimum of two with one buyable", []catalog.BundleOption{{MinSelections: 2, Selections: sels(a, gone)}}, false},
+		{"a minimum of two met", []catalog.BundleOption{{MinSelections: 2, Selections: sels(a, b)}}, true},
+		{"every option optional and nothing buyable", []catalog.BundleOption{{Selections: sels(gone)}}, false},
+		{"an optional option carries the bundle", []catalog.BundleOption{{Selections: sels(gone)}, {Selections: sels(a)}}, true},
+		{"no options", nil, false},
+	} {
+		if got := bundleBuyable(tc.opts, canBuy); got != tc.want {
+			t.Errorf("%s: buyable = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}

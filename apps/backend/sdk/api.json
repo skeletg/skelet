@@ -290,6 +290,7 @@
       "field ShopEcommerce.Tax float64 \"json:\\\"tax,omitempty\\\"\"",
       "field ShopEcommerce.TransactionID string \"json:\\\"transaction_id,omitempty\\\"\"",
       "field ShopEcommerce.Value float64 \"json:\\\"value\\\"\"",
+      "field ShopEcommerce.ValueAfter *float64 \"json:\\\"value_after,omitempty\\\"\"",
       "field ShopEvent.ChannelID uuid.UUID \"json:\\\"channel_id\\\"\"",
       "field ShopEvent.ClickIDs map[string]string \"json:\\\"click_ids,omitempty\\\"\"",
       "field ShopEvent.Consent *ShopConsent \"json:\\\"consent,omitempty\\\"\"",

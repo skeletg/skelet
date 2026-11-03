@@ -1,0 +1,10 @@
+{"Time":"2026-10-31T19:15:47.789095371+01:00","Action":"start","Package":"sumgen/panics"}
+{"Time":"2026-10-31T19:15:47.792511731+01:00","Action":"output","Package":"sumgen/panics","Output":"panic: database gone\n"}
+{"Time":"2026-10-31T19:15:47.792586947+01:00","Action":"output","Package":"sumgen/panics","Output":"\n"}
+{"Time":"2026-10-31T19:15:47.792590313+01:00","Action":"output","Package":"sumgen/panics","Output":"goroutine 1 [running]:\n"}
+{"Time":"2026-10-31T19:15:47.792594357+01:00","Action":"output","Package":"sumgen/panics","Output":"sumgen/panics.TestMain(...)\n"}
+{"Time":"2026-10-31T19:15:47.792597963+01:00","Action":"output","Package":"sumgen/panics","Output":"\t/src/sumgen/panics/panics_test.go:5\n"}
+{"Time":"2026-10-31T19:15:47.792600677+01:00","Action":"output","Package":"sumgen/panics","Output":"main.main()\n"}
+{"Time":"2026-10-31T19:15:47.79260199+01:00","Action":"output","Package":"sumgen/panics","Output":"\t_testmain.go:48 +0xaa\n"}
+{"Time":"2026-10-31T19:15:47.792763852+01:00","Action":"output","Package":"sumgen/panics","Output":"FAIL\tsumgen/panics\t0.003s\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.792791725+01:00","Action":"fail","Package":"sumgen/panics","Elapsed":0.004}
