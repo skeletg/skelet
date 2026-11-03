@@ -84,6 +84,7 @@ func (r *postgresRepository) ListCarts(ctx context.Context, f CartFilter) ([]Car
 			ChannelID:         row.ChannelID,
 			Status:            row.Status,
 			Kind:              row.Kind,
+			Source:            row.Source,
 			Email:             row.Email,
 			OfferExpiresAt:    sqlnull.TimePtr(row.OfferExpiresAt),
 			OfferSentAt:       sqlnull.TimePtr(row.OfferSentAt),
@@ -512,6 +513,48 @@ func (r *postgresRepository) SetCartOrder(ctx context.Context, cartID, orderID u
 
 // --- offers ---
 
+func (r *postgresRepository) CreateAgentCart(ctx context.Context, channelID uuid.UUID) (Cart, error) {
+	row, err := r.queries.CreateAgentCart(ctx, channelID)
+	if err != nil {
+		return Cart{}, fmt.Errorf("create agent cart: %w", err)
+	}
+	return toCart(row), nil
+}
+
+func (r *postgresRepository) StartHandoff(ctx context.Context, cartID uuid.UUID, expiresAt time.Time) (Cart, error) {
+	row, err := r.queries.StartCartHandoff(ctx, db.StartCartHandoffParams{ID: cartID, ExpiresAt: sql.NullTime{Time: expiresAt, Valid: true}})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Cart{}, ErrCartNotActive
+		}
+		return Cart{}, fmt.Errorf("start handoff: %w", err)
+	}
+	return toCart(row), nil
+}
+
+func (r *postgresRepository) GetCartByHandoffToken(ctx context.Context, token string) (Cart, error) {
+	row, err := r.queries.GetCartByHandoffToken(ctx, token)
+	if err != nil {
+		return Cart{}, fmt.Errorf("load cart by handoff link: %w", err)
+	}
+	return toCart(row), nil
+}
+
+func (r *postgresRepository) RecordHandoffRedemption(ctx context.Context, agentCartID, cartID uuid.UUID) (bool, error) {
+	n, err := r.queries.RecordCartHandoffRedemption(ctx, db.RecordCartHandoffRedemptionParams{AgentCartID: agentCartID, CartID: cartID})
+	if err != nil {
+		return false, fmt.Errorf("record handoff redemption: %w", err)
+	}
+	return n > 0, nil
+}
+
+func (r *postgresRepository) CarryHandoffRedemptions(ctx context.Context, fromCartID, toCartID uuid.UUID) error {
+	if err := r.queries.CarryCartHandoffRedemptions(ctx, db.CarryCartHandoffRedemptionsParams{FromCartID: fromCartID, ToCartID: toCartID}); err != nil {
+		return fmt.Errorf("carry handoff redemptions: %w", err)
+	}
+	return nil
+}
+
 func (r *postgresRepository) GetOfferByToken(ctx context.Context, token string) (Cart, error) {
 	row, err := r.queries.GetCartByOfferToken(ctx, token)
 	if err != nil {
@@ -649,6 +692,7 @@ func toCart(row db.Cart) Cart {
 		ChannelID:  row.ChannelID,
 		Status:     row.Status,
 		Kind:       row.Kind,
+		Source:     row.Source,
 		Email:      row.Email,
 		Note:       row.Note,
 		Checkout: Checkout{
@@ -679,6 +723,9 @@ func toCart(row db.Cart) Cart {
 		CheckoutVersion: row.CheckoutVersion,
 		CreatedAt:       row.CreatedAt,
 		UpdatedAt:       row.UpdatedAt,
+	}
+	if row.HandoffToken != "" {
+		c.Handoff = &Handoff{Token: row.HandoffToken, ExpiresAt: row.HandoffExpiresAt.Time}
 	}
 	if row.Kind == KindOffer {
 		c.Offer = &Offer{

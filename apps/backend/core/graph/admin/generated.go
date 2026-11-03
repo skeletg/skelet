@@ -134,6 +134,7 @@ type ComplexityRoot struct {
 		Kind          func(childComplexity int) int
 		Lines         func(childComplexity int) int
 		Offer         func(childComplexity int) int
+		Source        func(childComplexity int) int
 		Status        func(childComplexity int) int
 		Subtotal      func(childComplexity int) int
 		UpdatedAt     func(childComplexity int) int
@@ -898,6 +899,7 @@ type ComplexityRoot struct {
 		OfferExpiresAt func(childComplexity int) int
 		OfferState     func(childComplexity int) int
 		OrderID        func(childComplexity int) int
+		Source         func(childComplexity int) int
 		Status         func(childComplexity int) int
 		Subtotal       func(childComplexity int) int
 		UpdatedAt      func(childComplexity int) int
@@ -5934,6 +5936,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AdminCart.Offer(childComplexity), true
+	case "AdminCart.source":
+		if e.ComplexityRoot.AdminCart.Source == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCart.Source(childComplexity), true
 	case "AdminCart.status":
 		if e.ComplexityRoot.AdminCart.Status == nil {
 			break
@@ -9158,6 +9166,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CartListItem.OrderID(childComplexity), true
+	case "CartListItem.source":
+		if e.ComplexityRoot.CartListItem.Source == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CartListItem.Source(childComplexity), true
 	case "CartListItem.status":
 		if e.ComplexityRoot.CartListItem.Status == nil {
 			break
@@ -31454,8 +31468,9 @@ type AdminCart {
   customerName:  String       # null for guest carts
   channelId:     ID!
   currencyCode:  String!      # the channel's currency
-  status:        String!      # active | converted | merged
+  status:        String!      # active | converted | merged | handed_off
   kind:          CartKind!
+  source:        String!      # web | agent - an agent cart was built by a shopper's AI agent over the storefront MCP endpoint
   email:         String!      # the cart's own email - a guest offer's recipient, or what a guest typed at checkout
   # Set on an offer only
   offer:         AdminCartOffer
@@ -31627,6 +31642,7 @@ type CartListItem {
   currencyCode:  String!
   status:        String!
   kind:          CartKind!
+  source:        String!      # web | agent
   email:         String!
   offerState:    CartOfferState  # set on offers
   offerExpiresAt: Time
@@ -39982,6 +39998,8 @@ func (ec *executionContext) childFields_AdminCart(ctx context.Context, field gra
 		return ec.fieldContext_AdminCart_status(ctx, field)
 	case "kind":
 		return ec.fieldContext_AdminCart_kind(ctx, field)
+	case "source":
+		return ec.fieldContext_AdminCart_source(ctx, field)
 	case "email":
 		return ec.fieldContext_AdminCart_email(ctx, field)
 	case "offer":
@@ -41510,6 +41528,8 @@ func (ec *executionContext) childFields_CartListItem(ctx context.Context, field 
 		return ec.fieldContext_CartListItem_status(ctx, field)
 	case "kind":
 		return ec.fieldContext_CartListItem_kind(ctx, field)
+	case "source":
+		return ec.fieldContext_CartListItem_source(ctx, field)
 	case "email":
 		return ec.fieldContext_CartListItem_email(ctx, field)
 	case "offerState":
@@ -62630,6 +62650,29 @@ func (ec *executionContext) fieldContext_AdminCart_kind(_ context.Context, field
 	return graphql.NewScalarFieldContext("AdminCart", field, false, false, errors.New("field of type CartKind does not have child fields"))
 }
 
+func (ec *executionContext) _AdminCart_source(ctx context.Context, field graphql.CollectedField, obj *model.AdminCart) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCart_source(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Source, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCart_source(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCart", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _AdminCart_email(ctx context.Context, field graphql.CollectedField, obj *model.AdminCart) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -75310,6 +75353,29 @@ func (ec *executionContext) _CartListItem_kind(ctx context.Context, field graphq
 }
 func (ec *executionContext) fieldContext_CartListItem_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CartListItem", field, false, false, errors.New("field of type CartKind does not have child fields"))
+}
+
+func (ec *executionContext) _CartListItem_source(ctx context.Context, field graphql.CollectedField, obj *model.CartListItem) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CartListItem_source(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Source, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CartListItem_source(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CartListItem", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _CartListItem_email(ctx context.Context, field graphql.CollectedField, obj *model.CartListItem) (ret graphql.Marshaler) {
@@ -175905,6 +175971,11 @@ func (ec *executionContext) _AdminCart(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "source":
+			out.Values[i] = ec._AdminCart_source(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "email":
 			out.Values[i] = ec._AdminCart_email(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -181261,6 +181332,11 @@ func (ec *executionContext) _CartListItem(ctx context.Context, sel ast.Selection
 			}
 		case "kind":
 			out.Values[i] = ec._CartListItem_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "source":
+			out.Values[i] = ec._CartListItem_source(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

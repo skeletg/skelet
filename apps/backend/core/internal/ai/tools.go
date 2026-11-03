@@ -17,7 +17,18 @@ type Tool struct {
 	Name        string
 	Description string
 	Schema      map[string]any // JSON Schema object for the input - an empty object means "no arguments"
+	Effect      Effect
+	Idempotent  bool // calling it again with the same arguments changes nothing more
 }
+
+// Effect is what a tool does to the store, for clients deciding what to confirm with the user - the zero value is the cautious one
+type Effect int
+
+const (
+	Destroys Effect = iota // changes something in a way a later call can't put back
+	Writes
+	Reads
+)
 
 type ToolCall struct {
 	ID    string

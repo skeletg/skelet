@@ -5,6 +5,9 @@ can answer questions about your store from its own data: how sales are trending,
 stock, what a given order looks like. It's read-only. Nothing an agent does through it changes the
 store.
 
+This one is for your own team. Shoppers' agents get a separate, public endpoint on the storefront -
+see [storefront-mcp.md](storefront-mcp.md).
+
 The tools are the ones the dashboard's AI chat uses, gated the same way, so an agent sees exactly
 what the credential it connects with may see. The endpoint sits beside admin GraphQL:
 

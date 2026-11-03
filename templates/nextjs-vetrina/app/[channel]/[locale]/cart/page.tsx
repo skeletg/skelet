@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 
 import { getCart, getFreeShippingThreshold } from "@skelet/storefront-next/cart/read";
+import type { HandoffState } from "@skelet/storefront-next/cart/handoff";
 import { getCartRecommendations } from "@skelet/storefront-next/catalog/read";
 import { ProductCard } from "@/app/components/ProductCard";
 import { CartView } from "./CartView";
@@ -14,10 +15,16 @@ export async function generateMetadata({
   return { title: t("title") };
 }
 
+type HandoffNotice = Exclude<HandoffState, "ok">;
+const HANDOFF_NOTICES: readonly HandoffNotice[] = ["expired", "invalid", "failed"];
+const isHandoffNotice = (v: unknown): v is HandoffNotice => HANDOFF_NOTICES.includes(v as HandoffNotice);
+
 export default async function CartPage({
   params,
+  searchParams,
 }: PageProps<"/[channel]/[locale]/cart">) {
   const { locale } = await params;
+  const { handoff } = await searchParams;
   const t = await getTranslations({ locale, namespace: "cart" });
   const [cart, freeShipThreshold] = await Promise.all([
     getCart(),
@@ -43,6 +50,7 @@ export default async function CartPage({
     <CartView
       freeShipThreshold={freeShipThreshold}
       recommendations={recommendationsNode}
+      notice={isHandoffNotice(handoff) ? t(`handoff.${handoff}`) : undefined}
     />
   );
 }

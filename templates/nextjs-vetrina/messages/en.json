@@ -510,7 +510,12 @@
       "freeShip": "Free ship",
       "remove": "Remove {code}"
     },
-    "freeShippingExclusions": "Product-specific charges may still apply. Your final delivery price is shown at checkout."
+    "freeShippingExclusions": "Product-specific charges may still apply. Your final delivery price is shown at checkout.",
+    "handoff": {
+      "expired": "That checkout link has expired - ask your assistant for a new one.",
+      "invalid": "That checkout link isn't valid.",
+      "failed": "We couldn't open that checkout link just now - please try it again in a moment."
+    }
   },
   "search": {
     "label": "Search products",

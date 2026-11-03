@@ -200,6 +200,7 @@ export type AdminCart = {
   kind: CartKind;
   lines: Array<AdminCartLine>;
   offer?: Maybe<AdminCartOffer>;
+  source: Scalars['String']['output'];
   status: Scalars['String']['output'];
   subtotal: Scalars['Int']['output'];
   updatedAt: Scalars['Time']['output'];
@@ -1289,6 +1290,7 @@ export type CartListItem = {
   offerExpiresAt?: Maybe<Scalars['Time']['output']>;
   offerState?: Maybe<CartOfferState>;
   orderId?: Maybe<Scalars['ID']['output']>;
+  source: Scalars['String']['output'];
   status: Scalars['String']['output'];
   subtotal: Scalars['Int']['output'];
   updatedAt: Scalars['Time']['output'];

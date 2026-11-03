@@ -23,6 +23,28 @@ SELECT * FROM carts WHERE id = $1 LIMIT 1;
 -- name: GetCartByOfferToken :one
 SELECT * FROM carts WHERE kind = 'offer' AND offer_link_token = $1 LIMIT 1;
 
+-- name: CreateAgentCart :one
+INSERT INTO carts (channel_id, source) VALUES ($1, 'agent') RETURNING *;
+
+-- name: StartCartHandoff :one
+-- Closing the cart is the serialization point - a second start finds it no longer active and reads back the link the first minted
+UPDATE carts SET status = 'handed_off', handoff_expires_at = sqlc.arg(expires_at), updated_at = NOW(),
+    handoff_token = translate(rtrim(encode(public.gen_random_bytes(16), 'base64'), '='), '+/', '-_')
+WHERE id = sqlc.arg(id) AND status = 'active' AND source = 'agent' AND kind = 'shopper'
+RETURNING *;
+
+-- name: GetCartByHandoffToken :one
+SELECT * FROM carts WHERE source = 'agent' AND handoff_token = $1 AND handoff_token <> '' LIMIT 1;
+
+-- name: RecordCartHandoffRedemption :execrows
+INSERT INTO cart_handoff_redemptions (agent_cart_id, cart_id) VALUES ($1, $2) ON CONFLICT DO NOTHING;
+
+-- name: CarryCartHandoffRedemptions :exec
+-- A merged cart's lines move on, so the links it already took do too - reopening one mustn't copy them a second time
+INSERT INTO cart_handoff_redemptions (agent_cart_id, cart_id)
+SELECT r.agent_cart_id, sqlc.arg(to_cart_id)::uuid FROM cart_handoff_redemptions r WHERE r.cart_id = sqlc.arg(from_cart_id)::uuid
+ON CONFLICT DO NOTHING;
+
 -- name: ListCarts :many
 -- Admin cart console listing: channel-scoped, with optional customer / status / abandoned (updated_before) filters and a free-text search over the linked customer's email + name. The page is cut first and only its carts' lines are summed - subtotal is an estimate (fractional-cent rounding, no tax/shipping)
 SELECT
@@ -31,6 +53,7 @@ SELECT
     p.channel_id                                      AS channel_id,
     p.status                                          AS status,
     p.kind                                            AS kind,
+    p.source                                          AS source,
     p.email                                           AS email,
     p.offer_expires_at                                AS offer_expires_at,
     p.offer_sent_at                                   AS offer_sent_at,
@@ -45,7 +68,7 @@ SELECT
     li.item_count::int                                AS item_count,
     li.subtotal::bigint                               AS subtotal
 FROM (
-    SELECT c.id, c.customer_id, c.channel_id, c.status, c.kind, c.email, c.offer_expires_at, c.offer_sent_at,
+    SELECT c.id, c.customer_id, c.channel_id, c.status, c.kind, c.source, c.email, c.offer_expires_at, c.offer_sent_at,
            c.offer_opened_at, c.offer_revoked_at, c.order_id, c.created_at, c.updated_at,
            cu.email AS customer_email, cu.first_name AS customer_first_name, cu.last_name AS customer_last_name
     FROM carts c
@@ -147,6 +170,7 @@ UPDATE carts SET email = $2, checkout_version = checkout_version + 1, updated_at
 -- An open offer waits for its recipient however long it sits untouched - it goes only once it is finished, or expired or revoked before the cutoff
 DELETE FROM carts c
 WHERE c.updated_at < sqlc.arg(cutoff)::timestamptz
+  AND NOT (c.status = 'handed_off' AND c.handoff_expires_at > now())
   AND (c.kind = 'shopper' OR c.status <> 'active'
        OR c.offer_expires_at < sqlc.arg(cutoff)::timestamptz
        OR c.offer_revoked_at < sqlc.arg(cutoff)::timestamptz)
