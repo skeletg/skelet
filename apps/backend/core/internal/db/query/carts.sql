@@ -45,6 +45,13 @@ INSERT INTO cart_handoff_redemptions (agent_cart_id, cart_id)
 SELECT r.agent_cart_id, sqlc.arg(to_cart_id)::uuid FROM cart_handoff_redemptions r WHERE r.cart_id = sqlc.arg(from_cart_id)::uuid
 ON CONFLICT DO NOTHING;
 
+-- name: CarryCartAppliedCodes :exec
+-- A handoff's discount codes come along with its lines - checkout re-checks each one, so copying never grants a code the shopper can't use
+INSERT INTO cart_applied_codes (cart_id, rule_id, code_id)
+SELECT sqlc.arg(to_cart_id)::uuid, c.rule_id, c.code_id FROM cart_applied_codes c
+WHERE c.cart_id = sqlc.arg(from_cart_id)::uuid AND c.invalidated_reason IS NULL
+ON CONFLICT (cart_id, rule_id) DO NOTHING;
+
 -- name: ListCarts :many
 -- Admin cart console listing: channel-scoped, with optional customer / status / abandoned (updated_before) filters and a free-text search over the linked customer's email + name. The page is cut first and only its carts' lines are summed - subtotal is an estimate (fractional-cent rounding, no tax/shipping)
 SELECT

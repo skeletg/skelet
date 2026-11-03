@@ -92,6 +92,24 @@ func (q *Queries) BumpCartOfferLink(ctx context.Context, id uuid.UUID) (int32, e
 	return offer_link_version, err
 }
 
+const carryCartAppliedCodes = `-- name: CarryCartAppliedCodes :exec
+INSERT INTO cart_applied_codes (cart_id, rule_id, code_id)
+SELECT $1::uuid, c.rule_id, c.code_id FROM cart_applied_codes c
+WHERE c.cart_id = $2::uuid AND c.invalidated_reason IS NULL
+ON CONFLICT (cart_id, rule_id) DO NOTHING
+`
+
+type CarryCartAppliedCodesParams struct {
+	ToCartID   uuid.UUID `json:"to_cart_id"`
+	FromCartID uuid.UUID `json:"from_cart_id"`
+}
+
+// A handoff's discount codes come along with its lines - checkout re-checks each one, so copying never grants a code the shopper can't use
+func (q *Queries) CarryCartAppliedCodes(ctx context.Context, arg CarryCartAppliedCodesParams) error {
+	_, err := q.db.ExecContext(ctx, carryCartAppliedCodes, arg.ToCartID, arg.FromCartID)
+	return err
+}
+
 const carryCartHandoffRedemptions = `-- name: CarryCartHandoffRedemptions :exec
 INSERT INTO cart_handoff_redemptions (agent_cart_id, cart_id)
 SELECT r.agent_cart_id, $1::uuid FROM cart_handoff_redemptions r WHERE r.cart_id = $2::uuid
