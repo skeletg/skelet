@@ -1,6 +1,8 @@
 import { request, rethrowControlFlow } from "./request";
 import { AID_COOKIE } from "./analytics/visitor";
 import { clientIP } from "./client-ip";
+import { CONSENT_COOKIE } from "./consent/cookie";
+import { parseConsent } from "./consent/categories";
 
 // Who a server-side call to the backend is made for. Without these the backend sees this Next server instead of the
 // shopper: every visitor shares one per-IP rate-limit bucket (brute-force pooling, cross-user lockout), and guest
@@ -20,10 +22,12 @@ export async function shopperHeaders(): Promise<Record<string, string>> {
     // not in a request scope - nothing to forward
   }
   // The visitor's anon id (the Lens cookie), so guest commerce attributes to the same visitor as their browsing and
-  // stitches to a customer once they sign in
+  // stitches to a customer once they sign in. Only with analytics consent: on the request that withdraws it the cookie is still here
   try {
-    const aid = (await request().cookies()).get(AID_COOKIE)?.value;
-    if (aid) out["X-Anon-Id"] = aid;
+    const store = await request().cookies();
+    const consent = parseConsent(store.get(CONSENT_COOKIE)?.value);
+    const aid = store.get(AID_COOKIE)?.value;
+    if (aid && consent?.analytics) out["X-Anon-Id"] = aid;
   } catch (err) {
     rethrowControlFlow(err);
   }

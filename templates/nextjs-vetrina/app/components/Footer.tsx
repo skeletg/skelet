@@ -1,18 +1,25 @@
 import { Link } from "@/app/components/LocaleLink";
+import { getTranslations } from "next-intl/server";
+
+import { CookieSettingsButton } from "@/app/components/CookieConsentBanner";
 
 import { loadMenu } from "@skelet/storefront-next/menus/read";
 import type { MenuItem } from "@skelet/storefront-next/menus/read";
-import { getStoreName } from "@skelet/storefront-next/channel/read";
+import { getChannel, getStoreName } from "@skelet/storefront-next/channel/read";
 import { getBranding } from "@skelet/storefront-next/config/read";
+import { getConsentMode } from "@skelet/storefront-core/consent/mode";
 
 // Driven by the "footer" menu - columns when any top-level item has children, a single row when none do. Copyright +
 // support row always renders, so a store with no menu still gets a usable footer
 export async function Footer() {
-  const [menu, brand, branding] = await Promise.all([
+  const [menu, brand, branding, t, channel] = await Promise.all([
     loadMenu("footer"),
     getStoreName(),
     getBranding(),
+    getTranslations("consent"),
+    getChannel(),
   ]);
+  const consentMode = await getConsentMode(channel?.id ?? "");
   const supportEmail: string | null = null;
 
   const hasGroups = !!menu?.items.some((it) => it.children.length > 0);
@@ -75,6 +82,7 @@ export async function Footer() {
           <span>
             © {new Date().getFullYear()} {brand}. Demo storefront.
           </span>
+          <CookieSettingsButton label={t(consentMode === "opt_out" ? "privacyChoices" : "settings")} />
           {supportEmail && (
             <a
               href={`mailto:${supportEmail}`}

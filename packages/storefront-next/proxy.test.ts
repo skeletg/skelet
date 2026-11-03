@@ -45,8 +45,16 @@ describe("storefrontProxy", () => {
     expect(new URL(res.headers.get("x-middleware-rewrite")!).pathname).toBe(`/${CHANNEL}/en/cart`);
     expect(res.headers.get("x-middleware-request-x-storefront-rewrite")).toBeTruthy();
     expect(res.headers.get("x-middleware-request-x-storefront-channel")).toBe(CHANNEL);
-    // A first visit gets a visitor id
-    expect(res.cookies.get("lens_aid")?.value).toBeTruthy();
+    // A first visit is asked first, so it gets no visitor id until it allows analytics
+    expect(res.cookies.get("lens_aid")).toBeUndefined();
+  });
+
+  it("mints a visitor id with analytics consent, and drops it when consent is withdrawn", async () => {
+    backend();
+    const granted = await storefrontProxy(req("/cart", { cookie: "storefront_consent=v2:a1.d0.p0" }), event);
+    expect(granted.cookies.get("lens_aid")?.value).toBeTruthy();
+    const withdrawn = await storefrontProxy(req("/cart", { cookie: "storefront_consent=v2:a0.d0.p0; lens_aid=visitor-1" }), event);
+    expect(withdrawn.cookies.get("lens_aid")?.value).toBe("");
   });
 
   it("keeps a locale the path already names", async () => {

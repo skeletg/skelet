@@ -17,6 +17,7 @@ func init() {
 	RegisterGroup(Group{Section: "general", Slug: "store_information", Label: "Store Information", SortOrder: 1, Scoping: ScopingChannel})
 	RegisterGroup(Group{Section: "general", Slug: "security", Label: "Security", SortOrder: 2})
 	RegisterGroup(Group{Section: "general", Slug: "urls", Label: "URLs & Redirects", SortOrder: 3})
+	RegisterGroup(Group{Section: "general", Slug: "privacy", Label: "Privacy", SortOrder: 4, Scoping: ScopingChannel})
 	RegisterGroup(Group{Section: "sales", Slug: "checkout", Label: "Checkout", SortOrder: 1, Scoping: ScopingChannel})
 	RegisterGroup(Group{Section: "sales", Slug: "orders", Label: "Orders", SortOrder: 2, Scoping: ScopingChannel})
 	RegisterGroup(Group{Section: "sales", Slug: "inventory", Label: "Inventory", SortOrder: 3})
@@ -73,6 +74,10 @@ func init() {
 	Register(Definition{Path: "sales/checkout/pickup_by_someone_else", Type: TypeBool, Default: "true", Label: "Let someone else collect a pickup order", Description: "Adds \"Someone else will collect it\" to pickup orders, with the collector's name. The payer's billing address is then required so the order still names who paid.", Public: true})
 	Register(Definition{Path: "sales/checkout/pickup_requires_billing_address", Type: TypeBool, Default: "false", Label: "Require a billing address on pickup orders", Description: "Off, a pickup order needs only a name, email and the store. On, the shopper also enters a billing address - some markets need one on every invoice.", Public: true})
 	Register(Definition{Path: "sales/checkout/threshold_progress", Type: TypeBool, Default: "true", Label: "Show spend-more progress at checkout", Description: "Shows how much more unlocks the minimum order or free shipping, with a link back to the cart, instead of only refusing the order.", Public: true})
+	Register(Definition{Path: "general/privacy/cookie_consent", Type: TypeSelect, Default: "opt_in", Label: "Cookie consent", Description: "Ask first shows a banner and sets no analytics or advertising cookies until the visitor agrees, which the EU and UK require. Opt-out shows no banner and turns everything on, with a \"Your privacy choices\" footer link to switch it off and a browser's Global Privacy Control signal turning advertising off - the US model.", Public: true, Options: []Option{
+		{Value: "opt_in", Label: "Ask first (opt-in)"},
+		{Value: "opt_out", Label: "No banner (opt-out)"},
+	}})
 	Register(Definition{Path: "sales/checkout/terms_consent", Type: TypeSelect, Default: "checkbox", Label: "Terms consent at payment", Description: "Checkbox makes the shopper tick that they accept the terms before paying, which many EU markets need, and placement refuses an order sent without it. Notice shows a line saying placing the order accepts them. Off shows neither.", Public: true, Options: []Option{
 		{Value: "checkbox", Label: "Checkbox"},
 		{Value: "notice", Label: "Notice"},

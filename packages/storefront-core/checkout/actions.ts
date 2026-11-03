@@ -41,6 +41,8 @@ import { getCountries } from "../countries/read";
 import { getCustomerOrNull } from "../customer/read";
 import { errorMessage } from "../forms/reply";
 import { parseForm, replyReset, type FormResult } from "../forms/schema";
+import { SetConsentDocument } from "../auth/operations.gql";
+import { ConsentDefinitionsDocument } from "../customer/operations.gql";
 import { gqlFetch, GraphQLRequestError } from "../graphql";
 import { withLocalePrefix } from "../locale/path";
 import { formatCouponError } from "../cart/coupon-errors";
@@ -384,6 +386,7 @@ export async function placeOrderAction(
 
   // A guest offer places a guest order for its recipient, whoever is signed in on this browser
   const signedIn = cookieStore.get(ACCESS_TOKEN_COOKIE) !== undefined && !offer?.isGuest;
+  if (signedIn && v.marketingOptIn) await optInToMarketing();
   const orderPath = signedIn
     ? `/account/orders/${orderId}?`
     : `/orders/${orderId}?email=${encodeURIComponent(checkout.email)}&`;
@@ -406,4 +409,18 @@ export async function applyCheckoutCouponAction(_prev: FormResult | undefined, f
   }
   request().refresh();
   return replyReset(submission);
+}
+
+// Ticks every marketing purpose the store defines - the order is already placed, so a failure here is logged, never surfaced
+async function optInToMarketing() {
+  try {
+    const { data } = await gqlFetch(ConsentDefinitionsDocument);
+    await Promise.all(
+      data.consentDefinitions
+        .filter((d) => d.purpose === "MARKETING")
+        .map((d) => gqlFetch(SetConsentDocument, { kind: d.slug, optedIn: true })),
+    );
+  } catch (err) {
+    console.error("checkout marketing opt-in failed", err);
+  }
 }

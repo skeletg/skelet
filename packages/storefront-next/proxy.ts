@@ -25,6 +25,9 @@ import { internalPath, isChannelTreePath, isLegacyMatched, isPagePath } from "@s
 import { clientIP } from "@skelet/storefront-core/client-ip";
 import { getChannelLocales } from "@skelet/storefront-core/locale/backend-locales";
 import { clearRewriteMark, isOwnRewrite, markRewrite } from "@skelet/storefront-core/rewrite-mark";
+import { CONSENT_COOKIE, CONSENT_COOKIE_OPTS } from "@skelet/storefront-core/consent/cookie";
+import { parseConsent, resolveConsentCookie } from "@skelet/storefront-core/consent/categories";
+import { getConsentMode } from "@skelet/storefront-core/consent/mode";
 
 // Every request a Next storefront serves, before it renders: the channel and locale it's for, a near-expiry customer
 // session rotated, the visitor id minted, a ?promo= code held for the cart, and a crawler's fetch reported. A template's
@@ -35,7 +38,8 @@ import { clearRewriteMark, isOwnRewrite, markRewrite } from "@skelet/storefront-
 const PROMO_QUERY_PARAM = "promo";
 
 // Visitor id for Prism assignment + Lens identity. Minted here so server-side assignment has a stable id on the first paint - no variant
-// flash, even for incognito Functional, not httpOnly: the client SDKs read it, LensTracker reuses the same value
+// flash, even for incognito. Only with analytics consent: without it there is no id, experiments render their control, and a
+// withdrawn grant deletes the cookie on the next request. Not httpOnly: the client SDKs read it, LensTracker reuses the same value
 const AID_OPTS = cookieOptions(60 * 60 * 24 * 365, false);
 
 const REVALIDATE_SECRET_HEADER = "x-revalidate-secret";
@@ -189,14 +193,24 @@ export async function storefrontProxy(req: NextRequest, event: NextFetchEvent): 
   // Proactively rotate a near-expiry customer session before render.
   const session = channelId ? await maybeRefreshSession(req, channelId) : ({ kind: "noop" } as const);
 
+  // The store's consent mode settles the cookie before anything reads it - under opt-out a first visit already counts
+  const rawConsent = req.cookies.get(CONSENT_COOKIE)?.value;
+  const consentWrite = channelId
+    ? resolveConsentCookie(rawConsent, await getConsentMode(channelId), req.headers.get("sec-gpc") === "1")
+    : undefined;
+  const analytics = parseConsent(consentWrite ?? rawConsent)?.analytics ?? false;
   const existingAid = req.cookies.get(AID_COOKIE)?.value;
-  const newAid = existingAid ? undefined : crypto.randomUUID();
+  const newAid = analytics && !existingAid ? crypto.randomUUID() : undefined;
 
   // Writes applied to whatever response we return (persist to the browser).
   const applyCookies = (res: NextResponse) => {
     // Re-set even when present: rolls the 1-year expiry per visit, and upgrades a tracker-minted cookie
     // (script-set, so ITP-capped at 7 days on Safari) to a server-set one that actually keeps its expiry
-    res.cookies.set(AID_COOKIE, newAid ?? existingAid!, AID_OPTS);
+    if (consentWrite !== undefined) {
+      res.cookies.set(CONSENT_COOKIE, consentWrite, consentWrite ? CONSENT_COOKIE_OPTS : { ...CONSENT_COOKIE_OPTS, maxAge: 0 });
+    }
+    if (analytics) res.cookies.set(AID_COOKIE, newAid ?? existingAid!, AID_OPTS);
+    else if (existingAid) res.cookies.set(AID_COOKIE, "", { ...AID_OPTS, maxAge: 0 });
     if (session.kind === "refreshed") {
       const opts = sessionCookieOptions();
       res.cookies.set(ACCESS_TOKEN_COOKIE, session.accessToken, { ...opts, maxAge: ACCESS_TOKEN_MAX_AGE });
@@ -224,6 +238,7 @@ export async function storefrontProxy(req: NextRequest, event: NextFetchEvent): 
   // first-paint assignment, rotated access token for its gqlFetch calls
   const forward: Record<string, string> = {};
   if (newAid) forward[AID_COOKIE] = newAid;
+  if (consentWrite !== undefined) forward[CONSENT_COOKIE] = consentWrite;
   if (session.kind === "refreshed") {
     forward[ACCESS_TOKEN_COOKIE] = session.accessToken;
     forward[REFRESH_TOKEN_COOKIE] = session.refreshToken;

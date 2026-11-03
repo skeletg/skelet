@@ -6,10 +6,10 @@ import { readClientConsent } from "./client";
 
 const noopSubscribe = () => () => {}; // the cookie never pushes - useSyncExternalStore is still right, it reads a browser value without a setState-in-effect cascade
 
-export function useMarketingConsent(): boolean {
+export function useAnalyticsConsent(): boolean {
   return useSyncExternalStore(
     noopSubscribe,
-    () => readClientConsent().marketing,
+    () => readClientConsent().analytics,
     () => false, // consent-off is the correct GDPR default before the cookie is known
   );
 }
