@@ -10,6 +10,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/graph/front/dataloaders"
+	model1 "github.com/skeletg/skelet/apps/backend/core/graph/front/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 )
 
@@ -127,9 +128,9 @@ func (r *Resolver) productGroupedMembers(ctx context.Context, obj *model.Product
 
 // A kit's whole contents, so the box is described truthfully - a component this store doesn't sell keeps its name but
 // loses its url, since its page would 404 here
-func (r *Resolver) productKitComponents(ctx context.Context, obj *model.Product) ([]*model.KitComponent, error) {
+func (r *Resolver) productKitComponents(ctx context.Context, obj *model.Product) ([]*model1.KitItem, error) {
 	if obj.Kind != model.ProductKindKit {
-		return []*model.KitComponent{}, nil
+		return []*model1.KitItem{}, nil
 	}
 	pid, err := uuid.Parse(obj.ID)
 	if err != nil {
@@ -147,25 +148,16 @@ func (r *Resolver) productKitComponents(ctx context.Context, obj *model.Product)
 	if err != nil {
 		return nil, fmt.Errorf("filter kit components: %w", err)
 	}
-	out := make([]*model.KitComponent, len(comps))
+	out := make([]*model1.KitItem, len(comps))
 	for i, c := range comps {
 		if !slices.Contains(sold, c.ComponentProductID) {
 			c.ComponentURL = ""
 		}
-		prod := &model.Product{
-			ID:                  c.ComponentProductID.String(),
-			URL:                 c.ComponentURL,
-			Sku:                 c.ComponentSKU,
-			Kind:                model.ProductKindSimple,
-			DefaultPrice:        int32(c.ComponentDefaultPrice),
-			Price:               int32(c.ComponentDefaultPrice),
-			DefaultCurrencyCode: c.ComponentCurrency,
-		}
+		out[i] = &model1.KitItem{ID: c.ID.String(), Sku: c.ComponentSKU, URL: c.ComponentURL, Quantity: c.Quantity, SortOrder: c.SortOrder}
 		if c.ComponentName != "" {
 			name := c.ComponentName
-			prod.Name = &name
+			out[i].Name = &name
 		}
-		out[i] = &model.KitComponent{ID: c.ID.String(), Component: prod, Quantity: c.Quantity, SortOrder: c.SortOrder}
 	}
 	return out, nil
 }

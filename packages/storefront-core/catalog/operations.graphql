@@ -454,12 +454,9 @@ query ProductKitContents($id: ID!) {
     kitComponents {
       id
       quantity
-      component {
-        id
-        url
-        sku
-        name
-      }
+      url
+      sku
+      name
     }
   }
 }

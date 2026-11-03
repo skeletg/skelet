@@ -785,11 +785,13 @@ type ComplexityRoot struct {
 		SortOrder       func(childComplexity int) int
 	}
 
-	KitComponent struct {
-		Component func(childComplexity int) int
+	KitItem struct {
 		ID        func(childComplexity int) int
+		Name      func(childComplexity int) int
 		Quantity  func(childComplexity int) int
+		Sku       func(childComplexity int) int
 		SortOrder func(childComplexity int) int
+		URL       func(childComplexity int) int
 	}
 
 	Locale struct {
@@ -1710,7 +1712,7 @@ type ProductResolver interface {
 	BundlePricing(ctx context.Context, obj *model.Product) (model.BundlePricing, error)
 	BundleDiscountPercent(ctx context.Context, obj *model.Product) (int32, error)
 	GroupedMembers(ctx context.Context, obj *model.Product) ([]*model.GroupedMember, error)
-	KitComponents(ctx context.Context, obj *model.Product) ([]*model.KitComponent, error)
+	KitComponents(ctx context.Context, obj *model.Product) ([]*model1.KitItem, error)
 	Options(ctx context.Context, obj *model.Product) ([]*model1.ProductCustomOption, error)
 	OptionRules(ctx context.Context, obj *model.Product) ([]*model1.ProductCustomOptionRule, error)
 	ConfiguratorLayout(ctx context.Context, obj *model.Product) (model.ConfiguratorLayout, error)
@@ -5005,30 +5007,42 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.GroupedMembership.SortOrder(childComplexity), true
 
-	case "KitComponent.component":
-		if e.ComplexityRoot.KitComponent.Component == nil {
+	case "KitItem.id":
+		if e.ComplexityRoot.KitItem.ID == nil {
 			break
 		}
 
-		return e.ComplexityRoot.KitComponent.Component(childComplexity), true
-	case "KitComponent.id":
-		if e.ComplexityRoot.KitComponent.ID == nil {
+		return e.ComplexityRoot.KitItem.ID(childComplexity), true
+	case "KitItem.name":
+		if e.ComplexityRoot.KitItem.Name == nil {
 			break
 		}
 
-		return e.ComplexityRoot.KitComponent.ID(childComplexity), true
-	case "KitComponent.quantity":
-		if e.ComplexityRoot.KitComponent.Quantity == nil {
+		return e.ComplexityRoot.KitItem.Name(childComplexity), true
+	case "KitItem.quantity":
+		if e.ComplexityRoot.KitItem.Quantity == nil {
 			break
 		}
 
-		return e.ComplexityRoot.KitComponent.Quantity(childComplexity), true
-	case "KitComponent.sortOrder":
-		if e.ComplexityRoot.KitComponent.SortOrder == nil {
+		return e.ComplexityRoot.KitItem.Quantity(childComplexity), true
+	case "KitItem.sku":
+		if e.ComplexityRoot.KitItem.Sku == nil {
 			break
 		}
 
-		return e.ComplexityRoot.KitComponent.SortOrder(childComplexity), true
+		return e.ComplexityRoot.KitItem.Sku(childComplexity), true
+	case "KitItem.sortOrder":
+		if e.ComplexityRoot.KitItem.SortOrder == nil {
+			break
+		}
+
+		return e.ComplexityRoot.KitItem.SortOrder(childComplexity), true
+	case "KitItem.url":
+		if e.ComplexityRoot.KitItem.URL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.KitItem.URL(childComplexity), true
 
 	case "Locale.code":
 		if e.ComplexityRoot.Locale.Code == nil {
@@ -10094,7 +10108,7 @@ type Product {
   # Empty unless kind == GROUPED.
   groupedMembers:      [GroupedMember!]!
   # Empty unless kind == KIT - what is in the box, per kit. A component this store doesn't sell on its own has no url.
-  kitComponents:       [KitComponent!]!
+  kitComponents:       [KitItem!]!
   # Customer-facing custom options (engraving, gift wrap, add-ons, …).
   # Pass the customer's picks to addConfiguredToCart. Empty when none.
   options:             [ProductCustomOption!]!
@@ -10178,10 +10192,13 @@ type GroupedMember {
   sortOrder:       Int!
 }
 
-# One item in a KIT's fixed contents - quantity is how many come in one kit.
-type KitComponent {
+# One item in a KIT's fixed contents - quantity is how many come in one kit. Display only, so no price: url is empty when
+# this store doesn't sell the item on its own.
+type KitItem {
   id:        ID!
-  component: Product!
+  sku:       String!
+  name:      String
+  url:       String!
   quantity:  Float!
   sortOrder: Int!
 }
@@ -13247,18 +13264,22 @@ func (ec *executionContext) childFields_GroupedMembership(ctx context.Context, f
 	return nil, fmt.Errorf("no field named %q was found under type GroupedMembership", field.Name)
 }
 
-func (ec *executionContext) childFields_KitComponent(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+func (ec *executionContext) childFields_KitItem(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
-		return ec.fieldContext_KitComponent_id(ctx, field)
-	case "component":
-		return ec.fieldContext_KitComponent_component(ctx, field)
+		return ec.fieldContext_KitItem_id(ctx, field)
+	case "sku":
+		return ec.fieldContext_KitItem_sku(ctx, field)
+	case "name":
+		return ec.fieldContext_KitItem_name(ctx, field)
+	case "url":
+		return ec.fieldContext_KitItem_url(ctx, field)
 	case "quantity":
-		return ec.fieldContext_KitComponent_quantity(ctx, field)
+		return ec.fieldContext_KitItem_quantity(ctx, field)
 	case "sortOrder":
-		return ec.fieldContext_KitComponent_sortOrder(ctx, field)
+		return ec.fieldContext_KitItem_sortOrder(ctx, field)
 	}
-	return nil, fmt.Errorf("no field named %q was found under type KitComponent", field.Name)
+	return nil, fmt.Errorf("no field named %q was found under type KitItem", field.Name)
 }
 
 func (ec *executionContext) childFields_Locale(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -29585,13 +29606,13 @@ func (ec *executionContext) fieldContext_GroupedMembership_siblings(_ context.Co
 	return fc, nil
 }
 
-func (ec *executionContext) _KitComponent_id(ctx context.Context, field graphql.CollectedField, obj *model.KitComponent) (ret graphql.Marshaler) {
+func (ec *executionContext) _KitItem_id(ctx context.Context, field graphql.CollectedField, obj *model1.KitItem) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_KitComponent_id(ctx, field)
+			return ec.fieldContext_KitItem_id(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
 			return obj.ID, nil
@@ -29604,49 +29625,86 @@ func (ec *executionContext) _KitComponent_id(ctx context.Context, field graphql.
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_KitComponent_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("KitComponent", field, false, false, errors.New("field of type ID does not have child fields"))
+func (ec *executionContext) fieldContext_KitItem_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("KitItem", field, false, false, errors.New("field of type ID does not have child fields"))
 }
 
-func (ec *executionContext) _KitComponent_component(ctx context.Context, field graphql.CollectedField, obj *model.KitComponent) (ret graphql.Marshaler) {
+func (ec *executionContext) _KitItem_sku(ctx context.Context, field graphql.CollectedField, obj *model1.KitItem) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_KitComponent_component(ctx, field)
+			return ec.fieldContext_KitItem_sku(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.Component, nil
+			return obj.Sku, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.Product) graphql.Marshaler {
-			return ec.marshalNProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐProduct(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_KitComponent_component(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "KitComponent",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_Product(ctx, field)
-		},
-	}
-	return fc, nil
+func (ec *executionContext) fieldContext_KitItem_sku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("KitItem", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
-func (ec *executionContext) _KitComponent_quantity(ctx context.Context, field graphql.CollectedField, obj *model.KitComponent) (ret graphql.Marshaler) {
+func (ec *executionContext) _KitItem_name(ctx context.Context, field graphql.CollectedField, obj *model1.KitItem) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_KitComponent_quantity(ctx, field)
+			return ec.fieldContext_KitItem_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_KitItem_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("KitItem", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _KitItem_url(ctx context.Context, field graphql.CollectedField, obj *model1.KitItem) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_KitItem_url(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.URL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_KitItem_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("KitItem", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _KitItem_quantity(ctx context.Context, field graphql.CollectedField, obj *model1.KitItem) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_KitItem_quantity(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
 			return obj.Quantity, nil
@@ -29659,17 +29717,17 @@ func (ec *executionContext) _KitComponent_quantity(ctx context.Context, field gr
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_KitComponent_quantity(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("KitComponent", field, false, false, errors.New("field of type Float does not have child fields"))
+func (ec *executionContext) fieldContext_KitItem_quantity(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("KitItem", field, false, false, errors.New("field of type Float does not have child fields"))
 }
 
-func (ec *executionContext) _KitComponent_sortOrder(ctx context.Context, field graphql.CollectedField, obj *model.KitComponent) (ret graphql.Marshaler) {
+func (ec *executionContext) _KitItem_sortOrder(ctx context.Context, field graphql.CollectedField, obj *model1.KitItem) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_KitComponent_sortOrder(ctx, field)
+			return ec.fieldContext_KitItem_sortOrder(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
 			return obj.SortOrder, nil
@@ -29682,8 +29740,8 @@ func (ec *executionContext) _KitComponent_sortOrder(ctx context.Context, field g
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_KitComponent_sortOrder(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("KitComponent", field, false, false, errors.New("field of type Int does not have child fields"))
+func (ec *executionContext) fieldContext_KitItem_sortOrder(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("KitItem", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _Locale_code(ctx context.Context, field graphql.CollectedField, obj *model.Locale) (ret graphql.Marshaler) {
@@ -36899,8 +36957,8 @@ func (ec *executionContext) _Product_kitComponents(ctx context.Context, field gr
 			return ec.Resolvers.Product().KitComponents(ctx, obj)
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*model.KitComponent) graphql.Marshaler {
-			return ec.marshalNKitComponent2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐKitComponentᚄ(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v []*model1.KitItem) graphql.Marshaler {
+			return ec.marshalNKitItem2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐKitItemᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -36913,7 +36971,7 @@ func (ec *executionContext) fieldContext_Product_kitComponents(_ context.Context
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_KitComponent(ctx, field)
+			return ec.childFields_KitItem(ctx, field)
 		},
 	}
 	return fc, nil
@@ -54015,10 +54073,10 @@ func (ec *executionContext) _GroupedMembership(ctx context.Context, sel ast.Sele
 	return out
 }
 
-var kitComponentImplementors = []string{"KitComponent"}
+var kitItemImplementors = []string{"KitItem"}
 
-func (ec *executionContext) _KitComponent(ctx context.Context, sel ast.SelectionSet, obj *model.KitComponent) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, kitComponentImplementors)
+func (ec *executionContext) _KitItem(ctx context.Context, sel ast.SelectionSet, obj *model1.KitItem) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, kitItemImplementors)
 
 	out := graphql.NewFieldSet(fields)
 	deferredFieldSet := graphql.NewFieldSet(nil)
@@ -54026,24 +54084,34 @@ func (ec *executionContext) _KitComponent(ctx context.Context, sel ast.Selection
 	for i, field := range fields {
 		switch field.Name {
 		case "__typename":
-			out.Values[i] = graphql.MarshalString("KitComponent")
+			out.Values[i] = graphql.MarshalString("KitItem")
 		case "id":
-			out.Values[i] = ec._KitComponent_id(ctx, field, obj)
+			out.Values[i] = ec._KitItem_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "component":
-			out.Values[i] = ec._KitComponent_component(ctx, field, obj)
+		case "sku":
+			out.Values[i] = ec._KitItem_sku(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._KitItem_name(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "url":
+			out.Values[i] = ec._KitItem_url(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "quantity":
-			out.Values[i] = ec._KitComponent_quantity(ctx, field, obj)
+			out.Values[i] = ec._KitItem_quantity(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "sortOrder":
-			out.Values[i] = ec._KitComponent_sortOrder(ctx, field, obj)
+			out.Values[i] = ec._KitItem_sortOrder(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -64574,11 +64642,11 @@ func (ec *executionContext) marshalNJSON2interface(ctx context.Context, sel ast.
 	return res
 }
 
-func (ec *executionContext) marshalNKitComponent2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐKitComponentᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.KitComponent) graphql.Marshaler {
+func (ec *executionContext) marshalNKitItem2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐKitItemᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.KitItem) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNKitComponent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐKitComponent(ctx, sel, v[i])
+		return ec.marshalNKitItem2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐKitItem(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -64590,14 +64658,14 @@ func (ec *executionContext) marshalNKitComponent2ᚕᚖgithubᚗcomᚋskeletgᚋ
 	return ret
 }
 
-func (ec *executionContext) marshalNKitComponent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐKitComponent(ctx context.Context, sel ast.SelectionSet, v *model.KitComponent) graphql.Marshaler {
+func (ec *executionContext) marshalNKitItem2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐKitItem(ctx context.Context, sel ast.SelectionSet, v *model1.KitItem) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
 		}
 		return graphql.Null
 	}
-	return ec._KitComponent(ctx, sel, v)
+	return ec._KitItem(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNLocale2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐLocale(ctx context.Context, sel ast.SelectionSet, v model.Locale) graphql.Marshaler {

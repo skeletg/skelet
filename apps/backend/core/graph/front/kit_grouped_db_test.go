@@ -77,11 +77,11 @@ func TestAKitShowsItsContentsLinkingOnlyWhatTheStoreSells(t *testing.T) {
 	if err != nil || len(got) != 2 {
 		t.Fatalf("kit components = %d (%v), want both", len(got), err)
 	}
-	if got[0].Quantity != 2 || got[0].Component.URL == "" {
-		t.Errorf("sold component = %+v (url %q), want 2 per kit with its url", got[0], got[0].Component.URL)
+	if got[0].Quantity != 2 || got[0].URL == "" {
+		t.Errorf("sold component = %+v (url %q), want 2 per kit with its url", got[0], got[0].URL)
 	}
-	if got[1].Component.URL != "" {
-		t.Errorf("unsold component url = %q, want none", got[1].Component.URL)
+	if got[1].URL != "" {
+		t.Errorf("unsold component url = %q, want none", got[1].URL)
 	}
 }
 

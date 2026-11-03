@@ -148,7 +148,7 @@ type Product {
   # Empty unless kind == GROUPED.
   groupedMembers:      [GroupedMember!]!
   # Empty unless kind == KIT - what is in the box, per kit. A component this store doesn't sell on its own has no url.
-  kitComponents:       [KitComponent!]!
+  kitComponents:       [KitItem!]!
   # Customer-facing custom options (engraving, gift wrap, add-ons, …).
   # Pass the customer's picks to addConfiguredToCart. Empty when none.
   options:             [ProductCustomOption!]!
@@ -232,10 +232,13 @@ type GroupedMember {
   sortOrder:       Int!
 }
 
-# One item in a KIT's fixed contents - quantity is how many come in one kit.
-type KitComponent {
+# One item in a KIT's fixed contents - quantity is how many come in one kit. Display only, so no price: url is empty when
+# this store doesn't sell the item on its own.
+type KitItem {
   id:        ID!
-  component: Product!
+  sku:       String!
+  name:      String
+  url:       String!
   quantity:  Float!
   sortOrder: Int!
 }

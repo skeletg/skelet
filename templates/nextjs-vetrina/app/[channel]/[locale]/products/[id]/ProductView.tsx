@@ -240,7 +240,7 @@ async function KitContents({ productId }: { productId: string }) {
     <section className="mt-12" aria-labelledby="kit-contents">
       <h2 id="kit-contents" className="text-lg font-semibold tracking-tight">{t("inTheBox")}</h2>
       <ul className="mt-4 divide-y rounded-md border">
-        {items.map(({ id, quantity, component: c }) => (
+        {items.map(({ id, quantity, ...c }) => (
           <li key={id} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
             {c.url ? (
               <Link href={productHref(c)} className="hover:underline">{c.name || c.sku}</Link>

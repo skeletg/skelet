@@ -393,6 +393,15 @@ type GiftCardBalance struct {
 	Active       bool   `json:"active"`
 }
 
+type KitItem struct {
+	ID        string  `json:"id"`
+	Sku       string  `json:"sku"`
+	Name      *string `json:"name,omitempty"`
+	URL       string  `json:"url"`
+	Quantity  float64 `json:"quantity"`
+	SortOrder int32   `json:"sortOrder"`
+}
+
 type LoyaltyRedeemResult struct {
 	BalancePoints      int32 `json:"balancePoints"`
 	StoreCreditBalance int32 `json:"storeCreditBalance"`
