@@ -84,6 +84,7 @@ func (r *postgresRepository) ListCarts(ctx context.Context, f CartFilter) ([]Car
 			ChannelID:         row.ChannelID,
 			Status:            row.Status,
 			Kind:              row.Kind,
+			Source:            row.Source,
 			Email:             row.Email,
 			OfferExpiresAt:    sqlnull.TimePtr(row.OfferExpiresAt),
 			OfferSentAt:       sqlnull.TimePtr(row.OfferSentAt),
@@ -545,6 +546,13 @@ func (r *postgresRepository) RecordHandoffRedemption(ctx context.Context, agentC
 		return false, fmt.Errorf("record handoff redemption: %w", err)
 	}
 	return n > 0, nil
+}
+
+func (r *postgresRepository) CarryHandoffRedemptions(ctx context.Context, fromCartID, toCartID uuid.UUID) error {
+	if err := r.queries.CarryCartHandoffRedemptions(ctx, db.CarryCartHandoffRedemptionsParams{FromCartID: fromCartID, ToCartID: toCartID}); err != nil {
+		return fmt.Errorf("carry handoff redemptions: %w", err)
+	}
+	return nil
 }
 
 func (r *postgresRepository) GetOfferByToken(ctx context.Context, token string) (Cart, error) {

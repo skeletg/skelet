@@ -41,6 +41,7 @@ const cart = {
   channelId: 'c1',
   currencyCode: 'EUR',
   status: 'active',
+  source: 'web',
   kind: 'OFFER' as const,
   email: 'guest@example.com',
   subtotal: 5000,

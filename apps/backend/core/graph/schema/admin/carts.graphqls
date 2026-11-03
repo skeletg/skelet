@@ -10,6 +10,7 @@ type AdminCart {
   currencyCode:  String!      # the channel's currency
   status:        String!      # active | converted | merged | handed_off
   kind:          CartKind!
+  source:        String!      # web | agent - an agent cart was built by a shopper's AI agent over the storefront MCP endpoint
   email:         String!      # the cart's own email - a guest offer's recipient, or what a guest typed at checkout
   # Set on an offer only
   offer:         AdminCartOffer
@@ -181,6 +182,7 @@ type CartListItem {
   currencyCode:  String!
   status:        String!
   kind:          CartKind!
+  source:        String!      # web | agent
   email:         String!
   offerState:    CartOfferState  # set on offers
   offerExpiresAt: Time

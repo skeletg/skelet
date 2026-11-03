@@ -28,11 +28,11 @@ const initBody = `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"proto
 var objectSchema = map[string]any{"type": "object", "properties": map[string]any{"a": map[string]any{"type": "integer"}}}
 
 var registry = []ai.Tool{
-	{Name: "echo", Schema: objectSchema, ReadOnly: true, Idempotent: true},
-	{Name: "broken", ReadOnly: true, Idempotent: true},
-	{Name: "boom", ReadOnly: true, Idempotent: true},
-	{Name: "block", ReadOnly: true, Idempotent: true},
-	{Name: "hidden", ReadOnly: true, Idempotent: true},
+	{Name: "echo", Schema: objectSchema, Effect: ai.Reads, Idempotent: true},
+	{Name: "broken", Effect: ai.Reads, Idempotent: true},
+	{Name: "boom", Effect: ai.Reads, Idempotent: true},
+	{Name: "block", Effect: ai.Reads, Idempotent: true},
+	{Name: "hidden", Effect: ai.Reads, Idempotent: true},
 }
 
 type fakeTools struct {
@@ -353,13 +353,13 @@ func TestInFlightCallsAreCappedPerCredential(t *testing.T) {
 	busy := token(&f.pin)
 	cs := session(t, f.handler, busy, nil)
 	var wg sync.WaitGroup
-	for range maxInFlight {
+	for range defaultMaxInFlight {
 		wg.Go(func() { call(t, cs, "block", map[string]any{}) })
 	}
-	for range maxInFlight {
+	for range defaultMaxInFlight {
 		<-f.rec.entered
 	}
-	if text, isErr := call(t, cs, "echo", map[string]any{}); !isErr || !strings.Contains(text, fmt.Sprint(maxInFlight)) {
+	if text, isErr := call(t, cs, "echo", map[string]any{}); !isErr || !strings.Contains(text, fmt.Sprint(defaultMaxInFlight)) {
 		t.Errorf("a call past the cap should be refused, got %q (error %v)", text, isErr)
 	}
 	if _, isErr := call(t, session(t, f.handler, token(&f.pin), nil), "echo", map[string]any{}); isErr {
@@ -398,10 +398,19 @@ func BenchmarkToolCall(b *testing.B) {
 	}
 }
 
+func TestAHandlerWithoutAResolverRefusesToBuild(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error("a handler with no Resolve would answer every request with a panic")
+		}
+	}()
+	NewHandler(Config{Tools: registry})
+}
+
 func TestAStorefrontCallerIsScopedToItsChannelAndAddress(t *testing.T) {
 	open, closed := uuid.New(), uuid.New()
 	keys := &keyRecorder{}
-	tools := []ai.Tool{{Name: "look", ReadOnly: true, Idempotent: true}, {Name: "change", Idempotent: true}}
+	tools := []ai.Tool{{Name: "look", Effect: ai.Reads, Idempotent: true}, {Name: "change", Effect: ai.Writes, Idempotent: true}, {Name: "close", Effect: ai.Destroys}}
 	h := NewHandler(Config{
 		Tools: tools,
 		Resolve: Storefront(func(_ context.Context, ch channel.Channel) (ToolSet, *Refusal) {
@@ -438,6 +447,10 @@ func TestAStorefrontCallerIsScopedToItsChannelAndAddress(t *testing.T) {
 		case "change":
 			if a.ReadOnlyHint || a.DestructiveHint == nil || *a.DestructiveHint || !a.IdempotentHint {
 				t.Errorf("a non-destructive idempotent write should say exactly that: %+v", a)
+			}
+		case "close":
+			if a.ReadOnlyHint || a.DestructiveHint == nil || !*a.DestructiveHint || a.IdempotentHint {
+				t.Errorf("a destructive write should say so: %+v", a)
 			}
 		}
 	}

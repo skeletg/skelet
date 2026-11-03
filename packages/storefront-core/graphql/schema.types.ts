@@ -488,6 +488,12 @@ export type CartGiftCard = {
   code: Scalars['String']['output'];
 };
 
+export type CartHandoffRedemption = {
+  __typename?: 'CartHandoffRedemption';
+  cart: Cart;
+  guestCart: Scalars['Boolean']['output'];
+};
+
 export type CartLine = {
   __typename?: 'CartLine';
   availableQuantity?: Maybe<Scalars['Float']['output']>;
@@ -1085,7 +1091,7 @@ export type Mutation = {
   openCartOffer: CartOfferOpening;
   placeOrder: Order;
   presignWebFormUpload: WebFormUploadTicket;
-  redeemCartHandoff: Cart;
+  redeemCartHandoff: CartHandoffRedemption;
   redeemLoyaltyPoints: LoyaltyRedeemResult;
   removeCoupon: Cart;
   removeFromCart: Cart;

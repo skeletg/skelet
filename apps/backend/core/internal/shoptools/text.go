@@ -2,21 +2,27 @@ package shoptools
 
 import (
 	"encoding/json"
+	"maps"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
+const quoteChars = 600
+
 func price(minor int64, code string) string { return money.FormatCode(minor, code) }
 
+// The front API takes prices as a 32-bit Int, so anything past it means "no bound"
 func toMinor(major float64, code string) int64 {
-	return int64(math.Round(major * math.Pow10(money.ISODecimals(code))))
+	return min(int64(math.Round(major*math.Pow10(money.ISODecimals(code)))), math.MaxInt32)
 }
 
 // Shopper-written text goes back quoted, so an agent reads it as data
-func quote(s string) string { return strconv.Quote(clip(s, 600)) }
+func quote(s string) string { return strconv.Quote(clip(s, quoteChars)) }
 
 func clip(s string, max int) string {
 	s = strings.Join(strings.Fields(s), " ")
@@ -24,13 +30,11 @@ func clip(s string, max int) string {
 		return s
 	}
 	cut := max
-	for cut > 0 && !utf8Start(s[cut]) {
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
 		cut--
 	}
 	return s[:cut] + "..."
 }
-
-func utf8Start(b byte) bool { return b&0xC0 != 0x80 }
 
 func clamp(n, def, max int) int {
 	if n <= 0 {
@@ -39,7 +43,10 @@ func clamp(n, def, max int) int {
 	return min(n, max)
 }
 
-// The readable text of a rich-text or block JSON value - its "text" leaves, or the value itself when it's a plain string
+// Keys whose string values are prose in rich-text and block JSON - everything else is ids, styles and settings
+var proseKeys = map[string]bool{"text": true, "title": true, "heading": true, "body": true, "content": true}
+
+// The readable text of a rich-text or block JSON value, in a stable order - its prose leaves, or the value itself when it's a plain string
 func plainText(raw json.RawMessage, max int) string {
 	if len(raw) == 0 || string(raw) == "null" {
 		return ""
@@ -48,30 +55,28 @@ func plainText(raw json.RawMessage, max int) string {
 	if err := json.Unmarshal(raw, &v); err != nil {
 		return ""
 	}
+	if s, ok := v.(string); ok {
+		return clip(s, max)
+	}
 	var parts []string
 	var walk func(any)
 	walk = func(v any) {
 		switch t := v.(type) {
-		case string:
-			parts = append(parts, t)
 		case []any:
 			for _, e := range t {
 				walk(e)
 			}
 		case map[string]any:
-			for k, e := range t {
-				if s, ok := e.(string); ok {
-					if k == "text" || k == "title" || k == "heading" || k == "body" || k == "content" {
+			for _, k := range slices.Sorted(maps.Keys(t)) {
+				if s, ok := t[k].(string); ok {
+					if proseKeys[k] {
 						parts = append(parts, s)
 					}
 					continue
 				}
-				walk(e)
+				walk(t[k])
 			}
 		}
-	}
-	if s, ok := v.(string); ok {
-		return clip(s, max)
 	}
 	walk(v)
 	return clip(strings.Join(parts, " "), max)

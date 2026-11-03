@@ -7,11 +7,18 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/mcpserver"
 	"github.com/skeletg/skelet/apps/backend/core/internal/shoptools"
 	authpkg "github.com/skeletg/skelet/apps/backend/core/lib/auth"
+)
+
+// Hosted agents reach a store from a handful of shared addresses, so the per-address cap is far wider than the admin endpoint's
+const (
+	frontMCPMaxInFlight = 32
+	frontMCPCallTimeout = 20 * time.Second
 )
 
 // frontGraphQL runs documents against the front schema in-process, on the caller's context - its channel, locale and client address ride along, so every resolver rule applies as it does over HTTP

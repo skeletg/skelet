@@ -391,6 +391,11 @@ type ComplexityRoot struct {
 		Code         func(childComplexity int) int
 	}
 
+	CartHandoffRedemption struct {
+		Cart      func(childComplexity int) int
+		GuestCart func(childComplexity int) int
+	}
+
 	CartLine struct {
 		AvailableQuantity func(childComplexity int) int
 		Components        func(childComplexity int) int
@@ -1599,7 +1604,7 @@ type MutationResolver interface {
 	RemoveSavedItem(ctx context.Context, cartID string, savedItemID string) (*model1.Cart, error)
 	ClearCart(ctx context.Context, cartID string) (*model1.Cart, error)
 	MergeGuestCart(ctx context.Context, guestCartID string) (*model1.Cart, error)
-	RedeemCartHandoff(ctx context.Context, token string, cartID *string) (*model1.Cart, error)
+	RedeemCartHandoff(ctx context.Context, token string, cartID *string) (*model1.CartHandoffRedemption, error)
 	ApplyCoupon(ctx context.Context, cartID string, code string) (*model1.Cart, error)
 	RemoveCoupon(ctx context.Context, cartID string, code string) (*model1.Cart, error)
 	SetCartDestination(ctx context.Context, cartID string, countryCode string, regionCode *string, postalCode string) (*model1.Cart, error)
@@ -3253,6 +3258,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CartGiftCard.Code(childComplexity), true
+
+	case "CartHandoffRedemption.cart":
+		if e.ComplexityRoot.CartHandoffRedemption.Cart == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CartHandoffRedemption.Cart(childComplexity), true
+	case "CartHandoffRedemption.guestCart":
+		if e.ComplexityRoot.CartHandoffRedemption.GuestCart == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CartHandoffRedemption.GuestCart(childComplexity), true
 
 	case "CartLine.availableQuantity":
 		if e.ComplexityRoot.CartLine.AvailableQuantity == nil {
@@ -9733,8 +9751,8 @@ extend type Mutation {
   removeSavedItem(cartId: ID!, savedItemId: ID!):                                                    Cart!
   clearCart(cartId: ID!):                                                                             Cart!
   mergeGuestCart(guestCartId: ID!):                                                                   Cart!
-  # Opens a checkout link a shopper's AI agent made over the storefront MCP endpoint, copying the agent's cart into the shopper's own: the signed-in customer's cart, else the guest cart cartId names, else a new guest cart. Returns that cart. Opening the same link into the same cart again adds nothing. Refused with CART_HANDOFF_INVALID or CART_HANDOFF_EXPIRED
-  redeemCartHandoff(token: String!, cartId: ID):                                                     Cart!
+  # Opens a checkout link a shopper's AI agent made over the storefront MCP endpoint, copying the agent's cart into the shopper's own: the signed-in customer's cart, else the guest cart cartId names, else a new guest cart. Opening the same link into the same cart again adds nothing. Refused with CART_HANDOFF_INVALID or CART_HANDOFF_EXPIRED
+  redeemCartHandoff(token: String!, cartId: ID):                                                     CartHandoffRedemption!
   # Apply a code to the cart. The v2 engine supports multiple codes; calling applyCoupon adds to the set rather than replacing. Fails with a typed error when the code is unknown / inactive / expired / hits a usage cap.
   applyCoupon(cartId: ID!, code: String!): Cart!
   # Remove a specific code from the cart.
@@ -9758,6 +9776,12 @@ extend type Mutation {
   removeGiftCard(cartId: ID!, code: String!): Cart!
   # Signed-in only - spends the customer's balance against what gift cards leave.
   setCartStoreCredit(cartId: ID!, use: Boolean!): Cart!
+}
+
+# Where a checkout link put the agent's cart - guestCart says it's a guest cart the storefront should remember, which it is even for a shopper who believed they were signed in but whose session had lapsed
+type CartHandoffRedemption {
+  cart:      Cart!
+  guestCart: Boolean!
 }
 `, BuiltIn: false},
 	{Name: "../schema/front/catalog.graphqls", Input: `enum AttributeInputType {
@@ -12267,6 +12291,16 @@ func (ec *executionContext) childFields_CartGiftCard(ctx context.Context, field 
 		return ec.fieldContext_CartGiftCard_balanceCents(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type CartGiftCard", field.Name)
+}
+
+func (ec *executionContext) childFields_CartHandoffRedemption(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "cart":
+		return ec.fieldContext_CartHandoffRedemption_cart(ctx, field)
+	case "guestCart":
+		return ec.fieldContext_CartHandoffRedemption_guestCart(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CartHandoffRedemption", field.Name)
 }
 
 func (ec *executionContext) childFields_CartLine(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -22551,6 +22585,61 @@ func (ec *executionContext) fieldContext_CartGiftCard_balanceCents(_ context.Con
 	return graphql.NewScalarFieldContext("CartGiftCard", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _CartHandoffRedemption_cart(ctx context.Context, field graphql.CollectedField, obj *model1.CartHandoffRedemption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CartHandoffRedemption_cart(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Cart, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
+			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CartHandoffRedemption_cart(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CartHandoffRedemption",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Cart(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CartHandoffRedemption_guestCart(ctx context.Context, field graphql.CollectedField, obj *model1.CartHandoffRedemption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CartHandoffRedemption_guestCart(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.GuestCart, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CartHandoffRedemption_guestCart(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CartHandoffRedemption", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _CartLine_id(ctx context.Context, field graphql.CollectedField, obj *model1.CartLine) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -30678,8 +30767,8 @@ func (ec *executionContext) _Mutation_redeemCartHandoff(ctx context.Context, fie
 			return ec.Resolvers.Mutation().RedeemCartHandoff(ctx, fc.Args["token"].(string), fc.Args["cartId"].(*string))
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
-			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v *model1.CartHandoffRedemption) graphql.Marshaler {
+			return ec.marshalNCartHandoffRedemption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐCartHandoffRedemption(ctx, selections, v)
 		},
 		true,
 		true,
@@ -30692,7 +30781,7 @@ func (ec *executionContext) fieldContext_Mutation_redeemCartHandoff(ctx context.
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_Cart(ctx, field)
+			return ec.childFields_CartHandoffRedemption(ctx, field)
 		},
 	}
 	defer func() {
@@ -50261,6 +50350,49 @@ func (ec *executionContext) _CartGiftCard(ctx context.Context, sel ast.Selection
 	return out
 }
 
+var cartHandoffRedemptionImplementors = []string{"CartHandoffRedemption"}
+
+func (ec *executionContext) _CartHandoffRedemption(ctx context.Context, sel ast.SelectionSet, obj *model1.CartHandoffRedemption) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, cartHandoffRedemptionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CartHandoffRedemption")
+		case "cart":
+			out.Values[i] = ec._CartHandoffRedemption_cart(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "guestCart":
+			out.Values[i] = ec._CartHandoffRedemption_guestCart(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var cartLineImplementors = []string{"CartLine"}
 
 func (ec *executionContext) _CartLine(ctx context.Context, sel ast.SelectionSet, obj *model1.CartLine) graphql.Marshaler {
@@ -62414,6 +62546,20 @@ func (ec *executionContext) marshalNCartGiftCard2ᚖgithubᚗcomᚋskeletgᚋske
 		return graphql.Null
 	}
 	return ec._CartGiftCard(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNCartHandoffRedemption2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐCartHandoffRedemption(ctx context.Context, sel ast.SelectionSet, v model1.CartHandoffRedemption) graphql.Marshaler {
+	return ec._CartHandoffRedemption(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNCartHandoffRedemption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐCartHandoffRedemption(ctx context.Context, sel ast.SelectionSet, v *model1.CartHandoffRedemption) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CartHandoffRedemption(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNCartLine2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐCartLineᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.CartLine) graphql.Marshaler {

@@ -1,4 +1,4 @@
-// Package shoptools is the tool menu a shopper's AI agent gets over the storefront MCP endpoint. Every read and cart change runs through the front GraphQL schema, so the agent sees exactly what the storefront shows
+// Package shoptools is the tool menu a shopper's AI agent gets over the storefront MCP endpoint. Every read runs through the front GraphQL schema, so the agent sees exactly what the storefront shows
 package shoptools
 
 import (
@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 
@@ -38,10 +40,14 @@ type Error struct {
 
 func (e *Error) Error() string { return e.Message }
 
+// Carts is the cart service's agent side - line edits go straight to it, since the front resolvers add nothing but a full cart rebuild per edit
 type Carts interface {
 	CreateAgentCart(ctx context.Context, channelID uuid.UUID) (cart.Cart, error)
 	AgentCart(ctx context.Context, cartID, channelID uuid.UUID) (cart.Cart, error)
 	StartHandoff(ctx context.Context, cartID, channelID uuid.UUID) (cart.Cart, error)
+	AddToCart(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, sku string, quantity float64) (cart.Cart, error)
+	UpdateCartLine(ctx context.Context, cartID, lineID uuid.UUID, callerID *uuid.UUID, quantity float64) (cart.Cart, error)
+	RemoveFromCart(ctx context.Context, cartID, lineID uuid.UUID, callerID *uuid.UUID) (cart.Cart, error)
 }
 
 type Settings interface {
@@ -54,12 +60,24 @@ type Deps struct {
 	Settings Settings
 }
 
-type Service struct{ deps Deps }
+type Service struct {
+	deps     Deps
+	pages    pageCache
+	unlinked sync.Map
+}
 
-func New(deps Deps) *Service { return &Service{deps: deps} }
+func New(deps Deps) *Service {
+	return &Service{deps: deps, pages: pageCache{entries: map[string]pageEntry{}}}
+}
 
-// Open says whether shoppers' agents may use the channel
+// Open says whether shoppers' agents may use the channel. One with no public URL can't, since every link an agent hands on would be relative
 func (s *Service) Open(ctx context.Context, ch channel.Channel) (bool, error) {
+	if strings.TrimSpace(ch.PublicURL) == "" {
+		if _, warned := s.unlinked.LoadOrStore(ch.ID, true); !warned {
+			slog.WarnContext(ctx, "shoptools: channel has no public URL, so AI agents can't use it", "channel", ch.ID)
+		}
+		return false, nil
+	}
 	return s.deps.Settings.GetBool(ctx, enabledPath, config.Scope{Kind: config.ScopeChannel, ChannelID: &ch.ID})
 }
 
@@ -68,91 +86,77 @@ type refusal string
 
 func (r refusal) Error() string { return string(r) }
 
-type args struct {
-	Query      string              `json:"query"`
-	Category   string              `json:"category"`
-	Collection string              `json:"collection"`
-	PriceMin   *float64            `json:"price_min"`
-	PriceMax   *float64            `json:"price_max"`
-	Filters    map[string][]string `json:"filters"`
-	Sort       string              `json:"sort"`
-	Limit      int                 `json:"limit"`
-	Offset     int                 `json:"offset"`
-	Product    string              `json:"product"`
-	Parent     string              `json:"parent"`
-	Country    string              `json:"country"`
-	Region     string              `json:"region"`
-	PostalCode string              `json:"postal_code"`
-	CartID     string              `json:"cart_id"`
-	Lines      []lineArg           `json:"lines"`
-	Coupon     string              `json:"coupon"`
-}
-
-type lineArg struct {
-	SKU      string   `json:"sku"`
-	Quantity *float64 `json:"quantity"`
-}
-
 type call struct {
-	deps Deps
-	ch   channel.Channel
-	a    args
+	svc *Service
+	ch  channel.Channel
+	a   args
 }
+
+func (c call) gql() GraphQL { return c.svc.deps.GraphQL }
+func (c call) carts() Carts { return c.svc.deps.Carts }
 
 type tool struct {
 	def ai.Tool
 	run func(ctx context.Context, c call) (string, error)
 }
 
-func tools() []tool {
-	return []tool{storeInfoTool(), searchTool(), productTool(), categoriesTool(), pagesTool(), shippingTool(), getCartTool(), updateCartTool(), checkoutTool()}
-}
+var (
+	registry    = []tool{storeInfoTool(), searchTool(), productTool(), categoriesTool(), pagesTool(), shippingTool(), getCartTool(), updateCartTool(), checkoutTool()}
+	definitions = func() []ai.Tool {
+		out := make([]ai.Tool, len(registry))
+		for i, t := range registry {
+			out[i] = t.def
+		}
+		return out
+	}()
+	byName = func() map[string]tool {
+		out := make(map[string]tool, len(registry))
+		for _, t := range registry {
+			out[t.def.Name] = t
+		}
+		return out
+	}()
+)
 
-func Definitions() []ai.Tool {
-	all := tools()
-	out := make([]ai.Tool, len(all))
-	for i, t := range all {
-		out[i] = t.def
-	}
-	return out
-}
+func Definitions() []ai.Tool { return definitions }
 
 // ToolSet is the menu for one channel - every tool acts on it, whatever the arguments say
 type ToolSet struct {
-	deps Deps
-	ch   channel.Channel
+	svc *Service
+	ch  channel.Channel
 }
 
-func (s *Service) ToolSet(ch channel.Channel) ToolSet { return ToolSet{deps: s.deps, ch: ch} }
+func (s *Service) ToolSet(ch channel.Channel) ToolSet { return ToolSet{svc: s, ch: ch} }
 
-func (t ToolSet) Tools() []ai.Tool { return Definitions() }
+func (t ToolSet) Tools() []ai.Tool { return definitions }
 
 func (t ToolSet) Call(ctx context.Context, name string, raw json.RawMessage) ai.ToolResult {
-	for _, tl := range tools() {
-		if tl.def.Name != name {
-			continue
-		}
-		var a args
-		if len(raw) > 0 && string(raw) != "null" {
-			if err := json.Unmarshal(raw, &a); err != nil {
-				return ai.ToolResult{IsError: true, Content: "The arguments don't match the tool's schema: " + err.Error()}
-			}
-		}
-		out, err := tl.run(channel.WithChannel(ctx, &t.ch), call{deps: t.deps, ch: t.ch, a: a})
-		if err != nil {
-			return ai.ToolResult{IsError: true, Content: failure(ctx, name, err)}
-		}
-		return ai.ToolResult{Content: out}
+	tl, ok := byName[name]
+	if !ok {
+		return ai.ToolResult{IsError: true, Content: fmt.Sprintf("Unknown tool %q.", name)}
 	}
-	return ai.ToolResult{IsError: true, Content: fmt.Sprintf("Unknown tool %q.", name)}
+	var a args
+	if len(raw) > 0 && string(raw) != "null" {
+		if err := json.Unmarshal(raw, &a); err != nil {
+			return ai.ToolResult{IsError: true, Content: "The arguments don't match the tool's input schema."}
+		}
+	}
+	if err := a.check(); err != nil {
+		return ai.ToolResult{IsError: true, Content: err.Error()}
+	}
+	ctx = cart.WithAgentAccess(channel.WithChannel(ctx, &t.ch))
+	out, err := tl.run(ctx, call{svc: t.svc, ch: t.ch, a: a})
+	if err != nil {
+		return ai.ToolResult{IsError: true, Content: failure(ctx, name, err)}
+	}
+	return ai.ToolResult{Content: out}
 }
 
 func failure(ctx context.Context, name string, err error) string {
 	if r, ok := errors.AsType[refusal](err); ok {
 		return string(r)
 	}
-	var gql *Error
-	if errors.As(err, &gql) && gql.Code != "" && gql.Code != "INTERNAL" {
+	if gql, ok := errors.AsType[*Error](err); ok && gql.Code != "" && gql.Code != "INTERNAL" {
 		return gql.Message
 	}
 	slog.ErrorContext(ctx, "shoptools: tool failed", "tool", name, "err", err)
@@ -187,11 +191,12 @@ func link(ch channel.Channel, path string) string {
 	return strings.TrimRight(ch.PublicURL, "/") + path
 }
 
-// Documents is every GraphQL document the tools send, by name
-func Documents() map[string]string {
-	return map[string]string{
-		"search": searchDoc, "productByID": productByIDDoc, "productBySKU": productBySKUDoc, "route": routeDoc,
-		"rootCategories": rootCategoriesDoc, "categoryChildren": categoryChildrenDoc, "store": storeDoc, "pages": pagesDoc,
-		"shipping": shippingDoc, "cart": cartDoc, "add": addDoc, "update": updateDoc, "remove": removeDoc, "coupon": couponDoc, "names": namesDoc,
-	}
+var documents = map[string]string{}
+
+// document names a GraphQL document as it's declared, so the schema test validates every one without a list to keep
+func document(name, text string) string {
+	documents[name] = text
+	return text
 }
+
+func allDocuments() map[string]string { return maps.Clone(documents) }

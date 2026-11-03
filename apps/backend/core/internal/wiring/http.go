@@ -273,8 +273,10 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 			Tools:        shoptools.Definitions(),
 			Resolve:      mcpserver.Storefront(storefrontTools(shop)),
 			Instructions: shoptools.Instructions,
-			Limiter:      ratelimit.NewRedis(infra.Limits.Client, RateLimitPerMin("MCP_FRONT_RATE_LIMIT_PER_MIN", 60), time.Minute),
+			Limiter:      ratelimit.NewRedis(infra.Limits.Client, RateLimitPerMin("MCP_FRONT_RATE_LIMIT_PER_MIN", 600), time.Minute),
 			Reporter:     tel.Reporter,
+			MaxInFlight:  EnvInt("MCP_FRONT_MAX_IN_FLIGHT", frontMCPMaxInFlight),
+			CallTimeout:  frontMCPCallTimeout,
 		})
 		mux.Handle(mcpPath(frontPath), otelx.WrapHTTP(devDebug(maxBody(64<<10)(anonymousRequest(channel.Middleware(s.Channel)(locale.Middleware()(channel.LocaleClampMiddleware()(frontMCP)))))), "mcp.front"))
 	}

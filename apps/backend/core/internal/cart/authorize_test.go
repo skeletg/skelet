@@ -86,6 +86,9 @@ func (f fakeRepo) GetCartByHandoffToken(context.Context, string) (Cart, error) {
 func (f fakeRepo) RecordHandoffRedemption(context.Context, uuid.UUID, uuid.UUID) (bool, error) {
 	return false, nil
 }
+func (f fakeRepo) CarryHandoffRedemptions(context.Context, uuid.UUID, uuid.UUID) error {
+	return nil
+}
 func (f fakeRepo) SaveItem(context.Context, uuid.UUID, string, string, float64) (SavedItem, error) {
 	return SavedItem{}, nil
 }

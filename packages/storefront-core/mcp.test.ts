@@ -39,9 +39,18 @@ describe("proxyMcp", () => {
     expect(sent.get("x-forwarded-for")).toBe("203.0.113.9");
     expect(sent.get("cookie")).toBeNull();
     expect(sent.get("authorization")).toBeNull();
-    expect(new TextDecoder().decode(seen[0].init.body as ArrayBuffer)).toBe('{"jsonrpc":"2.0"}');
+    expect(seen[0].init.body).toBe('{"jsonrpc":"2.0"}');
+    expect(seen[0].init.signal).toBeInstanceOf(AbortSignal);
     expect(res.headers.get("set-cookie")).toBeNull();
     expect(await res.json()).toEqual({ ok: true });
+  });
+
+  it("refuses a body the backend would refuse anyway, without holding it", async () => {
+    useTestRequest();
+    const seen = capture();
+    const res = await proxyMcp(new Request("https://shop.example/api/mcp", { method: "POST", body: "x".repeat(64 * 1024 + 1) }), "http://app/api/front/mcp");
+    expect(res.status).toBe(413);
+    expect(seen).toHaveLength(0);
   });
 
   it("answers a backend it can't reach with a 502", async () => {

@@ -410,6 +410,7 @@ type Repository interface {
 	StartHandoff(ctx context.Context, cartID uuid.UUID, expiresAt time.Time) (Cart, error) // ErrCartNotActive when the cart isn't an active agent cart
 	GetCartByHandoffToken(ctx context.Context, token string) (Cart, error)
 	RecordHandoffRedemption(ctx context.Context, agentCartID, cartID uuid.UUID) (bool, error) // false when this cart already had the handoff
+	CarryHandoffRedemptions(ctx context.Context, fromCartID, toCartID uuid.UUID) error
 
 	CreateOfferCart(ctx context.Context, in CreateOfferInput) (Cart, error)
 	GetOfferByToken(ctx context.Context, token string) (Cart, error)
@@ -472,6 +473,7 @@ type CartListItem struct {
 	ChannelID         uuid.UUID
 	Status            string
 	Kind              string
+	Source            string
 	Email             string // the cart's own email - a guest offer's recipient
 	OfferExpiresAt    *time.Time
 	OfferSentAt       *time.Time

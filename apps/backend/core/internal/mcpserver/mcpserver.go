@@ -28,9 +28,9 @@ import (
 )
 
 const (
-	callTimeout = time.Minute
-	maxInFlight = 4
-	version     = "1"
+	defaultCallTimeout = time.Minute
+	defaultMaxInFlight = 4
+	version            = "1"
 )
 
 type ToolSet interface {
@@ -69,6 +69,8 @@ type Config struct {
 	Instructions func(channel.Channel) string
 	Limiter      ratelimit.Limiter
 	Reporter     observability.Reporter
+	MaxInFlight  int           // calls one budget key may run at once, 4 when unset
+	CallTimeout  time.Duration // a minute when unset
 }
 
 type scope struct {
@@ -87,6 +89,11 @@ type handler struct {
 }
 
 func NewHandler(cfg Config) http.Handler {
+	if cfg.Resolve == nil {
+		panic("mcpserver: Config.Resolve is required")
+	}
+	cfg.MaxInFlight = cmp.Or(cfg.MaxInFlight, defaultMaxInFlight)
+	cfg.CallTimeout = cmp.Or(cfg.CallTimeout, defaultCallTimeout)
 	h := &handler{cfg: cfg, inflight: map[string]int{}}
 	srv := mcp.NewServer(&mcp.Implementation{Name: cmp.Or(cfg.Name, "skelet"), Title: cmp.Or(cfg.Title, "Skelet"), Version: version}, &mcp.ServerOptions{
 		Capabilities: &mcp.ServerCapabilities{Tools: &mcp.ToolCapabilities{}},
@@ -110,9 +117,10 @@ func NewHandler(cfg Config) http.Handler {
 
 func annotations(t ai.Tool) *mcp.ToolAnnotations {
 	closed := false
-	a := &mcp.ToolAnnotations{ReadOnlyHint: t.ReadOnly, IdempotentHint: t.Idempotent, OpenWorldHint: &closed}
-	if !t.ReadOnly {
-		a.DestructiveHint = &t.Destructive
+	a := &mcp.ToolAnnotations{ReadOnlyHint: t.Effect == ai.Reads, IdempotentHint: t.Idempotent, OpenWorldHint: &closed}
+	if t.Effect != ai.Reads {
+		destroys := t.Effect == ai.Destroys
+		a.DestructiveHint = &destroys
 	}
 	return a
 }
@@ -252,10 +260,10 @@ func (h *handler) call(ctx context.Context, req *mcp.CallToolRequest) (*mcp.Call
 	case h.cfg.Limiter != nil && !h.cfg.Limiter.Allow(ctx, sc.Key):
 		res = ai.ToolResult{IsError: true, Content: "Rate limit reached - slow down and try again shortly."}
 	case !h.acquire(sc.Key):
-		res = ai.ToolResult{IsError: true, Content: fmt.Sprintf("Too many tool calls in flight - you can run %d at once.", maxInFlight)}
+		res = ai.ToolResult{IsError: true, Content: fmt.Sprintf("Too many tool calls in flight - you can run %d at once.", h.cfg.MaxInFlight)}
 	default:
 		defer h.release(sc.Key)
-		callCtx, cancel := context.WithTimeout(ctx, callTimeout)
+		callCtx, cancel := context.WithTimeout(ctx, h.cfg.CallTimeout)
 		defer cancel()
 		res = sc.Tools.Call(callCtx, name, req.Params.Arguments)
 	}
@@ -268,7 +276,7 @@ func (h *handler) call(ctx context.Context, req *mcp.CallToolRequest) (*mcp.Call
 func (h *handler) acquire(key string) bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if h.inflight[key] >= maxInFlight {
+	if h.inflight[key] >= h.cfg.MaxInFlight {
 		return false
 	}
 	h.inflight[key]++

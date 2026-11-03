@@ -360,24 +360,22 @@ func (r *mutationResolver) MergeGuestCart(ctx context.Context, guestCartID strin
 	return r.fullCartModel(ctx, c), nil
 }
 
-func (r *mutationResolver) RedeemCartHandoff(ctx context.Context, token string, cartID *string) (*model1.Cart, error) {
+func (r *mutationResolver) RedeemCartHandoff(ctx context.Context, token string, cartID *string) (*model1.CartHandoffRedemption, error) {
 	sv, ok := channel.FromContext(ctx)
 	if !ok || sv == nil {
 		return nil, storeRequired()
 	}
 	var into *uuid.UUID
-	if cartID != nil && *cartID != "" {
-		id, err := uuid.Parse(*cartID)
-		if err != nil {
-			return nil, invalidID("cart")
+	if cartID != nil {
+		if id, err := uuid.Parse(*cartID); err == nil { // a garbled cart cookie is no cart, not a reason the link never opens
+			into = &id
 		}
-		into = &id
 	}
 	c, err := r.CartSvc.RedeemHandoff(ctx, token, sv.ID, channel.OptionalCustomerID(ctx), into)
 	if err != nil {
 		return nil, err
 	}
-	return r.fullCartModel(ctx, c), nil
+	return &model1.CartHandoffRedemption{Cart: r.fullCartModel(ctx, c), GuestCart: c.CustomerID == nil}, nil
 }
 
 // The v2 engine allows many codes per cart, so calling this again with a different code stacks rather than replaces

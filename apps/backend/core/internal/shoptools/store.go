@@ -6,24 +6,38 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
+	"github.com/skeletg/skelet/apps/backend/core/internal/locale"
 )
 
-const storeDoc = `query AgentStore {
+const (
+	countriesListed  = 40
+	pagesPerRequest  = 100 // the front resolver's own ceiling
+	maxPagesScanned  = 500
+	pageTextChars    = 3000
+	pageExcerptChars = 1500
+	pagesShown       = 4
+	pageListShown    = 50
+	pageCacheTTL     = time.Minute
+)
+
+var storeDoc = document("store", `query AgentStore {
   currentChannel { name currencyCode defaultLocale locales { code name } }
   countries(activeOnly: true) { code name }
   productSortOptions { slug label }
   freeShippingThreshold
-}`
+}`)
 
 func storeInfoTool() tool {
 	return tool{
 		def: ai.Tool{
 			Name:        "get_store_info",
-			Description: "The store's basics: name, currency, languages, the countries it delivers to, how search results can be sorted, and when shipping is free.",
+			Description: "The store's basics: name, currency, languages, the countries it sells to, how search results can be sorted, and when shipping is free.",
 			Schema:      schema(map[string]any{}),
-			ReadOnly:    true, Idempotent: true,
+			Effect:      ai.Reads, Idempotent: true,
 		},
 		run: runStoreInfo,
 	}
@@ -32,10 +46,9 @@ func storeInfoTool() tool {
 func runStoreInfo(ctx context.Context, c call) (string, error) {
 	var out struct {
 		CurrentChannel *struct {
-			Name          string `json:"name"`
-			CurrencyCode  string `json:"currencyCode"`
-			DefaultLocale string `json:"defaultLocale"`
-			Locales       []struct {
+			Name         string `json:"name"`
+			CurrencyCode string `json:"currencyCode"`
+			Locales      []struct {
 				Code string `json:"code"`
 				Name string `json:"name"`
 			} `json:"locales"`
@@ -50,7 +63,7 @@ func runStoreInfo(ctx context.Context, c call) (string, error) {
 		} `json:"productSortOptions"`
 		FreeShippingThreshold int64 `json:"freeShippingThreshold"`
 	}
-	if err := c.deps.GraphQL.Do(ctx, storeDoc, nil, &out); err != nil {
+	if err := c.gql().Do(ctx, storeDoc, nil, &out); err != nil {
 		return "", err
 	}
 	var b strings.Builder
@@ -68,7 +81,7 @@ func runStoreInfo(ctx context.Context, c call) (string, error) {
 	}
 	switch n := len(out.Countries); {
 	case n == 0:
-	case n <= 40:
+	case n <= countriesListed:
 		names := make([]string, n)
 		for i, co := range out.Countries {
 			names[i] = fmt.Sprintf("%s (%s)", co.Name, co.Code)
@@ -91,7 +104,9 @@ func runStoreInfo(ctx context.Context, c call) (string, error) {
 	return b.String(), nil
 }
 
-const pagesDoc = `query AgentPages { cmsPages(filter: {onlyPublished: true}, limit: 200) { urlPath content { title body data } } }`
+var pagesDoc = document("pages", `query AgentPages($limit: Int, $offset: Int) {
+  cmsPages(filter: {onlyPublished: true}, limit: $limit, offset: $offset) { urlPath content { title body data } }
+}`)
 
 func pagesTool() tool {
 	return tool{
@@ -101,80 +116,136 @@ func pagesTool() tool {
 			Schema: schema(map[string]any{
 				"query": str("Words to look for, like \"returns\" or \"delivery time\"."),
 			}),
-			ReadOnly: true, Idempotent: true,
+			Effect: ai.Reads, Idempotent: true,
 		},
 		run: runPages,
 	}
 }
 
 type page struct {
-	title, url, text string
-	score            int
+	title, url, text  string
+	titleKey, textKey string
+}
+
+type pageEntry struct {
+	at    time.Time
+	pages []page
+}
+
+// pageCache keeps each channel's page text for a minute per language - every search would otherwise load and parse every page's blocks
+type pageCache struct {
+	mu      sync.Mutex
+	entries map[string]pageEntry
+}
+
+func (pc *pageCache) get(key string) ([]page, bool) {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+	e, ok := pc.entries[key]
+	return e.pages, ok && time.Since(e.at) < pageCacheTTL
+}
+
+func (pc *pageCache) put(key string, pages []page) {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+	pc.entries[key] = pageEntry{at: time.Now(), pages: pages}
+}
+
+func storePages(ctx context.Context, c call) ([]page, error) {
+	key := c.ch.ID.String() + "|" + locale.FromContext(ctx)
+	if pages, ok := c.svc.pages.get(key); ok {
+		return pages, nil
+	}
+	var pages []page
+	for offset := 0; offset < maxPagesScanned; offset += pagesPerRequest {
+		var out struct {
+			CmsPages []struct {
+				URLPath string `json:"urlPath"`
+				Content *struct {
+					Title string          `json:"title"`
+					Body  json.RawMessage `json:"body"`
+					Data  json.RawMessage `json:"data"`
+				} `json:"content"`
+			} `json:"cmsPages"`
+		}
+		if err := c.gql().Do(ctx, pagesDoc, map[string]any{"limit": pagesPerRequest, "offset": offset}, &out); err != nil {
+			return nil, err
+		}
+		for _, p := range out.CmsPages {
+			if p.Content == nil || p.Content.Title == "" {
+				continue
+			}
+			text := strings.TrimSpace(plainText(p.Content.Body, pageTextChars) + " " + plainText(p.Content.Data, pageTextChars))
+			pages = append(pages, page{title: p.Content.Title, url: link(c.ch, p.URLPath), text: text,
+				titleKey: strings.ToLower(p.Content.Title + " " + p.URLPath), textKey: strings.ToLower(text)})
+		}
+		if len(out.CmsPages) < pagesPerRequest {
+			break
+		}
+	}
+	c.svc.pages.put(key, pages)
+	return pages, nil
 }
 
 func runPages(ctx context.Context, c call) (string, error) {
-	var out struct {
-		CmsPages []struct {
-			URLPath string `json:"urlPath"`
-			Content *struct {
-				Title string          `json:"title"`
-				Body  json.RawMessage `json:"body"`
-				Data  json.RawMessage `json:"data"`
-			} `json:"content"`
-		} `json:"cmsPages"`
-	}
-	if err := c.deps.GraphQL.Do(ctx, pagesDoc, nil, &out); err != nil {
+	pages, err := storePages(ctx, c)
+	if err != nil {
 		return "", err
 	}
-	words := strings.Fields(strings.ToLower(c.a.Query))
-	var hits []page
-	for _, p := range out.CmsPages {
-		if p.Content == nil || p.Content.Title == "" {
-			continue
-		}
-		text := strings.TrimSpace(plainText(p.Content.Body, 4000) + " " + plainText(p.Content.Data, 4000))
-		pg := page{title: p.Content.Title, url: link(c.ch, p.URLPath), text: text}
-		title, body := strings.ToLower(pg.title+" "+p.URLPath), strings.ToLower(text)
-		matched := true
-		for _, w := range words {
-			switch {
-			case strings.Contains(title, w):
-				pg.score += 3
-			case strings.Contains(body, w):
-				pg.score++
-			default:
-				matched = false
-			}
-		}
-		if matched {
-			hits = append(hits, pg)
-		}
-	}
-	if len(hits) == 0 {
-		if len(words) > 0 {
-			return "No store page mentions that. Omit query to see every page.", nil
-		}
+	if len(pages) == 0 {
 		return "The store has no pages published.", nil
 	}
-	sort.SliceStable(hits, func(i, j int) bool { return hits[i].score > hits[j].score })
+	words := strings.Fields(strings.ToLower(c.a.Query))
 	var b strings.Builder
 	if len(words) == 0 {
 		b.WriteString("Store pages:\n")
-		for _, p := range hits[:min(len(hits), 50)] {
+		for _, p := range pages[:min(len(pages), pageListShown)] {
 			fmt.Fprintf(&b, "- %s - %s\n", p.title, p.url)
 		}
 		return b.String(), nil
 	}
-	for _, p := range hits[:min(len(hits), 4)] {
-		fmt.Fprintf(&b, "## %s - %s\n%s\n\n", p.title, p.url, clip(p.text, 1500))
+	type hit struct {
+		page
+		score int
+	}
+	var hits []hit
+	for _, p := range pages {
+		if score, ok := pageScore(p, words); ok {
+			hits = append(hits, hit{p, score})
+		}
+	}
+	if len(hits) == 0 {
+		return "No store page mentions that. Omit query to see every page.", nil
+	}
+	sort.SliceStable(hits, func(i, j int) bool { return hits[i].score > hits[j].score })
+	for _, h := range hits[:min(len(hits), pagesShown)] {
+		fmt.Fprintf(&b, "## %s - %s\n%s\n\n", h.title, h.url, clip(h.text, pageExcerptChars))
 	}
 	return b.String(), nil
 }
 
-const shippingDoc = `query AgentShipping($country: String!, $cartId: ID, $region: String, $postal: String) {
+func pageScore(p page, words []string) (int, bool) {
+	score := 0
+	for _, w := range words {
+		switch {
+		case strings.Contains(p.titleKey, w):
+			score += 3
+		case strings.Contains(p.textKey, w):
+			score++
+		default:
+			return 0, false
+		}
+	}
+	return score, true
+}
+
+var (
+	shippingDoc = document("shipping", `query AgentShipping($country: String!, $cartId: ID, $region: String, $postal: String) {
   shippingQuotes(countryCode: $country, cartId: $cartId, regionCode: $region, postalCode: $postal) { carrierName name priceCents estimatedDays estimatedArrival }
   freeShippingThreshold(countryCode: $country)
-}`
+}`)
+	cartTotalsDoc = document("cartTotals", `query AgentCartTotals($id: ID!) { cart(id: $id) { subtotal totalDiscount } }`)
+)
 
 func shippingTool() tool {
 	return tool{
@@ -187,7 +258,7 @@ func shippingTool() tool {
 				"postal_code": str("Postal code, for options that depend on it."),
 				"cart_id":     str("A cart id from update_cart."),
 			}, "country"),
-			ReadOnly: true, Idempotent: true,
+			Effect: ai.Reads, Idempotent: true,
 		},
 		run: runShipping,
 	}
@@ -199,16 +270,24 @@ func runShipping(ctx context.Context, c call) (string, error) {
 		return "", refusal("country takes a two-letter ISO code, like \"DE\".")
 	}
 	vars := map[string]any{"country": country, "region": nilIfEmpty(c.a.Region), "postal": nilIfEmpty(c.a.PostalCode), "cartId": nil}
-	var subtotal int64 = -1
+	spent := int64(-1)
 	if c.a.CartID != "" {
 		ct, err := agentCart(ctx, c, c.a.CartID)
 		if err != nil {
 			return "", err
 		}
 		vars["cartId"] = ct.ID.String()
-		subtotal = 0
-		for _, l := range ct.Lines {
-			subtotal += int64(float64(l.UnitPrice)*l.Quantity + 0.5)
+		var totals struct {
+			Cart *struct {
+				Subtotal      int64 `json:"subtotal"`
+				TotalDiscount int64 `json:"totalDiscount"`
+			} `json:"cart"`
+		}
+		if err := c.gql().Do(ctx, cartTotalsDoc, map[string]any{"id": ct.ID.String()}, &totals); err != nil {
+			return "", err
+		}
+		if totals.Cart != nil {
+			spent = max(totals.Cart.Subtotal-totals.Cart.TotalDiscount, 0)
 		}
 	}
 	var out struct {
@@ -221,7 +300,7 @@ func runShipping(ctx context.Context, c call) (string, error) {
 		} `json:"shippingQuotes"`
 		FreeShippingThreshold int64 `json:"freeShippingThreshold"`
 	}
-	if err := c.deps.GraphQL.Do(ctx, shippingDoc, vars, &out); err != nil {
+	if err := c.gql().Do(ctx, shippingDoc, vars, &out); err != nil {
 		return "", err
 	}
 	cur := c.ch.CurrencyCode
@@ -248,12 +327,12 @@ func runShipping(ctx context.Context, c call) (string, error) {
 		}
 		b.WriteString("\n")
 	}
-	if t := out.FreeShippingThreshold; t > 0 {
-		if subtotal >= 0 && subtotal < t {
-			fmt.Fprintf(&b, "Free shipping from %s - the cart is %s short.\n", price(t, cur), price(t-subtotal, cur))
-		} else if subtotal < 0 {
-			fmt.Fprintf(&b, "Free shipping from %s.\n", price(t, cur))
-		}
+	switch t := out.FreeShippingThreshold; {
+	case t <= 0:
+	case spent < 0:
+		fmt.Fprintf(&b, "Free shipping from %s.\n", price(t, cur))
+	case spent < t:
+		fmt.Fprintf(&b, "Free shipping from %s - the cart is %s short.\n", price(t, cur), price(t-spent, cur))
 	}
 	b.WriteString("Tax and the final shipping price are settled at checkout.\n")
 	return b.String(), nil

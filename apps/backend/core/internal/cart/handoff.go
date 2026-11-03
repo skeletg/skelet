@@ -30,6 +30,18 @@ var (
 	ErrHandoffEmpty   = errors.New("there's nothing in this cart to check out")
 )
 
+type agentAccessKey struct{}
+
+// WithAgentAccess marks a call as the storefront MCP tools' - an agent cart answers nobody else, so the handoff is its only way to a checkout
+func WithAgentAccess(ctx context.Context) context.Context {
+	return context.WithValue(ctx, agentAccessKey{}, true)
+}
+
+func agentAccess(ctx context.Context) bool {
+	v, _ := ctx.Value(agentAccessKey{}).(bool)
+	return v
+}
+
 type Handoff struct {
 	Token     string
 	ExpiresAt time.Time
@@ -53,17 +65,21 @@ func (s *Service) StartHandoff(ctx context.Context, cartID, channelID uuid.UUID)
 		if c.Status != "active" {
 			return Cart{}, ErrCartNotActive
 		}
-		lines, err := s.repo.ListCartLinesByCart(ctx, c.ID)
-		if err != nil {
+		if c.Lines, err = s.repo.ListCartLinesByCart(ctx, c.ID); err != nil {
 			return Cart{}, fmt.Errorf("load cart lines: %w", err)
 		}
-		if len(lines) == 0 {
+		if len(c.Lines) == 0 {
 			return Cart{}, ErrHandoffEmpty
 		}
-		if _, err := s.repo.StartHandoff(ctx, c.ID, time.Now().Add(HandoffTTL)); err != nil && !errors.Is(err, ErrCartNotActive) {
+		started, err := s.repo.StartHandoff(ctx, c.ID, time.Now().Add(HandoffTTL))
+		switch {
+		case err == nil:
+			started.Lines = c.Lines
+			return started, nil
+		case !errors.Is(err, ErrCartNotActive):
 			return Cart{}, err
 		}
-		if c, err = s.agentCart(ctx, cartID, channelID); err != nil {
+		if c, err = s.agentCart(ctx, cartID, channelID); err != nil { // another call closed it first, so its link is the one to give back
 			return Cart{}, err
 		}
 		if c.Handoff == nil {
@@ -128,6 +144,13 @@ func (s *Service) RedeemHandoff(ctx context.Context, token string, channelID uui
 	}
 	err = s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
 		r := s.repo.WithTx(sqlTx)
+		locked, err := r.LockCart(ctx, target.ID)
+		if err != nil {
+			return fmt.Errorf("lock the shopper's cart: %w", err)
+		}
+		if locked.Status != "active" { // checked out or merged since it was picked - the shopper's next try picks another
+			return ErrCartNotActive
+		}
 		fresh, err := r.RecordHandoffRedemption(ctx, agent.ID, target.ID)
 		if err != nil || !fresh {
 			return err

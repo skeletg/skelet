@@ -3,7 +3,9 @@ package cart
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -17,7 +19,7 @@ func handoffRig(t *testing.T) dbRig {
 
 func (r dbRig) agentCart(t *testing.T, channelID uuid.UUID, lines map[string]float64) Cart {
 	t.Helper()
-	ctx := context.Background()
+	ctx := WithAgentAccess(context.Background())
 	c, err := r.svc.CreateAgentCart(ctx, channelID)
 	if err != nil {
 		t.Fatal(err)
@@ -66,7 +68,7 @@ func TestAHandoffMovesTheAgentCartIntoAFreshCartAndClosesIt(t *testing.T) {
 	if _, err := r.svc.AgentCart(ctx, agent.ID, r.channel); !errors.Is(err, ErrCartNotActive) {
 		t.Fatalf("agent read after handoff = %v, want ErrCartNotActive", err)
 	}
-	if _, err := r.svc.AddToCart(ctx, agent.ID, nil, "mug", 1); !errors.Is(err, ErrCartNotActive) {
+	if _, err := r.svc.AddToCart(WithAgentAccess(ctx), agent.ID, nil, "mug", 1); !errors.Is(err, ErrCartNotActive) {
 		t.Fatalf("add to a handed-off cart = %v, want ErrCartNotActive", err)
 	}
 
@@ -181,5 +183,132 @@ func TestABadHandoffLinkOpensNothing(t *testing.T) {
 	}
 	if _, err := r.svc.RedeemHandoff(ctx, token, r.channel, nil, nil); !errors.Is(err, ErrHandoffExpired) {
 		t.Errorf("expired = %v, want ErrHandoffExpired", err)
+	}
+}
+
+func TestAnAgentCartAnswersOnlyTheAgentTools(t *testing.T) {
+	r := handoffRig(t)
+	ctx := context.Background()
+	agent := r.agentCart(t, r.channel, map[string]float64{"tee": 1})
+	if _, err := r.svc.GetCart(ctx, agent.ID, nil); !errors.Is(err, ErrCartForbidden) {
+		t.Errorf("front read of an agent cart = %v, want ErrCartForbidden", err)
+	}
+	if _, err := r.svc.AddToCart(ctx, agent.ID, nil, "mug", 1); !errors.Is(err, ErrCartForbidden) {
+		t.Errorf("front add to an agent cart = %v, want ErrCartForbidden", err)
+	}
+	if _, err := r.svc.GetCart(WithAgentAccess(ctx), agent.ID, nil); err != nil {
+		t.Errorf("the agent tools' own read = %v", err)
+	}
+}
+
+func TestReopeningALinkAfterSigningInAddsNothing(t *testing.T) {
+	r := handoffRig(t)
+	ctx := context.Background()
+	customerID := r.customer(t)
+	own, err := r.svc.GetOrCreateCart(ctx, customerID, r.channel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.dropCart(t, own.ID)
+	if _, err := r.svc.AddToCart(ctx, own.ID, &customerID, "mug", 1); err != nil {
+		t.Fatal(err)
+	}
+	token := r.handOff(t, r.agentCart(t, r.channel, map[string]float64{"tee": 2}))
+	guest := r.redeem(t, token, nil, nil)
+	if _, err := r.svc.MergeGuestCart(ctx, customerID, guest.ID); err != nil {
+		t.Fatal(err)
+	}
+	got := r.redeem(t, token, &customerID, nil)
+	if got.ID != own.ID || lineBySku(t, got, "tee").Quantity != 2 || lineBySku(t, got, "mug").Quantity != 1 {
+		t.Fatalf("reopened after the merge = %+v, want the customer's cart still holding 2 tees and the mug", got.Lines)
+	}
+}
+
+func TestConcurrentOpensOfOneLinkCopyOnce(t *testing.T) {
+	r := handoffRig(t)
+	ctx := context.Background()
+	token := r.handOff(t, r.agentCart(t, r.channel, map[string]float64{"tee": 2}))
+	mine := r.guestCart(t)
+	var wg sync.WaitGroup
+	errs := make(chan error, 8)
+	for range 8 {
+		wg.Go(func() {
+			if _, err := r.svc.RedeemHandoff(ctx, token, r.channel, nil, &mine.ID); err != nil {
+				errs <- err
+			}
+		})
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Errorf("a concurrent open failed: %v", err)
+	}
+	got, err := r.svc.GetCart(ctx, mine.ID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if q := lineBySku(t, got, "tee").Quantity; q != 2 {
+		t.Fatalf("8 opens at once left %g tees, want 2", q)
+	}
+}
+
+func TestConcurrentStartsAgreeOnOneLink(t *testing.T) {
+	r := handoffRig(t)
+	agent := r.agentCart(t, r.channel, map[string]float64{"tee": 1})
+	tokens := make(chan string, 8)
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Go(func() {
+			c, err := r.svc.StartHandoff(context.Background(), agent.ID, r.channel)
+			if err != nil {
+				t.Errorf("a concurrent start failed: %v", err)
+				return
+			}
+			tokens <- c.Handoff.Token
+		})
+	}
+	wg.Wait()
+	close(tokens)
+	seen := map[string]bool{}
+	for tok := range tokens {
+		seen[tok] = true
+	}
+	if len(seen) != 1 {
+		t.Fatalf("%d links for one cart, want one", len(seen))
+	}
+}
+
+func TestTheReaperSparesALinkStillOpen(t *testing.T) {
+	r := handoffRig(t)
+	ctx := context.Background()
+	agent := r.agentCart(t, r.channel, map[string]float64{"tee": 1})
+	r.handOff(t, agent)
+	age := func(expires string) {
+		t.Helper()
+		if _, err := r.conn.Exec(`UPDATE carts SET updated_at = now() - interval '30 days', handoff_expires_at = now() + $2::interval WHERE id = $1`, agent.ID, expires); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := r.conn.Exec(`UPDATE cart_lines SET updated_at = now() - interval '30 days' WHERE cart_id = $1`, agent.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	gone := func() bool {
+		var n int
+		_ = r.conn.QueryRow(`SELECT count(*) FROM carts WHERE id = $1`, agent.ID).Scan(&n)
+		return n == 0
+	}
+	age("1 day")
+	if _, err := r.svc.PruneStale(ctx, 24*time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	if gone() {
+		t.Fatal("the reaper took a handed-off cart whose link still works")
+	}
+	age("-1 minute")
+	if _, err := r.svc.PruneStale(ctx, 24*time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	if !gone() {
+		t.Error("an expired handoff should go with the other stale carts")
 	}
 }

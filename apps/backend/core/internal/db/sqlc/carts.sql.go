@@ -92,6 +92,23 @@ func (q *Queries) BumpCartOfferLink(ctx context.Context, id uuid.UUID) (int32, e
 	return offer_link_version, err
 }
 
+const carryCartHandoffRedemptions = `-- name: CarryCartHandoffRedemptions :exec
+INSERT INTO cart_handoff_redemptions (agent_cart_id, cart_id)
+SELECT r.agent_cart_id, $1::uuid FROM cart_handoff_redemptions r WHERE r.cart_id = $2::uuid
+ON CONFLICT DO NOTHING
+`
+
+type CarryCartHandoffRedemptionsParams struct {
+	ToCartID   uuid.UUID `json:"to_cart_id"`
+	FromCartID uuid.UUID `json:"from_cart_id"`
+}
+
+// A merged cart's lines move on, so the links it already took do too - reopening one mustn't copy them a second time
+func (q *Queries) CarryCartHandoffRedemptions(ctx context.Context, arg CarryCartHandoffRedemptionsParams) error {
+	_, err := q.db.ExecContext(ctx, carryCartHandoffRedemptions, arg.ToCartID, arg.FromCartID)
+	return err
+}
+
 const countCarts = `-- name: CountCarts :one
 SELECT COUNT(*)::int
 FROM carts c
@@ -847,6 +864,7 @@ SELECT
     p.channel_id                                      AS channel_id,
     p.status                                          AS status,
     p.kind                                            AS kind,
+    p.source                                          AS source,
     p.email                                           AS email,
     p.offer_expires_at                                AS offer_expires_at,
     p.offer_sent_at                                   AS offer_sent_at,
@@ -861,7 +879,7 @@ SELECT
     li.item_count::int                                AS item_count,
     li.subtotal::bigint                               AS subtotal
 FROM (
-    SELECT c.id, c.customer_id, c.channel_id, c.status, c.kind, c.email, c.offer_expires_at, c.offer_sent_at,
+    SELECT c.id, c.customer_id, c.channel_id, c.status, c.kind, c.source, c.email, c.offer_expires_at, c.offer_sent_at,
            c.offer_opened_at, c.offer_revoked_at, c.order_id, c.created_at, c.updated_at,
            cu.email AS customer_email, cu.first_name AS customer_first_name, cu.last_name AS customer_last_name
     FROM carts c
@@ -906,6 +924,7 @@ type ListCartsRow struct {
 	ChannelID         uuid.UUID      `json:"channel_id"`
 	Status            string         `json:"status"`
 	Kind              string         `json:"kind"`
+	Source            string         `json:"source"`
 	Email             string         `json:"email"`
 	OfferExpiresAt    sql.NullTime   `json:"offer_expires_at"`
 	OfferSentAt       sql.NullTime   `json:"offer_sent_at"`
@@ -946,6 +965,7 @@ func (q *Queries) ListCarts(ctx context.Context, arg ListCartsParams) ([]ListCar
 			&i.ChannelID,
 			&i.Status,
 			&i.Kind,
+			&i.Source,
 			&i.Email,
 			&i.OfferExpiresAt,
 			&i.OfferSentAt,
@@ -1273,6 +1293,7 @@ func (q *Queries) MarkCartsAbandonedNotified(ctx context.Context, ids []uuid.UUI
 const pruneStaleCarts = `-- name: PruneStaleCarts :execrows
 DELETE FROM carts c
 WHERE c.updated_at < $1::timestamptz
+  AND NOT (c.status = 'handed_off' AND c.handoff_expires_at > now())
   AND (c.kind = 'shopper' OR c.status <> 'active'
        OR c.offer_expires_at < $1::timestamptz
        OR c.offer_revoked_at < $1::timestamptz)

@@ -242,7 +242,7 @@ func TestNoSignalsToolIsOfferedWithTheSuiteOff(t *testing.T) {
 // The admin endpoint promises read-only access, and MCP clients decide what to confirm from these hints
 func TestEveryAdminToolIsAnnouncedAsARead(t *testing.T) {
 	for _, d := range Definitions() {
-		if !d.ReadOnly || !d.Idempotent {
+		if d.Effect != ai.Reads || !d.Idempotent {
 			t.Errorf("%s is not announced as a read", d.Name)
 		}
 	}

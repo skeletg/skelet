@@ -53,7 +53,7 @@ async function ensureCartID(): Promise<string> {
   return id;
 }
 
-function setCartCookie(
+export function setCartCookie(
   store: CookieJar,
   id: string,
 ) {
