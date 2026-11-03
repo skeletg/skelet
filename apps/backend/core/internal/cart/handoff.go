@@ -159,7 +159,10 @@ func (s *Service) RedeemHandoff(ctx context.Context, token string, channelID uui
 		if err != nil {
 			return fmt.Errorf("load agent cart lines: %w", err)
 		}
-		return copyLines(ctx, r, target.ID, lines)
+		if err := copyLines(ctx, r, target.ID, lines); err != nil {
+			return err
+		}
+		return r.CarryAppliedCodes(ctx, agent.ID, target.ID)
 	})
 	if err != nil {
 		return Cart{}, err

@@ -557,6 +557,13 @@ func (r *postgresRepository) CarryHandoffRedemptions(ctx context.Context, fromCa
 	return nil
 }
 
+func (r *postgresRepository) CarryAppliedCodes(ctx context.Context, fromCartID, toCartID uuid.UUID) error {
+	if err := r.queries.CarryCartAppliedCodes(ctx, db.CarryCartAppliedCodesParams{FromCartID: fromCartID, ToCartID: toCartID}); err != nil {
+		return fmt.Errorf("carry applied codes: %w", err)
+	}
+	return nil
+}
+
 func (r *postgresRepository) GetOfferByToken(ctx context.Context, token string) (Cart, error) {
 	row, err := r.queries.GetCartByOfferToken(ctx, token)
 	if err != nil {
