@@ -21,7 +21,7 @@ var pluginMigrateCmd = &cobra.Command{ // lives under PluginCmd rather than at t
 p.RegisterMigrations. Each plugin has its own namespace and version
 sequence; applied versions live in the plugin_migrations table.
 
-Core migrations are unrelated - run 'bin/migrate up' for those.`,
+Core migrations are unrelated - run 'skelet db migrate up' for those.`,
 }
 
 var pluginMigrateUpCmd = &cobra.Command{

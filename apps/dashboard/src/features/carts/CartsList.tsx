@@ -5,7 +5,6 @@ import { type ColumnDef, type Row } from '@/components/data-table/tanstack'
 import { PlusIcon } from 'lucide-react'
 
 import { DataTable, DataTableColumnHeader, useListUrlState } from '@/components/data-table'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -20,6 +19,7 @@ import type { CartKind, CartOfferState } from '@/graphql/schema.types'
 import { CartsDocument } from './Carts.gql'
 import { NewCartDialog } from './NewCartDialog'
 import { OfferStateBadge } from './offer/OfferStateBadge'
+import { CartStatusBadges } from './CartStatusBadges'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { useDebounced } from '@/shared/hooks/useDebounced'
 
@@ -30,6 +30,7 @@ type CartRow = {
   customerName?: string | null
   status: string
   kind: CartKind
+  source: string
   email: string
   offerState?: CartOfferState | null
   offerExpiresAt?: string | null
@@ -145,11 +146,7 @@ function CartListPage({ kind }: { kind: CartKind }) {
           accessorKey: 'status',
           header: 'Status',
           size: 110,
-          cell: ({ row }) => (
-            <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
-              {row.original.status}
-            </Badge>
-          ),
+          cell: ({ row }) => <CartStatusBadges status={row.original.status} source={row.original.source} />,
         },
         updated,
       ]

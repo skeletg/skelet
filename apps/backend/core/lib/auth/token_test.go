@@ -68,6 +68,36 @@ func TestGenerateCustomerToken_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestMasqueradeTokenIsMarked(t *testing.T) {
+	customerID, channelID := uuid.New(), uuid.New()
+	signer := testCustomerSigner(t)
+	payload := func(tok string) map[string]any {
+		t.Helper()
+		var claims jwt.MapClaims
+		if _, _, err := jwt.NewParser().ParseUnverified(tok, &claims); err != nil {
+			t.Fatal(err)
+		}
+		return claims
+	}
+	msq, err := GenerateMasqueradeToken(customerID, channelID, "shopper@example.com", signer, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claims, err := ValidateCustomerToken(msq, signer.Verifier()); err != nil || claims.CustomerID != customerID {
+		t.Fatalf("a masquerade token isn't a valid customer session: %+v %v", claims, err)
+	}
+	if payload(msq)["msq"] != true {
+		t.Errorf("masquerade token claims %v", payload(msq))
+	}
+	own, err := GenerateCustomerToken(customerID, channelID, "shopper@example.com", signer, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := payload(own)["msq"]; ok {
+		t.Errorf("a customer's own token claims to be a masquerade: %v", payload(own))
+	}
+}
+
 // The Signals tier holds only the public key, so it must verify a session and be unable to mint one
 func TestTheSignalsTierVerifiesWithThePublicKeyAlone(t *testing.T) {
 	signer := testCustomerSigner(t)

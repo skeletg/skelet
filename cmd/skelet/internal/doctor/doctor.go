@@ -13,7 +13,7 @@ import (
 
 const About = `Checks this machine and this checkout and says what's wrong in plain words: Docker and compose,
 git and Go on the host, the env files the target needs, where the frontends run and whether pnpm can
-run the host ones, the profile against the env files, plugins.json against the plugin directories,
+run the host ones, what the clone is set up as, plugins.json against the plugin directories,
 the running containers and the Signals spine, the ports and the backend's /health, and free disk.
 Each line is ok, warn or FAIL, and only a FAIL fails the command. Outside a project, the installed
 skelet doctor checks just the machine.`

@@ -16,6 +16,15 @@ func Exec(path string, argv, env []string) error {
 	return syscall.Exec(path, argv, env)
 }
 
+// ReplaceIn is Replace from dir, for a command that has to run where its project is - pnpm in an app's directory
+func ReplaceIn(dir, path string, argv, env []string) int {
+	if err := os.Chdir(dir); err != nil {
+		fmt.Fprintf(os.Stderr, "skelet: %v\n", err)
+		return 1
+	}
+	return Replace(path, argv, env)
+}
+
 // Replace is Exec for a command's last step. It only returns when the exec failed, with the code a shell would give
 func Replace(path string, argv, env []string) int {
 	err := Exec(path, argv, env)

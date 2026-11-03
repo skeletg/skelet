@@ -1,0 +1,50 @@
+---
+import Base from "../layouts/Base.astro";
+import { addSimpleToCart, removeCartLine, setCartLineQuantity } from "@skelet/storefront-core/cart/actions";
+import { readCart } from "@skelet/storefront-core/cart/read";
+import { isAdapterExit } from "@skelet/storefront-astro/middleware";
+
+import { bumpBadge, cartAction, forgetCart, rememberCart, setFlash, takeFlash } from "../lib/cart";
+import { getChannel } from "../lib/channel";
+import { GqlError, copyFor, shopperMessage } from "../lib/gql";
+import { CartView } from "../views/CartView";
+
+// Never cached: everything here is one shopper's. Mutations post here and redirect back (post/redirect/get), so no JS is needed
+if (Astro.request.method === "POST") {
+  try {
+    const action = cartAction(await Astro.request.formData());
+    if (!action) throw new Error("bad cart form");
+    // The core's cart actions: a guest cart made on the first add, a signed-in customer's own cart, the cookie kept
+    let cart;
+    if (action.intent === "add") {
+      const form = new FormData();
+      form.set("productSku", action.sku);
+      form.set("quantity", String(action.quantity));
+      const added = await addSimpleToCart(null, form);
+      if (!added.ok) throw new GqlError(copyFor(added.error ?? "addFailed"), added.code ?? "VALIDATION");
+      cart = added.cart;
+    } else if (action.intent === "remove") {
+      cart = await removeCartLine(action.lineId);
+    } else {
+      const edited = await setCartLineQuantity(action.lineId, action.quantity);
+      if (edited.error) throw new GqlError(copyFor(edited.error), "VALIDATION");
+      cart = edited.cart;
+    }
+    if (cart) rememberCart(Astro.cookies, cart);
+    if (action.intent === "add") bumpBadge(Astro.cookies);
+  } catch (err) {
+    if (isAdapterExit(err)) throw err;
+    setFlash(Astro.cookies, shopperMessage(err, "That didn't work - please try again."));
+  }
+  return Astro.redirect("/cart", 303);
+}
+
+const [{ cart, unavailable }, channel] = await Promise.all([readCart(), getChannel()]);
+if (cart) rememberCart(Astro.cookies, cart);
+else if (!unavailable) forgetCart(Astro.cookies);
+const flash = takeFlash(Astro.cookies) ?? (unavailable ? "We couldn't load your cart just now - please refresh in a moment." : undefined);
+---
+
+<Base title="Cart" noindex transitions={false}>
+  <CartView cart={cart} flash={flash} currency={channel.currency} />
+</Base>
