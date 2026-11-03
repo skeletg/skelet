@@ -28,11 +28,11 @@ const initBody = `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"proto
 var objectSchema = map[string]any{"type": "object", "properties": map[string]any{"a": map[string]any{"type": "integer"}}}
 
 var registry = []ai.Tool{
-	{Name: "echo", Schema: objectSchema},
-	{Name: "broken"},
-	{Name: "boom"},
-	{Name: "block"},
-	{Name: "hidden"},
+	{Name: "echo", Schema: objectSchema, ReadOnly: true, Idempotent: true},
+	{Name: "broken", ReadOnly: true, Idempotent: true},
+	{Name: "boom", ReadOnly: true, Idempotent: true},
+	{Name: "block", ReadOnly: true, Idempotent: true},
+	{Name: "hidden", ReadOnly: true, Idempotent: true},
 }
 
 type fakeTools struct {
@@ -131,7 +131,7 @@ func newFixture(t *testing.T, limiter interface {
 	f.chans = fakeChannels{broken: uuid.New(), known: map[uuid.UUID]channel.Channel{
 		f.pin: {ID: f.pin, Name: "Pinned"}, f.alt: {ID: f.alt, Name: "Other"}, f.rec.none: {ID: f.rec.none, Name: "Closed"},
 	}}
-	f.handler = NewHandler(Config{Tools: registry, Source: f.rec.source, Channels: f.chans, Limiter: limiter, Reporter: f.reporter})
+	f.handler = NewHandler(Config{Tools: registry, Resolve: Admin(f.rec.source, f.chans), Instructions: AdminInstructions, Limiter: limiter, Reporter: f.reporter})
 	return f
 }
 
@@ -379,9 +379,8 @@ func BenchmarkToolCall(b *testing.B) {
 	}
 	pin := uuid.New()
 	h := NewHandler(Config{
-		Tools:    tools,
-		Source:   func(context.Context, uuid.UUID, int) ToolSet { return fakeTools{defs: tools} },
-		Channels: fakeChannels{known: map[uuid.UUID]channel.Channel{pin: {ID: pin}}},
+		Tools:   tools,
+		Resolve: Admin(func(context.Context, uuid.UUID, int) ToolSet { return fakeTools{defs: tools} }, fakeChannels{known: map[uuid.UUID]channel.Channel{pin: {ID: pin}}}),
 	})
 	ctx := token(&pin)(context.Background())
 	body := []byte(`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"tool_3","arguments":{"a":3}}}`)
@@ -396,5 +395,56 @@ func BenchmarkToolCall(b *testing.B) {
 		if w.Code != http.StatusOK {
 			b.Fatalf("status %d: %s", w.Code, w.Body.String())
 		}
+	}
+}
+
+func TestAStorefrontCallerIsScopedToItsChannelAndAddress(t *testing.T) {
+	open, closed := uuid.New(), uuid.New()
+	keys := &keyRecorder{}
+	tools := []ai.Tool{{Name: "look", ReadOnly: true, Idempotent: true}, {Name: "change", Idempotent: true}}
+	h := NewHandler(Config{
+		Tools: tools,
+		Resolve: Storefront(func(_ context.Context, ch channel.Channel) (ToolSet, *Refusal) {
+			if ch.ID == closed {
+				return nil, &Refusal{http.StatusNotFound, "closed to agents"}
+			}
+			return fakeTools{defs: tools}, nil
+		}),
+		Limiter: keys,
+	})
+	on := func(id uuid.UUID) func(context.Context) context.Context {
+		return func(ctx context.Context) context.Context { return channel.WithChannel(ctx, &channel.Channel{ID: id}) }
+	}
+	none := func(ctx context.Context) context.Context { return ctx }
+	if got := send(t, serve(t, h, none), http.MethodPost, initBody, nil); got != http.StatusBadRequest {
+		t.Errorf("no channel = %d, want 400", got)
+	}
+	if got := send(t, serve(t, h, on(closed)), http.MethodPost, initBody, nil); got != http.StatusNotFound {
+		t.Errorf("a channel closed to agents = %d, want its refusal's 404", got)
+	}
+
+	cs := session(t, h, on(open), nil)
+	list, err := cs.ListTools(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tl := range list.Tools {
+		a := tl.Annotations
+		switch tl.Name {
+		case "look":
+			if !a.ReadOnlyHint || a.DestructiveHint != nil {
+				t.Errorf("a read should say so and nothing about destroying: %+v", a)
+			}
+		case "change":
+			if a.ReadOnlyHint || a.DestructiveHint == nil || *a.DestructiveHint || !a.IdempotentHint {
+				t.Errorf("a non-destructive idempotent write should say exactly that: %+v", a)
+			}
+		}
+	}
+	call(t, cs, "look", map[string]any{})
+	keys.mu.Lock()
+	defer keys.mu.Unlock()
+	if len(keys.keys) != 1 || !strings.HasPrefix(keys.keys[0], "mcp:front:") || keys.keys[0] == "mcp:front:" {
+		t.Errorf("budget keys = %v, want one per client address", keys.keys)
 	}
 }

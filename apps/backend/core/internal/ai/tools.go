@@ -17,6 +17,10 @@ type Tool struct {
 	Name        string
 	Description string
 	Schema      map[string]any // JSON Schema object for the input - an empty object means "no arguments"
+	// Hints for clients deciding what to confirm with the user - the zero value is a write that may destroy something
+	ReadOnly    bool
+	Idempotent  bool
+	Destructive bool
 }
 
 type ToolCall struct {

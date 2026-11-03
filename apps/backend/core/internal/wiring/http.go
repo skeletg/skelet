@@ -40,6 +40,7 @@ import (
 	pluginhost "github.com/skeletg/skelet/apps/backend/core/internal/plugin"
 	"github.com/skeletg/skelet/apps/backend/core/internal/remoteprovider"
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
+	"github.com/skeletg/skelet/apps/backend/core/internal/shoptools"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	authpkg "github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/cache"
@@ -251,14 +252,31 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	if EnvBool("MCP_ENABLED", true) {
 		mcpHandler := mcpserver.NewHandler(mcpserver.Config{
 			Tools: agenttools.Definitions(),
-			Source: func(ctx context.Context, cid uuid.UUID, days int) mcpserver.ToolSet {
+			Resolve: mcpserver.Admin(func(ctx context.Context, cid uuid.UUID, days int) mcpserver.ToolSet {
 				return tools.ToolSet(ctx, cid, days)
-			},
-			Channels: s.Channel,
-			Limiter:  ratelimit.NewRedis(infra.Limits.Client, RateLimitPerMin("MCP_RATE_LIMIT_PER_MIN", 120), time.Minute),
-			Reporter: tel.Reporter,
+			}, s.Channel),
+			Instructions: mcpserver.AdminInstructions,
+			Limiter:      ratelimit.NewRedis(infra.Limits.Client, RateLimitPerMin("MCP_RATE_LIMIT_PER_MIN", 120), time.Minute),
+			Reporter:     tel.Reporter,
 		})
 		mux.Handle(mcpPath(adminPath), otelx.WrapHTTP(devDebug(maxBody(1<<20)(adminAuth(locale.Middleware()(mcpHandler)))), "mcp.admin"))
+	}
+	if EnvBool("MCP_FRONT_ENABLED", true) {
+		shop := shoptools.New(shoptools.Deps{
+			GraphQL:  frontGraphQL{h: dataloaders.Middleware(dataloaderDeps)(remoteprovider.RequestCacheMiddleware(graphfront.RenderCacheMiddleware(frontSrv)))},
+			Carts:    s.Cart,
+			Settings: s.Config,
+		})
+		frontMCP := mcpserver.NewHandler(mcpserver.Config{
+			Name:         "skelet-storefront",
+			Title:        "Storefront",
+			Tools:        shoptools.Definitions(),
+			Resolve:      mcpserver.Storefront(storefrontTools(shop)),
+			Instructions: shoptools.Instructions,
+			Limiter:      ratelimit.NewRedis(infra.Limits.Client, RateLimitPerMin("MCP_FRONT_RATE_LIMIT_PER_MIN", 60), time.Minute),
+			Reporter:     tel.Reporter,
+		})
+		mux.Handle(mcpPath(frontPath), otelx.WrapHTTP(devDebug(maxBody(64<<10)(anonymousRequest(channel.Middleware(s.Channel)(locale.Middleware()(channel.LocaleClampMiddleware()(frontMCP)))))), "mcp.front"))
 	}
 
 	// One limiter for the whole /t surface, so a bucket means the same thing whichever tier answers

@@ -238,3 +238,12 @@ func TestNoSignalsToolIsOfferedWithTheSuiteOff(t *testing.T) {
 		t.Errorf("a suite tool called with the switch off should be refused, got %+v", res)
 	}
 }
+
+// The admin endpoint promises read-only access, and MCP clients decide what to confirm from these hints
+func TestEveryAdminToolIsAnnouncedAsARead(t *testing.T) {
+	for _, d := range Definitions() {
+		if !d.ReadOnly || !d.Idempotent {
+			t.Errorf("%s is not announced as a read", d.Name)
+		}
+	}
+}
