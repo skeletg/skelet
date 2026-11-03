@@ -31,6 +31,7 @@ export function PaymentStep({
   savedCards,
   storeCreditBalance,
   signedIn,
+  emailOptIn,
   consent,
   currency,
 }: {
@@ -40,6 +41,7 @@ export function PaymentStep({
   savedCards: SavedPaymentMethod[];
   storeCreditBalance: number;
   signedIn: boolean;
+  emailOptIn: boolean; // signed in on their own order - a guest offer has no account to keep the choice
   consent: CheckoutSettings["termsConsent"];
   currency: Currency;
 }) {
@@ -63,7 +65,7 @@ export function PaymentStep({
         checkout={checkout}
         note={note}
         savedCards={savedCards}
-        signedIn={signedIn}
+        emailOptIn={emailOptIn}
         consent={consent}
         currency={currency}
       />
@@ -76,7 +78,7 @@ function PlaceOrderForm({
   checkout,
   note,
   savedCards,
-  signedIn,
+  emailOptIn,
   consent,
   currency,
 }: {
@@ -84,7 +86,7 @@ function PlaceOrderForm({
   checkout: CheckoutState;
   note: string;
   savedCards: SavedPaymentMethod[];
-  signedIn: boolean;
+  emailOptIn: boolean;
   consent: CheckoutSettings["termsConsent"];
   currency: Currency;
 }) {
@@ -121,7 +123,7 @@ function PlaceOrderForm({
           />
         </label>
       </details>
-      {signedIn ? (
+      {emailOptIn ? (
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" name={fields.marketingOptIn.name} className="mt-0.5 size-4 rounded accent-primary" />
           <span>{t("marketingOptIn")}</span>
