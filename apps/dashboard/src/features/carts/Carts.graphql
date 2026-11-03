@@ -8,6 +8,7 @@ query Carts($channelId: ID!, $customerId: ID, $status: String, $kind: CartKind, 
       customerName
       status
       kind
+      source
       email
       offerState
       offerExpiresAt
@@ -29,6 +30,7 @@ fragment CartFields on AdminCart {
   currencyCode
   status
   kind
+  source
   email
   subtotal
   itemCount

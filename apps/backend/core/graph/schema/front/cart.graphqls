@@ -388,9 +388,9 @@ type CartLine {
   totalPrice:  Int!
   # Current salable quantity for this line's product (null = untracked or backorderable, i.e. no low-stock warning applies). The storefront warns when this is below the line quantity.
   availableQuantity: Float
-  # The product's current effective unit price when it DIFFERS from the snapshotted unitPrice above (null = unchanged). Set only for simple lines; bundle/configured lines are snapshot-locked. Lets the cart flag price drift.
+  # The product's current effective unit price when it DIFFERS from the snapshotted unitPrice above (null = unchanged). Set for simple and bundle lines (a bundle re-sums its components at today's prices, unless a cart.bundle.adding hook priced it); configured lines are snapshot-locked. Lets the cart flag price drift.
   currentUnitPrice:  Int
-  # Empty for simple-product lines. For bundle lines, one row per picked component - bundle options, quantities, and prices are all snapshotted at the moment of add-to-cart.
+  # Empty for simple-product lines. For bundle lines, one row per picked component - snapshotted at add-to-cart and refreshed to today's prices and quantities at checkout.
   components:  [CartLineComponent!]!
   # The customer's product custom-option picks, snapshotted at add time.
   # Empty for plain and bundle lines.
@@ -456,6 +456,20 @@ input AddBundleToCartInput {
   sku:        String!
   quantity:   Float!
   selections: [AddBundleToCartSelectionInput!]!
+  # The variant picked for each configurable selection - one of that selection's product's children
+  variants:   [AddBundleVariantPickInput!]
+  # How many of each customer-quantity selection go in one bundle
+  quantities: [AddBundleQuantityInput!]
+}
+
+input AddBundleQuantityInput {
+  selectionId: ID!
+  quantity:    Float!
+}
+
+input AddBundleVariantPickInput {
+  selectionId: ID!
+  variantId:   ID!
 }
 
 extend type Query {
@@ -516,6 +530,8 @@ extend type Mutation {
   removeSavedItem(cartId: ID!, savedItemId: ID!):                                                    Cart!
   clearCart(cartId: ID!):                                                                             Cart!
   mergeGuestCart(guestCartId: ID!):                                                                   Cart!
+  # Opens a checkout link a shopper's AI agent made over the storefront MCP endpoint, copying the agent's cart into the shopper's own: the signed-in customer's cart, else the guest cart cartId names, else a new guest cart. Opening the same link into the same cart again adds nothing. Refused with CART_HANDOFF_INVALID or CART_HANDOFF_EXPIRED
+  redeemCartHandoff(token: String!, cartId: ID):                                                     CartHandoffRedemption!
   # Apply a code to the cart. The v2 engine supports multiple codes; calling applyCoupon adds to the set rather than replacing. Fails with a typed error when the code is unknown / inactive / expired / hits a usage cap.
   applyCoupon(cartId: ID!, code: String!): Cart!
   # Remove a specific code from the cart.
@@ -539,4 +555,10 @@ extend type Mutation {
   removeGiftCard(cartId: ID!, code: String!): Cart!
   # Signed-in only - spends the customer's balance against what gift cards leave.
   setCartStoreCredit(cartId: ID!, use: Boolean!): Cart!
+}
+
+# Where a checkout link put the agent's cart - guestCart says it's a guest cart the storefront should remember, which it is even for a shopper who believed they were signed in but whose session had lapsed
+type CartHandoffRedemption {
+  cart:      Cart!
+  guestCart: Boolean!
 }

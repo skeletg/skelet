@@ -5,12 +5,12 @@ package app
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/checkout"
 	"github.com/skeletg/skelet/cmd/skelet/internal/global"
+	"github.com/skeletg/skelet/cmd/skelet/internal/hooks"
+	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/route"
-	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
 type Config struct {
@@ -35,6 +35,13 @@ func Main(cfg Config, args []string) int {
 		fmt.Printf("skelet %s (checkout %s)\n", cfg.Version, root)
 		return 0
 	}
+	hooks.Upgrade(root, os.Stderr)
+	switch moved, err := profile.Migrate(root); {
+	case err != nil:
+		fmt.Fprintf(os.Stderr, "skelet: couldn't move this clone's setup into .env: %v\n", err)
+	case moved:
+		fmt.Fprintln(os.Stderr, "skelet: moved .skelet-profile, .skelet-apps and .skelet-tools into .env")
+	}
 	return run(root, route.Resolve(root, args))
 }
 
@@ -45,13 +52,9 @@ func run(root string, a route.Action) int {
 	if a.Go != nil {
 		return a.Go(root, a.Args)
 	}
-	if a.Script == "" {
-		fmt.Print(a.Stdout)
-		if a.Stderr != "" {
-			fmt.Fprintln(os.Stderr, a.Stderr)
-		}
-		return a.Code
+	fmt.Print(a.Stdout)
+	if a.Stderr != "" {
+		fmt.Fprintln(os.Stderr, a.Stderr)
 	}
-	path := filepath.Join(root, "bin", a.Script)
-	return sys.Replace(path, append([]string{path}, a.Args...), sys.Env())
+	return a.Code
 }

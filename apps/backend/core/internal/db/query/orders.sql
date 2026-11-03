@@ -183,11 +183,21 @@ RETURNING *;
 SELECT * FROM order_lines WHERE order_id = $1 AND removed_at IS NULL;
 
 -- name: UpdateOrderLineQuantity :one
--- Edit a line's quantity + recomputed line total - guarded to active lines
-UPDATE order_lines
-SET    quantity = $2, total_price = $3
-WHERE  id = $1 AND removed_at IS NULL
-RETURNING *;
+-- Edit a line's quantity + recomputed line total - guarded to active lines. Component rows hold line totals, so a kit
+-- line's items rescale by new/old in the same statement (a bundle line's quantity can't be edited)
+WITH old AS (
+    SELECT ol.id, ol.quantity FROM order_lines ol WHERE ol.id = sqlc.arg(id) AND ol.removed_at IS NULL FOR UPDATE
+), scaled AS (
+    UPDATE order_line_components c
+    SET quantity = ROUND(c.quantity * sqlc.arg(quantity)::numeric / old.quantity, 4)
+    FROM old
+    WHERE c.order_line_id = old.id
+)
+UPDATE order_lines l
+SET    quantity = sqlc.arg(quantity)::numeric, total_price = sqlc.arg(total_price)::bigint
+FROM   old
+WHERE  l.id = old.id
+RETURNING l.*;
 
 -- name: SoftDeleteOrderLine :one
 -- Remove a line from an order without deleting the row (preserves

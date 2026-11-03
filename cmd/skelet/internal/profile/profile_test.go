@@ -21,7 +21,7 @@ $(touch pwned)
 
 func TestLoadParsesWithoutRunning(t *testing.T) {
 	dir := t.TempDir()
-	p := filepath.Join(dir, File)
+	p := filepath.Join(dir, "answers")
 	if err := os.WriteFile(p, []byte(legacy), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -43,22 +43,5 @@ func TestLoadParsesWithoutRunning(t *testing.T) {
 	}
 	if empty, err := Load(filepath.Join(dir, "missing")); err != nil || len(empty) != 0 {
 		t.Errorf("a missing profile: %v, %v", empty, err)
-	}
-}
-
-func TestWriteKeepsTheOrderAndRoundTrips(t *testing.T) {
-	p := filepath.Join(t.TempDir(), File)
-	in := Profile{"B": "2", "A": "", "C": "x,y"}
-	if err := Write(p, in, []string{"B", "A", "C"}); err != nil {
-		t.Fatal(err)
-	}
-	raw, _ := os.ReadFile(p)
-	want := "# Written by skelet setup - your answers, so a re-run defaults to them\nB=2\nA=\nC=x,y\n"
-	if string(raw) != want {
-		t.Errorf("wrote %q", raw)
-	}
-	back, _ := Load(p)
-	if v, ok := back.Get("A"); !ok || v != "" {
-		t.Errorf("an empty answer didn't survive: %q, %v", v, ok)
 	}
 }

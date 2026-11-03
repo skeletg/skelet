@@ -185,7 +185,7 @@ func (r *Runner) Down(ctx context.Context, namespace string, steps int) error {
 	return nil
 }
 
-// One row per registered plugin, for `bin/cli plugin-migrate status`
+// One row per registered plugin, for `skelet cli plugin-migrate status`
 func (r *Runner) Status(ctx context.Context) ([]Status, error) {
 	regs := AllRegistrations()
 	out := make([]Status, 0, len(regs))

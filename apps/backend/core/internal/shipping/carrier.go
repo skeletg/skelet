@@ -143,3 +143,25 @@ type RatedQuote struct {
 	CarrierName string
 	Method      RatedMethod
 }
+
+// Part is one component of a line, its Quantity the line total as the component rows hold it
+type Part struct {
+	SKU            string
+	Quantity       float64
+	UnitPriceCents int64
+}
+
+// LineItems is what a line ships as. A bundle line is its components - each with its own weight, size and product type,
+// left to the packer one by one - since the bundle product has none of those to give. item.Quantity may be part of
+// lineQty (a partial shipment), and the components scale with it
+func LineItems(item RateItem, lineQty float64, parts []Part) []RateItem {
+	if len(parts) == 0 || lineQty <= 0 {
+		return []RateItem{item}
+	}
+	share := item.Quantity / lineQty
+	out := make([]RateItem, len(parts))
+	for i, p := range parts {
+		out[i] = RateItem{SKU: p.SKU, Quantity: p.Quantity * share, UnitPriceCents: p.UnitPriceCents}
+	}
+	return out
+}

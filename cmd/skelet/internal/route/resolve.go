@@ -1,16 +1,14 @@
 package route
 
 import (
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 )
 
-// Action is what a command line resolves to: a bin/ script to exec with Args, a Go verb to run with them, or output
-// and an exit code
+// Action is what a command line resolves to: a verb to run with Args, or output and an exit code
 type Action struct {
-	Script string
 	Go     func(root string, args []string) int
 	Args   []string
 	Notice string
@@ -34,17 +32,17 @@ func Resolve(root string, args []string) Action {
 	switch verb {
 	case "help", "-h", "--help":
 		if len(rest) > 0 && rest[0] != "" {
-			return Help(root, rest[0])
+			return Help(root, rest[0], rest[1:]...)
 		}
 		return Action{Stdout: Usage()}
 	case "pnpm", "npm":
-		a := pnpm(root, rest)
+		a := pnpmRoute(root, rest)
 		if verb == "npm" {
 			a.Notice = "(skelet npm is skelet pnpm now - running pnpm)"
 		}
 		return a
 	case "db":
-		return db(rest)
+		return dbRoute(rest)
 	case "gen", "check", "test":
 		return withSubs(verb, rest)
 	case "new":
@@ -69,19 +67,22 @@ func simple(verb string, rest []string) Action {
 	if !ok {
 		return die(`Unknown command "` + verb + `" - try: skelet help`)
 	}
-	return Action{Script: r.Script, Go: r.Go, Args: rest}
+	return to(r, rest)
 }
+
+// to is the one place a route becomes an Action, so a Go verb's handler survives every path - sub-routes, flags, apps
+func to(r Route, args []string) Action { return Action{Go: r.Go, Args: args} }
 
 func withSubs(verb string, rest []string) Action {
 	if len(rest) > 0 && rest[0] != "" {
 		if r, ok := lookup(verb, rest[0]); ok {
-			return Action{Script: r.Script, Args: append(slices.Clone(r.Prepend), rest[1:]...)}
+			return to(r, rest[1:])
 		}
 	}
 	return simple(verb, rest)
 }
 
-func db(rest []string) Action {
+func dbRoute(rest []string) Action {
 	sub := ""
 	if len(rest) > 0 {
 		sub, rest = rest[0], rest[1:]
@@ -91,18 +92,18 @@ func db(rest []string) Action {
 		args := slices.DeleteFunc(slices.Clone(rest), func(a string) bool { return a == "--signals" })
 		if len(args) != len(rest) {
 			r, _ := flagged("db", "migrate", "--signals")
-			return Action{Script: r.Script, Args: args}
+			return to(r, args)
 		}
 		r, _ := lookup("db", "migrate")
-		return Action{Script: r.Script, Args: args}
+		return to(r, args)
 	case "export", "import", "shell":
 		r, _ := lookup("db", sub)
-		return Action{Script: r.Script, Args: rest}
+		return to(r, rest)
 	}
 	return die("skelet db " + subs["db"])
 }
 
-func pnpm(root string, rest []string) Action {
+func pnpmRoute(root string, rest []string) Action {
 	app := ""
 	if len(rest) > 0 {
 		app, rest = rest[0], rest[1:]
@@ -110,24 +111,39 @@ func pnpm(root string, rest []string) Action {
 	switch app {
 	case "dashboard":
 		r, _ := lookup("pnpm", "dashboard")
-		return Action{Script: r.Script, Args: rest}
+		return to(r, rest)
+	case "--lockfile":
+		r, _ := flagged("pnpm", "", "--lockfile")
+		return to(r, rest)
 	case "":
-		return die("skelet pnpm <app> <pnpm args> - apps: " + appsList(root))
+		return die("skelet pnpm " + subs["pnpm"] + " - " + appsList(root))
 	}
-	if fi, err := os.Stat(filepath.Join(root, "apps", "channels", app)); err != nil || !fi.IsDir() {
-		return die(`skelet pnpm: unknown app "` + app + `" - apps: ` + appsList(root))
+	if _, ok := storefronts.Find(root, app); ok {
+		r, _ := lookup("pnpm", AnyApp)
+		return to(r, append([]string{app}, rest...))
 	}
-	r, _ := lookup("pnpm", AnyApp)
-	return Action{Script: r.Script, Args: append([]string{app}, rest...)}
+	if slices.Contains(packageNames(root), app) {
+		r, _ := lookup("pnpm", AnyPackage)
+		return to(r, append([]string{app}, rest...))
+	}
+	return die(`skelet pnpm: unknown app or package "` + app + `" - ` + appsList(root))
 }
 
 func appsList(root string) string {
-	out := []string{"dashboard"}
-	matches, _ := filepath.Glob(filepath.Join(root, "apps", "channels", "*", "package.json"))
-	for _, m := range matches {
-		out = append(out, filepath.Base(filepath.Dir(m)))
+	s := "apps: " + strings.Join(append([]string{"dashboard"}, storefronts.Names(root)...), ", ")
+	if p := packageNames(root); len(p) > 0 {
+		s += "; packages: " + strings.Join(p, ", ")
 	}
-	return strings.Join(out, ", ")
+	return s
+}
+
+// packageNames is the workspace packages by their directory name - storefront-core, not packages/storefront-core
+func packageNames(root string) []string {
+	var out []string
+	for _, dir := range storefronts.Packages(root) {
+		out = append(out, strings.TrimPrefix(dir, "packages/"))
+	}
+	return out
 }
 
 func die(msg string) Action { return Action{Stderr: msg, Code: 2} }

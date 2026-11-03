@@ -252,7 +252,13 @@ func (r *Resolver) groupChoices(ctx context.Context, cartID uuid.UUID, sv *chann
 	for _, sh := range gv.shipments {
 		req := shipping.RateRequest{ChannelID: sv.ID, Destination: dest, CurrencyCode: sv.CurrencyCode, SubtotalCents: sub}
 		for _, l := range sh.Lines {
-			req.Items = append(req.Items, shipping.RateItem{SKU: l.SKU, Quantity: l.Quantity, UnitPriceCents: l.UnitPrice})
+			var parts []shipping.Part
+			for _, cl := range v.c.Lines {
+				if cl.ID == l.ID {
+					parts = cartLineParts(cl)
+				}
+			}
+			req.Items = append(req.Items, shipping.LineItems(shipping.RateItem{SKU: l.SKU, Quantity: l.Quantity, UnitPriceCents: l.UnitPrice}, l.Quantity, parts)...)
 		}
 		res, err := cachedShippingQuotes(ctx, req, func() (shipping.QuoteResult, error) { return r.ShippingSvc.QuoteCarriers(ctx, req) })
 		if err != nil {

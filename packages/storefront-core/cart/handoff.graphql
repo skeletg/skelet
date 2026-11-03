@@ -1,0 +1,9 @@
+# Opens a checkout link a shopper's AI agent made - the agent's cart is copied into this shopper's own
+mutation RedeemCartHandoff($token: String!, $cartId: ID) {
+  redeemCartHandoff(token: $token, cartId: $cartId) {
+    guestCart
+    cart {
+      id
+    }
+  }
+}

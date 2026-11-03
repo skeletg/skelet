@@ -39,16 +39,21 @@ You need Docker and git. Nothing else - the frontend toolchain runs in container
 
 ```bash
 curl -fsSL https://github.com/skeletg/skelet/releases/latest/download/install.sh | sh
-skelet new my-shop                 # fetches the latest release, picks apps, writes env, starts containers, migrates
+skelet new my-shop                 # fetches the latest release, picks apps, offers your storefront, writes env, starts containers
 cd my-shop
 skelet up                          # backend + your selected apps + sidecars
 skelet cli admin create-superuser  # your first login
 ```
 
+Your storefront is a copy of a template under `templates/` - `nextjs-vetrina` (Next.js) or `astro-shop`
+(Astro) - that's yours to change. Setup offers one when the project has none; `skelet new my-shop
+--template astro-shop` makes it without asking, and `skelet add channel <name>` makes more later.
+
 The installer checks `skelet` against the release's checksums and puts it in `~/.local/bin`
 (`SKELET_INSTALL_DIR` picks another directory); it runs on macOS, Linux and WSL. Rather clone
-by hand? `git clone https://github.com/skeletg/skelet.git`, then `./skelet setup` inside it -
-`./skelet` is the same front door, with nothing installed.
+by hand? `git clone https://github.com/skeletg/skelet.git`, then `skelet setup` inside it - in a
+project, `skelet` runs that project's own code. With Go and nothing installed,
+`go -C cmd/skelet run . setup` does the same.
 
 Open <http://localhost:5173> and sign in. GraphQL playgrounds are at
 `:8080/playground/{admin,front}`.
@@ -100,5 +105,7 @@ Run it, modify it, host it, build client sites on it, sell services around it - 
 that asks anything of you. Convey Skelet *itself* and whoever receives it gets the source
 under the same licence, so a fork can't go closed. **Plugins, remote providers, storefronts,
 dashboard extensions and themes are exempt** and stay yours under any licence you like.
+The storefront packages in [`packages/`](packages) are [MIT](packages/storefront-core/LICENSE)
+on their own, so a shop can install them from npm and keep any licence of its own.
 
 The Skelet name and logo are separate from the code licence and are not granted by it.

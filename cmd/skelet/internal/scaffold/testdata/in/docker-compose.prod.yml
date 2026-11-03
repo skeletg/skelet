@@ -1,0 +1,582 @@
+# Prod stack - compiled images + the datastores, no edge and no TLS: services bind to 127.0.0.1 only, so put your own proxy in front and terminate TLS there cp each env/*.example to its real name plus .env.example -> .env at the root, then build (or pull via *_IMAGE) and `up -d` - each service migrates the databases it opens as it boots Every var is documented in docs/env.md, and optional infra sits behind --profile queue and --profile edge
+name: skelet-prod
+
+# json-file is UNBOUNDED by default, so a long deployment fills the disk - 10 MB x 3 caps each service at ~30 MB, which
+# is also the retention - rotated lines are gone, so durable history means shipping them with your own infrastructure
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+# Datastore containers and the DSNs that reach them derive from one variable each, so a password can't drift out of sync with the URL that uses it - these come from the root .env, NOT env/prod.env - compose interpolates only the former - setting a URL outright wins over the derived one, which is how you point at a managed datastore - see .env.example
+# Split by tier - each backend gets its own datastore credentials and none of the other's, the same boundary the Go modules draw
+# Nested passwords are plain defaults, not :?, since compose expands them even when the URL is set - the bundled containers refuse an empty one
+# What the internet-facing beacon tier gets - it verifies customer sessions with the public key alone and serves no contract, so it can sign nothing
+x-edge-secrets: &edge-secrets
+  CUSTOMER_JWT_PUBLIC_KEY: ${CUSTOMER_JWT_PUBLIC_KEY:?set CUSTOMER_JWT_PUBLIC_KEY in the root .env (./skelet setup, or ./skelet cli keys customer)}
+  CUSTOMER_JWT_PUBLIC_KEY_PREVIOUS: ${CUSTOMER_JWT_PUBLIC_KEY_PREVIOUS:-}
+  VALKEY_URL: ${VALKEY_URL-redis://:${VALKEY_PASSWORD:-}@valkey:6379}
+  # The evictable half of the split - caches, rate-limit counters and persisted queries live here on an allkeys-lru instance, so an anonymous cache flood is reclaimed instead of filling the noeviction primary and taking auth-token writes down with it - auto-points at valkey-cache when a password exists, unset with no password (Postgres-only) leaves it empty so everything shares the primary (nil) - set it outright to point caches at a managed instance
+  VALKEY_CACHE_URL: ${VALKEY_CACHE_URL-${VALKEY_PASSWORD:+redis://:${VALKEY_PASSWORD:-}@valkey-cache:6379}}
+  # Rate-limit counters and login lockouts, kept off the cache instance so a cache flood can't evict them and lift every limit - same auto-pointing as the cache URL
+  VALKEY_LIMITS_URL: ${VALKEY_LIMITS_URL-${VALKEY_PASSWORD:+redis://:${VALKEY_PASSWORD:-}@valkey-limits:6379}}
+
+x-shared-secrets: &shared-secrets
+  <<: *edge-secrets
+  # The contract's own secret - core signs with it, the suite verifies, the storefront and the beacon tier never get it
+  SIGNALS_SERVICE_SECRET: ${SIGNALS_SERVICE_SECRET:?set SIGNALS_SERVICE_SECRET in the root .env (openssl rand -hex 32, distinct from every other key)}
+  SIGNALS_SERVICE_SECRET_PREVIOUS: ${SIGNALS_SERVICE_SECRET_PREVIOUS:-}
+  # Unsubscribe, open and click links - the suite signs them, core verifies the unsubscribe
+  EMAIL_LINK_SECRET: ${EMAIL_LINK_SECRET:?set EMAIL_LINK_SECRET in the root .env (openssl rand -hex 32)}
+  EMAIL_LINK_SECRET_PREVIOUS: ${EMAIL_LINK_SECRET_PREVIOUS:-}
+
+# Core's alone - the suite administers its own settings over the contract and renders no storefront
+x-core-secrets: &core-secrets
+  # The two keys that mint sessions - nothing outside core holds either
+  ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?set ADMIN_JWT_SECRET in the root .env (openssl rand -hex 32)}
+  ADMIN_JWT_SECRET_PREVIOUS: ${ADMIN_JWT_SECRET_PREVIOUS:-}
+  CUSTOMER_JWT_PRIVATE_KEY: ${CUSTOMER_JWT_PRIVATE_KEY:?set CUSTOMER_JWT_PRIVATE_KEY in the root .env (./skelet setup, or ./skelet cli keys customer)}
+  REVIEW_VOTER_TOKEN_SECRET: ${REVIEW_VOTER_TOKEN_SECRET:?set REVIEW_VOTER_TOKEN_SECRET in the root .env (openssl rand -hex 32)}
+  CONFIG_ENCRYPTION_KEY: ${CONFIG_ENCRYPTION_KEY:?set CONFIG_ENCRYPTION_KEY in the root .env (openssl rand -base64 32)}
+  STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
+  # The filesystem driver signs upload URLs with it - unused on S3
+  STORAGE_SIGNING_KEY: ${STORAGE_SIGNING_KEY:-}
+
+# The suite's alone - core reaches the spine and the queue over the contract, never by opening them
+x-signals-secrets: &signals-secrets
+  # Profile-gated: empty unless the password is set, so `queue` stays off by default without a second switch
+  SIGNALS_QUEUE_URL: ${SIGNALS_QUEUE_URL-${NATS_PASSWORD:+nats://skelet:${NATS_PASSWORD:-}@nats:4222}}
+  SIGNALS_CH_URL: ${SIGNALS_CH_URL-clickhouse://skelet:${CLICKHOUSE_PASSWORD:-}@clickhouse:9000/signals}
+
+# POOLED is what every long-running tier talks to, so replica count stops dividing max_connections
+# default_query_exec_mode=exec turns OFF pgx's prepared statements, which transaction pooling loses track of between PREPARE and EXECUTE
+x-core-db: &core-db
+  DATABASE_URL: ${DATABASE_URL-postgres://skelet:${DB_PASSWORD:-}@pgbouncer:6432/skelet?sslmode=disable&default_query_exec_mode=exec}
+
+x-signals-db: &signals-db
+  SIGNALS_DB_URL: ${SIGNALS_DB_URL-postgres://skelet:${SIGNALS_DB_PASSWORD:-}@pgbouncer-signals:6432/skelet_signals?sslmode=disable&default_query_exec_mode=exec}
+
+# The bundled datastores sit behind the `bundled` profile so a managed deployment can drop them - point DATABASE_URL / SIGNALS_DB_URL / VALKEY_URL / SIGNALS_CH_URL at the managed instances and they never start - .env sets COMPOSE_PROFILES=bundled, so a self-hosted box gets them by default Every depends_on on them carries `required: false`, without which compose rejects the whole file the moment the profile is off
+services:
+  app:
+    image: ${APP_IMAGE:-skelet-app:prod}
+    build:
+      context: ./apps/backend
+      dockerfile: core/Dockerfile.prod
+    env_file: [env/prod.env]
+    # Inline, so the shape that runs a worker carries the value rather than env/prod.env having to
+    # remember it - this stack always runs one, so the request tier never claims background work
+    environment:
+      <<: [*shared-secrets, *core-secrets, *core-db]
+      JOBS_EXTERNAL: "true"
+    # Loopback only - your proxy terminates TLS and forwards here
+    ports: ["127.0.0.1:8080:8080"]
+    depends_on:
+      pgbouncer: { condition: service_healthy, required: false }
+      pgbouncer-signals: { condition: service_healthy, required: false }
+      db: { condition: service_healthy, required: false }
+      signals-db: { condition: service_healthy, required: false }
+      valkey: { condition: service_healthy, required: false }
+      valkey-cache: { condition: service_healthy, required: false }
+      valkey-limits: { condition: service_healthy, required: false }
+      # Optional infra - `required: false` keeps the project valid when the
+      # profile is off, and still waits for health when it's on
+      nats: { condition: service_healthy, required: false }
+    healthcheck:
+      # /health pings DB + Valkey - /readyz 503s on unconfigured optional gateways
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    # 10s HTTP + 10s background workers + 15s event bus, so Docker's 10s default killed it a quarter of the way in and dropped queued
+    # webhook deliveries and search indexing - applies under JOBS_EXTERNAL=true too - the bus drain isn't gated
+    stop_grace_period: 40s
+    deploy:
+      resources:
+        limits: { memory: 1g, cpus: "2" }
+    logging: *logging
+
+  # Background worker - same image as app in worker role: scheduler jobs, webhook-queue delivery and the outbox relay, off checkout's CPU and pool slots - pair with JOBS_EXTERNAL=true (see docs/env.md for what that switch does on both sides) - DB-claim based, so extra replicas partition the work rather than duplicate it
+  worker:
+    image: ${APP_IMAGE:-skelet-app:prod}
+    build:
+      context: ./apps/backend
+      dockerfile: core/Dockerfile.prod
+    env_file: [env/prod.env]
+    # Inline, not in env/prod.env: `app` shares that file and must stay a
+    # server - WORKER_PORT defaults to 8081 (what the healthcheck below curls)
+    environment:
+      <<: [*shared-secrets, *core-secrets, *core-db]
+      SKELET_ROLE: worker
+      OTEL_SERVICE_NAME: skelet-worker
+    depends_on:
+      pgbouncer: { condition: service_healthy, required: false }
+      pgbouncer-signals: { condition: service_healthy, required: false }
+      db: { condition: service_healthy, required: false }
+      signals-db: { condition: service_healthy, required: false }
+      valkey: { condition: service_healthy, required: false }
+      valkey-cache: { condition: service_healthy, required: false }
+      valkey-limits: { condition: service_healthy, required: false }
+      # Optional infra - see the note on `app`
+      nats: { condition: service_healthy, required: false }
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8081/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    # 5s + 10s + 15s of draining is exactly 30, so a flat 30s leaves no headroom -
+    # a killed worker leaves in-flight jobs to wait out their lease before a retry
+    stop_grace_period: 35s
+    deploy:
+      resources:
+        limits: { memory: 512m, cpus: "2" }
+    logging: *logging
+
+  # Image-transform tier - same image, cmd/media - decode + resample is the only CPU-heavy work here, so it gets its own container and CPU budget - route /media/t/* at it in your proxy; `app` serves the route either way, so a misrouted request only costs isolation - warm derivatives redirect to S3_PUBLIC_URL_BASE, so at steady state this does almost nothing - scale it for cold-fill bursts - its knobs are in docs/env.md
+  media:
+    image: ${APP_IMAGE:-skelet-app:prod}
+    build:
+      context: ./apps/backend
+      dockerfile: core/Dockerfile.prod
+    env_file: [env/prod.env]
+    environment:
+      <<: *core-db
+      OTEL_SERVICE_NAME: skelet-media
+    command: ["/app/media"]
+    ports: ["127.0.0.1:8083:8083"]
+    depends_on:
+      pgbouncer: { condition: service_healthy, required: false }
+      db: { condition: service_healthy, required: false }
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8083/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    # cmd/media drains for up to 10s then flushes telemetry for 5 more, and those run
+    # one after the other - the 10s default would SIGKILL it part-way through
+    stop_grace_period: 20s
+    deploy:
+      resources:
+        # CPU is the point of this tier; memory is bounded by
+        # MEDIA_RENDER_SLOTS x MEDIA_MAX_SOURCE_PIXELS x 4 bytes plus overhead
+        limits: { memory: 512m, cpus: "2" }
+    logging: *logging
+
+  # Signals (Pulse/Lens/Synapse/Prism) as its own process/container - the contract core calls, retention pruning, spine forwarding, trait compute and the ingest-queue consumer, isolated from the commerce app (separate memory/crash/resource budget) No published port - healthcheck curls its own /healthz in-container
+  signals:
+    image: ${SIGNALS_IMAGE:-skelet-signals:prod}
+    build:
+      context: ./apps/backend
+      dockerfile: signals/Dockerfile.prod
+    env_file:
+      - env/prod.env
+      - path: env/prod-signals.env
+        required: false
+    # Inline (beats env_file) so a distinct trace identity doesn't leak into
+    # `app`, which shares env/prod.env - OTEL endpoint/exporter come from the file
+    environment:
+      <<: [*shared-secrets, *signals-secrets, *signals-db]
+      # Seals the destination credentials - the signals process alone stores them, so the beacon tier never gets it
+      SIGNALS_ENCRYPTION_KEY: ${SIGNALS_ENCRYPTION_KEY:?set SIGNALS_ENCRYPTION_KEY in the root .env (openssl rand -base64 32, distinct from CONFIG_ENCRYPTION_KEY)}
+      OTEL_SERVICE_NAME: skelet-signals
+    command: ["/app/signals"]
+    depends_on:
+      pgbouncer-signals: { condition: service_healthy, required: false }
+      signals-db: { condition: service_healthy, required: false }
+      valkey: { condition: service_healthy, required: false }
+      valkey-cache: { condition: service_healthy, required: false }
+      valkey-limits: { condition: service_healthy, required: false }
+      clickhouse: { condition: service_healthy, required: false }
+      # Optional infra - see the note on `app`; this worker owns the queue consumer
+      nats: { condition: service_healthy, required: false }
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8090/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    # Same budget as worker, because this process does the same
+    # class of work - a retention prune is a heavy DELETE and won't finish inside 10s
+    stop_grace_period: 35s
+    deploy:
+      resources:
+        limits: { memory: 256m, cpus: "1" }
+    logging: *logging
+
+  # Web-ingest tier - the public /t surface (tracker beacons + SDK reads) as its own container, so a traffic spike saturates this and not checkout - the app keeps serving /t/* too: route /t/* here in your proxy to actually use it (forms/back-in-stock pass through to the app via INGEST_FALLBACK_URL) Stateless - scale replicas freely behind the proxy
+  ingest:
+    image: ${SIGNALS_IMAGE:-skelet-signals:prod}
+    build:
+      context: ./apps/backend
+      dockerfile: signals/Dockerfile.prod
+    env_file: [env/prod.env]
+    environment:
+      <<: [*edge-secrets, *signals-secrets, *signals-db]
+      OTEL_SERVICE_NAME: skelet-ingest
+      INGEST_FALLBACK_URL: http://app:8080
+    command: ["/app/ingest"]
+    ports: ["127.0.0.1:8091:8091"]
+    depends_on:
+      pgbouncer-signals: { condition: service_healthy, required: false }
+      signals-db: { condition: service_healthy, required: false }
+      valkey: { condition: service_healthy, required: false }
+      valkey-cache: { condition: service_healthy, required: false }
+      valkey-limits: { condition: service_healthy, required: false }
+      clickhouse: { condition: service_healthy, required: false }
+      # Optional infra - see the note on `app`; the beacon tier publishes to the same queue
+      nats: { condition: service_healthy, required: false }
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8091/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    # Stops the wiring for up to 10s and then flushes telemetry for 5 more, sequentially -
+    # cut short, an in-flight beacon batch is dropped and re-sent rather than landing
+    stop_grace_period: 20s
+    deploy:
+      resources:
+        limits: { memory: 512m, cpus: "2" }
+    logging: *logging
+
+  dashboard:
+    image: ${DASHBOARD_IMAGE:-skelet-dashboard:prod}
+    build:
+      context: ./apps/dashboard
+      dockerfile: Dockerfile.prod
+    ports: ["127.0.0.1:8081:8080"]
+    environment:
+      # nginx proxies the SPA's /api/* here
+      BACKEND_UPSTREAM: http://app:8080
+      # Where browsers upload files - joins the CSP's connect-src, see docs/env.md
+      UPLOAD_ORIGINS: ${UPLOAD_ORIGINS:-}
+    depends_on:
+      app: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { memory: 128m, cpus: "0.5" }
+    logging: *logging
+
+  # One replica: its page cache lives in the process, so a purge reaches only the container that answers it (docs/deploying.md)
+  vetrina-demo:
+    image: ${VETRINA_DEMO_IMAGE:-skelet-vetrina-demo:prod}
+    build:
+      context: ./apps/channels/vetrina-demo
+      dockerfile: Dockerfile.prod
+      args:
+        UPLOAD_ORIGINS: ${UPLOAD_ORIGINS:-}
+    # Own env file - the most exposed container shouldn't hold DB/S3/SMTP creds
+    env_file: [env/prod-vetrina-demo.env]
+    ports: ["127.0.0.1:3000:3000"]
+    environment:
+      # In-network backend - environment beats env_file
+      BACKEND_INTERNAL_URL: http://app:8080
+      # The two values it shares with the backend, from the same root .env the backend reads - the file above keeps only
+      # what's storefront-specific, so neither has to be copied into two places. No session key: this is the most exposed container
+      REVIEW_VOTER_TOKEN_SECRET: ${REVIEW_VOTER_TOKEN_SECRET:?set REVIEW_VOTER_TOKEN_SECRET in the root .env (openssl rand -hex 32)}
+      STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
+    depends_on:
+      app: { condition: service_healthy }
+    healthcheck:
+      # node so the standalone image needs no extra binaries
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/api/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { memory: 512m, cpus: "1" }
+    logging: *logging
+
+  # Opt-in TLS edge - `--profile edge` - everything else here binds to 127.0.0.1 and expects your own proxy; this is for the deployments that don't have one already
+  caddy:
+    profiles: ["edge"]
+    image: caddy:2-alpine
+    env_file: [env/prod-caddy.env] # domains + ACME email only, no secrets at the edge
+    environment:
+      UPLOAD_ORIGINS: ${UPLOAD_ORIGINS:-}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    # Wait for HEALTHY upstreams so the edge never routes to a booting backend -
+    # required:false on the storefront, since a fork may run its own or none
+    depends_on:
+      app: { condition: service_healthy }
+      dashboard: { condition: service_healthy }
+      vetrina-demo: { condition: service_healthy, required: false }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { memory: 128m, cpus: "1" }
+    logging: *logging
+
+
+  # Connection poolers, one per database so the bulkhead survives the pooler - the commerce pool can't be drained by beacon volume, exactly as the two Postgres instances are already split
+  # POOL_MODE=transaction is what makes that true - a server connection is held for
+  # a transaction, not a session - it is also why a migration resets its session settings before it commits, and why prepared statements are off in the pooled DSN above
+  pgbouncer:
+    profiles: ["bundled"]
+    image: edoburu/pgbouncer:v1.25.2-p0
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: skelet
+      DB_USER: skelet
+      DB_PASSWORD: ${DB_PASSWORD:-}
+      POOL_MODE: transaction
+      AUTH_TYPE: scram-sha-256
+      # The image DEFAULTS to 5432 - without this every pooled DSN (@pgbouncer:6432)
+      # dials a port nothing listens on, found the hard way in the dry run
+      LISTEN_PORT: "6432"
+      # Client slots: must exceed the sum of every app-side pool that points here,
+      # or a replica rollout hits "no more connections allowed" at the pooler
+      MAX_CLIENT_CONN: "500"
+      # Server connections to Postgres, per user+database - THIS is the number that
+      # divides into max_connections now
+      DEFAULT_POOL_SIZE: "20"
+      MIN_POOL_SIZE: "5"
+      RESERVE_POOL_SIZE: "5"
+      # pgx sends these on connect and pgbouncer rejects unknown startup params
+      IGNORE_STARTUP_PARAMETERS: extra_float_digits,options
+    depends_on:
+      db: { condition: service_healthy, required: false }
+    healthcheck:
+      # pg_isready ships in the image and speaks the protocol - nc probed a port
+      # the image wasn't listening on and marked both poolers unhealthy forever
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 6432"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { memory: 128m, cpus: "1" }
+    logging: *logging
+
+  pgbouncer-signals:
+    profiles: ["bundled"]
+    image: edoburu/pgbouncer:v1.25.2-p0
+    environment:
+      DB_HOST: signals-db
+      DB_PORT: "5432"
+      DB_NAME: skelet_signals
+      DB_USER: skelet
+      DB_PASSWORD: ${SIGNALS_DB_PASSWORD:-}
+      POOL_MODE: transaction
+      AUTH_TYPE: scram-sha-256
+      # The image DEFAULTS to 5432 - without this every pooled DSN (@pgbouncer:6432)
+      # dials a port nothing listens on, found the hard way in the dry run
+      LISTEN_PORT: "6432"
+      MAX_CLIENT_CONN: "500"
+      DEFAULT_POOL_SIZE: "20"
+      MIN_POOL_SIZE: "5"
+      RESERVE_POOL_SIZE: "5"
+      IGNORE_STARTUP_PARAMETERS: extra_float_digits,options
+    depends_on:
+      signals-db: { condition: service_healthy, required: false }
+    healthcheck:
+      # pg_isready ships in the image and speaks the protocol - nc probed a port
+      # the image wasn't listening on and marked both poolers unhealthy forever
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 6432"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { memory: 128m, cpus: "1" }
+    logging: *logging
+
+  db:
+    profiles: ["bundled"]
+    # A major bump is NOT just a tag change - dump/restore or pg_upgrade the
+    # volume first, or postgres refuses to start
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: skelet
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-}
+      POSTGRES_DB: skelet
+    # The password check lives here rather than as a :? above, which compose would enforce on managed installs too
+    entrypoint: ["sh", "-c", "test -n \"$$POSTGRES_PASSWORD\" || { echo 'set DB_PASSWORD in the root .env' >&2; exit 1; }; exec docker-entrypoint.sh postgres"]
+    volumes:
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { memory: 1g, cpus: "2" }
+    logging: *logging
+
+  # Signals' own Postgres - spine, Lens and identity tables (their only home, the commerce schema has no copies) - swap
+  # for a second database on the commerce instance or a managed one by pointing SIGNALS_DB_URL there
+  signals-db:
+    profiles: ["bundled"]
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: skelet
+      POSTGRES_PASSWORD: ${SIGNALS_DB_PASSWORD:-}
+      POSTGRES_DB: skelet_signals
+    entrypoint: ["sh", "-c", "test -n \"$$POSTGRES_PASSWORD\" || { echo 'set SIGNALS_DB_PASSWORD in the root .env' >&2; exit 1; }; exec docker-entrypoint.sh postgres"]
+    volumes:
+      - signals-db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { memory: 1g, cpus: "2" }
+    logging: *logging
+
+  valkey:
+    profiles: ["bundled"]
+    image: valkey/valkey:9-alpine
+    # maxmemory under the container limit trades an OOM kill for loud write errors, noeviction because refresh tokens must never be evicted
+    environment:
+      VALKEY_PASSWORD: "${VALKEY_PASSWORD:-}"
+    command: ["sh", "-c", "test -n \"$$VALKEY_PASSWORD\" || { echo 'set a strong VALKEY_PASSWORD in the root .env' >&2; exit 1; }; exec valkey-server --appendonly yes --maxmemory 200mb --maxmemory-policy noeviction --requirepass \"$$VALKEY_PASSWORD\""]
+    volumes:
+      - valkey-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli -a \"$$VALKEY_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { memory: 256m, cpus: "0.5" }
+    logging: *logging
+
+  # The EVICTABLE half of the Valkey split - APQ, the storefront response cache and the read-through caches, all of which fail open - allkeys-lru (NOT noeviction) so an anonymous flood of persisted-query / response-cache keys is reclaimed here instead of filling the auth primary and making refresh/reset-token writes fail - no appendonly and no volume since every key is reconstructible from Postgres, so a cold cache after a restart is fine not data loss
+  valkey-cache:
+    profiles: ["bundled"]
+    image: valkey/valkey:9-alpine
+    environment:
+      VALKEY_PASSWORD: "${VALKEY_PASSWORD:-}"
+    command: ["sh", "-c", "test -n \"$$VALKEY_PASSWORD\" || { echo 'set a strong VALKEY_PASSWORD in the root .env' >&2; exit 1; }; exec valkey-server --maxmemory ${VALKEY_CACHE_MAXMEMORY:-512mb} --maxmemory-policy allkeys-lru --requirepass \"$$VALKEY_PASSWORD\""]
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli -a \"$$VALKEY_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        # The response cache is keyed per channel and locale, so size it with the channel count - raise both together
+        limits: { memory: "${VALKEY_CACHE_MEMORY_LIMIT:-640m}", cpus: "0.5" }
+    logging: *logging
+
+  valkey-limits:
+    profiles: ["bundled"]
+    image: valkey/valkey:9-alpine
+    environment:
+      VALKEY_PASSWORD: "${VALKEY_PASSWORD:-}"
+    command: ["sh", "-c", "test -n \"$$VALKEY_PASSWORD\" || { echo 'set a strong VALKEY_PASSWORD in the root .env' >&2; exit 1; }; exec valkey-server --maxmemory 64mb --maxmemory-policy volatile-ttl --requirepass \"$$VALKEY_PASSWORD\""]
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli -a \"$$VALKEY_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { memory: 96m, cpus: "0.25" }
+    logging: *logging
+
+  # ---- Optional infrastructure, behind profiles ---- Off by default; the services that use them carry `required: false` gates, so the project stays valid with the profile off and still waits for health when it's on
+  # their env files only need to exist when the profile is enabled
+
+  # Single-node reference: replicas need ENGINE=Replicated databases, and a GDPR erasure sweep needs SYSTEM RELOAD DICTIONARY signals.identity_map on every other node
+  clickhouse:
+    profiles: ["bundled"]
+    image: clickhouse/clickhouse-server:26.7.5
+    environment:
+      CLICKHOUSE_DB: signals
+      CLICKHOUSE_USER: skelet
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
+    entrypoint: ["sh", "-c", "test -n \"$$CLICKHOUSE_PASSWORD\" || { echo 'set CLICKHOUSE_PASSWORD in the root .env (openssl rand -hex 32)' >&2; exit 1; }; exec /entrypoint.sh"]
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    healthcheck:
+      # CMD-SHELL, not exec-form CMD - the creds are env vars and only a shell expands them ($$ escapes compose interpolation)
+      test: ["CMD-SHELL", "clickhouse-client --user=\"$$CLICKHOUSE_USER\" --password=\"$$CLICKHOUSE_PASSWORD\" --query='SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { memory: 4g, cpus: "4" }
+    logging: *logging
+
+  # Durable ingest queue between /t and the spine - an append is on disk before the request returns, and the signals worker is required with this on, since it runs the consumer
+  # Without it the stream accrues until its 24h MaxAge sheds it - transit, not a system of record, so there is no backup story
+  nats:
+    profiles: ["queue"]
+    image: nats:2.14-alpine
+    environment:
+      NATS_USER: skelet
+      NATS_PASSWORD: ${NATS_PASSWORD:-}
+    # Shell form so the server resolves its own credentials - the password check is here, not a `:?` above: compose interpolates EVERY
+    # service regardless of profile, so a required-marker there breaks `up` for everyone without the queue
+    command: ["sh", "-c", "test -n \"$$NATS_PASSWORD\" || { echo 'set NATS_PASSWORD in the root .env to run --profile queue' >&2; exit 1; }; exec nats-server -js -sd /data -m 8222 --user \"$$NATS_USER\" --pass \"$$NATS_PASSWORD\""]
+    volumes:
+      - nats-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { memory: 256m, cpus: "1" }
+    logging: *logging
+
+volumes:
+  db-data:
+  signals-db-data:
+  valkey-data:
+  caddy-data:
+  caddy-config:
+  clickhouse-data:
+  nats-data:

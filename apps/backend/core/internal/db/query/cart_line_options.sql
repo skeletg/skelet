@@ -22,7 +22,7 @@ DELETE FROM cart_line_options WHERE cart_line_id = $1;
 -- name: UpsertConfiguredCartLine :one
 INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity)
 VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (cart_id, product_sku) DO UPDATE
+ON CONFLICT (cart_id, product_sku, config_key) DO UPDATE
   SET quantity     = EXCLUDED.quantity,
       unit_price   = EXCLUDED.unit_price,
       product_name = EXCLUDED.product_name,

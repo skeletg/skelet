@@ -1,4 +1,4 @@
-// SYNC SENTINEL - the dashboard third of a three-way contract, with core's internal/blockkit and the storefront's components/cms, enforced by bin/contract-check
+// SYNC SENTINEL - the dashboard third of a three-way contract, with core's internal/blockkit and the storefront's components/cms, enforced by skelet check contracts
 // A page body parsing to a `{ version, blocks }` Document is block-built; anything else is left to Lexical or plain rich text
 
 import {

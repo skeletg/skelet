@@ -546,11 +546,12 @@ func (r *postgresRepository) SetReturnExchangeOrder(ctx context.Context, returnI
 
 func (r *postgresRepository) AddReturnLine(ctx context.Context, returnID uuid.UUID, line OrderReturnLine) (OrderReturnLine, error) {
 	row, err := r.queries.AddOrderReturnLine(ctx, db.AddOrderReturnLineParams{
-		ReturnID:        returnID,
-		OrderLineID:     line.OrderLineID,
-		Quantity:        line.Quantity,
-		Reason:          line.Reason,
-		RefundUnitCents: line.RefundUnitCents,
+		ReturnID:             returnID,
+		OrderLineID:          line.OrderLineID,
+		Quantity:             line.Quantity,
+		Reason:               line.Reason,
+		RefundUnitCents:      line.RefundUnitCents,
+		OrderLineComponentID: sqlnull.UUID(line.ComponentID),
 	})
 	if err != nil {
 		return OrderReturnLine{}, fmt.Errorf("add return line: %w", err)
@@ -727,7 +728,20 @@ func toOrderReturnLine(row db.OrderReturnLine) OrderReturnLine {
 		Quantity:        row.Quantity,
 		Reason:          row.Reason,
 		RefundUnitCents: row.RefundUnitCents,
+		ComponentID:     sqlnull.UUIDPtr(row.OrderLineComponentID),
 	}
+}
+
+func (r *postgresRepository) ReturnedByComponent(ctx context.Context, orderID uuid.UUID) (map[uuid.UUID]float64, error) {
+	rows, err := r.queries.SumReturnedQtyByComponent(ctx, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("sum returned by component: %w", err)
+	}
+	out := make(map[uuid.UUID]float64, len(rows))
+	for _, row := range rows {
+		out[row.ComponentID] = row.Returned
+	}
+	return out, nil
 }
 
 func (r *postgresRepository) CreateOrder(ctx context.Context, o Order) (Order, error) {
@@ -856,14 +870,15 @@ func (r *postgresRepository) AddOrderLine(ctx context.Context, line OrderLine) (
 func (r *postgresRepository) AddOrderLineComponent(ctx context.Context, c OrderLineComponent) (OrderLineComponent, error) {
 	row, err := r.queries.InsertOrderLineComponent(ctx, db.InsertOrderLineComponentParams{
 		OrderLineID:       c.OrderLineID,
-		BundleOptionID:    c.BundleOptionID,
-		BundleSelectionID: c.BundleSelectionID,
+		BundleOptionID:    uuid.NullUUID{UUID: c.BundleOptionID, Valid: c.BundleOptionID != uuid.Nil},
+		BundleSelectionID: uuid.NullUUID{UUID: c.BundleSelectionID, Valid: c.BundleSelectionID != uuid.Nil},
 		ProductID:         c.ProductID,
 		ProductSku:        c.ProductSku,
 		ProductName:       c.ProductName,
 		UnitPrice:         c.UnitPrice,
 		Quantity:          c.Quantity,
 		SortOrder:         c.SortOrder,
+		Returnable:        c.Returnable,
 	})
 	if err != nil {
 		return OrderLineComponent{}, fmt.Errorf("add order line component: %w", err)
@@ -1302,14 +1317,15 @@ func toOrderLineComponent(row db.OrderLineComponent) OrderLineComponent {
 	return OrderLineComponent{
 		ID:                row.ID,
 		OrderLineID:       row.OrderLineID,
-		BundleOptionID:    row.BundleOptionID,
-		BundleSelectionID: row.BundleSelectionID,
+		BundleOptionID:    row.BundleOptionID.UUID,
+		BundleSelectionID: row.BundleSelectionID.UUID,
 		ProductID:         row.ProductID,
 		ProductSku:        row.ProductSku,
 		ProductName:       row.ProductName,
 		UnitPrice:         row.UnitPrice,
 		Quantity:          row.Quantity,
 		SortOrder:         row.SortOrder,
+		Returnable:        row.Returnable,
 		CreatedAt:         row.CreatedAt,
 	}
 }

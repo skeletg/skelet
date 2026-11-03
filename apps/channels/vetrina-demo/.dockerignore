@@ -1,6 +1,0 @@
-# Keep the prod build context (apps/channels/vetrina-demo) lean - node_modules (~470MB)
-# and .next are rebuilt inside the image; the rest is editor/VCS noise.
-node_modules
-.next
-*.log
-.DS_Store

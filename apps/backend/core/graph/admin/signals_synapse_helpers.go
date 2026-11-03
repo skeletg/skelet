@@ -3,11 +3,8 @@ package admin
 // Converters between the Synapse contract and the admin models
 
 import (
-	"context"
 	"strings"
 	"time"
-
-	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
@@ -283,31 +280,4 @@ func synapseWindow(sinceDays *int32, def, max int32) int32 {
 		days = max
 	}
 	return days
-}
-
-// The attributes flagged for affinity tracking - a catalog flag, so core names them and the suite
-// answers with what it has seen of each
-func (r *Resolver) affinityAttributes(ctx context.Context) []*signalsv1.AffinityAttribute {
-	rows, err := r.Queries.ListSynapseTrackedAttributes(ctx)
-	if err != nil {
-		return nil
-	}
-	out := make([]*signalsv1.AffinityAttribute, 0, len(rows))
-	for _, a := range rows {
-		out = append(out, &signalsv1.AffinityAttribute{Slug: a.Slug, Name: a.Name})
-	}
-	return out
-}
-
-// The money on a segment detail is cents, and the channel it belongs to says which currency
-func (r *Resolver) segmentCurrency(ctx context.Context, channelID string) string {
-	cid, err := uuid.Parse(channelID)
-	if err != nil {
-		return ""
-	}
-	ch, err := r.ChannelSvc.GetByID(ctx, cid)
-	if err != nil {
-		return ""
-	}
-	return ch.CurrencyCode
 }

@@ -4,8 +4,8 @@
 // page commits through the product page's global "Save changes (N)" registry rather than its own mutations
 // Ops carry tempIds for entities created this session, resolved to real ids as adds complete
 
-import type { BundleInputType } from '@/graphql/schema.types'
-import { collapseOps, isTemp, type OpView } from '@/features/catalog/stagingOps'
+import type { BundleInputType, BundleStructureOpInput } from '@/graphql/schema.types'
+import { CommitError, collapseOps, isTemp, type OpView } from '@/features/catalog/stagingOps'
 import type { SectionDiffEntry } from './productSaveRegistry'
 import { added, changed, removed } from '@/shared/saving/diff'
 
@@ -16,6 +16,8 @@ export type SelectionProduct = {
   kind: string
   defaultPrice: number
   defaultCurrencyCode: string
+  // Per-store availability for the health check - absent on a pick staged from the picker until the save refetches
+  listings?: { channelId: string; isPublished: boolean; effectivePrice?: number | null; inStock: boolean }[]
 }
 
 export type Selection = {
@@ -24,6 +26,19 @@ export type Selection = {
   quantity: number
   isDefault: boolean
   sortOrder: number
+  // Made by the option's rule on read - the rule is what gets edited, not the row
+  fromRule?: boolean
+  discountPercent?: number // whole percent off this component - an add-on deal
+  customerQuantity?: boolean // the customer sets how many go in each bundle
+}
+
+// Every simple product in the category holding all the attribute values, each a selection of quantity per bundle
+export type OptionRule = { categoryId: string; attributeValueIds: string[]; quantity: number }
+
+export function ruleText(r: OptionRule | null | undefined): string {
+  if (!r) return 'none'
+  const filters = r.attributeValueIds.length ? ` · ${r.attributeValueIds.length} filter${r.attributeValueIds.length === 1 ? '' : 's'}` : ''
+  return `a category${filters} · ${r.quantity} each`
 }
 
 export type OptionContent = { locale: string; title: string }
@@ -33,12 +48,16 @@ export type BundleOption = {
   inputType: BundleInputType
   isRequired: boolean
   sortOrder: number
+  // How many picks the customer must and may make - 0 is no explicit minimum (required still means 1), null no maximum. Multi-select only
+  minSelections: number
+  maxSelections: number | null
   title: string
   content: OptionContent[]
+  rule?: OptionRule | null
   selections: Selection[]
 }
 
-export { TEMP_PREFIX, isTemp, newTempId } from '@/features/catalog/stagingOps'
+export { CommitError, TEMP_PREFIX, isTemp, newTempId } from '@/features/catalog/stagingOps'
 
 // ─── Op union ───────────────────────────────────────────────────────
 
@@ -49,7 +68,10 @@ export type AddOptionOp = {
   inputType: BundleInputType
   isRequired: boolean
   sortOrder: number
+  minSelections: number
+  maxSelections: number | null
   locale: string
+  rule?: OptionRule | null
 }
 
 export type UpdateOptionOp = {
@@ -61,6 +83,9 @@ export type UpdateOptionOp = {
   inputType?: BundleInputType
   isRequired?: boolean
   sortOrder?: number
+  minSelections?: number
+  maxSelections?: number | null // null clears the bound
+  rule?: OptionRule | null // null drops the rule
 }
 
 export type DeleteOptionOp = {
@@ -76,6 +101,8 @@ export type AddSelectionOp = {
   quantity: number
   isDefault: boolean
   sortOrder: number
+  discountPercent?: number
+  customerQuantity?: boolean
 }
 
 export type UpdateSelectionOp = {
@@ -84,11 +111,20 @@ export type UpdateSelectionOp = {
   quantity?: number
   isDefault?: boolean
   sortOrder?: number
+  discountPercent?: number
+  customerQuantity?: boolean
 }
 
 export type DeleteSelectionOp = {
   kind: 'delete-selection'
   id: string
+}
+
+// Drops one locale's title from a saved option - staged like the rest, so it shows in the save dialog and a Discard undoes it
+export type DeleteContentOp = {
+  kind: 'delete-content'
+  id: string // the option
+  locale: string
 }
 
 export type PendingOp =
@@ -98,6 +134,7 @@ export type PendingOp =
   | AddSelectionOp
   | UpdateSelectionOp
   | DeleteSelectionOp
+  | DeleteContentOp
 
 // ─── Coalescing ─────────────────────────────────────────────────────
 
@@ -144,6 +181,9 @@ export function reduceOps(ops: PendingOp[]): PendingOp[] {
     })
   })
 
+  // A translation removal on an option that is going away anyway is work the server throws out
+  result = result.filter((op) => op.kind !== 'delete-content' || !result.some((o) => o.kind === 'delete-option' && o.id === op.id))
+
   return collapseOps(result, view, {
     updates: (acc, next) =>
       ({ ...acc, ...next, id: (acc as UpdateOptionOp | UpdateSelectionOp).id }) as PendingOp,
@@ -160,6 +200,9 @@ function mergeAddWithUpdate(add: AddOptionOp | AddSelectionOp, upd: UpdateOption
       inputType: upd.inputType ?? add.inputType,
       isRequired: upd.isRequired ?? add.isRequired,
       sortOrder: upd.sortOrder ?? add.sortOrder,
+      minSelections: upd.minSelections ?? add.minSelections,
+      maxSelections: upd.maxSelections !== undefined ? upd.maxSelections : add.maxSelections,
+      rule: upd.rule !== undefined ? upd.rule : add.rule,
     }
   }
   if (add.kind === 'add-selection' && upd.kind === 'update-selection') {
@@ -168,6 +211,8 @@ function mergeAddWithUpdate(add: AddOptionOp | AddSelectionOp, upd: UpdateOption
       quantity: upd.quantity ?? add.quantity,
       isDefault: upd.isDefault ?? add.isDefault,
       sortOrder: upd.sortOrder ?? add.sortOrder,
+      discountPercent: upd.discountPercent ?? add.discountPercent,
+      customerQuantity: upd.customerQuantity ?? add.customerQuantity,
     }
   }
   // Type checker convinces itself we covered every case above
@@ -194,7 +239,10 @@ export function applyOps(original: readonly BundleOption[], ops: readonly Pendin
           inputType: op.inputType,
           isRequired: op.isRequired,
           sortOrder: op.sortOrder,
+          minSelections: op.minSelections,
+          maxSelections: op.maxSelections,
           content: [{ locale: op.locale, title: op.title }],
+          rule: op.rule ?? null,
           selections: [],
         })
         break
@@ -206,6 +254,9 @@ export function applyOps(original: readonly BundleOption[], ops: readonly Pendin
           if (op.inputType !== undefined) next.inputType = op.inputType
           if (op.isRequired !== undefined) next.isRequired = op.isRequired
           if (op.sortOrder !== undefined) next.sortOrder = op.sortOrder
+          if (op.minSelections !== undefined) next.minSelections = op.minSelections
+          if (op.maxSelections !== undefined) next.maxSelections = op.maxSelections
+          if (op.rule !== undefined) next.rule = op.rule
           if (op.title !== undefined && op.titleLocale) {
             const locale = op.titleLocale
             const existing = next.content.findIndex((c) => c.locale === locale)
@@ -222,6 +273,9 @@ export function applyOps(original: readonly BundleOption[], ops: readonly Pendin
         break
       case 'delete-option':
         opts = opts.filter((o) => o.id !== op.id)
+        break
+      case 'delete-content':
+        opts = opts.map((o) => (o.id === op.id ? { ...o, content: o.content.filter((c) => c.locale !== op.locale) } : o))
         break
       case 'add-selection':
         opts = opts.map((o) => {
@@ -250,6 +304,8 @@ export function applyOps(original: readonly BundleOption[], ops: readonly Pendin
             if (op.quantity !== undefined) next.quantity = op.quantity
             if (op.isDefault !== undefined) next.isDefault = op.isDefault
             if (op.sortOrder !== undefined) next.sortOrder = op.sortOrder
+            if (op.discountPercent !== undefined) next.discountPercent = op.discountPercent
+            if (op.customerQuantity !== undefined) next.customerQuantity = op.customerQuantity
             return next
           }),
         }))
@@ -268,6 +324,16 @@ export function applyOps(original: readonly BundleOption[], ops: readonly Pendin
 // ─── Diff for the save-registry ─────────────────────────────────────
 
 // One row per surviving op, with before/after strings in plain English for SaveConfirmDialog
+// A pick limit for display - 0 or null is no limit
+export function selectionLimitText(min: number, max: number | null): string | null {
+  if (min > 0 && max !== null) return min === max ? `pick ${min}` : `pick ${min}–${max}`
+  if (min > 0) return `pick ${min}+`
+  if (max !== null) return `up to ${max}`
+  return null
+}
+
+const limitText = (max: number | null | undefined) => (max === undefined ? undefined : (max ?? 'no limit'))
+
 export function opsToDiff(original: readonly BundleOption[], ops: readonly PendingOp[]): SectionDiffEntry[] {
   const byId = new Map(original.map((o) => [o.id, o]))
   const selById = new Map<string, { option: BundleOption; selection: Selection }>()
@@ -278,7 +344,10 @@ export function opsToDiff(original: readonly BundleOption[], ops: readonly Pendi
   return ops.flatMap((op): SectionDiffEntry[] => {
     switch (op.kind) {
       case 'add-option':
-        return [added(`Option · ${op.title}`, `${op.inputType.toLowerCase()}${op.isRequired ? ' · required' : ''}`)]
+        return [added(
+          `Option · ${op.title}`,
+          [op.inputType.toLowerCase(), op.isRequired && 'required', selectionLimitText(op.minSelections, op.maxSelections)].filter(Boolean).join(' · '),
+        )]
       case 'update-option': {
         const prev = byId.get(op.id)
         const label = `Option · ${prev?.title ?? op.id}`
@@ -291,11 +360,18 @@ export function opsToDiff(original: readonly BundleOption[], ops: readonly Pendi
         if (op.inputType !== undefined) push('style', prev?.inputType.toLowerCase(), op.inputType.toLowerCase())
         if (op.isRequired !== undefined) push('required', prev?.isRequired, op.isRequired)
         if (op.sortOrder !== undefined) push('order', prev?.sortOrder, op.sortOrder)
+        if (op.minSelections !== undefined) push('at least', prev?.minSelections, op.minSelections)
+        if (op.maxSelections !== undefined) push('at most', limitText(prev?.maxSelections), limitText(op.maxSelections))
+        if (op.rule !== undefined) push('fill from', ruleText(prev?.rule), ruleText(op.rule))
         return rows
       }
       case 'delete-option': {
         const prev = byId.get(op.id)
         return [removed(`Option · ${prev?.title ?? op.id}`, prev ? `${prev.selections.length} selection(s)` : undefined)]
+      }
+      case 'delete-content': {
+        const prev = byId.get(op.id)
+        return [removed(`Option · ${prev?.title ?? op.id} · ${op.locale} title`, prev?.content.find((c) => c.locale === op.locale)?.title)]
       }
       case 'add-selection':
         return [added(`Selection · ${op.product.name ?? op.product.sku ?? ''}`, `qty ${op.quantity}${op.isDefault ? ' · default' : ''}`)]
@@ -310,6 +386,8 @@ export function opsToDiff(original: readonly BundleOption[], ops: readonly Pendi
         if (op.quantity !== undefined) push('qty', prev?.selection.quantity, op.quantity)
         if (op.isDefault !== undefined) push('default', prev?.selection.isDefault, op.isDefault)
         if (op.sortOrder !== undefined) push('order', prev?.selection.sortOrder, op.sortOrder)
+        if (op.discountPercent !== undefined) push('% off', prev?.selection.discountPercent ?? 0, op.discountPercent)
+        if (op.customerQuantity !== undefined) push('customer sets qty', prev?.selection.customerQuantity ?? false, op.customerQuantity)
         return rows
       }
       case 'delete-selection': {
@@ -329,13 +407,14 @@ export type Committers = {
   updateOption: (op: UpdateOptionOp) => Promise<void>
   upsertOptionContent: (op: { optionId: string; locale: string; title: string }) => Promise<void>
   deleteOption: (op: { id: string }) => Promise<void>
+  deleteOptionContent: (op: { optionId: string; locale: string }) => Promise<void>
   addSelection: (op: AddSelectionOp) => Promise<string>
   updateSelection: (op: UpdateSelectionOp) => Promise<void>
   deleteSelection: (op: { id: string }) => Promise<void>
 }
 
 // Builds the tempId -> realId map incrementally, so a later op referencing an added entity writes to the right row - An error aborts the
-// loop and propagates to the parent's global save handler - ops that already succeeded are NOT rolled back, they're dropped before retry
+// loop with a CommitError - ops that already succeeded are NOT rolled back, the section drops them so a retry doesn't repeat them
 export async function commitOps(
   ops: readonly PendingOp[],
   productId: string,
@@ -344,50 +423,145 @@ export async function commitOps(
   const idMap = new Map<string, string>()
   const resolve = (id: string) => idMap.get(id) ?? id
 
-  for (const op of ops) {
-    switch (op.kind) {
-      case 'add-option': {
-        const realId = await committers.addOption({ ...op, productId })
-        idMap.set(op.tempId, realId)
-        break
-      }
-      case 'update-option': {
-        const id = resolve(op.id)
-        await committers.updateOption({ ...op, id })
-        if (op.title !== undefined && op.titleLocale) {
-          await committers.upsertOptionContent({
-            optionId: id,
-            locale: op.titleLocale,
-            title: op.title,
-          })
-        }
-        break
-      }
-      case 'delete-option': {
-        const id = resolve(op.id)
-        if (isTemp(id)) break // never made it to the server
-        await committers.deleteOption({ id })
-        break
-      }
-      case 'add-selection': {
-        const optionId = resolve(op.optionRef)
-        const realId = await committers.addSelection({ ...op, optionRef: optionId })
-        idMap.set(op.tempId, realId)
-        break
-      }
-      case 'update-selection': {
-        const id = resolve(op.id)
-        await committers.updateSelection({ ...op, id })
-        break
-      }
-      case 'delete-selection': {
-        const id = resolve(op.id)
-        if (isTemp(id)) break
-        await committers.deleteSelection({ id })
-        break
-      }
+  for (let i = 0; i < ops.length; i++) {
+    try {
+      await commitOne(ops[i], productId, committers, idMap, resolve)
+    } catch (err) {
+      const remaining = ops.slice(i).map((o): PendingOp => {
+        if (o.kind === 'add-option') return o
+        if (o.kind === 'add-selection') return { ...o, optionRef: resolve(o.optionRef) }
+        return { ...o, id: resolve(o.id) }
+      })
+      throw new CommitError(err, remaining)
     }
   }
 
   return { idMap }
+}
+
+async function commitOne(
+  op: PendingOp,
+  productId: string,
+  committers: Committers,
+  idMap: Map<string, string>,
+  resolve: (id: string) => string,
+): Promise<void> {
+  switch (op.kind) {
+    case 'add-option': {
+      const realId = await committers.addOption({ ...op, productId })
+      idMap.set(op.tempId, realId)
+      break
+    }
+    case 'update-option': {
+      const id = resolve(op.id)
+      await committers.updateOption({ ...op, id })
+      if (op.title !== undefined && op.titleLocale) {
+        await committers.upsertOptionContent({
+          optionId: id,
+          locale: op.titleLocale,
+          title: op.title,
+        })
+      }
+      break
+    }
+    case 'delete-option': {
+      const id = resolve(op.id)
+      if (isTemp(id)) break // never made it to the server
+      await committers.deleteOption({ id })
+      break
+    }
+    case 'add-selection': {
+      const optionId = resolve(op.optionRef)
+      const realId = await committers.addSelection({ ...op, optionRef: optionId })
+      idMap.set(op.tempId, realId)
+      break
+    }
+    case 'update-selection': {
+      const id = resolve(op.id)
+      await committers.updateSelection({ ...op, id })
+      break
+    }
+    case 'delete-selection': {
+      const id = resolve(op.id)
+      if (isTemp(id)) break
+      await committers.deleteSelection({ id })
+      break
+    }
+    case 'delete-content': {
+      const id = resolve(op.id)
+      if (isTemp(id)) break
+      await committers.deleteOptionContent({ optionId: id, locale: op.locale })
+      break
+    }
+  }
+}
+
+// The reduced queue as one setBundleStructure call - the server runs it in order in a single transaction, resolving each
+// tempId to what the add before it created, so a failure leaves nothing half-saved and the whole queue stays for a retry
+export function toStructureOps(ops: readonly PendingOp[], productId: string): BundleStructureOpInput[] {
+  const out: BundleStructureOpInput[] = []
+  for (const op of ops) {
+    switch (op.kind) {
+      case 'add-option':
+        out.push({
+          tempId: op.tempId,
+          addOption: {
+            productId,
+            inputType: op.inputType,
+            isRequired: op.isRequired,
+            sortOrder: op.sortOrder,
+            minSelections: op.minSelections,
+            ...(op.maxSelections !== null ? { maxSelections: op.maxSelections } : {}),
+            locale: op.locale,
+            title: op.title,
+          },
+        })
+        if (op.rule) out.push({ setRule: ruleInput(op.tempId, op.rule) })
+        break
+      case 'update-option': {
+        const u: NonNullable<BundleStructureOpInput['updateOption']> = { id: op.id }
+        if (op.inputType !== undefined) u.inputType = op.inputType
+        if (op.isRequired !== undefined) u.isRequired = op.isRequired
+        if (op.sortOrder !== undefined) u.sortOrder = op.sortOrder
+        if (op.minSelections !== undefined) u.minSelections = op.minSelections
+        if (op.maxSelections === null) u.clearMaxSelections = true
+        else if (op.maxSelections !== undefined) u.maxSelections = op.maxSelections
+        if (Object.keys(u).length > 1) out.push({ updateOption: u })
+        if (op.title !== undefined && op.titleLocale) out.push({ upsertContent: { optionId: op.id, locale: op.titleLocale, title: op.title } })
+        if (op.rule !== undefined) out.push({ setRule: ruleInput(op.id, op.rule) })
+        break
+      }
+      case 'delete-option':
+        if (!isTemp(op.id)) out.push({ deleteOption: op.id })
+        break
+      case 'delete-content':
+        if (!isTemp(op.id)) out.push({ deleteContent: { optionId: op.id, locale: op.locale } })
+        break
+      case 'add-selection':
+        out.push({
+          tempId: op.tempId,
+          addSelection: {
+            optionId: op.optionRef, productId: op.product.id, quantity: op.quantity, isDefault: op.isDefault, sortOrder: op.sortOrder,
+            discountPercent: op.discountPercent, customerQuantity: op.customerQuantity,
+          },
+        })
+        break
+      case 'update-selection':
+        out.push({
+          updateSelection: {
+            id: op.id, quantity: op.quantity, isDefault: op.isDefault, sortOrder: op.sortOrder,
+            discountPercent: op.discountPercent, customerQuantity: op.customerQuantity,
+          },
+        })
+        break
+      case 'delete-selection':
+        if (!isTemp(op.id)) out.push({ deleteSelection: op.id })
+        break
+    }
+  }
+  return out
+}
+
+function ruleInput(optionId: string, r: OptionRule | null): NonNullable<BundleStructureOpInput['setRule']> {
+  return r ? { optionId, categoryId: r.categoryId, attributeValueIds: r.attributeValueIds, quantity: r.quantity } : { optionId, categoryId: null }
 }

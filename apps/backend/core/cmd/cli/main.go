@@ -9,7 +9,7 @@ import (
 	pluginhost "github.com/skeletg/skelet/apps/backend/core/internal/plugin"
 	"github.com/spf13/cobra"
 
-	_ "github.com/skeletg/skelet/apps/backend/core/plugins/firstparty" // the same set cmd/server ships, so `bin/cli config list|set` sees every plugin's config paths and permissions
+	_ "github.com/skeletg/skelet/apps/backend/core/plugins/firstparty" // the same set cmd/server ships, so `skelet cli config list|set` sees every plugin's config paths and permissions
 )
 
 var rootCmd = &cobra.Command{
