@@ -32,6 +32,7 @@ export async function getConsentMode(channelId: string): Promise<ConsentMode> {
     cache.set(channelId, { at: Date.now(), value });
     return value;
   } catch {
-    return "opt_in";
+    // Keep the last good answer - flipping an opt-out shop to opt-in would delete every visitor's store-set consent
+    return cached?.value ?? "opt_in";
   }
 }
