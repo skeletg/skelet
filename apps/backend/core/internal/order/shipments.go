@@ -94,7 +94,7 @@ func (s *Service) priceShipments(ctx context.Context, cc *checkoutContext, shipm
 		req := shippingpkg.RateRequest{ChannelID: cc.store.ID, CurrencyCode: cc.store.CurrencyCode}
 		for _, sl := range sh.Lines {
 			l := cc.cart.Lines[byID[sl.CartLineID]]
-			req.Items = append(req.Items, shippingpkg.RateItem{SKU: l.ProductSku, Quantity: l.Quantity, UnitPriceCents: l.UnitPrice})
+			req.Items = append(req.Items, shippingpkg.LineItems(shippingpkg.RateItem{SKU: l.ProductSku, Quantity: l.Quantity, UnitPriceCents: l.UnitPrice}, l.Quantity, cartLineParts(l))...)
 		}
 		req.SubtotalCents = groupSubtotal(groupSub[sh.GroupKey], cc.subtotal, discount)
 		if sh.ShipTo != nil {

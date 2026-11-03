@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"slices"
 	"strings"
 
 	"github.com/99designs/gqlgen/graphql"
@@ -40,8 +41,8 @@ func (r *productResolver) salableFor(ctx context.Context, productID, channelID u
 	return r.InventorySvc.Salable(ctx, productID, channelID)
 }
 
-// A wrapper carries no inventory_items row, so this aggregates children: configurable/grouped are in stock when ANY child is sellable, a bundle only when EVERY required option has a sellable selection (optional options don't gate)
-// No children means out of stock, and every child row counts even ones unpublished on this store - an over-approximation that errs toward showing the parent available
+// A wrapper carries no inventory_items row, so this aggregates children: configurable/grouped are in stock when ANY child is sellable, a bundle only when every option can meet its minimum from selections sellable and listed here
+// No children means out of stock - a grouped member, like a bundle pick, only counts when this store sells it, while every configurable child row counts even unpublished ones, an over-approximation that errs toward showing the parent available
 func (r *productResolver) wrapperInStock(ctx context.Context, kind model.ProductKind, pid, channelID uuid.UUID) (bool, error) {
 	switch kind {
 	case model.ProductKindConfigurable:
@@ -64,6 +65,12 @@ func (r *productResolver) wrapperInStock(ctx context.Context, kind model.Product
 		for i, m := range members {
 			ids[i] = m.MemberID
 		}
+		// Only a member this store sells can make the group buyable here, the rule bundles follow
+		listed, err := r.CatalogSvc.FilterVisibleProductIDsForChannel(ctx, ids, channelID)
+		if err != nil {
+			return false, err
+		}
+		ids = slices.DeleteFunc(ids, func(id uuid.UUID) bool { _, ok := listed[id]; return !ok })
 		sellable, err := r.sellableByIDs(ctx, ids, channelID)
 		if err != nil {
 			return false, err
@@ -77,8 +84,7 @@ func (r *productResolver) wrapperInStock(ctx context.Context, kind model.Product
 			return false, err
 		}
 		if len(comps) == 0 {
-			// No components = nothing to gate, same as an untracked simple
-			return true, nil
+			return false, nil // an empty kit can't be added, same as a bundle with nothing to pick
 		}
 		ids := make([]uuid.UUID, len(comps))
 		for i, c := range comps {
@@ -95,7 +101,7 @@ func (r *productResolver) wrapperInStock(ctx context.Context, kind model.Product
 		if err != nil {
 			return false, err
 		}
-		// One batched lookup over every selection, then each required option has to hold a sellable one
+		// One batched lookup over every selection - a pick has to be both sellable and listed on this store, each option needs as many of those as add-to-cart demands, and the bundle as a whole needs at least one, since an empty bundle can't be added
 		ids := make([]uuid.UUID, 0, len(opts))
 		for _, opt := range opts {
 			for _, sel := range opt.Selections {
@@ -106,24 +112,38 @@ func (r *productResolver) wrapperInStock(ctx context.Context, kind model.Product
 		if err != nil {
 			return false, err
 		}
-		for _, opt := range opts {
-			if !opt.IsRequired {
-				continue
-			}
-			ok := false
-			for _, sel := range opt.Selections {
-				if sellable[sel.ProductID] {
-					ok = true
-					break
-				}
-			}
-			if !ok {
-				return false, nil
-			}
+		listed, err := r.CatalogSvc.FilterVisibleProductIDsForChannel(ctx, ids, channelID)
+		if err != nil {
+			return false, err
 		}
-		return true, nil
+		return bundleBuyable(opts, func(id uuid.UUID) bool {
+			_, ok := listed[id]
+			return ok && sellable[id]
+		}), nil
 	}
 	return true, nil
+}
+
+// Whether a customer could add the bundle at all, given which selection products they could buy - add-to-cart's rules: each option needs its minimum (1 when required), and the bundle needs at least one pick overall
+func bundleBuyable(opts []catalog.BundleOption, canBuy func(uuid.UUID) bool) bool {
+	buyable := false
+	for _, opt := range opts {
+		need := opt.MinSelections
+		if opt.IsRequired && need < 1 {
+			need = 1
+		}
+		var have int32
+		for _, sel := range opt.Selections {
+			if canBuy(sel.ProductID) {
+				have++
+			}
+		}
+		if have < need {
+			return false
+		}
+		buyable = buyable || have > 0
+	}
+	return buyable
 }
 
 // Mirrors the simple branch of InStock over a batched salable lookup - salable<0 (untracked sentinel) or >0 is sellable, and exactly zero falls back to the item's backorderable flag
@@ -752,28 +772,35 @@ func toBundleOptionModels(opts []catalog.BundleOption) []*model.BundleOption {
 				Price:               int32(s.ProductDefaultPrice),
 				DefaultCurrencyCode: s.ProductCurrency,
 			}
+			if s.ProductKind == catalog.KindConfigurable {
+				prod.Kind = model.ProductKindConfigurable // the storefront offers its variants to pick from
+			}
 			if s.ProductName != "" {
 				name := s.ProductName
 				prod.Name = &name
 			}
 			sels[j] = &model.BundleSelection{
-				ID:        s.ID.String(),
-				Product:   prod,
-				Quantity:  s.Quantity,
-				IsDefault: s.IsDefault,
-				SortOrder: s.SortOrder,
+				ID:               s.ID.String(),
+				Product:          prod,
+				Quantity:         s.Quantity,
+				IsDefault:        s.IsDefault,
+				SortOrder:        s.SortOrder,
+				DiscountPercent:  int32(s.DiscountPercent),
+				CustomerQuantity: s.CustomerQuantity,
 			}
 		}
 		out[i] = &model.BundleOption{
-			ID:         o.ID.String(),
-			InputType:  model.BundleInputType(strings.ToUpper(string(o.InputType))),
-			IsRequired: o.IsRequired,
-			SortOrder:  o.SortOrder,
-			Title:      o.Title,
-			Content:    content,
-			Selections: sels,
-			CreatedAt:  o.CreatedAt,
-			UpdatedAt:  o.UpdatedAt,
+			ID:            o.ID.String(),
+			InputType:     model.BundleInputType(strings.ToUpper(string(o.InputType))),
+			IsRequired:    o.IsRequired,
+			SortOrder:     o.SortOrder,
+			MinSelections: o.MinSelections,
+			MaxSelections: o.MaxSelections,
+			Title:         o.Title,
+			Content:       content,
+			Selections:    sels,
+			CreatedAt:     o.CreatedAt,
+			UpdatedAt:     o.UpdatedAt,
 		}
 	}
 	return out

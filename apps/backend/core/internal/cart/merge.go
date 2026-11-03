@@ -77,6 +77,9 @@ func (s *Service) MergeGuestCart(ctx context.Context, customerID, guestCartID uu
 		if err := copyLines(ctx, r, cc.ID, guestLines); err != nil {
 			return err
 		}
+		if err := r.CarryHandoffRedemptions(ctx, guest.ID, cc.ID); err != nil {
+			return err
+		}
 		saved, err := r.ListSavedItems(ctx, guest.ID) // saved-for-later comes along too - the adoption path keeps them via the same cart_id, but merging into an existing cart would drop them when the guest cart is tombstoned; the upsert dedupes by (cart_id, sku)
 		if err != nil {
 			return err
@@ -125,13 +128,13 @@ func copyLines(ctx context.Context, r Repository, destID uuid.UUID, lines []Cart
 	snapshotted := make(map[string]bool)
 	for _, el := range existing {
 		if len(el.Options) > 0 || len(el.Components) > 0 {
-			snapshotted[el.ProductSku] = true
+			snapshotted[el.ProductSku+"\x00"+el.ConfigKey] = true
 		} else {
 			plain[el.ProductSku] = true
 		}
 	}
 	for _, l := range lines {
-		if snapshotted[l.ProductSku] {
+		if snapshotted[l.ProductSku+"\x00"+l.ConfigKey] {
 			continue
 		}
 		var err error
@@ -146,6 +149,8 @@ func copyLines(ctx context.Context, r Repository, destID uuid.UUID, lines []Cart
 				UnitPrice:   l.UnitPrice,
 				Quantity:    l.Quantity,
 				Components:  componentInputs(l.Components),
+				HookPriced:  l.BundleHookPriced,
+				ConfigKey:   l.ConfigKey,
 			})
 		case len(l.Options) > 0:
 			if plain[l.ProductSku] {

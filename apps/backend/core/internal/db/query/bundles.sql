@@ -53,9 +53,9 @@ WHERE option_id = $1 AND locale = $2;
 
 -- name: CreateBundleSelection :one
 INSERT INTO catalog_product_bundle_selections (
-    option_id, product_id, quantity, is_default, sort_order
+    option_id, product_id, quantity, is_default, sort_order, discount_percent, customer_quantity
 )
-VALUES ($1, $2, $3, $4, $5)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
 -- name: GetBundleSelectionByID :one
@@ -72,9 +72,11 @@ WHERE option_id = $1 AND is_default = TRUE;
 
 -- name: UpdateBundleSelection :one
 UPDATE catalog_product_bundle_selections
-SET quantity   = $2,
-    is_default = $3,
-    sort_order = $4
+SET quantity          = $2,
+    is_default        = $3,
+    sort_order        = $4,
+    discount_percent  = $5,
+    customer_quantity = $6
 WHERE id = $1
 RETURNING *;
 
@@ -89,3 +91,13 @@ FROM catalog_product_bundle_selections s
 JOIN catalog_product_bundle_options o ON o.id = s.option_id
 WHERE s.product_id = ANY(sqlc.arg(product_ids)::uuid[])
 ORDER BY s.product_id, o.sort_order, s.sort_order;
+
+-- name: SetBundleOptionRule :one
+-- A null category drops the rule
+UPDATE catalog_product_bundle_options
+SET rule_category_id         = sqlc.narg(rule_category_id),
+    rule_attribute_value_ids = sqlc.arg(rule_attribute_value_ids)::uuid[],
+    rule_quantity            = sqlc.arg(rule_quantity),
+    updated_at               = NOW()
+WHERE id = sqlc.arg(id)
+RETURNING *;

@@ -37,7 +37,7 @@ func enrollerAgainst(t *testing.T, fake enrollAnswer) *Enroller {
 	signalsv1.RegisterFlowServiceServer(srv, fake)
 	go func() { _ = srv.Serve(ln) }()
 	t.Cleanup(srv.Stop)
-	c, err := signalsclient.New(ln.Addr().String(), auth.MustServiceKeys("test-secret"), time.Minute, nil)
+	c, err := signalsclient.New(ln.Addr().String(), signalsclient.Transport{}, auth.MustServiceKeys("test-secret"), time.Minute, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -148,8 +148,8 @@ func (s *Service) onCartBundleAdding(ctx context.Context, e events.Event) error 
 	if !ok {
 		return nil
 	}
-	// Guard the bundle parent SKU - component availability is enforced at placement
-	return s.guardCartStock(ctx, ev.ChannelID, ev.ProductSku, qtyOrOne(ev.Quantity))
+	// The bundle SKU holds no stock, so its components are what can run out - placement still reserves them for real
+	return s.guardCartLine(ctx, ev.ChannelID, ev.ProductSku, qtyOrOne(ev.Quantity), ev.StockParts)
 }
 
 func (s *Service) onCartLineUpdating(ctx context.Context, e events.Event) error {
@@ -204,6 +204,15 @@ func (s *Service) guardCartStock(ctx context.Context, channelID uuid.UUID, sku s
 	productID, err := s.products.GetProductIDBySKU(ctx, sku)
 	if err != nil {
 		return nil // not a catalog product we can resolve → don't gate
+	}
+	// A kit owns no stock, so its components are what can run out - a lookup failure fails open here, placement still reserves fail-closed
+	if comps, err := s.products.KitComponents(ctx, productID); err == nil && len(comps) > 0 {
+		for _, c := range comps {
+			if err := s.guardProductStock(ctx, channelID, c.ProductID, qty*c.Quantity); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	return s.guardProductStock(ctx, channelID, productID, qty)
 }
@@ -425,7 +434,7 @@ func (s *Service) onReturnReceived(ctx context.Context, e events.Event) error {
 	}
 	lines := make([]RestockLineQty, len(evt.Lines))
 	for i, l := range evt.Lines {
-		lines[i] = RestockLineQty{OrderLineID: l.OrderLineID, Quantity: l.Quantity}
+		lines[i] = RestockLineQty{OrderLineID: l.OrderLineID, Quantity: l.Quantity, ProductID: l.ProductID}
 	}
 	op := func(ctx context.Context) error { return s.RestockReturn(ctx, evt.OrderID, evt.ReturnID, lines) }
 	if err := retryWithBackoff(ctx, 5, 100*time.Millisecond, op); err != nil {

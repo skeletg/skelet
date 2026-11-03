@@ -12,16 +12,28 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 )
 
+type AddBundleQuantityInput struct {
+	SelectionID string  `json:"selectionId"`
+	Quantity    float64 `json:"quantity"`
+}
+
 type AddBundleToCartInput struct {
 	CartID     string                           `json:"cartId"`
 	Sku        string                           `json:"sku"`
 	Quantity   float64                          `json:"quantity"`
 	Selections []*AddBundleToCartSelectionInput `json:"selections"`
+	Variants   []*AddBundleVariantPickInput     `json:"variants,omitempty"`
+	Quantities []*AddBundleQuantityInput        `json:"quantities,omitempty"`
 }
 
 type AddBundleToCartSelectionInput struct {
 	OptionID     string   `json:"optionId"`
 	SelectionIds []string `json:"selectionIds"`
+}
+
+type AddBundleVariantPickInput struct {
+	SelectionID string `json:"selectionId"`
+	VariantID   string `json:"variantId"`
 }
 
 type AddConfiguredToCartInput struct {
@@ -185,6 +197,11 @@ type CartGiftCard struct {
 	Code         string `json:"code"`
 	AppliedCents int32  `json:"appliedCents"`
 	BalanceCents int32  `json:"balanceCents"`
+}
+
+type CartHandoffRedemption struct {
+	Cart      *Cart `json:"cart"`
+	GuestCart bool  `json:"guestCart"`
 }
 
 type CartLine struct {
@@ -374,6 +391,15 @@ type GiftCardBalance struct {
 	BalanceCents int32  `json:"balanceCents"`
 	CurrencyCode string `json:"currencyCode"`
 	Active       bool   `json:"active"`
+}
+
+type KitItem struct {
+	ID        string  `json:"id"`
+	Sku       string  `json:"sku"`
+	Name      *string `json:"name,omitempty"`
+	URL       string  `json:"url"`
+	Quantity  float64 `json:"quantity"`
+	SortOrder int32   `json:"sortOrder"`
 }
 
 type LoyaltyRedeemResult struct {

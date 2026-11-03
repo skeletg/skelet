@@ -84,7 +84,7 @@ func (r *mutationResolver) Reorder(ctx context.Context, orderID string) (*model1
 	for _, line := range o.Lines {
 		var addErr error
 		switch {
-		case len(line.Components) > 0:
+		case line.IsBundle():
 			_, addErr = r.CartSvc.AddBundleToCart(ctx, cid, &claims.CustomerID, reorderBundleInput(line))
 		case len(line.Options) > 0:
 			_, addErr = r.CartSvc.AddConfiguredToCart(ctx, cid, &claims.CustomerID, reorderConfiguredInput(line))
@@ -130,11 +130,19 @@ func (r *mutationResolver) RequestReturn(ctx context.Context, input model.Reques
 		if err != nil {
 			return nil, invalidID("order line")
 		}
-		lines = append(lines, order.ReturnLineInput{
+		li := order.ReturnLineInput{
 			OrderLineID: olID,
 			Quantity:    l.Quantity,
 			Reason:      ptr.Deref(l.Reason),
-		})
+		}
+		if l.ComponentID != nil {
+			cid, err := uuid.Parse(*l.ComponentID)
+			if err != nil {
+				return nil, invalidID("component")
+			}
+			li.ComponentID = &cid
+		}
+		lines = append(lines, li)
 	}
 	ret, err := r.OrderSvc.RequestReturn(ctx, order.RequestReturnInput{
 		OrderID:      oid,

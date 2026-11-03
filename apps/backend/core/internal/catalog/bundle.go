@@ -42,9 +42,11 @@ type BundleOption struct { // one "option group" on a bundle product - a single 
 	MaxSelections *int32 // nil = unbounded - single-select ignores it
 	Title         string // resolved to the active request locale with a default-locale fallback - empty when no content row exists
 	AllContent    []BundleOptionContent
-	Selections    []BundleSelection
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	// Fills the option from a category on top of Selections - nil when it has none
+	Rule       *BundleOptionRule
+	Selections []BundleSelection
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 type BundleOptionContent struct {
@@ -52,7 +54,7 @@ type BundleOptionContent struct {
 	Title  string
 }
 
-type BundleSelection struct { // one SIMPLE product filling an option's menu
+type BundleSelection struct { // one SIMPLE product filling an option's menu, or a CONFIGURABLE whose variant the customer picks
 	ID                  uuid.UUID
 	OptionID            uuid.UUID
 	ProductID           uuid.UUID
@@ -64,7 +66,21 @@ type BundleSelection struct { // one SIMPLE product filling an option's menu
 	ProductName         string
 	ProductDefaultPrice int64
 	ProductCurrency     string
+	ProductKind         ProductKind
+	FromRule            bool  // made by the option's rule when read, not a stored row - edit the rule, not the selection
+	DiscountPercent     int16 // whole percent off this component's price - an add-on deal
+	CustomerQuantity    bool  // the customer sets how many go in each bundle, Quantity being where it starts
 }
+
+// Every SIMPLE product in the category that has all the attribute values, each as a selection of Quantity per bundle
+type BundleOptionRule struct {
+	CategoryID        uuid.UUID
+	AttributeValueIDs []uuid.UUID
+	Quantity          float64
+}
+
+// shortcut: a rule fills at most this many selections, raise it or page the picker if a category outgrows it
+const bundleRuleLimit = 200
 
 type AddBundleOptionInput struct {
 	ProductID     uuid.UUID
@@ -94,23 +110,30 @@ type UpsertBundleOptionContentInput struct {
 }
 
 type AddBundleSelectionInput struct {
-	OptionID  uuid.UUID
-	ProductID uuid.UUID
-	Quantity  float64
-	IsDefault bool
-	SortOrder int32
+	OptionID         uuid.UUID
+	ProductID        uuid.UUID
+	Quantity         float64
+	IsDefault        bool
+	SortOrder        int32
+	DiscountPercent  int16
+	CustomerQuantity bool
 }
 
 type UpdateBundleSelectionInput struct {
-	ID        uuid.UUID
-	Quantity  *float64
-	IsDefault *bool
-	SortOrder *int32
+	ID               uuid.UUID
+	Quantity         *float64
+	IsDefault        *bool
+	SortOrder        *int32
+	DiscountPercent  *int16
+	CustomerQuantity *bool
 }
 
 var (
-	ErrBundleParentNotBundle      = errors.New("bundle options can only be defined on products of kind BUNDLE")
-	ErrBundleSelectionNotSimple   = errors.New("bundle selections must reference SIMPLE products")
+	ErrBundleParentNotBundle    = errors.New("bundle options can only be defined on products of kind BUNDLE")
+	ErrBundleSelectionNotSimple = errors.New("bundle selections must reference SIMPLE or CONFIGURABLE products")
+	// The customer picks a configurable selection's variant at add-to-cart, so there is nothing to pre-pick
+	ErrBundleSelectionDiscount    = errors.New("a bundle selection's discount must be 0-100 percent")
+	ErrBundleConfigurableDefault  = errors.New("a configurable bundle selection can't be a default - the customer picks its variant")
 	ErrBundleSelectionIsParent    = errors.New("a bundle cannot include itself as a selection")
 	ErrBundleOptionNotFound       = errors.New("bundle option not found")
 	ErrBundleSelectionNotFound    = errors.New("bundle selection not found")

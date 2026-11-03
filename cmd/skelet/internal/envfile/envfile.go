@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -62,6 +63,35 @@ func Del(path, key string) error {
 		}
 	}
 	return write(path, kept, mode)
+}
+
+var keyName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// Pairs reads every KEY=value in file order, the way a dotenv reader does rather than a shell: no expansion, an
+// export prefix and matching quotes dropped, and a " #" ending an unquoted value. A missing file has none
+func Pairs(path string) ([]string, error) {
+	lines, _, err := read(path)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, l := range lines {
+		l = strings.TrimSpace(l)
+		if l == "" || strings.HasPrefix(l, "#") {
+			continue
+		}
+		key, val, ok := strings.Cut(strings.TrimPrefix(l, "export "), "=")
+		if !ok || !keyName.MatchString(key) {
+			continue
+		}
+		if len(val) >= 2 && (val[0] == '"' || val[0] == '\'') && val[len(val)-1] == val[0] {
+			val = val[1 : len(val)-1]
+		} else if i := strings.Index(val, " #"); i >= 0 {
+			val = strings.TrimSpace(val[:i])
+		}
+		out = append(out, key+"="+val)
+	}
+	return out, nil
 }
 
 func liveValue(line, key string) (string, bool) {

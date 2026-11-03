@@ -21,9 +21,9 @@ most a one-line hint. Everything that needs a paragraph lives here.
 | `db.env.example` | `db.env` | the dev Postgres container |
 | `prod.env.example` | `prod.env` | `app`, `worker`, `media`, `signals`, `ingest`, `migrate` - one shared file |
 | `prod-signals.env.example` | `prod-signals.env` | `signals` only, on top of `prod.env` - the retention archive's bucket and `CORE_FRONT_API_URL`; optional |
-| `prod-vetrina-demo.env.example` | `prod-vetrina-demo.env` | the storefront container |
+| `prod-nextjs-vetrina.env.example` | `prod-nextjs-vetrina.env` | the storefront container |
 | `small.env.example` | `small.env` | the single app container in the small profile |
-| `small-vetrina-demo.env.example` | `small-vetrina-demo.env` | its storefront container |
+| `small-nextjs-vetrina.env.example` | `small-nextjs-vetrina.env` | its storefront container |
 | `prod-caddy.env.example` | `prod-caddy.env` | the opt-in Caddy edge (`--profile edge`), in both prod and small |
 
 The two `small.*` files belong to `docker-compose.small.yml`, the
@@ -68,6 +68,15 @@ come from the root `.env` via compose, so they aren't written twice either.
 One gotcha on a machine that runs both stacks: the root `.env` is shared
 between `docker-compose.yml` and `docker-compose.prod.yml`, so dev values
 there apply to prod commands too.
+
+It also says what the clone is for, which `skelet setup` writes and every
+`skelet` command reads - there's no separate settings file:
+
+| Variable | Holds |
+| --- | --- |
+| `SKELET_TARGET` | `dev`, `small` or `prod` - which stack this clone runs |
+| `SKELET_APPS` | the frontends this clone runs, wherever they run |
+| `COMPOSE_PROFILES` | what compose starts. On dev: the apps in Docker, the dev tools and the sidecars `skelet up` adds, so a bare `docker compose up` starts the same stack. On a server: `bundled` and the storefront it serves |
 
 ### Dev host ports
 
@@ -170,12 +179,25 @@ minutes, so the previous value can go once both sides run the new one.
 
 ### The Signals connection
 
-Core calls the suite over gRPC in plaintext. Every call carries a short-lived
-bearer token and customer data, so keep the link on a network nothing else can
-see: one compose network on one host is that by default. When core and Signals
-run on different machines, encrypt the network underneath - a WireGuard or
-Tailscale overlay between the hosts, or a service mesh on Kubernetes - rather
-than leaving the traffic on a shared or public network.
+Core calls the suite over gRPC, and every call carries a short-lived bearer
+token and customer data, so the link has to stay private. It's plaintext by
+default, which is fine on one compose network on one host. When core and Signals
+run on different machines, either encrypt the network underneath - a WireGuard
+or Tailscale overlay between the hosts, or a service mesh on Kubernetes - or put
+TLS on the contract itself:
+
+| Variable | File | What it does |
+| --- | --- | --- |
+| `SIGNALS_GRPC_TLS_CERT`, `SIGNALS_GRPC_TLS_KEY` | `env/prod-signals.env` | The suite's certificate and key, both PEM. Set both and the contract serves TLS only. A renewed pair is picked up on the next connection with no restart, and one that doesn't load leaves the previous pair serving |
+| `SIGNALS_GRPC_TLS` | `env/prod.env` | `true` makes core dial with TLS and check the suite's certificate |
+| `SIGNALS_GRPC_TLS_CA` | `env/prod.env` | A PEM bundle core trusts instead of the system roots, for a private CA. Needs `SIGNALS_GRPC_TLS=true` |
+
+The certificate has to name the host in `SIGNALS_GRPC_ADDR` (`signals` in
+compose, or the name your replicas share), and the files have to be in the
+containers: mount the certificate and key read-only into `signals`, and the CA
+into `app`, `worker` and `media`. Switch both ends together - a plaintext core
+can't reach a TLS suite, or the other way round. Core still signs every call, so
+there's no client certificate to manage.
 
 `SIGNALS_GRPC_ADDR` can name several replicas behind one DNS name: core
 resolves it and spreads calls across every address it answers with.
@@ -661,7 +683,7 @@ maintenance gate still answers it. Empty means the crawler gets whatever an
 anonymous visitor gets.
 
 `SEO_CRAWL_ALLOWED_ORIGINS` is OPTIONAL, a comma-separated list of extra
-origins the link-map crawl may start at, like `http://vetrina:3000` when the
+origins the link-map crawl may start at, like `http://nextjs-vetrina:3000` when the
 storefront is reached on its compose address. Without it a crawl only starts
 at the channel's public URL or `STOREFRONT_URL` - the crawl reads whatever
 answers and carries the bypass token, so it can't be pointed anywhere else.
@@ -723,12 +745,17 @@ Once it's on, each surface has its own per-minute budget:
 | `MEDIA_TRANSFORM_RATE_LIMIT_PER_MIN` | 120 | `/media/t/*` |
 | `TOKEN_RATE_LIMIT_PER_MIN` | 60 | download, unsubscribe, signup confirmation, email open/click |
 | `INGEST_RATE_LIMIT_PER_MIN` | 300 | `/t/*` beacons, per endpoint |
+| `MCP_RATE_LIMIT_PER_MIN` | 120 | MCP tool calls, per integration token or admin ([mcp.md](mcp.md)) |
+| `MCP_FRONT_RATE_LIMIT_PER_MIN` | 600 | storefront MCP tool calls, per client address ([storefront-mcp.md](storefront-mcp.md)) |
 | `SIGNUP_CONFIRM_RATE_LIMIT_PER_HOUR` | 3 | signup-form confirmation emails, per address (an hourly budget, unlike the rest) |
 | `PAYMENT_METHOD_SAVE_RATE_LIMIT_PER_HOUR` | 5 | saved-card attempts per customer, failures included (an hourly budget) - each is a gateway vault call, the card-testing surface |
 
 Setting one of these does NOT turn the layer on - `RATE_LIMIT_ENABLED`
 gates all of them, so a knob left over in an old env file can't quietly
 start refusing traffic.
+
+`MCP_FRONT_MAX_IN_FLIGHT` (32) caps the storefront MCP calls one client address runs at once. Unlike the
+budgets above it's always on, `RATE_LIMIT_ENABLED` or not.
 
 The lockout is separate, in case you want brute-force protection without
 per-IP budgets: `LOGIN_LOCKOUT_ENABLED` (defaults to whatever
@@ -753,6 +780,8 @@ All default to true.
 |---|---|
 | `SIGNALS_ENABLED` | no Signals suite (Pulse campaigns/flows/the email builder, Lens, Synapse, Prism, spine ingestion, forwarding). Transactional email keeps sending from core's own templates. This is core's switch: it decides whether core dials the suite at all. The Signals processes have none of their own, so a deployed suite is on and cannot quietly drop writes while core keeps sending them. |
 | `AI_ENABLED` | no LLM integrations, including the Settings > AI section |
+| `MCP_ENABLED` | no MCP endpoint for AI agents ([mcp.md](mcp.md)). It doesn't use the store's own AI provider, so `AI_ENABLED` doesn't switch it off |
+| `MCP_FRONT_ENABLED` | no storefront MCP endpoint for shoppers' agents ([storefront-mcp.md](storefront-mcp.md)) |
 
 `GEOIP_DB_PATH` points at a MaxMind GeoLite2 `.mmdb` for geo on web
 events. A bad path is logged, not fatal - geo just doesn't appear.
@@ -761,7 +790,7 @@ events. A bad path is logged, not fatal - geo just doesn't appear.
 
 ## Image tags
 
-`APP_IMAGE`, `DASHBOARD_IMAGE` and `VETRINA_DEMO_IMAGE` are set in the
+`APP_IMAGE`, `DASHBOARD_IMAGE` and `NEXTJS_VETRINA_IMAGE` are set in the
 SHELL, not in an env file - compose interpolates them from the process
 env. `skelet release` prints the values after a push.
 

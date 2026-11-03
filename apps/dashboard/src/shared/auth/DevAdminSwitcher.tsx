@@ -95,7 +95,7 @@ export function DevAdminSwitcher() {
             <DropdownMenuLabel className="text-xs">
               Switch admin identity
               <span className="block font-normal text-muted-foreground">
-                Test users - create with <code className="font-mono">bin/cli admin create</code>
+                Test users - create with <code className="font-mono">skelet cli admin create</code>
               </span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />

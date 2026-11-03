@@ -76,11 +76,11 @@ var pluginUninstallCmd = &cobra.Command{
      anything else under that namespace's prefix (default scope only;
      per-store overrides are deleted too).
 
-Does NOT remove the plugin's Go code - "bin/cli plugin disable <slug>" does
+Does NOT remove the plugin's Go code - "skelet cli plugin disable <slug>" does
 that, then rebuild.
 Run uninstall BEFORE disabling or deleting the plugin's directory; the down
 migrations need the plugin's FS to find the .down.sql files, and a plugin whose
-code is already gone can only be cleaned up by hand via bin/psql.
+code is already gone can only be cleaned up by hand via skelet psql.
 
 Payment plugins keep credentials under payment/<provider-slug>/* rather than
 plugin/<namespace>/* - pass --config-prefix payment/<provider-slug> to sweep
@@ -112,7 +112,7 @@ generated model types, and go build ./... compiles every package in the module
 whether the binary links it or not - so a plugin left in place stops compiling the
 moment its schema is dropped.
 
-Its code stays on disk either way, so "bin/cli plugin uninstall" can still reach the
+Its code stays on disk either way, so "skelet cli plugin uninstall" can still reach the
 down migrations - run that BEFORE disabling if you also want its tables and config
 rows gone.`,
 	Args: cobra.ExactArgs(1),
@@ -168,7 +168,7 @@ func setPluginState(slug string, on bool) error {
 	if on {
 		state = "enabled"
 	}
-	fmt.Printf("%s %s in %s - run bin/codegen, then rebuild\n", slug, state, pluginset.StateFile)
+	fmt.Printf("%s %s in %s - run skelet gen, then rebuild\n", slug, state, pluginset.StateFile)
 	return nil
 }
 
@@ -309,16 +309,16 @@ func runPluginNew(cmd *cobra.Command, args []string) error {
 	step := 1
 	if withMigrations {
 		fmt.Printf("  %d. Apply the starter migration:\n", step)
-		fmt.Printf("       bin/cli plugin migrate up %s\n", slug)
+		fmt.Printf("       skelet cli plugin migrate up %s\n", slug)
 		fmt.Println()
 		step++
 	}
 	fmt.Printf("  %d. If it extends GraphQL, drop the SDL in plugins/%s/graphql/{admin,front}/\n", step, slug)
-	fmt.Println("     and run bin/codegen - the core-side delegation and interfaces are generated,")
+	fmt.Println("     and run skelet gen - the core-side delegation and interfaces are generated,")
 	fmt.Println("     so there is no resolver to write outside your own package.")
 	fmt.Println()
 	step++
-	fmt.Printf("  %d. bin/dev (or restart) to load the plugin into the running server.\n", step)
+	fmt.Printf("  %d. skelet up (or skelet restart app) to load the plugin into the running server.\n", step)
 	return nil
 }
 
@@ -358,7 +358,7 @@ func runPluginUninstall(cmd *cobra.Command, args []string) error {
 		}
 	}
 	if !found {
-		return fmt.Errorf("plugin %q is not registered with the running binary - blank-import it first OR use `bin/psql` to drop tables manually", namespace)
+		return fmt.Errorf("plugin %q is not registered with the running binary - blank-import it first OR use `skelet psql` to drop tables manually", namespace)
 	}
 
 	// the plugin's registrations are attributed, so the sweep enumerates its EXACT config paths -
@@ -450,7 +450,7 @@ func runPluginUninstall(cmd *cobra.Command, args []string) error {
 
 	fmt.Println()
 	fmt.Printf("Uninstall of %q complete.\n", namespace)
-	fmt.Printf("Next: bin/cli plugin disable %s, then rebuild.\n", namespace)
+	fmt.Printf("Next: skelet cli plugin disable %s, then rebuild.\n", namespace)
 	return nil
 }
 
@@ -614,7 +614,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
-// Plugin-owned migrations, embedded at build time - apply with: bin/cli plugin migrate up %s
+// Plugin-owned migrations, embedded at build time - apply with: skelet cli plugin migrate up %s
 //
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
@@ -630,7 +630,7 @@ func init() {
 
 func (t pluginTemplate) migrationUpSQL() string {
 	return fmt.Sprintf(`-- Initial migration for the %s plugin.
--- Add CREATE TABLE / ALTER TABLE statements below; bin/cli plugin
+-- Add CREATE TABLE / ALTER TABLE statements below; skelet cli plugin
 -- migrate up applies the whole file in a single transaction.
 --
 -- Replace the SELECT 1 line - it's only there so the file is
@@ -642,7 +642,7 @@ SELECT 1;
 
 func (t pluginTemplate) migrationDownSQL() string {
 	return fmt.Sprintf(`-- Rollback for 0001_initial. Apply with:
---   bin/cli plugin migrate down %s 1
+--   skelet cli plugin migrate down %s 1
 --
 -- DROP whatever the up migration created. Keep the SELECT 1 if you
 -- intentionally have no rollback (e.g. data-only seed) - it satisfies
@@ -671,8 +671,8 @@ After scaffolding the plugin, add the blank-import line to:
 
 Then run:
 
-    bin/cli plugin migrate up %s    # if you have migrations
-    bin/dev           # restart server to load the plugin
+    skelet cli plugin migrate up %s    # if you have migrations
+    skelet up         # restart server to load the plugin
 `,
 		t.Name,
 		conditional(t.PaymentProvider, "- provider.go - PaymentProvider implementation (Authorize/Capture/Refund/Void/HandleWebhook).\n"),

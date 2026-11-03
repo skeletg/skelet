@@ -112,10 +112,29 @@ func (r *mutationResolver) AddBundleToCart(ctx context.Context, input model1.Add
 		}
 		selections = append(selections, cart.AddBundleSelectionInput{OptionID: optID, SelectionIDs: ids})
 	}
+	variants := make(map[uuid.UUID]uuid.UUID, len(input.Variants))
+	for _, v := range input.Variants {
+		sel, serr := uuid.Parse(v.SelectionID)
+		variant, verr := uuid.Parse(v.VariantID)
+		if serr != nil || verr != nil {
+			return nil, invalidID("variant")
+		}
+		variants[sel] = variant
+	}
+	quantities := make(map[uuid.UUID]float64, len(input.Quantities))
+	for _, q := range input.Quantities {
+		sel, err := uuid.Parse(q.SelectionID)
+		if err != nil {
+			return nil, invalidID("selection")
+		}
+		quantities[sel] = q.Quantity
+	}
 	c, err := r.CartSvc.AddBundleToCart(ctx, cid, channel.OptionalCustomerID(ctx), cart.AddBundleToCartInput{
 		ProductSku: input.Sku,
 		Quantity:   input.Quantity,
 		Selections: selections,
+		Variants:   variants,
+		Quantities: quantities,
 	})
 	if err != nil {
 		return nil, err
@@ -358,6 +377,24 @@ func (r *mutationResolver) MergeGuestCart(ctx context.Context, guestCartID strin
 		return nil, err
 	}
 	return r.fullCartModel(ctx, c), nil
+}
+
+func (r *mutationResolver) RedeemCartHandoff(ctx context.Context, token string, cartID *string) (*model1.CartHandoffRedemption, error) {
+	sv, ok := channel.FromContext(ctx)
+	if !ok || sv == nil {
+		return nil, storeRequired()
+	}
+	var into *uuid.UUID
+	if cartID != nil {
+		if id, err := uuid.Parse(*cartID); err == nil { // a garbled cart cookie is no cart, not a reason the link never opens
+			into = &id
+		}
+	}
+	c, err := r.CartSvc.RedeemHandoff(ctx, token, sv.ID, channel.OptionalCustomerID(ctx), into)
+	if err != nil {
+		return nil, err
+	}
+	return &model1.CartHandoffRedemption{Cart: r.fullCartModel(ctx, c), GuestCart: c.CustomerID == nil}, nil
 }
 
 // The v2 engine allows many codes per cart, so calling this again with a different code stacks rather than replaces

@@ -1,0 +1,6 @@
+{"ImportPath":"sumgen/broken [sumgen/broken.test]","Action":"build-output","Output":"# sumgen/broken [sumgen/broken.test]\n"}
+{"ImportPath":"sumgen/broken [sumgen/broken.test]","Action":"build-output","Output":"broken/broken_test.go:5:33: undefined: undefined\n"}
+{"ImportPath":"sumgen/broken [sumgen/broken.test]","Action":"build-fail"}
+{"Time":"2026-10-31T19:15:47.926366747+01:00","Action":"start","Package":"sumgen/broken"}
+{"Time":"2026-10-31T19:15:47.926665568+01:00","Action":"output","Package":"sumgen/broken","Output":"FAIL\tsumgen/broken [build failed]\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.926701795+01:00","Action":"fail","Package":"sumgen/broken","Elapsed":0,"FailedBuild":"sumgen/broken [sumgen/broken.test]"}

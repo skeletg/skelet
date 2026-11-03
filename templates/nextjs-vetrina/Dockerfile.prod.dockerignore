@@ -1,0 +1,19 @@
+# The prod image builds from the repo root - Docker reads this file instead of the root .dockerignore, because it sits
+# beside the Dockerfile with its name. Everything is out except what the build copies: the workspace files, the shared
+# packages and this app, without their installs and build output
+*
+!pnpm-workspace.yaml
+!pnpm-lock.yaml
+!packages/
+!templates/nextjs-vetrina/
+**/node_modules
+**/.next
+**/dist
+**/.astro
+**/test-results
+**/playwright-report
+**/*.tsbuildinfo
+**/*.log
+**/.DS_Store
+**/.env*
+!**/.env*.example

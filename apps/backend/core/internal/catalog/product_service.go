@@ -665,6 +665,7 @@ func changedProductFields(input UpdateProductInput) []string {
 	add(input.MinOrderQty != nil, "minOrderQty")
 	add(input.MaxOrderQty != nil, "maxOrderQty")
 	add(input.CostCents != nil || input.ClearCostCents, "costCents")
+	add(input.KitItemsReturnable != nil, "kitItemsReturnable")
 	return changed
 }
 
