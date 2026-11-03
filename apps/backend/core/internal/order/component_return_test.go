@@ -20,3 +20,13 @@ func TestComponentRefundUnitIsItsShareOfTheBundle(t *testing.T) {
 		t.Errorf("tea refund = %d, want 270", got)
 	}
 }
+
+// What this pins: a kit whose items have no price of their own still refunds an item - each unit takes an even share
+func TestComponentRefundUnitSplitsUnpricedItemsEvenly(t *testing.T) {
+	l := OrderLine{ID: uuid.New(), Quantity: 1, Components: []OrderLineComponent{
+		{Quantity: 2}, {Quantity: 1},
+	}}
+	if got := componentRefundUnit(l, l.Components[0], 900); got != 300 {
+		t.Errorf("unpriced item refund = %d, want 300 (900 over 3 units)", got)
+	}
+}
