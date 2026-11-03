@@ -318,17 +318,16 @@ func syntheticCart(o Order, lines []OrderLine) cart.Cart {
 	cl := make([]cart.CartLine, len(lines))
 	for i, l := range lines {
 		var comps []cart.CartLineComponent // a kit's items are display - its stock parts are what it takes
-		if !l.IsBundle() {
-			l.Components = nil
-		}
-		for _, c := range l.Components {
-			comps = append(comps, cart.CartLineComponent{
-				ProductID:   c.ProductID,
-				ProductSku:  c.ProductSku,
-				ProductName: c.ProductName,
-				UnitPrice:   c.UnitPrice,
-				Quantity:    c.Quantity,
-			})
+		if l.IsBundle() {
+			for _, c := range l.Components {
+				comps = append(comps, cart.CartLineComponent{
+					ProductID:   c.ProductID,
+					ProductSku:  c.ProductSku,
+					ProductName: c.ProductName,
+					UnitPrice:   c.UnitPrice,
+					Quantity:    c.Quantity,
+				})
+			}
 		}
 		parts := make([]cart.CartLineStockPart, len(l.StockParts))
 		for j, p := range l.StockParts {

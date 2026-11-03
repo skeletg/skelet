@@ -143,7 +143,7 @@ func (r *Resolver) productKitComponents(ctx context.Context, obj *model.Product)
 	for i, c := range comps {
 		ids[i] = c.ComponentProductID
 	}
-	sold, err := keepVisibleByChannel(ctx, r, slices.Clone(ids), func(id uuid.UUID) uuid.UUID { return id })
+	sold, err := keepVisibleByChannel(ctx, r, ids, func(id uuid.UUID) uuid.UUID { return id })
 	if err != nil {
 		return nil, fmt.Errorf("filter kit components: %w", err)
 	}
