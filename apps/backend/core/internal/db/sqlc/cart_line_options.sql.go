@@ -131,12 +131,12 @@ func (q *Queries) ListCartLineOptionsByLineIDs(ctx context.Context, cartLineIds 
 const upsertConfiguredCartLine = `-- name: UpsertConfiguredCartLine :one
 INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity)
 VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (cart_id, product_sku) DO UPDATE
+ON CONFLICT (cart_id, product_sku, config_key) DO UPDATE
   SET quantity     = EXCLUDED.quantity,
       unit_price   = EXCLUDED.unit_price,
       product_name = EXCLUDED.product_name,
       updated_at   = NOW()
-RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, price_override, is_custom, tax_class
+RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, price_override, is_custom, tax_class, bundle_hook_priced, config_key
 `
 
 type UpsertConfiguredCartLineParams struct {
@@ -171,6 +171,8 @@ func (q *Queries) UpsertConfiguredCartLine(ctx context.Context, arg UpsertConfig
 		&i.PriceOverride,
 		&i.IsCustom,
 		&i.TaxClass,
+		&i.BundleHookPriced,
+		&i.ConfigKey,
 	)
 	return i, err
 }

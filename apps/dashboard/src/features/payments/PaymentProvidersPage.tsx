@@ -63,7 +63,7 @@ export function PaymentProvidersPage() {
                 <DetailPageSection title="Add a payment provider" description="A gateway needs a compatible backend plugin and its storefront integration.">
                   <div className="grid gap-2 rounded-md border p-4 text-sm">
                     <p>Ask your deployment administrator to install the gateway plugin module, regenerate the application and rebuild the backend.</p>
-                    <code className="break-all">./skelet cli plugin add &lt;module&gt;@&lt;version&gt;</code>
+                    <code className="break-all">skelet cli plugin add &lt;module&gt;@&lt;version&gt;</code>
                     <p className="text-muted-foreground">Installing the backend plugin makes its setup available here. Card entry and authentication require the corresponding storefront integration.</p>
                   </div>
                 </DetailPageSection>

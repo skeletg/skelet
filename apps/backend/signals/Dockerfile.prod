@@ -1,7 +1,7 @@
 # Prod Signals image - the suite's two binaries on alpine, static CGO-off builds
 # Build from apps/backend, since this module replaces core's by relative path: docker build -f apps/backend/signals/Dockerfile.prod -t skelet-signals:prod apps/backend
 
-# The golang tag tracks go.mod's toolchain line - bin/pin-check holds the two together
+# The golang tag tracks go.mod's toolchain line - skelet check pins holds the two together
 FROM golang:1.27.3-alpine3.24 AS build
 WORKDIR /src
 RUN apk add --no-cache git

@@ -1,13 +1,11 @@
 package commands
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
@@ -36,13 +34,6 @@ func init() {
 	SignalsCmd.AddCommand(signalsBackfillOrdersCmd)
 }
 
-// The tracker loads an order by id for its gift-card follow-up - the repository names the same read GetOrderByID
-type orderRepoLookup struct{ order.Repository }
-
-func (r orderRepoLookup) GetByID(ctx context.Context, id uuid.UUID) (order.Order, error) {
-	return r.GetOrderByID(ctx, id)
-}
-
 func runSignalsBackfillOrders(cmd *cobra.Command, _ []string) error {
 	addr := strings.TrimSpace(os.Getenv("SIGNALS_GRPC_ADDR"))
 	if addr == "" {
@@ -53,17 +44,21 @@ func runSignalsBackfillOrders(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("connect to database: %w", err)
 	}
 	defer conn.Close()
-	signals, err := signalsclient.New(addr, auth.ServiceKeysFromEnv(os.Getenv), time.Minute, nil)
+	tr, err := signalsclient.TransportFromEnv(os.Getenv)
+	if err != nil {
+		return fmt.Errorf("signals transport: %w", err)
+	}
+	signals, err := signalsclient.New(addr, tr, auth.ServiceKeysFromEnv(os.Getenv), time.Minute, nil)
 	if err != nil {
 		return fmt.Errorf("signals client: %w", err)
 	}
 	defer func() { _ = signals.Close() }()
 
 	repo := order.NewRepository(db.New(conn))
-	tracker := activity.NewTracker(signals, orderRepoLookup{repo})
+	tracker := activity.NewTracker(signals, nil) // a backfill hands each order over, so the tracker never looks one up
 	ctx := cmd.Context()
 	const page = 500
-	sent, skipped := 0, 0
+	processed, skipped := 0, 0
 	for off := int32(0); ; off += page {
 		orders, _, err := repo.ListOrdersPage(ctx, order.ListPageFilter{Limit: page, Offset: off, SkipCount: true})
 		if err != nil {
@@ -74,15 +69,27 @@ func runSignalsBackfillOrders(cmd *cobra.Command, _ []string) error {
 				skipped++
 				continue
 			}
-			if err := tracker.BackfillOrder(ctx, o); err != nil {
-				return fmt.Errorf("order %s: %w (sent %d before it; re-run to continue)", o.Number, err, sent)
+			// A draft's created_at is when it was opened - the live event carries the placement, stamped in the transaction that wrote this row
+			placedAt := o.CreatedAt
+			history, err := repo.ListOrderEventsByOrder(ctx, o.ID)
+			if err != nil {
+				return fmt.Errorf("order %s history: %w", o.Number, err)
 			}
-			sent++
+			for _, e := range history {
+				if e.Type == "order_placed" {
+					placedAt = e.CreatedAt
+					break
+				}
+			}
+			if err := tracker.BackfillOrder(ctx, o, placedAt); err != nil {
+				return fmt.Errorf("order %s: %w (processed %d before it; re-run to continue)", o.Number, err, processed)
+			}
+			processed++
 		}
 		if len(orders) < page {
 			break
 		}
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "Replayed %d orders into Signals (%d drafts skipped)\n", sent, skipped)
+	fmt.Fprintf(cmd.OutOrStdout(), "Processed %d orders for Signals (%d drafts skipped)\n", processed, skipped)
 	return nil
 }

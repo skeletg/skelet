@@ -642,6 +642,32 @@ func (r *postgresRepository) ListLowStockLevels(ctx context.Context, limit int32
 	return out, nil
 }
 
+func (r *postgresRepository) ListChannelLowStockLevels(ctx context.Context, channelID uuid.UUID, limit int32) ([]LowStockLevel, error) {
+	rows, err := r.queries.ListChannelLowStockLevels(ctx, db.ListChannelLowStockLevelsParams{ChannelID: channelID, Lim: limit})
+	if err != nil {
+		return nil, fmt.Errorf("list channel low stock levels: %w", err)
+	}
+	out := make([]LowStockLevel, len(rows))
+	for i, row := range rows {
+		out[i] = LowStockLevel{
+			InventoryItemID:   row.InventoryItemID,
+			ProductID:         row.ProductID,
+			ProductSlug:       row.ProductSlug,
+			ProductSKU:        row.ProductSku,
+			QuantityDecimals:  row.QuantityDecimals,
+			QuantityStep:      row.QuantityStep,
+			LocationID:        &row.LocationID,
+			LocationSlug:      &row.LocationSlug,
+			LocationName:      &row.LocationName,
+			Quantity:          row.Quantity,
+			LowStockThreshold: row.LowStockThreshold,
+			Backorderable:     row.Backorderable,
+			UpdatedAt:         row.LevelUpdatedAt,
+		}
+	}
+	return out, nil
+}
+
 // ListLowStockItemsFlat is the flat-mode counterpart - rows have LocationID nil
 // (dashboard renders "(global)"), reusing LowStockLevel to avoid a second type
 func (r *postgresRepository) ListLowStockItemsFlat(ctx context.Context, limit int32) ([]LowStockLevel, error) {

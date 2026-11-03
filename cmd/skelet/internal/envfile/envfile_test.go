@@ -3,6 +3,7 @@ package envfile
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -110,5 +111,17 @@ func TestSymlinkedFileIsWrittenThrough(t *testing.T) {
 	}
 	if got := content(t, real); got != "KEY=new\n" {
 		t.Errorf("target holds %q", got)
+	}
+}
+
+func TestPairsReadsLikeDotenv(t *testing.T) {
+	p := file(t, "# comment\n\nA=1\nexport B=two words\nC=\"quoted # not a comment\"\nD='single'\nE=x # trailing\nbad line\n9X=no\nA=last\n", 0o644)
+	got, err := Pairs(p)
+	want := []string{"A=1", "B=two words", "C=quoted # not a comment", "D=single", "E=x", "A=last"}
+	if err != nil || strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("Pairs = %q, %v\nwant %q", got, err, want)
+	}
+	if none, err := Pairs(filepath.Join(t.TempDir(), "missing")); len(none) != 0 || err != nil {
+		t.Errorf("missing file: %v, %v", none, err)
 	}
 }

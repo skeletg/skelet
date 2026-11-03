@@ -54,13 +54,20 @@ func NewTracker(rec *signalsclient.Client, orders orderLookup) *Tracker {
 	return &Tracker{rec: rec, orders: orders}
 }
 
-// BackfillOrder replays a past order's placement at its original time, for orders that never reached the suite - the
-// dedupe key makes a re-run, or an order the suite already holds, a no-op
-func (t *Tracker) BackfillOrder(ctx context.Context, o order.Order) error {
-	return t.onOrderPlaced(events.WithEmittedAt(ctx, o.CreatedAt), &order.OrderPlaced{
+// BackfillOrder replays a past order's placement, for orders that never reached the suite - placedAt must be the time the
+// live event carried, since the dedupe key only collapses a copy in the same daily partition
+func (t *Tracker) BackfillOrder(ctx context.Context, o order.Order, placedAt time.Time) error {
+	held := &Tracker{rec: t.rec, orders: heldOrder(o)} // the gift-card follow-up reads the order the caller already has
+	return held.onOrderPlaced(events.WithEmittedAt(ctx, placedAt), &order.OrderPlaced{
 		OrderID: o.ID, OrderNumber: o.Number, CustomerID: o.CustomerID, Email: o.Email, AnonID: o.AnonID,
 		ChannelID: o.ChannelID, TotalCents: o.TotalAmount, Currency: o.CurrencyCode,
 	})
+}
+
+type heldOrder order.Order
+
+func (h heldOrder) GetByID(context.Context, uuid.UUID) (order.Order, error) {
+	return order.Order(h), nil
 }
 
 func (t *Tracker) Subscribe(bus *events.Bus) {
@@ -169,13 +176,14 @@ func unprofiled(o order.Order) bool { return o.Tracking != nil && !o.Tracking.Co
 func orderOnlyActor(orderID uuid.UUID) string { return "order_" + orderID.String() }
 
 // orderActor is who a guest order belongs to: the storefront visitor when one was sent, else a hash of the receipt email,
-// so admin drafts, headless shops and API orders still land and one guest's repeat orders read as one person
+// so admin drafts, headless shops and API orders still land and one guest's repeat orders read as one person - an erased
+// guest's scrubbed address names nobody, so their orders stay off the spine
 func orderActor(cust *uuid.UUID, anon, email string) string {
 	if cust != nil || anon != "" {
 		return anon
 	}
 	email = strings.ToLower(strings.TrimSpace(email))
-	if email == "" {
+	if email == "" || strings.HasSuffix(email, customer.RedactedEmailDomain) {
 		return ""
 	}
 	sum := sha256.Sum256([]byte(email))

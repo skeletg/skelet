@@ -27,6 +27,6 @@ auditConfig:
     - GHSA-vfj7-8cjw-p6xm
 
 # Bring node_modules back in line with the lockfile before any `pnpm run` - a host tree kept beside a
-# Docker app's volume (for the IDE and the gates bin/channel and bin/dash run there) never sees the
+# Docker app's volume (for the IDE and the gates skelet pnpm runs there) never sees the
 # container's reinstalls, and would otherwise typecheck and lint against yesterday's dependencies
 verifyDepsBeforeRun: install

@@ -15,7 +15,7 @@ type OriginSet struct {
 	PaymentAllow []string
 }
 
-// ComposeSecurityHeaders renders the CSP and Permissions-Policy from core's baseline plus every installed plugin's declared origins - cmd/secheadgen calls this with the compiled-in plugin set and rewrites the two constants in securityheaders.go (plus the nginx/caddy copies), so the values the middleware serves, the edge serves and contract-check compares all come from one composition
+// ComposeSecurityHeaders renders the CSP and Permissions-Policy from core's baseline plus every installed plugin's declared origins - cmd/secheadgen calls this with the compiled-in plugin set and rewrites the two constants in securityheaders.go (plus the nginx/caddy copies), so the values the middleware serves, the edge serves and skelet check contracts compares all come from one composition
 func ComposeSecurityHeaders(plugins []OriginSet) (csp, permissionsPolicy string) {
 	var script, connect, frame, formAction, payment []string
 	for _, p := range plugins {

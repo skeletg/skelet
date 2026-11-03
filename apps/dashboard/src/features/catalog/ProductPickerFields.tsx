@@ -30,3 +30,18 @@ export function DefaultToggle({ id }: { id: string }) {
     />
   )
 }
+
+// A configurable either stays one selection whose size the customer picks, or is split into its variants here - only
+// configurable rows have the choice
+export function EachVariantToggle({ id, kind }: { id: string; kind: string }) {
+  const { value, patch } = usePickedExtra<{ eachVariant: boolean }>(id)
+  if (kind !== 'CONFIGURABLE') return null
+  return (
+    <Checkbox
+      checked={value?.eachVariant ?? false}
+      disabled={!value}
+      onCheckedChange={(v) => patch({ eachVariant: v === true })}
+      aria-label="Add each variant as its own selection"
+    />
+  )
+}

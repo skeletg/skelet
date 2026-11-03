@@ -23,6 +23,7 @@ var publicMutations = map[string]string{
 	"ResendVerification":   "silent on whether the address exists",
 	"ResetPassword":        "the reset token is the credential",
 	"OpenCartOffer":        "the signed offer link is the credential - an offer made out to an account still needs its owner signed in",
+	"RedeemCartHandoff":    "the handoff link is the credential, and it only copies the agent's lines into the caller's own cart",
 
 	// Gateway handshakes - they resolve a cart and return a client token, touching no customer record
 

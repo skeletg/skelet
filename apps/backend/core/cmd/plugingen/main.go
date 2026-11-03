@@ -1,4 +1,4 @@
-package main // regenerates plugins/firstparty from plugins/plugins.json - run from apps/backend, wired into bin/codegen
+package main // regenerates plugins/firstparty from plugins/plugins.json - run from apps/backend, wired into skelet gen
 
 import (
 	"fmt"

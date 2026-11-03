@@ -15,6 +15,7 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/plugins"
 	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/secret"
+	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 )
 
 // What a write leaves for the boot and the summary
@@ -23,29 +24,19 @@ type written struct {
 	adminSlug      string
 }
 
-// Write turns answers into files: the selection files, the profile, the target's env files with their secrets, the
+// Write turns answers into files: the target's env files with their secrets, the
 // root .env's knobs and plugins.json. It starts nothing and asks nothing. Anything already holding a real value is
 // left alone, so a second run with the same answers changes no file
 func Write(root string, a answers, c catalog, rnd io.Reader, out io.Writer) (written, error) {
 	var w written
 	path := func(rel string) string { return filepath.Join(root, rel) }
 
-	if err := writeLine(path(".skelet-apps"), join(a.dockerApps)); err != nil {
-		return w, err
-	}
 	fmt.Fprintf(out, "==> Apps: %s\n", orNone(a.apps, "backend only"))
-	fmt.Fprintf(out, "    in Docker: %s  (saved to .skelet-apps)\n", orNone(a.dockerApps, "none - they run on the host with `skelet serve <app>`"))
-	if err := writeLine(path(".skelet-tools"), join(a.tools)); err != nil {
-		return w, err
-	}
-	fmt.Fprintf(out, "==> Dev tools: %s  (saved to .skelet-tools; start one ad hoc with skelet up <name>)\n", orNone(a.tools, "none"))
+	fmt.Fprintf(out, "    in Docker: %s\n", orNone(a.dockerApps, "none - they run on the host with `skelet serve <app>`"))
+	fmt.Fprintf(out, "==> Dev tools: %s  (start one ad hoc with skelet up <name>)\n", orNone(a.tools, "none"))
+	fmt.Fprintf(out, "==> Shape: %s, signals=%t ai=%t, search=%s\n", a.target, a.signals, a.ai, a.search)
 
-	if err := profile.Write(path(profile.File), a.profile(), profileKeys); err != nil {
-		return w, err
-	}
-	fmt.Fprintf(out, "==> Profile: %s, signals=%t ai=%t, search=%s  (saved to %s)\n", a.target, a.signals, a.ai, a.search, profile.File)
-
-	backend, files, err := EnvFiles(root, a.target)
+	backend, files, err := EnvFiles(root, a.target, func(app string) bool { return slices.Contains(a.apps, app) })
 	if err != nil {
 		return w, err
 	}
@@ -116,6 +107,13 @@ func Write(root string, a answers, c catalog, rnd io.Reader, out io.Writer) (wri
 			e.del(".env", k)
 		}
 	}
+	e.set(".env", profile.EnvTarget, a.target)
+	e.set(".env", profile.EnvApps, join(a.apps))
+	if a.target == "dev" {
+		e.set(".env", profile.EnvProfiles, profile.DevProfiles(a.dockerApps, a.tools, a.signals))
+	} else {
+		e.deployment(a, c, backend, files)
+	}
 	if e.err != nil {
 		return w, e.err
 	}
@@ -124,22 +122,61 @@ func Write(root string, a answers, c catalog, rnd io.Reader, out io.Writer) (wri
 	return w, err
 }
 
-func (a answers) profile() profile.Profile {
-	slug := "0"
-	if a.adminSlug {
-		slug = "1"
+// deployment points a server's stack at the storefront this clone runs, leaving a value set by hand alone
+func (e *editor) deployment(a answers, c catalog, backend string, files []string) {
+	names := []string{a.shop}
+	for _, s := range c.storefronts {
+		names = append(names, s.Name)
 	}
-	return profile.Profile{
-		kTarget: a.target, kSignals: strconv.FormatBool(a.signals), kAI: strconv.FormatBool(a.ai), kSearch: a.search,
-		kGates: join(a.gateways), kSlug: slug, kApps: join(a.apps), kDocker: join(a.dockerApps), kTools: join(a.tools),
+	compose, _ := os.ReadFile(filepath.Join(e.root, "docker-compose."+a.target+".yml"))
+	cur := e.get(".env", "COMPOSE_PROFILES")
+	var profiles []string
+	for _, p := range split(cur) {
+		if !slices.Contains(names, p) {
+			profiles = append(profiles, p)
+		}
 	}
+	for _, app := range a.apps {
+		if slices.Contains(names, app) && regexp.MustCompile(`(?m)^  `+regexp.QuoteMeta(app)+`:\s*$`).Match(compose) {
+			profiles = append(profiles, app)
+		}
+	}
+	if join(profiles) != cur {
+		e.set(".env", "COMPOSE_PROFILES", join(profiles))
+	}
+	shop := primaryStorefront(a, c)
+	if shop == "" {
+		return
+	}
+	ours := func(v string) bool {
+		return v == "" || slices.ContainsFunc(names, func(n string) bool { return n != "" && (v == n+":3000" || v == "http://"+n+":3000/api/revalidate") })
+	}
+	if ours(e.get(backend, "STOREFRONT_REVALIDATE_URL")) {
+		e.set(backend, "STOREFRONT_REVALIDATE_URL", "http://"+shop+":3000/api/revalidate")
+	}
+	if caddy := "env/prod-caddy.env"; slices.Contains(files, caddy) && ours(e.get(caddy, "STOREFRONT_UPSTREAM")) {
+		e.set(caddy, "STOREFRONT_UPSTREAM", shop+":3000")
+	}
+	fmt.Fprintf(e.out, "    storefront %s - its profile on, the edge proxying to it, the backend purging it\n", shop)
+}
+
+func primaryStorefront(a answers, c catalog) string {
+	if a.shop != "" {
+		return a.shop
+	}
+	for _, s := range c.storefronts {
+		if slices.Contains(a.apps, s.Name) {
+			return s.Name
+		}
+	}
+	return ""
 }
 
 var envRef = regexp.MustCompile(`env/[a-z0-9.-]+\.env`)
 
 // EnvFiles is the backend env file for target and every env file it needs. Beyond dev that is whatever the target's
 // compose file names, so a shop added with skelet add channel is set up like the one it was forked from
-func EnvFiles(root, target string) (string, []string, error) {
+func EnvFiles(root, target string, runs func(app string) bool) (string, []string, error) {
 	if target == "dev" {
 		return "env/go.env", []string{"env/go.env", "env/db.env", "env/signals.env"}, nil
 	}
@@ -149,11 +186,18 @@ func EnvFiles(root, target string) (string, []string, error) {
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return "", nil, err
 	}
+	stores := storefronts.Known(root)
 	var named []string
 	for _, m := range envRef.FindAll(raw, -1) {
-		if f := string(m); !slices.Contains(files, f) && !slices.Contains(named, f) {
-			named = append(named, f)
+		f := string(m)
+		if slices.Contains(files, f) || slices.Contains(named, f) {
+			continue
 		}
+		i := slices.IndexFunc(stores, func(s storefronts.Storefront) bool { return f == "env/"+target+"-"+s.Name+".env" })
+		if i >= 0 && runs != nil && !runs(stores[i].Name) {
+			continue
+		}
+		named = append(named, f)
 	}
 	slices.Sort(named)
 	return backend, append(files, named...), nil
@@ -169,14 +213,6 @@ func fromTemplate(root, file, tmpl string) (bool, error) {
 		return false, fmt.Errorf("%s needs its template: %w", file, err)
 	}
 	return true, envfile.WriteAtomic(filepath.Join(root, file), raw, 0o600)
-}
-
-func writeLine(path, line string) error {
-	data := line + "\n"
-	if old, err := os.ReadFile(path); err == nil && string(old) == data {
-		return nil
-	}
-	return envfile.WriteAtomic(path, []byte(data), 0o644)
 }
 
 // A value setup may overwrite - anything else is the operator's

@@ -76,8 +76,9 @@ var parentGatedFieldResolvers = map[string]string{
 
 	// Already public: the storefront serves both of these to anonymous callers for the same product,
 	// so gating the admin copy on inventory.view would move no data out of reach
-	"Product.SalableQuantity": "the front schema exposes salableQuantity unauthenticated",
-	"Product.InStock":         "the front schema exposes inStock unauthenticated",
+	"Product.SalableQuantity":       "the front schema exposes salableQuantity unauthenticated",
+	"Product.InStock":               "the front schema exposes inStock unauthenticated",
+	"ProductChannelListing.InStock": "Product.InStock pinned to a listing the parent already filtered to the admin's permitted channels",
 }
 
 type funcInfo struct {
