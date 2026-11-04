@@ -810,12 +810,33 @@ export type BlogTagContent = {
 
 export type Board = {
   __typename?: 'Board';
+  access: Scalars['String']['output'];
   channelId: Scalars['ID']['output'];
+  draft?: Maybe<BoardDraft>;
+  draftUpdatedAt?: Maybe<Scalars['Time']['output']>;
+  favourite: Scalars['Boolean']['output'];
   id: Scalars['ID']['output'];
   name: Scalars['String']['output'];
+  owner?: Maybe<BoardOwner>;
   reportCount: Scalars['Int']['output'];
   reports: Array<BoardReport>;
+  shares: Array<BoardShare>;
+  status: Scalars['String']['output'];
   updatedAt: Scalars['Time']['output'];
+};
+
+export type BoardDraft = {
+  __typename?: 'BoardDraft';
+  baseUpdatedAt: Scalars['Time']['output'];
+  payload: Scalars['JSON']['output'];
+  updatedAt: Scalars['Time']['output'];
+};
+
+export type BoardOwner = {
+  __typename?: 'BoardOwner';
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  removed: Scalars['Boolean']['output'];
 };
 
 export type BoardReport = {
@@ -827,6 +848,29 @@ export type BoardReport = {
 export type BoardReportInput = {
   definition: Scalars['JSON']['input'];
   title: Scalars['String']['input'];
+};
+
+export type BoardShare = {
+  __typename?: 'BoardShare';
+  adminId?: Maybe<Scalars['ID']['output']>;
+  level: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  roleId?: Maybe<Scalars['ID']['output']>;
+};
+
+export type BoardShareInput = {
+  adminId?: InputMaybe<Scalars['ID']['input']>;
+  level: Scalars['String']['input'];
+  roleId?: InputMaybe<Scalars['ID']['input']>;
+};
+
+export type BoardShareTarget = {
+  __typename?: 'BoardShareTarget';
+  id: Scalars['ID']['output'];
+  kind: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  seesBoards: Scalars['Boolean']['output'];
+  seesData: Scalars['Boolean']['output'];
 };
 
 export type BotAgent = {
@@ -3856,6 +3900,7 @@ export type Mutation = {
   cancelSubscription: CustomerSubscription;
   capturePayment: Order;
   changePassword: Scalars['Boolean']['output'];
+  claimBoard: Board;
   claimCMSPage: CmsPage;
   clearCategoryCover: Category;
   clearCategoryListing: Category;
@@ -4022,6 +4067,7 @@ export type Mutation = {
   detachOptionTemplate: Product;
   devImpersonate: AdminAuthPayload;
   disableGiftCard: GiftCard;
+  discardBoardDraft: Scalars['Boolean']['output'];
   draftReviewReply: Scalars['String']['output'];
   duplicateProductOption: ProductOptionOwner;
   editOrder: Order;
@@ -4041,6 +4087,7 @@ export type Mutation = {
   issueReturnRefund: OrderReturn;
   logout: Scalars['Boolean']['output'];
   logoutOtherDevices: Scalars['Boolean']['output'];
+  makeShopBoard: Board;
   markAllNotificationsRead: Scalars['Boolean']['output'];
   markNotificationRead: Scalars['Boolean']['output'];
   markProcessing: Order;
@@ -4110,6 +4157,7 @@ export type Mutation = {
   runChatAction: ChatActionResult;
   runScheduledJobNow: ScheduledJob;
   saveBoard: Board;
+  saveBoardDraft: Scalars['Time']['output'];
   saveChatConversation: Scalars['ID']['output'];
   saveDeliveryPoints: Array<DeliveryPointAdmin>;
   saveEmailBlock: EmailBlockSnippet;
@@ -4128,6 +4176,8 @@ export type Mutation = {
   setBlogPostCategories: BlogPost;
   setBlogPostChannelListing: BlogPost;
   setBlogPostTags: BlogPost;
+  setBoardFavourite: Scalars['Boolean']['output'];
+  setBoardShares: Board;
   setBundlePricing: Product;
   setBundleStructure: Product;
   setCMSPageChannelListing: CmsPage;
@@ -4653,6 +4703,12 @@ export type MutationCapturePaymentArgs = {
 export type MutationChangePasswordArgs = {
   currentPassword: Scalars['String']['input'];
   newPassword: Scalars['String']['input'];
+};
+
+
+export type MutationClaimBoardArgs = {
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
 };
 
 
@@ -5538,6 +5594,12 @@ export type MutationDisableGiftCardArgs = {
 };
 
 
+export type MutationDiscardBoardDraftArgs = {
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
+};
+
+
 export type MutationDraftReviewReplyArgs = {
   id: Scalars['ID']['input'];
 };
@@ -5647,6 +5709,12 @@ export type MutationLogoutArgs = {
 
 export type MutationLogoutOtherDevicesArgs = {
   currentRefreshToken: Scalars['String']['input'];
+};
+
+
+export type MutationMakeShopBoardArgs = {
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
 };
 
 
@@ -6023,6 +6091,14 @@ export type MutationSaveBoardArgs = {
 };
 
 
+export type MutationSaveBoardDraftArgs = {
+  baseUpdatedAt: Scalars['Time']['input'];
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
+  payload: Scalars['JSON']['input'];
+};
+
+
 export type MutationSaveChatConversationArgs = {
   id?: InputMaybe<Scalars['ID']['input']>;
   messages: Array<SignalsChatMessage>;
@@ -6129,6 +6205,20 @@ export type MutationSetBlogPostChannelListingArgs = {
 export type MutationSetBlogPostTagsArgs = {
   postId: Scalars['ID']['input'];
   tagIds: Array<Scalars['ID']['input']>;
+};
+
+
+export type MutationSetBoardFavouriteArgs = {
+  channelId: Scalars['ID']['input'];
+  favourite: Scalars['Boolean']['input'];
+  id: Scalars['ID']['input'];
+};
+
+
+export type MutationSetBoardSharesArgs = {
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
+  shares: Array<BoardShareInput>;
 };
 
 
@@ -8080,6 +8170,7 @@ export type Query = {
   blogTag?: Maybe<BlogTag>;
   blogTags: Array<BlogTag>;
   board: Board;
+  boardShareTargets: Array<BoardShareTarget>;
   boards: Array<Board>;
   botTraffic: BotTraffic;
   cacheRevalidations: Array<CacheRevalidation>;
@@ -8404,7 +8495,13 @@ export type QueryBoardArgs = {
 };
 
 
+export type QueryBoardShareTargetsArgs = {
+  channelId: Scalars['ID']['input'];
+};
+
+
 export type QueryBoardsArgs = {
+  all?: InputMaybe<Scalars['Boolean']['input']>;
   channelId: Scalars['ID']['input'];
 };
 
