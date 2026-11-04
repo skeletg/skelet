@@ -25,11 +25,27 @@ type AnalyticsTrafficRollup struct {
 }
 
 type Board struct {
-	ID        uuid.UUID `json:"id"`
-	ChannelID uuid.UUID `json:"channel_id"`
-	Name      string    `json:"name"`
+	ID           uuid.UUID     `json:"id"`
+	ChannelID    uuid.UUID     `json:"channel_id"`
+	Name         string        `json:"name"`
+	CreatedAt    time.Time     `json:"created_at"`
+	UpdatedAt    time.Time     `json:"updated_at"`
+	OwnerAdminID uuid.NullUUID `json:"owner_admin_id"`
+	Status       string        `json:"status"`
+}
+
+type BoardDraft struct {
+	BoardID       uuid.UUID       `json:"board_id"`
+	AdminID       uuid.UUID       `json:"admin_id"`
+	Payload       json.RawMessage `json:"payload"`
+	BaseUpdatedAt time.Time       `json:"base_updated_at"`
+	UpdatedAt     time.Time       `json:"updated_at"`
+}
+
+type BoardFavourite struct {
+	AdminID   uuid.UUID `json:"admin_id"`
+	BoardID   uuid.UUID `json:"board_id"`
 	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type BoardReport struct {
@@ -39,6 +55,15 @@ type BoardReport struct {
 	Title             string          `json:"title"`
 	Definition        json.RawMessage `json:"definition"`
 	DefinitionVersion int32           `json:"definition_version"`
+}
+
+type BoardShare struct {
+	BoardID   uuid.UUID     `json:"board_id"`
+	AdminID   uuid.NullUUID `json:"admin_id"`
+	RoleID    uuid.NullUUID `json:"role_id"`
+	Level     string        `json:"level"`
+	CreatedBy uuid.UUID     `json:"created_by"`
+	CreatedAt time.Time     `json:"created_at"`
 }
 
 type BrowseNotified struct {
