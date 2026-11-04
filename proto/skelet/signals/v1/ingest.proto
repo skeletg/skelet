@@ -190,6 +190,8 @@ message RecordConversionRequest {
   int64 revenue_cents = 4;
   string currency = 5;
   google.protobuf.Timestamp at = 6;
+  // revenue_cents in the platform's base currency at the rate of the day - unset when no rate was known
+  optional int64 revenue_base_cents = 7;
 }
 
 message RecordConversionResponse {

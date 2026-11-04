@@ -44,6 +44,9 @@ const (
 var aggregateProps = map[string]bool{
 	"sku": true, "qty": true, "unit_price": true, "total_cents": true, "amount_cents": true, "currency": true,
 	"path": true, "status": true, "bundle": true,
+	// what order lines, refunds and edits carry, so a product's net sales count consented and unconsented orders alike
+	"gross_cents": true, "net_cents": true, "net_base_cents": true, "total_base_cents": true, "refund_cents": true,
+	"is_gift": true, "added": true, "removed": true,
 }
 
 type Recorder struct {
@@ -131,6 +134,8 @@ type ConversionSpec struct {
 	RevenueCents int64
 	Currency     string
 	At           time.Time
+	// RevenueCents in the platform's base currency as core converted it, nil when no rate was known
+	RevenueBaseCents *int64
 }
 
 // Last-touch: a click within 7d, else an open within 1d, logging one conversion event per order - marketing-only, and it never feeds order or accounting totals
@@ -153,6 +158,9 @@ func (r *Recorder) RecordConversion(ctx context.Context, cs ConversionSpec) (boo
 		"via":                anchor.eventName,
 		"attributed_send_id": anchor.sendID.String(),
 		"attributed_source":  anchor.source,
+	}
+	if cs.RevenueBaseCents != nil {
+		props["revenue_base_cents"] = *cs.RevenueBaseCents
 	}
 	if anchor.campaignID != "" {
 		props["campaign_id"] = anchor.campaignID

@@ -83,7 +83,7 @@ func (s *ingestServer) RecordConversion(ctx context.Context, req *signalsv1.Reco
 	}
 	ok, err := s.rec.RecordConversion(ctx, analytics.ConversionSpec{
 		CustomerID: cust, ChannelID: uuidOrNil(req.GetChannelId()), OrderID: order,
-		RevenueCents: req.GetRevenueCents(), Currency: req.GetCurrency(), At: req.GetAt().AsTime(),
+		RevenueCents: req.GetRevenueCents(), Currency: req.GetCurrency(), At: req.GetAt().AsTime(), RevenueBaseCents: req.RevenueBaseCents,
 	})
 	if err != nil {
 		return nil, err
