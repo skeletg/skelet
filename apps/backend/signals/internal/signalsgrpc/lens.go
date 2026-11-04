@@ -38,9 +38,14 @@ func (s *lensServer) GetOverview(ctx context.Context, req *signalsv1.GetOverview
 			Clicks: int32(p.Clicks), AvgScroll: int32(p.AvgScroll),
 		})
 	}
+	issues := make([]*signalsv1.PlanIssue, 0, len(ov.PlanIssues))
+	for _, i := range ov.PlanIssues {
+		issues = append(issues, &signalsv1.PlanIssue{Kind: i.Kind, Event: i.Event, Prop: i.Prop, Count: i.Count})
+	}
 	return &signalsv1.GetOverviewResponse{
 		Views: int32(ov.Views), Visitors: int32(ov.Visitors), Daily: daily, TopPages: top,
 		Devices: labelCounts(ov.Devices), Referrers: labelCounts(ov.Referrers), Interactions: labelCounts(ov.Interactions),
+		PlanIssues: issues,
 	}, nil
 }
 
