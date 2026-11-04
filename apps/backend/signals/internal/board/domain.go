@@ -57,6 +57,7 @@ type Definition struct {
 	ReturnEvent string   `json:"returnEvent,omitempty"` // retention
 	Periods     int      `json:"periods,omitempty"`     // retention
 	Depth       int      `json:"depth,omitempty"`       // flow
+	WindowDays  int      `json:"windowDays,omitempty"`  // stickiness: the return window, 0 = the shop's default
 	Size        string   `json:"size,omitempty"`        // the tile's width on the board: small | medium (unset) | full
 }
 
@@ -92,6 +93,9 @@ func (d Definition) validate() error {
 			return bad("measure is total or unique")
 		}
 	case "stickiness":
+		if d.WindowDays < 0 || d.WindowDays > 365 {
+			return bad("the return window is 1 to 365 days")
+		}
 	case "funnel":
 		if len(d.Steps) < 2 || len(d.Steps) > 8 {
 			return bad("a funnel has 2 to 8 steps")

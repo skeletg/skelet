@@ -17,6 +17,7 @@ func TestParseDefinitionRefusesWhatItDoesntKnow(t *testing.T) {
 		"period too long":    `{"kind":"insights","sinceDays":400}`,
 		"not json":           `kind: insights`,
 		"bad size":           `{"kind":"insights","size":"huge"}`,
+		"window too long":    `{"kind":"stickiness","windowDays":400}`,
 	} {
 		if _, err := ParseDefinition([]byte(raw)); !errors.Is(err, ErrInvalid) {
 			t.Errorf("%s: err = %v, want ErrInvalid", name, err)
@@ -28,6 +29,9 @@ func TestParseDefinitionRefusesWhatItDoesntKnow(t *testing.T) {
 	}
 	if d, err := ParseDefinition([]byte(`{"kind":"insights","size":"full"}`)); err != nil || d.Size != "full" {
 		t.Fatalf("a full-width tile = %+v, %v", d, err)
+	}
+	if d, err := ParseDefinition([]byte(`{"kind":"stickiness","windowDays":14}`)); err != nil || d.WindowDays != 14 {
+		t.Fatalf("a 14-day return window = %+v, %v", d, err)
 	}
 }
 
