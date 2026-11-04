@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 
+	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/board"
 )
@@ -17,12 +19,39 @@ type boardServer struct {
 	svc *board.Service
 }
 
+// boardActor checks perm on the board's shop and says who's asking: their roles come with core's token, and
+// boards.manage there decides what they may do with a shop board
+func boardActor(ctx context.Context, perm, channelID string) (uuid.UUID, board.Actor, error) {
+	cid, err := channelScope(ctx, perm, channelID)
+	if err != nil {
+		return uuid.Nil, board.Actor{}, err
+	}
+	c, ok := auth.AdminFromContext(ctx)
+	if !ok {
+		return uuid.Nil, board.Actor{}, status.Error(codes.Unauthenticated, "boards are an admin's")
+	}
+	return cid, board.Actor{
+		AdminID: c.AdminID, RoleIDs: c.RoleIDs, Superuser: c.IsSuperuser,
+		CanManage: requireChannel(ctx, "boards.manage", cid) == nil,
+	}, nil
+}
+
+// boardRef is the shop, the actor and the board id every call on one board takes
+func boardRef(ctx context.Context, perm, channelID, id string) (uuid.UUID, board.Actor, uuid.UUID, error) {
+	cid, a, err := boardActor(ctx, perm, channelID)
+	if err != nil {
+		return uuid.Nil, a, uuid.Nil, err
+	}
+	bid, err := parseID("id", id)
+	return cid, a, bid, err
+}
+
 func (s *boardServer) ListBoards(ctx context.Context, req *signalsv1.ListBoardsRequest) (*signalsv1.ListBoardsResponse, error) {
-	cid, err := channelScope(ctx, "boards.view", req.GetChannelId())
+	cid, a, err := boardActor(ctx, "boards.view", req.GetChannelId())
 	if err != nil {
 		return nil, err
 	}
-	bs, err := s.svc.List(ctx, cid)
+	bs, err := s.svc.List(ctx, cid, a, req.GetAll())
 	if err != nil {
 		return nil, boardErr(err)
 	}
@@ -30,15 +59,11 @@ func (s *boardServer) ListBoards(ctx context.Context, req *signalsv1.ListBoardsR
 }
 
 func (s *boardServer) GetBoard(ctx context.Context, req *signalsv1.GetBoardRequest) (*signalsv1.GetBoardResponse, error) {
-	cid, err := channelScope(ctx, "boards.view", req.GetChannelId())
+	cid, a, id, err := boardRef(ctx, "boards.view", req.GetChannelId(), req.GetId())
 	if err != nil {
 		return nil, err
 	}
-	id, err := parseID("id", req.GetId())
-	if err != nil {
-		return nil, err
-	}
-	b, err := s.svc.Get(ctx, cid, id)
+	b, err := s.svc.Get(ctx, cid, a, id)
 	if err != nil {
 		return nil, boardErr(err)
 	}
@@ -46,7 +71,7 @@ func (s *boardServer) GetBoard(ctx context.Context, req *signalsv1.GetBoardReque
 }
 
 func (s *boardServer) CreateBoard(ctx context.Context, req *signalsv1.CreateBoardRequest) (*signalsv1.CreateBoardResponse, error) {
-	cid, err := channelScope(ctx, "boards.manage", req.GetChannelId())
+	cid, a, err := boardActor(ctx, "boards.manage", req.GetChannelId())
 	if err != nil {
 		return nil, err
 	}
@@ -54,19 +79,16 @@ func (s *boardServer) CreateBoard(ctx context.Context, req *signalsv1.CreateBoar
 	if err != nil {
 		return nil, err
 	}
-	b, err := s.svc.Create(ctx, cid, req.GetName(), reports)
+	b, err := s.svc.Create(ctx, cid, a, req.GetName(), reports)
 	if err != nil {
 		return nil, boardErr(err)
 	}
 	return &signalsv1.CreateBoardResponse{Board: boardProto(b)}, nil
 }
 
+// Saving takes boards.view on the shop and edit access to the board - an edit share is what lets someone save
 func (s *boardServer) SaveBoard(ctx context.Context, req *signalsv1.SaveBoardRequest) (*signalsv1.SaveBoardResponse, error) {
-	cid, err := channelScope(ctx, "boards.manage", req.GetChannelId())
-	if err != nil {
-		return nil, err
-	}
-	id, err := parseID("id", req.GetId())
+	cid, a, id, err := boardRef(ctx, "boards.view", req.GetChannelId(), req.GetId())
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +99,7 @@ func (s *boardServer) SaveBoard(ctx context.Context, req *signalsv1.SaveBoardReq
 	if err != nil {
 		return nil, err
 	}
-	b, err := s.svc.Save(ctx, cid, id, req.GetName(), reports, req.GetReadAt().AsTime())
+	b, err := s.svc.Save(ctx, cid, a, id, req.GetName(), reports, req.GetReadAt().AsTime())
 	if err != nil {
 		return nil, boardErr(err)
 	}
@@ -85,30 +107,103 @@ func (s *boardServer) SaveBoard(ctx context.Context, req *signalsv1.SaveBoardReq
 }
 
 func (s *boardServer) DeleteBoard(ctx context.Context, req *signalsv1.DeleteBoardRequest) (*signalsv1.DeleteBoardResponse, error) {
-	cid, err := channelScope(ctx, "boards.manage", req.GetChannelId())
+	cid, a, id, err := boardRef(ctx, "boards.view", req.GetChannelId(), req.GetId())
 	if err != nil {
 		return nil, err
 	}
-	id, err := parseID("id", req.GetId())
-	if err != nil {
-		return nil, err
-	}
-	if err := s.svc.Delete(ctx, cid, id); err != nil {
+	if err := s.svc.Delete(ctx, cid, a, id); err != nil {
 		return nil, boardErr(err)
 	}
 	return &signalsv1.DeleteBoardResponse{}, nil
 }
 
 func (s *boardServer) CreateStarterBoards(ctx context.Context, req *signalsv1.CreateStarterBoardsRequest) (*signalsv1.CreateStarterBoardsResponse, error) {
-	cid, err := channelScope(ctx, "boards.manage", req.GetChannelId())
+	cid, a, err := boardActor(ctx, "boards.manage", req.GetChannelId())
 	if err != nil {
 		return nil, err
 	}
-	bs, err := s.svc.CreateStarters(ctx, cid)
+	bs, err := s.svc.CreateStarters(ctx, cid, a)
 	if err != nil {
 		return nil, boardErr(err)
 	}
 	return &signalsv1.CreateStarterBoardsResponse{Boards: boardsProto(bs)}, nil
+}
+
+func (s *boardServer) SetBoardShares(ctx context.Context, req *signalsv1.SetBoardSharesRequest) (*signalsv1.SetBoardSharesResponse, error) {
+	cid, a, id, err := boardRef(ctx, "boards.view", req.GetChannelId(), req.GetId())
+	if err != nil {
+		return nil, err
+	}
+	shares := make([]board.Share, 0, len(req.GetShares()))
+	for _, sh := range req.GetShares() {
+		shares = append(shares, board.Share{AdminID: uuidOrNil(sh.GetAdminId()), RoleID: uuidOrNil(sh.GetRoleId()), Level: sh.GetLevel()})
+	}
+	b, err := s.svc.SetShares(ctx, cid, a, id, shares)
+	if err != nil {
+		return nil, boardErr(err)
+	}
+	return &signalsv1.SetBoardSharesResponse{Board: boardProto(b)}, nil
+}
+
+func (s *boardServer) MakeShopBoard(ctx context.Context, req *signalsv1.MakeShopBoardRequest) (*signalsv1.MakeShopBoardResponse, error) {
+	cid, a, id, err := boardRef(ctx, "boards.manage", req.GetChannelId(), req.GetId())
+	if err != nil {
+		return nil, err
+	}
+	b, err := s.svc.MakeShopBoard(ctx, cid, a, id)
+	if err != nil {
+		return nil, boardErr(err)
+	}
+	return &signalsv1.MakeShopBoardResponse{Board: boardProto(b)}, nil
+}
+
+func (s *boardServer) ClaimBoard(ctx context.Context, req *signalsv1.ClaimBoardRequest) (*signalsv1.ClaimBoardResponse, error) {
+	cid, a, id, err := boardRef(ctx, "boards.manage", req.GetChannelId(), req.GetId())
+	if err != nil {
+		return nil, err
+	}
+	b, err := s.svc.Claim(ctx, cid, a, id)
+	if err != nil {
+		return nil, boardErr(err)
+	}
+	return &signalsv1.ClaimBoardResponse{Board: boardProto(b)}, nil
+}
+
+func (s *boardServer) SetBoardFavourite(ctx context.Context, req *signalsv1.SetBoardFavouriteRequest) (*signalsv1.SetBoardFavouriteResponse, error) {
+	cid, a, id, err := boardRef(ctx, "boards.view", req.GetChannelId(), req.GetId())
+	if err != nil {
+		return nil, err
+	}
+	if err := s.svc.SetFavourite(ctx, cid, a, id, req.GetFavourite()); err != nil {
+		return nil, boardErr(err)
+	}
+	return &signalsv1.SetBoardFavouriteResponse{}, nil
+}
+
+func (s *boardServer) SaveBoardDraft(ctx context.Context, req *signalsv1.SaveBoardDraftRequest) (*signalsv1.SaveBoardDraftResponse, error) {
+	cid, a, id, err := boardRef(ctx, "boards.view", req.GetChannelId(), req.GetId())
+	if err != nil {
+		return nil, err
+	}
+	if req.GetBaseUpdatedAt() == nil {
+		return nil, invalidArgument("base_updated_at is required - the board's updated_at when the edits began")
+	}
+	at, err := s.svc.SaveDraft(ctx, cid, a, id, []byte(req.GetPayloadJson()), req.GetBaseUpdatedAt().AsTime())
+	if err != nil {
+		return nil, boardErr(err)
+	}
+	return &signalsv1.SaveBoardDraftResponse{UpdatedAt: timestamppb.New(at)}, nil
+}
+
+func (s *boardServer) DiscardBoardDraft(ctx context.Context, req *signalsv1.DiscardBoardDraftRequest) (*signalsv1.DiscardBoardDraftResponse, error) {
+	cid, a, id, err := boardRef(ctx, "boards.view", req.GetChannelId(), req.GetId())
+	if err != nil {
+		return nil, err
+	}
+	if err := s.svc.DiscardDraft(ctx, cid, a, id); err != nil {
+		return nil, boardErr(err)
+	}
+	return &signalsv1.DiscardBoardDraftResponse{}, nil
 }
 
 func reportsFrom(in []*signalsv1.BoardReport) ([]board.Report, error) {
@@ -135,6 +230,25 @@ func boardProto(b board.Board) *signalsv1.Board {
 	out := &signalsv1.Board{
 		Id: b.ID.String(), ChannelId: b.ChannelID.String(), Name: b.Name,
 		UpdatedAt: timestamppb.New(b.UpdatedAt), ReportCount: count32(b.ReportCount),
+		Status: b.Status, Access: b.Access.String(), Favourite: b.Favourite,
+	}
+	if b.OwnerID != uuid.Nil {
+		out.OwnerAdminId = b.OwnerID.String()
+	}
+	if !b.DraftAt.IsZero() {
+		out.DraftUpdatedAt = timestamppb.New(b.DraftAt)
+	}
+	for _, sh := range b.Shares {
+		p := &signalsv1.BoardShare{Level: sh.Level}
+		if sh.AdminID != uuid.Nil {
+			p.AdminId = sh.AdminID.String()
+		} else {
+			p.RoleId = sh.RoleID.String()
+		}
+		out.Shares = append(out.Shares, p)
+	}
+	if d := b.Draft; d != nil {
+		out.Draft = &signalsv1.BoardDraft{PayloadJson: string(d.Payload), BaseUpdatedAt: timestamppb.New(d.BaseUpdatedAt), UpdatedAt: timestamppb.New(d.UpdatedAt)}
 	}
 	for _, r := range b.Reports {
 		raw, _ := board.DefinitionJSON(r.Definition)
@@ -151,6 +265,8 @@ func boardErr(err error) error {
 		return status.Error(codes.InvalidArgument, err.Error())
 	case errors.Is(err, board.ErrStale):
 		return status.Error(codes.FailedPrecondition, err.Error())
+	case errors.Is(err, board.ErrForbidden):
+		return status.Error(codes.PermissionDenied, err.Error())
 	}
 	return err
 }
