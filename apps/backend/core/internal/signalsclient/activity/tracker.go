@@ -26,6 +26,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
 // Satisfied by *signalsclient.Client - an interface so the tracker tests without a service
@@ -46,11 +47,38 @@ type orderLookup interface {
 	GetByID(ctx context.Context, id uuid.UUID) (order.Order, error)
 }
 
+// Satisfied by *order.Service - the lines a refund credited
+type creditMemos interface {
+	GetCreditMemo(ctx context.Context, id uuid.UUID) (order.CreditMemo, error)
+}
+
+// ToBase converts minor units of a currency into the platform's base currency at today's rate - false when either
+// rate is unknown. Stamped on each amount as it happens, since no rate history is kept to convert by later
+type ToBase func(ctx context.Context, cents int64, currency string) (int64, bool)
+
 type Tracker struct {
 	rec    activityRecorder
 	orders orderLookup
+	memos  creditMemos
+	toBase ToBase
 	// Whether a channel counts visitors without analytics consent in totals - nil counts them, the setting's default
 	aggregateOn func(ctx context.Context, channelID uuid.UUID) bool
+}
+
+// SetSales wires what order lines and refunds need: the credit memos a refund covered, and the base-currency conversion
+func (t *Tracker) SetSales(memos creditMemos, toBase ToBase) {
+	t.memos, t.toBase = memos, toBase
+}
+
+// withBase adds key_base_cents beside an amount, when it converts
+func (t *Tracker) withBase(ctx context.Context, props map[string]any, key string, cents int64, currency string) map[string]any {
+	if t.toBase == nil {
+		return props
+	}
+	if b, ok := t.toBase(ctx, cents, currency); ok {
+		props[key+"_base_cents"] = b
+	}
+	return props
 }
 
 // SetAggregateSwitch wires the per-shop general/privacy/aggregate_counts setting
@@ -65,11 +93,23 @@ func NewTracker(rec *signalsclient.Client, orders orderLookup) *Tracker {
 // BackfillOrder replays a past order's placement, for orders that never reached the suite - placedAt must be the time the
 // live event carried, since the dedupe key only collapses a copy in the same daily partition
 func (t *Tracker) BackfillOrder(ctx context.Context, o order.Order, placedAt time.Time) error {
-	held := &Tracker{rec: t.rec, orders: heldOrder(o)} // the gift-card follow-up reads the order the caller already has
+	held := &Tracker{rec: t.rec, orders: heldOrder(o), toBase: t.toBase, aggregateOn: t.aggregateOn} // the follow-ups read the order the caller already has
 	return held.onOrderPlaced(events.WithEmittedAt(ctx, placedAt), &order.OrderPlaced{
 		OrderID: o.ID, OrderNumber: o.Number, CustomerID: o.CustomerID, Email: o.Email, AnonID: o.AnonID,
 		ChannelID: o.ChannelID, TotalCents: o.TotalAmount, Currency: o.CurrencyCode,
 	})
+}
+
+// BackfillRefund replays a past credit memo's refund lines at the time it was issued
+func (t *Tracker) BackfillRefund(ctx context.Context, o order.Order, memo order.CreditMemo) error {
+	held := &Tracker{rec: t.rec, orders: heldOrder(o), memos: heldMemo(memo), toBase: t.toBase, aggregateOn: t.aggregateOn}
+	return held.onRefunded(events.WithEmittedAt(ctx, memo.CreatedAt), &order.OrderRefunded{OrderID: o.ID, ChannelID: o.ChannelID, CreditMemoID: memo.ID})
+}
+
+type heldMemo order.CreditMemo
+
+func (h heldMemo) GetCreditMemo(context.Context, uuid.UUID) (order.CreditMemo, error) {
+	return order.CreditMemo(h), nil
 }
 
 type heldOrder order.Order
@@ -92,6 +132,7 @@ func (t *Tracker) Subscribe(bus *events.Bus) {
 	bus.Subscribe(order.EventReturnApproved, t.onReturnApproved)
 	bus.Subscribe(order.EventReturnRejected, t.onReturnRejected)
 	bus.Subscribe(order.EventEdited, t.onOrderEdited)
+	bus.Subscribe(order.EventRefunded, t.onRefunded)
 	bus.Subscribe(cart.EventLineAdded, t.onCartAdd)
 	bus.Subscribe(cart.EventBundleAdded, t.onCartBundleAdd)
 	bus.Subscribe(cart.EventLineUpdated, t.onCartUpdate)
@@ -256,8 +297,19 @@ func (t *Tracker) onOrderPlaced(ctx context.Context, e events.Event) error {
 		return nil
 	}
 	if err := t.emitOrder(ctx, "order_placed", placed, "act:order_placed:"+ev.OrderID.String(),
-		map[string]any{"order_id": ev.OrderID.String(), "order_number": ev.OrderNumber, "total_cents": ev.TotalCents, "currency": ev.Currency}); err != nil {
+		t.withBase(ctx, map[string]any{"order_id": ev.OrderID.String(), "order_number": ev.OrderNumber, "total_cents": ev.TotalCents, "currency": ev.Currency}, "total", ev.TotalCents, ev.Currency)); err != nil {
 		return err
+	}
+	// One event per line, so a product's orders, units and net sales can be read - and a board narrowed to its sku
+	net := order.LineNet(o)
+	for _, l := range o.Lines {
+		props := map[string]any{
+			"order_id": ev.OrderID.String(), "line_id": l.ID.String(), "sku": l.ProductSku, "qty": l.Quantity,
+			"gross_cents": money.LineTotal(l.UnitPrice, l.Quantity), "net_cents": net[l.ID], "currency": ev.Currency, "is_gift": l.IsGift,
+		}
+		if err := t.emitOrder(ctx, "order_line", placed, "act:order_line:"+l.ID.String(), t.withBase(ctx, props, "net", net[l.ID], ev.Currency)); err != nil {
+			return err
+		}
 	}
 	if o.GiftCardAmount > 0 {
 		return t.emitOrder(ctx, "giftcard_redeemed", placed, "act:gc:"+ev.OrderID.String(),
@@ -359,9 +411,112 @@ func (t *Tracker) onOrderEdited(ctx context.Context, e events.Event) error {
 	if err != nil {
 		return err
 	}
-	return t.emitOrder(ctx, "order_edited", o,
+	if err := t.emitOrder(ctx, "order_edited", o,
 		"act:order_edited:"+ev.OrderID.String()+":"+itoa(secBucket(ctx)),
-		map[string]any{"order_number": o.number, "new_amount_due": ev.NewAmountDue})
+		map[string]any{"order_number": o.number, "new_amount_due": ev.NewAmountDue}); err != nil {
+		return err
+	}
+	if len(ev.Before) == 0 || t.orders == nil {
+		return nil // an address edit moves no line
+	}
+	return t.recordLineEdits(ctx, o, ev)
+}
+
+// recordLineEdits books what an edit changed on each line, on the day of the edit, as the difference in net sales -
+// a removed line takes all of its back, an added one counts in full, and the discount's new split moves the rest
+func (t *Tracker) recordLineEdits(ctx context.Context, ref orderRef, ev *order.OrderEdited) error {
+	after, err := t.orders.GetByID(ctx, ev.OrderID)
+	if err != nil {
+		return fmt.Errorf("load edited order %s: %w", ev.OrderID, err)
+	}
+	type side struct {
+		sku      string
+		qty      float64
+		net      int64
+		had, has bool
+	}
+	lines := map[uuid.UUID]*side{}
+	seq := []uuid.UUID{}
+	at := func(id uuid.UUID) *side {
+		if lines[id] == nil {
+			lines[id] = &side{}
+			seq = append(seq, id)
+		}
+		return lines[id]
+	}
+	for _, b := range ev.Before {
+		s := at(b.LineID)
+		s.sku, s.net, s.had = b.ProductSku, -b.NetCents, true
+		s.qty = -b.Quantity
+	}
+	net := order.LineNet(after)
+	for _, l := range after.Lines {
+		s := at(l.ID)
+		s.sku, s.has = l.ProductSku, true
+		s.net += net[l.ID]
+		s.qty += l.Quantity
+	}
+	for _, id := range seq {
+		s := lines[id]
+		if s.net == 0 && s.qty == 0 {
+			continue
+		}
+		props := map[string]any{
+			"order_id": ev.OrderID.String(), "line_id": id.String(), "sku": s.sku, "qty": s.qty,
+			"net_cents": s.net, "currency": after.CurrencyCode, "removed": s.had && !s.has, "added": s.has && !s.had,
+		}
+		if err := t.emitOrder(ctx, "order_line_adjusted", ref, "act:order_line_adj:"+id.String()+":"+itoa(secBucket(ctx)),
+			t.withBase(ctx, props, "net", s.net, after.CurrencyCode)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// onRefunded books each line a credit memo covered as a refund_line, with negative amounts on the day of the refund -
+// so a product's net sales is the sum over order_line, order_line_adjusted and refund_line, and last month never moves.
+// A memo with no lines (a shipping or goodwill refund) belongs to no product and books nothing here
+func (t *Tracker) onRefunded(ctx context.Context, e events.Event) error {
+	ev, ok := e.(*order.OrderRefunded)
+	if !ok || t.memos == nil || t.orders == nil {
+		return nil
+	}
+	memo, err := t.memos.GetCreditMemo(ctx, ev.CreditMemoID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("load credit memo %s: %w", ev.CreditMemoID, err)
+	}
+	if len(memo.Lines) == 0 {
+		return nil
+	}
+	o, err := t.orders.GetByID(ctx, ev.OrderID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("load order %s: %w", ev.OrderID, err)
+	}
+	ref, err := t.resolveOrder(ctx, ev.OrderID)
+	if err != nil {
+		return err
+	}
+	skus := make(map[uuid.UUID]string, len(o.Lines))
+	for _, l := range o.Lines {
+		skus[l.ID] = l.ProductSku
+	}
+	for _, ml := range memo.Lines {
+		net := -order.LineNetFor(o, ml.OrderLineID, ml.Quantity)
+		props := map[string]any{
+			"order_id": ev.OrderID.String(), "line_id": ml.OrderLineID.String(), "sku": skus[ml.OrderLineID], "qty": -ml.Quantity,
+			"net_cents": net, "refund_cents": ml.TotalCents, "currency": o.CurrencyCode,
+		}
+		if err := t.emitOrder(ctx, "refund_line", ref, "act:refund_line:"+ml.ID.String(), t.withBase(ctx, props, "net", net, o.CurrencyCode)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (t *Tracker) onCartAdd(ctx context.Context, e events.Event) error {
@@ -391,7 +546,7 @@ func (t *Tracker) onCartUpdate(ctx context.Context, e events.Event) error {
 	}
 	return t.emitShopper(ctx, ev.Shopper, "cart_update", ev.ChannelID, ev.CustomerID, ev.AnonID,
 		"act:cart_upd:"+ev.LineID.String()+":"+itoa(minuteBucket(ctx)),
-		map[string]any{"line_id": ev.LineID.String(), "qty": ev.Quantity})
+		map[string]any{"line_id": ev.LineID.String(), "sku": ev.ProductSku, "qty": ev.Quantity})
 }
 
 func (t *Tracker) onCartRemove(ctx context.Context, e events.Event) error {
@@ -401,7 +556,7 @@ func (t *Tracker) onCartRemove(ctx context.Context, e events.Event) error {
 	}
 	return t.emitShopper(ctx, ev.Shopper, "cart_remove", ev.ChannelID, ev.CustomerID, ev.AnonID,
 		"act:cart_rm:"+ev.LineID.String()+":"+itoa(minuteBucket(ctx)),
-		map[string]any{"line_id": ev.LineID.String()})
+		map[string]any{"line_id": ev.LineID.String(), "sku": ev.ProductSku, "qty": ev.Quantity})
 }
 
 func (t *Tracker) onCartCleared(ctx context.Context, e events.Event) error {

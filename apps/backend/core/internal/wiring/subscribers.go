@@ -2,6 +2,7 @@ package wiring
 
 import (
 	"context"
+	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	"log"
 
 	"github.com/google/uuid"
@@ -51,6 +52,7 @@ import (
 // The one call the entrypoint makes - every "what reacts when X fires" decision is below it, and registration order is load-bearing where sync priorities tie, so treat the sequence here as part of the contract
 type subscriberDeps struct {
 	fx.In
+	Currency            *currency.Service
 	Cart                *cart.Service
 	Lifecycle           fx.Lifecycle
 	Bus                 *events.Bus
@@ -146,12 +148,13 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 		resync = d.Jobs
 	}
 	roster.Register(bus, d.Queries, d.SignalsClient, resync) // keeps the suite's copy current between the 6-hourly sweeps
-	activity.RegisterConversionAttribution(bus, d.SignalsClient)
+	activity.RegisterConversionAttribution(bus, d.SignalsClient, activity.BaseConverter(d.Config, d.Currency))
 	tracker := activity.NewTracker(d.SignalsClient, d.Order)
 	tracker.SetAggregateSwitch(func(ctx context.Context, ch uuid.UUID) bool {
 		on, err := d.Config.GetBool(ctx, "general/privacy/aggregate_counts", config.Scope{Kind: config.ScopeChannel, ChannelID: &ch})
 		return err != nil || on // a setting that won't read keeps its default
 	})
+	tracker.SetSales(d.Order, activity.BaseConverter(d.Config, d.Currency))
 	tracker.Subscribe(bus)      // every customer-facing action onto the analytics spine, so the profile timeline reflects the whole journey
 	d.BackInStock.Register(bus) // on restock, resolved customers enrol into the back_in_stock flow and guests get a direct mail
 }

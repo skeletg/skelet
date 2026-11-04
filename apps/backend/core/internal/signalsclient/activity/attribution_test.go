@@ -17,12 +17,39 @@ import (
 type fakeConversions struct {
 	err         error
 	hadDeadline bool
+	got         signalsclient.ConversionSpec
 }
 
-func (f *fakeConversions) RecordConversion(ctx context.Context, _ signalsclient.ConversionSpec) error {
+func (f *fakeConversions) RecordConversion(ctx context.Context, cs signalsclient.ConversionSpec) error {
 	_, f.hadDeadline = ctx.Deadline()
+	f.got = cs
 	return f.err
 }
+
+// A board adds attributed revenue up across currencies, so the conversion carries it in the base currency too - and
+// without a rate it goes without, rather than with a wrong figure
+func TestAConversionCarriesItsRevenueInTheBaseCurrency(t *testing.T) {
+	cid := uuid.New()
+	for name, tc := range map[string]struct {
+		toBase ToBase
+		want   *int64
+	}{
+		"a known rate": {func(context.Context, int64, string) (int64, bool) { return 4600, true }, ptr(int64(4600))},
+		"no rate":      {func(context.Context, int64, string) (int64, bool) { return 0, false }, nil},
+	} {
+		bus := events.NewBus()
+		rec := &fakeConversions{}
+		RegisterConversionAttribution(bus, rec, tc.toBase)
+		if err := bus.DispatchAsyncNow(context.Background(), &order.OrderPlaced{OrderID: uuid.New(), CustomerID: &cid, TotalCents: 5000, Currency: "EUR"}); err != nil {
+			t.Fatal(err)
+		}
+		if got := rec.got.RevenueBaseCents; (got == nil) != (tc.want == nil) || (got != nil && *got != *tc.want) {
+			t.Errorf("%s: base revenue = %v, want %v", name, got, tc.want)
+		}
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
 
 func TestConversionFailureReachesTheOutbox(t *testing.T) {
 	cid := uuid.New()
@@ -39,7 +66,7 @@ func TestConversionFailureReachesTheOutbox(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			bus := events.NewBus()
 			rec := &fakeConversions{err: tc.err}
-			RegisterConversionAttribution(bus, rec)
+			RegisterConversionAttribution(bus, rec, nil)
 			err := bus.DispatchAsyncNow(context.Background(), &order.OrderPlaced{OrderID: uuid.New(), CustomerID: &cid})
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("dispatch err = %v, want error %v", err, tc.wantErr)

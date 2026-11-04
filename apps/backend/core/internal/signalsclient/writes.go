@@ -37,6 +37,8 @@ type ConversionSpec struct {
 	RevenueCents int64
 	Currency     string
 	At           time.Time
+	// RevenueCents in the platform's base currency, nil when no rate was known
+	RevenueBaseCents *int64
 }
 
 // The send log's vocabulary for who sent a message
@@ -108,7 +110,7 @@ func (c *Client) RecordConversion(ctx context.Context, cs ConversionSpec) error 
 	}
 	_, err = c.Ingest.RecordConversion(sys, &signalsv1.RecordConversionRequest{
 		CustomerId: cs.CustomerID.String(), ChannelId: idString(cs.ChannelID), OrderId: cs.OrderID.String(),
-		RevenueCents: cs.RevenueCents, Currency: cs.Currency, At: stamp(cs.At),
+		RevenueCents: cs.RevenueCents, Currency: cs.Currency, At: stamp(cs.At), RevenueBaseCents: cs.RevenueBaseCents,
 	})
 	return err
 }
