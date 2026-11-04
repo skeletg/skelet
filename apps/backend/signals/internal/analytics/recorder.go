@@ -292,6 +292,12 @@ func (r *Recorder) RecordActivity(ctx context.Context, a ActivitySpec) (bool, er
 	} else if a.CustomerID == nil && a.AnonID == "" {
 		return false, nil
 	}
+	// A sign-in or sign-up core saw with the visitor's id is proof the two are one person, sent only with analytics consent
+	if a.Source == SourceAccount && a.CustomerID != nil && a.AnonID != "" {
+		if err := r.Identify(ctx, a.AnonID, *a.CustomerID, a.ChannelID); err != nil {
+			return false, err
+		}
+	}
 	var ch *uuid.UUID
 	if a.ChannelID != uuid.Nil {
 		cid := a.ChannelID
