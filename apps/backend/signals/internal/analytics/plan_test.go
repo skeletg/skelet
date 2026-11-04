@@ -41,11 +41,14 @@ func TestApplyPlanOnNamedEvents(t *testing.T) {
 	if keep, issues := ApplyPlan("$made_up", map[string]any{}); keep || len(issues) != 1 || issues[0].Kind != IssueUnknownEvent {
 		t.Fatalf("an unplanned $ event: keep=%v issues=%v, want it dropped and flagged", keep, issues)
 	}
-	// A merchant's own interaction name is open, held to the custom entry's properties
-	props := map[string]any{"action": "expand", "currency": "EUR"}
+	// A merchant's own event name is open and so are its scalar properties - only the server's keys and nested values go
+	props := map[string]any{"action": "expand", "plan": "pro", "seats": 3.0, "currency": "EUR", "cart": map[string]any{"n": 1}}
 	keep, issues := ApplyPlan("Size guide", props)
-	if !keep || len(issues) != 1 || issues[0].Event != CustomEvent || issues[0].Prop != "currency" {
-		t.Fatalf("a named interaction: keep=%v issues=%v", keep, issues)
+	if !keep || !reflect.DeepEqual(props, map[string]any{"action": "expand", "plan": "pro", "seats": 3.0}) {
+		t.Fatalf("a named event: keep=%v props=%v", keep, props)
+	}
+	if len(issues) != 2 || issues[0] != (PlanIssue{IssueBadType, CustomEvent, "cart"}) || issues[1] != (PlanIssue{IssueServerProp, CustomEvent, "currency"}) {
+		t.Fatalf("a named event's issues = %v", issues)
 	}
 	if keep, issues := ApplyPlan("$search", map[string]any{"query": "shirt", "results": 3.0}); !keep || len(issues) != 0 {
 		t.Fatalf("a clean $search: keep=%v issues=%v", keep, issues)

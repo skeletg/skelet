@@ -20,10 +20,11 @@ type PlannedEvent struct {
 	About string
 	Props map[string]PropType
 	Attrs bool // also takes the open attr:<slug> string properties, the catalogue attributes a page annotates itself with
+	Open  bool // takes any other property too, as long as it's a string, number or bool - a merchant's own events carry their own
 }
 
-// CustomEvent is the plan entry every named UI interaction is held to - their names are the merchant's own (a
-// data-lens-event value, a toggle's label), so only the reserved $ namespace is closed
+// CustomEvent is the plan entry every merchant-named event is held to - an interaction (a data-lens-event value, a
+// toggle's label) or an experiment goal from trackGoal - so only the reserved $ namespace is closed
 const CustomEvent = "custom"
 
 // TrackingPlan is what the Lens beacon accepts from a browser. Anything else is stripped and counted for Data health,
@@ -43,7 +44,7 @@ var TrackingPlan = []PlannedEvent{
 	{Name: EventViewItem, About: "A product was viewed. Older storefronts send it; the server's own events are the source of truth.", Props: map[string]PropType{"sku": PropString}},
 	{Name: EventBeginCheckout, About: "Checkout was opened. Older storefronts send it.", Props: map[string]PropType{}},
 	{Name: EventPurchase, About: "An order was placed. Older storefronts send it; revenue only ever comes from the server's order events.", Props: map[string]PropType{}},
-	{Name: CustomEvent, About: "Any other named interaction: a data-lens-event, a toggle opened or closed, a CMS block seen.", Props: map[string]PropType{"action": PropString, "source": PropString}},
+	{Name: CustomEvent, About: "Any other name is the merchant's own: a data-lens-event, a toggle opened or closed, a CMS block seen, an experiment goal. It may carry any string, number or bool property.", Open: true, Props: map[string]PropType{"action": PropString, "source": PropString}},
 }
 
 // ServerProps are set from the request or by the server, never taken from a browser - a forged is_bot, revenue or
@@ -107,6 +108,10 @@ func ApplyPlan(name string, props map[string]any) (keep bool, issues []PlanIssue
 			}
 		case entry.Attrs && strings.HasPrefix(k, "attr:"):
 			if !hasType(props[k], PropString) {
+				kind = IssueBadType
+			}
+		case entry.Open:
+			if !hasType(props[k], PropString) && !hasType(props[k], PropNumber) && !hasType(props[k], PropBool) {
 				kind = IssueBadType
 			}
 		default:
