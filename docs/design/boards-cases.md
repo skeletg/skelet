@@ -283,6 +283,14 @@ asked. Adding `sku` to both is a two-line change in the tracker, and it goes in 
   - each tile shows a "follows subject on …" line and an "Ignore the board's subject" switch
   - an Insights "Sum of" measure, shown as money when the key ends in `_cents`
 
+**As built (`feat/spine-order-lines`):**
+- **Event names.** `order_line` at checkout, `refund_line` for each line a credit memo covers (a return, or a direct
+  credit), and `order_line_adjusted` for each line an edit changed.
+- **Shared fields.** All three carry `sku`, `qty`, `net_cents` and `net_base_cents`. Refunds and removals carry
+  negative amounts, so a product's net sales is the sum over the three events.
+- **Gaps.** A refund with no lines (shipping, goodwill) belongs to no product. Edits from before the release can't
+  be replayed by the backfill, because the lines as they stood before an edit weren't kept.
+
 ### Revenue, explained (your questions 1 and 2)
 
 **A worked example.** One order, in a shop whose prices don't include tax:
