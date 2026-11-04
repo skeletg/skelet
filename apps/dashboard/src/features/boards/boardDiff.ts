@@ -1,39 +1,48 @@
-import { describeReport, type BoardReport } from '@/shared/analytics/report'
+import { REPORT_SIZE_LABEL, describeReport, type BoardReport, type ReportDefinition } from '@/shared/analytics/report'
 import { added, changed, removed } from '@/shared/saving/diff'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 
 // What "Add to board" hands this page - a report staged on arrival, saved like any other edit
 export type AddToBoardState = { add?: BoardReport }
 
-const same = (a: BoardReport, b: BoardReport) => a.title === b.title && JSON.stringify(a.definition) === JSON.stringify(b.definition)
+// A report on the board being edited. key is `s<i>` for the board's i-th saved report and `n<…>` for one added since,
+// so an edit, a resize or a move reads as exactly that rather than as a remove and an add
+export type DraftReport = BoardReport & { key: string }
 
-// boardDiff is the staged change list the header Save reviews: the name, each report added or taken off, a title
-// changed in place, and the order when only that moved
-export function boardDiff(name: string, reports: BoardReport[], draftName: string, draft: BoardReport[]): SectionDiffEntry[] {
+export const keyed = (reports: BoardReport[]): DraftReport[] => reports.map((r, i) => ({ ...r, key: `s${i}` }))
+export const unkeyed = (draft: DraftReport[]): BoardReport[] => draft.map((d) => ({ title: d.title, definition: d.definition }))
+
+const settings = (d: ReportDefinition) => JSON.stringify({ ...d, size: undefined }) // stringify drops the undefined size
+const sizeLabel = (d: ReportDefinition) => REPORT_SIZE_LABEL[d.size ?? 'medium']
+
+// boardDiff is the staged change list the header Save reviews: the name, each report added, removed, retitled,
+// rebuilt or resized, and the order when the reports that stayed moved
+export function boardDiff(name: string, reports: BoardReport[], draftName: string, draft: DraftReport[]): SectionDiffEntry[] {
   const out: SectionDiffEntry[] = []
   const n = changed('Name', name, draftName.trim())
   if (n) out.push(n)
-  const left = [...draft]
-  const gone: BoardReport[] = []
-  for (const r of reports) {
-    const i = left.findIndex((d) => same(d, r))
-    if (i >= 0) left.splice(i, 1)
-    else gone.push(r)
-  }
-  for (const g of [...gone]) {
-    const i = left.findIndex((d) => JSON.stringify(d.definition) === JSON.stringify(g.definition))
-    if (i >= 0) {
-      const t = changed(`Report · ${g.title} · title`, g.title, left[i].title.trim())
-      if (t) out.push(t)
-      left.splice(i, 1)
-      gone.splice(gone.indexOf(g), 1)
+  reports.forEach((r, i) => {
+    const d = draft.find((x) => x.key === `s${i}`)
+    if (!d) {
+      out.push(removed(`Report · ${r.title}`, describeReport(r.definition)))
+      return
     }
-  }
-  for (const g of gone) out.push(removed(`Report · ${g.title}`, describeReport(g.definition)))
-  for (const a of left) out.push(added(`Report · ${a.title}`, describeReport(a.definition)))
-  if (out.length === 0) {
-    const order = (rs: BoardReport[]) => rs.map((r) => r.title).join(', ')
-    const o = changed('Report order', order(reports), order(draft))
+    const t = changed(`Report · ${r.title} · title`, r.title, d.title.trim())
+    if (t) out.push(t)
+    if (settings(r.definition) !== settings(d.definition)) {
+      // A filter or window can change without changing the one-line description, and that's still a change to show
+      const label = `Report · ${r.title} · settings`
+      out.push(changed(label, describeReport(r.definition), describeReport(d.definition)) ?? changed(label, 'Earlier settings', describeReport(d.definition))!)
+    }
+    const s = changed(`Report · ${r.title} · size`, sizeLabel(r.definition), sizeLabel(d.definition))
+    if (s) out.push(s)
+  })
+  for (const d of draft) if (!d.key.startsWith('s')) out.push(added(`Report · ${d.title.trim()}`, describeReport(d.definition)))
+  const kept = draft.filter((d) => d.key.startsWith('s'))
+  const before = kept.map((d) => d.key).sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)))
+  if (kept.some((d, i) => d.key !== before[i])) {
+    const titles = (keys: string[]) => keys.map((k) => reports[Number(k.slice(1))].title).join(', ')
+    const o = changed('Report order', titles(before), titles(kept.map((d) => d.key)))
     if (o) out.push(o)
   }
   return out
