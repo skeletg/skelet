@@ -2,7 +2,6 @@ import { type ReactNode, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@apollo/client/react'
 import {
-  ActivityIcon,
   FilterIcon,
   LayersIcon,
   LineChartIcon,
@@ -31,9 +30,8 @@ import { formatCents, formatDate, formatNumber, formatShortDay } from '@/lib/for
 const REPORTS: { to: string; icon: ReactNode; title: string; desc: string }[] = [
   { to: '/synapse/insights', icon: <LineChartIcon className="size-5" />, title: 'Insights', desc: 'Measure any event over time, broken down by any property.' },
   { to: '/synapse/funnels', icon: <FilterIcon className="size-5" />, title: 'Funnels', desc: 'Step-by-step conversion and where people drop off.' },
-  { to: '/synapse/retention', icon: <RepeatIcon className="size-5" />, title: 'Retention', desc: 'Do they come back? Cohort retention curves over time.' },
+  { to: '/synapse/retention', icon: <RepeatIcon className="size-5" />, title: 'Retention', desc: 'Do they come back? A return rate, or period by period per cohort.' },
   { to: '/synapse/flows', icon: <WaypointsIcon className="size-5" />, title: 'Flows', desc: 'The most common paths people take after an event.' },
-  { to: '/synapse/stickiness', icon: <ActivityIcon className="size-5" />, title: 'Engagement', desc: 'Return rate - how many people come back, on your store’s cadence.' },
   { to: '/synapse/segments', icon: <LayersIcon className="size-5" />, title: 'Segments', desc: 'Build behavioural cohorts; target them in campaigns & flows.' },
 ]
 
