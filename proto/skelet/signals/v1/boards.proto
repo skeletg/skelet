@@ -15,6 +15,16 @@ service BoardService {
   rpc DeleteBoard(DeleteBoardRequest) returns (DeleteBoardResponse);
   // Adds the starter boards to a shop that has none, and leaves one that has any alone
   rpc CreateStarterBoards(CreateStarterBoardsRequest) returns (CreateStarterBoardsResponse);
+  // Replaces who the board is shared with - its owner's to change, and only once it's saved
+  rpc SetBoardShares(SetBoardSharesRequest) returns (SetBoardSharesResponse);
+  // Gives up ownership so everyone on the shop sees the board
+  rpc MakeShopBoard(MakeShopBoardRequest) returns (MakeShopBoardResponse);
+  // Makes the caller the owner of a board whose owner was removed - core checks the owner is gone before calling
+  rpc ClaimBoard(ClaimBoardRequest) returns (ClaimBoardResponse);
+  rpc SetBoardFavourite(SetBoardFavouriteRequest) returns (SetBoardFavouriteResponse);
+  // Keeps the caller's unsaved edits between visits, until they save or discard them
+  rpc SaveBoardDraft(SaveBoardDraftRequest) returns (SaveBoardDraftResponse);
+  rpc DiscardBoardDraft(DiscardBoardDraftRequest) returns (DiscardBoardDraftResponse);
 }
 
 message Board {
@@ -26,6 +36,33 @@ message Board {
   repeated BoardReport reports = 5;
   // Filled on a list, where reports is empty
   int32 report_count = 6;
+  // Empty for a shop board, which everyone on the shop sees
+  string owner_admin_id = 7;
+  // draft | published - a draft is its owner's alone until its first save
+  string status = 8;
+  // For the caller: view | edit | own
+  string access = 9;
+  bool favourite = 10;
+  // When the caller's unsaved edits were last kept, unset when there are none
+  google.protobuf.Timestamp draft_updated_at = 11;
+  // On a single read, for a caller who owns the board
+  repeated BoardShare shares = 12;
+  // On a single read, the caller's unsaved edits
+  BoardDraft draft = 13;
+}
+
+// Exactly one of admin_id and role_id is set
+message BoardShare {
+  string admin_id = 1;
+  string role_id = 2;
+  // view | edit
+  string level = 3;
+}
+
+message BoardDraft {
+  string payload_json = 1;
+  google.protobuf.Timestamp base_updated_at = 2;
+  google.protobuf.Timestamp updated_at = 3;
 }
 
 message BoardReport {
@@ -37,6 +74,8 @@ message BoardReport {
 
 message ListBoardsRequest {
   string channel_id = 1;
+  // A superuser's every board on the shop, not only what they'd see as themselves
+  bool all = 2;
 }
 
 message ListBoardsResponse {
@@ -88,3 +127,58 @@ message CreateStarterBoardsRequest {
 message CreateStarterBoardsResponse {
   repeated Board boards = 1;
 }
+
+message SetBoardSharesRequest {
+  string channel_id = 1;
+  string id = 2;
+  repeated BoardShare shares = 3;
+}
+
+message SetBoardSharesResponse {
+  Board board = 1;
+}
+
+message MakeShopBoardRequest {
+  string channel_id = 1;
+  string id = 2;
+}
+
+message MakeShopBoardResponse {
+  Board board = 1;
+}
+
+message ClaimBoardRequest {
+  string channel_id = 1;
+  string id = 2;
+}
+
+message ClaimBoardResponse {
+  Board board = 1;
+}
+
+message SetBoardFavouriteRequest {
+  string channel_id = 1;
+  string id = 2;
+  bool favourite = 3;
+}
+
+message SetBoardFavouriteResponse {}
+
+message SaveBoardDraftRequest {
+  string channel_id = 1;
+  string id = 2;
+  string payload_json = 3;
+  // The board's updated_at when the edits began, so a save over a newer one is still refused
+  google.protobuf.Timestamp base_updated_at = 4;
+}
+
+message SaveBoardDraftResponse {
+  google.protobuf.Timestamp updated_at = 1;
+}
+
+message DiscardBoardDraftRequest {
+  string channel_id = 1;
+  string id = 2;
+}
+
+message DiscardBoardDraftResponse {}
