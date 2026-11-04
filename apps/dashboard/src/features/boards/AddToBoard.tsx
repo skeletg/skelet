@@ -19,6 +19,7 @@ export function AddToBoard({ channelId, title, definition }: { channelId: string
   const navigate = useNavigate()
   const { canAccessChannelScope } = usePermissions()
   const canManage = canAccessChannelScope('boards.manage', channelId)
+  const canView = canAccessChannelScope('boards.view', channelId)
   const [open, setOpen] = useState(false)
   const [name, setName] = useState(title)
   const [picked, setBoardId] = useState<string | null>(null) // null = not chosen yet, so the default below applies
@@ -26,10 +27,11 @@ export function AddToBoard({ channelId, title, definition }: { channelId: string
   const { data } = useQuery(BoardsDocument, { variables: { channelId }, skip: !open })
   const [create, { loading, error }] = useMutation(CreateBoardDocument, { refetchQueries: [BoardsDocument] })
   // The board this shop last added to, else its first board - a new board only when the admin asks for one or there's none
-  const boards = data?.boards ?? []
+  // Only boards the admin can change take a report; a new one needs boards.manage
+  const boards = (data?.boards ?? []).filter((b) => b.access === 'edit' || b.access === 'own')
   const last = localStorage.getItem(lastBoardKey(channelId))
   const boardId = picked ?? (boards.find((b) => b.id === last) ?? boards[0])?.id ?? ''
-  if (!canManage) return null
+  if (!canView) return null
   const report = { title: name.trim() || title, definition: cleanDefinition(definition) }
 
   async function submit() {
@@ -85,7 +87,8 @@ export function AddToBoard({ channelId, title, definition }: { channelId: string
                 onChange={(e) => setBoardId(e.target.value)}
                 className="w-full rounded border bg-background px-2 py-1.5 text-sm"
               >
-                <option value="">A new board…</option>
+                {canManage && <option value="">A new board…</option>}
+                {!canManage && boards.length === 0 && <option value="">No board you can edit</option>}
                 {boards.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name}
@@ -93,7 +96,7 @@ export function AddToBoard({ channelId, title, definition }: { channelId: string
                 ))}
               </select>
             </div>
-            {!boardId && (
+            {!boardId && canManage && (
               <div className="space-y-1">
                 <Label htmlFor="report-new-board">New board name</Label>
                 <Input id="report-new-board" value={newBoard} onChange={(e) => setNewBoard(e.target.value)} placeholder="e.g. Weekly review" />
@@ -105,7 +108,7 @@ export function AddToBoard({ channelId, title, definition }: { channelId: string
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={loading || (!boardId && !newBoard.trim())}>
+              <Button type="submit" disabled={loading || (!boardId && (!canManage || !newBoard.trim()))}>
                 {boardId ? 'Open board' : 'Create board'}
               </Button>
             </DialogFooter>
