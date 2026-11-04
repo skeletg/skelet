@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
@@ -223,7 +224,7 @@ func (r *queryResolver) SynapseSegmentPreview(ctx context.Context, channelID str
 	return res.GetMatched(), nil
 }
 
-func (r *queryResolver) SynapseFunnel(ctx context.Context, channelID string, steps []string, sinceDays *int32) (*model.SynapseFunnel, error) {
+func (r *queryResolver) SynapseFunnel(ctx context.Context, channelID string, steps []string, sinceDays *int32, windowHours *int32, filters []*model.SynapseFunnelFilterInput, breakdown *string) (*model.SynapseFunnel, error) {
 	authed, err := r.signalsChannel(ctx, "customers.view", channelID)
 	if err != nil {
 		return nil, err
@@ -235,15 +236,32 @@ func (r *queryResolver) SynapseFunnel(ctx context.Context, channelID string, ste
 		steps = steps[:8]
 	}
 	// The walker streams raw step events and walks them per actor, so the window is the only real cost lever
-	res, err := r.SignalsAPI.Synapse.GetFunnel(authed, &signalsv1.GetFunnelRequest{
-		ChannelId: channelID, Steps: steps, SinceDays: synapseWindow(sinceDays, 30, 180),
-	})
+	req := &signalsv1.GetFunnelRequest{ChannelId: channelID, Steps: steps, SinceDays: synapseWindow(sinceDays, 30, 180)}
+	if windowHours != nil && *windowHours > 0 {
+		req.WindowSeconds = int64(*windowHours) * 3600
+	}
+	if breakdown != nil {
+		req.Breakdown = strings.TrimSpace(*breakdown)
+	}
+	for _, f := range filters {
+		if f.Step < 0 || int(f.Step) >= len(steps) || strings.TrimSpace(f.Key) == "" {
+			return nil, fmt.Errorf("a funnel filter needs a property and one of the funnel's steps")
+		}
+		req.Filters = append(req.Filters, &signalsv1.FunnelFilter{Step: f.Step, Key: strings.TrimSpace(f.Key), Value: f.Value})
+	}
+	res, err := r.SignalsAPI.Synapse.GetFunnel(authed, req)
 	if err != nil {
 		return nil, signalsErr(err)
 	}
-	out := &model.SynapseFunnel{Steps: make([]*model.SynapseFunnelStep, 0, len(res.GetSteps()))}
+	out := &model.SynapseFunnel{
+		Steps:     make([]*model.SynapseFunnelStep, 0, len(res.GetSteps())),
+		Breakdown: make([]*model.SynapseFunnelBreakdown, 0, len(res.GetBreakdown())),
+	}
 	for _, s := range res.GetSteps() {
 		out.Steps = append(out.Steps, &model.SynapseFunnelStep{EventName: s.GetEventName(), Count: s.GetCount()})
+	}
+	for _, b := range res.GetBreakdown() {
+		out.Breakdown = append(out.Breakdown, &model.SynapseFunnelBreakdown{Value: b.GetValue(), Counts: b.GetCounts()})
 	}
 	return out, nil
 }

@@ -3787,7 +3787,7 @@ type ComplexityRoot struct {
 		Subscriptions                func(childComplexity int, status *model.SubscriptionStatus, limit *int32, offset *int32) int
 		SubscriptionsPaged           func(childComplexity int, status *model.SubscriptionStatus, limit *int32, offset *int32) int
 		SynapseFlow                  func(childComplexity int, channelID string, event string, sinceDays *int32, depth *int32) int
-		SynapseFunnel                func(childComplexity int, channelID string, steps []string, sinceDays *int32) int
+		SynapseFunnel                func(childComplexity int, channelID string, steps []string, sinceDays *int32, windowHours *int32, filters []*model.SynapseFunnelFilterInput, breakdown *string) int
 		SynapseInsights              func(childComplexity int, channelID string, event *string, breakdown *string, measure *string, unit *string, sinceDays *int32) int
 		SynapseOverview              func(childComplexity int, channelID string, sinceDays *int32) int
 		SynapseRetention             func(childComplexity int, channelID string, startEvent string, returnEvent string, sinceDays *int32, periods *int32, unit *string) int
@@ -4500,7 +4500,13 @@ type ComplexityRoot struct {
 	}
 
 	SynapseFunnel struct {
-		Steps func(childComplexity int) int
+		Breakdown func(childComplexity int) int
+		Steps     func(childComplexity int) int
+	}
+
+	SynapseFunnelBreakdown struct {
+		Counts func(childComplexity int) int
+		Value  func(childComplexity int) int
 	}
 
 	SynapseFunnelStep struct {
@@ -5697,7 +5703,7 @@ type QueryResolver interface {
 	SynapseTrackedAttributes(ctx context.Context, channelID string) ([]*model.SynapseTrackedAttribute, error)
 	SynapseSegments(ctx context.Context, channelID string) ([]*model.SynapseSegment, error)
 	SynapseSegmentPreview(ctx context.Context, channelID string, root *model.SegmentNodeInput, conditions []*model.SegmentConditionInput, trait *model.SegmentTraitInput, affinity *model.SegmentAffinityInput) (int32, error)
-	SynapseFunnel(ctx context.Context, channelID string, steps []string, sinceDays *int32) (*model.SynapseFunnel, error)
+	SynapseFunnel(ctx context.Context, channelID string, steps []string, sinceDays *int32, windowHours *int32, filters []*model.SynapseFunnelFilterInput, breakdown *string) (*model.SynapseFunnel, error)
 	SynapseFlow(ctx context.Context, channelID string, event string, sinceDays *int32, depth *int32) (*model.SynapseFlow, error)
 	SynapseStickiness(ctx context.Context, channelID string, event *string, sinceDays *int32, windowDays *int32) (*model.SynapseStickiness, error)
 	SynapseInsights(ctx context.Context, channelID string, event *string, breakdown *string, measure *string, unit *string, sinceDays *int32) (*model.SynapseInsights, error)
@@ -26454,7 +26460,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.SynapseFunnel(childComplexity, args["channelId"].(string), args["steps"].([]string), args["sinceDays"].(*int32)), true
+		return e.ComplexityRoot.Query.SynapseFunnel(childComplexity, args["channelId"].(string), args["steps"].([]string), args["sinceDays"].(*int32), args["windowHours"].(*int32), args["filters"].([]*model.SynapseFunnelFilterInput), args["breakdown"].(*string)), true
 	case "Query.synapseInsights":
 		if e.ComplexityRoot.Query.SynapseInsights == nil {
 			break
@@ -29485,12 +29491,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.SynapseFlowPath.Events(childComplexity), true
 
+	case "SynapseFunnel.breakdown":
+		if e.ComplexityRoot.SynapseFunnel.Breakdown == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SynapseFunnel.Breakdown(childComplexity), true
 	case "SynapseFunnel.steps":
 		if e.ComplexityRoot.SynapseFunnel.Steps == nil {
 			break
 		}
 
 		return e.ComplexityRoot.SynapseFunnel.Steps(childComplexity), true
+
+	case "SynapseFunnelBreakdown.counts":
+		if e.ComplexityRoot.SynapseFunnelBreakdown.Counts == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SynapseFunnelBreakdown.Counts(childComplexity), true
+	case "SynapseFunnelBreakdown.value":
+		if e.ComplexityRoot.SynapseFunnelBreakdown.Value == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SynapseFunnelBreakdown.Value(childComplexity), true
 
 	case "SynapseFunnelStep.count":
 		if e.ComplexityRoot.SynapseFunnelStep.Count == nil {
@@ -31210,6 +31235,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputSignupFormDisplayInput,
 		ec.unmarshalInputStartDataExportInput,
 		ec.unmarshalInputStartSiteCrawlInput,
+		ec.unmarshalInputSynapseFunnelFilterInput,
 		ec.unmarshalInputSyncCanonicalUrlRewriteInput,
 		ec.unmarshalInputSyncProductInventoryInput,
 		ec.unmarshalInputTaxConditionInput,
@@ -39711,7 +39737,21 @@ type SynapseFunnelStep {
 
 # An ordered conversion funnel: how many people reached each step in order.
 type SynapseFunnel {
-  steps: [SynapseFunnelStep!]!
+  steps:     [SynapseFunnelStep!]!
+  breakdown: [SynapseFunnelBreakdown!]!   # empty without a breakdown; most first-step people first, at most 10
+}
+
+# One value of the breakdown property and how many people with it reached each step.
+type SynapseFunnelBreakdown {
+  value:  String!
+  counts: [Int!]!
+}
+
+# A step's events must carry property ` + "`" + `key` + "`" + ` with the text ` + "`" + `value` + "`" + ` (numbers and bools as written).
+input SynapseFunnelFilterInput {
+  step:  Int!   # 0-based
+  key:   String!
+  value: String!
 }
 
 type InsightPoint {
@@ -39986,8 +40026,11 @@ extend type Query {
   # tree) - or the flat conditions/trait/affinity. Gated customers.view.
   synapseSegmentPreview(channelId: ID!, root: SegmentNodeInput, conditions: [SegmentConditionInput!], trait: SegmentTraitInput, affinity: SegmentAffinityInput): Int!
   # Ordered conversion funnel over ` + "`" + `steps` + "`" + ` (event names, 2–8) for the last
-  # ` + "`" + `sinceDays` + "`" + ` days (default 30). Gated customers.view.
-  synapseFunnel(channelId: ID!, steps: [String!]!, sinceDays: Int): SynapseFunnel!
+  # ` + "`" + `sinceDays` + "`" + ` days (default 30). ` + "`" + `windowHours` + "`" + ` is how long a person has from the
+  # first step to the last (unset = anywhere in the window), ` + "`" + `filters` + "`" + ` what a step's
+  # events must carry, and ` + "`" + `breakdown` + "`" + ` a property of the first step to split the
+  # result by. Gated customers.view.
+  synapseFunnel(channelId: ID!, steps: [String!]!, sinceDays: Int, windowHours: Int, filters: [SynapseFunnelFilterInput!], breakdown: String): SynapseFunnel!
   # Forward path tree from a focus event over the last ` + "`" + `sinceDays` + "`" + ` days (default
   # 30), ` + "`" + `depth` + "`" + ` steps deep (default 3). Gated customers.view.
   synapseFlow(channelId: ID!, event: String!, sinceDays: Int, depth: Int): SynapseFlow!
@@ -48145,8 +48188,20 @@ func (ec *executionContext) childFields_SynapseFunnel(ctx context.Context, field
 	switch field.Name {
 	case "steps":
 		return ec.fieldContext_SynapseFunnel_steps(ctx, field)
+	case "breakdown":
+		return ec.fieldContext_SynapseFunnel_breakdown(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type SynapseFunnel", field.Name)
+}
+
+func (ec *executionContext) childFields_SynapseFunnelBreakdown(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "value":
+		return ec.fieldContext_SynapseFunnelBreakdown_value(ctx, field)
+	case "counts":
+		return ec.fieldContext_SynapseFunnelBreakdown_counts(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SynapseFunnelBreakdown", field.Name)
 }
 
 func (ec *executionContext) childFields_SynapseFunnelStep(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -62254,6 +62309,30 @@ func (ec *executionContext) field_Query_synapseFunnel_args(ctx context.Context, 
 		return nil, err
 	}
 	args["sinceDays"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "windowHours",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["windowHours"] = arg3
+	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "filters",
+		func(ctx context.Context, v any) ([]*model.SynapseFunnelFilterInput, error) {
+			return ec.unmarshalOSynapseFunnelFilterInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSynapseFunnelFilterInputᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["filters"] = arg4
+	arg5, err := graphql.ProcessArgField(ctx, rawArgs, "breakdown",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["breakdown"] = arg5
 	return args, nil
 }
 
@@ -145495,7 +145574,7 @@ func (ec *executionContext) _Query_synapseFunnel(ctx context.Context, field grap
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().SynapseFunnel(ctx, fc.Args["channelId"].(string), fc.Args["steps"].([]string), fc.Args["sinceDays"].(*int32))
+			return ec.Resolvers.Query().SynapseFunnel(ctx, fc.Args["channelId"].(string), fc.Args["steps"].([]string), fc.Args["sinceDays"].(*int32), fc.Args["windowHours"].(*int32), fc.Args["filters"].([]*model.SynapseFunnelFilterInput), fc.Args["breakdown"].(*string))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.SynapseFunnel) graphql.Marshaler {
@@ -157474,6 +157553,84 @@ func (ec *executionContext) fieldContext_SynapseFunnel_steps(_ context.Context, 
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _SynapseFunnel_breakdown(ctx context.Context, field graphql.CollectedField, obj *model.SynapseFunnel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SynapseFunnel_breakdown(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Breakdown, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.SynapseFunnelBreakdown) graphql.Marshaler {
+			return ec.marshalNSynapseFunnelBreakdown2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSynapseFunnelBreakdownᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SynapseFunnel_breakdown(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SynapseFunnel",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SynapseFunnelBreakdown(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SynapseFunnelBreakdown_value(ctx context.Context, field graphql.CollectedField, obj *model.SynapseFunnelBreakdown) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SynapseFunnelBreakdown_value(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Value, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SynapseFunnelBreakdown_value(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SynapseFunnelBreakdown", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SynapseFunnelBreakdown_counts(ctx context.Context, field graphql.CollectedField, obj *model.SynapseFunnelBreakdown) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SynapseFunnelBreakdown_counts(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Counts, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []int32) graphql.Marshaler {
+			return ec.marshalNInt2ᚕint32ᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SynapseFunnelBreakdown_counts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SynapseFunnelBreakdown", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _SynapseFunnelStep_eventName(ctx context.Context, field graphql.CollectedField, obj *model.SynapseFunnelStep) (ret graphql.Marshaler) {
@@ -174448,6 +174605,50 @@ func (ec *executionContext) unmarshalInputStartSiteCrawlInput(ctx context.Contex
 				return it, err
 			}
 			it.RespectRobots = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputSynapseFunnelFilterInput(ctx context.Context, obj any) (model.SynapseFunnelFilterInput, error) {
+	var it model.SynapseFunnelFilterInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"step", "key", "value"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "step":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("step"))
+			data, err := ec.unmarshalNInt2int32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Step = data
+		case "key":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("key"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Key = data
+		case "value":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("value"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Value = data
 		}
 	}
 	return it, nil
@@ -215405,6 +215606,54 @@ func (ec *executionContext) _SynapseFunnel(ctx context.Context, sel ast.Selectio
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "breakdown":
+			out.Values[i] = ec._SynapseFunnel_breakdown(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var synapseFunnelBreakdownImplementors = []string{"SynapseFunnelBreakdown"}
+
+func (ec *executionContext) _SynapseFunnelBreakdown(ctx context.Context, sel ast.SelectionSet, obj *model.SynapseFunnelBreakdown) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, synapseFunnelBreakdownImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SynapseFunnelBreakdown")
+		case "value":
+			out.Values[i] = ec._SynapseFunnelBreakdown_value(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "counts":
+			out.Values[i] = ec._SynapseFunnelBreakdown_counts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -228868,6 +229117,37 @@ func (ec *executionContext) marshalNSynapseFunnel2ᚖgithubᚗcomᚋskeletgᚋsk
 	return ec._SynapseFunnel(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNSynapseFunnelBreakdown2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSynapseFunnelBreakdownᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.SynapseFunnelBreakdown) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNSynapseFunnelBreakdown2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSynapseFunnelBreakdown(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNSynapseFunnelBreakdown2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSynapseFunnelBreakdown(ctx context.Context, sel ast.SelectionSet, v *model.SynapseFunnelBreakdown) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SynapseFunnelBreakdown(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNSynapseFunnelFilterInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSynapseFunnelFilterInput(ctx context.Context, v any) (*model.SynapseFunnelFilterInput, error) {
+	res, err := ec.unmarshalInputSynapseFunnelFilterInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNSynapseFunnelStep2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSynapseFunnelStepᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.SynapseFunnelStep) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -232030,6 +232310,23 @@ func (ec *executionContext) marshalOSubscriptionTerms2ᚖgithubᚗcomᚋskeletg�
 		return graphql.Null
 	}
 	return ec._SubscriptionTerms(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOSynapseFunnelFilterInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSynapseFunnelFilterInputᚄ(ctx context.Context, v any) ([]*model.SynapseFunnelFilterInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]*model.SynapseFunnelFilterInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNSynapseFunnelFilterInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSynapseFunnelFilterInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
 }
 
 func (ec *executionContext) marshalOSynapseSegmentAffinity2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSynapseSegmentAffinity(ctx context.Context, sel ast.SelectionSet, v *model.SynapseSegmentAffinity) graphql.Marshaler {

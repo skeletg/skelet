@@ -35,7 +35,21 @@ type SynapseFunnelStep {
 
 # An ordered conversion funnel: how many people reached each step in order.
 type SynapseFunnel {
-  steps: [SynapseFunnelStep!]!
+  steps:     [SynapseFunnelStep!]!
+  breakdown: [SynapseFunnelBreakdown!]!   # empty without a breakdown; most first-step people first, at most 10
+}
+
+# One value of the breakdown property and how many people with it reached each step.
+type SynapseFunnelBreakdown {
+  value:  String!
+  counts: [Int!]!
+}
+
+# A step's events must carry property `key` with the text `value` (numbers and bools as written).
+input SynapseFunnelFilterInput {
+  step:  Int!   # 0-based
+  key:   String!
+  value: String!
 }
 
 type InsightPoint {
@@ -310,8 +324,11 @@ extend type Query {
   # tree) - or the flat conditions/trait/affinity. Gated customers.view.
   synapseSegmentPreview(channelId: ID!, root: SegmentNodeInput, conditions: [SegmentConditionInput!], trait: SegmentTraitInput, affinity: SegmentAffinityInput): Int!
   # Ordered conversion funnel over `steps` (event names, 2–8) for the last
-  # `sinceDays` days (default 30). Gated customers.view.
-  synapseFunnel(channelId: ID!, steps: [String!]!, sinceDays: Int): SynapseFunnel!
+  # `sinceDays` days (default 30). `windowHours` is how long a person has from the
+  # first step to the last (unset = anywhere in the window), `filters` what a step's
+  # events must carry, and `breakdown` a property of the first step to split the
+  # result by. Gated customers.view.
+  synapseFunnel(channelId: ID!, steps: [String!]!, sinceDays: Int, windowHours: Int, filters: [SynapseFunnelFilterInput!], breakdown: String): SynapseFunnel!
   # Forward path tree from a focus event over the last `sinceDays` days (default
   # 30), `depth` steps deep (default 3). Gated customers.view.
   synapseFlow(channelId: ID!, event: String!, sinceDays: Int, depth: Int): SynapseFlow!

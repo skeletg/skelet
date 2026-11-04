@@ -5051,7 +5051,19 @@ type SynapseFlowPath struct {
 }
 
 type SynapseFunnel struct {
-	Steps []*SynapseFunnelStep `json:"steps"`
+	Steps     []*SynapseFunnelStep      `json:"steps"`
+	Breakdown []*SynapseFunnelBreakdown `json:"breakdown"`
+}
+
+type SynapseFunnelBreakdown struct {
+	Value  string  `json:"value"`
+	Counts []int32 `json:"counts"`
+}
+
+type SynapseFunnelFilterInput struct {
+	Step  int32  `json:"step"`
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
 type SynapseFunnelStep struct {
