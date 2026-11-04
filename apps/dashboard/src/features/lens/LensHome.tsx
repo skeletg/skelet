@@ -267,10 +267,62 @@ export function LensHome() {
                 </div>
               )}
             </DetailPageSection>
+
+            <DataHealthSection issues={ov.planIssues} />
           </>
         )}
       </DetailPageBody>
     </DetailPageLayout>
+  )
+}
+
+const planIssueLabel: Record<string, string> = {
+  plan_unknown_event: 'Unknown event, dropped',
+  plan_unknown_prop: 'Unknown property, dropped',
+  plan_bad_type: 'Wrong type, dropped',
+  plan_server_prop: 'Server-only property, dropped',
+}
+
+// DataHealthSection lists what ingest stripped against the tracking plan, so a storefront tracker that drifts from it
+// shows up here instead of quietly losing data
+export function DataHealthSection({ issues }: { issues: { kind: string; event: string; prop: string; count: number }[] }) {
+  return (
+    <DetailPageSection
+      title="Data health"
+      description={
+        <>
+          Browser events and properties the tracking plan doesn&apos;t allow, dropped at ingest. The plan is in{' '}
+          <code className="text-xs">docs/tracking-plan.md</code>.
+        </>
+      }
+    >
+      {issues.length === 0 ? (
+        <Empty>Every browser event matched the tracking plan.</Empty>
+      ) : (
+        <div className="overflow-x-auto rounded border">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-left text-muted-foreground">
+                <th className="px-3 py-2 font-medium">Issue</th>
+                <th className="px-3 py-2 font-medium">Event</th>
+                <th className="px-3 py-2 font-medium">Property</th>
+                <th className="px-3 py-2 text-right font-medium">Count</th>
+              </tr>
+            </thead>
+            <tbody>
+              {issues.map((i) => (
+                <tr key={`${i.kind}:${i.event}:${i.prop}`} className="border-b last:border-0">
+                  <td className="px-3 py-2 text-warning">{planIssueLabel[i.kind] ?? i.kind}</td>
+                  <td className="px-3 py-2 font-mono text-xs">{i.event}</td>
+                  <td className="px-3 py-2 font-mono text-xs">{i.prop || '-'}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{formatNumber(i.count)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </DetailPageSection>
   )
 }
 
