@@ -179,6 +179,51 @@ func TestProfilePagesSurviveSinglePageView(t *testing.T) {
 }
 
 // Postgres updates in place, so first_seen survives and a null channel COALESCEs - a bare insert here reset both
+func TestASharedDeviceStaysWithItsFirstCustomer(t *testing.T) {
+	ctx := context.Background()
+	st := testStore(t)
+	defer st.Close()
+	ch, first, second := uuid.New(), uuid.New(), uuid.New()
+	owner := func(anon string) uuid.UUID {
+		t.Helper()
+		var c uuid.UUID
+		if err := st.conn.QueryRow(ctx, "SELECT customer_id FROM analytics_identities FINAL WHERE anon_id = ?", anon).Scan(&c); err != nil {
+			t.Fatal(err)
+		}
+		return c
+	}
+
+	stored := "anon-" + uuid.NewString() // the second sign-in arrives after the first was written
+	if err := st.UpsertIdentity(ctx, stored, first, ch); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Flush(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.UpsertIdentity(ctx, stored, second, ch); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Flush(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := owner(stored); got != first {
+		t.Fatalf("a stored visitor moved to %v, want it kept by the first customer %v", got, first)
+	}
+
+	buffered := "anon-" + uuid.NewString() // both sign-ins inside one flush window
+	for _, c := range []uuid.UUID{first, second} {
+		if err := st.UpsertIdentity(ctx, buffered, c, ch); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := st.Flush(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := owner(buffered); got != first {
+		t.Fatalf("a buffered visitor went to %v, want the first customer %v", got, first)
+	}
+}
+
 func TestUpsertIdentityCarriesForward(t *testing.T) {
 	ctx := context.Background()
 	st := testStore(t)
@@ -813,6 +858,33 @@ func TestChannelOrderAggregatesWindow(t *testing.T) {
 	}
 	if _, ok := find(nothing); ok {
 		t.Error("a window after every placement still returned the customer")
+	}
+}
+
+func TestChannelOrderAggregatesCountAStitchedGuestOrder(t *testing.T) {
+	st := testStore(t)
+	ctx := context.Background()
+	ch, cust := uuid.New(), uuid.New()
+	anon := "anon-" + uuid.NewString()
+	if _, err := st.AppendEvent(ctx, analytics.SpineEvent{
+		EventName: "order_placed", OccurredAt: time.Now().Add(-time.Hour), ChannelID: &ch, AnonID: anon, Source: "commerce",
+		Props: map[string]any{"order_id": uuid.NewString(), "total_cents": 4200}, DedupeKey: "guest:" + anon,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.UpsertIdentity(ctx, anon, cust, ch); err != nil { // the guest signed up afterwards
+		t.Fatal(err)
+	}
+	if err := st.flush(ctx); err != nil {
+		t.Fatal(err)
+	}
+	st.RefreshIdentities(ctx)
+	rows, err := st.ChannelOrderAggregates(ctx, ch, time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].CustomerID != cust || rows[0].OrderCount != 1 || rows[0].MonetaryCents != 4200 {
+		t.Fatalf("aggregates = %+v, want the guest order on the customer it was stitched to", rows)
 	}
 }
 

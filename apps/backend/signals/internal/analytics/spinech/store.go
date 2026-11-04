@@ -428,6 +428,9 @@ func (s *Store) UpsertIdentity(_ context.Context, anonID string, customerID, cha
 	if channelID == uuid.Nil {
 		channelID = prev.channelID
 	}
+	if had {
+		customerID = prev.customerID // first wins, here as in storage
+	}
 	s.ids[anonID] = pendingIdentity{customerID: customerID, channelID: channelID, lastSeen: time.Now().UTC()}
 	full := len(s.ids) >= chFlushBatch
 	s.idMu.Unlock()
@@ -477,19 +480,20 @@ func (s *Store) writeIdentities(ctx context.Context, pending map[string]pendingI
 		anons = append(anons, anon)
 	}
 	type stored struct {
-		first   time.Time
-		channel uuid.UUID
+		first    time.Time
+		channel  uuid.UUID
+		customer uuid.UUID
 	}
 	prior := make(map[string]stored, len(anons))
 	for start := 0; start < len(anons); start += 1000 {
-		rows, err := s.conn.Query(ctx, "SELECT anon_id, first_seen, channel_id FROM analytics_identities FINAL WHERE anon_id IN ?", anons[start:min(start+1000, len(anons))])
+		rows, err := s.conn.Query(ctx, "SELECT anon_id, first_seen, channel_id, customer_id FROM analytics_identities FINAL WHERE anon_id IN ?", anons[start:min(start+1000, len(anons))])
 		if err != nil {
 			return err
 		}
 		for rows.Next() {
 			var anon string
 			var st stored
-			if err := rows.Scan(&anon, &st.first, &st.channel); err != nil {
+			if err := rows.Scan(&anon, &st.first, &st.channel, &st.customer); err != nil {
 				rows.Close()
 				return err
 			}
@@ -506,14 +510,16 @@ func (s *Store) writeIdentities(ctx context.Context, pending map[string]pendingI
 		return err
 	}
 	for anon, p := range pending {
-		first, channel := p.lastSeen, p.channelID
+		first, channel, customer := p.lastSeen, p.channelID, p.customerID
 		if st, ok := prior[anon]; ok {
-			first = st.first
+			// First wins: a visitor id stays with the customer it was first stitched to, so
+			// someone signing in on a shared device later can't take the earlier customer's anonymous history
+			first, customer = st.first, st.customer
 			if channel == uuid.Nil {
 				channel = st.channel
 			}
 		}
-		if err := b.Append(anon, p.customerID, channel, first, now); err != nil {
+		if err := b.Append(anon, customer, channel, first, now); err != nil {
 			_ = b.Abort()
 			return err
 		}

@@ -309,7 +309,7 @@ func (r *Recorder) RecordActivity(ctx context.Context, a ActivitySpec) (bool, er
 	})
 }
 
-// Stitches an anonymous visitor to a known customer, upserting last-write-wins on anon_id plus a one-off identify event as a timeline marker - re-firing is idempotent
+// Stitches an anonymous visitor to a known customer, first-write-wins on anon_id (the visitor stays with the customer it was first stitched to), plus a one-off identify event as a timeline marker - re-firing is idempotent
 // No past event is rewritten: profile reads resolve web activity through the mapping, so anonymous activity attributes retroactively
 func (r *Recorder) Identify(ctx context.Context, anonID string, customerID, channelID uuid.UUID) error {
 	if anonID == "" || customerID == uuid.Nil {
