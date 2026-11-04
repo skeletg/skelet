@@ -9288,9 +9288,12 @@ export type QuerySynapseFlowArgs = {
 
 
 export type QuerySynapseFunnelArgs = {
+  breakdown?: InputMaybe<Scalars['String']['input']>;
   channelId: Scalars['ID']['input'];
+  filters?: InputMaybe<Array<SynapseFunnelFilterInput>>;
   sinceDays?: InputMaybe<Scalars['Int']['input']>;
   steps: Array<Scalars['String']['input']>;
+  windowHours?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
@@ -10634,7 +10637,20 @@ export type SynapseFlowPath = {
 
 export type SynapseFunnel = {
   __typename?: 'SynapseFunnel';
+  breakdown: Array<SynapseFunnelBreakdown>;
   steps: Array<SynapseFunnelStep>;
+};
+
+export type SynapseFunnelBreakdown = {
+  __typename?: 'SynapseFunnelBreakdown';
+  counts: Array<Scalars['Int']['output']>;
+  value: Scalars['String']['output'];
+};
+
+export type SynapseFunnelFilterInput = {
+  key: Scalars['String']['input'];
+  step: Scalars['Int']['input'];
+  value: Scalars['String']['input'];
 };
 
 export type SynapseFunnelStep = {
