@@ -1,4 +1,4 @@
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { InfoIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -7,7 +7,7 @@ import { useConfigScope } from '@/lib/config-scope'
 import { AddToBoard } from '@/features/boards/AddToBoard'
 import { ChannelRequired } from '@/shared/analytics/ChannelRequired'
 import { PeriodPicker } from '@/shared/analytics/PeriodPicker'
-import { DEFAULT_DEFINITIONS, PERIODS, cleanDefinition, type ReportDefinition, type ReportKind } from '@/shared/analytics/report'
+import { DEFAULT_DEFINITIONS, PERIODS, type ReportDefinition, type ReportKind } from '@/shared/analytics/report'
 import { ReportControls, ReportResult, suggestTitle } from '@/shared/analytics/kinds'
 
 // The report is kept in the URL (?q=<definition>&days=<period>), so a reload, the back button or a pasted link opens
@@ -22,19 +22,29 @@ export function readReport(params: URLSearchParams, kinds: ReportKind[]): Report
   return DEFAULT_DEFINITIONS[kinds[0]]
 }
 
+// Where each kind's report page is, for a report one page leads to on another
+const REPORT_PAGE: Record<ReportKind, string> = {
+  insights: '/synapse/insights',
+  funnel: '/synapse/funnels',
+  flow: '/synapse/flows',
+  retention: '/synapse/retention',
+  stickiness: '/synapse/stickiness',
+}
+
 // ScratchReport is a report page: build a report with nothing to save, and put it on a board when it's worth keeping.
 // The board's sheet renders the same controls and result
 export function ScratchReport({ kinds, title, description, what, defaultDays = 30 }: { kinds: ReportKind[]; title: string; description: string; what: string; defaultDays?: number }) {
   const { effectiveChannelId, isChannel, selectedChannel } = useConfigScope()
   const channelId = effectiveChannelId ?? ''
   const [params, setParams] = useSearchParams()
+  const navigate = useNavigate()
   const d = readReport(params, kinds)
   const days = Number(params.get('days'))
   const sinceDays = (PERIODS as readonly number[]).includes(days) ? days : defaultDays
   const update = (next: ReportDefinition, nextDays = sinceDays) =>
     setParams(
       (p) => {
-        p.set('q', JSON.stringify(cleanDefinition(next)))
+        p.set('q', JSON.stringify(next)) // as staged - a condition still being typed stays; cleaning is for saving
         p.set('days', String(nextDays))
         return p
       },
@@ -79,7 +89,12 @@ export function ScratchReport({ kinds, title, description, what, defaultDays = 3
               <ReportControls channelId={channelId} value={d} onChange={(next) => update(next)} />
             </DetailPageSection>
             <DetailPageSection title="Result">
-              <ReportResult channelId={channelId} d={d} sinceDays={sinceDays} />
+              <ReportResult
+                channelId={channelId}
+                d={d}
+                sinceDays={sinceDays}
+                onAddReport={(_title, next) => navigate(`${REPORT_PAGE[next.kind]}?q=${encodeURIComponent(JSON.stringify(next))}&days=${sinceDays}`)}
+              />
             </DetailPageSection>
           </>
         )}

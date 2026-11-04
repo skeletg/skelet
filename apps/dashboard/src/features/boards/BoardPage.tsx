@@ -19,7 +19,7 @@ import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 import { ChannelRequired } from '@/shared/analytics/ChannelRequired'
 import { PeriodPicker } from '@/shared/analytics/PeriodPicker'
 import { BUILDERS, ReportControls, ReportResult, suggestTitle } from '@/shared/analytics/kinds'
-import { DEFAULT_DEFINITIONS, REPORT_KIND_LABEL, REPORT_SIZE_LABEL, describeReport, type BoardReport, type ReportDefinition, type ReportKind, type ReportSize } from '@/shared/analytics/report'
+import { DEFAULT_DEFINITIONS, REPORT_KIND_LABEL, REPORT_SIZE_LABEL, cleanDefinition, describeReport, type BoardReport, type ReportDefinition, type ReportKind, type ReportSize } from '@/shared/analytics/report'
 import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
 import { added } from '@/shared/saving/diff'
 import { useSaveRegistry, useSaveSection } from '@/shared/saving/saveRegistry'
@@ -129,7 +129,7 @@ export function BoardPage() {
       save: async () => {
         if (!board) return
         const res = await saveBoard({
-          variables: { channelId, id: board.id, name: draftName.trim(), reports: unkeyed(draft).map((r) => ({ title: r.title.trim(), definition: r.definition })), readAt: base },
+          variables: { channelId, id: board.id, name: draftName.trim(), reports: unkeyed(draft).map((r) => ({ title: r.title.trim(), definition: cleanDefinition(r.definition) })), readAt: base },
         })
         const next = res.data?.saveBoard
         if (next) {
@@ -158,10 +158,11 @@ export function BoardPage() {
   }
 
   const update = (key: string, patch: Partial<BoardReport>) => setDraft((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)))
-  const add = (kind: ReportKind) => {
-    const definition = DEFAULT_DEFINITIONS[kind]
+  const add = (kind: ReportKind) => addReport(suggestTitle(DEFAULT_DEFINITIONS[kind]), DEFAULT_DEFINITIONS[kind])
+  // A report a tile leads to - a funnel step's drop-offs - goes on the board beside it, staged like any other
+  const addReport = (title: string, definition: ReportDefinition) => {
     const key = newKey()
-    setDraft((rs) => [...rs, { key, title: suggestTitle(definition), definition }])
+    setDraft((rs) => [...rs, { key, title, definition }])
     setEditing(key)
     setFocused(false)
   }
@@ -332,6 +333,7 @@ export function BoardPage() {
                         onEdit={() => setEditing(r.key)}
                         onRemove={() => remove(r.key)}
                         onDuplicate={() => duplicate(r.key)}
+                        onAddReport={canEdit ? addReport : undefined}
                       />
                     ))}
                     {!focused &&
@@ -436,9 +438,10 @@ type TileProps = {
   onEdit: () => void
   onRemove: () => void
   onDuplicate: () => void
+  onAddReport?: (title: string, d: ReportDefinition) => void
 }
 
-function Tile({ r, channelId, sinceDays, canManage, editing, focused, onEdit, onRemove, onDuplicate, seesData, shop }: TileProps) {
+function Tile({ r, channelId, sinceDays, canManage, editing, focused, onEdit, onRemove, onDuplicate, onAddReport, seesData, shop }: TileProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: r.key, disabled: !canManage || focused })
   const size = focused ? 'full' : (r.definition.size ?? 'medium')
   return (
@@ -477,7 +480,7 @@ function Tile({ r, channelId, sinceDays, canManage, editing, focused, onEdit, on
         )}
       </div>
       {seesData ? (
-        <ReportResult channelId={channelId} d={r.definition} sinceDays={r.definition.sinceDays || sinceDays} compact={size !== 'full'} />
+        <ReportResult channelId={channelId} d={r.definition} sinceDays={r.definition.sinceDays || sinceDays} compact={size !== 'full'} onAddReport={onAddReport} />
       ) : (
         <p className="py-6 text-center text-sm text-muted-foreground">You need customer analytics on {shop} to see this report's numbers.</p>
       )}

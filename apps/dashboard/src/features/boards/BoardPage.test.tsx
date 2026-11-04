@@ -3,7 +3,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { SLOW, globalScope, meMock, renderPage } from '@/test/page-harness'
 import type { ConfigScopeContextValue } from '@/lib/config-scope'
-import { SynapseInsightsDocument, SynapseOverviewDocument, SynapseStickinessDocument } from '@/features/synapse/Synapse.gql'
+import { SynapseFlowDocument, SynapseFunnelDocument, SynapseInsightsDocument, SynapseOverviewDocument, SynapseStickinessDocument } from '@/features/synapse/Synapse.gql'
 import { BoardDocument, DiscardBoardDraftDocument, SaveBoardDocument, SaveBoardDraftDocument } from './Boards.gql'
 import { BoardPage } from './BoardPage'
 
@@ -211,6 +211,26 @@ describe('BoardPage', () => {
     expect(screen.queryByRole('button', { name: 'Share' })).toBeNull() // a draft can't be shared yet
     fireEvent.click(save)
     expect(within(await screen.findByRole('alertdialog', {}, SLOW)).getByText('Publish')).toBeTruthy()
+  })
+
+  it("puts the people who dropped off a funnel step on the board as a flow, beside the funnel", async () => {
+    const funnel = { __typename: 'BoardReport', title: 'Product to cart', definition: { kind: 'funnel', steps: ['view_item', 'cart_add'], size: 'full' } }
+    const counts = { __typename: 'SynapseFunnel', breakdown: [], steps: [{ __typename: 'SynapseFunnelStep', eventName: 'view_item', count: 200 }, { __typename: 'SynapseFunnelStep', eventName: 'cart_add', count: 118 }] }
+    renderPage({
+      path: '/boards/b1',
+      routes: { '/boards/:id': <BoardPage /> },
+      adminId: 'admin-1',
+      scope: channelScope,
+      mocks: [
+        meMock({ superuser: true }),
+        ...boardMocks(() => {}, { ...board, reports: [funnel] }),
+        { request: { query: SynapseFunnelDocument, variables: () => true }, result: { data: { synapseFunnel: counts } }, maxUsageCount: 10 },
+        { request: { query: SynapseFlowDocument, variables: () => true }, error: new Error('not in this test'), maxUsageCount: 10 },
+      ],
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'See where the 82 went' }, SLOW))
+    expect(await screen.findByRole('region', { name: 'After View item, not Added to cart' })).toBeTruthy()
+    expect(screen.getByRole('complementary', { name: 'Edit After View item, not Added to cart' })).toBeTruthy()
   })
 })
 
