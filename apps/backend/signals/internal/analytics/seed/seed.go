@@ -179,7 +179,7 @@ func (g *gen) visit(cid *uuid.UUID, anon string, at time.Time, signIn bool) erro
 	for range 1 + g.r.IntN(4) {
 		pr := g.p.products[g.r.IntN(len(g.p.products))]
 		at = at.Add(time.Duration(10+g.r.IntN(120)) * time.Second)
-		props := map[string]any{"page_key": "/p/" + pr.sku, "title": pr.name, "entity": "product", "entity_name": pr.name, "entity_price": pr.cents, "sku": pr.sku}
+		props := map[string]any{"page_key": "/p/" + pr.sku, "title": pr.name, "entity": "product", "entity_name": pr.name, "entity_price": fmt.Sprintf("%d.%02d", pr.cents/100, pr.cents%100), "sku": pr.sku} // a string, as the page's data attribute sends it
 		if err := g.web("page_view", actor, anon, at, props); err != nil {
 			return err
 		}
