@@ -2,6 +2,7 @@ package signalsgrpc
 
 import (
 	"context"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -29,13 +30,13 @@ func (s *lensServer) GetOverview(ctx context.Context, req *signalsv1.GetOverview
 	}
 	daily := make([]*signalsv1.LensTimePoint, 0, len(ov.Daily))
 	for _, d := range ov.Daily {
-		daily = append(daily, &signalsv1.LensTimePoint{Date: d.Date, Views: int32(d.Views)})
+		daily = append(daily, &signalsv1.LensTimePoint{Date: d.Date, Views: count32(d.Views)})
 	}
 	top := make([]*signalsv1.LensPageStat, 0, len(ov.TopPages))
 	for _, p := range ov.TopPages {
 		top = append(top, &signalsv1.LensPageStat{
-			PageKey: p.PageKey, Views: int32(p.Views), Visitors: int32(p.Visitors),
-			Clicks: int32(p.Clicks), AvgScroll: int32(p.AvgScroll),
+			PageKey: p.PageKey, Views: count32(p.Views), Visitors: count32(p.Visitors),
+			Clicks: count32(p.Clicks), AvgScroll: count32(p.AvgScroll),
 		})
 	}
 	issues := make([]*signalsv1.PlanIssue, 0, len(ov.PlanIssues))
@@ -43,7 +44,7 @@ func (s *lensServer) GetOverview(ctx context.Context, req *signalsv1.GetOverview
 		issues = append(issues, &signalsv1.PlanIssue{Kind: i.Kind, Event: i.Event, Prop: i.Prop, Count: i.Count})
 	}
 	return &signalsv1.GetOverviewResponse{
-		Views: int32(ov.Views), Visitors: int32(ov.Visitors), Daily: daily, TopPages: top,
+		Views: count32(ov.Views), Visitors: count32(ov.Visitors), Daily: daily, TopPages: top,
 		Devices: labelCounts(ov.Devices), Referrers: labelCounts(ov.Referrers), Interactions: labelCounts(ov.Interactions),
 		PlanIssues: issues,
 	}, nil
@@ -60,19 +61,19 @@ func (s *lensServer) GetBotTraffic(ctx context.Context, req *signalsv1.GetBotTra
 	}
 	bots := make([]*signalsv1.BotAgent, 0, len(bt.Bots))
 	for _, b := range bt.Bots {
-		bots = append(bots, &signalsv1.BotAgent{Name: b.Name, Category: b.Category, Hits: int32(b.Hits), Pages: int32(b.Pages), LastSeen: ts(b.LastSeen)})
+		bots = append(bots, &signalsv1.BotAgent{Name: b.Name, Category: b.Category, Hits: count32(b.Hits), Pages: count32(b.Pages), LastSeen: ts(b.LastSeen)})
 	}
 	pages := make([]*signalsv1.BotPage, 0, len(bt.TopPages))
 	for _, p := range bt.TopPages {
-		pages = append(pages, &signalsv1.BotPage{PageKey: p.PageKey, Hits: int32(p.Hits), Bots: int32(p.Bots)})
+		pages = append(pages, &signalsv1.BotPage{PageKey: p.PageKey, Hits: count32(p.Hits), Bots: count32(p.Bots)})
 	}
 	daily := make([]*signalsv1.BotDayPoint, 0, len(bt.Daily))
 	for _, d := range bt.Daily {
-		daily = append(daily, &signalsv1.BotDayPoint{Day: d.Day, BotHits: int32(d.BotHits), HumanViews: int32(d.HumanViews)})
+		daily = append(daily, &signalsv1.BotDayPoint{Day: d.Day, BotHits: count32(d.BotHits), HumanViews: count32(d.HumanViews)})
 	}
 	return &signalsv1.GetBotTrafficResponse{
-		BotHits: int32(bt.BotHits), HumanViews: int32(bt.HumanViews),
-		BotCount: int32(bt.BotCount), PageCount: int32(bt.PageCount),
+		BotHits: count32(bt.BotHits), HumanViews: count32(bt.HumanViews),
+		BotCount: count32(bt.BotCount), PageCount: count32(bt.PageCount),
 		Bots: bots, TopPages: pages, Daily: daily,
 	}, nil
 }
@@ -93,9 +94,9 @@ func (s *lensServer) ListPages(ctx context.Context, req *signalsv1.ListPagesRequ
 	window := slice(len(rows), offset, size)
 	out := make([]*signalsv1.LensPage, 0, len(window))
 	for _, i := range window {
-		out = append(out, &signalsv1.LensPage{PageKey: rows[i].PageKey, Views: int32(rows[i].Views)})
+		out = append(out, &signalsv1.LensPage{PageKey: rows[i].PageKey, Views: count32(rows[i].Views)})
 	}
-	return &signalsv1.ListPagesResponse{Pages: out, NextPageToken: nextToken(offset, size, int32(len(out)), int32(len(rows)))}, nil
+	return &signalsv1.ListPagesResponse{Pages: out, NextPageToken: nextToken(offset, size, count32(len(out)), count32(len(rows)))}, nil
 }
 
 func (s *lensServer) ListStates(ctx context.Context, req *signalsv1.ListStatesRequest) (*signalsv1.ListStatesResponse, error) {
@@ -121,10 +122,10 @@ func (s *lensServer) GetPageStats(ctx context.Context, req *signalsv1.GetPageSta
 	}
 	timeline := make([]*signalsv1.LensTimePoint, 0, len(ps.Timeline))
 	for _, t := range ps.Timeline {
-		timeline = append(timeline, &signalsv1.LensTimePoint{Date: t.Date, Views: int32(t.Views)})
+		timeline = append(timeline, &signalsv1.LensTimePoint{Date: t.Date, Views: count32(t.Views)})
 	}
 	return &signalsv1.GetPageStatsResponse{
-		Views: int32(ps.Views), Visitors: int32(ps.Visitors), Clicks: int32(ps.Clicks), AvgScroll: int32(ps.AvgScroll),
+		Views: count32(ps.Views), Visitors: count32(ps.Visitors), Clicks: count32(ps.Clicks), AvgScroll: count32(ps.AvgScroll),
 		Timeline: timeline, Referrers: labelCounts(ps.Referrers), Clients: labelCounts(ps.Clients), Devices: labelCounts(ps.Devices),
 	}, nil
 }
@@ -143,11 +144,11 @@ func (s *lensServer) GetHeatmap(ctx context.Context, req *signalsv1.GetHeatmapRe
 	}
 	elements := make([]*signalsv1.LensElementClick, 0, len(hm.Elements))
 	for _, e := range hm.Elements {
-		elements = append(elements, &signalsv1.LensElementClick{Selector: e.Selector, Text: e.Text, Count: int32(e.Count)})
+		elements = append(elements, &signalsv1.LensElementClick{Selector: e.Selector, Text: e.Text, Count: count32(e.Count)})
 	}
 	return &signalsv1.GetHeatmapResponse{Heatmap: &signalsv1.Heatmap{
 		PageKey: req.GetPageKey(), Viewport: req.GetViewport(), State: req.GetState(),
-		Width: int32(hm.Width), Height: int32(hm.Height), SnapshotJson: hm.SnapshotJSON,
+		Width: count32(hm.Width), Height: count32(hm.Height), SnapshotJson: hm.SnapshotJSON,
 		Click: cells(hm.Click), Move: cells(hm.Move), Scroll: cells(hm.Scroll), Elements: elements,
 	}}, nil
 }
@@ -304,7 +305,7 @@ func (s *lensServer) GetFrustration(ctx context.Context, req *signalsv1.GetFrust
 	}
 	elements := make([]*signalsv1.LensRageElement, 0, len(fr.RageElements))
 	for _, e := range fr.RageElements {
-		elements = append(elements, &signalsv1.LensRageElement{Selector: e.Selector, Text: e.Text, Count: int32(e.Count)})
+		elements = append(elements, &signalsv1.LensRageElement{Selector: e.Selector, Text: e.Text, Count: count32(e.Count)})
 	}
 	return &signalsv1.GetFrustrationResponse{
 		RagePages: signalPages(fr.RagePages), DeadPages: signalPages(fr.DeadPages), RageElements: elements,
@@ -322,7 +323,7 @@ func (s *lensServer) ListErrors(ctx context.Context, req *signalsv1.ListErrorsRe
 	}
 	out := make([]*signalsv1.LensErrorStat, 0, len(rows))
 	for _, e := range rows {
-		out = append(out, &signalsv1.LensErrorStat{Message: e.Message, Count: int32(e.Count), Pages: int32(e.Pages), LastSeen: ts(e.LastSeen)})
+		out = append(out, &signalsv1.LensErrorStat{Message: e.Message, Count: count32(e.Count), Pages: count32(e.Pages), LastSeen: ts(e.LastSeen)})
 	}
 	return &signalsv1.ListErrorsResponse{Errors: out}, nil
 }
@@ -339,7 +340,7 @@ func (s *lensServer) GetPerformance(ctx context.Context, req *signalsv1.GetPerfo
 	out := make([]*signalsv1.LensPageVitals, 0, len(rows))
 	for _, p := range rows {
 		out = append(out, &signalsv1.LensPageVitals{
-			PageKey: p.PageKey, Lcp: p.LCP, Cls: p.CLS, Inp: p.INP, Ttfb: p.TTFB, Samples: int32(p.Samples),
+			PageKey: p.PageKey, Lcp: p.LCP, Cls: p.CLS, Inp: p.INP, Ttfb: p.TTFB, Samples: count32(p.Samples),
 		})
 	}
 	return &signalsv1.GetPerformanceResponse{Pages: out}, nil
@@ -356,7 +357,7 @@ func (s *lensServer) GetVitalsSummary(ctx context.Context, req *signalsv1.GetVit
 	}
 	out := make([]*signalsv1.LensVital, 0, len(rows))
 	for _, v := range rows {
-		out = append(out, &signalsv1.LensVital{Metric: v.Metric, P75: v.P75, Samples: int32(v.Samples)})
+		out = append(out, &signalsv1.LensVital{Metric: v.Metric, P75: v.P75, Samples: count32(v.Samples)})
 	}
 	return &signalsv1.GetVitalsSummaryResponse{Vitals: out}, nil
 }
@@ -372,11 +373,11 @@ func (s *lensServer) GetSearchAnalytics(ctx context.Context, req *signalsv1.GetS
 	}
 	daily := make([]*signalsv1.LensSearchDay, 0, len(sa.Daily))
 	for _, d := range sa.Daily {
-		daily = append(daily, &signalsv1.LensSearchDay{Date: d.Date, Searches: int32(d.Searches), ZeroResults: int32(d.ZeroResults)})
+		daily = append(daily, &signalsv1.LensSearchDay{Date: d.Date, Searches: count32(d.Searches), ZeroResults: count32(d.ZeroResults)})
 	}
 	return &signalsv1.GetSearchAnalyticsResponse{
-		TotalSearches: int32(sa.TotalSearches), DistinctTerms: int32(sa.DistinctTerms),
-		ZeroResultSearches: int32(sa.ZeroResultSearches),
+		TotalSearches: count32(sa.TotalSearches), DistinctTerms: count32(sa.DistinctTerms),
+		ZeroResultSearches: count32(sa.ZeroResultSearches),
 		Top:                searchTerms(sa.Top), ZeroResult: searchTerms(sa.ZeroResult), Daily: daily,
 	}, nil
 }
@@ -384,7 +385,7 @@ func (s *lensServer) GetSearchAnalytics(ctx context.Context, req *signalsv1.GetS
 func labelCounts(rows []lens.LabelCount) []*signalsv1.LabelCount {
 	out := make([]*signalsv1.LabelCount, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, &signalsv1.LabelCount{Label: r.Label, Views: int32(r.Views)})
+		out = append(out, &signalsv1.LabelCount{Label: r.Label, Views: count32(r.Views)})
 	}
 	return out
 }
@@ -392,7 +393,7 @@ func labelCounts(rows []lens.LabelCount) []*signalsv1.LabelCount {
 func cells(rows []lens.Cell) []*signalsv1.LensCell {
 	out := make([]*signalsv1.LensCell, 0, len(rows))
 	for _, c := range rows {
-		out = append(out, &signalsv1.LensCell{X: int32(c.X), Y: int32(c.Y), Count: int32(c.Count)})
+		out = append(out, &signalsv1.LensCell{X: count32(c.X), Y: count32(c.Y), Count: count32(c.Count)})
 	}
 	return out
 }
@@ -400,7 +401,7 @@ func cells(rows []lens.Cell) []*signalsv1.LensCell {
 func signalPages(rows []lens.SignalPage) []*signalsv1.LensSignalPage {
 	out := make([]*signalsv1.LensSignalPage, 0, len(rows))
 	for _, p := range rows {
-		out = append(out, &signalsv1.LensSignalPage{PageKey: p.PageKey, Count: int32(p.Count)})
+		out = append(out, &signalsv1.LensSignalPage{PageKey: p.PageKey, Count: count32(p.Count)})
 	}
 	return out
 }
@@ -408,7 +409,7 @@ func signalPages(rows []lens.SignalPage) []*signalsv1.LensSignalPage {
 func searchTerms(rows []lens.TermCount) []*signalsv1.LensSearchTerm {
 	out := make([]*signalsv1.LensSearchTerm, 0, len(rows))
 	for _, t := range rows {
-		out = append(out, &signalsv1.LensSearchTerm{Term: t.Term, Count: int32(t.Count)})
+		out = append(out, &signalsv1.LensSearchTerm{Term: t.Term, Count: count32(t.Count)})
 	}
 	return out
 }
@@ -422,9 +423,9 @@ func sessionPage(rows []lens.SessionMeta, offset, size int32) ([]*signalsv1.Lens
 		sess := &signalsv1.LensSession{
 			Id: m.ID.String(), AnonId: m.AnonID,
 			StartedAt: ts(m.StartedAt), EndedAt: ts(m.EndedAt),
-			DurationMs: int32(m.DurationMs), EventCount: int32(m.EventCount),
+			DurationMs: count32(m.DurationMs), EventCount: count32(m.EventCount),
 			EntryPage: m.EntryPage, ExitPage: m.ExitPage, Viewport: m.Viewport, UserAgent: m.UserAgent,
-			RageCount: int32(m.RageCount), ErrorCount: int32(m.ErrorCount),
+			RageCount: count32(m.RageCount), ErrorCount: count32(m.ErrorCount),
 		}
 		if m.CustomerID != nil {
 			id := m.CustomerID.String()
@@ -432,7 +433,7 @@ func sessionPage(rows []lens.SessionMeta, offset, size int32) ([]*signalsv1.Lens
 		}
 		out = append(out, sess)
 	}
-	return out, nextToken(offset, size, int32(len(out)), int32(len(rows)))
+	return out, nextToken(offset, size, count32(len(out)), count32(len(rows)))
 }
 
 // A window in days back from now - the server owns "now", which is why the wire carries days
@@ -441,6 +442,11 @@ func since(days, fallback int32) time.Time {
 }
 
 // A ranked top-N takes a limit rather than a page, and one outside the bounds falls back
+// count32 narrows a count for the wire, saturating at the int32 ceiling - a plain conversion wraps a huge total negative
+func count32[T ~int | ~int32 | ~int64](v T) int32 {
+	return int32(min(max(int64(v), math.MinInt32), math.MaxInt32))
+}
+
 // topN is a requested size: the fallback when unset, and the ceiling when it asks for more - asking for 30 retention
 // periods with a ceiling of 12 gets 12, not the 8 of an unset request
 func topN(requested, fallback, ceiling int32) int32 {
