@@ -266,10 +266,32 @@ message GetFunnelRequest {
   // In order - how many people reached each one
   repeated string steps = 2;
   int32 since_days = 3;
+  // How long a person has from the first step to the last, 0 for anywhere in the window
+  int64 window_seconds = 4;
+  // What a step's events must carry
+  repeated FunnelFilter filters = 5;
+  // A property of the first step to split the result by, empty for none
+  string breakdown = 6;
+}
+
+message FunnelFilter {
+  // 0-based
+  int32 step = 1;
+  string key = 2;
+  // Compared as text - numbers and bools as written
+  string value = 3;
 }
 
 message GetFunnelResponse {
   repeated FunnelStep steps = 1;
+  // One row per breakdown value, most first-step people first, at most 10
+  repeated FunnelBreakdown breakdown = 2;
+}
+
+message FunnelBreakdown {
+  string value = 1;
+  // People who reached each step, in step order
+  repeated int32 counts = 2;
 }
 
 // One node of the forward path tree from a focus event

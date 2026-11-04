@@ -38,7 +38,7 @@ type SpineStore interface {
 
 	// Event-analytics reads - each returns a domain result, and people resolve across anonymous and identified activity
 
-	Funnel(ctx context.Context, channelID uuid.UUID, steps []string, since time.Time) ([]FunnelStep, error)
+	Funnel(ctx context.Context, channelID uuid.UUID, q FunnelQuery, since time.Time) (FunnelResult, error)
 	Insights(ctx context.Context, channelID uuid.UUID, event, breakdown, measure, unit string, since, now time.Time) (Insights, error)
 	Stickiness(ctx context.Context, channelID uuid.UUID, event string, since, now time.Time, windowDays int) (Stickiness, error)
 	Flow(ctx context.Context, channelID uuid.UUID, focus string, since time.Time, depth, topK int) (FlowResult, error)
@@ -199,8 +199,8 @@ type SpineStats struct { // arrival-time bounds of the spine - deliberately no r
 
 // --- Recorder delegates to the spine engine - the read bodies live on the driver, these keep the Recorder's public API stable for resolvers ---
 
-func (r *Recorder) Funnel(ctx context.Context, channelID uuid.UUID, steps []string, since time.Time) ([]FunnelStep, error) {
-	return r.spine.Funnel(ctx, channelID, steps, since)
+func (r *Recorder) Funnel(ctx context.Context, channelID uuid.UUID, q FunnelQuery, since time.Time) (FunnelResult, error) {
+	return r.spine.Funnel(ctx, channelID, q, since)
 }
 
 func (r *Recorder) Insights(ctx context.Context, channelID uuid.UUID, event, breakdown, measure, unit string, since, now time.Time) (Insights, error) {

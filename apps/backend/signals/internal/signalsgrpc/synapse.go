@@ -56,23 +56,41 @@ func (s *synapseServer) GetFunnel(ctx context.Context, req *signalsv1.GetFunnelR
 		return nil, err
 	}
 	steps := make([]string, 0, len(req.GetSteps()))
-	for _, s := range req.GetSteps() {
+	at := map[int32]int{} // a requested step's place once the empty ones are dropped, for the filters that name it
+	for i, s := range req.GetSteps() {
 		if s != "" {
+			at[int32(i)] = len(steps)
 			steps = append(steps, s)
 		}
 	}
 	if len(steps) < 2 {
 		return nil, invalidArgument("a funnel needs at least two steps")
 	}
-	rows, err := s.rec.Funnel(ctx, cid, steps, since(req.GetSinceDays(), 30))
+	q := analytics.FunnelQuery{Steps: steps, Window: time.Duration(max(req.GetWindowSeconds(), 0)) * time.Second, Breakdown: req.GetBreakdown()}
+	for _, f := range req.GetFilters() {
+		step, ok := at[f.GetStep()]
+		if f.GetKey() == "" || !ok {
+			return nil, invalidArgument("a funnel filter needs a property and one of the funnel's steps")
+		}
+		q.Filters = append(q.Filters, analytics.FunnelFilter{Step: step, Key: f.GetKey(), Value: f.GetValue()})
+	}
+	res, err := s.rec.Funnel(ctx, cid, q, since(req.GetSinceDays(), 30))
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*signalsv1.FunnelStep, 0, len(rows))
-	for _, st := range rows {
+	out := make([]*signalsv1.FunnelStep, 0, len(res.Steps))
+	for _, st := range res.Steps {
 		out = append(out, &signalsv1.FunnelStep{EventName: st.EventName, Count: count32(st.Count)})
 	}
-	return &signalsv1.GetFunnelResponse{Steps: out}, nil
+	bd := make([]*signalsv1.FunnelBreakdown, 0, len(res.Breakdown))
+	for _, b := range res.Breakdown {
+		counts := make([]int32, len(b.Counts))
+		for i, n := range b.Counts {
+			counts[i] = count32(n)
+		}
+		bd = append(bd, &signalsv1.FunnelBreakdown{Value: b.Value, Counts: counts})
+	}
+	return &signalsv1.GetFunnelResponse{Steps: out, Breakdown: bd}, nil
 }
 
 func (s *synapseServer) GetFlow(ctx context.Context, req *signalsv1.GetFlowRequest) (*signalsv1.GetFlowResponse, error) {

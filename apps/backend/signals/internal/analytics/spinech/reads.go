@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -33,57 +34,110 @@ const (
 
 // The analytical reads, implemented with native ClickHouse functions (windowFunnel / uniqExact / ARRAY JOIN JSONExtractKeysAndValues / window functions) - the post-processing (Retention cohorts, Flow path-tree, Insights fold) lives in the analytics.*FromEvents helpers
 
-func (s *Store) Funnel(ctx context.Context, channelID uuid.UUID, steps []string, since time.Time) ([]analytics.FunnelStep, error) {
-	out := make([]analytics.FunnelStep, len(steps))
+func (s *Store) Funnel(ctx context.Context, channelID uuid.UUID, q analytics.FunnelQuery, since time.Time) (analytics.FunnelResult, error) {
+	steps := q.Steps
+	out := analytics.FunnelResult{Steps: make([]analytics.FunnelStep, len(steps))}
 	for i, st := range steps {
-		out[i] = analytics.FunnelStep{EventName: st}
+		out.Steps[i] = analytics.FunnelStep{EventName: st}
 	}
 	if len(steps) < 2 {
 		return out, nil
 	}
-	// Native windowFunnel: per resolved person, the longest in-order chain of the step events (greedy earliest-match) - a ~10-year window (ms, matching toUnixTimestamp64Milli) means no inter-step limit inside the query window, and countIf(level >= k) is the people who reached step k
-	conds := make([]string, len(steps)) // windowFunnel conditions
-	cols := make([]string, len(steps))  // countIf output columns
+	// Native windowFunnel: per resolved person, the longest in-order chain of the step events (greedy earliest-match) within
+	// the conversion window - unset is ~10 years (ms, matching toUnixTimestamp64Milli), no limit inside the query window -
+	// and countIf(level >= k) is the people who reached step k
+	window := int64(315360000000)
+	if q.Window > 0 {
+		window = q.Window.Milliseconds()
+	}
+	conds := make([][]any, len(steps)) // each step's condition args, in the order its SQL binds them
+	condSQL := make([]string, len(steps))
+	for i, st := range steps {
+		condSQL[i], conds[i] = "e.event_name = ?", []any{st}
+		for _, f := range q.Filters {
+			if f.Step == i {
+				condSQL[i] += " AND " + propText + " = ?"
+				conds[i] = append(conds[i], f.Key, f.Key, f.Key, f.Value)
+			}
+		}
+	}
+	cols := make([]string, len(steps))
 	inHolders := make([]string, len(steps))
-	args := make([]any, 0, len(steps)*2+2)
 	for i := range steps {
-		conds[i] = "event_name = ?"
 		cols[i] = fmt.Sprintf("toInt64(countIf(level >= %d))", i+1)
 		inHolders[i] = "?"
 	}
-	for _, st := range steps { // windowFunnel condition args
-		args = append(args, st)
+	var args []any
+	for _, c := range conds {
+		args = append(args, c...)
+	}
+	// The breakdown is the property's value on a person's first step-one event
+	bd := "''"
+	if q.Breakdown != "" {
+		bd = "argMinIf(" + propText + ", e.occurred_at, " + condSQL[0] + ")"
+		args = append(append(args, q.Breakdown, q.Breakdown, q.Breakdown), conds[0]...)
 	}
 	args = append(args, channelID, since)
-	for _, st := range steps { // event_name IN (...) args
+	for _, st := range steps {
 		args = append(args, st)
 	}
 	// the empty-actor guard - without it every unattributable event (zero customer, empty anon) merges into one phantom person whose combined stream walks the funnel
-	q := fmt.Sprintf(`
-		SELECT %s
+	sql := fmt.Sprintf(`
+		SELECT if(bd = '', '(none)', bd) AS value, %s
 		FROM (
-			SELECT windowFunnel(315360000000)(toUInt64(toUnixTimestamp64Milli(e.occurred_at)), %s) AS level
+			SELECT windowFunnel(%d)(toUInt64(toUnixTimestamp64Milli(e.occurred_at)), %s) AS level, %s AS bd
 			FROM analytics_events AS e FINAL
 			WHERE e.channel_id = ? AND e.occurred_at >= ? AND %s AND e.event_name IN (%s)
 			  AND %s != ''
 			GROUP BY %s
-		)`,
-		strings.Join(cols, ", "), strings.Join(conds, ", "),
+		)
+		GROUP BY value`,
+		strings.Join(cols, ", "), window, strings.Join(condSQL, ", "), bd,
 		notBot, strings.Join(inHolders, ", "), resolvedActor, resolvedActor)
-
-	counts := make([]int64, len(steps))
-	dest := make([]any, len(steps))
-	for i := range counts {
-		dest[i] = &counts[i]
-	}
-	if err := s.conn.QueryRow(ctx, q, args...).Scan(dest...); err != nil {
+	rows, err := s.conn.Query(ctx, sql, args...)
+	if err != nil {
 		return out, err
 	}
-	for i := range steps {
-		out[i].Count = counts[i]
+	defer rows.Close()
+	for rows.Next() {
+		b := analytics.FunnelBreakdown{Counts: make([]int64, len(steps))}
+		dest := []any{&b.Value}
+		for i := range b.Counts {
+			dest = append(dest, &b.Counts[i])
+		}
+		if err := rows.Scan(dest...); err != nil {
+			return out, err
+		}
+		for i, n := range b.Counts {
+			out.Steps[i].Count += n
+		}
+		if b.Counts[0] > 0 { // people with only later steps never started, so they'd be an all-zero row
+			out.Breakdown = append(out.Breakdown, b)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return out, err
+	}
+	if q.Breakdown == "" {
+		out.Breakdown = nil
+		return out, nil
+	}
+	sort.Slice(out.Breakdown, func(i, j int) bool {
+		a, b := out.Breakdown[i], out.Breakdown[j]
+		if a.Counts[0] != b.Counts[0] {
+			return a.Counts[0] > b.Counts[0]
+		}
+		return a.Value < b.Value
+	})
+	if len(out.Breakdown) > analytics.FunnelBreakdownMax {
+		out.Breakdown = out.Breakdown[:analytics.FunnelBreakdownMax]
 	}
 	return out, nil
 }
+
+// propText is a property as text, for filters and breakdowns - numbers and bools as written, missing as ” - binding
+// the key three times
+const propText = "if(JSONType(e.properties, ?) = 'String', JSONExtractString(e.properties, ?), JSONExtractRaw(e.properties, ?))"
 
 func (s *Store) Insights(ctx context.Context, channelID uuid.UUID, event, breakdown, measure, unit string, since, now time.Time) (analytics.Insights, error) {
 	bucket := "toStartOfDay(e.occurred_at)"

@@ -33,6 +33,9 @@ func (e *engineSpine) add(name, anon string, cust *uuid.UUID, ago time.Duration,
 	if props == nil {
 		props = map[string]any{}
 	}
+	if anon != "" {
+		anon = e.ch.String() + ":" + anon // each test's visitors are its own - a stitch is first-wins across the whole spine
+	}
 	if _, err := e.st.AppendEvent(context.Background(), analytics.SpineEvent{
 		EventName: name, OccurredAt: e.now.Add(-ago), ChannelID: &e.ch, AnonID: anon, CustomerID: cust,
 		Source: src, Props: props, DedupeKey: "eng:" + uuid.NewString(),
@@ -62,7 +65,7 @@ func seedEngines(t *testing.T) *engineSpine {
 	e.add("page_view", "c", nil, 19*h, mobile)
 	e.add("page_view", "d", nil, 10*h, mobile) // d: signs in, then finishes the funnel as the customer
 	cust := uuid.New()
-	if err := e.st.UpsertIdentity(context.Background(), "d", cust, e.ch); err != nil {
+	if err := e.st.UpsertIdentity(context.Background(), e.ch.String()+":d", cust, e.ch); err != nil {
 		t.Fatal(err)
 	}
 	e.add("view_item", "", &cust, 9*h, nil)
@@ -79,7 +82,8 @@ func seedEngines(t *testing.T) *engineSpine {
 func TestFunnelCountsPeopleInOrderWithoutBots(t *testing.T) {
 	e := seedEngines(t)
 	defer e.st.Close()
-	steps, err := e.st.Funnel(context.Background(), e.ch, []string{"page_view", "view_item", "cart_add"}, e.now.Add(-3*24*time.Hour))
+	res, err := e.st.Funnel(context.Background(), e.ch, analytics.FunnelQuery{Steps: []string{"page_view", "view_item", "cart_add"}}, e.now.Add(-3*24*time.Hour))
+	steps := res.Steps
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,5 +127,44 @@ func TestStickinessActiveAndReturning(t *testing.T) {
 	// active this week: a, b, c, d - and only a was also active the week before
 	if st.WAU != 4 || st.MAU != 4 || st.ActiveNow != 4 || st.PriorActive != 1 || st.Returning != 1 {
 		t.Fatalf("wau %d mau %d now %d prior %d returning %d, want 4, 4, 4, 1, 1", st.WAU, st.MAU, st.ActiveNow, st.PriorActive, st.Returning)
+	}
+}
+
+func TestFunnelWindowFiltersAndBreakdown(t *testing.T) {
+	e := seedEngines(t)
+	defer e.st.Close()
+	steps := []string{"page_view", "view_item", "cart_add"}
+	since := e.now.Add(-3 * 24 * time.Hour)
+	run := func(q analytics.FunnelQuery) analytics.FunnelResult {
+		t.Helper()
+		q.Steps = steps
+		res, err := e.st.Funnel(context.Background(), e.ch, q, since)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res
+	}
+	counts := func(st []analytics.FunnelStep) [3]int64 { return [3]int64{st[0].Count, st[1].Count, st[2].Count} }
+
+	// every step is an hour after the last, so half an hour converts nobody and 90 minutes only reaches step two
+	if got := counts(run(analytics.FunnelQuery{Window: 30 * time.Minute}).Steps); got != [3]int64{4, 0, 0} {
+		t.Errorf("30 minute window = %v, want [4 0 0]", got)
+	}
+	if got := counts(run(analytics.FunnelQuery{Window: 90 * time.Minute}).Steps); got != [3]int64{4, 3, 0} {
+		t.Errorf("90 minute window = %v, want [4 3 0]", got)
+	}
+	// only mobile page views start it: a, c and d
+	if got := counts(run(analytics.FunnelQuery{Filters: []analytics.FunnelFilter{{Step: 0, Key: "device", Value: "mobile"}}}).Steps); got != [3]int64{3, 2, 2} {
+		t.Errorf("mobile start = %v, want [3 2 2]", got)
+	}
+	res := run(analytics.FunnelQuery{Breakdown: "device"})
+	if got := counts(res.Steps); got != [3]int64{4, 3, 2} {
+		t.Errorf("overall with a breakdown = %v, want [4 3 2]", got)
+	}
+	if len(res.Breakdown) != 2 || res.Breakdown[0].Value != "mobile" || res.Breakdown[1].Value != "desktop" {
+		t.Fatalf("breakdown = %+v, want mobile then desktop", res.Breakdown)
+	}
+	if m, d := res.Breakdown[0].Counts, res.Breakdown[1].Counts; m[0] != 3 || m[1] != 2 || m[2] != 2 || d[0] != 1 || d[1] != 1 || d[2] != 0 {
+		t.Errorf("mobile %v desktop %v, want [3 2 2] and [1 1 0]", m, d)
 	}
 }
