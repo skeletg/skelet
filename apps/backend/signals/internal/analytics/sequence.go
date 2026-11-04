@@ -12,6 +12,7 @@ type SpineActorEvent struct {
 	Actor      string
 	EventName  string
 	OccurredAt time.Time // rows arrive ordered by actor, then this
+	People     int64     // how many people the actor's rows stand for, read off its first row - 0 means one; a store that groups identical journeys sends each once
 }
 
 // Classic cohort retention: cohorts by the period bucket of each person's first start event, returns relative to that bucket, and per-bucket eligible denominators - a cohort only counts toward period N once it's old enough to have reached it
@@ -153,10 +154,11 @@ func FlowFromEvents(events []SpineActorEvent, focus string, depth, topK int) Flo
 	var prefix, lastEvent string
 	steps := 0
 	hitFocus := false
+	var people int64 = 1
 	process := func(eventName string) {
 		if !hitFocus {
 			if eventName == focus {
-				hitFocus, cohort, prefix, lastEvent = true, cohort+1, focus, focus
+				hitFocus, cohort, prefix, lastEvent = true, cohort+people, focus, focus
 			}
 			return
 		}
@@ -166,24 +168,25 @@ func FlowFromEvents(events []SpineActorEvent, focus string, depth, topK int) Flo
 		if edges[prefix] == nil {
 			edges[prefix] = map[string]int64{}
 		}
-		edges[prefix][eventName]++
+		edges[prefix][eventName] += people
 		prefix += flowSep + eventName
 		lastEvent = eventName
 		steps++
 	}
 	finalize := func() {
 		if hitFocus && steps > 0 {
-			pathCounts[prefix]++
-			totalSteps += int64(steps)
-			continued++
+			pathCounts[prefix] += people
+			totalSteps += int64(steps) * people
+			continued += people
 		}
 	}
+	weight := func(ev SpineActorEvent) int64 { return max(ev.People, 1) }
 	for _, ev := range events {
 		if !have {
-			curActor, have = ev.Actor, true
+			curActor, have, people = ev.Actor, true, weight(ev)
 		} else if ev.Actor != curActor {
 			finalize()
-			curActor, hitFocus, prefix, lastEvent, steps = ev.Actor, false, "", "", 0
+			curActor, hitFocus, prefix, lastEvent, steps, people = ev.Actor, false, "", "", 0, weight(ev)
 		}
 		process(ev.EventName)
 	}

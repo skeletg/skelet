@@ -157,3 +157,16 @@ func TestRollupInsightsSeries(t *testing.T) {
 		t.Errorf("points sum = %d, want every input total preserved (145)", sum)
 	}
 }
+
+func TestFlowFromEventsCountsEachRowsPeople(t *testing.T) {
+	grouped := FlowFromEvents([]SpineActorEvent{
+		{Actor: "0", EventName: "page_view", People: 3}, {Actor: "0", EventName: "cart_add", People: 3},
+		{Actor: "1", EventName: "page_view", People: 2},
+	}, "page_view", 4, 6)
+	if grouped.Cohort != 5 || grouped.Continued != 3 || grouped.AvgSteps != 1 {
+		t.Fatalf("cohort %d continued %d avg %v, want 5, 3 and 1", grouped.Cohort, grouped.Continued, grouped.AvgSteps)
+	}
+	if len(grouped.Nodes) != 1 || grouped.Nodes[0].Count != 3 || len(grouped.TopPaths) != 1 || grouped.TopPaths[0].Count != 3 {
+		t.Fatalf("nodes %+v paths %+v, want cart_add taken by 3", grouped.Nodes, grouped.TopPaths)
+	}
+}
