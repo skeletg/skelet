@@ -193,3 +193,11 @@ func deref(s *string) string {
 	}
 	return *s
 }
+
+func propertyFiltersIn(in []*model.SynapsePropertyFilterInput) []*signalsv1.PropertyFilter {
+	out := make([]*signalsv1.PropertyFilter, 0, len(in))
+	for _, f := range in {
+		out = append(out, &signalsv1.PropertyFilter{Key: strings.TrimSpace(f.Key), Op: f.Op, Values: f.Values})
+	}
+	return out
+}

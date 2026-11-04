@@ -2843,11 +2843,13 @@ type InsightPoint struct {
 	Bucket time.Time `json:"bucket"`
 	Key    string    `json:"key"`
 	Value  int32     `json:"value"`
+	Amount float64   `json:"amount"`
 }
 
 type InsightSeries struct {
-	Key   string `json:"key"`
-	Total int32  `json:"total"`
+	Key    string  `json:"key"`
+	Total  int32   `json:"total"`
+	Amount float64 `json:"amount"`
 }
 
 type Integration struct {
@@ -5120,9 +5122,11 @@ type SynapseFunnelBreakdown struct {
 }
 
 type SynapseFunnelFilterInput struct {
-	Step  int32  `json:"step"`
-	Key   string `json:"key"`
-	Value string `json:"value"`
+	Step   int32    `json:"step"`
+	Key    string   `json:"key"`
+	Value  string   `json:"value"`
+	Op     *string  `json:"op,omitempty"`
+	Values []string `json:"values,omitempty"`
 }
 
 type SynapseFunnelStep struct {
@@ -5131,13 +5135,15 @@ type SynapseFunnelStep struct {
 }
 
 type SynapseInsights struct {
-	Points      []*InsightPoint  `json:"points"`
-	Series      []*InsightSeries `json:"series"`
-	Total       int32            `json:"total"`
-	Uniques     int32            `json:"uniques"`
-	PrevTotal   int32            `json:"prevTotal"`
-	PrevUniques int32            `json:"prevUniques"`
-	Aggregate   int32            `json:"aggregate"`
+	Points          []*InsightPoint  `json:"points"`
+	Series          []*InsightSeries `json:"series"`
+	Total           int32            `json:"total"`
+	Uniques         int32            `json:"uniques"`
+	PrevTotal       int32            `json:"prevTotal"`
+	PrevUniques     int32            `json:"prevUniques"`
+	Aggregate       int32            `json:"aggregate"`
+	TotalAmount     float64          `json:"totalAmount"`
+	PrevTotalAmount float64          `json:"prevTotalAmount"`
 }
 
 type SynapseOverview struct {
@@ -5150,6 +5156,12 @@ type SynapseOverview struct {
 	TopEvents           []*CustomerEventCount    `json:"topEvents"`
 	ActiveCustomers     []*SynapseActiveCustomer `json:"activeCustomers"`
 	ActiveVisitors      []*SynapseVisitor        `json:"activeVisitors"`
+}
+
+type SynapsePropertyFilterInput struct {
+	Key    string   `json:"key"`
+	Op     string   `json:"op"`
+	Values []string `json:"values"`
 }
 
 type SynapseRetention struct {
