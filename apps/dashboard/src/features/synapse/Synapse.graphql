@@ -260,8 +260,26 @@ query SynapseFunnel(
 }
 
 # Cohort retention: startEvent → returnEvent over period buckets.
-query SynapseRetention($channelId: ID!, $startEvent: String!, $returnEvent: String!, $sinceDays: Int, $periods: Int, $unit: String) {
-  synapseRetention(channelId: $channelId, startEvent: $startEvent, returnEvent: $returnEvent, sinceDays: $sinceDays, periods: $periods, unit: $unit) {
+query SynapseRetention(
+  $channelId: ID!
+  $startEvent: String!
+  $returnEvent: String!
+  $sinceDays: Int
+  $periods: Int
+  $unit: String
+  $startFilters: [SynapsePropertyFilterInput!]
+  $returnFilters: [SynapsePropertyFilterInput!]
+) {
+  synapseRetention(
+    channelId: $channelId
+    startEvent: $startEvent
+    returnEvent: $returnEvent
+    sinceDays: $sinceDays
+    periods: $periods
+    unit: $unit
+    startFilters: $startFilters
+    returnFilters: $returnFilters
+  ) {
     cohort
     buckets {
       period
@@ -440,8 +458,24 @@ mutation SynapseSetSegmentLifecycleWindows($segmentId: ID!, $windows: SegmentLif
 }
 
 # Forward path tree from a focus event.
-query SynapseFlow($channelId: ID!, $event: String!, $sinceDays: Int, $depth: Int) {
-  synapseFlow(channelId: $channelId, event: $event, sinceDays: $sinceDays, depth: $depth) {
+query SynapseFlow(
+  $channelId: ID!
+  $event: String!
+  $sinceDays: Int
+  $depth: Int
+  $filters: [SynapsePropertyFilterInput!]
+  $notThen: String
+  $notThenWithinHours: Int
+) {
+  synapseFlow(
+    channelId: $channelId
+    event: $event
+    sinceDays: $sinceDays
+    depth: $depth
+    filters: $filters
+    notThen: $notThen
+    notThenWithinHours: $notThenWithinHours
+  ) {
     focus
     cohort
     continued
@@ -461,8 +495,8 @@ query SynapseFlow($channelId: ID!, $event: String!, $sinceDays: Int, $depth: Int
 }
 
 # Commerce engagement: return rate over a window + daily-active trend.
-query SynapseStickiness($channelId: ID!, $event: String, $sinceDays: Int, $windowDays: Int) {
-  synapseStickiness(channelId: $channelId, event: $event, sinceDays: $sinceDays, windowDays: $windowDays) {
+query SynapseStickiness($channelId: ID!, $event: String, $sinceDays: Int, $windowDays: Int, $filters: [SynapsePropertyFilterInput!]) {
+  synapseStickiness(channelId: $channelId, event: $event, sinceDays: $sinceDays, windowDays: $windowDays, filters: $filters) {
     days {
       day
       count
@@ -478,22 +512,47 @@ query SynapseStickiness($channelId: ID!, $event: String, $sinceDays: Int, $windo
 }
 
 # Ad-hoc breakdown report: a measure over time, split by a property.
-query SynapseInsights($channelId: ID!, $event: String, $breakdown: String, $measure: String, $unit: String, $sinceDays: Int) {
-  synapseInsights(channelId: $channelId, event: $event, breakdown: $breakdown, measure: $measure, unit: $unit, sinceDays: $sinceDays) {
+query SynapseInsights(
+  $channelId: ID!
+  $event: String
+  $breakdown: String
+  $measure: String
+  $unit: String
+  $sinceDays: Int
+  $events: [String!]
+  $sumKey: String
+  $filters: [SynapsePropertyFilterInput!]
+) {
+  synapseInsights(
+    channelId: $channelId
+    event: $event
+    breakdown: $breakdown
+    measure: $measure
+    unit: $unit
+    sinceDays: $sinceDays
+    events: $events
+    sumKey: $sumKey
+    filters: $filters
+  ) {
     points {
       bucket
       key
       value
+      amount
     }
     series {
       key
       total
+      amount
     }
     total
     uniques
     prevTotal
     prevUniques
     aggregate
+    totalAmount
+    prevTotalAmount
+    baseCurrency
   }
 }
 

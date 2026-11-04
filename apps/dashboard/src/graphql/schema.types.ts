@@ -3225,6 +3225,7 @@ export type HealthStatus =
 
 export type InsightPoint = {
   __typename?: 'InsightPoint';
+  amount: Scalars['Float']['output'];
   bucket: Scalars['Time']['output'];
   key: Scalars['String']['output'];
   value: Scalars['Int']['output'];
@@ -3232,6 +3233,7 @@ export type InsightPoint = {
 
 export type InsightSeries = {
   __typename?: 'InsightSeries';
+  amount: Scalars['Float']['output'];
   key: Scalars['String']['output'];
   total: Scalars['Int']['output'];
 };
@@ -9445,6 +9447,9 @@ export type QuerySynapseFlowArgs = {
   channelId: Scalars['ID']['input'];
   depth?: InputMaybe<Scalars['Int']['input']>;
   event: Scalars['String']['input'];
+  filters?: InputMaybe<Array<SynapsePropertyFilterInput>>;
+  notThen?: InputMaybe<Scalars['String']['input']>;
+  notThenWithinHours?: InputMaybe<Scalars['Int']['input']>;
   sinceDays?: InputMaybe<Scalars['Int']['input']>;
 };
 
@@ -9463,8 +9468,11 @@ export type QuerySynapseInsightsArgs = {
   breakdown?: InputMaybe<Scalars['String']['input']>;
   channelId: Scalars['ID']['input'];
   event?: InputMaybe<Scalars['String']['input']>;
+  events?: InputMaybe<Array<Scalars['String']['input']>>;
+  filters?: InputMaybe<Array<SynapsePropertyFilterInput>>;
   measure?: InputMaybe<Scalars['String']['input']>;
   sinceDays?: InputMaybe<Scalars['Int']['input']>;
+  sumKey?: InputMaybe<Scalars['String']['input']>;
   unit?: InputMaybe<Scalars['String']['input']>;
 };
 
@@ -9479,8 +9487,10 @@ export type QuerySynapseRetentionArgs = {
   channelId: Scalars['ID']['input'];
   periods?: InputMaybe<Scalars['Int']['input']>;
   returnEvent: Scalars['String']['input'];
+  returnFilters?: InputMaybe<Array<SynapsePropertyFilterInput>>;
   sinceDays?: InputMaybe<Scalars['Int']['input']>;
   startEvent: Scalars['String']['input'];
+  startFilters?: InputMaybe<Array<SynapsePropertyFilterInput>>;
   unit?: InputMaybe<Scalars['String']['input']>;
 };
 
@@ -9507,6 +9517,7 @@ export type QuerySynapseSegmentsArgs = {
 export type QuerySynapseStickinessArgs = {
   channelId: Scalars['ID']['input'];
   event?: InputMaybe<Scalars['String']['input']>;
+  filters?: InputMaybe<Array<SynapsePropertyFilterInput>>;
   sinceDays?: InputMaybe<Scalars['Int']['input']>;
   windowDays?: InputMaybe<Scalars['Int']['input']>;
 };
@@ -10811,8 +10822,10 @@ export type SynapseFunnelBreakdown = {
 
 export type SynapseFunnelFilterInput = {
   key: Scalars['String']['input'];
+  op?: InputMaybe<Scalars['String']['input']>;
   step: Scalars['Int']['input'];
   value: Scalars['String']['input'];
+  values?: InputMaybe<Array<Scalars['String']['input']>>;
 };
 
 export type SynapseFunnelStep = {
@@ -10824,11 +10837,14 @@ export type SynapseFunnelStep = {
 export type SynapseInsights = {
   __typename?: 'SynapseInsights';
   aggregate: Scalars['Int']['output'];
+  baseCurrency: Scalars['String']['output'];
   points: Array<InsightPoint>;
   prevTotal: Scalars['Int']['output'];
+  prevTotalAmount: Scalars['Float']['output'];
   prevUniques: Scalars['Int']['output'];
   series: Array<InsightSeries>;
   total: Scalars['Int']['output'];
+  totalAmount: Scalars['Float']['output'];
   uniques: Scalars['Int']['output'];
 };
 
@@ -10843,6 +10859,12 @@ export type SynapseOverview = {
   revenue: Array<AttributedRevenue>;
   topEvents: Array<CustomerEventCount>;
   totalEvents: Scalars['Int']['output'];
+};
+
+export type SynapsePropertyFilterInput = {
+  key: Scalars['String']['input'];
+  op: Scalars['String']['input'];
+  values: Array<Scalars['String']['input']>;
 };
 
 export type SynapseRetention = {
