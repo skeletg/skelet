@@ -57,6 +57,7 @@ type Definition struct {
 	ReturnEvent string   `json:"returnEvent,omitempty"` // retention
 	Periods     int      `json:"periods,omitempty"`     // retention
 	Depth       int      `json:"depth,omitempty"`       // flow
+	Size        string   `json:"size,omitempty"`        // the tile's width on the board: small | medium (unset) | full
 }
 
 type Filter struct {
@@ -116,6 +117,9 @@ func (d Definition) validate() error {
 	}
 	if d.Unit != "" && d.Unit != "day" && d.Unit != "week" {
 		return bad("unit is day or week")
+	}
+	if d.Size != "" && d.Size != "small" && d.Size != "medium" && d.Size != "full" {
+		return bad("size is small, medium or full")
 	}
 	return nil
 }

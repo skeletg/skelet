@@ -16,6 +16,7 @@ func TestParseDefinitionRefusesWhatItDoesntKnow(t *testing.T) {
 		"bad unit":           `{"kind":"insights","unit":"hour"}`,
 		"period too long":    `{"kind":"insights","sinceDays":400}`,
 		"not json":           `kind: insights`,
+		"bad size":           `{"kind":"insights","size":"huge"}`,
 	} {
 		if _, err := ParseDefinition([]byte(raw)); !errors.Is(err, ErrInvalid) {
 			t.Errorf("%s: err = %v, want ErrInvalid", name, err)
@@ -24,6 +25,9 @@ func TestParseDefinitionRefusesWhatItDoesntKnow(t *testing.T) {
 	d, err := ParseDefinition([]byte(`{"kind":"funnel","steps":["page_view","order_placed"],"filters":[{"step":0,"key":"device","value":"mobile"}],"windowHours":24,"breakdown":"device"}`))
 	if err != nil || d.WindowHours != 24 || len(d.Filters) != 1 || d.Breakdown != "device" {
 		t.Fatalf("a valid funnel = %+v, %v", d, err)
+	}
+	if d, err := ParseDefinition([]byte(`{"kind":"insights","size":"full"}`)); err != nil || d.Size != "full" {
+		t.Fatalf("a full-width tile = %+v, %v", d, err)
 	}
 }
 
