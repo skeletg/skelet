@@ -86,7 +86,11 @@ convention is the one most code comments point at.
   transitions); personal preferences (`/preferences`, nav pins, Home
   layout, table layouts) which write immediately because the control
   IS its own preview and there is no entity to diff - their
-  destructive resets still carry a confirm. Diff entries must be a FAITHFUL projection of the
+  destructive resets still carry a confirm; and a board's kept draft
+  (`BoardPage.tsx`), which writes the staged edits about a second
+  after the last change so a reload or another device picks them up -
+  it changes nothing anyone else sees, and the edits still apply only
+  through Save. Diff entries must be a FAITHFUL projection of the
   staged draft or rely on `useSaveSection`'s call-time save thunk -
   the registry only re-registers when the diff STRING changes, so a
   save closure captured alongside a lossy diff (clipped text, rich

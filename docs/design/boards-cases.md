@@ -164,6 +164,9 @@ Creating a board needs `boards.manage` on the channel, and the creator becomes i
 ### When the owner leaves
 
 - **A deactivated owner** keeps the board. Its shares keep working, and nothing moves.
+- **As built:** Signals isn't told. Core names every board's owner when it reads one, and an owner it no longer has
+  shows as removed; `claimBoard` checks that before relaying. Their drafts age out with the 30-day sweep, and their
+  favourites and shares are rows nobody reads. *(The original plan follows.)*
 - **A deleted owner:** core sends `AdminRemoved(admin_id)` to Signals over the outbox, the same way channels are
   pushed. Signals stamps `owner_removed_at` on their boards, drops their drafts and favourites, and deletes their
   admin shares.
