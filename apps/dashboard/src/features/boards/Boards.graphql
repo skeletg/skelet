@@ -1,0 +1,48 @@
+query Boards($channelId: ID!) {
+  boards(channelId: $channelId) {
+    id
+    name
+    updatedAt
+    reportCount
+  }
+}
+
+query Board($channelId: ID!, $id: ID!) {
+  board(channelId: $channelId, id: $id) {
+    id
+    name
+    updatedAt
+    reports {
+      title
+      definition
+    }
+  }
+}
+
+mutation CreateBoard($channelId: ID!, $name: String!, $reports: [BoardReportInput!]) {
+  createBoard(channelId: $channelId, name: $name, reports: $reports) {
+    id
+  }
+}
+
+mutation SaveBoard($channelId: ID!, $id: ID!, $name: String!, $reports: [BoardReportInput!]!, $readAt: Time!) {
+  saveBoard(channelId: $channelId, id: $id, name: $name, reports: $reports, readAt: $readAt) {
+    id
+    name
+    updatedAt
+    reports {
+      title
+      definition
+    }
+  }
+}
+
+mutation DeleteBoard($channelId: ID!, $id: ID!) {
+  deleteBoard(channelId: $channelId, id: $id)
+}
+
+mutation CreateStarterBoards($channelId: ID!) {
+  createStarterBoards(channelId: $channelId) {
+    id
+  }
+}
