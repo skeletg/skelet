@@ -1,0 +1,90 @@
+syntax = "proto3";
+
+// Boards: a shop's shared dashboards of saved reports. A board keeps each report's definition; the dashboard runs it
+// through the Synapse reads the report pages use
+package skelet.signals.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service BoardService {
+  rpc ListBoards(ListBoardsRequest) returns (ListBoardsResponse);
+  rpc GetBoard(GetBoardRequest) returns (GetBoardResponse);
+  rpc CreateBoard(CreateBoardRequest) returns (CreateBoardResponse);
+  // Replaces the name and every report, refused with FAILED_PRECONDITION when the board was saved since read_at
+  rpc SaveBoard(SaveBoardRequest) returns (SaveBoardResponse);
+  rpc DeleteBoard(DeleteBoardRequest) returns (DeleteBoardResponse);
+  // Adds the starter boards to a shop that has none, and leaves one that has any alone
+  rpc CreateStarterBoards(CreateStarterBoardsRequest) returns (CreateStarterBoardsResponse);
+}
+
+message Board {
+  string id = 1;
+  string channel_id = 2;
+  string name = 3;
+  // What a save sends back as read_at
+  google.protobuf.Timestamp updated_at = 4;
+  repeated BoardReport reports = 5;
+  // Filled on a list, where reports is empty
+  int32 report_count = 6;
+}
+
+message BoardReport {
+  string title = 1;
+  // The report's definition as JSON, version definition_version - Signals refuses fields it doesn't know
+  string definition_json = 2;
+  int32 definition_version = 3;
+}
+
+message ListBoardsRequest {
+  string channel_id = 1;
+}
+
+message ListBoardsResponse {
+  repeated Board boards = 1;
+}
+
+message GetBoardRequest {
+  string channel_id = 1;
+  string id = 2;
+}
+
+message GetBoardResponse {
+  Board board = 1;
+}
+
+message CreateBoardRequest {
+  string channel_id = 1;
+  string name = 2;
+  repeated BoardReport reports = 3;
+}
+
+message CreateBoardResponse {
+  Board board = 1;
+}
+
+message SaveBoardRequest {
+  string channel_id = 1;
+  string id = 2;
+  string name = 3;
+  repeated BoardReport reports = 4;
+  google.protobuf.Timestamp read_at = 5;
+}
+
+message SaveBoardResponse {
+  Board board = 1;
+}
+
+message DeleteBoardRequest {
+  string channel_id = 1;
+  string id = 2;
+}
+
+message DeleteBoardResponse {}
+
+message CreateStarterBoardsRequest {
+  string channel_id = 1;
+}
+
+message CreateStarterBoardsResponse {
+  repeated Board boards = 1;
+}
