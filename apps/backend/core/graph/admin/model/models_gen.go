@@ -718,6 +718,25 @@ type BlogTagContent struct {
 	UpdatedAt       time.Time `json:"updatedAt"`
 }
 
+type Board struct {
+	ID          string         `json:"id"`
+	ChannelID   string         `json:"channelId"`
+	Name        string         `json:"name"`
+	UpdatedAt   time.Time      `json:"updatedAt"`
+	ReportCount int32          `json:"reportCount"`
+	Reports     []*BoardReport `json:"reports"`
+}
+
+type BoardReport struct {
+	Title      string `json:"title"`
+	Definition any    `json:"definition"`
+}
+
+type BoardReportInput struct {
+	Title      string `json:"title"`
+	Definition any    `json:"definition"`
+}
+
 type BotAgent struct {
 	Name     string    `json:"name"`
 	Category string    `json:"category"`

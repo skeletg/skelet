@@ -1,0 +1,37 @@
+# Boards - a shop's shared dashboards of saved reports, kept in Signals. Gated boards.view / boards.manage on the
+# board's channel; each report still runs through the Synapse query of its kind, under that query's own grant.
+
+type Board {
+  id:          ID!
+  channelId:   ID!
+  name:        String!
+  updatedAt:   Time!        # send back as saveBoard's readAt
+  reportCount: Int!
+  reports:     [BoardReport!]!   # empty on the boards list
+}
+
+type BoardReport {
+  title:      String!
+  # { kind: insights|funnel|retention|stickiness|flow, sinceDays?, event?, measure?, unit?, breakdown?, steps?,
+  #   filters?, windowHours?, startEvent?, returnEvent?, periods?, depth? } - unknown fields are refused
+  definition: JSON!
+}
+
+input BoardReportInput {
+  title:      String!
+  definition: JSON!
+}
+
+extend type Query {
+  boards(channelId: ID!): [Board!]!
+  board(channelId: ID!, id: ID!): Board!
+}
+
+extend type Mutation {
+  createBoard(channelId: ID!, name: String!, reports: [BoardReportInput!]): Board!
+  # Replaces the name and every report. Refused when the board was saved since readAt (its updatedAt as loaded)
+  saveBoard(channelId: ID!, id: ID!, name: String!, reports: [BoardReportInput!]!, readAt: Time!): Board!
+  deleteBoard(channelId: ID!, id: ID!): Boolean!
+  # The four starter boards, for a shop that has none - a shop with any is left as it is
+  createStarterBoards(channelId: ID!): [Board!]!
+}
