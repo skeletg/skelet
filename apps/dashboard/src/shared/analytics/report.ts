@@ -16,16 +16,30 @@ export type ReportDefinition = {
   returnEvent?: string
   periods?: number
   depth?: number
+  windowDays?: number // stickiness: the return window, unset = the shop's default
+  size?: ReportSize // the tile's width on a board, unset = medium
 }
+
+export type ReportSize = 'small' | 'medium' | 'full'
+export const REPORT_SIZE_LABEL: Record<ReportSize, string> = { small: 'Small', medium: 'Medium', full: 'Full row' }
 
 export type BoardReport = { title: string; definition: ReportDefinition }
 
 export const REPORT_KIND_LABEL: Record<ReportKind, string> = {
   insights: 'Insights',
   funnel: 'Funnel',
-  retention: 'Retention',
-  stickiness: 'Engagement',
+  retention: 'Retention by cohort',
+  stickiness: 'Return rate',
   flow: 'Flow',
+}
+
+// What a new report of each kind starts as - on a board's "+ Add report" and on a report page opened bare
+export const DEFAULT_DEFINITIONS: Record<ReportKind, ReportDefinition> = {
+  insights: { kind: 'insights', event: 'page_view', measure: 'total', unit: 'day' },
+  funnel: { kind: 'funnel', steps: ['page_view', 'view_item', 'cart_add', 'begin_checkout', 'order_placed'] },
+  retention: { kind: 'retention', startEvent: 'order_placed', returnEvent: 'order_placed', unit: 'week', periods: 8 },
+  stickiness: { kind: 'stickiness' },
+  flow: { kind: 'flow', event: 'page_view', depth: 4 },
 }
 
 // Drops unset keys, so a definition built from page state compares and saves the same as one read back
