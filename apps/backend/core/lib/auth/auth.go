@@ -15,6 +15,8 @@ type Claims struct {
 	SessionID   uuid.UUID // admin_sessions row ID; zero when the token was minted without a session row
 	Email       string
 	IsSuperuser bool
+	// RoleIDs are the admin's roles, carried only by a service token - what a board shared with a role is checked against
+	RoleIDs []uuid.UUID
 }
 
 func WithAdmin(ctx context.Context, claims *Claims) context.Context {
