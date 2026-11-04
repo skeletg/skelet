@@ -986,27 +986,27 @@ func (s *Store) ChannelOrderAggregates(ctx context.Context, channelID uuid.UUID,
 	window := ""
 	args := []any{channelID}
 	if !since.IsZero() {
-		window = " AND occurred_at >= ?"
+		window = " AND e.occurred_at >= ?"
 		args = append(args, since)
 	}
 	args = append(args, channelID)
 	rows, err := s.conn.Query(ctx, `
-		SELECT customer_id,
+		SELECT `+resolvedCustomer+` AS cust,
 		       toInt32(count()) AS order_count,
-		       toInt64(sum(toInt64OrZero(JSONExtractString(properties, 'total_cents')))) AS monetary_cents,
-		       min(occurred_at) AS first_order_at,
-		       max(occurred_at) AS last_order_at
-		FROM analytics_events FINAL
-		WHERE channel_id = ?
-		  AND event_name = 'order_placed'
-		  AND customer_id != toUUID('00000000-0000-0000-0000-000000000000')
-		  AND JSONHas(properties, 'order_id')`+window+`
-		  AND JSONExtractString(properties, 'order_id') NOT IN (
+		       toInt64(sum(toInt64OrZero(JSONExtractString(e.properties, 'total_cents')))) AS monetary_cents,
+		       min(e.occurred_at) AS first_order_at,
+		       max(e.occurred_at) AS last_order_at
+		FROM analytics_events AS e FINAL
+		WHERE e.channel_id = ?
+		  AND e.event_name = 'order_placed'
+		  AND `+hasCustomer+` -- a guest order on a visitor later stitched to an account counts for that customer
+		  AND JSONHas(e.properties, 'order_id')`+window+`
+		  AND JSONExtractString(e.properties, 'order_id') NOT IN (
 		      SELECT JSONExtractString(properties, 'order_id')
 		      FROM analytics_events FINAL
 		      WHERE channel_id = ? AND event_name = 'order_cancelled' AND JSONHas(properties, 'order_id')
 		  )
-		GROUP BY customer_id`, args...)
+		GROUP BY cust`, args...)
 	if err != nil {
 		return nil, err
 	}
