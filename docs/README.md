@@ -35,6 +35,7 @@ A new doc gets a row here rather than a link buried in a section, or nobody find
 | [import-export.md](import-export.md) | Bulk data in and out: the resource registry, the job model, and how to add a resource or a format |
 | [settings.md](settings.md) | Every configurable knob, its scope and default |
 | [tracking-plan.md](tracking-plan.md) | The browser events Signals accepts, their properties, and what ingest strips |
+| [design/boards-cases.md](design/boards-cases.md) | Design in progress: boards as owned, shareable cases built in place |
 | [tracking.md](tracking.md) | Server-side tracking: how events reach GA4, GTM, ad, affiliate and marketing platforms, and setting up a destination |
 | [privacy.md](privacy.md) | Cookie consent, what each order and destination records under which choice, counting visitors who decline analytics, and privacy-notice text |
 | [webhooks.md](webhooks.md) | Subscribing to events: async vs sync, signing, retries, the event catalogue |
