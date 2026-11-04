@@ -68,12 +68,54 @@ type Definition struct {
 	Depth       int      `json:"depth,omitempty"`       // flow
 	WindowDays  int      `json:"windowDays,omitempty"`  // stickiness: the return window, 0 = the shop's default
 	Size        string   `json:"size,omitempty"`        // the tile's width on the board: small | medium (unset) | full
+	Events      []string `json:"events,omitempty"`      // insights: several events counted together, in place of event
+	SumKey      string   `json:"sumKey,omitempty"`      // insights with measure sum: the integer property added up
+	// What the report's events must carry: insights, stickiness and the flow's focus - and retention's start and return
+	Where              []Condition `json:"where,omitempty"`
+	StartWhere         []Condition `json:"startWhere,omitempty"`
+	ReturnWhere        []Condition `json:"returnWhere,omitempty"`
+	NotThen            string      `json:"notThen,omitempty"`            // flow: only the people who didn't do this after the focus
+	NotThenWithinHours int         `json:"notThenWithinHours,omitempty"` // flow: how long after, 0 = anywhere in the period
+}
+
+// Condition holds a report's events to those whose property Key compares to Values: eq (one value), neq or in
+type Condition struct {
+	Key    string   `json:"key"`
+	Op     string   `json:"op"`
+	Values []string `json:"values"`
+}
+
+func (c Condition) valid() bool {
+	if strings.TrimSpace(c.Key) == "" {
+		return false
+	}
+	switch c.Op {
+	case "eq", "neq":
+		return len(c.Values) == 1
+	case "in":
+		return len(c.Values) >= 1 && len(c.Values) <= 50
+	}
+	return false
+}
+
+func conditionsValid(cs []Condition) bool {
+	if len(cs) > 10 {
+		return false
+	}
+	for _, c := range cs {
+		if !c.valid() {
+			return false
+		}
+	}
+	return true
 }
 
 type Filter struct {
-	Step  int    `json:"step"`
-	Key   string `json:"key"`
-	Value string `json:"value"`
+	Step   int      `json:"step"`
+	Key    string   `json:"key"`
+	Value  string   `json:"value"`
+	Op     string   `json:"op,omitempty"`     // eq when unset
+	Values []string `json:"values,omitempty"` // for in
 }
 
 // ParseDefinition reads a definition the dashboard sent, refusing fields it doesn't know so a typo can't save a
@@ -96,10 +138,19 @@ func (d Definition) validate() error {
 	if d.SinceDays < 0 || d.SinceDays > 365 {
 		return bad("the period is 1 to 365 days")
 	}
+	if !conditionsValid(d.Where) || !conditionsValid(d.StartWhere) || !conditionsValid(d.ReturnWhere) {
+		return bad("a condition is a property, an operator (eq, neq or in) and its values - at most 10")
+	}
 	switch d.Kind {
 	case "insights":
-		if d.Measure != "" && d.Measure != "total" && d.Measure != "unique" {
-			return bad("measure is total or unique")
+		if d.Measure != "" && d.Measure != "total" && d.Measure != "unique" && d.Measure != "sum" {
+			return bad("measure is total, unique or sum")
+		}
+		if d.Measure == "sum" && d.SumKey == "" {
+			return bad("a sum needs the property it adds up")
+		}
+		if len(d.Events) > 8 {
+			return bad("at most 8 events together")
 		}
 	case "stickiness":
 		if d.WindowDays < 0 || d.WindowDays > 365 {
@@ -124,6 +175,9 @@ func (d Definition) validate() error {
 	case "flow":
 		if d.Event == "" {
 			return bad("a flow needs its focus event")
+		}
+		if d.NotThenWithinHours < 0 {
+			return bad("the drop-off window can't be negative")
 		}
 	default:
 		return fmt.Errorf("%w: unknown report kind %q", ErrInvalid, d.Kind)

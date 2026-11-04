@@ -18,6 +18,9 @@ func TestParseDefinitionRefusesWhatItDoesntKnow(t *testing.T) {
 		"not json":           `kind: insights`,
 		"bad size":           `{"kind":"insights","size":"huge"}`,
 		"window too long":    `{"kind":"stickiness","windowDays":400}`,
+		"a sum of nothing":   `{"kind":"insights","measure":"sum"}`,
+		"a bad operator":     `{"kind":"insights","where":[{"key":"sku","op":"like","values":["X"]}]}`,
+		"= with two values":  `{"kind":"stickiness","where":[{"key":"sku","op":"eq","values":["X","Y"]}]}`,
 	} {
 		if _, err := ParseDefinition([]byte(raw)); !errors.Is(err, ErrInvalid) {
 			t.Errorf("%s: err = %v, want ErrInvalid", name, err)
@@ -29,6 +32,13 @@ func TestParseDefinitionRefusesWhatItDoesntKnow(t *testing.T) {
 	}
 	if d, err := ParseDefinition([]byte(`{"kind":"insights","size":"full"}`)); err != nil || d.Size != "full" {
 		t.Fatalf("a full-width tile = %+v, %v", d, err)
+	}
+	netSales := `{"kind":"insights","events":["order_line","order_line_adjusted","refund_line"],"measure":"sum","sumKey":"net_base_cents","where":[{"key":"sku","op":"in","values":["X","Y"]}]}`
+	if d, err := ParseDefinition([]byte(netSales)); err != nil || d.SumKey != "net_base_cents" || len(d.Where[0].Values) != 2 {
+		t.Fatalf("net sales for two products = %+v, %v", d, err)
+	}
+	if d, err := ParseDefinition([]byte(`{"kind":"flow","event":"view_item","notThen":"cart_add","notThenWithinHours":24}`)); err != nil || d.NotThen != "cart_add" {
+		t.Fatalf("a drop-off flow = %+v, %v", d, err)
 	}
 	if d, err := ParseDefinition([]byte(`{"kind":"stickiness","windowDays":14}`)); err != nil || d.WindowDays != 14 {
 		t.Fatalf("a 14-day return window = %+v, %v", d, err)
