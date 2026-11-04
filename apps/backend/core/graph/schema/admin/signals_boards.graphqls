@@ -1,5 +1,7 @@
-# Boards - a shop's shared dashboards of saved reports, kept in Signals. Gated boards.view / boards.manage on the
-# board's channel; each report still runs through the Synapse query of its kind, under that query's own grant.
+# Boards - dashboards of saved reports, kept in Signals. A board is owned and private until shared with admins or roles,
+# or is a shop board everyone on the shop sees. Gated on boards.view on the board's channel (boards.manage to create
+# one, and to run shop boards); Signals decides each admin's access to each board. Each report still runs through the
+# Synapse query of its kind, under that query's own grant - so a board never shows anyone data they couldn't query
 
 type Board {
   id:          ID!
@@ -8,12 +10,47 @@ type Board {
   updatedAt:   Time!        # send back as saveBoard's readAt
   reportCount: Int!
   reports:     [BoardReport!]!   # empty on the boards list
+  status:      String!      # draft (its owner's alone, until its first save) | published
+  access:      String!      # the caller's: view | edit | own
+  favourite:   Boolean!     # the caller's star
+  owner:       BoardOwner   # null on a shop board
+  draftUpdatedAt: Time      # when the caller's unsaved edits were last kept
+  shares:      [BoardShare!]!    # on a single read, for a caller who owns it
+  draft:       BoardDraft        # on a single read, the caller's unsaved edits
+}
+
+type BoardOwner {
+  id:      ID!
+  name:    String!
+  removed: Boolean!   # the admin was deleted - someone with boards.manage who can open the board may claim it
+}
+
+type BoardShare {
+  adminId: ID
+  roleId:  ID
+  name:    String!
+  level:   String!    # view | edit
+}
+
+type BoardDraft {
+  payload:       JSON!   # the dashboard's own: the board as staged
+  baseUpdatedAt: Time!   # the board's updatedAt when the edits began - save with it as readAt
+  updatedAt:     Time!
+}
+
+# Someone a board can be shared with, and whether they'd see anything: boards.view, and customers.view for the numbers
+type BoardShareTarget {
+  kind:       String!   # admin | role
+  id:         ID!
+  name:       String!
+  seesBoards: Boolean!
+  seesData:   Boolean!
 }
 
 type BoardReport {
   title:      String!
   # { kind: insights|funnel|retention|stickiness|flow, sinceDays?, event?, measure?, unit?, breakdown?, steps?,
-  #   filters?, windowHours?, startEvent?, returnEvent?, periods?, depth? } - unknown fields are refused
+  #   filters?, windowHours?, startEvent?, returnEvent?, periods?, depth?, windowDays?, size? } - unknown fields are refused
   definition: JSON!
 }
 
@@ -22,16 +59,36 @@ input BoardReportInput {
   definition: JSON!
 }
 
+input BoardShareInput {
+  adminId: ID
+  roleId:  ID
+  level:   String!
+}
+
 extend type Query {
-  boards(channelId: ID!): [Board!]!
+  # The boards the caller can open. all: a superuser's every board on the shop, not only their own view of it
+  boards(channelId: ID!, all: Boolean): [Board!]!
   board(channelId: ID!, id: ID!): Board!
+  # Admins and roles a board on this shop can be shared with - names only, gated boards.manage
+  boardShareTargets(channelId: ID!): [BoardShareTarget!]!
 }
 
 extend type Mutation {
+  # A new board is the caller's private draft until its first save
   createBoard(channelId: ID!, name: String!, reports: [BoardReportInput!]): Board!
-  # Replaces the name and every report. Refused when the board was saved since readAt (its updatedAt as loaded)
+  # Replaces the name and every report, and publishes a draft. Refused when the board was saved since readAt
   saveBoard(channelId: ID!, id: ID!, name: String!, reports: [BoardReportInput!]!, readAt: Time!): Board!
   deleteBoard(channelId: ID!, id: ID!): Boolean!
-  # The four starter boards, for a shop that has none - a shop with any is left as it is
+  # The four starter boards, as shop boards, for a shop that has none - a shop with any is left as it is
   createStarterBoards(channelId: ID!): [Board!]!
+  # Replaces who the board is shared with - its owner's to change, once it's saved
+  setBoardShares(channelId: ID!, id: ID!, shares: [BoardShareInput!]!): Board!
+  # Gives up ownership: everyone on the shop sees it, and its managers run it
+  makeShopBoard(channelId: ID!, id: ID!): Board!
+  # Takes over a board whose owner was deleted
+  claimBoard(channelId: ID!, id: ID!): Board!
+  setBoardFavourite(channelId: ID!, id: ID!, favourite: Boolean!): Boolean!
+  # Keeps the caller's unsaved edits between visits; answers when they were kept
+  saveBoardDraft(channelId: ID!, id: ID!, payload: JSON!, baseUpdatedAt: Time!): Time!
+  discardBoardDraft(channelId: ID!, id: ID!): Boolean!
 }

@@ -542,17 +542,51 @@ type ComplexityRoot struct {
 	}
 
 	Board struct {
-		ChannelID   func(childComplexity int) int
-		ID          func(childComplexity int) int
-		Name        func(childComplexity int) int
-		ReportCount func(childComplexity int) int
-		Reports     func(childComplexity int) int
-		UpdatedAt   func(childComplexity int) int
+		Access         func(childComplexity int) int
+		ChannelID      func(childComplexity int) int
+		Draft          func(childComplexity int) int
+		DraftUpdatedAt func(childComplexity int) int
+		Favourite      func(childComplexity int) int
+		ID             func(childComplexity int) int
+		Name           func(childComplexity int) int
+		Owner          func(childComplexity int) int
+		ReportCount    func(childComplexity int) int
+		Reports        func(childComplexity int) int
+		Shares         func(childComplexity int) int
+		Status         func(childComplexity int) int
+		UpdatedAt      func(childComplexity int) int
+	}
+
+	BoardDraft struct {
+		BaseUpdatedAt func(childComplexity int) int
+		Payload       func(childComplexity int) int
+		UpdatedAt     func(childComplexity int) int
+	}
+
+	BoardOwner struct {
+		ID      func(childComplexity int) int
+		Name    func(childComplexity int) int
+		Removed func(childComplexity int) int
 	}
 
 	BoardReport struct {
 		Definition func(childComplexity int) int
 		Title      func(childComplexity int) int
+	}
+
+	BoardShare struct {
+		AdminID func(childComplexity int) int
+		Level   func(childComplexity int) int
+		Name    func(childComplexity int) int
+		RoleID  func(childComplexity int) int
+	}
+
+	BoardShareTarget struct {
+		ID         func(childComplexity int) int
+		Kind       func(childComplexity int) int
+		Name       func(childComplexity int) int
+		SeesBoards func(childComplexity int) int
+		SeesData   func(childComplexity int) int
 	}
 
 	BotAgent struct {
@@ -2455,6 +2489,7 @@ type ComplexityRoot struct {
 		CancelSubscription                func(childComplexity int, id string) int
 		CapturePayment                    func(childComplexity int, orderID string, amount *int32) int
 		ChangePassword                    func(childComplexity int, currentPassword string, newPassword string) int
+		ClaimBoard                        func(childComplexity int, channelID string, id string) int
 		ClaimCMSPage                      func(childComplexity int, id string) int
 		ClearCategoryCover                func(childComplexity int, categoryID string) int
 		ClearCategoryListing              func(childComplexity int, categoryID string, channelID string) int
@@ -2621,6 +2656,7 @@ type ComplexityRoot struct {
 		DetachOptionTemplate              func(childComplexity int, productID string, templateID string) int
 		DevImpersonate                    func(childComplexity int, adminID string) int
 		DisableGiftCard                   func(childComplexity int, id string) int
+		DiscardBoardDraft                 func(childComplexity int, channelID string, id string) int
 		DraftReviewReply                  func(childComplexity int, id string) int
 		DuplicateProductOption            func(childComplexity int, id string) int
 		EditOrder                         func(childComplexity int, input model.EditOrderInput) int
@@ -2640,6 +2676,7 @@ type ComplexityRoot struct {
 		IssueReturnRefund                 func(childComplexity int, id string, reason *string) int
 		Logout                            func(childComplexity int, token string) int
 		LogoutOtherDevices                func(childComplexity int, currentRefreshToken string) int
+		MakeShopBoard                     func(childComplexity int, channelID string, id string) int
 		MarkAllNotificationsRead          func(childComplexity int) int
 		MarkNotificationRead              func(childComplexity int, id string) int
 		MarkProcessing                    func(childComplexity int, id string) int
@@ -2709,6 +2746,7 @@ type ComplexityRoot struct {
 		RunChatAction                     func(childComplexity int, action string, argsJSON string) int
 		RunScheduledJobNow                func(childComplexity int, id string) int
 		SaveBoard                         func(childComplexity int, channelID string, id string, name string, reports []*model.BoardReportInput, readAt time.Time) int
+		SaveBoardDraft                    func(childComplexity int, channelID string, id string, payload interface{}, baseUpdatedAt time.Time) int
 		SaveChatConversation              func(childComplexity int, id *string, title *string, messages []*model.SignalsChatMessage) int
 		SaveDeliveryPoints                func(childComplexity int, channelID string, points []*model.DeliveryPointInput) int
 		SaveEmailBlock                    func(childComplexity int, input model.SaveEmailBlockInput) int
@@ -2727,6 +2765,8 @@ type ComplexityRoot struct {
 		SetBlogPostCategories             func(childComplexity int, postID string, categoryIds []string) int
 		SetBlogPostChannelListing         func(childComplexity int, input model.SetBlogPostChannelListingInput) int
 		SetBlogPostTags                   func(childComplexity int, postID string, tagIds []string) int
+		SetBoardFavourite                 func(childComplexity int, channelID string, id string, favourite bool) int
+		SetBoardShares                    func(childComplexity int, channelID string, id string, shares []*model.BoardShareInput) int
 		SetBundlePricing                  func(childComplexity int, input model.SetBundlePricingInput) int
 		SetBundleStructure                func(childComplexity int, productID string, ops []*model.BundleStructureOpInput) int
 		SetCMSPageChannelListing          func(childComplexity int, input model.SetCMSPageChannelListingInput) int
@@ -3611,7 +3651,8 @@ type ComplexityRoot struct {
 		BlogTag                      func(childComplexity int, slug *string, id *string) int
 		BlogTags                     func(childComplexity int) int
 		Board                        func(childComplexity int, channelID string, id string) int
-		Boards                       func(childComplexity int, channelID string) int
+		BoardShareTargets            func(childComplexity int, channelID string) int
+		Boards                       func(childComplexity int, channelID string, all *bool) int
 		BotTraffic                   func(childComplexity int, channelID string, sinceDays *int32, bot *string) int
 		CacheRevalidations           func(childComplexity int, limit *int32) int
 		CacheSurfaces                func(childComplexity int) int
@@ -5415,6 +5456,12 @@ type MutationResolver interface {
 	SaveBoard(ctx context.Context, channelID string, id string, name string, reports []*model.BoardReportInput, readAt time.Time) (*model.Board, error)
 	DeleteBoard(ctx context.Context, channelID string, id string) (bool, error)
 	CreateStarterBoards(ctx context.Context, channelID string) ([]*model.Board, error)
+	SetBoardShares(ctx context.Context, channelID string, id string, shares []*model.BoardShareInput) (*model.Board, error)
+	MakeShopBoard(ctx context.Context, channelID string, id string) (*model.Board, error)
+	ClaimBoard(ctx context.Context, channelID string, id string) (*model.Board, error)
+	SetBoardFavourite(ctx context.Context, channelID string, id string, favourite bool) (bool, error)
+	SaveBoardDraft(ctx context.Context, channelID string, id string, payload interface{}, baseUpdatedAt time.Time) (*time.Time, error)
+	DiscardBoardDraft(ctx context.Context, channelID string, id string) (bool, error)
 	CreateCustomerSegment(ctx context.Context, input model.CreateCustomerSegmentInput) (*model.CustomerSegment, error)
 	UpdateCustomerSegment(ctx context.Context, input model.UpdateCustomerSegmentInput) (*model.CustomerSegment, error)
 	DeleteCustomerSegment(ctx context.Context, id string) (bool, error)
@@ -5702,8 +5749,9 @@ type QueryResolver interface {
 	ShippingZone(ctx context.Context, id string) (*model.ShippingZone, error)
 	ShippingCarriers(ctx context.Context, channelID string) ([]*model.ShippingCarrierAdmin, error)
 	ShippingBoxes(ctx context.Context, channelID string) ([]*model.ShippingBox, error)
-	Boards(ctx context.Context, channelID string) ([]*model.Board, error)
+	Boards(ctx context.Context, channelID string, all *bool) ([]*model.Board, error)
 	Board(ctx context.Context, channelID string, id string) (*model.Board, error)
+	BoardShareTargets(ctx context.Context, channelID string) ([]*model.BoardShareTarget, error)
 	LensOverview(ctx context.Context, channelID string, sinceDays *int32) (*model.LensOverview, error)
 	BotTraffic(ctx context.Context, channelID string, sinceDays *int32, bot *string) (*model.BotTraffic, error)
 	LensPages(ctx context.Context, channelID string) ([]*model.LensPage, error)
@@ -7846,12 +7894,36 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.BlogTagContent.UpdatedAt(childComplexity), true
 
+	case "Board.access":
+		if e.ComplexityRoot.Board.Access == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Board.Access(childComplexity), true
 	case "Board.channelId":
 		if e.ComplexityRoot.Board.ChannelID == nil {
 			break
 		}
 
 		return e.ComplexityRoot.Board.ChannelID(childComplexity), true
+	case "Board.draft":
+		if e.ComplexityRoot.Board.Draft == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Board.Draft(childComplexity), true
+	case "Board.draftUpdatedAt":
+		if e.ComplexityRoot.Board.DraftUpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Board.DraftUpdatedAt(childComplexity), true
+	case "Board.favourite":
+		if e.ComplexityRoot.Board.Favourite == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Board.Favourite(childComplexity), true
 	case "Board.id":
 		if e.ComplexityRoot.Board.ID == nil {
 			break
@@ -7864,6 +7936,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Board.Name(childComplexity), true
+	case "Board.owner":
+		if e.ComplexityRoot.Board.Owner == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Board.Owner(childComplexity), true
 	case "Board.reportCount":
 		if e.ComplexityRoot.Board.ReportCount == nil {
 			break
@@ -7876,12 +7954,62 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Board.Reports(childComplexity), true
+	case "Board.shares":
+		if e.ComplexityRoot.Board.Shares == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Board.Shares(childComplexity), true
+	case "Board.status":
+		if e.ComplexityRoot.Board.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Board.Status(childComplexity), true
 	case "Board.updatedAt":
 		if e.ComplexityRoot.Board.UpdatedAt == nil {
 			break
 		}
 
 		return e.ComplexityRoot.Board.UpdatedAt(childComplexity), true
+
+	case "BoardDraft.baseUpdatedAt":
+		if e.ComplexityRoot.BoardDraft.BaseUpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardDraft.BaseUpdatedAt(childComplexity), true
+	case "BoardDraft.payload":
+		if e.ComplexityRoot.BoardDraft.Payload == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardDraft.Payload(childComplexity), true
+	case "BoardDraft.updatedAt":
+		if e.ComplexityRoot.BoardDraft.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardDraft.UpdatedAt(childComplexity), true
+
+	case "BoardOwner.id":
+		if e.ComplexityRoot.BoardOwner.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardOwner.ID(childComplexity), true
+	case "BoardOwner.name":
+		if e.ComplexityRoot.BoardOwner.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardOwner.Name(childComplexity), true
+	case "BoardOwner.removed":
+		if e.ComplexityRoot.BoardOwner.Removed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardOwner.Removed(childComplexity), true
 
 	case "BoardReport.definition":
 		if e.ComplexityRoot.BoardReport.Definition == nil {
@@ -7895,6 +8023,62 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.BoardReport.Title(childComplexity), true
+
+	case "BoardShare.adminId":
+		if e.ComplexityRoot.BoardShare.AdminID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardShare.AdminID(childComplexity), true
+	case "BoardShare.level":
+		if e.ComplexityRoot.BoardShare.Level == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardShare.Level(childComplexity), true
+	case "BoardShare.name":
+		if e.ComplexityRoot.BoardShare.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardShare.Name(childComplexity), true
+	case "BoardShare.roleId":
+		if e.ComplexityRoot.BoardShare.RoleID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardShare.RoleID(childComplexity), true
+
+	case "BoardShareTarget.id":
+		if e.ComplexityRoot.BoardShareTarget.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardShareTarget.ID(childComplexity), true
+	case "BoardShareTarget.kind":
+		if e.ComplexityRoot.BoardShareTarget.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardShareTarget.Kind(childComplexity), true
+	case "BoardShareTarget.name":
+		if e.ComplexityRoot.BoardShareTarget.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardShareTarget.Name(childComplexity), true
+	case "BoardShareTarget.seesBoards":
+		if e.ComplexityRoot.BoardShareTarget.SeesBoards == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardShareTarget.SeesBoards(childComplexity), true
+	case "BoardShareTarget.seesData":
+		if e.ComplexityRoot.BoardShareTarget.SeesData == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardShareTarget.SeesData(childComplexity), true
 
 	case "BotAgent.category":
 		if e.ComplexityRoot.BotAgent.Category == nil {
@@ -16443,6 +16627,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ChangePassword(childComplexity, args["currentPassword"].(string), args["newPassword"].(string)), true
+	case "Mutation.claimBoard":
+		if e.ComplexityRoot.Mutation.ClaimBoard == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_claimBoard_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ClaimBoard(childComplexity, args["channelId"].(string), args["id"].(string)), true
 	case "Mutation.claimCMSPage":
 		if e.ComplexityRoot.Mutation.ClaimCMSPage == nil {
 			break
@@ -18269,6 +18464,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DisableGiftCard(childComplexity, args["id"].(string)), true
+	case "Mutation.discardBoardDraft":
+		if e.ComplexityRoot.Mutation.DiscardBoardDraft == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_discardBoardDraft_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DiscardBoardDraft(childComplexity, args["channelId"].(string), args["id"].(string)), true
 	case "Mutation.draftReviewReply":
 		if e.ComplexityRoot.Mutation.DraftReviewReply == nil {
 			break
@@ -18478,6 +18684,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.LogoutOtherDevices(childComplexity, args["currentRefreshToken"].(string)), true
+	case "Mutation.makeShopBoard":
+		if e.ComplexityRoot.Mutation.MakeShopBoard == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_makeShopBoard_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.MakeShopBoard(childComplexity, args["channelId"].(string), args["id"].(string)), true
 	case "Mutation.markAllNotificationsRead":
 		if e.ComplexityRoot.Mutation.MarkAllNotificationsRead == nil {
 			break
@@ -19232,6 +19449,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SaveBoard(childComplexity, args["channelId"].(string), args["id"].(string), args["name"].(string), args["reports"].([]*model.BoardReportInput), args["readAt"].(time.Time)), true
+	case "Mutation.saveBoardDraft":
+		if e.ComplexityRoot.Mutation.SaveBoardDraft == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_saveBoardDraft_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SaveBoardDraft(childComplexity, args["channelId"].(string), args["id"].(string), args["payload"].(interface{}), args["baseUpdatedAt"].(time.Time)), true
 	case "Mutation.saveChatConversation":
 		if e.ComplexityRoot.Mutation.SaveChatConversation == nil {
 			break
@@ -19430,6 +19658,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetBlogPostTags(childComplexity, args["postId"].(string), args["tagIds"].([]string)), true
+	case "Mutation.setBoardFavourite":
+		if e.ComplexityRoot.Mutation.SetBoardFavourite == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setBoardFavourite_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetBoardFavourite(childComplexity, args["channelId"].(string), args["id"].(string), args["favourite"].(bool)), true
+	case "Mutation.setBoardShares":
+		if e.ComplexityRoot.Mutation.SetBoardShares == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setBoardShares_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetBoardShares(childComplexity, args["channelId"].(string), args["id"].(string), args["shares"].([]*model.BoardShareInput)), true
 	case "Mutation.setBundlePricing":
 		if e.ComplexityRoot.Mutation.SetBundlePricing == nil {
 			break
@@ -24615,6 +24865,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Board(childComplexity, args["channelId"].(string), args["id"].(string)), true
+	case "Query.boardShareTargets":
+		if e.ComplexityRoot.Query.BoardShareTargets == nil {
+			break
+		}
+
+		args, err := ec.field_Query_boardShareTargets_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.BoardShareTargets(childComplexity, args["channelId"].(string)), true
 	case "Query.boards":
 		if e.ComplexityRoot.Query.Boards == nil {
 			break
@@ -24625,7 +24886,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.Boards(childComplexity, args["channelId"].(string)), true
+		return e.ComplexityRoot.Query.Boards(childComplexity, args["channelId"].(string), args["all"].(*bool)), true
 	case "Query.botTraffic":
 		if e.ComplexityRoot.Query.BotTraffic == nil {
 			break
@@ -31256,6 +31517,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputAttributeValueInput,
 		ec.unmarshalInputBlogPostFilter,
 		ec.unmarshalInputBoardReportInput,
+		ec.unmarshalInputBoardShareInput,
 		ec.unmarshalInputBundleOptionContentInput,
 		ec.unmarshalInputBundleOptionRuleInput,
 		ec.unmarshalInputBundleStructureOpInput,
@@ -39537,8 +39799,10 @@ extend type Mutation {
   setShippingCarrierWeekendDelivery(channelId: ID!, carrierSlug: String!, deliversOnWeekends: Boolean!): ShippingCarrierAdmin!
 }
 `, BuiltIn: false},
-	{Name: "../schema/admin/signals_boards.graphqls", Input: `# Boards - a shop's shared dashboards of saved reports, kept in Signals. Gated boards.view / boards.manage on the
-# board's channel; each report still runs through the Synapse query of its kind, under that query's own grant.
+	{Name: "../schema/admin/signals_boards.graphqls", Input: `# Boards - dashboards of saved reports, kept in Signals. A board is owned and private until shared with admins or roles,
+# or is a shop board everyone on the shop sees. Gated on boards.view on the board's channel (boards.manage to create
+# one, and to run shop boards); Signals decides each admin's access to each board. Each report still runs through the
+# Synapse query of its kind, under that query's own grant - so a board never shows anyone data they couldn't query
 
 type Board {
   id:          ID!
@@ -39547,12 +39811,47 @@ type Board {
   updatedAt:   Time!        # send back as saveBoard's readAt
   reportCount: Int!
   reports:     [BoardReport!]!   # empty on the boards list
+  status:      String!      # draft (its owner's alone, until its first save) | published
+  access:      String!      # the caller's: view | edit | own
+  favourite:   Boolean!     # the caller's star
+  owner:       BoardOwner   # null on a shop board
+  draftUpdatedAt: Time      # when the caller's unsaved edits were last kept
+  shares:      [BoardShare!]!    # on a single read, for a caller who owns it
+  draft:       BoardDraft        # on a single read, the caller's unsaved edits
+}
+
+type BoardOwner {
+  id:      ID!
+  name:    String!
+  removed: Boolean!   # the admin was deleted - someone with boards.manage who can open the board may claim it
+}
+
+type BoardShare {
+  adminId: ID
+  roleId:  ID
+  name:    String!
+  level:   String!    # view | edit
+}
+
+type BoardDraft {
+  payload:       JSON!   # the dashboard's own: the board as staged
+  baseUpdatedAt: Time!   # the board's updatedAt when the edits began - save with it as readAt
+  updatedAt:     Time!
+}
+
+# Someone a board can be shared with, and whether they'd see anything: boards.view, and customers.view for the numbers
+type BoardShareTarget {
+  kind:       String!   # admin | role
+  id:         ID!
+  name:       String!
+  seesBoards: Boolean!
+  seesData:   Boolean!
 }
 
 type BoardReport {
   title:      String!
   # { kind: insights|funnel|retention|stickiness|flow, sinceDays?, event?, measure?, unit?, breakdown?, steps?,
-  #   filters?, windowHours?, startEvent?, returnEvent?, periods?, depth? } - unknown fields are refused
+  #   filters?, windowHours?, startEvent?, returnEvent?, periods?, depth?, windowDays?, size? } - unknown fields are refused
   definition: JSON!
 }
 
@@ -39561,18 +39860,38 @@ input BoardReportInput {
   definition: JSON!
 }
 
+input BoardShareInput {
+  adminId: ID
+  roleId:  ID
+  level:   String!
+}
+
 extend type Query {
-  boards(channelId: ID!): [Board!]!
+  # The boards the caller can open. all: a superuser's every board on the shop, not only their own view of it
+  boards(channelId: ID!, all: Boolean): [Board!]!
   board(channelId: ID!, id: ID!): Board!
+  # Admins and roles a board on this shop can be shared with - names only, gated boards.manage
+  boardShareTargets(channelId: ID!): [BoardShareTarget!]!
 }
 
 extend type Mutation {
+  # A new board is the caller's private draft until its first save
   createBoard(channelId: ID!, name: String!, reports: [BoardReportInput!]): Board!
-  # Replaces the name and every report. Refused when the board was saved since readAt (its updatedAt as loaded)
+  # Replaces the name and every report, and publishes a draft. Refused when the board was saved since readAt
   saveBoard(channelId: ID!, id: ID!, name: String!, reports: [BoardReportInput!]!, readAt: Time!): Board!
   deleteBoard(channelId: ID!, id: ID!): Boolean!
-  # The four starter boards, for a shop that has none - a shop with any is left as it is
+  # The four starter boards, as shop boards, for a shop that has none - a shop with any is left as it is
   createStarterBoards(channelId: ID!): [Board!]!
+  # Replaces who the board is shared with - its owner's to change, once it's saved
+  setBoardShares(channelId: ID!, id: ID!, shares: [BoardShareInput!]!): Board!
+  # Gives up ownership: everyone on the shop sees it, and its managers run it
+  makeShopBoard(channelId: ID!, id: ID!): Board!
+  # Takes over a board whose owner was deleted
+  claimBoard(channelId: ID!, id: ID!): Board!
+  setBoardFavourite(channelId: ID!, id: ID!, favourite: Boolean!): Boolean!
+  # Keeps the caller's unsaved edits between visits; answers when they were kept
+  saveBoardDraft(channelId: ID!, id: ID!, payload: JSON!, baseUpdatedAt: Time!): Time!
+  discardBoardDraft(channelId: ID!, id: ID!): Boolean!
 }
 `, BuiltIn: false},
 	{Name: "../schema/admin/signals_lens.graphqls", Input: `# Lens - web behaviour analytics read API (Pulse's sibling). Channel-scoped, gated on lens.view. The page-view/traffic rollup reads off the analytics event spine (source='web'); per-page heatmap detail is added in Stage B.
@@ -42019,8 +42338,46 @@ func (ec *executionContext) childFields_Board(ctx context.Context, field graphql
 		return ec.fieldContext_Board_reportCount(ctx, field)
 	case "reports":
 		return ec.fieldContext_Board_reports(ctx, field)
+	case "status":
+		return ec.fieldContext_Board_status(ctx, field)
+	case "access":
+		return ec.fieldContext_Board_access(ctx, field)
+	case "favourite":
+		return ec.fieldContext_Board_favourite(ctx, field)
+	case "owner":
+		return ec.fieldContext_Board_owner(ctx, field)
+	case "draftUpdatedAt":
+		return ec.fieldContext_Board_draftUpdatedAt(ctx, field)
+	case "shares":
+		return ec.fieldContext_Board_shares(ctx, field)
+	case "draft":
+		return ec.fieldContext_Board_draft(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Board", field.Name)
+}
+
+func (ec *executionContext) childFields_BoardDraft(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "payload":
+		return ec.fieldContext_BoardDraft_payload(ctx, field)
+	case "baseUpdatedAt":
+		return ec.fieldContext_BoardDraft_baseUpdatedAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_BoardDraft_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type BoardDraft", field.Name)
+}
+
+func (ec *executionContext) childFields_BoardOwner(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_BoardOwner_id(ctx, field)
+	case "name":
+		return ec.fieldContext_BoardOwner_name(ctx, field)
+	case "removed":
+		return ec.fieldContext_BoardOwner_removed(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type BoardOwner", field.Name)
 }
 
 func (ec *executionContext) childFields_BoardReport(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -42031,6 +42388,36 @@ func (ec *executionContext) childFields_BoardReport(ctx context.Context, field g
 		return ec.fieldContext_BoardReport_definition(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type BoardReport", field.Name)
+}
+
+func (ec *executionContext) childFields_BoardShare(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "adminId":
+		return ec.fieldContext_BoardShare_adminId(ctx, field)
+	case "roleId":
+		return ec.fieldContext_BoardShare_roleId(ctx, field)
+	case "name":
+		return ec.fieldContext_BoardShare_name(ctx, field)
+	case "level":
+		return ec.fieldContext_BoardShare_level(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type BoardShare", field.Name)
+}
+
+func (ec *executionContext) childFields_BoardShareTarget(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "kind":
+		return ec.fieldContext_BoardShareTarget_kind(ctx, field)
+	case "id":
+		return ec.fieldContext_BoardShareTarget_id(ctx, field)
+	case "name":
+		return ec.fieldContext_BoardShareTarget_name(ctx, field)
+	case "seesBoards":
+		return ec.fieldContext_BoardShareTarget_seesBoards(ctx, field)
+	case "seesData":
+		return ec.fieldContext_BoardShareTarget_seesData(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type BoardShareTarget", field.Name)
 }
 
 func (ec *executionContext) childFields_BotAgent(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -50541,6 +50928,28 @@ func (ec *executionContext) field_Mutation_changePassword_args(ctx context.Conte
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_claimBoard_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_claimCMSPage_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -53281,6 +53690,28 @@ func (ec *executionContext) field_Mutation_disableGiftCard_args(ctx context.Cont
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_discardBoardDraft_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_draftReviewReply_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -53680,6 +54111,28 @@ func (ec *executionContext) field_Mutation_logout_args(ctx context.Context, rawA
 		return nil, err
 	}
 	args["token"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_makeShopBoard_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg1
 	return args, nil
 }
 
@@ -54853,6 +55306,44 @@ func (ec *executionContext) field_Mutation_runScheduledJobNow_args(ctx context.C
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_saveBoardDraft_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "payload",
+		func(ctx context.Context, v any) (any, error) {
+			return ec.unmarshalNJSON2interface(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["payload"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "baseUpdatedAt",
+		func(ctx context.Context, v any) (time.Time, error) {
+			return ec.unmarshalNTime2timeᚐTime(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["baseUpdatedAt"] = arg3
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_saveBoard_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -55300,6 +55791,66 @@ func (ec *executionContext) field_Mutation_setBlogPostTags_args(ctx context.Cont
 		return nil, err
 	}
 	args["tagIds"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setBoardFavourite_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "favourite",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["favourite"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setBoardShares_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "shares",
+		func(ctx context.Context, v any) ([]*model.BoardShareInput, error) {
+			return ec.unmarshalNBoardShareInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardShareInputᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["shares"] = arg2
 	return args, nil
 }
 
@@ -59193,6 +59744,20 @@ func (ec *executionContext) field_Query_blogTag_args(ctx context.Context, rawArg
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_boardShareTargets_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_board_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -59226,6 +59791,14 @@ func (ec *executionContext) field_Query_boards_args(ctx context.Context, rawArgs
 		return nil, err
 	}
 	args["channelId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "all",
+		func(ctx context.Context, v any) (*bool, error) {
+			return ec.unmarshalOBoolean2ᚖbool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["all"] = arg1
 	return args, nil
 }
 
@@ -71651,6 +72224,332 @@ func (ec *executionContext) fieldContext_Board_reports(_ context.Context, field 
 	return fc, nil
 }
 
+func (ec *executionContext) _Board_status(ctx context.Context, field graphql.CollectedField, obj *model.Board) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Board_status(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Board_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Board", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Board_access(ctx context.Context, field graphql.CollectedField, obj *model.Board) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Board_access(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Access, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Board_access(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Board", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Board_favourite(ctx context.Context, field graphql.CollectedField, obj *model.Board) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Board_favourite(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Favourite, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Board_favourite(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Board", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Board_owner(ctx context.Context, field graphql.CollectedField, obj *model.Board) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Board_owner(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Owner, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.BoardOwner) graphql.Marshaler {
+			return ec.marshalOBoardOwner2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardOwner(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Board_owner(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Board",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BoardOwner(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Board_draftUpdatedAt(ctx context.Context, field graphql.CollectedField, obj *model.Board) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Board_draftUpdatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DraftUpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Board_draftUpdatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Board", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Board_shares(ctx context.Context, field graphql.CollectedField, obj *model.Board) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Board_shares(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Shares, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.BoardShare) graphql.Marshaler {
+			return ec.marshalNBoardShare2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardShareᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Board_shares(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Board",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BoardShare(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Board_draft(ctx context.Context, field graphql.CollectedField, obj *model.Board) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Board_draft(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Draft, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.BoardDraft) graphql.Marshaler {
+			return ec.marshalOBoardDraft2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardDraft(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Board_draft(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Board",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BoardDraft(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BoardDraft_payload(ctx context.Context, field graphql.CollectedField, obj *model.BoardDraft) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardDraft_payload(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Payload, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v any) graphql.Marshaler {
+			return ec.marshalNJSON2interface(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BoardDraft_payload(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardDraft", field, false, false, errors.New("field of type JSON does not have child fields"))
+}
+
+func (ec *executionContext) _BoardDraft_baseUpdatedAt(ctx context.Context, field graphql.CollectedField, obj *model.BoardDraft) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardDraft_baseUpdatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BaseUpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BoardDraft_baseUpdatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardDraft", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _BoardDraft_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.BoardDraft) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardDraft_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BoardDraft_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardDraft", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _BoardOwner_id(ctx context.Context, field graphql.CollectedField, obj *model.BoardOwner) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardOwner_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BoardOwner_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardOwner", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _BoardOwner_name(ctx context.Context, field graphql.CollectedField, obj *model.BoardOwner) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardOwner_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BoardOwner_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardOwner", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _BoardOwner_removed(ctx context.Context, field graphql.CollectedField, obj *model.BoardOwner) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardOwner_removed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Removed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BoardOwner_removed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardOwner", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _BoardReport_title(ctx context.Context, field graphql.CollectedField, obj *model.BoardReport) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -71695,6 +72594,213 @@ func (ec *executionContext) _BoardReport_definition(ctx context.Context, field g
 }
 func (ec *executionContext) fieldContext_BoardReport_definition(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("BoardReport", field, false, false, errors.New("field of type JSON does not have child fields"))
+}
+
+func (ec *executionContext) _BoardShare_adminId(ctx context.Context, field graphql.CollectedField, obj *model.BoardShare) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardShare_adminId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AdminID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_BoardShare_adminId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardShare", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _BoardShare_roleId(ctx context.Context, field graphql.CollectedField, obj *model.BoardShare) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardShare_roleId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RoleID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_BoardShare_roleId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardShare", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _BoardShare_name(ctx context.Context, field graphql.CollectedField, obj *model.BoardShare) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardShare_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BoardShare_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardShare", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _BoardShare_level(ctx context.Context, field graphql.CollectedField, obj *model.BoardShare) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardShare_level(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Level, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BoardShare_level(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardShare", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _BoardShareTarget_kind(ctx context.Context, field graphql.CollectedField, obj *model.BoardShareTarget) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardShareTarget_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BoardShareTarget_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardShareTarget", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _BoardShareTarget_id(ctx context.Context, field graphql.CollectedField, obj *model.BoardShareTarget) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardShareTarget_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BoardShareTarget_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardShareTarget", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _BoardShareTarget_name(ctx context.Context, field graphql.CollectedField, obj *model.BoardShareTarget) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardShareTarget_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BoardShareTarget_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardShareTarget", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _BoardShareTarget_seesBoards(ctx context.Context, field graphql.CollectedField, obj *model.BoardShareTarget) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardShareTarget_seesBoards(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SeesBoards, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BoardShareTarget_seesBoards(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardShareTarget", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _BoardShareTarget_seesData(ctx context.Context, field graphql.CollectedField, obj *model.BoardShareTarget) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardShareTarget_seesData(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SeesData, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BoardShareTarget_seesData(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardShareTarget", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _BotAgent_name(ctx context.Context, field graphql.CollectedField, obj *model.BotAgent) (ret graphql.Marshaler) {
@@ -122963,6 +124069,276 @@ func (ec *executionContext) fieldContext_Mutation_createStarterBoards(ctx contex
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_setBoardShares(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setBoardShares(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetBoardShares(ctx, fc.Args["channelId"].(string), fc.Args["id"].(string), fc.Args["shares"].([]*model.BoardShareInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Board) graphql.Marshaler {
+			return ec.marshalNBoard2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoard(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setBoardShares(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Board(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setBoardShares_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_makeShopBoard(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_makeShopBoard(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().MakeShopBoard(ctx, fc.Args["channelId"].(string), fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Board) graphql.Marshaler {
+			return ec.marshalNBoard2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoard(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_makeShopBoard(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Board(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_makeShopBoard_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_claimBoard(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_claimBoard(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ClaimBoard(ctx, fc.Args["channelId"].(string), fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Board) graphql.Marshaler {
+			return ec.marshalNBoard2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoard(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_claimBoard(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Board(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_claimBoard_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setBoardFavourite(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setBoardFavourite(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetBoardFavourite(ctx, fc.Args["channelId"].(string), fc.Args["id"].(string), fc.Args["favourite"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setBoardFavourite(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setBoardFavourite_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_saveBoardDraft(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_saveBoardDraft(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SaveBoardDraft(ctx, fc.Args["channelId"].(string), fc.Args["id"].(string),
+				func() any {
+					if fc.Args["payload"] == nil {
+						return nil
+					}
+					return fc.Args["payload"].(any)
+				}(), fc.Args["baseUpdatedAt"].(time.Time))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalNTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_saveBoardDraft(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_saveBoardDraft_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_discardBoardDraft(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_discardBoardDraft(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DiscardBoardDraft(ctx, fc.Args["channelId"].(string), fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_discardBoardDraft(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_discardBoardDraft_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createCustomerSegment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -145212,7 +146588,7 @@ func (ec *executionContext) _Query_boards(ctx context.Context, field graphql.Col
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().Boards(ctx, fc.Args["channelId"].(string))
+			return ec.Resolvers.Query().Boards(ctx, fc.Args["channelId"].(string), fc.Args["all"].(*bool))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Board) graphql.Marshaler {
@@ -145284,6 +146660,50 @@ func (ec *executionContext) fieldContext_Query_board(ctx context.Context, field 
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_board_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_boardShareTargets(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_boardShareTargets(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().BoardShareTargets(ctx, fc.Args["channelId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.BoardShareTarget) graphql.Marshaler {
+			return ec.marshalNBoardShareTarget2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardShareTargetᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_boardShareTargets(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BoardShareTarget(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_boardShareTargets_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -167243,6 +168663,50 @@ func (ec *executionContext) unmarshalInputBoardReportInput(ctx context.Context, 
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputBoardShareInput(ctx context.Context, obj any) (model.BoardShareInput, error) {
+	var it model.BoardShareInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"adminId", "roleId", "level"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "adminId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("adminId"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AdminID = data
+		case "roleId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("roleId"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RoleID = data
+		case "level":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("level"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Level = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputBundleOptionContentInput(ctx context.Context, obj any) (model.BundleOptionContentInput, error) {
 	var it model.BundleOptionContentInput
 	if obj == nil {
@@ -184009,6 +185473,137 @@ func (ec *executionContext) _Board(ctx context.Context, sel ast.SelectionSet, ob
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "status":
+			out.Values[i] = ec._Board_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "access":
+			out.Values[i] = ec._Board_access(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "favourite":
+			out.Values[i] = ec._Board_favourite(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "owner":
+			out.Values[i] = ec._Board_owner(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "draftUpdatedAt":
+			out.Values[i] = ec._Board_draftUpdatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "shares":
+			out.Values[i] = ec._Board_shares(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "draft":
+			out.Values[i] = ec._Board_draft(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var boardDraftImplementors = []string{"BoardDraft"}
+
+func (ec *executionContext) _BoardDraft(ctx context.Context, sel ast.SelectionSet, obj *model.BoardDraft) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, boardDraftImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("BoardDraft")
+		case "payload":
+			out.Values[i] = ec._BoardDraft_payload(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "baseUpdatedAt":
+			out.Values[i] = ec._BoardDraft_baseUpdatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._BoardDraft_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var boardOwnerImplementors = []string{"BoardOwner"}
+
+func (ec *executionContext) _BoardOwner(ctx context.Context, sel ast.SelectionSet, obj *model.BoardOwner) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, boardOwnerImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("BoardOwner")
+		case "id":
+			out.Values[i] = ec._BoardOwner_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._BoardOwner_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "removed":
+			out.Values[i] = ec._BoardOwner_removed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -184049,6 +185644,117 @@ func (ec *executionContext) _BoardReport(ctx context.Context, sel ast.SelectionS
 			}
 		case "definition":
 			out.Values[i] = ec._BoardReport_definition(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var boardShareImplementors = []string{"BoardShare"}
+
+func (ec *executionContext) _BoardShare(ctx context.Context, sel ast.SelectionSet, obj *model.BoardShare) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, boardShareImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("BoardShare")
+		case "adminId":
+			out.Values[i] = ec._BoardShare_adminId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "roleId":
+			out.Values[i] = ec._BoardShare_roleId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._BoardShare_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "level":
+			out.Values[i] = ec._BoardShare_level(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var boardShareTargetImplementors = []string{"BoardShareTarget"}
+
+func (ec *executionContext) _BoardShareTarget(ctx context.Context, sel ast.SelectionSet, obj *model.BoardShareTarget) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, boardShareTargetImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("BoardShareTarget")
+		case "kind":
+			out.Values[i] = ec._BoardShareTarget_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "id":
+			out.Values[i] = ec._BoardShareTarget_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._BoardShareTarget_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "seesBoards":
+			out.Values[i] = ec._BoardShareTarget_seesBoards(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "seesData":
+			out.Values[i] = ec._BoardShareTarget_seesData(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -200336,6 +202042,48 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "setBoardShares":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setBoardShares(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "makeShopBoard":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_makeShopBoard(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "claimBoard":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_claimBoard(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setBoardFavourite":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setBoardFavourite(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "saveBoardDraft":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_saveBoardDraft(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "discardBoardDraft":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_discardBoardDraft(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createCustomerSegment":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createCustomerSegment(ctx, field)
@@ -210466,6 +212214,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_board(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "boardShareTargets":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_boardShareTargets(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -221169,6 +222939,77 @@ func (ec *executionContext) unmarshalNBoardReportInput2ᚕᚖgithubᚗcomᚋskel
 func (ec *executionContext) unmarshalNBoardReportInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardReportInput(ctx context.Context, v any) (*model.BoardReportInput, error) {
 	res, err := ec.unmarshalInputBoardReportInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNBoardShare2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardShareᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BoardShare) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNBoardShare2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardShare(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNBoardShare2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardShare(ctx context.Context, sel ast.SelectionSet, v *model.BoardShare) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._BoardShare(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNBoardShareInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardShareInputᚄ(ctx context.Context, v any) ([]*model.BoardShareInput, error) {
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]*model.BoardShareInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNBoardShareInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardShareInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalNBoardShareInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardShareInput(ctx context.Context, v any) (*model.BoardShareInput, error) {
+	res, err := ec.unmarshalInputBoardShareInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNBoardShareTarget2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardShareTargetᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BoardShareTarget) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNBoardShareTarget2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardShareTarget(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNBoardShareTarget2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardShareTarget(ctx context.Context, sel ast.SelectionSet, v *model.BoardShareTarget) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._BoardShareTarget(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNBoolean2bool(ctx context.Context, v any) (bool, error) {
@@ -231968,6 +233809,20 @@ func (ec *executionContext) marshalOBlogTagContent2ᚖgithubᚗcomᚋskeletgᚋs
 		return graphql.Null
 	}
 	return ec._BlogTagContent(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOBoardDraft2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardDraft(ctx context.Context, sel ast.SelectionSet, v *model.BoardDraft) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._BoardDraft(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOBoardOwner2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardOwner(ctx context.Context, sel ast.SelectionSet, v *model.BoardOwner) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._BoardOwner(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOBoardReportInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardReportInputᚄ(ctx context.Context, v any) ([]*model.BoardReportInput, error) {

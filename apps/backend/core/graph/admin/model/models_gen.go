@@ -719,12 +719,31 @@ type BlogTagContent struct {
 }
 
 type Board struct {
-	ID          string         `json:"id"`
-	ChannelID   string         `json:"channelId"`
-	Name        string         `json:"name"`
-	UpdatedAt   time.Time      `json:"updatedAt"`
-	ReportCount int32          `json:"reportCount"`
-	Reports     []*BoardReport `json:"reports"`
+	ID             string         `json:"id"`
+	ChannelID      string         `json:"channelId"`
+	Name           string         `json:"name"`
+	UpdatedAt      time.Time      `json:"updatedAt"`
+	ReportCount    int32          `json:"reportCount"`
+	Reports        []*BoardReport `json:"reports"`
+	Status         string         `json:"status"`
+	Access         string         `json:"access"`
+	Favourite      bool           `json:"favourite"`
+	Owner          *BoardOwner    `json:"owner,omitempty"`
+	DraftUpdatedAt *time.Time     `json:"draftUpdatedAt,omitempty"`
+	Shares         []*BoardShare  `json:"shares"`
+	Draft          *BoardDraft    `json:"draft,omitempty"`
+}
+
+type BoardDraft struct {
+	Payload       any       `json:"payload"`
+	BaseUpdatedAt time.Time `json:"baseUpdatedAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
+}
+
+type BoardOwner struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Removed bool   `json:"removed"`
 }
 
 type BoardReport struct {
@@ -735,6 +754,27 @@ type BoardReport struct {
 type BoardReportInput struct {
 	Title      string `json:"title"`
 	Definition any    `json:"definition"`
+}
+
+type BoardShare struct {
+	AdminID *string `json:"adminId,omitempty"`
+	RoleID  *string `json:"roleId,omitempty"`
+	Name    string  `json:"name"`
+	Level   string  `json:"level"`
+}
+
+type BoardShareInput struct {
+	AdminID *string `json:"adminId,omitempty"`
+	RoleID  *string `json:"roleId,omitempty"`
+	Level   string  `json:"level"`
+}
+
+type BoardShareTarget struct {
+	Kind       string `json:"kind"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	SeesBoards bool   `json:"seesBoards"`
+	SeesData   bool   `json:"seesData"`
 }
 
 type BotAgent struct {

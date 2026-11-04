@@ -2,9 +2,13 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -22,11 +26,11 @@ func (r *mutationResolver) CreateBoard(ctx context.Context, channelID string, na
 	if err != nil {
 		return nil, signalsErr(err)
 	}
-	return boardOut(res.GetBoard())
+	return r.oneBoard(ctx, res.GetBoard())
 }
 
 func (r *mutationResolver) SaveBoard(ctx context.Context, channelID string, id string, name string, reports []*model.BoardReportInput, readAt time.Time) (*model.Board, error) {
-	authed, err := r.signalsChannel(ctx, "boards.manage", channelID)
+	authed, err := r.signalsChannel(ctx, "boards.view", channelID) // an edit share is what lets someone save - Signals checks it
 	if err != nil {
 		return nil, err
 	}
@@ -40,11 +44,11 @@ func (r *mutationResolver) SaveBoard(ctx context.Context, channelID string, id s
 	if err != nil {
 		return nil, signalsErr(err)
 	}
-	return boardOut(res.GetBoard())
+	return r.oneBoard(ctx, res.GetBoard())
 }
 
 func (r *mutationResolver) DeleteBoard(ctx context.Context, channelID string, id string) (bool, error) {
-	authed, err := r.signalsChannel(ctx, "boards.manage", channelID)
+	authed, err := r.signalsChannel(ctx, "boards.view", channelID) // its owner's - Signals checks
 	if err != nil {
 		return false, err
 	}
@@ -63,19 +67,112 @@ func (r *mutationResolver) CreateStarterBoards(ctx context.Context, channelID st
 	if err != nil {
 		return nil, signalsErr(err)
 	}
-	return boardsOut(res.GetBoards())
+	return r.manyBoards(ctx, res.GetBoards())
 }
 
-func (r *queryResolver) Boards(ctx context.Context, channelID string) ([]*model.Board, error) {
+func (r *mutationResolver) SetBoardShares(ctx context.Context, channelID string, id string, shares []*model.BoardShareInput) (*model.Board, error) {
+	authed, err := r.signalsChannel(ctx, "boards.view", channelID) // the owner's to change - Signals checks
+	if err != nil {
+		return nil, err
+	}
+	in := make([]*signalsv1.BoardShare, 0, len(shares))
+	for _, sh := range shares {
+		in = append(in, &signalsv1.BoardShare{AdminId: deref(sh.AdminID), RoleId: deref(sh.RoleID), Level: sh.Level})
+	}
+	res, err := r.SignalsAPI.Boards.SetBoardShares(authed, &signalsv1.SetBoardSharesRequest{ChannelId: channelID, Id: id, Shares: in})
+	if err != nil {
+		return nil, signalsErr(err)
+	}
+	return r.oneBoard(ctx, res.GetBoard())
+}
+
+func (r *mutationResolver) MakeShopBoard(ctx context.Context, channelID string, id string) (*model.Board, error) {
+	authed, err := r.signalsChannel(ctx, "boards.manage", channelID)
+	if err != nil {
+		return nil, err
+	}
+	res, err := r.SignalsAPI.Boards.MakeShopBoard(authed, &signalsv1.MakeShopBoardRequest{ChannelId: channelID, Id: id})
+	if err != nil {
+		return nil, signalsErr(err)
+	}
+	return r.oneBoard(ctx, res.GetBoard())
+}
+
+func (r *mutationResolver) ClaimBoard(ctx context.Context, channelID string, id string) (*model.Board, error) {
+	authed, err := r.signalsChannel(ctx, "boards.manage", channelID)
+	if err != nil {
+		return nil, err
+	}
+	// Only core knows an admin is gone, so it's here that a claim is held to a board whose owner is
+	cur, err := r.SignalsAPI.Boards.GetBoard(authed, &signalsv1.GetBoardRequest{ChannelId: channelID, Id: id})
+	if err != nil {
+		return nil, signalsErr(err)
+	}
+	people, err := r.boardPeople(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if o := people.owner(cur.GetBoard().GetOwnerAdminId()); o == nil || !o.Removed {
+		return nil, apperr.New("BOARD_HAS_OWNER", apperr.ClassConflict, "only a board whose owner was removed can be claimed")
+	}
+	res, err := r.SignalsAPI.Boards.ClaimBoard(authed, &signalsv1.ClaimBoardRequest{ChannelId: channelID, Id: id})
+	if err != nil {
+		return nil, signalsErr(err)
+	}
+	return people.boardOut(res.GetBoard())
+}
+
+func (r *mutationResolver) SetBoardFavourite(ctx context.Context, channelID string, id string, favourite bool) (bool, error) {
+	authed, err := r.signalsChannel(ctx, "boards.view", channelID)
+	if err != nil {
+		return false, err
+	}
+	if _, err := r.SignalsAPI.Boards.SetBoardFavourite(authed, &signalsv1.SetBoardFavouriteRequest{ChannelId: channelID, Id: id, Favourite: favourite}); err != nil {
+		return false, signalsErr(err)
+	}
+	return true, nil
+}
+
+func (r *mutationResolver) SaveBoardDraft(ctx context.Context, channelID string, id string, payload interface{}, baseUpdatedAt time.Time) (*time.Time, error) {
+	authed, err := r.signalsChannel(ctx, "boards.view", channelID) // edit access - Signals checks
+	if err != nil {
+		return nil, err
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("board draft: %w", err)
+	}
+	res, err := r.SignalsAPI.Boards.SaveBoardDraft(authed, &signalsv1.SaveBoardDraftRequest{
+		ChannelId: channelID, Id: id, PayloadJson: string(raw), BaseUpdatedAt: timestamppb.New(baseUpdatedAt),
+	})
+	if err != nil {
+		return nil, signalsErr(err)
+	}
+	at := res.GetUpdatedAt().AsTime()
+	return &at, nil
+}
+
+func (r *mutationResolver) DiscardBoardDraft(ctx context.Context, channelID string, id string) (bool, error) {
+	authed, err := r.signalsChannel(ctx, "boards.view", channelID)
+	if err != nil {
+		return false, err
+	}
+	if _, err := r.SignalsAPI.Boards.DiscardBoardDraft(authed, &signalsv1.DiscardBoardDraftRequest{ChannelId: channelID, Id: id}); err != nil {
+		return false, signalsErr(err)
+	}
+	return true, nil
+}
+
+func (r *queryResolver) Boards(ctx context.Context, channelID string, all *bool) ([]*model.Board, error) {
 	authed, err := r.signalsChannel(ctx, "boards.view", channelID)
 	if err != nil {
 		return nil, err
 	}
-	res, err := r.SignalsAPI.Boards.ListBoards(authed, &signalsv1.ListBoardsRequest{ChannelId: channelID})
+	res, err := r.SignalsAPI.Boards.ListBoards(authed, &signalsv1.ListBoardsRequest{ChannelId: channelID, All: all != nil && *all})
 	if err != nil {
 		return nil, signalsErr(err)
 	}
-	return boardsOut(res.GetBoards())
+	return r.manyBoards(ctx, res.GetBoards())
 }
 
 func (r *queryResolver) Board(ctx context.Context, channelID string, id string) (*model.Board, error) {
@@ -87,5 +184,12 @@ func (r *queryResolver) Board(ctx context.Context, channelID string, id string) 
 	if err != nil {
 		return nil, signalsErr(err)
 	}
-	return boardOut(res.GetBoard())
+	return r.oneBoard(ctx, res.GetBoard())
+}
+
+func (r *queryResolver) BoardShareTargets(ctx context.Context, channelID string) ([]*model.BoardShareTarget, error) {
+	if _, err := r.signalsChannel(ctx, "boards.manage", channelID); err != nil {
+		return nil, err
+	}
+	return r.shareTargets(ctx, uuid.MustParse(channelID)) // signalsChannel parsed it
 }
