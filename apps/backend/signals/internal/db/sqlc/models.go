@@ -24,6 +24,23 @@ type AnalyticsTrafficRollup struct {
 	LastSeen    time.Time `json:"last_seen"`
 }
 
+type Board struct {
+	ID        uuid.UUID `json:"id"`
+	ChannelID uuid.UUID `json:"channel_id"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type BoardReport struct {
+	ID                uuid.UUID       `json:"id"`
+	BoardID           uuid.UUID       `json:"board_id"`
+	Position          int32           `json:"position"`
+	Title             string          `json:"title"`
+	Definition        json.RawMessage `json:"definition"`
+	DefinitionVersion int32           `json:"definition_version"`
+}
+
 type BrowseNotified struct {
 	ChannelID    uuid.UUID `json:"channel_id"`
 	CustomerID   uuid.UUID `json:"customer_id"`
