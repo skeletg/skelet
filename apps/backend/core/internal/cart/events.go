@@ -210,6 +210,7 @@ type LineUpdated struct { // fires AFTER the quantity is written, async
 	CustomerID *uuid.UUID
 	AnonID     string
 	LineID     uuid.UUID
+	ProductSku string // what the line holds, so a quantity change can be read per product
 	Quantity   float64
 	Shopper    *auth.Shopper // the visitor as their consent stood, nil for a caller with no banner
 }

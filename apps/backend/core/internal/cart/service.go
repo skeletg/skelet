@@ -484,6 +484,7 @@ func (s *Service) UpdateCartLine(ctx context.Context, cartID, lineID uuid.UUID, 
 			AnonID:     auth.AnonID(ctx),
 			Shopper:    auth.ShopperFromContext(ctx),
 			LineID:     lineID,
+			ProductSku: line.ProductSku,
 			Quantity:   quantity,
 		})
 	}
