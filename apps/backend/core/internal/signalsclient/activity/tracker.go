@@ -488,7 +488,7 @@ func (t *Tracker) onRegistered(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	return t.emit(ctx, sourceAccount, "registered", ev.ChannelID, ref(ev.CustomerID),
+	return t.emitID(ctx, sourceAccount, "registered", ev.ChannelID, ref(ev.CustomerID), identifies(ev.Shopper),
 		"act:registered:"+ev.CustomerID.String(),
 		map[string]any{"source": ev.Source})
 }
@@ -557,8 +557,17 @@ func (t *Tracker) onLogin(ctx context.Context, e events.Event) error {
 	if ip := anonymizeIP(ev.IP); ip != "" {
 		props = map[string]any{"ip": ip}
 	}
-	return t.emit(ctx, sourceAccount, "login", ev.ChannelID, ref(ev.SubjectID),
+	return t.emitID(ctx, sourceAccount, "login", ev.ChannelID, ref(ev.SubjectID), identifies(ev.Shopper),
 		"act:login:"+ev.SubjectID.String()+":"+itoa(secBucket(ctx)), props)
+}
+
+// identifies is the visitor id a sign-in stitches to the account - the suite links the two when an account event
+// carries both. Empty without analytics consent: ShopperFromContext only reads the visitor id when it's allowed
+func identifies(s *auth.Shopper) string {
+	if s == nil {
+		return ""
+	}
+	return s.AnonID
 }
 
 func (t *Tracker) onLogout(ctx context.Context, e events.Event) error {

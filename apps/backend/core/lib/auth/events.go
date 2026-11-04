@@ -40,6 +40,7 @@ type LoginSucceeded struct { // fires AFTER password verification and the accoun
 	IP        string
 	UserAgent string
 	ChannelID uuid.UUID
+	Shopper   *Shopper // the visitor as their consent stood at sign-in, nil for a caller with no banner
 }
 
 func (*LoginSucceeded) Type() string                { return EventLoginSucceeded }
