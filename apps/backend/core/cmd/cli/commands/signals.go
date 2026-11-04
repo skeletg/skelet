@@ -2,6 +2,9 @@ package commands
 
 import (
 	"fmt"
+	"github.com/skeletg/skelet/apps/backend/core/internal/configstore"
+	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
+	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"os"
 	"strings"
 	"time"
@@ -23,9 +26,11 @@ var SignalsCmd = &cobra.Command{
 
 var signalsBackfillOrdersCmd = &cobra.Command{
 	Use:   "backfill-orders",
-	Short: "Replay every placed order into Signals - safe to re-run, orders it already holds are skipped by their dedupe key",
+	Short: "Replay every placed order and its refunds into Signals - safe to re-run, what it already holds is skipped by its dedupe key",
 	Long: "For orders that never reached Signals: placed while the suite was off or unreachable for longer than the outbox retries, " +
-		"or guest orders from before guests without a visitor id were recorded. Each lands at its original time.",
+		"or guest orders from before guests without a visitor id were recorded - and for the order lines and refunded lines that " +
+		"product reports read, on orders from before they were recorded. Each lands at its original time. Edits made before then " +
+		"can't be replayed: the lines as they stood before an edit weren't kept.",
 	Args: cobra.NoArgs,
 	RunE: runSignalsBackfillOrders,
 }
@@ -56,6 +61,8 @@ func runSignalsBackfillOrders(cmd *cobra.Command, _ []string) error {
 
 	repo := order.NewRepository(db.New(conn))
 	tracker := activity.NewTracker(signals, nil) // a backfill hands each order over, so the tracker never looks one up
+	q := db.New(conn)
+	tracker.SetSales(nil, activity.BaseConverter(config.NewService(configstore.New(q)), currency.NewService(currency.NewRepository(q))))
 	ctx := cmd.Context()
 	const page = 500
 	processed, skipped := 0, 0
@@ -81,8 +88,21 @@ func runSignalsBackfillOrders(cmd *cobra.Command, _ []string) error {
 					break
 				}
 			}
-			if err := tracker.BackfillOrder(ctx, o, placedAt); err != nil {
+			full, err := repo.GetOrderByID(ctx, o.ID) // the page carries no lines, and the order lines come from them
+			if err != nil {
+				return fmt.Errorf("order %s: %w", o.Number, err)
+			}
+			if err := tracker.BackfillOrder(ctx, full, placedAt); err != nil {
 				return fmt.Errorf("order %s: %w (processed %d before it; re-run to continue)", o.Number, err, processed)
+			}
+			memos, err := repo.ListCreditMemos(ctx, o.ID)
+			if err != nil {
+				return fmt.Errorf("order %s credit memos: %w", o.Number, err)
+			}
+			for _, m := range memos {
+				if err := tracker.BackfillRefund(ctx, full, m); err != nil {
+					return fmt.Errorf("order %s credit memo %s: %w", o.Number, m.Number, err)
+				}
 			}
 			processed++
 		}
