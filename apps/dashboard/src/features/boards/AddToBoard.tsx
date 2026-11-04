@@ -11,6 +11,8 @@ import { cleanDefinition, describeReport, type ReportDefinition } from '@/shared
 import { BoardsDocument, CreateBoardDocument } from './Boards.gql'
 import type { AddToBoardState } from './boardDiff'
 
+const lastBoardKey = (channelId: string) => `skelet-dash:last-board:${channelId}`
+
 // AddToBoard puts the report on screen onto a board. An existing board opens with it staged, so it still goes
 // through that board's Save; a new board is created with it, which is the dialog's own explicit action
 export function AddToBoard({ channelId, title, definition }: { channelId: string; title: string; definition: ReportDefinition }) {
@@ -19,21 +21,29 @@ export function AddToBoard({ channelId, title, definition }: { channelId: string
   const canManage = canAccessChannelScope('boards.manage', channelId)
   const [open, setOpen] = useState(false)
   const [name, setName] = useState(title)
-  const [boardId, setBoardId] = useState('')
+  const [picked, setBoardId] = useState<string | null>(null) // null = not chosen yet, so the default below applies
   const [newBoard, setNewBoard] = useState('')
   const { data } = useQuery(BoardsDocument, { variables: { channelId }, skip: !open })
   const [create, { loading, error }] = useMutation(CreateBoardDocument, { refetchQueries: [BoardsDocument] })
+  // The board this shop last added to, else its first board - a new board only when the admin asks for one or there's none
+  const boards = data?.boards ?? []
+  const last = localStorage.getItem(lastBoardKey(channelId))
+  const boardId = picked ?? (boards.find((b) => b.id === last) ?? boards[0])?.id ?? ''
   if (!canManage) return null
   const report = { title: name.trim() || title, definition: cleanDefinition(definition) }
 
   async function submit() {
     if (boardId) {
+      localStorage.setItem(lastBoardKey(channelId), boardId)
       navigate(`/boards/${boardId}`, { state: { add: report } satisfies AddToBoardState })
       return
     }
     const res = await create({ variables: { channelId, name: newBoard.trim(), reports: [report] } })
     const id = res.data?.createBoard.id
-    if (id) navigate(`/boards/${id}`)
+    if (id) {
+      localStorage.setItem(lastBoardKey(channelId), id)
+      navigate(`/boards/${id}`)
+    }
   }
 
   return (
@@ -43,6 +53,7 @@ export function AddToBoard({ channelId, title, definition }: { channelId: string
         variant="outline"
         onClick={() => {
           setName(title)
+          setBoardId(null)
           setOpen(true)
         }}
       >
@@ -75,7 +86,7 @@ export function AddToBoard({ channelId, title, definition }: { channelId: string
                 className="w-full rounded border bg-background px-2 py-1.5 text-sm"
               >
                 <option value="">A new board…</option>
-                {(data?.boards ?? []).map((b) => (
+                {boards.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name}
                   </option>
@@ -88,7 +99,7 @@ export function AddToBoard({ channelId, title, definition }: { channelId: string
                 <Input id="report-new-board" value={newBoard} onChange={(e) => setNewBoard(e.target.value)} placeholder="e.g. Weekly review" />
               </div>
             )}
-            {boardId && <p className="text-xs text-muted-foreground">The board opens with the report added - Save there to keep it.</p>}
+            {boardId && <p className="text-xs text-muted-foreground">The board opens with the report added and its editor open - Save there to keep it.</p>}
             {error && <p className="text-sm text-destructive">{error.message}</p>}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
