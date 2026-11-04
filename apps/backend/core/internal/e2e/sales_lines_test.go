@@ -10,15 +10,15 @@ import (
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 )
 
-// The first half of the reconciliation in docs/design/boards-cases.md: what a product sold and had refunded reaches
-// the spine line by line, as many lines as the commerce DB holds. The second half - the board's net sales for the
-// product equal to the cent - needs Insights' sum, and is in the engine branch
-func TestEveryOrderLineAndRefundedLineReachesTheSpine(t *testing.T) {
+// The reconciliation in docs/design/boards-cases.md: what a product sold and had refunded reaches the spine line by
+// line, as many lines as the commerce DB holds, and a board's net sales for it - Insights' sum of net_base_cents over
+// the line events, held to its sku - equals the commerce DB's to the cent
+func TestAProductsNetSalesOnTheSpineEqualTheCommerceDB(t *testing.T) {
 	h := newHarness(t)
 	f := h.NewStore(t, 20, 1000)
 	sku := f.Product.SKU
 	first := h.PlaceGuestCOD(t, f, 2)
-	h.PlaceGuestCOD(t, f, 1)
+	second := h.PlaceGuestCOD(t, f, 1)
 	h.Settle(t)
 	if _, err := h.D.Order.RecordOfflinePayment(h.Ctx, order.RecordOfflinePaymentInput{OrderID: first.ID, Method: "cod", Reference: "e2e-cash"}); err != nil {
 		t.Fatalf("collect: %v", err)
@@ -58,16 +58,61 @@ func TestEveryOrderLineAndRefundedLineReachesTheSpine(t *testing.T) {
 		}
 		return 0
 	}
+	// The commerce side, through the same allocation the refund itself used: both orders' X lines, less the refunded unit
+	var want int64
+	for _, id := range []uuid.UUID{first.ID, second.ID} {
+		o, err := h.D.Order.GetByID(h.Ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for lineID, net := range order.LineNet(o) {
+			if l := lineOf(o, lineID); l.ProductSku == sku {
+				want += net
+			}
+		}
+	}
+	paid, err := h.D.Order.GetByID(h.Ctx, first.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want -= order.LineNetFor(paid, lines[0].ID, 1)
+	if want <= 0 {
+		t.Fatalf("expected net sales %d - the fixture sold nothing", want)
+	}
+	netSales := func() int64 {
+		res, err := h.D.SignalsClient.Synapse.GetInsights(actx, &signalsv1.GetInsightsRequest{
+			ChannelId: f.Channel.ID.String(), Events: []string{"order_line", "order_line_adjusted", "refund_line"},
+			Measure: "sum", SumKey: "net_base_cents", Unit: "day", SinceDays: 7,
+			Filters: []*signalsv1.PropertyFilter{{Key: "sku", Op: "eq", Values: []string{sku}}},
+		})
+		if err != nil {
+			t.Fatalf("net sales: %v", err)
+		}
+		return res.GetTotalAmount()
+	}
+
 	// The spine's ingest is asynchronous, so wait for it rather than sleep a fixed time
 	deadline := time.Now().Add(30 * time.Second)
 	for {
 		ordered, refunded := countFor("order_line"), countFor("refund_line")
 		if ordered == 2 && refunded == 1 {
-			return
+			break
 		}
 		if time.Now().After(deadline) {
 			t.Fatalf("spine has %d order lines and %d refunded lines for %s, want 2 and 1 - as the commerce DB holds", ordered, refunded, sku)
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
+	if got := netSales(); got != want {
+		t.Fatalf("the board's net sales for %s = %d, the commerce DB's = %d - exact, in cents", sku, got, want)
+	}
+}
+
+func lineOf(o order.Order, id uuid.UUID) order.OrderLine {
+	for _, l := range o.Lines {
+		if l.ID == id {
+			return l
+		}
+	}
+	return order.OrderLine{}
 }
