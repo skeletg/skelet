@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"math"
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
@@ -27,6 +28,10 @@ func (r *queryResolver) LensOverview(ctx context.Context, channelID string, sinc
 		Referrers: lensLabels(ov.GetReferrers()),
 		// Named UI interactions, which the hub shows beside devices and referrers
 		Interactions: lensLabels(ov.GetInteractions()),
+		PlanIssues:   []*model.LensPlanIssue{},
+	}
+	for _, i := range ov.GetPlanIssues() {
+		out.PlanIssues = append(out.PlanIssues, &model.LensPlanIssue{Kind: i.GetKind(), Event: i.GetEvent(), Prop: i.GetProp(), Count: int32(min(i.GetCount(), math.MaxInt32))})
 	}
 	for _, p := range ov.GetTopPages() {
 		out.TopPages = append(out.TopPages, &model.LensPageStat{

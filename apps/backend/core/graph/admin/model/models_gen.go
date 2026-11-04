@@ -2941,6 +2941,7 @@ type LensOverview struct {
 	Devices      []*LensLabelCount `json:"devices"`
 	Referrers    []*LensLabelCount `json:"referrers"`
 	Interactions []*LensLabelCount `json:"interactions"`
+	PlanIssues   []*LensPlanIssue  `json:"planIssues"`
 }
 
 type LensPage struct {
@@ -2974,6 +2975,13 @@ type LensPageVitals struct {
 	Inp     *float64 `json:"inp,omitempty"`
 	Ttfb    *float64 `json:"ttfb,omitempty"`
 	Samples int32    `json:"samples"`
+}
+
+type LensPlanIssue struct {
+	Kind  string `json:"kind"`
+	Event string `json:"event"`
+	Prop  string `json:"prop"`
+	Count int32  `json:"count"`
 }
 
 type LensRageElement struct {

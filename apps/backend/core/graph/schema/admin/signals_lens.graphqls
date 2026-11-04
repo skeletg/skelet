@@ -8,6 +8,15 @@ type LensOverview {
   devices:      [LensLabelCount!]!
   referrers:    [LensLabelCount!]!
   interactions: [LensLabelCount!]!   # named UI interactions (sidebar/modal/custom), by count
+  planIssues:   [LensPlanIssue!]!    # Data health: what ingest stripped against the tracking plan, most frequent first
+}
+
+# One kind of tracking-plan breach in the window (docs/tracking-plan.md)
+type LensPlanIssue {
+  kind:  String!   # plan_unknown_event | plan_unknown_prop | plan_bad_type | plan_server_prop
+  event: String!   # the event name, or "custom" for a merchant-named event
+  prop:  String!   # empty when the whole event was dropped
+  count: Int!
 }
 
 type LensPageStat {
