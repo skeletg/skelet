@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { SLOW, globalScope, meMock, renderPage } from '@/test/page-harness'
 import type { ConfigScopeContextValue } from '@/lib/config-scope'
 import { SynapseInsightsDocument, SynapseOverviewDocument, SynapseStickinessDocument } from '@/features/synapse/Synapse.gql'
-import { BoardDocument, SaveBoardDocument } from './Boards.gql'
+import { BoardDocument, DiscardBoardDraftDocument, SaveBoardDocument, SaveBoardDraftDocument } from './Boards.gql'
 import { BoardPage } from './BoardPage'
 
 const channelScope = {
@@ -23,6 +23,12 @@ const board = {
   name: 'Weekly',
   updatedAt: '2026-11-04T10:00:00.123456Z',
   reports: [report('Returning', 'page_view'), report('Buyers', 'order_placed')],
+  status: 'published',
+  access: 'own',
+  favourite: false,
+  owner: { __typename: 'BoardOwner', id: 'admin-1', name: 'Ada', removed: false },
+  shares: [],
+  draft: null,
 }
 
 describe('BoardPage', () => {
@@ -36,6 +42,7 @@ describe('BoardPage', () => {
       mocks: [
         meMock({ superuser: true }),
         { request: { query: BoardDocument, variables: { channelId: 'c1', id: 'b1' } }, result: { data: { board } }, maxUsageCount: 5 },
+        ...draftWrites(() => {}),
         {
           request: {
             query: SaveBoardDocument,
@@ -119,12 +126,116 @@ describe('BoardPage', () => {
     expect(within(dialog).getByText('Report · Buyers · size')).toBeTruthy()
     expect(within(dialog).queryByText(/settings/)).toBeNull()
   })
+
+  it('keeps unsaved edits about a second after the last one, against the board as loaded', async () => {
+    const kept: Record<string, unknown>[] = []
+    renderPage({
+      path: '/boards/b1',
+      routes: { '/boards/:id': <BoardPage /> },
+      adminId: 'admin-1',
+      scope: channelScope,
+      mocks: [meMock({ superuser: true }), ...boardMocks(() => {}, board, (v) => kept.push(v))],
+    })
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Board name' }, SLOW), { target: { value: 'Weekly review' } })
+    expect(kept).toEqual([]) // nothing is written mid-typing
+    await waitFor(() => expect(kept).toHaveLength(1), { timeout: 3000 })
+    expect(kept[0]).toMatchObject({ channelId: 'c1', id: 'b1', baseUpdatedAt: board.updatedAt, payload: { name: 'Weekly review' } })
+  })
+
+  it('opens on the unsaved edits kept from last time, and saves them against the board they started from', async () => {
+    let saved: Record<string, unknown> | null = null
+    const withDraft = {
+      ...board,
+      updatedAt: '2026-11-05T09:00:00Z',
+      draft: {
+        __typename: 'BoardDraft',
+        payload: { name: 'Weekly, kept', reports: [{ ...board.reports[1], key: 's1' }] },
+        baseUpdatedAt: '2026-11-04T10:00:00.123456Z',
+        updatedAt: '2026-11-04T18:00:00Z',
+      },
+    }
+    renderPage({
+      path: '/boards/b1',
+      routes: { '/boards/:id': <BoardPage /> },
+      adminId: 'admin-1',
+      scope: channelScope,
+      mocks: [meMock({ superuser: true }), ...boardMocks((v) => (saved = v), withDraft)],
+    })
+    expect(await screen.findByText(/These are your unsaved changes from/, {}, SLOW)).toBeTruthy()
+    expect((screen.getByRole('textbox', { name: 'Board name' }) as HTMLInputElement).value).toBe('Weekly, kept')
+    expect(screen.queryByRole('region', { name: 'Returning' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    const dialog = await screen.findByRole('alertdialog', {}, SLOW)
+    expect(within(dialog).getByText('Report · Returning')).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: /^Apply/ }))
+    await waitFor(() => expect(saved).not.toBeNull(), SLOW)
+    expect(saved).toMatchObject({ name: 'Weekly, kept', readAt: '2026-11-04T10:00:00.123456Z' }) // a newer save in between is refused, not overwritten
+  })
+
+  it('shows someone with view access the board without anything to change', async () => {
+    renderPage({
+      path: '/boards/b1',
+      routes: { '/boards/:id': <BoardPage /> },
+      adminId: 'admin-2',
+      scope: channelScope,
+      mocks: [meMock({ superuser: true }), ...boardMocks(() => {}, { ...board, access: 'view' })],
+    })
+    expect(await screen.findByRole('region', { name: 'Returning' }, SLOW)).toBeTruthy()
+    expect(screen.getByText("Ada's board. You can view it.")).toBeTruthy()
+    for (const name of ['Save', 'Add report', 'Delete', 'Share', 'Edit Returning']) expect(screen.queryByRole('button', { name })).toBeNull()
+  })
+
+  it("tells someone without customer analytics what's missing instead of running the reports", async () => {
+    renderPage({
+      path: '/boards/b1',
+      routes: { '/boards/:id': <BoardPage /> },
+      adminId: 'admin-2',
+      scope: channelScope,
+      mocks: [meMock({ superuser: false, permissions: ['boards.view'] }), ...boardMocks(() => {}, { ...board, access: 'view' })],
+    })
+    expect(await screen.findAllByText("You need customer analytics on Main to see this report's numbers.", {}, SLOW)).toHaveLength(2)
+  })
+
+  it('says a new board is a draft, and its first Save publishes it', async () => {
+    renderPage({
+      path: '/boards/b1',
+      routes: { '/boards/:id': <BoardPage /> },
+      adminId: 'admin-1',
+      scope: channelScope,
+      mocks: [meMock({ superuser: true }), ...boardMocks(() => {}, { ...board, status: 'draft' })],
+    })
+    expect(await screen.findByText('A draft only you can see - Save to keep it.', {}, SLOW)).toBeTruthy()
+    const save = screen.getByRole('button', { name: 'Save' })
+    await waitFor(() => expect(save).toHaveProperty('disabled', false))
+    expect(screen.queryByRole('button', { name: 'Share' })).toBeNull() // a draft can't be shared yet
+    fireEvent.click(save)
+    expect(within(await screen.findByRole('alertdialog', {}, SLOW)).getByText('Publish')).toBeTruthy()
+  })
 })
 
-function boardMocks(onSave: (v: Record<string, unknown>) => void) {
+function draftWrites(onKeep: (v: Record<string, unknown>) => void) {
+  return [
+    {
+      request: {
+        query: SaveBoardDraftDocument,
+        variables: (v: Record<string, unknown>) => {
+          onKeep(v)
+          return true
+        },
+      },
+      result: { data: { saveBoardDraft: '2026-11-04T11:00:00Z' } },
+      maxUsageCount: 20,
+    },
+    { request: { query: DiscardBoardDraftDocument, variables: () => true }, result: { data: { discardBoardDraft: true } }, maxUsageCount: 20 },
+  ]
+}
+
+function boardMocks(onSave: (v: Record<string, unknown>) => void, b: Record<string, unknown> = board, onKeep: (v: Record<string, unknown>) => void = () => {}) {
   const none = (query: DocumentNode) => ({ request: { query, variables: () => true }, error: new Error('not in this test'), maxUsageCount: 20 })
   return [
-    { request: { query: BoardDocument, variables: { channelId: 'c1', id: 'b1' } }, result: { data: { board } }, maxUsageCount: 5 },
+    { request: { query: BoardDocument, variables: { channelId: 'c1', id: 'b1' } }, result: { data: { board: b } }, maxUsageCount: 5 },
+    ...draftWrites(onKeep),
     none(SynapseOverviewDocument),
     none(SynapseInsightsDocument),
     none(SynapseStickinessDocument),
