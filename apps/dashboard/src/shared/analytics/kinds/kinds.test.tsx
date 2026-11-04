@@ -4,7 +4,8 @@ import { renderDialog } from '@/test/page-harness'
 import { SynapseOverviewDocument } from '@/features/synapse/Synapse.gql'
 import type { ReportDefinition } from '../report'
 import { DEFAULT_DEFINITIONS } from '../report'
-import { moveStep, removeStep } from './funnel'
+import { cleanDefinition, describeReport, isNetSales } from '../report'
+import { dropOffFlow, moveStep, removeStep } from './funnel'
 import { switchRetentionView } from './retention'
 import { ReportControls, suggestTitle } from '.'
 
@@ -62,10 +63,11 @@ describe('each builder hands back the definition its engine reads', () => {
   it('funnel: a step filter names the step it holds', () => {
     const onChange = controls(DEFAULT_DEFINITIONS.funnel)
     fireEvent.click(screen.getByRole('button', { name: 'Filter step 3' }))
-    fireEvent.change(screen.getByRole('textbox', { name: 'Property for step 3' }), { target: { value: 'sku' } })
-    fireEvent.change(screen.getByRole('textbox', { name: 'Value for step 3' }), { target: { value: 'TSHIRT' } })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Property for step 3' }), { target: { value: 'sku' } })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Operator for step 3' }), { target: { value: 'in' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Value for step 3' }), { target: { value: 'TSHIRT, MUG' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add filter' }))
-    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ filters: [{ step: 2, key: 'sku', value: 'TSHIRT' }] }))
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ filters: [{ step: 2, key: 'sku', value: 'TSHIRT', op: 'in', values: ['TSHIRT', 'MUG'] }] }))
   })
   it('funnel: a conversion window', () => {
     const onChange = controls(DEFAULT_DEFINITIONS.funnel)
@@ -84,5 +86,38 @@ describe('suggestTitle', () => {
     expect(suggestTitle(DEFAULT_DEFINITIONS.funnel)).toBe('Page view → View item → Added to cart → Begin checkout → Order placed')
     expect(suggestTitle({ kind: 'stickiness' })).toBe('Returning shoppers')
     expect(suggestTitle(DEFAULT_DEFINITIONS.retention)).toBe('Order placed retention')
+  })
+})
+
+describe('conditions', () => {
+  it('build a where list from the property picker, the operator and the values', () => {
+    const onChange = controls({ kind: 'stickiness' })
+    fireEvent.click(screen.getByRole('button', { name: 'Add a condition' }))
+    expect(onChange).toHaveBeenLastCalledWith({ kind: 'stickiness', where: [{ key: 'sku', op: 'eq', values: [''] }] })
+  })
+  it("don't run or save until they have a value", () => {
+    const d = cleanDefinition({ kind: 'insights', where: [{ key: 'sku', op: 'eq', values: [''] }, { key: 'device', op: 'in', values: [' mobile ', ''] }] })
+    expect(d.where).toEqual([{ key: 'device', op: 'in', values: ['mobile'] }])
+  })
+  it('read in a report\'s one-line description', () => {
+    expect(describeReport({ kind: 'insights', event: 'view_item', where: [{ key: 'sku', op: 'eq', values: ['X'] }] })).toBe('Count of view_item where sku = X')
+  })
+})
+
+describe('net sales', () => {
+  it('is one choice in the event list that sets the events and the sum', () => {
+    const onChange = controls(DEFAULT_DEFINITIONS.insights)
+    fireEvent.change(screen.getByRole('combobox', { name: 'Event' }), { target: { value: '__net_sales' } })
+    const d = onChange.mock.lastCall![0]
+    expect(isNetSales(d)).toBe(true)
+    expect(describeReport(d)).toBe('Net sales')
+  })
+})
+
+describe('a funnel drop-off', () => {
+  it("opens a flow from the step people dropped off at, without the ones who went on, held to the step's filters", () => {
+    const f: ReportDefinition = { kind: 'funnel', steps: ['view_item', 'cart_add', 'order_placed'], windowHours: 24, filters: [{ step: 0, key: 'sku', value: 'X' }] }
+    expect(dropOffFlow(f, 0)).toEqual({ kind: 'flow', event: 'view_item', depth: 4, notThen: 'cart_add', notThenWithinHours: 24, where: [{ key: 'sku', op: 'eq', values: ['X'] }] })
+    expect(dropOffFlow(f, 1)).toMatchObject({ event: 'cart_add', notThen: 'order_placed', where: undefined })
   })
 })

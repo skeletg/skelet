@@ -5,8 +5,16 @@ import { cn } from '@/lib/utils'
 import { formatNumber } from '@/lib/format'
 import { eventLabel } from '@/features/synapse/eventLabel'
 import { SynapseFunnelDocument } from '@/features/synapse/Synapse.gql'
-import type { ReportDefinition } from '../report'
+import { CONDITION_OP_LABEL, type ConditionOp, type ReportDefinition } from '../report'
+import { KNOWN_KEYS, keyLabel } from './conditions'
 import { Note, State, pct, useTopEvents, type ControlsProps, type ResultProps } from './ui'
+
+// The Flow report that follows a step's drop-offs: who did step i and didn't go on to step i+1, held to step i's filters
+export function dropOffFlow(d: ReportDefinition, i: number): ReportDefinition {
+  const steps = d.steps ?? []
+  const where = (d.filters ?? []).filter((f) => f.step === i).map((f) => ({ key: f.key, op: f.op ?? 'eq', values: f.values?.length ? f.values : [f.value] }))
+  return { kind: 'flow', event: steps[i], depth: 4, notThen: steps[i + 1], notThenWithinHours: d.windowHours, where: where.length ? where : undefined }
+}
 
 const WINDOWS: { label: string; hours: number | null }[] = [
   { label: 'Any time in the period', hours: null },
@@ -68,7 +76,7 @@ export function FunnelControls({ channelId, value: d, onChange }: ControlsProps)
               {filters.map((f, j) =>
                 f.step !== i ? null : (
                   <span key={`${f.key}-${j}`} className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-xs">
-                    <span className="font-mono">{f.key}</span> = <span className="font-mono">{f.value}</span>
+                    <span>{keyLabel(f.key)}</span> {CONDITION_OP_LABEL[f.op ?? 'eq']} <span className="font-mono">{f.values?.length ? f.values.join(', ') : f.value}</span>
                     <button type="button" aria-label={`Remove filter ${f.key} from step ${i + 1}`} onClick={() => set({ ...d, filters: filters.filter((_, n) => n !== j) })} className="text-muted-foreground hover:text-foreground">
                       <XIcon className="size-3" />
                     </button>
@@ -136,29 +144,45 @@ export function FunnelControls({ channelId, value: d, onChange }: ControlsProps)
   )
 }
 
-// StepFilterForm holds one step to events carrying a property with a value
-function StepFilterForm({ step, onAdd }: { step: number; onAdd: (f: { key: string; value: string }) => void }) {
-  const [key, setKey] = useState('')
+// StepFilterForm holds one step to events whose property compares to a value - the property picked, not typed, since a
+// typo would quietly filter everything out
+function StepFilterForm({ step, onAdd }: { step: number; onAdd: (f: { key: string; value: string; op: ConditionOp; values?: string[] }) => void }) {
+  const [key, setKey] = useState(KNOWN_KEYS[0].key)
+  const [op, setOp] = useState<ConditionOp>('eq')
   const [value, setValue] = useState('')
   return (
     <form
       className="mt-2 flex flex-wrap items-center gap-2 pl-7"
       onSubmit={(e) => {
         e.preventDefault()
-        if (key.trim()) onAdd({ key: key.trim(), value })
+        if (!key.trim() || !value.trim()) return
+        const values = value.split(',').map((v) => v.trim()).filter(Boolean)
+        onAdd(op === 'in' ? { key: key.trim(), value: values[0], op, values } : { key: key.trim(), value: value.trim(), op })
       }}
     >
-      <input aria-label={`Property for step ${step}`} value={key} onChange={(e) => setKey(e.target.value)} placeholder="property, e.g. device" className="w-44 rounded border bg-background px-2 py-1 text-xs" />
-      <span className="text-xs text-muted-foreground">=</span>
-      <input aria-label={`Value for step ${step}`} value={value} onChange={(e) => setValue(e.target.value)} placeholder="value" className="w-36 rounded border bg-background px-2 py-1 text-xs" />
-      <button type="submit" disabled={!key.trim()} className="rounded border px-2 py-1 text-xs hover:bg-muted disabled:opacity-40">
+      <select aria-label={`Property for step ${step}`} value={key} onChange={(e) => setKey(e.target.value)} className="rounded border bg-background px-2 py-1 text-xs">
+        {KNOWN_KEYS.map((k) => (
+          <option key={k.key} value={k.key}>
+            {k.label}
+          </option>
+        ))}
+      </select>
+      <select aria-label={`Operator for step ${step}`} value={op} onChange={(e) => setOp(e.target.value as ConditionOp)} className="rounded border bg-background px-2 py-1 text-xs">
+        {(Object.keys(CONDITION_OP_LABEL) as ConditionOp[]).map((o) => (
+          <option key={o} value={o}>
+            {CONDITION_OP_LABEL[o]}
+          </option>
+        ))}
+      </select>
+      <input aria-label={`Value for step ${step}`} value={value} onChange={(e) => setValue(e.target.value)} placeholder={op === 'in' ? 'values, comma separated' : 'value'} className="w-36 rounded border bg-background px-2 py-1 text-xs" />
+      <button type="submit" disabled={!key.trim() || !value.trim()} className="rounded border px-2 py-1 text-xs hover:bg-muted disabled:opacity-40">
         Add filter
       </button>
     </form>
   )
 }
 
-export function FunnelResult({ channelId, d, sinceDays, compact }: ResultProps) {
+export function FunnelResult({ channelId, d, sinceDays, compact, onAddReport }: ResultProps) {
   const steps = d.steps ?? []
   const breakdown = d.breakdown ?? ''
   const { data, loading, error } = useQuery(SynapseFunnelDocument, {
@@ -193,8 +217,19 @@ export function FunnelResult({ channelId, d, sinceDays, compact }: ResultProps) 
                   <div className="h-full rounded-full bg-series-1" style={{ width: `${overall}%` }} />
                 </div>
                 {!compact && i > 0 && (
-                  <div className={cn('mt-1 text-xs', fromPrev < 50 ? 'text-warning' : 'text-muted-foreground')}>
-                    {fromPrev}% from previous step · {100 - fromPrev}% drop-off
+                  <div className={cn('mt-1 flex flex-wrap items-center gap-2 text-xs', fromPrev < 50 ? 'text-warning' : 'text-muted-foreground')}>
+                    <span>
+                      {fromPrev}% from previous step · {100 - fromPrev}% drop-off
+                    </span>
+                    {onAddReport && fromPrev < 100 && (
+                      <button
+                        type="button"
+                        onClick={() => onAddReport(`After ${eventLabel(steps[i - 1])}, not ${eventLabel(steps[i])}`, dropOffFlow(d, i - 1))}
+                        className="rounded border px-1.5 py-0.5 text-foreground hover:bg-muted"
+                      >
+                        See where the {formatNumber(result[i - 1].count - s.count)} went
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
