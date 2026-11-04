@@ -280,6 +280,17 @@ message FunnelFilter {
   string key = 2;
   // Compared as text - numbers and bools as written
   string value = 3;
+  // eq (unset) | neq | in - neq and in take values when set, else value
+  string op = 4;
+  repeated string values = 5;
+}
+
+// Holds a report's events to those whose property compares to the values: eq (one value), neq (an event without the
+// property passes) or in (up to 50). Compared as text - numbers and bools as written
+message PropertyFilter {
+  string key = 1;
+  string op = 2;
+  repeated string values = 3;
 }
 
 message GetFunnelResponse {
@@ -317,6 +328,12 @@ message GetFlowRequest {
   string event = 2;
   int32 since_days = 3;
   int32 depth = 4;
+  // What the focus event must carry
+  repeated PropertyFilter filters = 5;
+  // Only the people who did NOT do this event after the focus - where the people who dropped off went
+  string not_then = 6;
+  // How long after the focus not_then counts, 0 for anywhere in the window
+  int64 not_then_within_seconds = 7;
 }
 
 message GetFlowResponse {
@@ -354,6 +371,9 @@ message GetRetentionRequest {
   int32 periods = 5;
   // day | week
   string unit = 6;
+  // What the start and the return events must carry - "bought X" to start, any order to come back
+  repeated PropertyFilter start_filters = 7;
+  repeated PropertyFilter return_filters = 8;
 }
 
 message GetRetentionResponse {
@@ -376,6 +396,7 @@ message GetStickinessRequest {
   string event = 2;
   int32 since_days = 3;
   int32 window_days = 4;
+  repeated PropertyFilter filters = 5;
 }
 
 // Engagement framed around a return window: of the people active in the previous window, how many
@@ -398,11 +419,14 @@ message InsightPoint {
   // The breakdown series this value belongs to
   string key = 2;
   int32 value = 3;
+  // On a sum, the value unclamped - money in cents passes int32
+  int64 amount = 4;
 }
 
 message InsightSeries {
   string key = 1;
   int32 total = 2;
+  int64 amount = 3;
 }
 
 message GetInsightsRequest {
@@ -410,11 +434,16 @@ message GetInsightsRequest {
   string event = 2;
   // Event-property key to split into series
   string breakdown = 3;
-  // count | unique
+  // count | unique | sum (of sum_key)
   string measure = 4;
   // day | week
   string unit = 5;
   int32 since_days = 6;
+  // Several events counted together - net sales is order_line, order_line_adjusted and refund_line. Overrides event
+  repeated string events = 7;
+  // The integer property a sum adds up, e.g. net_base_cents
+  string sum_key = 8;
+  repeated PropertyFilter filters = 9;
 }
 
 message GetInsightsResponse {
@@ -429,6 +458,9 @@ message GetInsightsResponse {
   int32 prev_uniques = 6;
   // Of total, the events counted as nobody - visitors who hadn't allowed analytics
   int32 aggregate = 7;
+  // On a sum, total and prev_total unclamped
+  int64 total_amount = 8;
+  int64 prev_total_amount = 9;
 }
 
 // ---- Profiles, audiences, attributes ----

@@ -3,6 +3,7 @@ package analytics
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sort"
 	"time"
 
@@ -155,10 +156,22 @@ type FunnelQuery struct {
 	Breakdown string        // "" = no breakdown
 }
 
-// FunnelFilter holds one step to events whose property Key has the text Value - numbers and bools compare as written
+// FunnelFilter holds one step to events whose property Key compares to Value (or Values) by Op - eq when unset, as
+// funnels saved before the other operators read
 type FunnelFilter struct {
 	Step       int // 0-based
 	Key, Value string
+	Op         string
+	Values     []string
+}
+
+// Property is the filter as the other engines take it
+func (f FunnelFilter) Property() PropertyFilter {
+	vals := f.Values
+	if len(vals) == 0 {
+		vals = []string{f.Value}
+	}
+	return PropertyFilter{Key: f.Key, Op: f.Op, Values: vals}
 }
 
 type FunnelResult struct {
@@ -477,4 +490,42 @@ func SummarizeProps(eventName string, raw json.RawMessage) string {
 		}
 	}
 	return ""
+}
+
+// PropertyFilter holds events to those whose property Key compares to Values: eq (the one value), neq (not it - an
+// event without the property passes) or in (one of up to MaxFilterValues). Values compare as text, numbers and bools
+// as written, the same way a funnel step's filter does
+type PropertyFilter struct {
+	Key    string
+	Op     string
+	Values []string
+}
+
+// ErrBadFilter is a filter an engine can't run - the contract answers it as an invalid argument
+var ErrBadFilter = errors.New("bad filter")
+
+const (
+	FilterEq        = "eq"
+	FilterNeq       = "neq"
+	FilterIn        = "in"
+	MaxFilterValues = 50
+	MaxFilters      = 10
+)
+
+// InsightsQuery is one Insights read: the events counted (any event when empty), split by Breakdown, measured as a
+// count, as distinct people, or as the sum of SumKey - and held to Filters
+type InsightsQuery struct {
+	Events    []string
+	Breakdown string
+	Measure   string // total | unique | sum
+	Unit      string // day | week
+	SumKey    string // the integer property summed when Measure is sum, e.g. net_base_cents
+	Filters   []PropertyFilter
+}
+
+// FlowExclusion narrows a flow's people to those who did the focus event and NOT this one within the window after it -
+// "where did the people who dropped off go"
+type FlowExclusion struct {
+	Event  string
+	Within time.Duration // 0 = anywhere in the query window
 }

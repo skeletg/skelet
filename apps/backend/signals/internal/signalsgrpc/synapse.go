@@ -2,6 +2,7 @@ package signalsgrpc
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -72,11 +73,11 @@ func (s *synapseServer) GetFunnel(ctx context.Context, req *signalsv1.GetFunnelR
 		if f.GetKey() == "" || !ok {
 			return nil, invalidArgument("a funnel filter needs a property and one of the funnel's steps")
 		}
-		q.Filters = append(q.Filters, analytics.FunnelFilter{Step: step, Key: f.GetKey(), Value: f.GetValue()})
+		q.Filters = append(q.Filters, analytics.FunnelFilter{Step: step, Key: f.GetKey(), Value: f.GetValue(), Op: f.GetOp(), Values: f.GetValues()})
 	}
 	res, err := s.rec.Funnel(ctx, cid, q, since(req.GetSinceDays(), 30))
 	if err != nil {
-		return nil, err
+		return nil, engineErr(err)
 	}
 	out := make([]*signalsv1.FunnelStep, 0, len(res.Steps))
 	for _, st := range res.Steps {
@@ -102,9 +103,13 @@ func (s *synapseServer) GetFlow(ctx context.Context, req *signalsv1.GetFlowReque
 		return nil, invalidArgument("event is required")
 	}
 	depth := int(topN(req.GetDepth(), 4, 8))
-	fl, err := s.rec.Flow(ctx, cid, req.GetEvent(), since(req.GetSinceDays(), 30), depth, 6)
+	var excl *analytics.FlowExclusion
+	if req.GetNotThen() != "" {
+		excl = &analytics.FlowExclusion{Event: req.GetNotThen(), Within: time.Duration(max(req.GetNotThenWithinSeconds(), 0)) * time.Second}
+	}
+	fl, err := s.rec.Flow(ctx, cid, req.GetEvent(), propertyFilters(req.GetFilters()), excl, since(req.GetSinceDays(), 30), depth, 6)
 	if err != nil {
-		return nil, err
+		return nil, engineErr(err)
 	}
 	nodes := make([]*signalsv1.FlowNode, 0, len(fl.Nodes))
 	for _, n := range fl.Nodes {
@@ -133,9 +138,9 @@ func (s *synapseServer) GetRetention(ctx context.Context, req *signalsv1.GetRete
 		unit = 7 * 24 * time.Hour
 	}
 	periods := int(topN(req.GetPeriods(), 8, 12))
-	res, err := s.rec.Retention(ctx, cid, req.GetStartEvent(), req.GetReturnEvent(), since(req.GetSinceDays(), 30), time.Now(), periods, unit)
+	res, err := s.rec.Retention(ctx, cid, req.GetStartEvent(), propertyFilters(req.GetStartFilters()), req.GetReturnEvent(), propertyFilters(req.GetReturnFilters()), since(req.GetSinceDays(), 30), time.Now(), periods, unit)
 	if err != nil {
-		return nil, err
+		return nil, engineErr(err)
 	}
 	cohorts := make([]*signalsv1.RetentionCohort, 0, len(res.Cohorts))
 	for _, c := range res.Cohorts {
@@ -149,9 +154,9 @@ func (s *synapseServer) GetStickiness(ctx context.Context, req *signalsv1.GetSti
 	if err != nil {
 		return nil, err
 	}
-	st, err := s.rec.Stickiness(ctx, cid, req.GetEvent(), since(req.GetSinceDays(), 30), time.Now(), int(windowDays(req.GetWindowDays(), 30)))
+	st, err := s.rec.Stickiness(ctx, cid, req.GetEvent(), propertyFilters(req.GetFilters()), since(req.GetSinceDays(), 30), time.Now(), int(windowDays(req.GetWindowDays(), 30)))
 	if err != nil {
-		return nil, err
+		return nil, engineErr(err)
 	}
 	days := make([]*signalsv1.ActivePoint, 0, len(st.Days))
 	for _, d := range st.Days {
@@ -169,21 +174,37 @@ func (s *synapseServer) GetInsights(ctx context.Context, req *signalsv1.GetInsig
 	if err != nil {
 		return nil, err
 	}
-	ins, err := s.rec.Insights(ctx, cid, req.GetEvent(), req.GetBreakdown(), req.GetMeasure(), req.GetUnit(), since(req.GetSinceDays(), 30), time.Now())
+	events := req.GetEvents()
+	if len(events) == 0 && req.GetEvent() != "" {
+		events = []string{req.GetEvent()}
+	}
+	if len(events) > 8 {
+		return nil, invalidArgument("insights reads at most 8 events together")
+	}
+	q := analytics.InsightsQuery{Events: events, Breakdown: req.GetBreakdown(), Measure: req.GetMeasure(), Unit: req.GetUnit(), SumKey: req.GetSumKey(), Filters: propertyFilters(req.GetFilters())}
+	ins, err := s.rec.Insights(ctx, cid, q, since(req.GetSinceDays(), 30), time.Now())
 	if err != nil {
-		return nil, err
+		return nil, engineErr(err)
+	}
+	sum := q.Measure == "sum" // amounts go unclamped beside the clamped counts, which a sum in cents would overflow
+	amount := func(n int64) int64 {
+		if sum {
+			return n
+		}
+		return 0
 	}
 	points := make([]*signalsv1.InsightPoint, 0, len(ins.Points))
 	for _, p := range ins.Points {
-		points = append(points, &signalsv1.InsightPoint{Bucket: ts(p.Bucket), Key: p.Key, Value: count32(p.Value)})
+		points = append(points, &signalsv1.InsightPoint{Bucket: ts(p.Bucket), Key: p.Key, Value: count32(p.Value), Amount: amount(p.Value)})
 	}
 	series := make([]*signalsv1.InsightSeries, 0, len(ins.Series))
 	for _, sr := range ins.Series {
-		series = append(series, &signalsv1.InsightSeries{Key: sr.Key, Total: count32(sr.Total)})
+		series = append(series, &signalsv1.InsightSeries{Key: sr.Key, Total: count32(sr.Total), Amount: amount(sr.Total)})
 	}
 	return &signalsv1.GetInsightsResponse{
 		Points: points, Series: series, Total: count32(ins.Total), Uniques: count32(ins.Uniques),
 		PrevTotal: count32(ins.PrevTotal), PrevUniques: count32(ins.PrevUniques), Aggregate: count32(ins.Aggregate),
+		TotalAmount: amount(ins.Total), PrevTotalAmount: amount(ins.PrevTotal),
 	}, nil
 }
 
@@ -395,4 +416,20 @@ func buckets(rows []analytics.RetentionBucket) []*signalsv1.RetentionBucket {
 		out = append(out, &signalsv1.RetentionBucket{Period: count32(b.Period), Count: count32(b.Count), Eligible: count32(b.Eligible)})
 	}
 	return out
+}
+
+func propertyFilters(in []*signalsv1.PropertyFilter) []analytics.PropertyFilter {
+	out := make([]analytics.PropertyFilter, 0, len(in))
+	for _, f := range in {
+		out = append(out, analytics.PropertyFilter{Key: f.GetKey(), Op: f.GetOp(), Values: f.GetValues()})
+	}
+	return out
+}
+
+// A filter the engine can't run is the caller's to fix, so it answers as an invalid argument rather than a failure
+func engineErr(err error) error {
+	if errors.Is(err, analytics.ErrBadFilter) {
+		return invalidArgument("%s", err.Error())
+	}
+	return err
 }

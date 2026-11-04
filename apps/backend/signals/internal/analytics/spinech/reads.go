@@ -56,8 +56,12 @@ func (s *Store) Funnel(ctx context.Context, channelID uuid.UUID, q analytics.Fun
 		condSQL[i], conds[i] = "e.event_name = ?", []any{st}
 		for _, f := range q.Filters {
 			if f.Step == i {
-				condSQL[i] += " AND " + propText + " = ?"
-				conds[i] = append(conds[i], f.Key, f.Key, f.Key, f.Value)
+				fs, fa, err := filterSQL([]analytics.PropertyFilter{f.Property()})
+				if err != nil {
+					return out, err
+				}
+				condSQL[i] += fs
+				conds[i] = append(conds[i], fa...)
 			}
 		}
 	}
@@ -139,7 +143,8 @@ func (s *Store) Funnel(ctx context.Context, channelID uuid.UUID, q analytics.Fun
 // the key three times
 const propText = "if(JSONType(e.properties, ?) = 'String', JSONExtractString(e.properties, ?), JSONExtractRaw(e.properties, ?))"
 
-func (s *Store) Insights(ctx context.Context, channelID uuid.UUID, event, breakdown, measure, unit string, since, now time.Time) (analytics.Insights, error) {
+func (s *Store) Insights(ctx context.Context, channelID uuid.UUID, q analytics.InsightsQuery, since, now time.Time) (analytics.Insights, error) {
+	breakdown, measure, unit := q.Breakdown, q.Measure, q.Unit
 	bucket := "toStartOfDay(e.occurred_at)"
 	if unit == "week" {
 		bucket = "toStartOfWeek(e.occurred_at, 1)" // Monday, matching date_trunc('week')
@@ -152,17 +157,25 @@ func (s *Store) Insights(ctx context.Context, channelID uuid.UUID, event, breakd
 			"JSONType(e.properties, ?) = 'Null', '', JSONExtractRaw(e.properties, ?)) AS bdv) = '', '(none)', bdv)"
 		bdArgs = []any{breakdown, breakdown, breakdown, breakdown, breakdown}
 	}
-	evCond, evArg := "", []any(nil)
-	if event != "" {
-		evCond, evArg = " AND e.event_name = ?", []any{event}
+	evCond, evArg, err := eventCond(q.Events, q.Filters)
+	if err != nil {
+		return analytics.Insights{}, err
 	}
 	from := "FROM analytics_events AS e FINAL"
 	uniq := "toInt64(uniqExactIf(" + resolvedActor + ", " + resolvedActor + " != ''))" // distinct non-null resolved
+	// A sum adds an integer property up - revenue in cents, units - where a count counts events
+	total, totalArgs := "toInt64(count())", []any(nil)
+	if measure == "sum" {
+		if q.SumKey == "" {
+			return analytics.Insights{}, fmt.Errorf("%w: a sum needs the property it adds up", analytics.ErrBadFilter)
+		}
+		total, totalArgs = "toInt64(sum(JSONExtractInt(e.properties, ?)))", []any{q.SumKey}
+	}
 
-	seriesArgs := append(append([]any{}, bdArgs...), channelID, since)
+	seriesArgs := append(append(append([]any{}, bdArgs...), totalArgs...), channelID, since)
 	seriesArgs = append(seriesArgs, evArg...)
 	rows, err := s.conn.Query(ctx,
-		"SELECT "+bucket+" AS bucket, "+bdCol+" AS breakdown, toInt64(count()) AS total, "+uniq+" AS uniques "+
+		"SELECT "+bucket+" AS bucket, "+bdCol+" AS breakdown, "+total+" AS total, "+uniq+" AS uniques "+
 			from+" WHERE e.channel_id = ? AND e.occurred_at >= ? AND "+notBot+evCond+
 			" GROUP BY bucket, breakdown ORDER BY bucket, breakdown", seriesArgs...)
 	if err != nil {
@@ -186,23 +199,30 @@ func (s *Store) Insights(ctx context.Context, channelID uuid.UUID, event, breakd
 	out.Points, out.Series = analytics.RollupInsightsSeries(in, measure == "unique")
 
 	// window-level measures (headline + prior equal-length window) - errors are swallowed, since the series is the primary result
-	wm := "SELECT toInt64(count()), " + uniq + ", toInt64(countIf(e.source = 'aggregate')) " + from + " WHERE e.channel_id = ? AND e.occurred_at >= ? AND e.occurred_at < ? AND " + notBot + evCond
-	_ = s.conn.QueryRow(ctx, wm, append([]any{channelID, since, now}, evArg...)...).Scan(&out.Total, &out.Uniques, &out.Aggregate)
+	wm := "SELECT " + total + ", " + uniq + ", toInt64(countIf(e.source = 'aggregate')) " + from + " WHERE e.channel_id = ? AND e.occurred_at >= ? AND e.occurred_at < ? AND " + notBot + evCond
+	window := func(lo, hi time.Time) []any {
+		return append(append(append([]any{}, totalArgs...), channelID, lo, hi), evArg...)
+	}
+	_ = s.conn.QueryRow(ctx, wm, window(since, now)...).Scan(&out.Total, &out.Uniques, &out.Aggregate)
 	prevStart := since.Add(-now.Sub(since))
 	var prevAggregate int64
-	_ = s.conn.QueryRow(ctx, wm, append([]any{channelID, prevStart, since}, evArg...)...).Scan(&out.PrevTotal, &out.PrevUniques, &prevAggregate)
+	_ = s.conn.QueryRow(ctx, wm, window(prevStart, since)...).Scan(&out.PrevTotal, &out.PrevUniques, &prevAggregate)
 	return out, nil
 }
 
-func (s *Store) Stickiness(ctx context.Context, channelID uuid.UUID, event string, since, now time.Time, windowDays int) (analytics.Stickiness, error) {
+func (s *Store) Stickiness(ctx context.Context, channelID uuid.UUID, event string, filters []analytics.PropertyFilter, since, now time.Time, windowDays int) (analytics.Stickiness, error) {
 	if windowDays < 1 {
 		windowDays = 30
 	}
 	out := analytics.Stickiness{WindowDays: windowDays}
 	// optional event filter (""=any activity); actor resolved, empty actor dropped
-	evCond, evArg := "", []any(nil)
+	var events []string
 	if event != "" {
-		evCond, evArg = " AND e.event_name = ?", []any{event}
+		events = []string{event}
+	}
+	evCond, evArg, err := eventCond(events, filters)
+	if err != nil {
+		return out, err
 	}
 	from := "FROM analytics_events AS e FINAL"
 	where := " WHERE e.channel_id = ? AND e.occurred_at >= ? AND " + notBot + evCond + " AND " + resolvedActor + " != ''"
@@ -253,7 +273,7 @@ func (s *Store) Stickiness(ctx context.Context, channelID uuid.UUID, event strin
 	return out, nil
 }
 
-func (s *Store) Flow(ctx context.Context, channelID uuid.UUID, focus string, since time.Time, depth, topK int) (analytics.FlowResult, error) {
+func (s *Store) Flow(ctx context.Context, channelID uuid.UUID, focus string, focusFilters []analytics.PropertyFilter, excl *analytics.FlowExclusion, since time.Time, depth, topK int) (analytics.FlowResult, error) {
 	// Custom events surface by their real name, and the tracker's own $-events (experiments, vitals, rage and dead clicks)
 	// are dropped from the paths unless one is the focus - each journey is cut to what the walker uses: from the first focus event, repeats collapsed, depth steps at most
 	if depth < 1 {
@@ -261,17 +281,46 @@ func (s *Store) Flow(ctx context.Context, channelID uuid.UUID, focus string, sin
 	}
 	// Identical journeys are counted in ClickHouse, so Go gets one row per distinct path rather than one per person, and
 	// only the flowMaxPaths most common - the headline totals come from every path, before the cap
+	// The people the flow follows: who did the focus (held to its filters), less - for a drop-off - those who went on to
+	// the excluded event within the window after their first focus
+	ff, ffArgs, err := filterSQL(focusFilters)
+	if err != nil {
+		return analytics.FlowResult{}, err
+	}
+	focusActors := `SELECT DISTINCT ` + resolvedActor + ` AS actor
+			FROM analytics_events AS e FINAL
+			WHERE e.channel_id = ? AND e.occurred_at >= ? AND ` + notBot + `
+			  AND (e.event_name = ? OR (e.event_name = 'custom' AND e.custom_name = ?))` + ff + `
+			  AND ` + resolvedActor + ` != ''`
+	focusArgs := append([]any{channelID, since, focus, focus}, ffArgs...)
+	if excl != nil && excl.Event != "" {
+		focusActors = `SELECT f.actor FROM (
+				SELECT ` + resolvedActor + ` AS actor, min(e.occurred_at) AS first_at
+				FROM analytics_events AS e FINAL
+				WHERE e.channel_id = ? AND e.occurred_at >= ? AND ` + notBot + `
+				  AND (e.event_name = ? OR (e.event_name = 'custom' AND e.custom_name = ?))` + ff + `
+				  AND ` + resolvedActor + ` != ''
+				GROUP BY actor
+			) AS f
+			LEFT JOIN (
+				SELECT ` + resolvedActor + ` AS actor, groupArray(e.occurred_at) AS ts
+				FROM analytics_events AS e FINAL
+				WHERE e.channel_id = ? AND e.occurred_at >= ? AND ` + notBot + `
+				  AND (e.event_name = ? OR (e.event_name = 'custom' AND e.custom_name = ?))
+				  AND ` + resolvedActor + ` != ''
+				GROUP BY actor
+			) AS x ON x.actor = f.actor
+			WHERE NOT arrayExists(t -> t >= f.first_at AND (? = 0 OR t <= f.first_at + toIntervalSecond(?)), x.ts)`
+		within := int64(excl.Within.Seconds())
+		focusArgs = append(focusArgs, channelID, since, excl.Event, excl.Event, within, within)
+	}
 	rows, err := s.conn.Query(ctx, `
 		SELECT path, n, sum(n) OVER () AS cohort, sum(if(length(path) > 1, n, 0)) OVER () AS continued,
 		       sum(n * (length(path) - 1)) OVER () AS steps
 		FROM (
 		SELECT path, toInt64(count()) AS n FROM (
 		WITH focus_actors AS (
-			SELECT DISTINCT `+resolvedActor+` AS actor
-			FROM analytics_events AS e FINAL
-			WHERE e.channel_id = ? AND e.occurred_at >= ? AND `+notBot+`
-			  AND (e.event_name = ? OR (e.event_name = 'custom' AND e.custom_name = ?))
-			  AND `+resolvedActor+` != ''
+			`+focusActors+`
 		)
 		SELECT actor, arraySlice(arrayFilter((x, i) -> i = 1 OR x != journey[i - 1], journey, arrayEnumerate(journey)), 1, ?) AS path
 		FROM (
@@ -293,7 +342,7 @@ func (s *Store) Flow(ctx context.Context, channelID uuid.UUID, focus string, sin
 		)
 		ORDER BY n DESC, path
 		LIMIT ?`,
-		channelID, since, focus, focus, uint64(depth+1), focus, channelID, since, focus, focus, uint64(flowMaxPaths))
+		append(append(focusArgs, uint64(depth+1), focus, channelID, since, focus, focus), uint64(flowMaxPaths))...)
 	if err != nil {
 		return analytics.FlowResult{}, err
 	}
@@ -329,7 +378,7 @@ func (s *Store) Flow(ctx context.Context, channelID uuid.UUID, focus string, sin
 // The distinct journeys a Flow read brings back - the tree only shows the top few children per step, so the rare tail past this changes nothing on screen
 const flowMaxPaths = 10_000
 
-func (s *Store) Retention(ctx context.Context, channelID uuid.UUID, startEvent, returnEvent string, since, now time.Time, periods int, unit time.Duration) (analytics.Retention, error) {
+func (s *Store) Retention(ctx context.Context, channelID uuid.UUID, startEvent string, startFilters []analytics.PropertyFilter, returnEvent string, returnFilters []analytics.PropertyFilter, since, now time.Time, periods int, unit time.Duration) (analytics.Retention, error) {
 	out := analytics.Retention{Buckets: make([]analytics.RetentionBucket, periods)}
 	for i := range out.Buckets {
 		out.Buckets[i].Period = i
@@ -339,6 +388,15 @@ func (s *Store) Retention(ctx context.Context, channelID uuid.UUID, startEvent, 
 	}
 	// Cohort starts round down from Go's zero time like time.Truncate - Unix-epoch weeks would start on a Thursday
 	unitMs := unit.Milliseconds()
+	// The cohort and the returns are held to their own filters: "bought X" to start, "any order" to come back
+	sf, sfArgs, err := filterSQL(startFilters)
+	if err != nil {
+		return out, err
+	}
+	rf, rfArgs, err := filterSQL(returnFilters)
+	if err != nil {
+		return out, err
+	}
 	// Each person's return periods are worked out in ClickHouse and kept distinct, so no array grows past the period count
 	// however often someone came back - the earlier read carried every return's timestamp per person into the aggregate
 	rows, err := s.conn.Query(ctx, `
@@ -347,14 +405,14 @@ func (s *Store) Retention(ctx context.Context, channelID uuid.UUID, startEvent, 
 			FROM (
 				SELECT `+resolvedActor+` AS actor, toInt64(toUnixTimestamp64Milli(min(e.occurred_at))) AS anchor_ms
 				FROM analytics_events AS e FINAL
-				WHERE e.channel_id = ? AND e.occurred_at >= ? AND `+notBot+` AND e.event_name = ? AND `+resolvedActor+` != ''
+				WHERE e.channel_id = ? AND e.occurred_at >= ? AND `+notBot+` AND e.event_name = ?`+sf+` AND `+resolvedActor+` != ''
 				GROUP BY actor
 			)
 		),
 		returns AS (
 			SELECT `+resolvedActor+` AS actor, toInt64(toUnixTimestamp64Milli(e.occurred_at)) AS ts_ms
 			FROM analytics_events AS e FINAL
-			WHERE e.channel_id = ? AND e.occurred_at >= ? AND `+notBot+` AND e.event_name = ? AND `+resolvedActor+` != ''
+			WHERE e.channel_id = ? AND e.occurred_at >= ? AND `+notBot+` AND e.event_name = ?`+rf+` AND `+resolvedActor+` != ''
 		),
 		bucketed AS (
 			SELECT a.actor, any(a.cohort_ms) AS cohort_ms,
@@ -365,8 +423,8 @@ func (s *Store) Retention(ctx context.Context, channelID uuid.UUID, startEvent, 
 		SELECT cohort_ms, toInt64(count()) AS size,
 		       sumForEach(arrayMap(b -> toInt64(has(buckets, b)), range(?))) AS counts
 		FROM bucketed GROUP BY cohort_ms`,
-		unitMs, channelID, since, startEvent, channelID, since, returnEvent,
-		unitMs, unitMs, int64(periods), uint64(periods))
+		append(append(append(append(append([]any{unitMs, channelID, since, startEvent}, sfArgs...), channelID, since, returnEvent), rfArgs...),
+			unitMs, unitMs, int64(periods)), uint64(periods))...)
 	if err != nil {
 		return out, err
 	}

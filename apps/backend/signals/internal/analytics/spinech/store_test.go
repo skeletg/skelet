@@ -622,7 +622,7 @@ func TestRetention(t *testing.T) {
 	ch, since := seedJourneys(t, 5, 2)
 	st := testStore(t)
 	defer st.Close()
-	r, err := st.Retention(context.Background(), ch, "page_view", "cart_add", since, time.Now(), 8, 24*time.Hour)
+	r, err := st.Retention(context.Background(), ch, "page_view", nil, "cart_add", nil, since, time.Now(), 8, 24*time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -638,7 +638,7 @@ func TestFlow(t *testing.T) {
 	ch, since := seedJourneys(t, 5, 2)
 	st := testStore(t)
 	defer st.Close()
-	f, err := st.Flow(context.Background(), ch, "page_view", since, 3, 3)
+	f, err := st.Flow(context.Background(), ch, "page_view", nil, nil, since, 3, 3)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -677,14 +677,14 @@ func TestFlowLeavesOutTrackerEvents(t *testing.T) {
 	}
 	defer st.Close()
 
-	f, err := st.Flow(ctx, ch, "page_view", at.Add(-time.Minute), 3, 3)
+	f, err := st.Flow(ctx, ch, "page_view", nil, nil, at.Add(-time.Minute), 3, 3)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(f.TopPaths) != 1 || strings.Join(f.TopPaths[0].Events, ">") != "view_item" {
 		t.Fatalf("paths from page_view = %+v, want just view_item", f.TopPaths)
 	}
-	f, err = st.Flow(ctx, ch, "$rage_click", at.Add(-time.Minute), 3, 3)
+	f, err = st.Flow(ctx, ch, "$rage_click", nil, nil, at.Add(-time.Minute), 3, 3)
 	if err != nil {
 		t.Fatal(err)
 	}

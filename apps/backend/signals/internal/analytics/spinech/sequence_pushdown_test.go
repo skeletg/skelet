@@ -57,7 +57,7 @@ func TestSequenceReadsMatchTheWalkers(t *testing.T) {
 
 	for _, tc := range []struct{ start, ret string }{{"page_view", "purchase"}, {"page_view", "page_view"}, {"add_to_cart", "purchase"}} {
 		for _, unit := range []time.Duration{24 * time.Hour, 7 * 24 * time.Hour} {
-			got, err := st.Retention(ctx, ch, tc.start, tc.ret, since, now, 5, unit)
+			got, err := st.Retention(ctx, ch, tc.start, nil, tc.ret, nil, since, now, 5, unit)
 			if err != nil {
 				t.Fatalf("retention %s->%s: %v", tc.start, tc.ret, err)
 			}
@@ -78,7 +78,7 @@ func TestSequenceReadsMatchTheWalkers(t *testing.T) {
 
 	for _, focus := range []string{"page_view", "add_to_cart", "search"} {
 		for _, depth := range []int{1, 3} {
-			got, err := st.Flow(ctx, ch, focus, since, depth, 3)
+			got, err := st.Flow(ctx, ch, focus, nil, nil, since, depth, 3)
 			if err != nil {
 				t.Fatalf("flow %s: %v", focus, err)
 			}
