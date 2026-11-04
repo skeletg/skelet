@@ -5144,6 +5144,7 @@ type SynapseInsights struct {
 	Aggregate       int32            `json:"aggregate"`
 	TotalAmount     float64          `json:"totalAmount"`
 	PrevTotalAmount float64          `json:"prevTotalAmount"`
+	BaseCurrency    string           `json:"baseCurrency"`
 }
 
 type SynapseOverview struct {

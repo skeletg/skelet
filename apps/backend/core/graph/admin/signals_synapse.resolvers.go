@@ -363,6 +363,10 @@ func (r *queryResolver) SynapseInsights(ctx context.Context, channelID string, e
 		Points: make([]*model.InsightPoint, 0, len(ins.GetPoints())), Series: make([]*model.InsightSeries, 0, len(ins.GetSeries())),
 		Total: ins.GetTotal(), Uniques: ins.GetUniques(), PrevTotal: ins.GetPrevTotal(), PrevUniques: ins.GetPrevUniques(), Aggregate: ins.GetAggregate(),
 		TotalAmount: float64(ins.GetTotalAmount()), PrevTotalAmount: float64(ins.GetPrevTotalAmount()),
+		BaseCurrency: config.DefaultBaseCurrency,
+	}
+	if base, err := r.ConfigSvc.GetString(ctx, config.BaseCurrencyPath, config.DefaultScope); err == nil && base != "" {
+		out.BaseCurrency = base
 	}
 	for _, p := range ins.GetPoints() {
 		out.Points = append(out.Points, &model.InsightPoint{Bucket: p.GetBucket().AsTime(), Key: p.GetKey(), Value: p.GetValue(), Amount: float64(p.GetAmount())})

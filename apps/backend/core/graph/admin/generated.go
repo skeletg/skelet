@@ -4579,6 +4579,7 @@ type ComplexityRoot struct {
 
 	SynapseInsights struct {
 		Aggregate       func(childComplexity int) int
+		BaseCurrency    func(childComplexity int) int
 		Points          func(childComplexity int) int
 		PrevTotal       func(childComplexity int) int
 		PrevTotalAmount func(childComplexity int) int
@@ -29955,6 +29956,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SynapseInsights.Aggregate(childComplexity), true
+	case "SynapseInsights.baseCurrency":
+		if e.ComplexityRoot.SynapseInsights.BaseCurrency == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SynapseInsights.BaseCurrency(childComplexity), true
 	case "SynapseInsights.points":
 		if e.ComplexityRoot.SynapseInsights.Points == nil {
 			break
@@ -40318,6 +40325,8 @@ type SynapseInsights {
   # On a sum, total and prevTotal unclamped - money in cents passes Int's range
   totalAmount:     Float!
   prevTotalAmount: Float!
+  # The currency a *_base_cents sum is in - the platform's base currency
+  baseCurrency:    String!
 }
 
 type ActivePoint {
@@ -48881,6 +48890,8 @@ func (ec *executionContext) childFields_SynapseInsights(ctx context.Context, fie
 		return ec.fieldContext_SynapseInsights_totalAmount(ctx, field)
 	case "prevTotalAmount":
 		return ec.fieldContext_SynapseInsights_prevTotalAmount(ctx, field)
+	case "baseCurrency":
+		return ec.fieldContext_SynapseInsights_baseCurrency(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type SynapseInsights", field.Name)
 }
@@ -160311,6 +160322,29 @@ func (ec *executionContext) fieldContext_SynapseInsights_prevTotalAmount(_ conte
 	return graphql.NewScalarFieldContext("SynapseInsights", field, false, false, errors.New("field of type Float does not have child fields"))
 }
 
+func (ec *executionContext) _SynapseInsights_baseCurrency(ctx context.Context, field graphql.CollectedField, obj *model.SynapseInsights) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SynapseInsights_baseCurrency(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BaseCurrency, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SynapseInsights_baseCurrency(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SynapseInsights", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _SynapseOverview_totalEvents(ctx context.Context, field graphql.CollectedField, obj *model.SynapseOverview) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -218858,6 +218892,11 @@ func (ec *executionContext) _SynapseInsights(ctx context.Context, sel ast.Select
 			}
 		case "prevTotalAmount":
 			out.Values[i] = ec._SynapseInsights_prevTotalAmount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "baseCurrency":
+			out.Values[i] = ec._SynapseInsights_baseCurrency(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

@@ -87,6 +87,8 @@ type SynapseInsights {
   # On a sum, total and prevTotal unclamped - money in cents passes Int's range
   totalAmount:     Float!
   prevTotalAmount: Float!
+  # The currency a *_base_cents sum is in - the platform's base currency
+  baseCurrency:    String!
 }
 
 type ActivePoint {
