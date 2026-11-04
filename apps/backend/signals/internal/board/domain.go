@@ -75,7 +75,7 @@ func ParseDefinition(raw []byte) (Definition, error) {
 	dec.DisallowUnknownFields()
 	var d Definition
 	if err := dec.Decode(&d); err != nil {
-		return Definition{}, fmt.Errorf("%w: report definition: %v", ErrInvalid, err)
+		return Definition{}, fmt.Errorf("%w: report definition: %w", ErrInvalid, err)
 	}
 	return d, d.validate()
 }
