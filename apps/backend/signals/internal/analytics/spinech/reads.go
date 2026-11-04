@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -203,7 +204,13 @@ func (s *Store) Flow(ctx context.Context, channelID uuid.UUID, focus string, sin
 	if depth < 1 {
 		depth = 1
 	}
+	// Identical journeys are counted in ClickHouse, so Go gets one row per distinct path rather than one per person, and
+	// only the flowMaxPaths most common - the headline totals come from every path, before the cap
 	rows, err := s.conn.Query(ctx, `
+		SELECT path, n, sum(n) OVER () AS cohort, sum(if(length(path) > 1, n, 0)) OVER () AS continued,
+		       sum(n * (length(path) - 1)) OVER () AS steps
+		FROM (
+		SELECT path, toInt64(count()) AS n FROM (
 		WITH focus_actors AS (
 			SELECT DISTINCT `+resolvedActor+` AS actor
 			FROM analytics_events AS e FINAL
@@ -226,30 +233,46 @@ func (s *Store) Flow(ctx context.Context, channelID uuid.UUID, focus string, sin
 				GROUP BY actor
 			)
 			WHERE has(evs, ?)
-		)`,
-		channelID, since, focus, focus, uint64(depth+1), focus, channelID, since, focus)
+		)
+		) GROUP BY path
+		)
+		ORDER BY n DESC, path
+		LIMIT ?`,
+		channelID, since, focus, focus, uint64(depth+1), focus, channelID, since, focus, uint64(flowMaxPaths))
 	if err != nil {
 		return analytics.FlowResult{}, err
 	}
 	defer rows.Close()
-	var events []analytics.SpineActorEvent
-	for rows.Next() {
+	var (
+		events                   []analytics.SpineActorEvent
+		cohort, continued, steps int64
+	)
+	for i := 0; rows.Next(); i++ {
 		var (
-			actor string
-			path  []string
+			path []string
+			n    int64
 		)
-		if err := rows.Scan(&actor, &path); err != nil {
+		if err := rows.Scan(&path, &n, &cohort, &continued, &steps); err != nil {
 			return analytics.FlowResult{}, err
 		}
+		actor := strconv.Itoa(i) // one stand-in actor per distinct path, carrying everyone who took it
 		for _, name := range path {
-			events = append(events, analytics.SpineActorEvent{Actor: actor, EventName: name})
+			events = append(events, analytics.SpineActorEvent{Actor: actor, EventName: name, People: n})
 		}
 	}
 	if err := rows.Err(); err != nil {
 		return analytics.FlowResult{}, err
 	}
-	return analytics.FlowFromEvents(events, focus, depth, topK), nil
+	out := analytics.FlowFromEvents(events, focus, depth, topK)
+	out.Cohort, out.Continued, out.AvgSteps = cohort, continued, 0
+	if continued > 0 {
+		out.AvgSteps = float64(steps) / float64(continued)
+	}
+	return out, nil
 }
+
+// The distinct journeys a Flow read brings back - the tree only shows the top few children per step, so the rare tail past this changes nothing on screen
+const flowMaxPaths = 10_000
 
 func (s *Store) Retention(ctx context.Context, channelID uuid.UUID, startEvent, returnEvent string, since, now time.Time, periods int, unit time.Duration) (analytics.Retention, error) {
 	out := analytics.Retention{Buckets: make([]analytics.RetentionBucket, periods)}
@@ -261,31 +284,34 @@ func (s *Store) Retention(ctx context.Context, channelID uuid.UUID, startEvent, 
 	}
 	// Cohort starts round down from Go's zero time like time.Truncate - Unix-epoch weeks would start on a Thursday
 	unitMs := unit.Milliseconds()
+	// Each person's return periods are worked out in ClickHouse and kept distinct, so no array grows past the period count
+	// however often someone came back - the earlier read carried every return's timestamp per person into the aggregate
 	rows, err := s.conn.Query(ctx, `
-		WITH per_actor AS (
-			SELECT actor,
-			       toInt64(toUnixTimestamp64Milli(minIf(ts, ev = ?))) AS anchor_ms,
-			       groupArrayIf(toInt64(toUnixTimestamp64Milli(ts)), ev = ?) AS returns_ms
+		WITH anchors AS (
+			SELECT actor, anchor_ms, anchor_ms - ((anchor_ms + 62135596800000) % ?) AS cohort_ms
 			FROM (
-				SELECT `+resolvedActor+` AS actor, e.event_name AS ev, e.occurred_at AS ts
+				SELECT `+resolvedActor+` AS actor, toInt64(toUnixTimestamp64Milli(min(e.occurred_at))) AS anchor_ms
 				FROM analytics_events AS e FINAL
-				WHERE e.channel_id = ? AND e.occurred_at >= ? AND `+notBot+`
-				  AND e.event_name IN (?, ?) AND `+resolvedActor+` != ''
+				WHERE e.channel_id = ? AND e.occurred_at >= ? AND `+notBot+` AND e.event_name = ? AND `+resolvedActor+` != ''
+				GROUP BY actor
 			)
-			GROUP BY actor
-			HAVING countIf(ev = ?) > 0
+		),
+		returns AS (
+			SELECT `+resolvedActor+` AS actor, toInt64(toUnixTimestamp64Milli(e.occurred_at)) AS ts_ms
+			FROM analytics_events AS e FINAL
+			WHERE e.channel_id = ? AND e.occurred_at >= ? AND `+notBot+` AND e.event_name = ? AND `+resolvedActor+` != ''
 		),
 		bucketed AS (
-			SELECT anchor_ms - ((anchor_ms + 62135596800000) % ?) AS cohort_ms,
-			       arrayDistinct(arrayFilter(b -> b >= 0 AND b < ?,
-			           arrayMap(r -> intDiv(r - cohort_ms, ?), arrayFilter(r -> r >= anchor_ms, returns_ms)))) AS buckets
-			FROM per_actor
+			SELECT a.actor, any(a.cohort_ms) AS cohort_ms,
+			       groupUniqArrayIf(intDiv(r.ts_ms - a.cohort_ms, ?), r.ts_ms >= a.anchor_ms AND intDiv(r.ts_ms - a.cohort_ms, ?) < ?) AS buckets
+			FROM anchors AS a LEFT JOIN returns AS r ON r.actor = a.actor
+			GROUP BY a.actor
 		)
 		SELECT cohort_ms, toInt64(count()) AS size,
 		       sumForEach(arrayMap(b -> toInt64(has(buckets, b)), range(?))) AS counts
 		FROM bucketed GROUP BY cohort_ms`,
-		startEvent, returnEvent, channelID, since, startEvent, returnEvent, startEvent,
-		unitMs, int64(periods), unitMs, uint64(periods))
+		unitMs, channelID, since, startEvent, channelID, since, returnEvent,
+		unitMs, unitMs, int64(periods), uint64(periods))
 	if err != nil {
 		return out, err
 	}
