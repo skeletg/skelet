@@ -9,9 +9,9 @@ func TestApplyPlanStripsWhatBreaksIt(t *testing.T) {
 	props := map[string]any{
 		"sku": "TEE", "entity_price": "25.00", "attr:color": "black", // planned
 		"is_bot": false, "revenue_cents": 99999, "name": "purchase", // only the server sets these
-		"entity": 7,       // wrong type
-		"coupon": "FREE",  // not in the plan
-		"attr:size": 42.0, // an attribute must be a string
+		"entity":    7,      // wrong type
+		"coupon":    "FREE", // not in the plan
+		"attr:size": 42.0,   // an attribute must be a string
 	}
 	keep, issues := ApplyPlan(EventPageView, props)
 	if !keep {
