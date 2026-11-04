@@ -441,11 +441,13 @@ func since(days, fallback int32) time.Time {
 }
 
 // A ranked top-N takes a limit rather than a page, and one outside the bounds falls back
+// topN is a requested size: the fallback when unset, and the ceiling when it asks for more - asking for 30 retention
+// periods with a ceiling of 12 gets 12, not the 8 of an unset request
 func topN(requested, fallback, ceiling int32) int32 {
-	if requested < 1 || requested > ceiling {
+	if requested < 1 {
 		return fallback
 	}
-	return requested
+	return min(requested, ceiling)
 }
 
 // The indexes of one page of a slice already read whole
