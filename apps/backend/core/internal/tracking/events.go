@@ -66,6 +66,7 @@ func (s *Service) Subscribe(bus *events.Bus, orders orderReader, channels channe
 	bus.Subscribe(cart.EventCheckoutChosen, h.onCheckoutChosen)
 	bus.Subscribe(wishlist.EventItemAdded, h.onWishlistAdded)
 	bus.Subscribe(customer.EventRegistered, h.onRegistered)
+	bus.Subscribe(auth.EventLoginSucceeded, h.onLogin)
 	bus.Subscribe(consent.EventChanged, h.onConsentChanged)
 	bus.Subscribe(customer.EventDeleted, h.onDeleted)
 	bus.Subscribe(customer.EventErased, h.onErased)
@@ -418,6 +419,21 @@ func (h handlers) onRegistered(ctx context.Context, e events.Event) error {
 	out := Event{
 		ID: "sign_up:" + cid.String(), Name: SignUp, OccurredAt: eventTime(ctx), ChannelID: ev.ChannelID,
 		Source: "server", User: User{CustomerID: &cid, Email: ev.Email},
+	}
+	WithShopper(&out, ev.Shopper)
+	return h.track(ctx, out)
+}
+
+// A customer signed in on the shop - an admin's sign-in is not a shop event
+func (h handlers) onLogin(ctx context.Context, e events.Event) error {
+	ev, ok := e.(*auth.LoginSucceeded)
+	if !ok || ev.Subject != auth.SubjectCustomer || ev.ChannelID == uuid.Nil {
+		return nil
+	}
+	cid, at := ev.SubjectID, eventTime(ctx)
+	out := Event{
+		ID: Login + ":" + cid.String() + ":" + strconv.FormatInt(at.UnixMilli(), 10), Name: Login, OccurredAt: at,
+		ChannelID: ev.ChannelID, Source: "server", User: User{CustomerID: &cid, Email: ev.Email},
 	}
 	WithShopper(&out, ev.Shopper)
 	return h.track(ctx, out)

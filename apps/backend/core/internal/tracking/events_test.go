@@ -113,7 +113,7 @@ func (o optedIn) EmailMarketingAllowed(_ context.Context, _ uuid.UUID, _ *uuid.U
 	return o[email], nil
 }
 
-func TestCartChangesAndSignUpsBecomeEvents(t *testing.T) {
+func TestCartChangesSignUpsAndSignInsBecomeEvents(t *testing.T) {
 	ch := uuid.New()
 	registerTestKind(t, sdk.Destination{Kind: "t-all"})
 	dest := uuid.New()
@@ -129,13 +129,15 @@ func TestCartChangesAndSignUpsBecomeEvents(t *testing.T) {
 	_ = bus.DispatchAsyncNow(ctx, &cart.LineRemoved{ChannelID: ch, LineID: line, ProductSku: "SKU-1", UnitPrice: 1500, Quantity: 2})
 	_ = bus.DispatchAsyncNow(ctx, &customer.CustomerRegistered{CustomerID: cust, ChannelID: ch, Email: "a@example.com", Source: customer.SourceSelf})
 	_ = bus.DispatchAsyncNow(ctx, &customer.CustomerRegistered{CustomerID: uuid.New(), ChannelID: ch, Source: "import"})
+	_ = bus.DispatchAsyncNow(ctx, &auth.LoginSucceeded{Subject: auth.SubjectCustomer, SubjectID: cust, ChannelID: ch, Email: "a@example.com"})
+	_ = bus.DispatchAsyncNow(ctx, &auth.LoginSucceeded{Subject: auth.SubjectAdmin, SubjectID: uuid.New(), ChannelID: ch})
 
 	names := map[string]int{}
 	for _, d := range fs.byDestination(dest) {
 		names[d.EventName]++
 	}
-	if names[AddToCart] != 1 || names[RemoveFromCart] != 1 || names[SignUp] != 1 || len(names) != 3 {
-		t.Errorf("queued %v, want one add (the replay collapsed), one removal and only the shop's own sign-up", names)
+	if names[AddToCart] != 1 || names[RemoveFromCart] != 1 || names[SignUp] != 1 || names[Login] != 1 || len(names) != 4 {
+		t.Errorf("queued %v, want one add (the replay collapsed), one removal, only the shop's own sign-up and the customer's sign-in", names)
 	}
 }
 
