@@ -92,8 +92,9 @@ func (w *Worker) RunOnce(ctx context.Context) int {
 				defer wg.Done()
 				defer func() { <-sem }()
 				defer func() {
-					if rec := recover(); rec != nil { // a kind's mapping bug must not take the process down; the lease replays the row
+					if rec := recover(); rec != nil { // a kind's mapping bug must not take the process down, nor retry forever
 						slog.Error("tracking send panicked", "delivery", item.ID, "kind", d.Kind, "panic", rec, "stack", string(debug.Stack()))
+						w.fail(ctx, item, &d, fmt.Errorf("send panicked: %v", rec))
 					}
 				}()
 				w.deliver(ctx, item, d)
@@ -170,7 +171,7 @@ func redact(s string, d *Destination) string {
 		}
 	}
 	if len(s) > 1000 {
-		s = s[:1000]
+		s = strings.ToValidUTF8(s[:1000], "") // a cut through a multi-byte rune is invalid text, which Postgres refuses
 	}
 	return s
 }
