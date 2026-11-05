@@ -618,17 +618,15 @@ func TestCartActivityWithAnalyticsRefusedCountsAsNobody(t *testing.T) {
 	}
 }
 
-// A backfill follows the shop's choice like the live events do - an order placed without analytics consent stays
-// uncounted where the shop turned counting it as nobody off
-func TestABackfillHonoursTheShopsAggregateSetting(t *testing.T) {
+// A backfill skips an order placed without analytics consent: it already counted - under an order-only id before such
+// orders counted as nobody, as nobody since - and the key a replay would get now matches neither
+func TestABackfillLeavesOrdersPlacedWithoutConsentAlone(t *testing.T) {
 	o := order.Order{ID: uuid.New(), Number: "1300", ChannelID: uuid.New(), TotalAmount: 900, CurrencyCode: "EUR", Tracking: &auth.Shopper{}}
-	for on, want := range map[bool]int{true: 1, false: 0} {
-		fr := &fakeRecorder{}
-		if err := NewTracker(fr, nil, countsNobody(on)).BackfillOrder(context.Background(), o, time.Now()); err != nil {
-			t.Fatal(err)
-		}
-		if len(fr.calls) != want || (want == 1 && fr.calls[0].Source != sourceAggregate) {
-			t.Errorf("aggregate counts %v: recorded %+v, want %d as nobody", on, fr.calls, want)
-		}
+	fr := &fakeRecorder{}
+	if err := NewTracker(fr, nil, countsNobody(true)).BackfillOrder(context.Background(), o, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if len(fr.calls) != 0 {
+		t.Errorf("recorded %+v, want nothing - a second copy under a new key", fr.calls)
 	}
 }

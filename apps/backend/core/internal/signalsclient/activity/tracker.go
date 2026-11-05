@@ -80,7 +80,12 @@ func (t *Tracker) CountView(ctx context.Context, channelID uuid.UUID, path strin
 
 // BackfillOrder replays a past order's placement, for orders that never reached the suite - placedAt must be the time the
 // live event carried, since the dedupe key only collapses a copy in the same daily partition
+// An order placed without analytics consent is skipped: it already counted, under an id of its own before such orders
+// counted as nobody and as nobody since, and the key it would get now matches neither, so a replay would count it twice
 func (t *Tracker) BackfillOrder(ctx context.Context, o order.Order, placedAt time.Time) error {
+	if orderActor(o).nobody {
+		return nil
+	}
 	held := &Tracker{rec: t.rec, orders: heldOrder(o), settings: t.settings} // the gift-card follow-up reads the order the caller already has
 	return held.onOrderPlaced(events.WithEmittedAt(ctx, placedAt), &order.OrderPlaced{
 		OrderID: o.ID, OrderNumber: o.Number, CustomerID: o.CustomerID, Email: o.Email, AnonID: o.AnonID,
