@@ -60,6 +60,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
+	"github.com/skeletg/skelet/apps/backend/core/internal/tracking"
 	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
 	"github.com/skeletg/skelet/apps/backend/core/internal/webform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/webhook"
@@ -168,6 +169,7 @@ type Svcs struct {
 
 	Flows               *enroll.Enroller
 	BackInStock         *backinstock.Service
+	Tracking            *tracking.Service
 	TransactionalSender *mailsend.Sender
 
 	Scheduler  *scheduler.Service

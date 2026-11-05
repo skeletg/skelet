@@ -102,6 +102,36 @@ func (q *Queries) DeleteCustomerSignupSubmissions(ctx context.Context, arg Delet
 	return result.RowsAffected()
 }
 
+const deleteCustomerTrackingDeliveries = `-- name: DeleteCustomerTrackingDeliveries :execrows
+DELETE FROM tracking_deliveries d
+USING  tracking_destinations t
+WHERE  d.destination_id = t.id AND t.channel_id = $1
+  AND (d.payload->'user'->>'customer_id' = $2::uuid::text
+       OR lower(btrim(d.payload->'user'->>'email')) = $3::text
+       OR d.payload->'user'->>'anon_id' IN (
+           SELECT o.anon_id FROM orders o
+           WHERE  o.channel_id = $1 AND o.anon_id <> ''
+             AND (o.customer_id = $2::uuid
+                  OR (o.customer_id IS NULL AND lower(btrim(o.email)) = $3::text))))
+`
+
+type DeleteCustomerTrackingDeliveriesParams struct {
+	ChannelID  uuid.UUID `json:"channel_id"`
+	CustomerID uuid.UUID `json:"customer_id"`
+	Email      string    `json:"email"`
+}
+
+// Queued and logged tracking events carry the customer's address, phone, IP and click ids unhashed - by customer id or
+// address, and by the visitor id their orders were placed under, which a guest's browser events carry alone. Runs before
+// the orders are scrubbed, while they still hold that visitor id
+func (q *Queries) DeleteCustomerTrackingDeliveries(ctx context.Context, arg DeleteCustomerTrackingDeliveriesParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteCustomerTrackingDeliveries, arg.ChannelID, arg.CustomerID, arg.Email)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteCustomerWebFormSubmissions = `-- name: DeleteCustomerWebFormSubmissions :execrows
 DELETE FROM web_form_submissions
 WHERE  customer_id = $1

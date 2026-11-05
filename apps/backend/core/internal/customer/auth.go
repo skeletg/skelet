@@ -78,7 +78,7 @@ func (s *Service) Register(ctx context.Context, channelID uuid.UUID, emailAddr, 
 		// Tags from the pre-commit chain carry forward so enrichers can influence async subscribers
 		return []events.Event{&CustomerRegistered{
 			CustomerID: c.ID, ChannelID: c.ChannelID, Email: c.Email, FirstName: c.FirstName, LastName: c.LastName,
-			Source: SourceSelf, Tags: ing.Tags,
+			Source: SourceSelf, Tags: ing.Tags, Shopper: auth.ShopperFromContext(ctx),
 		}}, nil
 	})
 	if errors.Is(err, ErrEmailTaken) {

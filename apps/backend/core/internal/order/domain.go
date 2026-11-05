@@ -64,34 +64,9 @@ func (o Order) AmountDue() int64 {
 	return o.TotalAmount - o.GiftCardAmount - o.StoreCreditAmount
 }
 
-// Tracking is how a shop's visitor placed the order, kept in metadata.tracking for the analytics and ad platforms its events
-// go to later - snapshotted at placement, so an event sent after the visitor changes their mind still follows the consent
-// that applied when they bought. Each part is kept only under the consent it needs
-type Tracking struct {
-	Consent   auth.Consent      `json:"consent"`
-	AnonID    string            `json:"anon_id,omitempty"`   // analytics
-	ClickIDs  map[string]string `json:"click_ids,omitempty"` // ads, or an affiliate network the merchant made necessary
-	IP        string            `json:"ip,omitempty"`        // ads, the platforms' match keys
-	UserAgent string            `json:"ua,omitempty"`        // ads
-}
-
-// TrackingFromContext is nil for a request that states no cookie consent - admin drafts and API clients, which have no banner
-func TrackingFromContext(ctx context.Context) *Tracking {
-	c, ok := auth.ConsentFromContext(ctx)
-	if !ok {
-		return nil
-	}
-	t := &Tracking{Consent: c}
-	if c.Analytics {
-		t.AnonID = auth.AnonID(ctx)
-	}
-	t.ClickIDs = auth.ClickIDs(ctx) // decides per id: ad platforms' need ads consent, an affiliate's may be necessary
-	if c.Ads {
-		r, _ := auth.RequestFromContext(ctx)
-		t.IP, t.UserAgent = auth.ClientIP(r), r.UserAgent()
-	}
-	return t
-}
+// Tracking is the shopper as they placed the order, kept in metadata.tracking - so an event sent after they change their
+// mind still follows the consent that applied when they bought
+type Tracking = auth.Shopper
 
 type OrderAddress struct {
 	FirstName   string

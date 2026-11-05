@@ -138,13 +138,3 @@ func TestClickIDs(t *testing.T) {
 		t.Errorf("no request: ClickIDs = %v", got)
 	}
 }
-
-func TestAnalyticsRefused(t *testing.T) {
-	for consent, want := range map[string]bool{"v2:a0.d1.p1": true, "essential": true, "v2:a1.d0.p0": false, "": false, "junk": false} {
-		r, _ := http.NewRequest(http.MethodPost, "/", nil)
-		r.Header.Set(ConsentHeader, consent)
-		if got := AnalyticsRefused(WithRequest(context.Background(), r)); got != want {
-			t.Errorf("AnalyticsRefused(%q) = %v, want %v", consent, got, want)
-		}
-	}
-}

@@ -5,6 +5,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
+
 	"github.com/skeletg/skelet/apps/backend/core/internal/syncveto"
 )
 
@@ -100,6 +102,7 @@ type CustomerRegistered struct {
 	LastName   string
 	Source     string
 	Tags       []string
+	Shopper    *auth.Shopper // the visitor as their consent stood at sign-up, nil for a caller with no banner
 }
 
 func (*CustomerRegistered) Type() string { return EventRegistered }

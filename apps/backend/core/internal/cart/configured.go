@@ -105,15 +105,15 @@ func (s *Service) addConfiguredLine(ctx context.Context, cart Cart, input AddCon
 	}
 	if s.bus != nil {
 		s.bus.Publish(ctx, &LineAdded{
-			CartID:           cart.ID,
-			ChannelID:        cart.ChannelID,
-			CustomerID:       cart.CustomerID,
-			AnonID:           auth.AnonID(ctx),
-			AnalyticsRefused: auth.AnalyticsRefused(ctx),
-			LineID:           line.ID,
-			ProductSku:       input.ProductSku,
-			UnitPrice:        unitPrice,
-			Quantity:         quantity,
+			CartID:     cart.ID,
+			ChannelID:  cart.ChannelID,
+			CustomerID: cart.CustomerID,
+			AnonID:     auth.AnonID(ctx),
+			Shopper:    auth.ShopperFromContext(ctx),
+			LineID:     line.ID,
+			ProductSku: input.ProductSku,
+			UnitPrice:  unitPrice,
+			Quantity:   quantity,
 		})
 	}
 	return loadCartWithLines(ctx, s.repo, cart.ID)
