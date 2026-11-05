@@ -23,11 +23,19 @@ type activityWriter interface {
 	RecordActivity(ctx context.Context, a signalsclient.ActivitySpec) error
 }
 
+type boolSettings interface {
+	GetBool(ctx context.Context, path string, scope config.Scope) (bool, error)
+}
+
 // A page view from a visitor who hasn't allowed analytics, sent by the storefront's proxy rather than the browser - no
 // cookie is read or set for it. It reaches Signals as nobody: the path alone, with no visitor, IP or user agent, so it
 // counts in totals and never as a person. The IP is used for the rate limit and dropped
-func countHandler(rec activityWriter, cfg *config.Service, channels *channel.Service, limiter *ratelimit.RedisLimiter) http.Handler {
-	return channel.Middleware(channels)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func countHandler(rec activityWriter, cfg boolSettings, channels *channel.Service, limiter *ratelimit.RedisLimiter) http.Handler {
+	return channel.Middleware(channels)(countView(rec, cfg, limiter))
+}
+
+func countView(rec activityWriter, cfg boolSettings, limiter *ratelimit.RedisLimiter) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		defer w.WriteHeader(http.StatusNoContent)
 		ch, ok := channel.FromContext(r.Context())
 		if r.Method != http.MethodPost || !ok || ch == nil || rec == nil {
@@ -49,7 +57,7 @@ func countHandler(rec activityWriter, cfg *config.Service, channels *channel.Ser
 			EventName: "page_view", Source: "aggregate", ChannelID: ch.ID, At: time.Now().UTC(),
 			Props: map[string]any{"path": path}, DedupeKey: "agg:" + uuid.NewString(), // every view is its own
 		})
-	}))
+	}
 }
 
 var idSegment = regexp.MustCompile(`^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|\d{6,}|[A-Za-z0-9_]{20,})$`)
