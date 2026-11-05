@@ -20,7 +20,7 @@ func sampleOrder() order.Order {
 	phone := "+381601234567"
 	return order.Order{
 		ID: uuid.New(), Number: "ORD-000042", ChannelID: uuid.New(), CustomerID: &cust, Email: "a@example.com",
-		CurrencyCode: "EUR", SubtotalAmount: 5000, DiscountAmount: 500, TaxAmount: 900, ShippingAmount: 490,
+		CurrencyCode: "EUR", SubtotalAmount: 5000, DiscountAmount: 500, TaxAmount: 900, ShippingAmount: 490, TotalAmount: 5890,
 		BillingAddress: order.OrderAddress{Phone: &phone},
 		CreatedAt:      time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC),
 		Lines: []order.OrderLine{
@@ -61,16 +61,30 @@ func TestAPurchaseCarriesTheOrderAsGA4AndTheConsentOfThePlacement(t *testing.T) 
 
 func TestARefundReportsWhatTheMemoGaveBack(t *testing.T) {
 	o := sampleOrder()
-	memo := order.CreditMemo{ID: uuid.New(), TotalCents: 1990, ShippingRefundCents: 490, Lines: []order.CreditMemoLine{{OrderLineID: o.Lines[0].ID, Quantity: 1}}}
-	ev := RefundEvent(o, memo, time.Now())
-	if ev.Name != Refund || ev.ID != "refund:"+memo.ID.String() || ev.Ecommerce.Value != 19.9 || ev.Ecommerce.Shipping != 4.9 {
+	// one of two mugs: 1500 less its 10% discount share - the 4.90 shipping and the tax in TotalCents aren't the purchase's
+	memo := order.CreditMemo{ID: uuid.New(), TotalCents: 2110, ShippingRefundCents: 490, Lines: []order.CreditMemoLine{{OrderLineID: o.Lines[0].ID, Quantity: 1}}}
+	ev := RefundEvent(o, memo, 0, time.Now())
+	if ev.Name != Refund || ev.ID != "refund:"+memo.ID.String() || ev.Ecommerce.Value != 13.5 || ev.Ecommerce.Shipping != 4.9 {
 		t.Errorf("refund: %+v %+v", ev, ev.Ecommerce)
 	}
 	if len(ev.Ecommerce.Items) != 1 || ev.Ecommerce.Items[0].ItemID != "SKU-1" || ev.Ecommerce.Items[0].Quantity != 1 {
 		t.Errorf("refund items: %+v", ev.Ecommerce.Items)
 	}
-	if c := CancelEvent(o, 0.5, time.Now()); c.ID != "cancel:"+o.ID.String() || c.Name != Refund || c.Ecommerce.Value != 22.5 {
+
+	// a full refund after it takes back only what is left, so refunds never pass the purchase's 45
+	full := order.CreditMemo{ID: uuid.New(), TotalCents: 5890, ShippingRefundCents: 490}
+	if v := RefundEvent(o, full, 1350, time.Now()).Ecommerce.Value; v != 31.5 {
+		t.Errorf("full refund after a partial = %v, want 31.5", v)
+	}
+	if v := RefundEvent(o, full, 0, time.Now()).Ecommerce.Value; v != 45 {
+		t.Errorf("a line-less full refund = %v, want the purchase's 45", v)
+	}
+
+	if c := CancelEvent(o, 0.5, 0, time.Now()); c.ID != "cancel:"+o.ID.String() || c.Name != Refund || c.Ecommerce.Value != 22.5 {
 		t.Errorf("cancel: %+v %+v", c, c.Ecommerce)
+	}
+	if v := CancelEvent(o, 1, 1350, time.Now()).Ecommerce.Value; v != 31.5 {
+		t.Errorf("cancel after a refund = %v, want 31.5 - the refund already took 13.5 back", v)
 	}
 }
 
@@ -83,8 +97,8 @@ func (c oneChannel) GetByID(_ context.Context, id uuid.UUID) (channel.Channel, e
 type noOrders struct{}
 
 func (noOrders) GetByID(context.Context, uuid.UUID) (order.Order, error) { return order.Order{}, nil }
-func (noOrders) GetCreditMemo(context.Context, uuid.UUID) (order.CreditMemo, error) {
-	return order.CreditMemo{}, nil
+func (noOrders) ListCreditMemos(context.Context, uuid.UUID) ([]order.CreditMemo, error) {
+	return nil, nil
 }
 
 func TestCartChangesAndSignUpsBecomeEvents(t *testing.T) {
