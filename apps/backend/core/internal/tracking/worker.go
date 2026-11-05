@@ -8,10 +8,11 @@ import (
 	"net/http"
 	"runtime/debug"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/internal/leasequeue"
 )
 
 const (
@@ -35,77 +36,59 @@ var maxAttempts = int32(1 + len(retryDelays))
 type Worker struct {
 	store  store
 	client *http.Client
-	poll   time.Duration
+	runner leasequeue.Runner[Delivery]
 }
 
 // The client must be the SSRF-safe one - a destination's endpoint is configured by an admin and may name anything
 func NewWorker(s *Service, client *http.Client) *Worker {
-	return &Worker{store: s.store, client: client, poll: pollInterval}
-}
-
-func (w *Worker) Run(ctx context.Context) {
-	tick := time.NewTicker(w.poll)
-	defer tick.Stop()
-	prune := time.NewTicker(time.Hour)
-	defer prune.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-tick.C:
-			w.RunOnce(ctx)
-		case <-prune.C:
+	w := &Worker{store: s.store, client: client}
+	w.runner = leasequeue.Runner[Delivery]{
+		Name: "tracking", Poll: pollInterval, Batch: batchSize, Lease: leaseSeconds, Workers: workers,
+		Claim:   s.store.ClaimDue,
+		Prepare: w.prepare,
+		Hourly: func(ctx context.Context) {
 			if _, err := w.store.Prune(ctx, time.Now().Add(-logRetention)); err != nil {
 				slog.Warn("prune tracking deliveries", "err", err)
 			}
-		}
+		},
 	}
+	return w
 }
 
+func (w *Worker) Run(ctx context.Context) { w.runner.Run(ctx) }
+
 // RunOnce sends everything due and returns how many rows it took
-func (w *Worker) RunOnce(ctx context.Context) int {
-	done := 0
-	for ctx.Err() == nil {
-		due, err := w.store.ClaimDue(ctx, batchSize, leaseSeconds)
+func (w *Worker) RunOnce(ctx context.Context) int { return w.runner.RunOnce(ctx) }
+
+// Loads each destination a batch names once, secret included - many rows share one
+func (w *Worker) prepare(ctx context.Context, due []Delivery) func(context.Context, Delivery) {
+	dests := map[uuid.UUID]Destination{}
+	failed := map[uuid.UUID]error{}
+	for _, item := range due {
+		if _, ok := dests[item.DestinationID]; ok || failed[item.DestinationID] != nil {
+			continue
+		}
+		d, err := w.store.Get(ctx, item.DestinationID)
 		if err != nil {
-			slog.Warn("claim tracking deliveries", "err", err)
-			return done
+			failed[item.DestinationID] = fmt.Errorf("load destination: %w", err)
+			continue
 		}
-		done += len(due)
-		dests := map[uuid.UUID]*Destination{} // many rows share a destination
-		var wg sync.WaitGroup
-		sem := make(chan struct{}, workers)
-		for _, item := range due {
-			d, ok := dests[item.DestinationID]
-			if !ok {
-				loaded, err := w.store.Get(ctx, item.DestinationID)
-				if err != nil {
-					w.fail(ctx, item, nil, fmt.Errorf("load destination: %w", err))
-					continue
-				}
-				d = &loaded
-				dests[item.DestinationID] = d
-			}
-			sem <- struct{}{}
-			wg.Add(1)
-			go func(item Delivery, d Destination) {
-				defer wg.Done()
-				defer func() { <-sem }()
-				defer func() {
-					if rec := recover(); rec != nil { // a kind's mapping bug must not take the process down, nor retry forever
-						slog.Error("tracking send panicked", "delivery", item.ID, "kind", d.Kind, "panic", rec, "stack", string(debug.Stack()))
-						w.fail(ctx, item, &d, fmt.Errorf("send panicked: %v", rec))
-					}
-				}()
-				w.deliver(ctx, item, d)
-			}(item, *d)
-		}
-		wg.Wait()
-		if len(due) < batchSize {
-			return done
-		}
+		dests[item.DestinationID] = d
 	}
-	return done
+	return func(ctx context.Context, item Delivery) {
+		d, ok := dests[item.DestinationID]
+		if !ok {
+			w.fail(ctx, item, nil, failed[item.DestinationID])
+			return
+		}
+		defer func() {
+			if rec := recover(); rec != nil { // a kind's mapping bug must not retry forever - it takes the ladder like any failure
+				slog.Error("tracking send panicked", "delivery", item.ID, "kind", d.Kind, "panic", rec, "stack", string(debug.Stack()))
+				w.fail(ctx, item, &d, fmt.Errorf("send panicked: %v", rec))
+			}
+		}()
+		w.deliver(ctx, item, d)
+	}
 }
 
 func (w *Worker) deliver(ctx context.Context, item Delivery, d Destination) {
@@ -139,14 +122,14 @@ func (w *Worker) fail(ctx context.Context, item Delivery, d *Destination, err er
 	if d != nil {
 		reason = redact(reason, d)
 	}
-	if isPermanent(err) || item.Attempts >= maxAttempts {
+	delay, retry := leasequeue.Retry(item.Attempts, retryDelays)
+	if isPermanent(err) || !retry {
 		if d == nil {
 			d = &Destination{}
 		}
 		w.dead(ctx, item, *d, reason)
 		return
 	}
-	delay := retryDelays[max(1, min(int(item.Attempts), len(retryDelays)))-1]
 	if err := w.store.Reschedule(ctx, item.ID, time.Now().Add(delay), reason); err != nil {
 		slog.Warn("reschedule tracking delivery", "delivery", item.ID, "err", err)
 	}
