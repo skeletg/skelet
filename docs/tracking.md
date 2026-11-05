@@ -8,10 +8,17 @@ server, so the storefront loads no tracking script. What each event needs from t
 
 | Event | Reported by |
 |---|---|
-| `page_view`, `view_item`, `begin_checkout` | The storefront, as a beacon to its own `/t/e`. The storefront server adds the visitor's consent, click ids, analytics session and browser, then forwards it to the backend |
-| `add_to_cart`, `remove_from_cart` | The backend, when the cart changes |
-| `purchase`, `refund` (also on cancellation) | The backend, from the order, using the consent given at purchase |
-| `sign_up` | The backend, when a shopper creates an account |
+| `page_view`, `view_item_list`, `select_item`, `view_item`, `view_cart`, `begin_checkout`, `view_promotion`, `select_promotion`, `search` | The storefront, as a beacon to its own `/t/e`. The storefront server adds the visitor's consent, click ids, analytics session and browser, then forwards it to the backend. The backend drops any other name sent this way |
+| `add_to_cart`, `remove_from_cart` | The backend, when the cart changes. A quantity change is an add or removal of the difference |
+| `add_shipping_info`, `add_payment_info` | The backend, when a checkout step picks a different delivery or payment method. `shipping_tier` is `carrier:method` per delivery group (an option's id when it has no carrier method), `payment_type` the provider's slug |
+| `add_to_wishlist` | The backend, when a signed-in customer saves a product |
+| `purchase`, `refund` (also on cancellation) | The backend, from the order, using the consent given at purchase. `coupon` lists the codes the order redeemed |
+| `sign_up`, `login` | The backend, when a shopper creates an account or signs in |
+| `generate_lead` | The backend, when a visitor sends a signup form. It carries no email, since the address isn't confirmed yet |
+
+Vetrina reports list views and clicks on category, collection and search grids, cart views, searches, and the
+promotions on a product page. Its promotion banners link nowhere, so it sends no `select_promotion`. A storefront with
+clickable banners sends it with `promotion_id`, `promotion_name` and `creative_slot`.
 
 Each event goes to every enabled destination on its channel that wants it, if the visitor allowed what that platform
 needs. Delivery is queued and retried: after 10s, 1m, 5m, 30m and 2h, then dead. One failing event never holds up
