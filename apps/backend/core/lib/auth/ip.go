@@ -86,13 +86,9 @@ const SessionHeader = "X-Session-Id" // the storefront's analytics session, its 
 
 var sessionValue = regexp.MustCompile(`^\d{9,11}$`)
 
-// SessionID is the analytics session the storefront forwards - "" without analytics consent or for anything else
-func SessionID(ctx context.Context) string {
-	c, ok := ConsentFromContext(ctx)
-	if !ok || !c.Analytics {
-		return ""
-	}
-	r, _ := RequestFromContext(ctx)
+// sessionID is the analytics session the storefront forwards - "" for anything that isn't one. The caller has
+// already checked the visitor allowed analytics
+func sessionID(r *http.Request) string {
 	if v := r.Header.Get(SessionHeader); sessionValue.MatchString(v) {
 		return v
 	}
@@ -111,12 +107,7 @@ var clickIDValue = regexp.MustCompile(`^[\w.~-]{1,255}$`)
 
 // ClickIDs reads the forwarded click ids - ad platforms' only with ads consent, whatever the header says. Only known keys
 // holding opaque tokens pass, so the header can't write arbitrary data into an order
-func ClickIDs(ctx context.Context) map[string]string {
-	c, ok := ConsentFromContext(ctx)
-	if !ok {
-		return nil
-	}
-	r, _ := RequestFromContext(ctx)
+func ClickIDs(r *http.Request, c Consent) map[string]string {
 	q, err := url.ParseQuery(r.Header.Get(ClickIDsHeader))
 	if err != nil {
 		return nil
