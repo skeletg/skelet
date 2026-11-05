@@ -43,6 +43,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/shoptools"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/activity"
+	"github.com/skeletg/skelet/apps/backend/core/internal/tracking"
 	authpkg "github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/cache"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
@@ -293,7 +294,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 		counter := activity.NewTracker(s.SignalsClient, nil, s.Config) // a counted view loads no order
 		mux.Handle(activity.CountPath, otelx.WrapHTTP(channel.Middleware(s.Channel)(counter.CountHandler(ingestLimiter)), "signals.count"))
 	}
-	mux.Handle(trackPath, otelx.WrapHTTP(trackHandler(s.Tracking, s.Channel, ingestLimiter, infra.Config.CustomerKeys.Verifier()), "tracking.collect"))
+	mux.Handle(tracking.TrackPath, otelx.WrapHTTP(channel.Middleware(s.Channel)(s.Tracking.BrowserHandler(ingestLimiter, infra.Config.CustomerKeys.Verifier())), "tracking.collect"))
 	// The beacon surface is the suite's, so this is a proxy - one public entry point for a simple
 	// install, and a storefront that would rather skip the hop can point at the tier directly
 	if beacons := beaconProxy(bool(s.SignalsEnabled)); beacons != nil {
