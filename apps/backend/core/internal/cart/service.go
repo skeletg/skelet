@@ -478,13 +478,16 @@ func (s *Service) UpdateCartLine(ctx context.Context, cartID, lineID uuid.UUID, 
 	}
 	if s.bus != nil {
 		s.bus.Publish(ctx, &LineUpdated{
-			CartID:     cart.ID,
-			ChannelID:  cart.ChannelID,
-			CustomerID: cart.CustomerID,
-			AnonID:     auth.AnonID(ctx),
-			Shopper:    auth.ShopperFromContext(ctx),
-			LineID:     lineID,
-			Quantity:   quantity,
+			CartID:       cart.ID,
+			ChannelID:    cart.ChannelID,
+			CustomerID:   cart.CustomerID,
+			AnonID:       auth.AnonID(ctx),
+			Shopper:      auth.ShopperFromContext(ctx),
+			LineID:       lineID,
+			ProductSku:   line.ProductSku,
+			UnitPrice:    valueOr(repricedUnit, line.UnitPrice),
+			Quantity:     quantity,
+			PrevQuantity: line.Quantity,
 		})
 	}
 	return loadCartWithLines(ctx, s.repo, cart.ID)

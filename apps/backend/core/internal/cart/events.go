@@ -205,13 +205,16 @@ func (e *LineUpdating) ApplyWebhookResponse(body []byte) (bool, string, error) {
 }
 
 type LineUpdated struct { // fires AFTER the quantity is written, async
-	CartID     uuid.UUID
-	ChannelID  uuid.UUID
-	CustomerID *uuid.UUID
-	AnonID     string
-	LineID     uuid.UUID
-	Quantity   float64
-	Shopper    *auth.Shopper // the visitor as their consent stood, nil for a caller with no banner
+	CartID       uuid.UUID
+	ChannelID    uuid.UUID
+	CustomerID   *uuid.UUID
+	AnonID       string
+	LineID       uuid.UUID
+	ProductSku   string
+	UnitPrice    int64 // after the edit, which may have crossed a price tier
+	Quantity     float64
+	PrevQuantity float64
+	Shopper      *auth.Shopper // the visitor as their consent stood, nil for a caller with no banner
 }
 
 func (*LineUpdated) Type() string                { return EventLineUpdated }

@@ -241,3 +241,32 @@ func TestOptOutsReachOnlyTheKindsBuiltToRemove(t *testing.T) {
 		t.Errorf("opt-outs %v, want the withdrawal, the deletion and the erasure only", emails)
 	}
 }
+
+// GA4 has no quantity-change event - a raise is an add of the difference, a cut a removal of it
+func TestAQuantityChangeIsAnAddOrRemovalOfTheDifference(t *testing.T) {
+	ch := uuid.New()
+	registerTestKind(t, sdk.Destination{Kind: "t-all"})
+	fs := newFakeStore(Destination{ID: uuid.New(), ChannelID: ch, Kind: "t-all", Enabled: true})
+	svc := &Service{store: fs}
+	bus := events.NewBus()
+	svc.Subscribe(bus, noOrders{}, oneChannel{"EUR"}, nil, nil)
+	line := uuid.New()
+	at := time.Unix(1700000000, 0)
+	for i, q := range [][2]float64{{1, 3}, {3, 2}, {2, 2}} {
+		ctx := events.WithEmittedAt(context.Background(), at.Add(time.Duration(i)*time.Second))
+		_ = bus.DispatchAsyncNow(ctx, &cart.LineUpdated{ChannelID: ch, LineID: line, ProductSku: "SKU-1", UnitPrice: 1500, PrevQuantity: q[0], Quantity: q[1]})
+	}
+	if len(fs.events) != 2 {
+		t.Fatalf("queued %d events, want two (an unchanged quantity is nothing)", len(fs.events))
+	}
+	got := map[string]Event{}
+	for _, ev := range fs.events {
+		got[ev.Name] = ev
+	}
+	if add := got[AddToCart]; add.Ecommerce == nil || add.Ecommerce.Items[0].Quantity != 2 || add.Ecommerce.Value != 30 {
+		t.Errorf("1 -> 3 should add 2 worth 30: %+v", add.Ecommerce)
+	}
+	if rm := got[RemoveFromCart]; rm.Ecommerce == nil || rm.Ecommerce.Items[0].Quantity != 1 || rm.Ecommerce.Value != 15 {
+		t.Errorf("3 -> 2 should remove 1 worth 15: %+v", rm.Ecommerce)
+	}
+}

@@ -53,6 +53,7 @@ func (s *Service) Subscribe(bus *events.Bus, orders orderReader, channels channe
 	bus.Subscribe(order.EventCancelled, h.onCancelled)
 	bus.Subscribe(cart.EventLineAdded, h.onLineAdded)
 	bus.Subscribe(cart.EventBundleAdded, h.onBundleAdded)
+	bus.Subscribe(cart.EventLineUpdated, h.onLineUpdated)
 	bus.Subscribe(cart.EventLineRemoved, h.onLineRemoved)
 	bus.Subscribe(customer.EventRegistered, h.onRegistered)
 	bus.Subscribe(consent.EventChanged, h.onConsentChanged)
@@ -288,6 +289,19 @@ func (h handlers) onBundleAdded(ctx context.Context, e events.Event) error {
 		return nil
 	}
 	return h.cartEvent(ctx, AddToCart, ev.ChannelID, ev.CustomerID, ev.Shopper, ev.LineID, ev.ProductSku, ev.UnitPrice, ev.Quantity)
+}
+
+// A quantity change is GA4's add or remove of the difference
+func (h handlers) onLineUpdated(ctx context.Context, e events.Event) error {
+	ev, ok := e.(*cart.LineUpdated)
+	if !ok || ev.ProductSku == "" || ev.Quantity == ev.PrevQuantity {
+		return nil
+	}
+	name, qty := AddToCart, ev.Quantity-ev.PrevQuantity
+	if qty < 0 {
+		name, qty = RemoveFromCart, -qty
+	}
+	return h.cartEvent(ctx, name, ev.ChannelID, ev.CustomerID, ev.Shopper, ev.LineID, ev.ProductSku, ev.UnitPrice, qty)
 }
 
 func (h handlers) onLineRemoved(ctx context.Context, e events.Event) error {
