@@ -8,6 +8,7 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"maps"
@@ -55,8 +56,30 @@ type Recorder struct {
 	aggKey  []byte             // keys an aggregate event's dedupe hash, so the stored key can't be recomputed from an order or line id
 }
 
-// SetAggregateKey takes a secret neither database holds - boot passes the service secret
+// SetAggregateKey takes a secret neither database holds - boot passes the service secret. Without one, an aggregate
+// event is refused rather than stored under a hash anyone holding the order id could recompute
 func (r *Recorder) SetAggregateKey(k []byte) { r.aggKey = k }
+
+var errNoAggregateKey = errors.New("no key for aggregate events - set SIGNALS_SERVICE_SECRET")
+
+// asNobody is an aggregate event as it may be stored: no actor whatever the caller sent, only amounts and items, the
+// hour, and the dedupe key as a keyed hash - an exact time, or a key hashed from a known id, would match the event
+// back to its order and so to the customer. It builds new props rather than editing the caller's
+func (r *Recorder) asNobody(a ActivitySpec) ActivitySpec {
+	a.CustomerID, a.AnonID = nil, ""
+	a.At = orNow(a.At).Truncate(time.Hour)
+	m := hmac.New(sha256.New, r.aggKey)
+	m.Write([]byte(a.DedupeKey))
+	a.DedupeKey = "agg:" + hex.EncodeToString(m.Sum(nil)[:16])
+	props := make(map[string]any, len(a.Props))
+	for k, v := range a.Props {
+		if aggregateProps[k] {
+			props[k] = v
+		}
+	}
+	a.Props = props
+	return a
+}
 
 // Layers a decorator (the ingest queue) over the engine
 func (r *Recorder) WrapSpine(wrap func(SpineStore) SpineStore) { r.spine = wrap(r.spine) }
@@ -289,17 +312,10 @@ type ActivitySpec struct { // a server-side action, from authenticated flows rat
 
 func (r *Recorder) RecordActivity(ctx context.Context, a ActivitySpec) (bool, error) { // no-op with neither id - an action we can't attribute to anyone has no place on a profile
 	if a.Source == SourceAggregate {
-		a.CustomerID, a.AnonID = nil, "" // nobody, whatever the caller sent
-		// An exact time, or a key hashed from a known id, would match the event back to its order and so to the customer
-		a.At = orNow(a.At).Truncate(time.Hour)
-		m := hmac.New(sha256.New, r.aggKey)
-		m.Write([]byte(a.DedupeKey))
-		a.DedupeKey = "agg:" + hex.EncodeToString(m.Sum(nil)[:16])
-		for k := range a.Props {
-			if !aggregateProps[k] {
-				delete(a.Props, k)
-			}
+		if len(r.aggKey) == 0 {
+			return false, errNoAggregateKey
 		}
+		a = r.asNobody(a)
 	} else if a.CustomerID == nil && a.AnonID == "" {
 		return false, nil
 	}
