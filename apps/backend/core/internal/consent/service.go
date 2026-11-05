@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/lib/consentkind"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
@@ -155,4 +156,13 @@ func (s *Service) IsOptedIn(ctx context.Context, customerID uuid.UUID, kind stri
 		return false, err
 	}
 	return c.OptedIn, nil
+}
+
+// EmailMarketingAllowed is whether an address may receive marketing email: the account's own consent when there is one,
+// else a guest's opt-in kept under the address
+func (s *Service) EmailMarketingAllowed(ctx context.Context, channelID uuid.UUID, customerID *uuid.UUID, email string) (bool, error) {
+	if customerID != nil {
+		return s.IsOptedIn(ctx, *customerID, consentkind.MarketingEmail)
+	}
+	return s.repo.HasEmailOptIn(ctx, channelID, strings.ToLower(strings.TrimSpace(email)), consentkind.MarketingEmail)
 }

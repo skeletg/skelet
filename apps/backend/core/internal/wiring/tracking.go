@@ -3,12 +3,14 @@ package wiring
 import (
 	"encoding/json"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/plugin"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tracking"
 	"github.com/skeletg/skelet/apps/backend/core/internal/webhook"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
@@ -16,6 +18,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/otelx"
 	"github.com/skeletg/skelet/apps/backend/core/lib/ratelimit"
 	"github.com/skeletg/skelet/apps/backend/core/lib/secrets"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 func newTrackingService(q *db.Queries, cipher *secrets.Cipher, cfg *config.Service) *tracking.Service {
@@ -23,8 +26,11 @@ func newTrackingService(q *db.Queries, cipher *secrets.Cipher, cfg *config.Servi
 	if cipher != nil {
 		sealer = cipher
 	}
+	pluginKinds.Do(func() { tracking.RegisterPluginKinds(sdk.Destinations(), plugin.Enabled) })
 	return tracking.NewService(q, sealer, cfg)
 }
+
+var pluginKinds sync.Once // the kinds are process-wide, and a second registration of one would panic
 
 // The same SSRF-safe transport webhooks use - a destination's endpoint (a server-side GTM container, say) is typed by an admin
 func newTrackingWorker(svc *tracking.Service, allow AllowPrivateTargets) *tracking.Worker {
@@ -62,12 +68,13 @@ func browserEvent(w http.ResponseWriter, r *http.Request, channelID uuid.UUID, c
 		PageURL   string              `json:"page_url"`
 		Referrer  string              `json:"referrer"`
 		Locale    string              `json:"locale"`
+		PageTitle string              `json:"page_title"`
 		Ecommerce *tracking.Ecommerce `json:"ecommerce"`
 	}
 	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 32<<10)).Decode(&in) != nil || !tracking.BrowserEvent(in.Name) {
 		return tracking.Event{}, false
 	}
-	if auth.SanitizeAnonID(in.EventID) == "" || len(in.PageURL) > 2048 || len(in.Referrer) > 2048 || len(in.Locale) > 16 {
+	if auth.SanitizeAnonID(in.EventID) == "" || len(in.PageURL) > 2048 || len(in.Referrer) > 2048 || len(in.Locale) > 16 || len(in.PageTitle) > 300 {
 		return tracking.Event{}, false
 	}
 	if in.Ecommerce != nil && len(in.Ecommerce.Items) > 200 {
@@ -76,7 +83,7 @@ func browserEvent(w http.ResponseWriter, r *http.Request, channelID uuid.UUID, c
 	ev := tracking.Event{
 		ID: in.EventID, Name: in.Name, OccurredAt: time.Now().UTC(), ChannelID: channelID, Source: "browser",
 		Ecommerce: in.Ecommerce,
-		Context:   tracking.Context{PageURL: in.PageURL, Referrer: in.Referrer, Locale: in.Locale},
+		Context:   tracking.Context{PageURL: in.PageURL, Referrer: in.Referrer, Locale: in.Locale, PageTitle: in.PageTitle},
 	}
 	ev.WithShopper(auth.ShopperFromContext(auth.WithRequest(r.Context(), r)))
 	if ev.Consent != nil && ev.Consent.Analytics { // the account is a profile link, so it needs what the anon id needs

@@ -14,6 +14,7 @@ import { AuthUIProvider } from "@/app/components/AuthUIProvider";
 import { CartUIProvider } from "@/app/components/CartUIProvider";
 import { CartHydrator } from "@/app/components/CartHydrator";
 import { LensGate } from "@/app/components/LensGate";
+import { PageViewBeacon } from "@/app/components/PageViewBeacon";
 import { CustomerProvider } from "@skelet/storefront-next/customer/client";
 import { CartMergeNotice } from "@/app/components/CartMergeNotice";
 import { CartStoreProvider } from "@skelet/storefront-next/cart/store";
@@ -162,6 +163,7 @@ export default async function RootLayout({
               <CompareTray />
               <CookieConsentBanner />
               <LensGate signalsEnabled={signalsEnabled} channelId={channel?.id ?? ""} />
+              <PageViewBeacon />
               {/* Shown regardless of marketing consent - the form is how the store earns it */}
               {signalsEnabled && <SignupForms channelId={channel?.id ?? ""} />}
               </CustomerProvider>

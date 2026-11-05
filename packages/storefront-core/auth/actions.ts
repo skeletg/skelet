@@ -26,6 +26,7 @@ import {
   getRefreshToken,
   setSessionCookies,
 } from "./session";
+import { SIGNED_OUT_COOKIE } from "../analytics/session";
 import { CART_COOKIE } from "../cart/read";
 import { CART_MERGE_FLAG, CART_MERGE_FAILED } from "../cart/merge-flag";
 import { GraphQLRequestError, gqlFetch } from "../graphql";
@@ -369,6 +370,8 @@ export async function logoutAction() {
     }
   }
   await clearSessionCookies();
+  // The next person on this device starts as a new visitor - analytics would otherwise join them to this account
+  (await request().cookies()).set(SIGNED_OUT_COOKIE, "1", { path: "/", httpOnly: true, sameSite: "lax", maxAge: 60 * 60 * 24 });
   request().refresh();
   redirect(await withLocalePrefix("/", await getCurrentLocale()));
 }

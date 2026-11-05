@@ -11,6 +11,27 @@ import (
 	"github.com/google/uuid"
 )
 
+const hasEmailOptIn = `-- name: HasEmailOptIn :one
+SELECT EXISTS (
+    SELECT 1 FROM email_opt_ins
+    WHERE  channel_id = $1 AND email = $2 AND kind = $3
+)
+`
+
+type HasEmailOptInParams struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	Email     string    `json:"email"`
+	Kind      string    `json:"kind"`
+}
+
+// A guest's own permission for their address - never read as an account's consent
+func (q *Queries) HasEmailOptIn(ctx context.Context, arg HasEmailOptInParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasEmailOptIn, arg.ChannelID, arg.Email, arg.Kind)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const recordEmailOptIn = `-- name: RecordEmailOptIn :exec
 INSERT INTO email_opt_ins (channel_id, email, kind, source, reference)
 VALUES ($1, $2, $3, $4, $5)

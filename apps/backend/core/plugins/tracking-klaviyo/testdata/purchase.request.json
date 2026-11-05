@@ -1,0 +1,54 @@
+{
+  "data": {
+    "attributes": {
+      "metric": {
+        "data": {
+          "attributes": {
+            "name": "Placed Order"
+          },
+          "type": "metric"
+        }
+      },
+      "profile": {
+        "data": {
+          "attributes": {
+            "anonymous_id": "visitor-1",
+            "email": "a@example.com",
+            "external_id": "0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b"
+          },
+          "type": "profile"
+        }
+      },
+      "properties": {
+        "ItemNames": [
+          "Mug",
+          "Tee"
+        ],
+        "Items": [
+          {
+            "ItemPrice": 15,
+            "ProductID": "SKU-1",
+            "ProductName": "Mug",
+            "Quantity": 2,
+            "RowTotal": 30,
+            "SKU": "SKU-1"
+          },
+          {
+            "ItemPrice": 20,
+            "ProductID": "SKU-2",
+            "ProductName": "Tee",
+            "Quantity": 1,
+            "RowTotal": 20,
+            "SKU": "SKU-2"
+          }
+        ],
+        "OrderId": "ORD-000042"
+      },
+      "time": "2026-11-01T10:00:00Z",
+      "unique_id": "0193a1b2-0000-7000-8000-000000000042",
+      "value": 59,
+      "value_currency": "EUR"
+    },
+    "type": "event"
+  }
+}

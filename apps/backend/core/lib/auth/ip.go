@@ -82,9 +82,26 @@ func ConsentFromContext(ctx context.Context) (Consent, bool) {
 	return Consent{}, false
 }
 
+const SessionHeader = "X-Session-Id" // the storefront's analytics session, its start time in seconds
+
+var sessionValue = regexp.MustCompile(`^\d{9,11}$`)
+
+// SessionID is the analytics session the storefront forwards - "" without analytics consent or for anything else
+func SessionID(ctx context.Context) string {
+	c, ok := ConsentFromContext(ctx)
+	if !ok || !c.Analytics {
+		return ""
+	}
+	r, _ := RequestFromContext(ctx)
+	if v := r.Header.Get(SessionHeader); sessionValue.MatchString(v) {
+		return v
+	}
+	return ""
+}
+
 const ClickIDsHeader = "X-Click-Ids" // the ad and affiliate click ids the storefront keeps in first-party cookies, as a query string
 
-var adClickIDKeys = []string{"gclid", "gbraid", "wbraid", "msclkid", "ttclid", "fbc", "fbp"}
+var adClickIDKeys = []string{"gclid", "gbraid", "wbraid", "msclkid", "ttclid", "fbc", "fbp", "oppref", "obref"}
 
 // The affiliate networks' ids, which a merchant may treat as necessary - the storefront sends them only when its setting
 // or the visitor's ads consent allows, and the pipeline holds each network's conversions to the same rule

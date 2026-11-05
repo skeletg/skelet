@@ -24,6 +24,7 @@ func RegisterOutboxTypes(r OutboxTypes) {
 	r.RegisterType(EventUpdated, func() events.Event { return &CustomerUpdated{} })
 	r.RegisterType(EventProfileUpdated, func() events.Event { return &CustomerProfileUpdated{} })
 	r.RegisterType(EventDeleted, func() events.Event { return &CustomerDeleted{} })
+	r.RegisterType(EventErased, func() events.Event { return &CustomerErased{} })
 	r.RegisterType(EventEmailVerified, func() events.Event { return &CustomerEmailVerified{} })
 }
 

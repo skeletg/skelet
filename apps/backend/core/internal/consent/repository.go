@@ -109,3 +109,11 @@ func (r *postgresRepository) RecordEmailOptIn(ctx context.Context, o EmailOptIn)
 	}
 	return nil
 }
+
+func (r *postgresRepository) HasEmailOptIn(ctx context.Context, channelID uuid.UUID, email, kind string) (bool, error) {
+	ok, err := r.queries.HasEmailOptIn(ctx, db.HasEmailOptInParams{ChannelID: channelID, Email: email, Kind: kind})
+	if err != nil {
+		return false, fmt.Errorf("read email opt-in: %w", err)
+	}
+	return ok, nil
+}

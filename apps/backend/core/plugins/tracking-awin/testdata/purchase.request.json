@@ -1,0 +1,39 @@
+{
+  "orders": [
+    {
+      "amount": 111,
+      "awc": "1001_1700000000_abc",
+      "basket": [
+        {
+          "category": "Shoes",
+          "commissionGroupCode": "SHOES",
+          "id": "321",
+          "name": "Shoe - red",
+          "price": 100,
+          "quantity": 1,
+          "sku": "321"
+        },
+        {
+          "category": "Uncategorised",
+          "commissionGroupCode": "SHOES",
+          "id": "654",
+          "name": "654",
+          "price": 11,
+          "quantity": 1,
+          "sku": "654"
+        }
+      ],
+      "channel": "aw",
+      "commissionGroups": [
+        {
+          "amount": 111,
+          "code": "SHOES"
+        }
+      ],
+      "currency": "GBP",
+      "isTest": true,
+      "orderReference": "%231100011",
+      "voucher": "10_OFF"
+    }
+  ]
+}

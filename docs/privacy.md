@@ -45,6 +45,15 @@ views and checkout steps go through the shop's own `/t/e` path. No third-party s
 An event reaches a destination only when the visitor allowed every category that destination needs. An order placed
 by an admin or an API client has no banner choice behind it, so it reaches only destinations that need no consent.
 
+**Leaving a list needs no consent.** When a customer turns email marketing off, or their account is deleted or
+erased, destinations built to remove people - Google Ads Customer Match - are told whatever the visitor's cookie
+choice. Every other destination still needs the visitor's consent for it.
+
+**Customer Match** puts account holders who opted into email marketing, and allowed advertising and personalization
+cookies, on a Google Ads customer list as hashed email and phone. If you use it, say so in your privacy notice, for
+example: "If you subscribe to our marketing emails, we may share a hashed copy of your email address and phone number
+with Google so that it can show you our ads. You can stop this at any time by unsubscribing."
+
 ## Counting visitors who decline analytics
 
 With `general/privacy/aggregate_counts` on (the default), Signals still counts activity from visitors who haven't

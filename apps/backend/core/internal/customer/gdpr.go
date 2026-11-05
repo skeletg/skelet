@@ -86,7 +86,11 @@ func (s *Service) anonymize(ctx context.Context, c Customer) error {
 		if err := r.Anonymize(ctx, c, string(hash)); err != nil {
 			return nil, err
 		}
-		return []events.Event{updated}, nil
+		erased := &CustomerErased{CustomerID: c.ID, ChannelID: c.ChannelID, Email: c.Email}
+		if c.Phone != nil {
+			erased.Phone = *c.Phone
+		}
+		return []events.Event{updated, erased}, nil
 	})
 	if err != nil {
 		return err

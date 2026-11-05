@@ -1,4 +1,5 @@
 import { request, rethrowControlFlow } from "./request";
+import { SESSION_COOKIE, validSession } from "./analytics/session";
 import { AID_COOKIE } from "./analytics/visitor";
 import { clientIP } from "./client-ip";
 import { CONSENT_COOKIE } from "./consent/cookie";
@@ -34,6 +35,8 @@ export async function shopperHeaders(): Promise<Record<string, string>> {
     out["X-Consent"] = serializeConsent(consent ?? NONE_GRANTED);
     const aid = store.get(AID_COOKIE)?.value;
     if (aid && consent?.analytics) out["X-Anon-Id"] = aid;
+    const sid = store.get(SESSION_COOKIE)?.value;
+    if (consent?.analytics && validSession(sid)) out["X-Session-Id"] = sid;
     // Click ids for a purchase sent server to server - see clickIdsHeader for which go without ads consent
     const clicks = clickIdsHeader((name) => store.get(name)?.value, consent?.ads ?? false);
     if (clicks) out["X-Click-Ids"] = clicks;

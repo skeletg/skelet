@@ -19,6 +19,10 @@ const (
 	EventDeleting      = "customer.deleting"
 	EventDeleted       = "customer.deleted"
 	EventEmailVerified = "customer.email_verified"
+	// A GDPR erasure, carrying the address and phone it removed. Internal only - no webhook offers it - so a list that
+	// holds the person elsewhere (an ad platform's audience) can take them off, which customer.updated can't do once
+	// the address is redacted
+	EventErased = "customer.erased"
 	// Storefront self-service changes, async-only - surfaced on the Synapse activity timeline, and distinct from the admin-driven customer.updated above
 	EventProfileUpdated  = "customer.profile_updated"
 	EventPasswordChanged = "customer.password_changed"
@@ -171,6 +175,16 @@ func (c *CustomerDeleting) EventChannelID() uuid.UUID { return c.ChannelID }
 func (c *CustomerDeleting) ApplyWebhookResponse(body []byte) (bool, string, error) {
 	return syncveto.Decode(body)
 }
+
+type CustomerErased struct {
+	CustomerID uuid.UUID
+	ChannelID  uuid.UUID
+	Email      string
+	Phone      string
+}
+
+func (*CustomerErased) Type() string                { return EventErased }
+func (c *CustomerErased) EventChannelID() uuid.UUID { return c.ChannelID }
 
 type CustomerDeleted struct {
 	CustomerID uuid.UUID

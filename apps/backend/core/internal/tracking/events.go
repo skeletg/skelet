@@ -14,10 +14,12 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
+	"github.com/skeletg/skelet/apps/backend/core/lib/consentkind"
 )
 
 type orderReader interface {
@@ -25,18 +27,27 @@ type orderReader interface {
 	ListCreditMemos(ctx context.Context, orderID uuid.UUID) ([]order.CreditMemo, error)
 }
 
+type customerReader interface {
+	GetByID(ctx context.Context, id uuid.UUID) (customer.Customer, error)
+}
+
 type channelReader interface {
 	GetByID(ctx context.Context, id uuid.UUID) (channel.Channel, error)
+}
+
+// Satisfied by *consent.Service
+type emailMarketing interface {
+	EmailMarketingAllowed(ctx context.Context, channelID uuid.UUID, customerID *uuid.UUID, email string) (bool, error)
 }
 
 // Subscribe turns the server's own events into tracking events: purchases, refunds and cancellations off the order
 // outbox, cart adds and removals, storefront sign-ups. An order event uses the consent snapshotted at placement, the
 // rest the consent the visitor had when they acted
-func (s *Service) Subscribe(bus *events.Bus, orders orderReader, channels channelReader) {
+func (s *Service) Subscribe(bus *events.Bus, orders orderReader, channels channelReader, marketing emailMarketing, customers customerReader) {
 	if bus == nil {
 		return
 	}
-	h := handlers{svc: s, orders: orders, channels: channels}
+	h := handlers{svc: s, orders: orders, channels: channels, marketing: marketing, customers: customers}
 	bus.Subscribe(order.EventPlaced, h.onPlaced)
 	bus.Subscribe(order.EventRefunded, h.onRefunded)
 	bus.Subscribe(order.EventCancelled, h.onCancelled)
@@ -44,12 +55,30 @@ func (s *Service) Subscribe(bus *events.Bus, orders orderReader, channels channe
 	bus.Subscribe(cart.EventBundleAdded, h.onBundleAdded)
 	bus.Subscribe(cart.EventLineRemoved, h.onLineRemoved)
 	bus.Subscribe(customer.EventRegistered, h.onRegistered)
+	bus.Subscribe(consent.EventChanged, h.onConsentChanged)
+	bus.Subscribe(customer.EventDeleted, h.onDeleted)
+	bus.Subscribe(customer.EventErased, h.onErased)
 }
 
 type handlers struct {
-	svc      *Service
-	orders   orderReader
-	channels channelReader
+	svc       *Service
+	orders    orderReader
+	channels  channelReader
+	marketing emailMarketing // nil: no event says its email may be marketed to
+	customers customerReader // nil: an opt-out from the account page reaches no destination
+}
+
+// track sends the event, first noting whether its email may receive marketing - a failed lookup goes back to the
+// outbox rather than sending the event as if the answer were no
+func (h handlers) track(ctx context.Context, ev Event) error {
+	if ev.User.Email != "" && h.marketing != nil {
+		ok, err := h.marketing.EmailMarketingAllowed(ctx, ev.ChannelID, ev.User.CustomerID, ev.User.Email)
+		if err != nil {
+			return fmt.Errorf("email marketing consent: %w", err)
+		}
+		ev.User.MarketingOptIn = ok
+	}
+	return h.svc.Track(ctx, ev)
 }
 
 // A missing order is final; any other failed load goes back to the outbox
@@ -73,7 +102,7 @@ func (h handlers) onPlaced(ctx context.Context, e events.Event) error {
 	if !found {
 		return err
 	}
-	return h.svc.Track(ctx, PurchaseEvent(o))
+	return h.track(ctx, PurchaseEvent(o))
 }
 
 // PurchaseEvent is the order as GA4's purchase - the id is the order's own, so the browser's copy dedupes against it.
@@ -136,7 +165,22 @@ func (h handlers) onRefunded(ctx context.Context, e events.Event) error {
 	if i < 0 {
 		return nil
 	}
-	return h.svc.Track(ctx, RefundEvent(o, memos[i], earlierMemos(o, memos, memos[i]), eventTime(ctx)))
+	out := RefundEvent(o, memos[i], earlierMemos(o, memos, memos[i]), eventTime(ctx))
+	setValueAfter(&out, o, memos, 0)
+	return h.track(ctx, out)
+}
+
+// setValueAfter is what the order is still worth once every credit memo, and a cancellation's share, is taken off -
+// the purchase's own value, tax and shipping in, never below zero
+func setValueAfter(ev *Event, o order.Order, memos []order.CreditMemo, cancelled float64) {
+	worth := o.SubtotalAmount - o.DiscountAmount + o.TaxAmount + o.ShippingAmount
+	left := worth
+	for _, m := range memos {
+		left -= m.TotalCents
+	}
+	left -= int64(math.Round(float64(worth) * cancelled))
+	v := Decimal(max(left, 0), o.CurrencyCode)
+	ev.Ecommerce.ValueAfter = &v
 }
 
 // earlierMemos is what the memos before m already took back, so all of them together never exceed the purchase
@@ -185,7 +229,9 @@ func (h handlers) onCancelled(ctx context.Context, e events.Event) error {
 	for _, m := range memos {
 		refunded += memoNet(o, m)
 	}
-	return h.svc.Track(ctx, CancelEvent(o, ev.RefundableFraction, refunded, eventTime(ctx)))
+	out := CancelEvent(o, ev.RefundableFraction, refunded, eventTime(ctx))
+	setValueAfter(&out, o, memos, ev.RefundableFraction)
+	return h.track(ctx, out)
 }
 
 // CancelEvent reverses the purchase a cancelled order reported, scaled to the share that never shipped and less what
@@ -284,7 +330,51 @@ func (h handlers) onRegistered(ctx context.Context, e events.Event) error {
 		Source: "server", User: User{CustomerID: &cid, Email: ev.Email},
 	}
 	out.WithShopper(ev.Shopper)
-	return h.svc.Track(ctx, out)
+	return h.track(ctx, out)
+}
+
+// An account turned email marketing off. Sent as is - the marketing lookup would only confirm the no
+func (h handlers) onConsentChanged(ctx context.Context, e events.Event) error {
+	ev, ok := e.(*consent.ConsentChanged)
+	if !ok || ev.OptedIn || ev.Kind != consentkind.MarketingEmail || h.customers == nil {
+		return nil
+	}
+	c, err := h.customers.GetByID(ctx, ev.CustomerID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil // deleted since; customer.deleted carries the opt-out
+	}
+	if err != nil {
+		return fmt.Errorf("load customer %s: %w", ev.CustomerID, err)
+	}
+	phone := ""
+	if c.Phone != nil {
+		phone = *c.Phone
+	}
+	return h.optOut(ctx, "optout:", c.ID, c.ChannelID, c.Email, phone)
+}
+
+func (h handlers) onDeleted(ctx context.Context, e events.Event) error {
+	if ev, ok := e.(*customer.CustomerDeleted); ok {
+		return h.optOut(ctx, "deleted:", ev.CustomerID, ev.ChannelID, ev.Email, "")
+	}
+	return nil
+}
+
+func (h handlers) onErased(ctx context.Context, e events.Event) error {
+	if ev, ok := e.(*customer.CustomerErased); ok {
+		return h.optOut(ctx, "erased:", ev.CustomerID, ev.ChannelID, ev.Email, ev.Phone)
+	}
+	return nil
+}
+
+// The id carries the outbox's emit time, so a redelivery dedupes while a later opt-out of the same person still goes
+func (h handlers) optOut(ctx context.Context, prefix string, id, channelID uuid.UUID, email, phone string) error {
+	at := eventTime(ctx)
+	cid := id
+	return h.svc.Track(ctx, Event{
+		ID: prefix + id.String() + ":" + strconv.FormatInt(at.UnixMilli(), 10), Name: MarketingOptOut, OccurredAt: at,
+		ChannelID: channelID, Source: "server", User: User{CustomerID: &cid, Email: email, Phone: phone},
+	})
 }
 
 // The outbox's enqueue time on a relayed event, so a redelivery keeps the first attempt's time and id

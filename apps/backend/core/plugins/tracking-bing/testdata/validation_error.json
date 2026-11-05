@@ -1,0 +1,16 @@
+{
+  "error": {
+    "code": "ValidationError",
+    "message": "One or multiple parameters did not pass validation checks, see details. Note that only the first 10 errors and warnings are shown.",
+    "details": [
+      {
+        "index": 0,
+        "propertyName": "data[0].eventTime",
+        "attemptedValue": 1767793837,
+        "errorMessage": "'eventTime' must be a valid UNIX UTC timestamp in seconds within last 90 days.",
+        "errorCode": "InvalidEventTime",
+        "isWarning": false
+      }
+    ]
+  }
+}

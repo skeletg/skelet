@@ -35,13 +35,23 @@ export function cleanUrl(href: string): string {
   }
 }
 
-export function trackPayload(name: string, eventId: string, ecommerce: unknown, href: string, referrer: string, locale: string) {
-  return { event_id: eventId, name, ecommerce: ecommerce ?? undefined, page_url: cleanUrl(href), referrer: cleanUrl(referrer), locale };
+export function trackPayload(name: string, eventId: string, ecommerce: unknown, href: string, referrer: string, locale: string, title = "") {
+  return {
+    event_id: eventId,
+    name,
+    ecommerce: ecommerce ?? undefined,
+    page_url: cleanUrl(href),
+    referrer: cleanUrl(referrer),
+    locale,
+    page_title: title.slice(0, 300) || undefined,
+  };
 }
 
 export function track(name: string, eventId: string, ecommerce?: unknown) {
   if (!isBrowserEvent(name) || typeof navigator === "undefined") return;
-  const body = JSON.stringify(trackPayload(name, eventId, ecommerce, location.href, document.referrer, document.documentElement.lang));
+  const body = JSON.stringify(
+    trackPayload(name, eventId, ecommerce, location.href, document.referrer, document.documentElement.lang, document.title),
+  );
   // sendBeacon survives the page being left, which a view or checkout step often is right away
   if (!navigator.sendBeacon?.(TRACK_PATH, new Blob([body], { type: "application/json" }))) {
     void fetch(TRACK_PATH, { method: "POST", body, headers: { "Content-Type": "application/json" }, keepalive: true }).catch(() => {});
