@@ -11,47 +11,6 @@ import (
 	"github.com/google/uuid"
 )
 
-const listEmailOptIns = `-- name: ListEmailOptIns :many
-SELECT channel_id, email, kind, source, reference, created_at FROM email_opt_ins
-WHERE  channel_id = $1 AND email = $2
-ORDER  BY kind
-`
-
-type ListEmailOptInsParams struct {
-	ChannelID uuid.UUID `json:"channel_id"`
-	Email     string    `json:"email"`
-}
-
-func (q *Queries) ListEmailOptIns(ctx context.Context, arg ListEmailOptInsParams) ([]EmailOptIn, error) {
-	rows, err := q.db.QueryContext(ctx, listEmailOptIns, arg.ChannelID, arg.Email)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []EmailOptIn{}
-	for rows.Next() {
-		var i EmailOptIn
-		if err := rows.Scan(
-			&i.ChannelID,
-			&i.Email,
-			&i.Kind,
-			&i.Source,
-			&i.Reference,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const recordEmailOptIn = `-- name: RecordEmailOptIn :exec
 INSERT INTO email_opt_ins (channel_id, email, kind, source, reference)
 VALUES ($1, $2, $3, $4, $5)

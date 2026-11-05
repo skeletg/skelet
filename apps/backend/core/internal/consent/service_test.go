@@ -93,16 +93,6 @@ func (r *fakeRepo) RecordEmailOptIn(_ context.Context, o EmailOptIn) error {
 	return nil
 }
 
-func (r *fakeRepo) ListEmailOptIns(_ context.Context, channelID uuid.UUID, email string) ([]EmailOptIn, error) {
-	var out []EmailOptIn
-	for _, o := range r.optIns {
-		if o.ChannelID == channelID && o.Email == email {
-			out = append(out, o)
-		}
-	}
-	return out, nil
-}
-
 // The built-in kinds registered by defaults.go init() - Pinning these keeps
 // the tests honest about the GDPR defaults the service relies on
 const (
@@ -439,42 +429,5 @@ func TestAGuestOptInIsKeptForEmailMarketingOnly(t *testing.T) {
 	}
 	if err := NewService(repo).RecordEmailOptIn(context.Background(), ch, "a@b.c", "made_up", ""); !errors.Is(err, ErrUnknownSource) {
 		t.Errorf("unknown source = %v, want ErrUnknownSource", err)
-	}
-}
-
-func TestAClaimAppliesAGuestOptInUnlessTheAccountDecidedLater(t *testing.T) {
-	ch, cust := uuid.New(), uuid.New()
-	accountChoice := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC) // what fakeRepo.put stamps
-	optIn := func(at time.Time) *fakeRepo {
-		repo := newFakeRepo()
-		repo.optIns = []EmailOptIn{{ChannelID: ch, Email: "guest@example.com", Kind: kindMarketingEmail, Source: SourceCheckout, CreatedAt: at}}
-		return repo
-	}
-	claim := func(repo *fakeRepo) int {
-		n, err := NewService(repo).ClaimEmailOptIns(context.Background(), cust, ch, "Guest@Example.com")
-		if err != nil {
-			t.Fatal(err)
-		}
-		return n
-	}
-
-	repo := optIn(accountChoice.Add(-time.Hour))
-	if n := claim(repo); n != 1 || !repo.stored[storeKey{cust, kindMarketingEmail}].OptedIn || repo.stored[storeKey{cust, kindMarketingEmail}].Source != SourceCheckout {
-		t.Fatalf("first claim applied %d: %+v", n, repo.stored)
-	}
-	if n := claim(repo); n != 0 {
-		t.Errorf("a repeat claim applied %d, want none", n)
-	}
-
-	repo = optIn(accountChoice.Add(-time.Hour))
-	repo.put(cust, kindMarketingEmail, false, SourceRegistration)
-	if n := claim(repo); n != 0 || repo.stored[storeKey{cust, kindMarketingEmail}].OptedIn {
-		t.Errorf("an account's later no was overridden by an older tick")
-	}
-
-	repo = optIn(accountChoice.Add(time.Hour))
-	repo.put(cust, kindMarketingEmail, false, SourceRegistration)
-	if n := claim(repo); n != 1 || !repo.stored[storeKey{cust, kindMarketingEmail}].OptedIn {
-		t.Errorf("a tick given after the account's no was not applied")
 	}
 }

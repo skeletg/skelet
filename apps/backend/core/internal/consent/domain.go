@@ -83,11 +83,10 @@ type Repository interface {
 	ListByCustomer(ctx context.Context, customerID uuid.UUID) ([]StoredConsent, error)
 	ListEvents(ctx context.Context, customerID uuid.UUID, limit int32) ([]Event, error)
 	RecordEmailOptIn(ctx context.Context, o EmailOptIn) error
-	ListEmailOptIns(ctx context.Context, channelID uuid.UUID, email string) ([]EmailOptIn, error)
 }
 
-// EmailOptIn is a marketing opt-in given under an address with no account behind it - a guest's tick at checkout. It waits
-// for someone to prove they own the address, and stays as the proof: the kind, when, where it was given and what (an order number)
+// EmailOptIn is a marketing opt-in given under an address with no account behind it - a guest's tick at checkout, kept as
+// the proof: the kind, when, where it was given and what (an order number). It never becomes an account's consent
 type EmailOptIn struct {
 	ChannelID uuid.UUID
 	Email     string
