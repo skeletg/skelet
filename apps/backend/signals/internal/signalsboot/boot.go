@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics/spinech"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics/spinequeue"
@@ -53,6 +54,7 @@ func Build(ctx context.Context, o Options) (*Stack, error) {
 		return nil, fmt.Errorf("clickhouse spine: %w", err)
 	}
 	rec := analytics.NewRecorder(o.Queries, spine)
+	rec.SetAggregateKey([]byte(os.Getenv(auth.EnvServiceSecret)))
 	st := &Stack{
 		Recorder: rec, Roster: analytics.NewRoster(o.Queries), Traits: analytics.NewTraitCompute(o.Queries, spine),
 		Spine: spine, CHPing: spine.Ping, cleanups: []func(){spineCleanup},

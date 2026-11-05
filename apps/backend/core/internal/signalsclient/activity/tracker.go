@@ -121,17 +121,15 @@ func (t *Tracker) emit(ctx context.Context, source, name string, channel uuid.UU
 	return t.emitID(ctx, source, name, channel, cust, "", dedupe, props)
 }
 
-// emitAggregate records an event as nobody, for a visitor who hasn't allowed analytics: no customer, no visitor id, and
-// a dedupe key hashed so it doesn't name the order or line it came from - it counts in totals and revenue and never on a
-// profile. The suite strips any prop beyond amounts and items as well
+// emitAggregate records an event as nobody, for a visitor who hasn't allowed analytics: no customer and no visitor id - it
+// counts in totals and revenue and never on a profile. The suite strips any prop beyond amounts and items, keeps only the
+// hour, and stores the dedupe key as a keyed hash, so nothing it holds leads back to the order or line it came from
 func (t *Tracker) emitAggregate(ctx context.Context, name string, channel uuid.UUID, dedupe string, props map[string]any) error {
 	if t.aggregateOn != nil && !t.aggregateOn(ctx, channel) {
 		return nil
 	}
-	sum := sha256.Sum256([]byte(dedupe))
 	return t.record(ctx, signalsclient.ActivitySpec{
-		EventName: name, Source: sourceAggregate, ChannelID: channel, At: eventTime(ctx),
-		Props: props, DedupeKey: "agg:" + hex.EncodeToString(sum[:16]),
+		EventName: name, Source: sourceAggregate, ChannelID: channel, At: eventTime(ctx), Props: props, DedupeKey: dedupe,
 	})
 }
 

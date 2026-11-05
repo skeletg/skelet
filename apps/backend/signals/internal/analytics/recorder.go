@@ -4,7 +4,9 @@ package analytics
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"log"
@@ -50,7 +52,11 @@ type Recorder struct {
 	qs      *signalsdb.Queries // the signals database - segments, rosters, traits, the erasure queue
 	spine   SpineStore         // the ClickHouse spine driver, behind the ingest queue when one is configured - ALL spine access goes through it, ingest and every analytical read alike
 	archive ArchiveSink        // optional retention-archive destination (the BACKUP_* bucket) - nil makes retention_action=archive fail closed
+	aggKey  []byte             // keys an aggregate event's dedupe hash, so the stored key can't be recomputed from an order or line id
 }
+
+// SetAggregateKey takes a secret neither database holds - boot passes the service secret
+func (r *Recorder) SetAggregateKey(k []byte) { r.aggKey = k }
 
 // Layers a decorator (the ingest queue) over the engine
 func (r *Recorder) WrapSpine(wrap func(SpineStore) SpineStore) { r.spine = wrap(r.spine) }
@@ -284,6 +290,11 @@ type ActivitySpec struct { // a server-side action, from authenticated flows rat
 func (r *Recorder) RecordActivity(ctx context.Context, a ActivitySpec) (bool, error) { // no-op with neither id - an action we can't attribute to anyone has no place on a profile
 	if a.Source == SourceAggregate {
 		a.CustomerID, a.AnonID = nil, "" // nobody, whatever the caller sent
+		// An exact time, or a key hashed from a known id, would match the event back to its order and so to the customer
+		a.At = orNow(a.At).Truncate(time.Hour)
+		m := hmac.New(sha256.New, r.aggKey)
+		m.Write([]byte(a.DedupeKey))
+		a.DedupeKey = "agg:" + hex.EncodeToString(m.Sum(nil)[:16])
 		for k := range a.Props {
 			if !aggregateProps[k] {
 				delete(a.Props, k)

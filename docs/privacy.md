@@ -62,6 +62,8 @@ They are counted as nobody, so that the shop's totals stay right:
   - Page paths are kept without their query string, and with ids in them (an order number, a reset token) replaced
     by `:id`.
   - Only amounts and items are kept from cart and order activity.
+  - Times are kept to the hour, and the key that stops an event being counted twice is hashed with a secret neither
+    database holds, so neither can be matched back to an order.
 - **They never appear as a person.** They appear in event totals and revenue. They are left out of unique-visitor
   counts, funnels, retention, profiles, RFM and segments.
   - The Insights page says how much of a total they make up.

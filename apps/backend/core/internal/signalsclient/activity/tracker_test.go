@@ -548,7 +548,7 @@ func TestARefusedWriteIsLogged(t *testing.T) {
 	}
 }
 
-// Refusing analytics on the banner still counts the purchase, but as nobody - not the customer, the visitor, the email or even the order
+// Refusing analytics on the banner still counts the purchase, but as nobody - not the customer, the visitor or the email
 func TestAnOrderPlacedWithoutAnalyticsConsentCountsAsNobody(t *testing.T) {
 	cid, ch, oid := uuid.New(), uuid.New(), uuid.New()
 	o := order.Order{ID: oid, CustomerID: &cid, Number: "1200", ChannelID: ch, Email: "a@example.com", AnonID: "lens-1", Tracking: &auth.Shopper{}}
@@ -559,8 +559,8 @@ func TestAnOrderPlacedWithoutAnalyticsConsentCountsAsNobody(t *testing.T) {
 		t.Fatalf("recorded %d, want the placement and the cancellation", len(fr.calls))
 	}
 	for _, c := range fr.calls {
-		if c.CustomerID != nil || c.AnonID != "" || c.Source != sourceAggregate || strings.Contains(c.DedupeKey, oid.String()) {
-			t.Errorf("%s recorded as %+v, want nobody with a key that doesn't name the order", c.EventName, c)
+		if c.CustomerID != nil || c.AnonID != "" || c.Source != sourceAggregate {
+			t.Errorf("%s recorded as %+v, want nobody", c.EventName, c)
 		}
 	}
 	if fr.calls[0].Props["total_cents"] != int64(900) {
@@ -591,7 +591,7 @@ func TestCartActivityWithAnalyticsRefusedCountsAsNobody(t *testing.T) {
 		t.Fatalf("recorded %d, want the five cart changes and no merge", len(fr.calls))
 	}
 	for _, c := range fr.calls {
-		if c.CustomerID != nil || c.AnonID != "" || c.Source != sourceAggregate || strings.Contains(c.DedupeKey, line.String()) {
+		if c.CustomerID != nil || c.AnonID != "" || c.Source != sourceAggregate {
 			t.Errorf("%s recorded as %+v, want nobody", c.EventName, c)
 		}
 	}

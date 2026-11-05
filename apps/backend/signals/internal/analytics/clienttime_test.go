@@ -2,6 +2,9 @@ package analytics
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"strings"
 	"testing"
 	"time"
 
@@ -60,9 +63,11 @@ func TestAnAggregateActivityIsStoredAsNobody(t *testing.T) {
 	spine := &appendSpine{}
 	r := NewRecorder(nil, spine)
 	cust := uuid.New()
+	r.SetAggregateKey([]byte("secret"))
+	at := time.Date(2026, 11, 5, 14, 37, 12, 0, time.UTC)
 	ok, err := r.RecordActivity(context.Background(), ActivitySpec{
-		EventName: "order_placed", Source: SourceAggregate, ChannelID: uuid.New(), CustomerID: &cust, AnonID: "visitor-1",
-		Props: map[string]any{"total_cents": int64(900), "currency": "EUR", "order_id": "o-1", "email": "a@example.com"},
+		EventName: "order_placed", Source: SourceAggregate, ChannelID: uuid.New(), CustomerID: &cust, AnonID: "visitor-1", At: at,
+		Props: map[string]any{"total_cents": int64(900), "currency": "EUR", "order_id": "o-1", "email": "a@example.com"}, DedupeKey: "act:order_placed:o-1",
 	})
 	if err != nil || !ok || len(spine.got) != 1 {
 		t.Fatalf("recorded %v, %v, %d rows", ok, err, len(spine.got))
@@ -70,6 +75,13 @@ func TestAnAggregateActivityIsStoredAsNobody(t *testing.T) {
 	e := spine.got[0]
 	if e.CustomerID != nil || e.AnonID != "" || e.Source != SourceAggregate {
 		t.Errorf("an aggregate event kept an actor: %+v", e)
+	}
+	if strings.Contains(e.DedupeKey, "o-1") || !e.OccurredAt.Equal(at.Truncate(time.Hour)) {
+		t.Errorf("key %q at %v - want a keyed hash that names no order, and the hour alone", e.DedupeKey, e.OccurredAt)
+	}
+	unkeyed := sha256.Sum256([]byte("act:order_placed:o-1"))
+	if strings.Contains(e.DedupeKey, hex.EncodeToString(unkeyed[:16])) {
+		t.Error("the stored key is a plain hash of the order's id, which anyone holding the id can recompute")
 	}
 	if len(e.Props) != 2 || e.Props["total_cents"] != int64(900) || e.Props["currency"] != "EUR" {
 		t.Errorf("props %v, want only the amount and currency", e.Props)
