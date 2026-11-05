@@ -8,6 +8,7 @@ import (
 	"math"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,6 +20,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
+	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/wishlist"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
@@ -44,6 +46,11 @@ type productReader interface {
 	GetProduct(ctx context.Context, id uuid.UUID, locale string) (catalog.Product, error)
 }
 
+// Satisfied by *promotion.Service
+type couponReader interface {
+	RedemptionsForOrder(ctx context.Context, orderID uuid.UUID) ([]promotion.OrderRedemption, error)
+}
+
 // Satisfied by *consent.Service
 type emailMarketing interface {
 	EmailMarketingAllowed(ctx context.Context, channelID uuid.UUID, customerID *uuid.UUID, email string) (bool, error)
@@ -52,11 +59,11 @@ type emailMarketing interface {
 // Subscribe turns the server's own events into tracking events: purchases, refunds and cancellations off the order
 // outbox, cart adds and removals, storefront sign-ups. An order event uses the consent snapshotted at placement, the
 // rest the consent the visitor had when they acted
-func (s *Service) Subscribe(bus *events.Bus, orders orderReader, channels channelReader, marketing emailMarketing, customers customerReader, products productReader) {
+func (s *Service) Subscribe(bus *events.Bus, r Readers) {
 	if bus == nil {
 		return
 	}
-	h := handlers{svc: s, orders: orders, channels: channels, marketing: marketing, customers: customers, products: products}
+	h := handlers{svc: s, Readers: r}
 	bus.Subscribe(order.EventPlaced, h.onPlaced)
 	bus.Subscribe(order.EventRefunded, h.onRefunded)
 	bus.Subscribe(order.EventCancelled, h.onCancelled)
@@ -74,20 +81,26 @@ func (s *Service) Subscribe(bus *events.Bus, orders orderReader, channels channe
 	bus.Subscribe(customer.EventErased, h.onErased)
 }
 
+// Readers is what the subscribers look up - Orders and Channels are required, the rest nil-safe
+type Readers struct {
+	Orders    orderReader
+	Channels  channelReader
+	Marketing emailMarketing // nil: no event says its email may be marketed to
+	Customers customerReader // nil: an opt-out from the account page reaches no destination
+	Products  productReader  // nil: a wishlist save reaches no destination
+	Coupons   couponReader   // nil: a purchase names no coupon
+}
+
 type handlers struct {
-	svc       *Service
-	orders    orderReader
-	channels  channelReader
-	marketing emailMarketing // nil: no event says its email may be marketed to
-	customers customerReader // nil: an opt-out from the account page reaches no destination
-	products  productReader  // nil: a wishlist save reaches no destination
+	svc *Service
+	Readers
 }
 
 // track sends the event, first noting whether its email may receive marketing - a failed lookup goes back to the
 // outbox rather than sending the event as if the answer were no
 func (h handlers) track(ctx context.Context, ev Event) error {
-	if ev.User.Email != "" && h.marketing != nil {
-		ok, err := h.marketing.EmailMarketingAllowed(ctx, ev.ChannelID, ev.User.CustomerID, ev.User.Email)
+	if ev.User.Email != "" && h.Marketing != nil {
+		ok, err := h.Marketing.EmailMarketingAllowed(ctx, ev.ChannelID, ev.User.CustomerID, ev.User.Email)
 		if err != nil {
 			return fmt.Errorf("email marketing consent: %w", err)
 		}
@@ -98,7 +111,7 @@ func (h handlers) track(ctx context.Context, ev Event) error {
 
 // A missing order is final; any other failed load goes back to the outbox
 func (h handlers) order(ctx context.Context, id uuid.UUID) (order.Order, bool, error) {
-	o, err := h.orders.GetByID(ctx, id)
+	o, err := h.Orders.GetByID(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return order.Order{}, false, nil
 	}
@@ -117,7 +130,30 @@ func (h handlers) onPlaced(ctx context.Context, e events.Event) error {
 	if !found {
 		return err
 	}
-	return h.track(ctx, PurchaseEvent(o))
+	pe := PurchaseEvent(o)
+	if pe.Ecommerce.Coupon, err = h.coupon(ctx, o.ID); err != nil {
+		return err
+	}
+	return h.track(ctx, pe)
+}
+
+// The codes the shopper typed that the order was discounted by, comma-joined as GA4 takes several - a failed read goes
+// back to the outbox rather than sending a purchase that drops them
+func (h handlers) coupon(ctx context.Context, orderID uuid.UUID) (string, error) {
+	if h.Coupons == nil {
+		return "", nil
+	}
+	rs, err := h.Coupons.RedemptionsForOrder(ctx, orderID)
+	if err != nil {
+		return "", fmt.Errorf("load redemptions of order %s: %w", orderID, err)
+	}
+	var codes []string
+	for _, r := range rs {
+		if r.Code != "" && !slices.Contains(codes, r.Code) {
+			codes = append(codes, r.Code)
+		}
+	}
+	return strings.Join(codes, ","), nil
 }
 
 // PurchaseEvent is the order as GA4's purchase - the id is the order's own, so the browser's copy dedupes against it.
@@ -172,7 +208,7 @@ func (h handlers) onRefunded(ctx context.Context, e events.Event) error {
 	if o.Status == order.OrderStatusCancelled {
 		return nil
 	}
-	memos, err := h.orders.ListCreditMemos(ctx, o.ID)
+	memos, err := h.Orders.ListCreditMemos(ctx, o.ID)
 	if err != nil {
 		return fmt.Errorf("list credit memos of %s: %w", o.ID, err)
 	}
@@ -236,7 +272,7 @@ func (h handlers) onCancelled(ctx context.Context, e events.Event) error {
 	if !found {
 		return err
 	}
-	memos, err := h.orders.ListCreditMemos(ctx, o.ID)
+	memos, err := h.Orders.ListCreditMemos(ctx, o.ID)
 	if err != nil {
 		return fmt.Errorf("list credit memos of %s: %w", o.ID, err)
 	}
@@ -328,7 +364,7 @@ func (h handlers) onLineRemoved(ctx context.Context, e events.Event) error {
 
 // shortcut: cart events ride the bus and can be lost in a crash, move cart.* to the outbox if ad platforms flag gaps
 func (h handlers) cartEvent(ctx context.Context, name string, channelID uuid.UUID, cust *uuid.UUID, s *auth.Shopper, lineID uuid.UUID, sku string, unit int64, qty float64) error {
-	ch, err := h.channels.GetByID(ctx, channelID)
+	ch, err := h.Channels.GetByID(ctx, channelID)
 	if err != nil {
 		return fmt.Errorf("load channel %s: %w", channelID, err)
 	}
@@ -353,7 +389,7 @@ func (h handlers) onCheckoutChosen(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	ch, err := h.channels.GetByID(ctx, ev.ChannelID)
+	ch, err := h.Channels.GetByID(ctx, ev.ChannelID)
 	if err != nil {
 		return fmt.Errorf("load channel %s: %w", ev.ChannelID, err)
 	}
@@ -384,14 +420,14 @@ func (h handlers) onCheckoutChosen(ctx context.Context, e events.Event) error {
 // wishlist audiences need value
 func (h handlers) onWishlistAdded(ctx context.Context, e events.Event) error {
 	ev, ok := e.(*wishlist.ItemAdded)
-	if !ok || ev.ChannelID == uuid.Nil || h.products == nil {
+	if !ok || ev.ChannelID == uuid.Nil || h.Products == nil {
 		return nil
 	}
-	ch, err := h.channels.GetByID(ctx, ev.ChannelID)
+	ch, err := h.Channels.GetByID(ctx, ev.ChannelID)
 	if err != nil {
 		return fmt.Errorf("load channel %s: %w", ev.ChannelID, err)
 	}
-	p, err := h.products.GetProduct(ctx, ev.ProductID, ch.DefaultLocale)
+	p, err := h.Products.GetProduct(ctx, ev.ProductID, ch.DefaultLocale)
 	if apperr.IsNotFound(err) {
 		return nil
 	}
@@ -457,10 +493,10 @@ func (h handlers) onLead(ctx context.Context, e events.Event) error {
 // An account turned email marketing off. Sent as is - the marketing lookup would only confirm the no
 func (h handlers) onConsentChanged(ctx context.Context, e events.Event) error {
 	ev, ok := e.(*consent.ConsentChanged)
-	if !ok || ev.OptedIn || ev.Kind != consentkind.MarketingEmail || h.customers == nil {
+	if !ok || ev.OptedIn || ev.Kind != consentkind.MarketingEmail || h.Customers == nil {
 		return nil
 	}
-	c, err := h.customers.GetByID(ctx, ev.CustomerID)
+	c, err := h.Customers.GetByID(ctx, ev.CustomerID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil // deleted since; customer.deleted carries the opt-out
 	}

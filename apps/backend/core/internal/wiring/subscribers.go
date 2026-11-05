@@ -28,6 +28,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/ordermail"
 	"github.com/skeletg/skelet/apps/backend/core/internal/outbox"
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
+	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/core/internal/qna"
 	"github.com/skeletg/skelet/apps/backend/core/internal/referral"
 	"github.com/skeletg/skelet/apps/backend/core/internal/revalidate"
@@ -80,6 +81,7 @@ type subscriberDeps struct {
 	Channel             *channel.Service
 	Catalog             *catalog.Service
 	QnA                 *qna.Service
+	Promotion           *promotion.Service
 	Tx                  *txrunner.Manager
 
 	Inventory    *inventory.Service // the order reactors - each subscribes itself, this only decides that they all do and in what order
@@ -124,7 +126,9 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 
 	registerEventSubscribers(bus, d.WebhookDispatcher, d.Order)
 	registerEmailOptIns(bus, d.Consent)
-	d.Tracking.Subscribe(bus, d.Order, d.Channel, d.Consent, d.Customer, d.Catalog) // the shop's own events to the platforms - independent of Signals
+	d.Tracking.Subscribe(bus, tracking.Readers{
+		Orders: d.Order, Channels: d.Channel, Marketing: d.Consent, Customers: d.Customer, Products: d.Catalog, Coupons: d.Promotion,
+	}) // the shop's own events to the platforms - independent of Signals
 	d.Catalog.RegisterSubscribers(bus)
 	subscribeOrderReactors(d)
 	ordercapture.Register(bus, d.Order, d.Payment)

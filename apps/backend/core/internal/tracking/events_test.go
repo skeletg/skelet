@@ -14,6 +14,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
+	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/wishlist"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
@@ -121,7 +122,7 @@ func TestCartChangesAccountsAndLeadsBecomeEvents(t *testing.T) {
 	fs := newFakeStore(Destination{ID: dest, ChannelID: ch, Kind: "t-all", Enabled: true})
 	svc := &Service{store: fs}
 	bus := events.NewBus()
-	svc.Subscribe(bus, noOrders{}, oneChannel{"EUR"}, optedIn{"a@example.com": true}, nil, nil)
+	svc.Subscribe(bus, Readers{Orders: noOrders{}, Channels: oneChannel{"EUR"}, Marketing: optedIn{"a@example.com": true}})
 	ctx := events.WithEmittedAt(context.Background(), time.Unix(1700000000, 0))
 	cust, line := uuid.New(), uuid.New()
 
@@ -148,7 +149,7 @@ func TestAnEventSaysWhetherItsEmailMayBeMarketedTo(t *testing.T) {
 	registerTestKind(t, sdk.Destination{Kind: "t-capture"})
 	ch := uuid.New()
 	fs := newFakeStore(Destination{ID: uuid.New(), ChannelID: ch, Kind: "t-capture", Enabled: true})
-	h := handlers{svc: &Service{store: fs}, marketing: optedIn{"yes@example.com": true}}
+	h := handlers{svc: &Service{store: fs}, Readers: Readers{Marketing: optedIn{"yes@example.com": true}}}
 	for _, email := range []string{"yes@example.com", "no@example.com", ""} {
 		if err := h.track(context.Background(), Event{ID: "e-" + email, Name: Purchase, ChannelID: ch, User: User{Email: email}}); err != nil {
 			t.Fatal(err)
@@ -183,7 +184,7 @@ func TestRefundsAndCancellationsSayWhatTheOrderIsStillWorth(t *testing.T) {
 	worth := func(orders memoOrders, e events.Event) float64 {
 		t.Helper()
 		fs := newFakeStore(Destination{ID: uuid.New(), ChannelID: o.ChannelID, Kind: "t-worth", Enabled: true})
-		h := handlers{svc: &Service{store: fs}, orders: orders}
+		h := handlers{svc: &Service{store: fs}, Readers: Readers{Orders: orders}}
 		var err error
 		switch ev := e.(type) {
 		case *order.OrderRefunded:
@@ -226,7 +227,7 @@ func TestOptOutsReachOnlyTheKindsBuiltToRemove(t *testing.T) {
 	bus := events.NewBus()
 	phone := "+381601234567"
 	cust := customer.Customer{ID: uuid.New(), ChannelID: ch, Email: "out@example.com", Phone: &phone}
-	svc.Subscribe(bus, noOrders{}, oneChannel{"EUR"}, nil, oneCustomer{cust}, nil)
+	svc.Subscribe(bus, Readers{Orders: noOrders{}, Channels: oneChannel{"EUR"}, Customers: oneCustomer{cust}})
 	ctx := events.WithEmittedAt(context.Background(), time.Unix(1700000000, 0))
 
 	_ = bus.DispatchAsyncNow(ctx, &consent.ConsentChanged{CustomerID: cust.ID, Kind: consentkind.MarketingEmail, OptedIn: false})
@@ -257,7 +258,7 @@ func TestAQuantityChangeIsAnAddOrRemovalOfTheDifference(t *testing.T) {
 	fs := newFakeStore(Destination{ID: uuid.New(), ChannelID: ch, Kind: "t-all", Enabled: true})
 	svc := &Service{store: fs}
 	bus := events.NewBus()
-	svc.Subscribe(bus, noOrders{}, oneChannel{"EUR"}, nil, nil, nil)
+	svc.Subscribe(bus, Readers{Orders: noOrders{}, Channels: oneChannel{"EUR"}})
 	line := uuid.New()
 	at := time.Unix(1700000000, 0)
 	for i, q := range [][2]float64{{1, 3}, {3, 2}, {2, 2}} {
@@ -285,7 +286,7 @@ func TestCheckoutChoicesAreShippingAndPaymentInfo(t *testing.T) {
 	fs := newFakeStore(Destination{ID: uuid.New(), ChannelID: ch, Kind: "t-all", Enabled: true})
 	svc := &Service{store: fs}
 	bus := events.NewBus()
-	svc.Subscribe(bus, noOrders{}, oneChannel{"EUR"}, nil, nil, nil)
+	svc.Subscribe(bus, Readers{Orders: noOrders{}, Channels: oneChannel{"EUR"}})
 	lines := []cart.CartLine{{ProductSku: "SKU-1", ProductName: "Mug", UnitPrice: 1500, Quantity: 2}, {ProductSku: "SKU-2", UnitPrice: 990, Quantity: 1}}
 	ctx := events.WithEmittedAt(context.Background(), time.Unix(1700000000, 0))
 	_ = bus.DispatchAsyncNow(ctx, &cart.CheckoutChosen{ChannelID: ch, CartID: uuid.New(), Step: cart.StepShipping, Choice: "dhl:express", Lines: lines})
@@ -318,7 +319,7 @@ func TestAWishlistSaveIsAddToWishlist(t *testing.T) {
 	svc := &Service{store: fs}
 	bus := events.NewBus()
 	mug := catalog.Product{ID: uuid.New(), SKU: "SKU-1", Content: &catalog.ProductContent{Name: "Mug"}}
-	svc.Subscribe(bus, noOrders{}, oneChannel{"EUR"}, nil, nil, oneProduct{mug})
+	svc.Subscribe(bus, Readers{Orders: noOrders{}, Channels: oneChannel{"EUR"}, Products: oneProduct{mug}})
 	cust := uuid.New()
 	ctx := context.Background()
 	shopper := &auth.Shopper{Consent: auth.Consent{Analytics: true}, AnonID: "visitor-1"}
@@ -332,5 +333,27 @@ func TestAWishlistSaveIsAddToWishlist(t *testing.T) {
 	ev := fs.events[0]
 	if ev.Name != AddToWishlist || *ev.User.CustomerID != cust || ev.User.AnonID != "visitor-1" || ev.Ecommerce.Items[0].ItemID != "SKU-1" || ev.Ecommerce.Items[0].ItemName != "Mug" {
 		t.Errorf("add_to_wishlist: %+v %+v", ev, ev.Ecommerce)
+	}
+}
+
+type redemptions []promotion.OrderRedemption
+
+func (r redemptions) RedemptionsForOrder(context.Context, uuid.UUID) ([]promotion.OrderRedemption, error) {
+	return r, nil
+}
+
+func TestAPurchaseNamesTheCouponsItWasDiscountedBy(t *testing.T) {
+	o := sampleOrder()
+	registerTestKind(t, sdk.Destination{Kind: "t-all"})
+	fs := newFakeStore(Destination{ID: uuid.New(), ChannelID: o.ChannelID, Kind: "t-all", Enabled: true})
+	svc := &Service{store: fs}
+	bus := events.NewBus()
+	// an automatic rule has no code, and one code redeemed twice is named once
+	svc.Subscribe(bus, Readers{Orders: memoOrders{o: o}, Channels: oneChannel{"EUR"}, Coupons: redemptions{{Code: "SUMMER"}, {RuleName: "auto"}, {Code: "VIP"}, {Code: "SUMMER"}}})
+	if err := bus.DispatchAsyncNow(context.Background(), &order.OrderPlaced{OrderID: o.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if len(fs.events) != 1 || fs.events[0].Ecommerce.Coupon != "SUMMER,VIP" {
+		t.Fatalf("purchase coupon: %+v", fs.events)
 	}
 }
