@@ -44,17 +44,23 @@ const (
 	Purchase        = "purchase"
 	Refund          = "refund"
 	SignUp          = "sign_up"
+	Login           = "login"
+	AddToWishlist   = "add_to_wishlist"
+	ViewPromotion   = "view_promotion"
+	SelectPromotion = "select_promotion"
+	Search          = "search"
+	GenerateLead    = "generate_lead" // a sign-up form was submitted, before its address is confirmed
 	// A customer withdrew email marketing, or their account was deleted or erased. Server-only. A destination that
 	// lists it in its default events is built to remove the person, so it gets it whatever the visitor's cookie choice -
 	// taking someone off a list never needs their consent
 	MarketingOptOut = "marketing_opt_out"
 )
 
-// What a browser may report. Cart changes, purchases, refunds and sign-ups happen on the server, which reports them itself -
-// a browser copy would be forgeable and counted twice
+// What a browser may report: what it saw and clicked. Cart changes, checkout choices, purchases, refunds, sign-ins and
+// sign-ups happen on the server, which reports them itself - a browser copy would be forgeable and counted twice
 var browserEvents = map[string]bool{
-	PageView: true, ViewItemList: true, SelectItem: true, ViewItem: true, ViewCart: true,
-	BeginCheckout: true, AddShippingInfo: true, AddPaymentInfo: true,
+	PageView: true, ViewItemList: true, SelectItem: true, ViewItem: true, ViewCart: true, BeginCheckout: true,
+	ViewPromotion: true, SelectPromotion: true, Search: true,
 }
 
 func BrowserEvent(name string) bool { return browserEvents[name] }

@@ -31,6 +31,9 @@ func TestOnlyABrowsersOwnEventsAreAccepted(t *testing.T) {
 	for name, body := range map[string]string{
 		"a purchase, which only the server reports": `{"event_id":"e-2","name":"purchase"}`,
 		"a cart add, which only the server reports": `{"event_id":"e-3","name":"add_to_cart"}`,
+		"a shipping choice, which the cart reports": `{"event_id":"e-6","name":"add_shipping_info"}`,
+		"a sign-in, which only the server reports":  `{"event_id":"e-7","name":"login"}`,
+		"a search term too long to be one":          `{"event_id":"e-8","name":"search","search_term":"` + strings.Repeat("x", 201) + `"}`,
 		"an event with no id":                       `{"name":"page_view"}`,
 		"an id that isn't a token":                  `{"event_id":"a b;c","name":"page_view"}`,
 		"not json":                                  `nope`,
@@ -42,5 +45,12 @@ func TestOnlyABrowsersOwnEventsAreAccepted(t *testing.T) {
 	}
 	if ev, ok := read(`{"event_id":"e-5","name":"page_view"}`, ""); !ok || ev.Consent != nil || ev.User.AnonID != "" {
 		t.Errorf("a request stating no consent must carry none: %+v", ev)
+	}
+	if ev, ok := read(`{"event_id":"e-9","name":"search","search_term":"blue mug"}`, "v2:a1.d0.p0"); !ok || ev.SearchTerm != "blue mug" {
+		t.Errorf("a search lost its term: %+v", ev)
+	}
+	ev, ok = read(`{"event_id":"e-10","name":"select_promotion","ecommerce":{"promotion_id":"r-1","promotion_name":"summer","items":[{"item_id":"SKU-1","index":0}]}}`, "v2:a1.d0.p0")
+	if !ok || ev.Ecommerce.PromotionID != "r-1" || ev.Ecommerce.Items[0].Index == nil || *ev.Ecommerce.Items[0].Index != 0 {
+		t.Errorf("a promotion click lost its promotion or the item's place: %+v", ev.Ecommerce)
 	}
 }

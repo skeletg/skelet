@@ -38,18 +38,19 @@ func (s *Service) BrowserHandler(limiter *ratelimit.RedisLimiter, customers auth
 // browserEvent reads one forwarded browser event - false for anything that isn't one the browser may report
 func browserEvent(w http.ResponseWriter, r *http.Request, channelID uuid.UUID, customers auth.CustomerVerifier) (Event, bool) {
 	var in struct {
-		EventID   string     `json:"event_id"`
-		Name      string     `json:"name"`
-		PageURL   string     `json:"page_url"`
-		Referrer  string     `json:"referrer"`
-		Locale    string     `json:"locale"`
-		PageTitle string     `json:"page_title"`
-		Ecommerce *Ecommerce `json:"ecommerce"`
+		EventID    string     `json:"event_id"`
+		Name       string     `json:"name"`
+		PageURL    string     `json:"page_url"`
+		Referrer   string     `json:"referrer"`
+		Locale     string     `json:"locale"`
+		PageTitle  string     `json:"page_title"`
+		SearchTerm string     `json:"search_term"`
+		Ecommerce  *Ecommerce `json:"ecommerce"`
 	}
 	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 32<<10)).Decode(&in) != nil || !BrowserEvent(in.Name) {
 		return Event{}, false
 	}
-	if auth.SanitizeAnonID(in.EventID) == "" || len(in.PageURL) > 2048 || len(in.Referrer) > 2048 || len(in.Locale) > 16 || len(in.PageTitle) > 300 {
+	if auth.SanitizeAnonID(in.EventID) == "" || len(in.PageURL) > 2048 || len(in.Referrer) > 2048 || len(in.Locale) > 16 || len(in.PageTitle) > 300 || len(in.SearchTerm) > 200 {
 		return Event{}, false
 	}
 	if in.Ecommerce != nil && len(in.Ecommerce.Items) > 200 {
@@ -57,8 +58,8 @@ func browserEvent(w http.ResponseWriter, r *http.Request, channelID uuid.UUID, c
 	}
 	ev := Event{
 		ID: in.EventID, Name: in.Name, OccurredAt: time.Now().UTC(), ChannelID: channelID, Source: "browser",
-		Ecommerce: in.Ecommerce,
-		Context:   Context{PageURL: in.PageURL, Referrer: in.Referrer, Locale: in.Locale, PageTitle: in.PageTitle},
+		Ecommerce: in.Ecommerce, SearchTerm: in.SearchTerm,
+		Context: Context{PageURL: in.PageURL, Referrer: in.Referrer, Locale: in.Locale, PageTitle: in.PageTitle},
 	}
 	WithShopper(&ev, auth.ShopperFromContext(auth.WithRequest(r.Context(), r)))
 	if ev.Consent != nil && ev.Consent.Analytics { // the account is a profile link, so it needs what the anon id needs
