@@ -285,10 +285,11 @@ func wireWebForms(wf *webform.Service, bus *events.Bus, ms objstore.Storage) { /
 }
 
 // The services whose only seam is the bus - membership is that criterion, so anything needing a second seam gets its own group above
-func wireBusOnlyPublishers(q *qna.Service, w *wishlist.Service, c *consent.Service, bus *events.Bus) {
+func wireBusOnlyPublishers(q *qna.Service, w *wishlist.Service, c *consent.Service, f *signupform.Service, bus *events.Bus) {
 	q.SetEventBus(bus) // question submitted / answered
 	w.SetEventBus(bus) // item added / removed
 	c.SetEventBus(bus) // opted in / out
+	f.SetEventBus(bus) // a signup form sent - a lead
 }
 
 func wireReviews(r *review.Service, bus *events.Bus, cfg *config.Service, ch *channel.Service, aiSvc *ai.Service) {

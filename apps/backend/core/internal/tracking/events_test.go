@@ -14,6 +14,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/wishlist"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
@@ -113,7 +114,7 @@ func (o optedIn) EmailMarketingAllowed(_ context.Context, _ uuid.UUID, _ *uuid.U
 	return o[email], nil
 }
 
-func TestCartChangesSignUpsAndSignInsBecomeEvents(t *testing.T) {
+func TestCartChangesAccountsAndLeadsBecomeEvents(t *testing.T) {
 	ch := uuid.New()
 	registerTestKind(t, sdk.Destination{Kind: "t-all"})
 	dest := uuid.New()
@@ -131,13 +132,15 @@ func TestCartChangesSignUpsAndSignInsBecomeEvents(t *testing.T) {
 	_ = bus.DispatchAsyncNow(ctx, &customer.CustomerRegistered{CustomerID: uuid.New(), ChannelID: ch, Source: "import"})
 	_ = bus.DispatchAsyncNow(ctx, &auth.LoginSucceeded{Subject: auth.SubjectCustomer, SubjectID: cust, ChannelID: ch, Email: "a@example.com"})
 	_ = bus.DispatchAsyncNow(ctx, &auth.LoginSucceeded{Subject: auth.SubjectAdmin, SubjectID: uuid.New(), ChannelID: ch})
+	_ = bus.DispatchAsyncNow(ctx, &signupform.Submitted{ChannelID: ch, FormID: uuid.New(), LeadKey: "k1"})
+	_ = bus.DispatchAsyncNow(ctx, &signupform.Submitted{ChannelID: ch, FormID: uuid.New(), LeadKey: "k1"}) // a replay
 
 	names := map[string]int{}
 	for _, d := range fs.byDestination(dest) {
 		names[d.EventName]++
 	}
-	if names[AddToCart] != 1 || names[RemoveFromCart] != 1 || names[SignUp] != 1 || names[Login] != 1 || len(names) != 4 {
-		t.Errorf("queued %v, want one add (the replay collapsed), one removal, only the shop's own sign-up and the customer's sign-in", names)
+	if names[AddToCart] != 1 || names[RemoveFromCart] != 1 || names[SignUp] != 1 || names[Login] != 1 || names[GenerateLead] != 1 || len(names) != 5 {
+		t.Errorf("queued %v, want one add and one lead (replays collapsed), one removal, only the shop's own sign-up and the customer's sign-in", names)
 	}
 }
 

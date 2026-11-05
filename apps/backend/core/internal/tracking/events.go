@@ -19,6 +19,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/wishlist"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
@@ -67,6 +68,7 @@ func (s *Service) Subscribe(bus *events.Bus, orders orderReader, channels channe
 	bus.Subscribe(wishlist.EventItemAdded, h.onWishlistAdded)
 	bus.Subscribe(customer.EventRegistered, h.onRegistered)
 	bus.Subscribe(auth.EventLoginSucceeded, h.onLogin)
+	bus.Subscribe(signupform.EventSubmitted, h.onLead)
 	bus.Subscribe(consent.EventChanged, h.onConsentChanged)
 	bus.Subscribe(customer.EventDeleted, h.onDeleted)
 	bus.Subscribe(customer.EventErased, h.onErased)
@@ -437,6 +439,19 @@ func (h handlers) onLogin(ctx context.Context, e events.Event) error {
 	}
 	WithShopper(&out, ev.Shopper)
 	return h.track(ctx, out)
+}
+
+// A signup form sent from the shop is a lead - with no address, which isn't confirmed yet
+func (h handlers) onLead(ctx context.Context, e events.Event) error {
+	ev, ok := e.(*signupform.Submitted)
+	if !ok {
+		return nil
+	}
+	out := Event{
+		ID: GenerateLead + ":" + ev.LeadKey, Name: GenerateLead, OccurredAt: eventTime(ctx), ChannelID: ev.ChannelID, Source: "server",
+	}
+	WithShopper(&out, ev.Shopper)
+	return h.svc.Track(ctx, out)
 }
 
 // An account turned email marketing off. Sent as is - the marketing lookup would only confirm the no
