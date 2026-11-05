@@ -50,7 +50,27 @@ const ( // subscribe by these, e.g. bus.SubscribeSync(cart.EventLineAdding, 100,
 	EventOfferSent    = "cart.offer.sent"
 	EventOfferOpened  = "cart.offer.opened"
 	EventOfferExpired = "cart.offer.expired"
+	// A shopper's checkout step picked a different delivery or payment method
+	EventCheckoutChosen = "cart.checkout.chosen"
 )
+
+const (
+	StepShipping = "shipping"
+	StepPayment  = "payment"
+)
+
+type CheckoutChosen struct { // fires AFTER the step is saved, async
+	CartID     uuid.UUID
+	ChannelID  uuid.UUID
+	CustomerID *uuid.UUID
+	Step       string // StepShipping or StepPayment
+	Choice     string // the shipping methods, comma-joined per delivery group, or the payment provider's slug
+	Lines      []CartLine
+	Shopper    *auth.Shopper // the visitor as their consent stood, nil for a caller with no banner
+}
+
+func (*CheckoutChosen) Type() string                { return EventCheckoutChosen }
+func (e *CheckoutChosen) EventChannelID() uuid.UUID { return e.ChannelID }
 
 type OfferSent struct { // fires AFTER an admin emails an offer, async
 	CartID     uuid.UUID

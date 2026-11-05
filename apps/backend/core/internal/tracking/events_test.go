@@ -270,3 +270,26 @@ func TestAQuantityChangeIsAnAddOrRemovalOfTheDifference(t *testing.T) {
 		t.Errorf("3 -> 2 should remove 1 worth 15: %+v", rm.Ecommerce)
 	}
 }
+
+func TestCheckoutChoicesAreShippingAndPaymentInfo(t *testing.T) {
+	ch := uuid.New()
+	registerTestKind(t, sdk.Destination{Kind: "t-all"})
+	fs := newFakeStore(Destination{ID: uuid.New(), ChannelID: ch, Kind: "t-all", Enabled: true})
+	svc := &Service{store: fs}
+	bus := events.NewBus()
+	svc.Subscribe(bus, noOrders{}, oneChannel{"EUR"}, nil, nil)
+	lines := []cart.CartLine{{ProductSku: "SKU-1", ProductName: "Mug", UnitPrice: 1500, Quantity: 2}, {ProductSku: "SKU-2", UnitPrice: 990, Quantity: 1}}
+	ctx := events.WithEmittedAt(context.Background(), time.Unix(1700000000, 0))
+	_ = bus.DispatchAsyncNow(ctx, &cart.CheckoutChosen{ChannelID: ch, CartID: uuid.New(), Step: cart.StepShipping, Choice: "dhl:express", Lines: lines})
+	_ = bus.DispatchAsyncNow(ctx, &cart.CheckoutChosen{ChannelID: ch, CartID: uuid.New(), Step: cart.StepPayment, Choice: "cod", Lines: lines})
+	got := map[string]*Ecommerce{}
+	for _, ev := range fs.events {
+		got[ev.Name] = ev.Ecommerce
+	}
+	if ship := got[AddShippingInfo]; ship == nil || ship.ShippingTier != "dhl:express" || ship.Value != 39.9 || len(ship.Items) != 2 || ship.Items[0].ItemName != "Mug" {
+		t.Errorf("add_shipping_info: %+v", ship)
+	}
+	if pay := got[AddPaymentInfo]; pay == nil || pay.PaymentType != "cod" || pay.ShippingTier != "" || pay.Currency != "EUR" {
+		t.Errorf("add_payment_info: %+v", pay)
+	}
+}

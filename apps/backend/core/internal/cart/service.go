@@ -155,7 +155,56 @@ var errCheckoutMoved = errors.New("checkout moved")
 // apply runs on the cart as loaded, with its lines, and outside any transaction: its quotes, payment eligibility and address checks may wait on a third party and read through the shared pool, so holding the row lock and a pooled connection across them would let a burst of saves exhaust the pool. The commit is a short transaction that re-checks access, writes only when checkout_version hasn't moved since the load, and otherwise recomputes the step
 // On an offer, a step that moves a locked part - or the recipient's email - is refused whole
 func (s *Service) UpdateCheckout(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, apply func(c *Cart) error) error {
-	return s.updateCheckout(ctx, cartID, func(c Cart) error { return CheckCartAccess(ctx, c, callerID) }, true, apply, nil)
+	var was, now checkoutChoices
+	var saved Cart
+	err := s.updateCheckout(ctx, cartID, func(c Cart) error { return CheckCartAccess(ctx, c, callerID) }, true, func(c *Cart) error {
+		was = choicesOf(c.Checkout) // the last attempt's, should a lost race run the step again
+		if err := apply(c); err != nil {
+			return err
+		}
+		now, saved = choicesOf(c.Checkout), *c
+		return nil
+	}, nil)
+	if err == nil {
+		s.publishChoices(ctx, saved, was, now)
+	}
+	return err
+}
+
+// checkoutChoices is what a checkout has chosen to ship and pay with, as analytics names them
+type checkoutChoices struct{ shipping, payment string }
+
+func choicesOf(co Checkout) checkoutChoices {
+	var ship []string
+	for _, k := range slices.Sorted(maps.Keys(co.Deliveries)) {
+		switch d := co.Deliveries[k]; {
+		case d.OptionID == uuid.Nil:
+		case d.MethodCode != "":
+			ship = append(ship, d.CarrierSlug+":"+d.MethodCode)
+		default: // an option with no carrier method, such as a pickup
+			ship = append(ship, d.OptionID.String())
+		}
+	}
+	if len(ship) == 0 && co.ShippingMethodCode != "" {
+		ship = append(ship, co.ShippingCarrierSlug+":"+co.ShippingMethodCode)
+	}
+	return checkoutChoices{shipping: strings.Join(ship, ","), payment: co.PaymentProviderSlug}
+}
+
+// A choice is reported when it changes to something, so saving the same step again says nothing
+func (s *Service) publishChoices(ctx context.Context, c Cart, was, now checkoutChoices) {
+	if s.bus == nil {
+		return
+	}
+	for _, step := range []struct{ name, was, now string }{{StepShipping, was.shipping, now.shipping}, {StepPayment, was.payment, now.payment}} {
+		if step.now == "" || step.now == step.was {
+			continue
+		}
+		s.bus.Publish(ctx, &CheckoutChosen{
+			CartID: c.ID, ChannelID: c.ChannelID, CustomerID: c.CustomerID, Step: step.name, Choice: step.now,
+			Lines: c.Lines, Shopper: auth.ShopperFromContext(ctx),
+		})
+	}
 }
 
 // AdminUpdateCheckout is UpdateCheckout for the console - it fills in an offer's checkout up front, so it neither asks who owns the cart nor stops at the locks the admin is setting up

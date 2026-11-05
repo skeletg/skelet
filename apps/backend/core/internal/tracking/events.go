@@ -55,6 +55,7 @@ func (s *Service) Subscribe(bus *events.Bus, orders orderReader, channels channe
 	bus.Subscribe(cart.EventBundleAdded, h.onBundleAdded)
 	bus.Subscribe(cart.EventLineUpdated, h.onLineUpdated)
 	bus.Subscribe(cart.EventLineRemoved, h.onLineRemoved)
+	bus.Subscribe(cart.EventCheckoutChosen, h.onCheckoutChosen)
 	bus.Subscribe(customer.EventRegistered, h.onRegistered)
 	bus.Subscribe(consent.EventChanged, h.onConsentChanged)
 	bus.Subscribe(customer.EventDeleted, h.onDeleted)
@@ -331,6 +332,39 @@ func (h handlers) cartEvent(ctx context.Context, name string, channelID uuid.UUI
 	}
 	WithShopper(&ev, s)
 	return h.svc.Track(ctx, ev)
+}
+
+// A shopper picked how the order ships or is paid - GA4's add_shipping_info and add_payment_info, with the cart's lines
+func (h handlers) onCheckoutChosen(ctx context.Context, e events.Event) error {
+	ev, ok := e.(*cart.CheckoutChosen)
+	if !ok {
+		return nil
+	}
+	ch, err := h.channels.GetByID(ctx, ev.ChannelID)
+	if err != nil {
+		return fmt.Errorf("load channel %s: %w", ev.ChannelID, err)
+	}
+	cur := ch.CurrencyCode
+	ec := &Ecommerce{Currency: cur}
+	var total int64
+	for _, l := range ev.Lines {
+		total += int64(math.Round(float64(l.UnitPrice) * l.Quantity))
+		ec.Items = append(ec.Items, Item{ItemID: l.ProductSku, ItemName: l.ProductName, Price: Decimal(l.UnitPrice, cur), Quantity: l.Quantity})
+	}
+	ec.Value = Decimal(total, cur)
+	name := AddShippingInfo
+	if ev.Step == cart.StepPayment {
+		name, ec.PaymentType = AddPaymentInfo, ev.Choice
+	} else {
+		ec.ShippingTier = ev.Choice
+	}
+	out := Event{
+		// The cart and the moment, so a replay collapses while switching back and forth is each its own event
+		ID: name + ":" + ev.CartID.String() + ":" + strconv.FormatInt(eventTime(ctx).UnixMilli(), 10), Name: name,
+		OccurredAt: eventTime(ctx), ChannelID: ev.ChannelID, Source: "server", User: User{CustomerID: ev.CustomerID}, Ecommerce: ec,
+	}
+	WithShopper(&out, ev.Shopper)
+	return h.svc.Track(ctx, out)
 }
 
 func (h handlers) onRegistered(ctx context.Context, e events.Event) error {
