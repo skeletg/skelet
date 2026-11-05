@@ -88,7 +88,7 @@ function reportCrawl(req: NextRequest, event: NextFetchEvent, channelId: string)
 }
 
 // A visitor without analytics consent still counts, as nobody - the path alone, sent from here so nothing touches their
-// browser. The backend drops it when the shop has aggregate counts off or Signals is disabled
+// browser. The caller skips it when the shop has aggregate counts off; the backend drops it then too, or with Signals disabled
 function reportView(req: NextRequest, event: NextFetchEvent, channelId: string, analytics: boolean) {
   try {
     const ua = req.headers.get("user-agent") ?? "";
@@ -225,7 +225,7 @@ export async function storefrontProxy(req: NextRequest, event: NextFetchEvent): 
     : undefined;
   const consent = parseConsent(consentWrite ?? rawConsent);
   const analytics = consent?.analytics ?? false;
-  if (isPagePath(pathname)) reportView(req, event, channelId, analytics);
+  if (isPagePath(pathname) && (privacy?.counts ?? true)) reportView(req, event, channelId, analytics);
   const clickWrites = clickCookieWrites(
     url.searchParams,
     (name) => req.cookies.get(name)?.value,
