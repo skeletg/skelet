@@ -8,11 +8,13 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/configstore"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/activity"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
+	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/dbconn"
 )
 
@@ -55,7 +57,8 @@ func runSignalsBackfillOrders(cmd *cobra.Command, _ []string) error {
 	defer func() { _ = signals.Close() }()
 
 	repo := order.NewRepository(db.New(conn))
-	tracker := activity.NewTracker(signals, nil) // a backfill hands each order over, so the tracker never looks one up
+	// A backfill hands each order over, so the tracker never looks one up - and follows each shop's aggregate_counts like the live events do
+	tracker := activity.NewTracker(signals, nil, config.NewService(configstore.New(db.New(conn))))
 	ctx := cmd.Context()
 	const page = 500
 	processed, skipped := 0, 0

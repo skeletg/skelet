@@ -42,6 +42,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
 	"github.com/skeletg/skelet/apps/backend/core/internal/shoptools"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/activity"
 	authpkg "github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/cache"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
@@ -289,7 +290,8 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 		Config: s.Config, Limiter: ingestLimiter, Customers: infra.Config.CustomerKeys.Verifier(),
 	})
 	if bool(s.SignalsEnabled) {
-		mux.Handle(countPath, otelx.WrapHTTP(countHandler(s.SignalsClient, s.Config, s.Channel, ingestLimiter), "signals.count"))
+		counter := activity.NewTracker(s.SignalsClient, nil, s.Config) // a counted view loads no order
+		mux.Handle(activity.CountPath, otelx.WrapHTTP(channel.Middleware(s.Channel)(counter.CountHandler(ingestLimiter)), "signals.count"))
 	}
 	mux.Handle(trackPath, otelx.WrapHTTP(trackHandler(s.Tracking, s.Channel, ingestLimiter, infra.Config.CustomerKeys.Verifier()), "tracking.collect"))
 	// The beacon surface is the suite's, so this is a proxy - one public entry point for a simple
