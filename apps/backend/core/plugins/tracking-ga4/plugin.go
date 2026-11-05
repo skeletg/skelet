@@ -135,6 +135,12 @@ func toPayload(ev sdk.ShopEvent) payload {
 		params["currency"], params["value"] = e.Currency, e.Value
 		setIf(params, "transaction_id", e.TransactionID)
 		setIf(params, "coupon", e.Coupon)
+		for k, v := range map[string]string{
+			"item_list_id": e.ItemListID, "item_list_name": e.ItemListName, "payment_type": e.PaymentType, "shipping_tier": e.ShippingTier,
+			"promotion_id": e.PromotionID, "promotion_name": e.PromotionName, "creative_name": e.CreativeName, "creative_slot": e.CreativeSlot,
+		} {
+			setIf(params, k, v)
+		}
 		if e.Tax != 0 {
 			params["tax"] = e.Tax
 		}
@@ -145,6 +151,7 @@ func toPayload(ev sdk.ShopEvent) payload {
 			params["items"] = e.Items // already GA4's item fields
 		}
 	}
+	setIf(params, "search_term", ev.SearchTerm)
 	p.Events = []payloadEvent{{Name: ev.Name, Params: params}}
 	return p
 }

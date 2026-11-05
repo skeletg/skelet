@@ -30,7 +30,7 @@ var capiHost = "https://capi.uet.microsoft.com" // a var so tests can point it a
 // The retail page type Microsoft uses for remarketing, by GA4 event
 var pageTypes = map[string]string{
 	"view_item": "product", "view_item_list": "category", "view_cart": "cart", "add_to_cart": "cart",
-	"begin_checkout": "cart", "purchase": "purchase",
+	"begin_checkout": "cart", "purchase": "purchase", "search": "searchresults",
 }
 
 func init() {

@@ -38,6 +38,9 @@ var eventNames = map[string]string{
 	"add_payment_info": "AddPaymentInfo",
 	"purchase":         "Purchase",
 	"sign_up":          "CompleteRegistration",
+	"add_to_wishlist":  "AddToWishlist",
+	"search":           "Search",
+	"generate_lead":    "Lead",
 }
 
 func init() {
@@ -114,13 +117,14 @@ type userData struct {
 }
 
 type customData struct {
-	Currency    string    `json:"currency"`
-	Value       float64   `json:"value"`
+	Currency    string    `json:"currency,omitempty"`
+	Value       float64   `json:"value,omitempty"`
 	OrderID     string    `json:"order_id,omitempty"`
-	ContentType string    `json:"content_type"`
+	ContentType string    `json:"content_type,omitempty"`
 	ContentIDs  []string  `json:"content_ids,omitempty"`
 	Contents    []content `json:"contents,omitempty"`
 	NumItems    float64   `json:"num_items,omitempty"`
+	Search      string    `json:"search_string,omitempty"`
 }
 
 type content struct {
@@ -158,6 +162,12 @@ func toEvent(name string, ev sdk.ShopEvent) event {
 			cd.NumItems += it.Quantity
 		}
 		out.CustomData = cd
+	}
+	if ev.SearchTerm != "" {
+		if out.CustomData == nil {
+			out.CustomData = &customData{}
+		}
+		out.CustomData.Search = ev.SearchTerm
 	}
 	return out
 }
