@@ -61,71 +61,22 @@ var browserEvents = map[string]bool{
 func BrowserEvent(name string) bool { return browserEvents[name] }
 
 // Event is one shop event in a common envelope: the GA4 ecommerce payload plus who, where and under what consent.
-// Nothing in it is hashed - each destination hashes what its platform asks for
-type Event struct {
-	ID         string            `json:"event_id"` // shared with the browser's copy so a platform can dedupe; a purchase's is the order id
-	Name       string            `json:"name"`
-	OccurredAt time.Time         `json:"occurred_at"`
-	ChannelID  uuid.UUID         `json:"channel_id"`
-	Ecommerce  *Ecommerce        `json:"ecommerce,omitempty"`
-	User       User              `json:"user"`
-	Context    Context           `json:"context"`
-	ClickIDs   map[string]string `json:"click_ids,omitempty"`
-	Consent    *auth.Consent     `json:"consent,omitempty"` // nil: no banner applied, so only a destination needing no consent gets it
-	Source     string            `json:"source"`            // browser | server
-}
-
-type Ecommerce struct {
-	Currency      string  `json:"currency"`
-	Value         float64 `json:"value"` // the items after discount, without tax or shipping - GA4's meaning
-	TransactionID string  `json:"transaction_id,omitempty"`
-	Tax           float64 `json:"tax,omitempty"`
-	Shipping      float64 `json:"shipping,omitempty"`
-	Coupon        string  `json:"coupon,omitempty"`
-	Items         []Item  `json:"items,omitempty"`
-	// On a refund or cancellation: what the order is worth after it, tax and shipping in, after every refund so far.
-	// For a platform that restates a conversion's value rather than subtracting a refund. Nil elsewhere
-	ValueAfter *float64 `json:"value_after,omitempty"`
-}
-
-type Item struct {
-	ItemID       string  `json:"item_id"` // the SKU, everywhere
-	ItemName     string  `json:"item_name,omitempty"`
-	ItemBrand    string  `json:"item_brand,omitempty"`
-	ItemCategory string  `json:"item_category,omitempty"`
-	ItemVariant  string  `json:"item_variant,omitempty"`
-	Price        float64 `json:"price,omitempty"`
-	Quantity     float64 `json:"quantity,omitempty"`
-	Discount     float64 `json:"discount,omitempty"`
-}
-
-type User struct {
-	CustomerID *uuid.UUID `json:"customer_id,omitempty"`
-	AnonID     string     `json:"anon_id,omitempty"`
-	Email      string     `json:"email,omitempty"`
-	Phone      string     `json:"phone,omitempty"`
-	// The email may receive marketing - the account's consent, or a guest's opt-in. Marketing platforms that build a
-	// profile from the address need it; false wherever the event carries no email
-	MarketingOptIn bool `json:"marketing_opt_in,omitempty"`
-}
-
-type Context struct {
-	IP        string `json:"ip,omitempty"`
-	UserAgent string `json:"user_agent,omitempty"`
-	PageURL   string `json:"page_url,omitempty"`
-	Referrer  string `json:"referrer,omitempty"`
-	Locale    string `json:"locale,omitempty"`
-	PageTitle string `json:"page_title,omitempty"`
-	SessionID string `json:"session_id,omitempty"` // the storefront's analytics session, its start in seconds
-}
+// Nothing in it is hashed - each destination hashes what its platform asks for. It is the SDK's own type, so what core
+// queues is exactly what a plugin receives, and a field can't be added on one side only
+type (
+	Event     = sdk.ShopEvent
+	Ecommerce = sdk.ShopEcommerce
+	Item      = sdk.ShopItem
+	User      = sdk.ShopUser
+	Context   = sdk.ShopContext
+)
 
 // WithShopper fills in the visitor - each part is already there only under the consent it needs
-func (e *Event) WithShopper(s *auth.Shopper) {
+func WithShopper(e *Event, s *auth.Shopper) {
 	if s == nil {
 		return
 	}
-	c := s.Consent
-	e.Consent = &c
+	e.Consent = &sdk.ShopConsent{Analytics: s.Consent.Analytics, Ads: s.Consent.Ads, Personalization: s.Consent.Personalization}
 	e.ClickIDs = s.ClickIDs
 	e.User.AnonID, e.Context.SessionID = s.AnonID, s.SessionID
 	e.Context.IP, e.Context.UserAgent = s.IP, s.UserAgent
@@ -138,7 +89,7 @@ func Decimal(minor int64, currency string) float64 {
 
 // Allowed is the consent check: every purpose the destination needs must be granted. An event with no consent stated
 // reaches only a destination that needs none
-func Allowed(purposes []Purpose, c *auth.Consent) bool {
+func Allowed(purposes []Purpose, c *sdk.ShopConsent) bool {
 	for _, p := range purposes {
 		switch p {
 		case PurposeNecessary:

@@ -183,7 +183,7 @@ func (r *repository) ClaimDue(ctx context.Context, batch, leaseSeconds int32) ([
 }
 
 func (r *repository) MarkSent(ctx context.Context, id uuid.UUID) error {
-	return r.q.MarkTrackingDeliverySent(ctx, id)
+	return r.q.DeleteTrackingDelivery(ctx, id)
 }
 
 func (r *repository) Reschedule(ctx context.Context, id uuid.UUID, at time.Time, reason string) error {
@@ -210,13 +210,17 @@ func (r *repository) ListDeliveries(ctx context.Context, destinationID uuid.UUID
 	return out, nil
 }
 
-// Prune drops settled deliveries past the window, then the events none are left for
-func (r *repository) Prune(ctx context.Context, before time.Time) (int64, error) {
-	n, err := r.q.PruneTrackingDeliveries(ctx, before)
+// Prune drops dead letters past the log window, strips the visitor's data from every event with nothing left to
+// deliver, and drops those past the replay window
+func (r *repository) Prune(ctx context.Context, logBefore, replayBefore time.Time) (int64, error) {
+	n, err := r.q.PruneTrackingDeliveries(ctx, logBefore)
 	if err != nil {
 		return n, err
 	}
-	m, err := r.q.PruneTrackingEvents(ctx, before)
+	if _, err := r.q.ScrubSettledTrackingEvents(ctx); err != nil {
+		return n, err
+	}
+	m, err := r.q.PruneTrackingEvents(ctx, replayBefore)
 	return n + m, err
 }
 

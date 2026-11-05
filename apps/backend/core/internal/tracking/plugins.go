@@ -2,8 +2,6 @@ package tracking
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -31,27 +29,10 @@ func RegisterPluginKinds(regs []sdk.RegisteredDestination, enabled func(ctx cont
 
 func pluginSend(send func(context.Context, *http.Client, sdk.DestinationConfig, sdk.ShopEvent) error) func(context.Context, *http.Client, Destination, Event) error {
 	return func(ctx context.Context, client *http.Client, d Destination, ev Event) error {
-		shop, err := ToShopEvent(ev)
-		if err != nil {
-			return Permanent(err)
-		}
-		err = send(ctx, client, sdk.DestinationConfig{ID: d.ID, ChannelID: d.ChannelID, Name: d.Name, Config: d.Config, Secret: d.Secret}, shop)
+		err := send(ctx, client, sdk.DestinationConfig{ID: d.ID, ChannelID: d.ChannelID, Name: d.Name, Config: d.Config, Secret: d.Secret}, ev)
 		if sdk.IsPermanent(err) {
 			return Permanent(err)
 		}
 		return err
 	}
-}
-
-// ToShopEvent is the event as the SDK spells it - both are the same JSON, which keeps the two types from drifting apart
-func ToShopEvent(ev Event) (sdk.ShopEvent, error) {
-	var out sdk.ShopEvent
-	raw, err := json.Marshal(ev)
-	if err == nil {
-		err = json.Unmarshal(raw, &out)
-	}
-	if err != nil {
-		return sdk.ShopEvent{}, fmt.Errorf("event %s as the sdk's: %w", ev.ID, err)
-	}
-	return out, nil
 }

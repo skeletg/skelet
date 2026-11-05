@@ -255,7 +255,7 @@ func orderEvent(o order.Order, name, id string, at time.Time) Event {
 	if o.BillingAddress.Phone != nil {
 		ev.User.Phone = *o.BillingAddress.Phone
 	}
-	ev.WithShopper(o.Tracking)
+	WithShopper(&ev, o.Tracking)
 	return ev
 }
 
@@ -315,7 +315,7 @@ func (h handlers) cartEvent(ctx context.Context, name string, channelID uuid.UUI
 			Items:    []Item{{ItemID: sku, Price: Decimal(unit, ch.CurrencyCode), Quantity: qty}},
 		},
 	}
-	ev.WithShopper(s)
+	WithShopper(&ev, s)
 	return h.svc.Track(ctx, ev)
 }
 
@@ -329,7 +329,7 @@ func (h handlers) onRegistered(ctx context.Context, e events.Event) error {
 		ID: "sign_up:" + cid.String(), Name: SignUp, OccurredAt: eventTime(ctx), ChannelID: ev.ChannelID,
 		Source: "server", User: User{CustomerID: &cid, Email: ev.Email},
 	}
-	out.WithShopper(ev.Shopper)
+	WithShopper(&out, ev.Shopper)
 	return h.track(ctx, out)
 }
 

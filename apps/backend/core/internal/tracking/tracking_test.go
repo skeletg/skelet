@@ -106,7 +106,10 @@ func (f *fakeStore) set(id uuid.UUID, fn func(*Delivery)) error {
 	return nil
 }
 func (f *fakeStore) MarkSent(_ context.Context, id uuid.UUID) error {
-	return f.set(id, func(d *Delivery) { d.Status = "sent" })
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.deliveries, id)
+	return nil
 }
 func (f *fakeStore) Reschedule(_ context.Context, id uuid.UUID, at time.Time, reason string) error {
 	return f.set(id, func(d *Delivery) { d.NextAttemptAt, d.LastError = at, reason })
@@ -120,7 +123,7 @@ func (f *fakeStore) Retry(_ context.Context, id uuid.UUID) error {
 func (f *fakeStore) ListDeliveries(context.Context, uuid.UUID, int32) ([]Delivery, error) {
 	return nil, nil
 }
-func (f *fakeStore) Prune(context.Context, time.Time) (int64, error) { return 0, nil }
+func (f *fakeStore) Prune(context.Context, time.Time, time.Time) (int64, error) { return 0, nil }
 
 func (f *fakeStore) byDestination(id uuid.UUID) []Delivery {
 	var out []Delivery
@@ -152,12 +155,12 @@ func registerTestKind(t *testing.T, k Kind) {
 	})
 }
 
-func consentOf(raw string) *auth.Consent {
+func consentOf(raw string) *sdk.ShopConsent {
 	c, ok := auth.ParseConsent(raw)
 	if !ok {
 		return nil
 	}
-	return &c
+	return &sdk.ShopConsent{Analytics: c.Analytics, Ads: c.Ads, Personalization: c.Personalization}
 }
 
 // Every combination of the visitor's choices against every purpose set a destination can need
@@ -286,6 +289,12 @@ func TestADestinationNeedsAKnownKindAndAName(t *testing.T) {
 	if _, err := svc.Update(ctx, d); err != nil {
 		t.Errorf("an update that keeps the stored secret: %v", err)
 	}
+	// The settings are plain JSON - a secret typed there, or anything the kind doesn't declare, is refused
+	for _, cfg := range []map[string]string{{"id": "1", "token": "sk_live"}, {"id": "1", "stray": "x"}} {
+		if _, err := svc.Create(ctx, Destination{Kind: "t-fields", Name: "x", Config: cfg, Secret: "s"}); !errors.Is(err, ErrFieldUnknown) {
+			t.Errorf("settings %v: %v, want refused", cfg, err)
+		}
+	}
 }
 
 func TestTheWorkerRetriesDeadLettersAndKeepsSecretsOutOfTheLog(t *testing.T) {
@@ -336,8 +345,8 @@ func TestTheWorkerRetriesDeadLettersAndKeepsSecretsOutOfTheLog(t *testing.T) {
 	w.RunOnce(ctx)
 
 	state := func(dest uuid.UUID) Delivery { return fs.byDestination(dest)[0] }
-	if s := state(ok); s.Status != "sent" {
-		t.Errorf("the healthy destination's delivery is %q - a failing one held it up", s.Status)
+	if left := fs.byDestination(ok); len(left) != 0 {
+		t.Errorf("the healthy destination's delivery is still %q - a failing one held it up", left[0].Status)
 	}
 	if s := state(refuses); s.Status != "dead" || s.Attempts != 1 {
 		t.Errorf("a 4xx refusal: %+v, want dead after one attempt", s)

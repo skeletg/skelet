@@ -31,14 +31,13 @@ RETURNING *;
 DELETE FROM tracking_destinations WHERE id = $1;
 
 -- name: EnqueueTrackingEvent :exec
--- The event once and a delivery for each destination, in one statement - a replayed event finds both already there and
--- changes nothing, and a destination enabled since its first run gets its delivery. The no-op update is what lets a
--- replay read back the stored event's id
+-- The event once and a delivery for each destination, in one statement - so a replayed event, which finds its key
+-- already stored, adds nothing at all, even after its deliveries were sent and its data scrubbed
 WITH ev AS (
     INSERT INTO tracking_events (channel_id, event_id, event_name, customer_id, anon_id, email, payload)
     VALUES (sqlc.arg(channel_id), sqlc.arg(event_id), sqlc.arg(event_name), sqlc.narg(customer_id),
             sqlc.arg(anon_id), sqlc.arg(email), sqlc.arg(payload))
-    ON CONFLICT (channel_id, event_name, event_id) DO UPDATE SET event_name = EXCLUDED.event_name
+    ON CONFLICT (channel_id, event_name, event_id) DO NOTHING
     RETURNING id
 )
 INSERT INTO tracking_deliveries (destination_id, tracking_event_id)
@@ -67,8 +66,9 @@ SELECT c.id, c.destination_id, e.event_id, e.event_name, e.payload, c.status, c.
 FROM   claimed c
 JOIN   tracking_events e ON e.id = c.tracking_event_id;
 
--- name: MarkTrackingDeliverySent :exec
-UPDATE tracking_deliveries SET status = 'sent', last_error = '', updated_at = NOW() WHERE id = $1;
+-- name: DeleteTrackingDelivery :exec
+-- A sent delivery is done with - the log keeps what is pending or failed, and the event row guards against a replay
+DELETE FROM tracking_deliveries WHERE id = $1;
 
 -- name: RescheduleTrackingDelivery :exec
 UPDATE tracking_deliveries SET next_attempt_at = $2, last_error = $3, updated_at = NOW() WHERE id = $1;
@@ -93,11 +93,19 @@ ORDER  BY d.created_at DESC
 LIMIT  sqlc.arg(lim);
 
 -- name: PruneTrackingDeliveries :execrows
--- The log is for following up a recent problem; a pending row is never pruned
-DELETE FROM tracking_deliveries WHERE status <> 'pending' AND updated_at < $1;
+-- A dead letter is kept for a retry until it is past following up; a pending row is never pruned
+DELETE FROM tracking_deliveries WHERE status = 'dead' AND updated_at < $1;
+
+-- name: ScrubSettledTrackingEvents :execrows
+-- An event with nothing left to deliver keeps only its key, for the replay window - the visitor's data goes at once,
+-- which also covers the opt-out an erasure sends after it has deleted everything else
+UPDATE tracking_events e
+SET    payload = '{}'::jsonb, customer_id = NULL, anon_id = '', email = ''
+WHERE  e.payload <> '{}'::jsonb
+  AND  NOT EXISTS (SELECT 1 FROM tracking_deliveries d WHERE d.tracking_event_id = e.id);
 
 -- name: PruneTrackingEvents :execrows
--- An event goes with the last of its deliveries
+-- Past the replay window an event with nothing left to deliver goes too
 DELETE FROM tracking_events e
 WHERE  e.created_at < $1
   AND  NOT EXISTS (SELECT 1 FROM tracking_deliveries d WHERE d.tracking_event_id = e.id);

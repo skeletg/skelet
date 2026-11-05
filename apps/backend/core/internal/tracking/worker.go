@@ -21,7 +21,8 @@ const (
 	leaseSeconds = 60 // well past sendTimeout, so a slow send isn't claimed twice
 	sendTimeout  = 15 * time.Second
 	workers      = 8
-	logRetention = 30 * 24 * time.Hour
+	logRetention = 30 * 24 * time.Hour // how long a dead letter waits for a retry
+	replayWindow = 48 * time.Hour      // how long a settled event's key stops a replay sending it again - the webhook queue's window
 )
 
 // The waits after the 1st, 2nd... failed attempt. A platform that is down for a day loses the events of that day,
@@ -47,7 +48,7 @@ func NewWorker(s *Service, client *http.Client) *Worker {
 		Claim:   s.store.ClaimDue,
 		Prepare: w.prepare,
 		Hourly: func(ctx context.Context) {
-			if _, err := w.store.Prune(ctx, time.Now().Add(-logRetention)); err != nil {
+			if _, err := w.store.Prune(ctx, time.Now().Add(-logRetention), time.Now().Add(-replayWindow)); err != nil {
 				slog.Warn("prune tracking deliveries", "err", err)
 			}
 		},
@@ -142,16 +143,10 @@ func (w *Worker) dead(ctx context.Context, item Delivery, d Destination, reason 
 }
 
 // The log is shown to admins, and a platform's error can echo the request - a GA4 api_secret rides in the URL, a token
-// in a header. Every secret and config value that looks like one is cut out before it is stored
+// in a header. The secret is cut out before it is stored; validate keeps every other secret out of the settings
 func redact(s string, d *Destination) string {
 	if d.Secret != "" {
 		s = strings.ReplaceAll(s, d.Secret, "[redacted]")
-	}
-	for k, v := range d.Config {
-		lk := strings.ToLower(k)
-		if len(v) >= 8 && (strings.Contains(lk, "secret") || strings.Contains(lk, "token") || strings.Contains(lk, "key")) {
-			s = strings.ReplaceAll(s, v, "[redacted]")
-		}
 	}
 	if len(s) > 1000 {
 		s = strings.ToValidUTF8(s[:1000], "") // a cut through a multi-byte rune is invalid text, which Postgres refuses

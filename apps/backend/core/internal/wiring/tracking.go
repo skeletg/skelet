@@ -85,7 +85,7 @@ func browserEvent(w http.ResponseWriter, r *http.Request, channelID uuid.UUID, c
 		Ecommerce: in.Ecommerce,
 		Context:   tracking.Context{PageURL: in.PageURL, Referrer: in.Referrer, Locale: in.Locale, PageTitle: in.PageTitle},
 	}
-	ev.WithShopper(auth.ShopperFromContext(auth.WithRequest(r.Context(), r)))
+	tracking.WithShopper(&ev, auth.ShopperFromContext(auth.WithRequest(r.Context(), r)))
 	if ev.Consent != nil && ev.Consent.Analytics { // the account is a profile link, so it needs what the anon id needs
 		if cid := auth.VerifiedStorefrontCustomer(r, customers, channelID); cid != uuid.Nil {
 			ev.User.CustomerID = &cid

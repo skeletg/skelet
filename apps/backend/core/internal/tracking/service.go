@@ -12,8 +12,8 @@ import (
 	"github.com/google/uuid"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
-	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // store is what the service and the worker need of the database - the postgres repository, or a test's fake
@@ -26,12 +26,12 @@ type store interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	Enqueue(ctx context.Context, destinationIDs []uuid.UUID, ev Event) error // the event once, a delivery per destination
 	ClaimDue(ctx context.Context, batch, leaseSeconds int32) ([]Delivery, error)
-	MarkSent(ctx context.Context, id uuid.UUID) error
+	MarkSent(ctx context.Context, id uuid.UUID) error // the row goes - the log is what is pending or failed
 	Reschedule(ctx context.Context, id uuid.UUID, at time.Time, reason string) error
 	MarkDead(ctx context.Context, id uuid.UUID, reason string) error
 	Retry(ctx context.Context, id uuid.UUID) error
 	ListDeliveries(ctx context.Context, destinationID uuid.UUID, limit int32) ([]Delivery, error)
-	Prune(ctx context.Context, before time.Time) (int64, error)
+	Prune(ctx context.Context, logBefore, replayBefore time.Time) (int64, error)
 }
 
 // Settings reads a channel's switches - satisfied by *config.Service
@@ -52,6 +52,7 @@ var (
 	ErrUnknownKind  = errors.New("unknown tracking destination kind")
 	ErrNameMissing  = errors.New("a tracking destination needs a name")
 	ErrFieldMissing = errors.New("a required setting is missing")
+	ErrFieldUnknown = errors.New("not a setting of this destination - a secret goes in the secret, never the settings")
 )
 
 // Track hands one event to every enabled destination on its channel that wants it and that the visitor's consent allows.
@@ -160,6 +161,12 @@ func validate(d Destination, creating bool) error {
 			return fmt.Errorf("%w: %s", ErrFieldMissing, f.Label)
 		}
 	}
+	// The settings are stored as plain JSON and only the secret is sealed, so only a declared, non-secret field goes there
+	for key := range d.Config {
+		if i := slices.IndexFunc(k.Fields, func(f sdk.DestinationField) bool { return f.Key == key }); i < 0 || k.Fields[i].Secret {
+			return fmt.Errorf("%w: %s", ErrFieldUnknown, key)
+		}
+	}
 	return nil
 }
 
@@ -176,7 +183,7 @@ func (s *Service) SendTest(ctx context.Context, client *http.Client, id uuid.UUI
 	}
 	ev := Event{
 		ID: "test-" + uuid.NewString(), Name: Purchase, OccurredAt: time.Now().UTC(), ChannelID: d.ChannelID, Source: "server",
-		Consent:   &auth.Consent{Analytics: true, Ads: true, Personalization: true},
+		Consent:   &sdk.ShopConsent{Analytics: true, Ads: true, Personalization: true},
 		User:      User{AnonID: "test-visitor", Email: "test@example.com"},
 		Ecommerce: &Ecommerce{Currency: "EUR", Value: 10, TransactionID: "TEST-1", Items: []Item{{ItemID: "TEST-SKU", ItemName: "Test item", Price: 10, Quantity: 1}}},
 	}

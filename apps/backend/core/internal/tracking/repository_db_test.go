@@ -69,18 +69,35 @@ func TestAnEventIsStoredOnceForEveryDestination(t *testing.T) {
 		t.Errorf("claimed %d (%d purchases), want a purchase per destination and the one page view", len(due), purchases)
 	}
 
-	// Settled and old, the deliveries go, and their events with them
-	if _, err := conn.Exec(`UPDATE tracking_deliveries SET status = 'sent', updated_at = now() - interval '40 days'
-		WHERE destination_id = ANY($1)`, dests); err != nil {
+	// Sent, a delivery goes; an event with nothing left to send loses the visitor's data within the hour, and a replay of
+	// it then adds nothing - past the replay window the key goes too
+	for _, d := range due {
+		if d.EventName == Purchase {
+			if err := repo.MarkSent(ctx, d.ID); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	now := time.Now()
+	if _, err := repo.Prune(ctx, now.Add(-30*24*time.Hour), now.Add(-48*time.Hour)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := conn.Exec(`UPDATE tracking_events SET created_at = now() - interval '40 days' WHERE channel_id = $1`, ch); err != nil {
+	if n := count(`SELECT count(*) FROM tracking_events WHERE channel_id = $1 AND event_name = 'purchase' AND payload = '{}' AND email = '' AND customer_id IS NULL`); n != 1 {
+		t.Errorf("%d scrubbed purchases, want the sent one kept as a bare key", n)
+	}
+	if n := count(`SELECT count(*) FROM tracking_events WHERE channel_id = $1 AND event_name = 'page_view' AND payload <> '{}'`); n != 1 {
+		t.Error("an event still waiting to be sent lost its data")
+	}
+	if err := repo.Enqueue(ctx, dests, purchase); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := repo.Prune(ctx, time.Now().Add(-30*24*time.Hour)); err != nil {
+	if n := count(`SELECT count(*) FROM tracking_deliveries d JOIN tracking_destinations t ON t.id = d.destination_id WHERE t.channel_id = $1`); n != 1 {
+		t.Errorf("%d deliveries after a late replay, want only the page view's - a replay must not resend", n)
+	}
+	if _, err := repo.Prune(ctx, now.Add(-30*24*time.Hour), now.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
-	if n := count(`SELECT count(*) FROM tracking_events WHERE channel_id = $1`); n != 0 {
-		t.Errorf("%d events outlived their deliveries", n)
+	if n := count(`SELECT count(*) FROM tracking_events WHERE channel_id = $1`); n != 1 {
+		t.Errorf("%d events past the replay window, want only the one still pending", n)
 	}
 }

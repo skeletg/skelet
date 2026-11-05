@@ -134,6 +134,16 @@ func (q *Queries) CreateTrackingDestination(ctx context.Context, arg CreateTrack
 	return i, err
 }
 
+const deleteTrackingDelivery = `-- name: DeleteTrackingDelivery :exec
+DELETE FROM tracking_deliveries WHERE id = $1
+`
+
+// A sent delivery is done with - the log keeps what is pending or failed, and the event row guards against a replay
+func (q *Queries) DeleteTrackingDelivery(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteTrackingDelivery, id)
+	return err
+}
+
 const deleteTrackingDestination = `-- name: DeleteTrackingDestination :exec
 DELETE FROM tracking_destinations WHERE id = $1
 `
@@ -148,7 +158,7 @@ WITH ev AS (
     INSERT INTO tracking_events (channel_id, event_id, event_name, customer_id, anon_id, email, payload)
     VALUES ($2, $3, $4, $5,
             $6, $7, $8)
-    ON CONFLICT (channel_id, event_name, event_id) DO UPDATE SET event_name = EXCLUDED.event_name
+    ON CONFLICT (channel_id, event_name, event_id) DO NOTHING
     RETURNING id
 )
 INSERT INTO tracking_deliveries (destination_id, tracking_event_id)
@@ -167,9 +177,8 @@ type EnqueueTrackingEventParams struct {
 	Payload        json.RawMessage `json:"payload"`
 }
 
-// The event once and a delivery for each destination, in one statement - a replayed event finds both already there and
-// changes nothing, and a destination enabled since its first run gets its delivery. The no-op update is what lets a
-// replay read back the stored event's id
+// The event once and a delivery for each destination, in one statement - so a replayed event, which finds its key
+// already stored, adds nothing at all, even after its deliveries were sent and its data scrubbed
 func (q *Queries) EnqueueTrackingEvent(ctx context.Context, arg EnqueueTrackingEventParams) error {
 	_, err := q.db.ExecContext(ctx, enqueueTrackingEvent,
 		pq.Array(arg.DestinationIds),
@@ -365,20 +374,11 @@ func (q *Queries) MarkTrackingDeliveryDead(ctx context.Context, arg MarkTracking
 	return err
 }
 
-const markTrackingDeliverySent = `-- name: MarkTrackingDeliverySent :exec
-UPDATE tracking_deliveries SET status = 'sent', last_error = '', updated_at = NOW() WHERE id = $1
-`
-
-func (q *Queries) MarkTrackingDeliverySent(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, markTrackingDeliverySent, id)
-	return err
-}
-
 const pruneTrackingDeliveries = `-- name: PruneTrackingDeliveries :execrows
-DELETE FROM tracking_deliveries WHERE status <> 'pending' AND updated_at < $1
+DELETE FROM tracking_deliveries WHERE status = 'dead' AND updated_at < $1
 `
 
-// The log is for following up a recent problem; a pending row is never pruned
+// A dead letter is kept for a retry until it is past following up; a pending row is never pruned
 func (q *Queries) PruneTrackingDeliveries(ctx context.Context, updatedAt time.Time) (int64, error) {
 	result, err := q.db.ExecContext(ctx, pruneTrackingDeliveries, updatedAt)
 	if err != nil {
@@ -393,7 +393,7 @@ WHERE  e.created_at < $1
   AND  NOT EXISTS (SELECT 1 FROM tracking_deliveries d WHERE d.tracking_event_id = e.id)
 `
 
-// An event goes with the last of its deliveries
+// Past the replay window an event with nothing left to deliver goes too
 func (q *Queries) PruneTrackingEvents(ctx context.Context, createdAt time.Time) (int64, error) {
 	result, err := q.db.ExecContext(ctx, pruneTrackingEvents, createdAt)
 	if err != nil {
@@ -427,6 +427,23 @@ WHERE  id = $1 AND status = 'dead'
 func (q *Queries) RetryTrackingDelivery(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, retryTrackingDelivery, id)
 	return err
+}
+
+const scrubSettledTrackingEvents = `-- name: ScrubSettledTrackingEvents :execrows
+UPDATE tracking_events e
+SET    payload = '{}'::jsonb, customer_id = NULL, anon_id = '', email = ''
+WHERE  e.payload <> '{}'::jsonb
+  AND  NOT EXISTS (SELECT 1 FROM tracking_deliveries d WHERE d.tracking_event_id = e.id)
+`
+
+// An event with nothing left to deliver keeps only its key, for the replay window - the visitor's data goes at once,
+// which also covers the opt-out an erasure sends after it has deleted everything else
+func (q *Queries) ScrubSettledTrackingEvents(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, scrubSettledTrackingEvents)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateTrackingDestination = `-- name: UpdateTrackingDestination :one
