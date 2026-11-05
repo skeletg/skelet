@@ -20,6 +20,7 @@ type Consent struct {
 	Personalization bool `json:"personalization"`
 }
 
+// SYNC: the same pattern as V2 in packages/storefront-core/consent/categories.ts - skelet check compares them
 var consentValue = regexp.MustCompile(`^(?:v2|auto):a([01])\.d([01])\.p([01])$`)
 
 // ParseConsent mirrors the storefront's parseConsent - ok is false for no choice and for anything unrecognised, which must never count as a grant
@@ -59,6 +60,7 @@ func sessionID(r *http.Request) string {
 
 const ClickIDsHeader = "X-Click-Ids" // the ad and affiliate click ids the storefront keeps in first-party cookies, as a query string
 
+// SYNC: the keys of CLICK_IDS in packages/storefront-core/consent/click-ids.ts, ad and affiliate alike - skelet check compares them
 var adClickIDKeys = []string{"gclid", "gbraid", "wbraid", "msclkid", "ttclid", "fbc", "fbp", "oppref", "obref"}
 
 // The affiliate networks' ids, which a merchant may treat as necessary - the storefront sends them only when its setting
