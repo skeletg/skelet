@@ -24,7 +24,7 @@ export function AnalyticsEvent({
     const id = eventId ?? crypto.randomUUID();
     // The server-side destinations each need their own category, which the backend checks - so any grant sends it
     const c = readClientConsent();
-    if (c.analytics || c.ads || c.personalization) track(event, id, payload?.ecommerce);
+    if (c.analytics || c.ads || c.personalization) track(event, id, payload?.ecommerce, payload?.search_term as string | undefined);
     // Intentionally do not depend on `payload` - the consumer renders this component as
     // part of a one-shot view, and React.StrictMode would otherwise double-fire on
     // every re-render that produces a new object identity

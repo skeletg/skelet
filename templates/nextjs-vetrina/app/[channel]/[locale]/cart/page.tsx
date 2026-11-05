@@ -6,6 +6,10 @@ import type { HandoffState } from "@skelet/storefront-next/cart/handoff";
 import { getCartRecommendations } from "@skelet/storefront-next/catalog/read";
 import { ProductCard } from "@/app/components/ProductCard";
 import { CartView } from "./CartView";
+import { AnalyticsEvent } from "@/app/components/AnalyticsEvent";
+import { getChannel } from "@skelet/storefront-next/channel/read";
+import { displayName } from "@skelet/storefront-core/display";
+import { toMajor } from "@skelet/storefront-core/format";
 
 export async function generateMetadata({
   params,
@@ -26,10 +30,12 @@ export default async function CartPage({
   const { locale } = await params;
   const { handoff } = await searchParams;
   const t = await getTranslations({ locale, namespace: "cart" });
-  const [cart, freeShipThreshold] = await Promise.all([
+  const [cart, freeShipThreshold, channel] = await Promise.all([
     getCart(),
     getFreeShippingThreshold(),
+    getChannel(),
   ]);
+  const currency = channel?.currency ?? "USD";
   const recommendations = cart ? await getCartRecommendations(cart.id) : [];
 
   const recommendationsNode =
@@ -47,10 +53,29 @@ export default async function CartPage({
     ) : null;
 
   return (
-    <CartView
-      freeShipThreshold={freeShipThreshold}
-      recommendations={recommendationsNode}
-      notice={isHandoffNotice(handoff) ? t(`handoff.${handoff}`) : undefined}
-    />
+    <>
+      {cart && cart.lines.length > 0 && (
+        <AnalyticsEvent
+          event="view_cart"
+          payload={{
+            ecommerce: {
+              currency: typeof currency === "string" ? currency : currency.code,
+              value: toMajor(cart.subtotal, currency),
+              items: cart.lines.map((line) => ({
+                item_id: line.sku,
+                item_name: displayName(line.name, line.sku),
+                quantity: line.quantity,
+                price: toMajor(line.unitPrice, currency),
+              })),
+            },
+          }}
+        />
+      )}
+      <CartView
+        freeShipThreshold={freeShipThreshold}
+        recommendations={recommendationsNode}
+        notice={isHandoffNotice(handoff) ? t(`handoff.${handoff}`) : undefined}
+      />
+    </>
   );
 }

@@ -34,6 +34,9 @@ import { productHref } from "@skelet/storefront-core/entity-href";
 import { itemListJsonLd } from "@skelet/storefront-core/json-ld";
 import { JsonLd } from "./JsonLd";
 import { LensTrack } from "./LensTrack";
+import { AnalyticsEvent } from "./AnalyticsEvent";
+import { ItemListEvents } from "./ItemListEvents";
+import { ga4Item } from "@skelet/storefront-core/track/items";
 
 type RawSearchParams = Record<string, string | string[] | undefined>;
 
@@ -227,6 +230,9 @@ export async function ProductListShell({
   // Every PLP (category, collection, search, /products) gets the ItemList through this one
   // shell - each entry pointing at the locale-canonical PDP URL, positions running across pages
   const [canonical, base] = await Promise.all([canonicalPathMapper(), getSiteUrl()]);
+  // The list GA4 reports a grid under - the search, or the page's own path, which names a category or collection
+  const list = query?.trim() ? { id: "search", name: "Search results" } : { id: basePath ?? "/products", name: basePath ?? "/products" };
+  const listItems = data.items.map((p: BrowseProductsItem, i: number) => ga4Item(p as unknown as ProductSummary, offset + i, list));
 
   return (
     <main className="mx-auto w-full max-w-8xl px-6 md:px-10 pt-6 pb-14">
@@ -241,6 +247,9 @@ export async function ProductListShell({
         />
       )}
       {/* Lens search signal - /search only, keyed on the query so it fires once per term */}
+      {query && query.trim() && (
+        <AnalyticsEvent key={`ga4-search:${query.trim().toLowerCase()}`} event="search" payload={{ search_term: query.trim() }} />
+      )}
       {query && query.trim() && (
         <LensTrack
           key={`search:${query.trim().toLowerCase()}`}
@@ -309,9 +318,10 @@ export async function ProductListShell({
                 // animate on that navigation too and compete with the morph
                 default="none"
               >
+                <ItemListEvents key={gridKey} list={list} currency={data.items[0]?.defaultCurrencyCode ?? ""} items={listItems}>
                 <ul className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                  {data.items.map((p: BrowseProductsItem) => (
-                    <li key={p.id}>
+                  {data.items.map((p: BrowseProductsItem, i: number) => (
+                    <li key={p.id} data-item-index={i}>
                       {/* BrowseProductsItem ⊇ ProductSummary at runtime; the
                           generated/hand-written types drift on nested shapes. */}
                       <ProductCard
@@ -321,6 +331,7 @@ export async function ProductListShell({
                     </li>
                   ))}
                 </ul>
+                </ItemListEvents>
               </ViewTransition>
               {(style !== "pagination" && plan.cumulative) && (
                 <LoadMore

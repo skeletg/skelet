@@ -132,6 +132,7 @@ export default async function ProductPage(
   // locale prefix - never the typed /products/<id> route this page also serves
   const [canonical, base, channel] = await Promise.all([canonicalPathMapper(), getSiteUrl(), getChannel()]);
   const money = priceCurrency(product.defaultCurrencyCode, channel?.currency);
+  const shownPrice = product.price ?? product.defaultPrice; // the channel's sell price, specials in
   const href = canonical(productHref(product));
   const breadcrumbItems = productBreadcrumbs(product, heading, tc("home"));
   const breadcrumbJsonLdItems = breadcrumbItems.map((it) => ({
@@ -162,18 +163,33 @@ export default async function ProductPage(
         payload={{
           ecommerce: {
             currency: product.defaultCurrencyCode,
-            value: toMajor(product.defaultPrice, money),
+            value: toMajor(shownPrice, money),
             items: [
               {
                 item_id: product.sku, // the SKU everywhere, as the server's cart and purchase events have it
                 item_name: heading,
-                price: toMajor(product.defaultPrice, money),
-                currency: product.defaultCurrencyCode,
+                price: toMajor(shownPrice, money),
               },
             ],
           },
         }}
       />
+      {/* The promotions shown on the page - GA4's view_promotion, one per rule. Their banners link nowhere, so there's no select_promotion */}
+      {product.promotionalDisplays.map((d) => (
+        <AnalyticsEvent
+          key={d.ruleId}
+          event="view_promotion"
+          payload={{
+            ecommerce: {
+              currency: product.defaultCurrencyCode,
+              promotion_id: d.ruleId,
+              promotion_name: d.publicLabel || d.ruleSlug,
+              creative_slot: d.bannerMedia ? "product_banner" : "product_pill",
+              items: [{ item_id: product.sku, item_name: heading, price: toMajor(shownPrice, money) }],
+            },
+          }}
+        />
+      ))}
       {/* Folded into the page view so the activity timeline can render a rich product row */}
       <div
         hidden
