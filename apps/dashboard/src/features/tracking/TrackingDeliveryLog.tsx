@@ -15,11 +15,9 @@ const FILTERS = [
   { value: '', label: 'All' },
   { value: 'dead', label: 'Failed' },
   { value: 'pending', label: 'Waiting' },
-  { value: 'sent', label: 'Sent' },
 ] as const
 
-const STATUS: Record<string, { label: string; variant: 'success' | 'warning' | 'destructive' }> = {
-  sent: { label: 'Sent', variant: 'success' },
+const STATUS: Record<string, { label: string; variant: 'warning' | 'destructive' }> = {
   pending: { label: 'Waiting', variant: 'warning' },
   dead: { label: 'Failed', variant: 'destructive' },
 }

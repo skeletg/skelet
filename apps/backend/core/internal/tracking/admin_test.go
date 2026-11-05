@@ -13,9 +13,9 @@ import (
 )
 
 // A kind whose secret is required, like GA4's API secret
-func secretKind(t *testing.T, name string, send func(context.Context, *http.Client, Destination, Event) error) {
+func secretKind(t *testing.T, name string, send func(context.Context, *http.Client, sdk.DestinationConfig, Event) error) {
 	t.Helper()
-	registerTestKind(t, Kind{Kind: name, Label: name, Send: send, Fields: []sdk.DestinationField{
+	registerTestKind(t, sdk.Destination{Kind: name, Label: name, Send: send, Fields: []sdk.DestinationField{
 		{Key: "account", Label: "Account", Required: true},
 		{Key: "api_secret", Label: "API secret", Required: true, Secret: true},
 	}})
@@ -56,7 +56,7 @@ func TestImportedDestinationsWaitForTheirSecret(t *testing.T) {
 
 // The platform's answer reaches an admin screen, so a URL quoting the secret must not
 func TestATestSendNeverShowsTheSecret(t *testing.T) {
-	secretKind(t, "t-leaky", func(context.Context, *http.Client, Destination, Event) error {
+	secretKind(t, "t-leaky", func(context.Context, *http.Client, sdk.DestinationConfig, Event) error {
 		return errors.New(`Post "https://collect.example/mp?api_secret=s3cr3t-value&id=G-1": dial tcp: refused`)
 	})
 	d := Destination{ID: uuid.New(), Kind: "t-leaky", Name: "x", Secret: "s3cr3t-value", Config: map[string]string{"account": "G-1"}}

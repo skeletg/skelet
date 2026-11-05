@@ -185,8 +185,8 @@ func (r *queryResolver) TrackingDeliveries(ctx context.Context, destinationID st
 	if status != nil {
 		want = *status
 	}
-	if want != "" && want != "pending" && want != "sent" && want != "dead" {
-		return nil, apperr.New("TRACKING_BAD_STATUS", apperr.ClassValidation, "status is pending, sent or dead")
+	if want != "" && want != "pending" && want != "dead" {
+		return nil, apperr.New("TRACKING_BAD_STATUS", apperr.ClassValidation, "status is pending or dead")
 	}
 	n := int32(50)
 	if limit != nil && *limit > 0 {

@@ -4,20 +4,23 @@ import { FRONT_API_URL } from "../backend-url";
 import { PublicConfigDocument, type PublicConfigQuery } from "../config/operations.gql";
 import type { ConsentMode } from "./categories";
 
-// The store's cookie consent mode and which affiliate cookies it made necessary. A plain fetch with a module-level TTL cache, like backend-locales, because the proxy
+// The store's cookie consent mode, which affiliate cookies it made necessary, and whether it counts visitors who decline analytics. A plain fetch with a module-level TTL cache, like backend-locales, because the proxy
 // reads it on every request and has no render scope for gqlFetch or react cache(). One request a minute per channel
 
 const QUERY = print(PublicConfigDocument);
 const TTL_MS = 60_000;
 const PATH = "general/privacy/cookie_consent";
+const COUNTS = "general/privacy/aggregate_counts";
 // The affiliate networks whose click cookie the merchant made necessary, by the click-id key each one stores
 const NECESSARY: Record<string, string> = {
   "general/privacy/cj_cookie_necessary": "cjevent",
   "general/privacy/awin_cookie_necessary": "awc",
 };
 
-export type Privacy = { mode: ConsentMode; necessary: Set<string> };
-const ASK_FIRST: Privacy = { mode: "opt_in", necessary: new Set() };
+// counts says whether to report page views from visitors who decline analytics - the backend drops them anyway when it's off,
+// so an unread setting leaves it on rather than lose views
+export type Privacy = { mode: ConsentMode; necessary: Set<string>; counts: boolean };
+const ASK_FIRST: Privacy = { mode: "opt_in", necessary: new Set(), counts: true };
 
 const cache = new Map<string, { at: number; value: Privacy }>();
 
@@ -40,6 +43,7 @@ export async function getPrivacy(channelId: string): Promise<Privacy> {
     const value: Privacy = {
       mode: config.find((c) => c.path === PATH)?.value === "opt_out" ? "opt_out" : "opt_in",
       necessary: new Set(config.filter((c) => NECESSARY[c.path] && c.value === "true").map((c) => NECESSARY[c.path])),
+      counts: config.find((c) => c.path === COUNTS)?.value !== "false",
     };
     cache.set(channelId, { at: Date.now(), value });
     return value;

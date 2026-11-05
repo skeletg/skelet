@@ -116,7 +116,7 @@ extend type Query {
   trackingPlatforms(channelId: ID!): [TrackingPlatform!]!
   trackingDestinations(channelId: ID!): [TrackingDestination!]!
   trackingDestination(id: ID!): TrackingDestination
-  # Newest first. status: pending | sent | dead, empty for all. limit at most 200
+  # Newest first. status: pending | dead, empty for all - a sent delivery is not kept. limit at most 200
   trackingDeliveries(destinationId: ID!, status: String, limit: Int): [TrackingDelivery!]!
   # Needs settings.manage as well; empty when Signals is off
   signalsImportCandidates(channelId: ID!): [SignalsImportCandidate!]!
