@@ -559,7 +559,7 @@ func TestARefusedWriteIsLogged(t *testing.T) {
 // Refusing analytics on the banner still counts the purchase, but as nobody - not the customer, the visitor or the email
 func TestAnOrderPlacedWithoutAnalyticsConsentCountsAsNobody(t *testing.T) {
 	cid, ch, oid := uuid.New(), uuid.New(), uuid.New()
-	o := order.Order{ID: oid, CustomerID: &cid, Number: "1200", ChannelID: ch, Email: "a@example.com", AnonID: "lens-1", Tracking: &auth.Shopper{}}
+	o := order.Order{ID: oid, CustomerID: &cid, Number: "1200", ChannelID: ch, Email: "a@example.com", AnonID: "lens-1", Shopper: &auth.Shopper{}}
 	tr, fr := newTracker(o)
 	_ = tr.onOrderPlaced(context.Background(), &order.OrderPlaced{OrderID: oid, OrderNumber: "1200", CustomerID: &cid, Email: "a@example.com", AnonID: "lens-1", ChannelID: ch, TotalCents: 900, Currency: "USD"})
 	_ = tr.onOrderStatusChanged(context.Background(), &order.OrderStatusChanged{OrderID: oid, ToStatus: "cancelled"})
@@ -575,7 +575,7 @@ func TestAnOrderPlacedWithoutAnalyticsConsentCountsAsNobody(t *testing.T) {
 		t.Errorf("order_placed props %v, want the revenue kept", fr.calls[0].Props)
 	}
 
-	o.Tracking = &auth.Shopper{Consent: auth.Consent{Analytics: true}}
+	o.Shopper = &auth.Shopper{Consent: auth.Consent{Analytics: true}}
 	tr, fr = newTracker(o)
 	_ = tr.onOrderPlaced(context.Background(), &order.OrderPlaced{OrderID: oid, CustomerID: &cid, ChannelID: ch})
 	if len(fr.calls) != 1 || fr.calls[0].CustomerID == nil || *fr.calls[0].CustomerID != cid {
@@ -621,7 +621,7 @@ func TestCartActivityWithAnalyticsRefusedCountsAsNobody(t *testing.T) {
 // A backfill skips an order placed without analytics consent: it already counted - under an order-only id before such
 // orders counted as nobody, as nobody since - and the key a replay would get now matches neither
 func TestABackfillLeavesOrdersPlacedWithoutConsentAlone(t *testing.T) {
-	o := order.Order{ID: uuid.New(), Number: "1300", ChannelID: uuid.New(), TotalAmount: 900, CurrencyCode: "EUR", Tracking: &auth.Shopper{}}
+	o := order.Order{ID: uuid.New(), Number: "1300", ChannelID: uuid.New(), TotalAmount: 900, CurrencyCode: "EUR", Shopper: &auth.Shopper{}}
 	fr := &fakeRecorder{}
 	if err := NewTracker(fr, nil, countsNobody(true)).BackfillOrder(context.Background(), o, time.Now()); err != nil {
 		t.Fatal(err)

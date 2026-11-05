@@ -30,7 +30,7 @@ func sampleOrder() order.Order {
 			{ID: line1, ProductSku: "SKU-1", ProductName: "Mug", UnitPrice: 1500, Quantity: 2},
 			{ID: line2, ProductSku: "SKU-2", ProductName: "Tee", UnitPrice: 2000, Quantity: 1},
 		},
-		Tracking: &auth.Shopper{
+		Shopper: &auth.Shopper{
 			Consent: auth.Consent{Analytics: true, Ads: true}, AnonID: "visitor-1",
 			ClickIDs: map[string]string{"gclid": "g1"}, IP: "203.0.113.7", UserAgent: "Mozilla/5.0",
 		},
@@ -56,7 +56,7 @@ func TestAPurchaseCarriesTheOrderAsGA4AndTheConsentOfThePlacement(t *testing.T) 
 		t.Errorf("user: %+v", ev.User)
 	}
 
-	o.Tracking = nil // an admin draft - no banner applied
+	o.Shopper = nil // an admin draft - no banner applied
 	if PurchaseEvent(o).Consent != nil {
 		t.Error("an order no shop placed must carry no consent, so only necessary destinations get it")
 	}

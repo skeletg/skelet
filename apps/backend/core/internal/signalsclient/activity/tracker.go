@@ -157,7 +157,7 @@ func shopperActor(s *auth.Shopper, cust *uuid.UUID, anon string) actor {
 // orderActor is who an order's events belong to - nobody when it was placed without analytics consent (the snapshot
 // is the consent at purchase), else the customer or the guest it was placed as
 func orderActor(o order.Order) actor {
-	if o.Tracking.AnalyticsRefused() {
+	if o.Shopper.AnalyticsRefused() {
 		return actor{nobody: true}
 	}
 	return actor{cust: o.CustomerID, anon: guestVisitor(o.CustomerID, o.AnonID, o.Email)}

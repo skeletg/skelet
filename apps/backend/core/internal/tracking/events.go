@@ -255,7 +255,7 @@ func orderEvent(o order.Order, name, id string, at time.Time) Event {
 	if o.BillingAddress.Phone != nil {
 		ev.User.Phone = *o.BillingAddress.Phone
 	}
-	WithShopper(&ev, o.Tracking)
+	WithShopper(&ev, o.Shopper)
 	return ev
 }
 
