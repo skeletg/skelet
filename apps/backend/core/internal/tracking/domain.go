@@ -6,9 +6,8 @@ package tracking
 
 import (
 	"context"
-	"errors"
 	"math"
-	"net/http"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -20,14 +19,14 @@ import (
 	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
-// Purpose is a cookie category an event needs before a destination may receive it
-type Purpose string
+// Purpose is a cookie category an event needs before a destination may receive it - the SDK's, which plugins declare
+type Purpose = sdk.DestinationPurpose
 
 const (
-	PurposeNecessary       Purpose = "necessary" // needs no consent - only an affiliate network the merchant made necessary
-	PurposeAnalytics       Purpose = "analytics"
-	PurposeAds             Purpose = "ads"
-	PurposePersonalization Purpose = "personalization"
+	PurposeNecessary       = sdk.PurposeNecessary // needs no consent - only an affiliate network the merchant made necessary
+	PurposeAnalytics       = sdk.PurposeAnalytics
+	PurposeAds             = sdk.PurposeAds
+	PurposePersonalization = sdk.PurposePersonalization
 )
 
 // Event names are GA4's, which most platforms map from cleanly
@@ -127,33 +126,24 @@ type Destination struct {
 	UpdatedAt time.Time
 }
 
-// Kind is the code that speaks to one platform
+// Kind is a plugin's destination as it registered it, plus the plugin it came from and where that plugin is on
 type Kind struct {
-	Kind   string
-	Label  string
-	Plugin string                 // the plugin that registered it, empty for core's own
-	Fields []sdk.DestinationField // the admin form for a configured destination
+	sdk.Destination
+	Plugin string // the plugin that registered it
 	// Whether a channel may use it at all - a plugin switched off there sends nothing. Nil: everywhere
-	Available     func(ctx context.Context, channelID uuid.UUID) bool
-	Purposes      []Purpose // what every event it receives needs - the row can't change it
-	DefaultEvents []string  // empty: every event
-	// A setting that, when on, makes the kind need no consent - an affiliate network the merchant treats as necessary
-	NecessarySetting string
-	// Send makes one call. A PermanentError is never retried; anything else retries on the ladder
-	Send func(ctx context.Context, client *http.Client, d Destination, ev Event) error
+	Available func(ctx context.Context, channelID uuid.UUID) bool
 }
 
-// PermanentError is a refusal a retry can't fix - a 4xx, a payload the platform rejects
-type PermanentError struct{ Err error }
+// takesRegardless is a kind built to act on an opt-out - one that names it among its default events gets it with no
+// consent check, since taking someone off a list never needs their consent. Anything else, such as a webhook taking
+// every event, still needs the visitor's consent for it
+func (k Kind) takesRegardless(name string) bool {
+	return name == MarketingOptOut && slices.Contains(k.DefaultEvents, name)
+}
 
-func (e PermanentError) Error() string { return e.Err.Error() }
-func (e PermanentError) Unwrap() error { return e.Err }
-
-func Permanent(err error) error { return PermanentError{Err: err} }
-
-func isPermanent(err error) bool {
-	var p PermanentError
-	return errors.As(err, &p)
+// config is the destination as its plugin's Send takes it
+func (d Destination) config() sdk.DestinationConfig {
+	return sdk.DestinationConfig{ID: d.ID, ChannelID: d.ChannelID, Name: d.Name, Config: d.Config, Secret: d.Secret}
 }
 
 var (

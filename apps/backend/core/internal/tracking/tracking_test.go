@@ -142,11 +142,12 @@ func (f fakeSettings) GetBool(_ context.Context, path string, _ config.Scope) (b
 }
 
 // registerTestKind registers a kind for one test and removes it after
-func registerTestKind(t *testing.T, k Kind) {
+func registerTestKind(t *testing.T, d sdk.Destination) {
 	t.Helper()
-	if k.Send == nil {
-		k.Send = func(context.Context, *http.Client, Destination, Event) error { return nil }
+	if d.Send == nil {
+		d.Send = func(context.Context, *http.Client, sdk.DestinationConfig, Event) error { return nil }
 	}
+	k := Kind{Destination: d}
 	RegisterKind(k)
 	t.Cleanup(func() {
 		kindsMu.Lock()
@@ -199,9 +200,9 @@ func TestTheConsentMatrix(t *testing.T) {
 
 func TestTrackQueuesOnlyWhereConsentAndTheEventListAllow(t *testing.T) {
 	ch := uuid.New()
-	registerTestKind(t, Kind{Kind: "t-analytics", Purposes: []Purpose{PurposeAnalytics}})
-	registerTestKind(t, Kind{Kind: "t-ads", Purposes: []Purpose{PurposeAds}, DefaultEvents: []string{Purchase}})
-	registerTestKind(t, Kind{Kind: "t-affiliate", Purposes: []Purpose{PurposeAds}, NecessarySetting: "general/privacy/t_necessary"})
+	registerTestKind(t, sdk.Destination{Kind: "t-analytics", Purposes: []Purpose{PurposeAnalytics}})
+	registerTestKind(t, sdk.Destination{Kind: "t-ads", Purposes: []Purpose{PurposeAds}, DefaultEvents: []string{Purchase}})
+	registerTestKind(t, sdk.Destination{Kind: "t-affiliate", Purposes: []Purpose{PurposeAds}, NecessarySetting: "general/privacy/t_necessary"})
 	ga, meta, cj := uuid.New(), uuid.New(), uuid.New()
 	other, off, gone := uuid.New(), uuid.New(), uuid.New()
 	fs := newFakeStore(
@@ -265,7 +266,7 @@ func TestTrackQueuesOnlyWhereConsentAndTheEventListAllow(t *testing.T) {
 }
 
 func TestADestinationNeedsAKnownKindAndAName(t *testing.T) {
-	registerTestKind(t, Kind{Kind: "t-known"})
+	registerTestKind(t, sdk.Destination{Kind: "t-known"})
 	svc := &Service{store: newFakeStore()}
 	if _, err := svc.Create(context.Background(), Destination{Kind: "t-nope", Name: "x"}); !errors.Is(err, ErrUnknownKind) {
 		t.Errorf("unknown kind: %v", err)
@@ -273,7 +274,7 @@ func TestADestinationNeedsAKnownKindAndAName(t *testing.T) {
 	if _, err := svc.Create(context.Background(), Destination{Kind: "t-known", Name: "  "}); !errors.Is(err, ErrNameMissing) {
 		t.Errorf("blank name: %v", err)
 	}
-	registerTestKind(t, Kind{Kind: "t-fields", Fields: []sdk.DestinationField{{Key: "id", Label: "ID", Required: true}, {Key: "token", Label: "Token", Required: true, Secret: true}}})
+	registerTestKind(t, sdk.Destination{Kind: "t-fields", Fields: []sdk.DestinationField{{Key: "id", Label: "ID", Required: true}, {Key: "token", Label: "Token", Required: true, Secret: true}}})
 	ctx := context.Background()
 	if _, err := svc.Create(ctx, Destination{Kind: "t-fields", Name: "x", Secret: "s"}); !errors.Is(err, ErrFieldMissing) {
 		t.Errorf("missing required field: %v", err)
@@ -315,7 +316,7 @@ func TestTheWorkerRetriesDeadLettersAndKeepsSecretsOutOfTheLog(t *testing.T) {
 		}
 	}))
 	defer srv.Close()
-	registerTestKind(t, Kind{Kind: "t-http", Send: func(ctx context.Context, c *http.Client, d Destination, ev Event) error {
+	registerTestKind(t, sdk.Destination{Kind: "t-http", Send: func(ctx context.Context, c *http.Client, d sdk.DestinationConfig, ev Event) error {
 		req, _ := http.NewRequestWithContext(ctx, http.MethodPost, srv.URL+d.Config["path"]+"?api_secret="+d.Secret, nil)
 		res, err := c.Do(req)
 		if err != nil {
@@ -326,7 +327,7 @@ func TestTheWorkerRetriesDeadLettersAndKeepsSecretsOutOfTheLog(t *testing.T) {
 		case res.StatusCode >= 500:
 			return fmt.Errorf("POST %s: %d", req.URL, res.StatusCode)
 		case res.StatusCode >= 400:
-			return Permanent(fmt.Errorf("POST %s: %d", req.URL, res.StatusCode))
+			return sdk.Permanent(fmt.Errorf("POST %s: %d", req.URL, res.StatusCode))
 		}
 		return nil
 	}})
@@ -376,7 +377,7 @@ func TestTheWorkerRetriesDeadLettersAndKeepsSecretsOutOfTheLog(t *testing.T) {
 
 func TestASendThatPanicsEndsDeadAndACutErrorStaysValidText(t *testing.T) {
 	ch, dest := uuid.New(), uuid.New()
-	registerTestKind(t, Kind{Kind: "t-panics", Send: func(context.Context, *http.Client, Destination, Event) error { panic("mapping bug") }})
+	registerTestKind(t, sdk.Destination{Kind: "t-panics", Send: func(context.Context, *http.Client, sdk.DestinationConfig, Event) error { panic("mapping bug") }})
 	fs := newFakeStore(Destination{ID: dest, ChannelID: ch, Kind: "t-panics", Enabled: true})
 	svc := &Service{store: fs}
 	ctx := context.Background()
@@ -411,9 +412,9 @@ func TestDecimalFollowsTheCurrency(t *testing.T) {
 
 func TestASendTestGoesStraightToThePlatform(t *testing.T) {
 	var got Event
-	registerTestKind(t, Kind{Kind: "t-direct", Send: func(_ context.Context, _ *http.Client, d Destination, ev Event) error {
+	registerTestKind(t, sdk.Destination{Kind: "t-direct", Send: func(_ context.Context, _ *http.Client, d sdk.DestinationConfig, ev Event) error {
 		got = ev
-		return Permanent(errors.New("400 " + d.Name))
+		return sdk.Permanent(errors.New("400 " + d.Name))
 	}})
 	id := uuid.New()
 	svc := &Service{store: newFakeStore(Destination{ID: id, ChannelID: uuid.New(), Kind: "t-direct", Name: "acct", Enabled: true})}

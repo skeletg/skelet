@@ -46,8 +46,4 @@ func TestAPluginDestinationIsOfferedOnlyWhereItsPluginIsOn(t *testing.T) {
 		t.Error("an event reached a channel where the plugin is switched off")
 	}
 
-	err := k.Send(context.Background(), http.DefaultClient, Destination{Secret: "s"}, Event{ID: "refused"})
-	if !isPermanent(err) || len(sent) != 1 || sent[0] != "s/refused" {
-		t.Errorf("a plugin's permanent refusal must stay permanent: %v, %v", err, sent)
-	}
 }

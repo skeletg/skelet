@@ -67,11 +67,9 @@ func (s *Service) Track(ctx context.Context, ev Event) error {
 	}
 	var to []uuid.UUID
 	for _, d := range dests {
-		k, ok := KindFor(d.Kind)
-		if !ok || !wants(d, k, ev.Name) || (k.Available != nil && !k.Available(ctx, ev.ChannelID)) || (!removal(k, ev.Name) && !Allowed(s.purposes(ctx, d, k), ev.Consent)) {
-			continue
+		if s.routes(ctx, d, ev) {
+			to = append(to, d.ID)
 		}
-		to = append(to, d.ID)
 	}
 	if len(to) == 0 {
 		return nil
@@ -79,10 +77,17 @@ func (s *Service) Track(ctx context.Context, ev Event) error {
 	return s.store.Enqueue(ctx, to, ev)
 }
 
-// An opt-out reaches the kinds built to act on it - those that name it by default - with no consent check. Anything
-// else, such as a webhook taking every event, still needs the visitor's consent for it
-func removal(k Kind, name string) bool {
-	return name == MarketingOptOut && slices.Contains(k.DefaultEvents, name)
+// routes is whether an event goes to a destination: a kind this build has, switched on for the channel, wanting the
+// event, and allowed by the visitor's consent unless the kind is built to act on it regardless
+func (s *Service) routes(ctx context.Context, d Destination, ev Event) bool {
+	k, ok := KindFor(d.Kind)
+	switch {
+	case !ok, !wants(d, k, ev.Name), k.Available != nil && !k.Available(ctx, ev.ChannelID):
+		return false
+	case k.takesRegardless(ev.Name):
+		return true
+	}
+	return Allowed(s.purposes(ctx, d, k), ev.Consent)
 }
 
 func wants(d Destination, k Kind, name string) bool {
@@ -187,5 +192,5 @@ func (s *Service) SendTest(ctx context.Context, client *http.Client, id uuid.UUI
 		User:      User{AnonID: "test-visitor", Email: "test@example.com"},
 		Ecommerce: &Ecommerce{Currency: "EUR", Value: 10, TransactionID: "TEST-1", Items: []Item{{ItemID: "TEST-SKU", ItemName: "Test item", Price: 10, Quantity: 1}}},
 	}
-	return ev, k.Send(ctx, client, d, ev)
+	return ev, k.Send(ctx, client, d.config(), ev)
 }

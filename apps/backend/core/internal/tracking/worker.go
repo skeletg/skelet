@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/leasequeue"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 const (
@@ -109,7 +110,7 @@ func (w *Worker) deliver(ctx context.Context, item Delivery, d Destination) {
 	}
 	sendCtx, cancel := context.WithTimeout(ctx, sendTimeout)
 	defer cancel()
-	if err := k.Send(sendCtx, w.client, d, ev); err != nil {
+	if err := k.Send(sendCtx, w.client, d.config(), ev); err != nil {
 		w.fail(ctx, item, &d, err)
 		return
 	}
@@ -124,7 +125,7 @@ func (w *Worker) fail(ctx context.Context, item Delivery, d *Destination, err er
 		reason = redact(reason, d)
 	}
 	delay, retry := leasequeue.Retry(item.Attempts, retryDelays)
-	if isPermanent(err) || !retry {
+	if sdk.IsPermanent(err) || !retry {
 		if d == nil {
 			d = &Destination{}
 		}

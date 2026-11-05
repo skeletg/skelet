@@ -15,6 +15,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/consentkind"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 func sampleOrder() order.Order {
@@ -111,7 +112,7 @@ func (o optedIn) EmailMarketingAllowed(_ context.Context, _ uuid.UUID, _ *uuid.U
 
 func TestCartChangesAndSignUpsBecomeEvents(t *testing.T) {
 	ch := uuid.New()
-	registerTestKind(t, Kind{Kind: "t-all"})
+	registerTestKind(t, sdk.Destination{Kind: "t-all"})
 	dest := uuid.New()
 	fs := newFakeStore(Destination{ID: dest, ChannelID: ch, Kind: "t-all", Enabled: true})
 	svc := &Service{store: fs}
@@ -136,7 +137,7 @@ func TestCartChangesAndSignUpsBecomeEvents(t *testing.T) {
 }
 
 func TestAnEventSaysWhetherItsEmailMayBeMarketedTo(t *testing.T) {
-	registerTestKind(t, Kind{Kind: "t-capture"})
+	registerTestKind(t, sdk.Destination{Kind: "t-capture"})
 	ch := uuid.New()
 	fs := newFakeStore(Destination{ID: uuid.New(), ChannelID: ch, Kind: "t-capture", Enabled: true})
 	h := handlers{svc: &Service{store: fs}, marketing: optedIn{"yes@example.com": true}}
@@ -167,7 +168,7 @@ func (m memoOrders) ListCreditMemos(context.Context, uuid.UUID) ([]order.CreditM
 
 // A platform that restates a conversion needs what the order is still worth, not what one refund gave back
 func TestRefundsAndCancellationsSayWhatTheOrderIsStillWorth(t *testing.T) {
-	registerTestKind(t, Kind{Kind: "t-worth"})
+	registerTestKind(t, sdk.Destination{Kind: "t-worth"})
 	o := sampleOrder() // 50.00 - 5.00 discount + 9.00 tax + 4.90 shipping = 58.90
 	first := order.CreditMemo{ID: uuid.New(), OrderID: o.ID, TotalCents: 1000}
 	second := order.CreditMemo{ID: uuid.New(), OrderID: o.ID, TotalCents: 2000}
@@ -208,8 +209,8 @@ func (o oneCustomer) GetByID(context.Context, uuid.UUID) (customer.Customer, err
 
 // Taking someone off a list needs no consent - but only kinds built for removals hear it, never a catch-all webhook
 func TestOptOutsReachOnlyTheKindsBuiltToRemove(t *testing.T) {
-	registerTestKind(t, Kind{Kind: "t-remover", Purposes: []Purpose{PurposeAds}, DefaultEvents: []string{Purchase, MarketingOptOut}})
-	registerTestKind(t, Kind{Kind: "t-catchall", Purposes: []Purpose{PurposeAnalytics}})
+	registerTestKind(t, sdk.Destination{Kind: "t-remover", Purposes: []Purpose{PurposeAds}, DefaultEvents: []string{Purchase, MarketingOptOut}})
+	registerTestKind(t, sdk.Destination{Kind: "t-catchall", Purposes: []Purpose{PurposeAnalytics}})
 	ch := uuid.New()
 	remover, catchall := uuid.New(), uuid.New()
 	fs := newFakeStore(Destination{ID: remover, ChannelID: ch, Kind: "t-remover", Enabled: true}, Destination{ID: catchall, ChannelID: ch, Kind: "t-catchall", Enabled: true})
