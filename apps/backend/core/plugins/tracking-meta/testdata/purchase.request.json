@@ -1,0 +1,50 @@
+{
+  "data": [
+    {
+      "event_name": "Purchase",
+      "event_time": 1793527200,
+      "event_id": "0193a1b2-0000-7000-8000-000000000042",
+      "action_source": "website",
+      "event_source_url": "https://shop.example/checkout",
+      "user_data": {
+        "em": [
+          "2481f36dfc515ca76451aaadf1399026942a01ee50c6d0a61988b43cef039bc2"
+        ],
+        "ph": [
+          "e323ec626319ca94ee8bff2e4c87cf613be6ea19919ed1364124e16807ab3176"
+        ],
+        "external_id": [
+          "2ace597578a210768fa4a2ffacd4a4ee850306ae4d5d321ce42061e036e788d7"
+        ],
+        "client_ip_address": "203.0.113.7",
+        "client_user_agent": "Mozilla/5.0",
+        "fbc": "fb.1.1700000000000.IwAR",
+        "fbp": "fb.1.1700000000000.123"
+      },
+      "custom_data": {
+        "currency": "EUR",
+        "value": 59,
+        "order_id": "ORD-000042",
+        "content_type": "product",
+        "content_ids": [
+          "SKU-1",
+          "SKU-2"
+        ],
+        "contents": [
+          {
+            "id": "SKU-1",
+            "quantity": 2,
+            "item_price": 15
+          },
+          {
+            "id": "SKU-2",
+            "quantity": 1,
+            "item_price": 20
+          }
+        ],
+        "num_items": 3
+      }
+    }
+  ],
+  "test_event_code": "TEST123"
+}

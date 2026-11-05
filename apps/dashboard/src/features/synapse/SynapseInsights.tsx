@@ -13,6 +13,7 @@ import {
 } from '@/components/layout/detail-page'
 import { cn } from '@/lib/utils'
 import { useConfigScope } from '@/lib/config-scope'
+import { aggregateNote } from './aggregateNote'
 import { eventLabel } from './eventLabel'
 import { SynapseInsightsDocument, SynapseOverviewDocument } from './Synapse.gql'
 import { formatNumber, formatShortDay } from '@/lib/format'
@@ -77,6 +78,7 @@ export function SynapseInsights() {
   const cur = measure === 'unique' ? (ins?.uniques ?? 0) : (ins?.total ?? 0)
   const prev = measure === 'unique' ? (ins?.prevUniques ?? 0) : (ins?.prevTotal ?? 0)
   const delta = prev > 0 ? Math.round(((cur - prev) / prev) * 100) : null
+  const note = aggregateNote(measure, ins?.aggregate ?? 0)
   const bucketTotals = chartData.map((r) => seriesKeys.reduce((s, k) => s + (Number(r[k]) || 0), 0))
   const avgPerUnit = chartData.length ? Math.round(bucketTotals.reduce((a, b) => a + b, 0) / chartData.length) : 0
   const peakIdx = bucketTotals.reduce((bi, v, i, arr) => (v > arr[bi] ? i : bi), 0)
@@ -161,6 +163,7 @@ export function SynapseInsights() {
                         ) : null}
                       </div>
                       <p className="mt-0.5 text-xs text-muted-foreground">{delta !== null ? `vs ${formatNumber(prev)} prior period` : 'no prior-period data'}</p>
+                      {note ? <p className="mt-0.5 text-xs text-muted-foreground">{note}</p> : null}
                     </div>
                     <div className="rounded border p-4">
                       <p className="text-xs uppercase tracking-wider text-muted-foreground">Avg per {unitWord}</p>

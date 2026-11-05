@@ -475,6 +475,7 @@ query SynapseInsights($channelId: ID!, $event: String, $breakdown: String, $meas
     uniques
     prevTotal
     prevUniques
+    aggregate
   }
 }
 

@@ -1,0 +1,42 @@
+{
+  "integration_source": "skelet",
+  "events": [
+    {
+      "id": "order_12345",
+      "type": "order_created",
+      "timestamp_ms": 1773892800000,
+      "oppref": "oppref_abc",
+      "source_url": "https://shop.example.com/checkout/confirmation",
+      "action_source": "web",
+      "user": {
+        "emails_sha256": [
+          "973dfe463ec85785f5f95af5ba3906eedb2d931c24e69824a89ea65dba4e813b"
+        ],
+        "phone_numbers_sha256": [
+          "758fbf68945f21c416814c539ab578876c8d98fb69e6da692def92cd52417fe0"
+        ],
+        "external_ids_sha256": [
+          "2ace597578a210768fa4a2ffacd4a4ee850306ae4d5d321ce42061e036e788d7"
+        ],
+        "obref": "123e4567-e89b-42d3-a456-426614174000",
+        "ip_address": "203.0.113.1",
+        "user_agent": "Mozilla/5.0"
+      },
+      "data": {
+        "type": "contents",
+        "amount": 2599,
+        "currency": "USD",
+        "contents": [
+          {
+            "id": "sku_123",
+            "name": "Starter bundle",
+            "content_type": "product",
+            "quantity": 1,
+            "amount": 2099,
+            "currency": "USD"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -131,10 +131,12 @@ func (s *Store) Insights(ctx context.Context, channelID uuid.UUID, event, breakd
 	out.Points, out.Series = analytics.RollupInsightsSeries(in, measure == "unique")
 
 	// window-level measures (headline + prior equal-length window) - errors are swallowed, since the series is the primary result
-	wm := "SELECT toInt64(count()), " + uniq + " " + from + " WHERE e.channel_id = ? AND e.occurred_at >= ? AND e.occurred_at < ? AND " + notBot + evCond
-	_ = s.conn.QueryRow(ctx, wm, append([]any{channelID, since, now}, evArg...)...).Scan(&out.Total, &out.Uniques)
+	window := " " + from + " WHERE e.channel_id = ? AND e.occurred_at >= ? AND e.occurred_at < ? AND " + notBot + evCond
+	_ = s.conn.QueryRow(ctx, "SELECT toInt64(count()), "+uniq+", toInt64(countIf(e.source = 'aggregate'))"+window,
+		append([]any{channelID, since, now}, evArg...)...).Scan(&out.Total, &out.Uniques, &out.Aggregate)
 	prevStart := since.Add(-now.Sub(since))
-	_ = s.conn.QueryRow(ctx, wm, append([]any{channelID, prevStart, since}, evArg...)...).Scan(&out.PrevTotal, &out.PrevUniques)
+	_ = s.conn.QueryRow(ctx, "SELECT toInt64(count()), "+uniq+window,
+		append([]any{channelID, prevStart, since}, evArg...)...).Scan(&out.PrevTotal, &out.PrevUniques)
 	return out, nil
 }
 

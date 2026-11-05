@@ -1,4 +1,4 @@
-package wiring
+package tracking
 
 import (
 	"net/http"
@@ -8,22 +8,21 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/apps/backend/core/internal/tracking"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
 func TestOnlyABrowsersOwnEventsAreAccepted(t *testing.T) {
 	ch := uuid.New()
-	read := func(body, consent string) (tracking.Event, bool) {
-		r := httptest.NewRequest(http.MethodPost, trackPath, strings.NewReader(body))
+	read := func(body, consent string) (Event, bool) {
+		r := httptest.NewRequest(http.MethodPost, TrackPath, strings.NewReader(body))
 		r.RemoteAddr = "203.0.113.7:4000"
 		r.Header.Set(auth.ConsentHeader, consent)
 		r.Header.Set(auth.AnonHeader, "visitor-1")
 		r.Header.Set(auth.ClickIDsHeader, "gclid=g1")
 		return browserEvent(httptest.NewRecorder(), r, ch, auth.CustomerVerifier{})
 	}
-	ev, ok := read(`{"event_id":"e-1","name":"view_item","page_url":"https://shop.example/p/mug","ecommerce":{"currency":"EUR","value":15,"items":[{"item_id":"SKU-1"}]}}`, "v2:a1.d0.p0")
-	if !ok || ev.Name != tracking.ViewItem || ev.Source != "browser" || ev.ChannelID != ch || ev.Ecommerce.Items[0].ItemID != "SKU-1" {
+	ev, ok := read(`{"event_id":"e-1","name":"view_item","page_url":"https://shop.example/p/mug","page_title":"Blue mug","ecommerce":{"currency":"EUR","value":15,"items":[{"item_id":"SKU-1"}]}}`, "v2:a1.d0.p0")
+	if !ok || ev.Name != ViewItem || ev.Source != "browser" || ev.ChannelID != ch || ev.Ecommerce.Items[0].ItemID != "SKU-1" || ev.Context.PageTitle != "Blue mug" {
 		t.Fatalf("a view_item was not read: %+v", ev)
 	}
 	if ev.User.AnonID != "visitor-1" || ev.ClickIDs != nil || ev.Context.IP != "" {

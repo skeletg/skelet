@@ -9,10 +9,13 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
+	"github.com/skeletg/skelet/apps/backend/core/lib/consentkind"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 func sampleOrder() order.Order {
@@ -27,7 +30,7 @@ func sampleOrder() order.Order {
 			{ID: line1, ProductSku: "SKU-1", ProductName: "Mug", UnitPrice: 1500, Quantity: 2},
 			{ID: line2, ProductSku: "SKU-2", ProductName: "Tee", UnitPrice: 2000, Quantity: 1},
 		},
-		Tracking: &auth.Shopper{
+		Shopper: &auth.Shopper{
 			Consent: auth.Consent{Analytics: true, Ads: true}, AnonID: "visitor-1",
 			ClickIDs: map[string]string{"gclid": "g1"}, IP: "203.0.113.7", UserAgent: "Mozilla/5.0",
 		},
@@ -53,7 +56,7 @@ func TestAPurchaseCarriesTheOrderAsGA4AndTheConsentOfThePlacement(t *testing.T) 
 		t.Errorf("user: %+v", ev.User)
 	}
 
-	o.Tracking = nil // an admin draft - no banner applied
+	o.Shopper = nil // an admin draft - no banner applied
 	if PurchaseEvent(o).Consent != nil {
 		t.Error("an order no shop placed must carry no consent, so only necessary destinations get it")
 	}
@@ -101,14 +104,20 @@ func (noOrders) ListCreditMemos(context.Context, uuid.UUID) ([]order.CreditMemo,
 	return nil, nil
 }
 
+type optedIn map[string]bool
+
+func (o optedIn) EmailMarketingAllowed(_ context.Context, _ uuid.UUID, _ *uuid.UUID, email string) (bool, error) {
+	return o[email], nil
+}
+
 func TestCartChangesAndSignUpsBecomeEvents(t *testing.T) {
 	ch := uuid.New()
-	registerTestKind(t, Kind{Kind: "t-all"})
+	registerTestKind(t, sdk.Destination{Kind: "t-all"})
 	dest := uuid.New()
 	fs := newFakeStore(Destination{ID: dest, ChannelID: ch, Kind: "t-all", Enabled: true})
 	svc := &Service{store: fs}
 	bus := events.NewBus()
-	svc.Subscribe(bus, noOrders{}, oneChannel{"EUR"})
+	svc.Subscribe(bus, noOrders{}, oneChannel{"EUR"}, optedIn{"a@example.com": true}, nil)
 	ctx := events.WithEmittedAt(context.Background(), time.Unix(1700000000, 0))
 	cust, line := uuid.New(), uuid.New()
 
@@ -124,5 +133,111 @@ func TestCartChangesAndSignUpsBecomeEvents(t *testing.T) {
 	}
 	if names[AddToCart] != 1 || names[RemoveFromCart] != 1 || names[SignUp] != 1 || len(names) != 3 {
 		t.Errorf("queued %v, want one add (the replay collapsed), one removal and only the shop's own sign-up", names)
+	}
+}
+
+func TestAnEventSaysWhetherItsEmailMayBeMarketedTo(t *testing.T) {
+	registerTestKind(t, sdk.Destination{Kind: "t-capture"})
+	ch := uuid.New()
+	fs := newFakeStore(Destination{ID: uuid.New(), ChannelID: ch, Kind: "t-capture", Enabled: true})
+	h := handlers{svc: &Service{store: fs}, marketing: optedIn{"yes@example.com": true}}
+	for _, email := range []string{"yes@example.com", "no@example.com", ""} {
+		if err := h.track(context.Background(), Event{ID: "e-" + email, Name: Purchase, ChannelID: ch, User: User{Email: email}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := map[string]bool{}
+	for _, ev := range fs.events {
+		got[ev.User.Email] = ev.User.MarketingOptIn
+	}
+	if !got["yes@example.com"] || got["no@example.com"] || got[""] {
+		t.Errorf("marketing opt-in per email: %v", got)
+	}
+}
+
+// An order with its credit memos, for the remaining-value tests
+type memoOrders struct {
+	o     order.Order
+	memos []order.CreditMemo
+}
+
+func (m memoOrders) GetByID(context.Context, uuid.UUID) (order.Order, error) { return m.o, nil }
+func (m memoOrders) ListCreditMemos(context.Context, uuid.UUID) ([]order.CreditMemo, error) {
+	return m.memos, nil
+}
+
+// A platform that restates a conversion needs what the order is still worth, not what one refund gave back
+func TestRefundsAndCancellationsSayWhatTheOrderIsStillWorth(t *testing.T) {
+	registerTestKind(t, sdk.Destination{Kind: "t-worth"})
+	o := sampleOrder() // 50.00 - 5.00 discount + 9.00 tax + 4.90 shipping = 58.90
+	first := order.CreditMemo{ID: uuid.New(), OrderID: o.ID, TotalCents: 1000}
+	second := order.CreditMemo{ID: uuid.New(), OrderID: o.ID, TotalCents: 2000}
+	worth := func(orders memoOrders, e events.Event) float64 {
+		t.Helper()
+		fs := newFakeStore(Destination{ID: uuid.New(), ChannelID: o.ChannelID, Kind: "t-worth", Enabled: true})
+		h := handlers{svc: &Service{store: fs}, orders: orders}
+		var err error
+		switch ev := e.(type) {
+		case *order.OrderRefunded:
+			err = h.onRefunded(context.Background(), ev)
+		case *order.OrderCancelled:
+			err = h.onCancelled(context.Background(), ev)
+		}
+		if err != nil || len(fs.events) != 1 || fs.events[0].Ecommerce.ValueAfter == nil {
+			t.Fatalf("err %v, events %+v", err, fs.events)
+		}
+		return *fs.events[0].Ecommerce.ValueAfter
+	}
+	if got := worth(memoOrders{o, []order.CreditMemo{first}}, &order.OrderRefunded{OrderID: o.ID, CreditMemoID: first.ID}); got != 48.90 {
+		t.Errorf("after one 10.00 refund: %v, want 48.90", got)
+	}
+	if got := worth(memoOrders{o, []order.CreditMemo{first, second}}, &order.OrderRefunded{OrderID: o.ID, CreditMemoID: second.ID}); got != 28.90 {
+		t.Errorf("after a second, 20.00 refund: %v, want 28.90 - every memo counts, not just this one", got)
+	}
+	big := order.CreditMemo{ID: uuid.New(), OrderID: o.ID, TotalCents: 99999}
+	if got := worth(memoOrders{o, []order.CreditMemo{big}}, &order.OrderRefunded{OrderID: o.ID, CreditMemoID: big.ID}); got != 0 {
+		t.Errorf("a refund past the order's worth: %v, want 0", got)
+	}
+	if got := worth(memoOrders{o, []order.CreditMemo{first}}, &order.OrderCancelled{OrderID: o.ID, ChannelID: o.ChannelID, RefundableFraction: 0.5}); got != 19.45 {
+		t.Errorf("half cancelled after a 10.00 refund: %v, want 58.90 - 10.00 - 29.45 = 19.45", got)
+	}
+}
+
+type oneCustomer struct{ c customer.Customer }
+
+func (o oneCustomer) GetByID(context.Context, uuid.UUID) (customer.Customer, error) { return o.c, nil }
+
+// Taking someone off a list needs no consent - but only kinds built for removals hear it, never a catch-all webhook
+func TestOptOutsReachOnlyTheKindsBuiltToRemove(t *testing.T) {
+	registerTestKind(t, sdk.Destination{Kind: "t-remover", Purposes: []Purpose{PurposeAds}, DefaultEvents: []string{Purchase, MarketingOptOut}})
+	registerTestKind(t, sdk.Destination{Kind: "t-catchall", Purposes: []Purpose{PurposeAnalytics}})
+	ch := uuid.New()
+	remover, catchall := uuid.New(), uuid.New()
+	fs := newFakeStore(Destination{ID: remover, ChannelID: ch, Kind: "t-remover", Enabled: true}, Destination{ID: catchall, ChannelID: ch, Kind: "t-catchall", Enabled: true})
+	svc := &Service{store: fs}
+	bus := events.NewBus()
+	phone := "+381601234567"
+	cust := customer.Customer{ID: uuid.New(), ChannelID: ch, Email: "out@example.com", Phone: &phone}
+	svc.Subscribe(bus, noOrders{}, oneChannel{"EUR"}, nil, oneCustomer{cust})
+	ctx := events.WithEmittedAt(context.Background(), time.Unix(1700000000, 0))
+
+	_ = bus.DispatchAsyncNow(ctx, &consent.ConsentChanged{CustomerID: cust.ID, Kind: consentkind.MarketingEmail, OptedIn: false})
+	_ = bus.DispatchAsyncNow(ctx, &consent.ConsentChanged{CustomerID: cust.ID, Kind: consentkind.MarketingEmail, OptedIn: true})
+	_ = bus.DispatchAsyncNow(ctx, &consent.ConsentChanged{CustomerID: cust.ID, Kind: "marketing_sms", OptedIn: false})
+	_ = bus.DispatchAsyncNow(ctx, &customer.CustomerDeleted{CustomerID: uuid.New(), ChannelID: ch, Email: "gone@example.com"})
+	_ = bus.DispatchAsyncNow(ctx, &customer.CustomerErased{CustomerID: uuid.New(), ChannelID: ch, Email: "erased@example.com", Phone: "+38160"})
+
+	var emails []string
+	for _, ev := range fs.events {
+		if ev.Name != MarketingOptOut {
+			t.Errorf("unexpected %s", ev.Name)
+		}
+		emails = append(emails, ev.User.Email)
+	}
+	if len(fs.byDestination(catchall)) != 0 {
+		t.Error("a catch-all destination got an opt-out without the visitor's consent")
+	}
+	if len(fs.byDestination(remover)) != 3 || emails[0] != "out@example.com" || fs.events[0].User.Phone != phone || emails[1] != "gone@example.com" || emails[2] != "erased@example.com" {
+		t.Errorf("opt-outs %v, want the withdrawal, the deletion and the erasure only", emails)
 	}
 }

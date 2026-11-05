@@ -6,7 +6,6 @@ import { notFound, redirect } from "next/navigation";
 import { AnalyticsEvent } from "@/app/components/AnalyticsEvent";
 import { BackButton } from "@/app/components/BackButton";
 import { OrderDetailView } from "@/app/components/OrderDetailView";
-import { getResolvedConsent } from "@skelet/storefront-next/consent/read";
 import { displayName } from "@skelet/storefront-core/display";
 import { getCustomerOrNull } from "@skelet/storefront-next/customer/read";
 import { gqlFetch } from "@skelet/storefront-next/graphql";
@@ -78,13 +77,11 @@ export default async function GuestOrderPage({
     customer.email.toLowerCase() === email.toLowerCase();
   const resent = Array.isArray(sp.resent) ? sp.resent[0] : sp.resent;
 
-  const consent = justPlaced ? await getResolvedConsent() : null;
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 pt-4 pb-16 sm:px-6">
-      {justPlaced && consent && (
+      {justPlaced && (
         <AnalyticsEvent
-          enabled={consent.analytics}
           event="purchase"
           eventId={order.id}
           stripParam="just_placed"

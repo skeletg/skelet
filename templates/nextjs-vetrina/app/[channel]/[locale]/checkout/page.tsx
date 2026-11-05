@@ -22,7 +22,6 @@ import {
 } from "@skelet/storefront-next/checkout/read";
 import { businessIdFieldsFor, companyCountry } from "@skelet/storefront-core/checkout/business-ids";
 import { activeStep, arrivalLabels, businessComplete, progressOf, stepsFor, stepStatus } from "@skelet/storefront-core/checkout/step";
-import { getResolvedConsent } from "@skelet/storefront-next/consent/read";
 import { getCountries, getCountrySettings, getRegionsByCountry, getPhoneSettings } from "@skelet/storefront-next/countries/read";
 import { getCheckoutSettings, getGuestCheckoutAllowed } from "@skelet/storefront-next/config/read";
 import { displayName } from "@skelet/storefront-core/display";
@@ -63,12 +62,11 @@ export default async function CheckoutPage({
   const to = await getTranslations({ locale, namespace: "offer" });
   const format = await getFormatter({ locale });
 
-  const [customer, cart, channel, consent, countries, countrySettings, guestAllowed, settings, freeShipThreshold, phoneSettings] =
+  const [customer, cart, channel, countries, countrySettings, guestAllowed, settings, freeShipThreshold, phoneSettings] =
     await Promise.all([
       getCurrentCustomer(),
       getCheckoutCart(offerId),
       getChannel(),
-      getResolvedConsent(),
       getCountries(),
       getCountrySettings(),
       getGuestCheckoutAllowed(),
@@ -161,7 +159,6 @@ export default async function CheckoutPage({
     <CheckoutCartProvider cartId={cart.id} offerId={offer ? cart.id : undefined}>
     <main className="mx-auto grid w-full max-w-8xl gap-10 px-4 pt-6 pb-12 sm:px-6 md:grid-cols-[1fr_22rem] md:px-10">
       <AnalyticsEvent
-        enabled={consent.analytics}
         event="begin_checkout"
         payload={{
           ecommerce: {

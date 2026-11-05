@@ -494,10 +494,9 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 	if ranEngine {
 		placing.DiscountCents += evalResult.Ledger.SubtotalDiscountCents()
 	}
+	shopper, visitor := placedBy(ctx)
 	var orderID uuid.UUID
-	var orderNumber string
-	var orderTotal int64
-	var orderCurrency string
+	var placedEvent *OrderPlaced
 	err = s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
 		// The sync chain joins the placement tx via placing.Tx - webhooks here hold the tx open across their round-trip, so keep them fast
 		placing.Tx = sqlTx
@@ -591,8 +590,8 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			ShippingMethodID:    shipSel.MethodID,
 			ShippingCarrierSlug: ptr.NonZero(shipSel.CarrierSlug),
 			ShippingMethodCode:  ptr.NonZero(shipSel.MethodCode),
-			AnonID:              auth.AnonID(ctx),
-			Tracking:            auth.ShopperFromContext(ctx),
+			AnonID:              visitor,
+			Shopper:             shopper,
 		})
 		if err != nil {
 			return fmt.Errorf("create order: %w", err)
@@ -679,27 +678,18 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 				return fmt.Errorf("link offer to order: %w", err)
 			}
 		}
+		placedEvent = &OrderPlaced{
+			OrderID: order.ID, OrderNumber: order.Number, CustomerID: in.CustomerID, Email: in.Email, AnonID: visitor,
+			ChannelID: store.ID, TotalCents: order.TotalAmount, Currency: order.CurrencyCode, Tags: placing.Tags,
+			MarketingOptIn: in.MarketingOptIn,
+		}
 		// Durable dispatch - OrderPlaced commits with the order and is relayed after commit, so a crash can't lose it
 		if s.outbox != nil {
-			if err := s.outbox.Enqueue(ctx, sqlTx, &OrderPlaced{
-				OrderID:        order.ID,
-				OrderNumber:    order.Number,
-				CustomerID:     in.CustomerID,
-				Email:          in.Email,
-				AnonID:         auth.AnonID(ctx),
-				ChannelID:      store.ID,
-				TotalCents:     order.TotalAmount,
-				Currency:       order.CurrencyCode,
-				Tags:           placing.Tags,
-				MarketingOptIn: in.MarketingOptIn,
-			}); err != nil {
+			if err := s.outbox.Enqueue(ctx, sqlTx, placedEvent); err != nil {
 				return fmt.Errorf("enqueue order.placed: %w", err)
 			}
 		}
 		orderID = order.ID
-		orderNumber = order.Number
-		orderTotal = order.TotalAmount
-		orderCurrency = order.CurrencyCode
 		return nil
 	})
 	if err != nil {
@@ -708,18 +698,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 
 	// Fire-and-forget fallback when there's no outbox
 	if s.outbox == nil && s.bus != nil {
-		s.bus.Publish(ctx, &OrderPlaced{
-			OrderID:        orderID,
-			OrderNumber:    orderNumber,
-			CustomerID:     in.CustomerID,
-			Email:          in.Email,
-			AnonID:         auth.AnonID(ctx),
-			ChannelID:      store.ID,
-			TotalCents:     orderTotal,
-			Currency:       orderCurrency,
-			Tags:           placing.Tags,
-			MarketingOptIn: in.MarketingOptIn,
-		})
+		s.bus.Publish(ctx, placedEvent)
 	}
 
 	placed, err := s.repo.GetOrderByID(ctx, orderID)
@@ -1128,4 +1107,14 @@ func normalizeOrderAddress(rules phone.Rules, a OrderAddress, slot string) (Orde
 		return OrderAddress{}, fmt.Errorf("%s address: %w", slot, err)
 	}
 	return a, nil
+}
+
+// placedBy is who placed an order, read once: the shop's visitor and their id only as far as their consent allows -
+// else, for an admin or an API client with no banner, no snapshot and the id it sent - so the order's column and its
+// snapshot can't disagree
+func placedBy(ctx context.Context) (*auth.Shopper, string) {
+	if s := auth.ShopperFromContext(ctx); s != nil {
+		return s, s.AnonID
+	}
+	return nil, auth.AnonID(ctx)
 }

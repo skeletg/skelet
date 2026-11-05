@@ -86,7 +86,11 @@ func (s *Service) anonymize(ctx context.Context, c Customer) error {
 		if err := r.Anonymize(ctx, c, string(hash)); err != nil {
 			return nil, err
 		}
-		return []events.Event{updated}, nil
+		erased := &CustomerErased{CustomerID: c.ID, ChannelID: c.ChannelID, Email: c.Email}
+		if c.Phone != nil {
+			erased.Phone = *c.Phone
+		}
+		return []events.Event{updated, erased}, nil
 	})
 	if err != nil {
 		return err
@@ -143,8 +147,8 @@ func scrubPersonalData(ctx context.Context, q *db.Queries, c Customer) error {
 			_, err := q.ScrubCustomerOrderShipments(ctx, db.ScrubCustomerOrderShipmentsParams{CustomerID: nid, ChannelID: ch, Email: addr})
 			return err
 		}},
-		{"delete tracking deliveries", func() error {
-			_, err := q.DeleteCustomerTrackingDeliveries(ctx, db.DeleteCustomerTrackingDeliveriesParams{ChannelID: ch, CustomerID: id, Email: addr})
+		{"delete tracking events", func() error {
+			_, err := q.DeleteCustomerTrackingEvents(ctx, db.DeleteCustomerTrackingEventsParams{ChannelID: ch, CustomerID: id, Email: addr})
 			return err
 		}},
 		{"scrub orders", func() error { _, err := q.ScrubCustomerOrders(ctx, nid); return err }},

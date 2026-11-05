@@ -28,7 +28,6 @@ import {
 import { SubmitButton } from "@/app/components/account/SubmitButton";
 import { PaymentChip } from "@/app/components/account/StatusChip";
 import { resendVerificationEmailAction } from "@skelet/storefront-next/auth/actions";
-import { getResolvedConsent } from "@skelet/storefront-next/consent/read";
 import { getChannel } from "@skelet/storefront-next/channel/read";
 import { getCurrentCustomer } from "@skelet/storefront-next/customer/read";
 import {
@@ -74,7 +73,6 @@ export default async function AccountPage({
   const resent = Array.isArray(sp.resent) ? sp.resent[0] : sp.resent;
   const actionError = Array.isArray(sp.error) ? sp.error[0] : sp.error;
   const actionDone = Array.isArray(sp.done) ? sp.done[0] : sp.done;
-  const consent = welcome ? await getResolvedConsent() : null;
 
   const loyaltyWorth =
     loyalty?.enabled && loyalty.balancePoints > 0
@@ -83,9 +81,8 @@ export default async function AccountPage({
 
   return (
     <>
-      {welcome && consent && (
+      {welcome && (
         <AnalyticsEvent
-          enabled={consent.analytics}
           event="sign_up"
           payload={{ method: "password" }}
           stripParam="welcome"

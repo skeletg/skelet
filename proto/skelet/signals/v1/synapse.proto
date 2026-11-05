@@ -405,6 +405,8 @@ message GetInsightsResponse {
   // The prior equal-length window, for deltas
   int32 prev_total = 5;
   int32 prev_uniques = 6;
+  // Of total, the events counted as nobody - visitors who hadn't allowed analytics
+  int32 aggregate = 7;
 }
 
 // ---- Profiles, audiences, attributes ----

@@ -1,13 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { cleanUrl, isBrowserEvent, trackPayload } from "./events";
+import { cleanUrl, trackPayload } from "./events";
 
 describe("browser tracking", () => {
-  it("sends only the events a browser may report", () => {
-    expect(isBrowserEvent("view_item")).toBe(true);
-    for (const name of ["purchase", "add_to_cart", "sign_up", "refund"]) expect(isBrowserEvent(name)).toBe(false);
-  });
-
   it("drops a query string that could carry a guest's email, keeping campaign tags", () => {
     expect(cleanUrl("https://shop.example/orders/1?email=a%40b.c&utm_source=news#x")).toBe("https://shop.example/orders/1?utm_source=news");
     expect(cleanUrl("not a url")).toBe("");

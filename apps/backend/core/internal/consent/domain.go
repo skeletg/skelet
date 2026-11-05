@@ -83,6 +83,7 @@ type Repository interface {
 	ListByCustomer(ctx context.Context, customerID uuid.UUID) ([]StoredConsent, error)
 	ListEvents(ctx context.Context, customerID uuid.UUID, limit int32) ([]Event, error)
 	RecordEmailOptIn(ctx context.Context, o EmailOptIn) error
+	HasEmailOptIn(ctx context.Context, channelID uuid.UUID, email, kind string) (bool, error)
 }
 
 // EmailOptIn is a marketing opt-in given under an address with no account behind it - a guest's tick at checkout, kept as

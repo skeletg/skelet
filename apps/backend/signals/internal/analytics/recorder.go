@@ -4,8 +4,11 @@ package analytics
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"maps"
@@ -35,12 +38,47 @@ const (
 	SourceCommerce = "commerce" // server-side commerce actions (order/cart/return/review/...)
 	SourceAccount  = "account"  // server-side account actions (auth/registration/profile/...)
 	SourceLens     = "lens"     // heatmap grid increments under the ClickHouse engine - own source so behaviour reads never see them and Lens prunes them on its window
+	// A visitor who hasn't allowed analytics, counted as nobody - in totals only: no actor, so every per-person read (profiles, funnels,
+	// retention, flows, RFM, segments) leaves it out by its empty-actor guard, while event totals and revenue include it
+	SourceAggregate = "aggregate"
 )
+
+// What an aggregate event may carry - amounts and items, never anything that could lead back to a person or an order
+var aggregateProps = map[string]bool{
+	"sku": true, "qty": true, "unit_price": true, "total_cents": true, "amount_cents": true, "currency": true,
+	"path": true, "status": true, "bundle": true,
+}
 
 type Recorder struct {
 	qs      *signalsdb.Queries // the signals database - segments, rosters, traits, the erasure queue
 	spine   SpineStore         // the ClickHouse spine driver, behind the ingest queue when one is configured - ALL spine access goes through it, ingest and every analytical read alike
 	archive ArchiveSink        // optional retention-archive destination (the BACKUP_* bucket) - nil makes retention_action=archive fail closed
+	aggKey  []byte             // keys an aggregate event's dedupe hash, so the stored key can't be recomputed from an order or line id
+}
+
+// SetAggregateKey takes a secret neither database holds - boot passes the service secret. Without one, an aggregate
+// event is refused rather than stored under a hash anyone holding the order id could recompute
+func (r *Recorder) SetAggregateKey(k []byte) { r.aggKey = k }
+
+var errNoAggregateKey = errors.New("no key for aggregate events - set SIGNALS_SERVICE_SECRET")
+
+// asNobody is an aggregate event as it may be stored: no actor whatever the caller sent, only amounts and items, the
+// hour, and the dedupe key as a keyed hash - an exact time, or a key hashed from a known id, would match the event
+// back to its order and so to the customer. It builds new props rather than editing the caller's
+func (r *Recorder) asNobody(a ActivitySpec) ActivitySpec {
+	a.CustomerID, a.AnonID = nil, ""
+	a.At = orNow(a.At).Truncate(time.Hour)
+	m := hmac.New(sha256.New, r.aggKey)
+	m.Write([]byte(a.DedupeKey))
+	a.DedupeKey = "agg:" + hex.EncodeToString(m.Sum(nil)[:16])
+	props := make(map[string]any, len(a.Props))
+	for k, v := range a.Props {
+		if aggregateProps[k] {
+			props[k] = v
+		}
+	}
+	a.Props = props
+	return a
 }
 
 // Layers a decorator (the ingest queue) over the engine
@@ -273,7 +311,12 @@ type ActivitySpec struct { // a server-side action, from authenticated flows rat
 }
 
 func (r *Recorder) RecordActivity(ctx context.Context, a ActivitySpec) (bool, error) { // no-op with neither id - an action we can't attribute to anyone has no place on a profile
-	if a.CustomerID == nil && a.AnonID == "" {
+	if a.Source == SourceAggregate {
+		if len(r.aggKey) == 0 {
+			return false, errNoAggregateKey
+		}
+		a = r.asNobody(a)
+	} else if a.CustomerID == nil && a.AnonID == "" {
 		return false, nil
 	}
 	var ch *uuid.UUID

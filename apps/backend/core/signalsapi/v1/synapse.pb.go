@@ -2815,8 +2815,10 @@ type GetInsightsResponse struct {
 	// Distinct people in the window
 	Uniques int32 `protobuf:"varint,4,opt,name=uniques,proto3" json:"uniques,omitempty"`
 	// The prior equal-length window, for deltas
-	PrevTotal     int32 `protobuf:"varint,5,opt,name=prev_total,json=prevTotal,proto3" json:"prev_total,omitempty"`
-	PrevUniques   int32 `protobuf:"varint,6,opt,name=prev_uniques,json=prevUniques,proto3" json:"prev_uniques,omitempty"`
+	PrevTotal   int32 `protobuf:"varint,5,opt,name=prev_total,json=prevTotal,proto3" json:"prev_total,omitempty"`
+	PrevUniques int32 `protobuf:"varint,6,opt,name=prev_uniques,json=prevUniques,proto3" json:"prev_uniques,omitempty"`
+	// Of total, the events counted as nobody - visitors who hadn't allowed analytics
+	Aggregate     int32 `protobuf:"varint,7,opt,name=aggregate,proto3" json:"aggregate,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2889,6 +2891,13 @@ func (x *GetInsightsResponse) GetPrevTotal() int32 {
 func (x *GetInsightsResponse) GetPrevUniques() int32 {
 	if x != nil {
 		return x.PrevUniques
+	}
+	return 0
+}
+
+func (x *GetInsightsResponse) GetAggregate() int32 {
+	if x != nil {
+		return x.Aggregate
 	}
 	return 0
 }
@@ -4959,7 +4968,7 @@ const file_skelet_signals_v1_synapse_proto_rawDesc = "" +
 	"\ameasure\x18\x04 \x01(\tR\ameasure\x12\x12\n" +
 	"\x04unit\x18\x05 \x01(\tR\x04unit\x12\x1d\n" +
 	"\n" +
-	"since_days\x18\x06 \x01(\x05R\tsinceDays\"\xfa\x01\n" +
+	"since_days\x18\x06 \x01(\x05R\tsinceDays\"\x98\x02\n" +
 	"\x13GetInsightsResponse\x127\n" +
 	"\x06points\x18\x01 \x03(\v2\x1f.skelet.signals.v1.InsightPointR\x06points\x128\n" +
 	"\x06series\x18\x02 \x03(\v2 .skelet.signals.v1.InsightSeriesR\x06series\x12\x14\n" +
@@ -4967,7 +4976,8 @@ const file_skelet_signals_v1_synapse_proto_rawDesc = "" +
 	"\auniques\x18\x04 \x01(\x05R\auniques\x12\x1d\n" +
 	"\n" +
 	"prev_total\x18\x05 \x01(\x05R\tprevTotal\x12!\n" +
-	"\fprev_uniques\x18\x06 \x01(\x05R\vprevUniques\"\xa1\x01\n" +
+	"\fprev_uniques\x18\x06 \x01(\x05R\vprevUniques\x12\x1c\n" +
+	"\taggregate\x18\a \x01(\x05R\taggregate\"\xa1\x01\n" +
 	"\x19GetCustomerProfileRequest\x12\x1f\n" +
 	"\vcustomer_id\x18\x01 \x01(\tR\n" +
 	"customerId\x12\x1d\n" +

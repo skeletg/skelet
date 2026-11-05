@@ -88,6 +88,15 @@ func (r *fakeRepo) ListEvents(_ context.Context, customerID uuid.UUID, limit int
 	return out, nil
 }
 
+func (r *fakeRepo) HasEmailOptIn(_ context.Context, ch uuid.UUID, email, kind string) (bool, error) {
+	for _, o := range r.optIns {
+		if o.ChannelID == ch && o.Email == email && o.Kind == kind {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (r *fakeRepo) RecordEmailOptIn(_ context.Context, o EmailOptIn) error {
 	r.optIns = append(r.optIns, o)
 	return nil
@@ -429,5 +438,26 @@ func TestAGuestOptInIsKeptForEmailMarketingOnly(t *testing.T) {
 	}
 	if err := NewService(repo).RecordEmailOptIn(context.Background(), ch, "a@b.c", "made_up", ""); !errors.Is(err, ErrUnknownSource) {
 		t.Errorf("unknown source = %v, want ErrUnknownSource", err)
+	}
+}
+
+func TestEmailMarketingFollowsTheAccountElseTheGuestOptIn(t *testing.T) {
+	repo := newFakeRepo()
+	ch, cust := uuid.New(), uuid.New()
+	svc := NewService(repo)
+	ctx := context.Background()
+	if ok, _ := svc.EmailMarketingAllowed(ctx, ch, &cust, ""); ok {
+		t.Error("an account with no consent row is opted out by default")
+	}
+	repo.put(cust, kindMarketingEmail, true, SourceProfile)
+	if ok, _ := svc.EmailMarketingAllowed(ctx, ch, &cust, ""); !ok {
+		t.Error("the account's opt-in must count")
+	}
+	if ok, _ := svc.EmailMarketingAllowed(ctx, ch, nil, "g@example.com"); ok {
+		t.Error("a guest address with no opt-in")
+	}
+	repo.optIns = []EmailOptIn{{ChannelID: ch, Email: "g@example.com", Kind: kindMarketingEmail}}
+	if ok, _ := svc.EmailMarketingAllowed(ctx, ch, nil, " G@Example.com "); !ok {
+		t.Error("a guest's checkout opt-in must count")
 	}
 }

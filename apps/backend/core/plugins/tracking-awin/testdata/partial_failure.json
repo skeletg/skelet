@@ -1,0 +1,11 @@
+{
+  "message": "",
+  "batchId": "b-1",
+  "successfulOrders": [],
+  "failedOrders": [
+    {
+      "order": { "orderReference": "ORD-000042", "correlationId": "c-1" },
+      "errors": [ { "field": "commissionGroups[0].code", "message": "Commission group not found" } ]
+    }
+  ]
+}

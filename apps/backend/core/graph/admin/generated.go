@@ -4477,6 +4477,7 @@ type ComplexityRoot struct {
 	}
 
 	SynapseInsights struct {
+		Aggregate   func(childComplexity int) int
 		Points      func(childComplexity int) int
 		PrevTotal   func(childComplexity int) int
 		PrevUniques func(childComplexity int) int
@@ -29178,6 +29179,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.SynapseFunnelStep.EventName(childComplexity), true
 
+	case "SynapseInsights.aggregate":
+		if e.ComplexityRoot.SynapseInsights.Aggregate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SynapseInsights.Aggregate(childComplexity), true
 	case "SynapseInsights.points":
 		if e.ComplexityRoot.SynapseInsights.Points == nil {
 			break
@@ -39124,6 +39131,7 @@ type SynapseInsights {
   uniques:     Int!   # distinct people in the window
   prevTotal:   Int!
   prevUniques: Int!
+  aggregate:   Int!   # of total, events counted as nobody - visitors who hadn't allowed analytics
 }
 
 type ActivePoint {
@@ -47385,6 +47393,8 @@ func (ec *executionContext) childFields_SynapseInsights(ctx context.Context, fie
 		return ec.fieldContext_SynapseInsights_prevTotal(ctx, field)
 	case "prevUniques":
 		return ec.fieldContext_SynapseInsights_prevUniques(ctx, field)
+	case "aggregate":
+		return ec.fieldContext_SynapseInsights_aggregate(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type SynapseInsights", field.Name)
 }
@@ -155668,6 +155678,29 @@ func (ec *executionContext) fieldContext_SynapseInsights_prevUniques(_ context.C
 	return graphql.NewScalarFieldContext("SynapseInsights", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _SynapseInsights_aggregate(ctx context.Context, field graphql.CollectedField, obj *model.SynapseInsights) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SynapseInsights_aggregate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Aggregate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SynapseInsights_aggregate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SynapseInsights", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
 func (ec *executionContext) _SynapseOverview_totalEvents(ctx context.Context, field graphql.CollectedField, obj *model.SynapseOverview) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -212076,6 +212109,11 @@ func (ec *executionContext) _SynapseInsights(ctx context.Context, sel ast.Select
 			}
 		case "prevUniques":
 			out.Values[i] = ec._SynapseInsights_prevUniques(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "aggregate":
+			out.Values[i] = ec._SynapseInsights_aggregate(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

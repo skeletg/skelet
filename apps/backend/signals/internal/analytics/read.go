@@ -163,6 +163,7 @@ type Insights struct {
 	Uniques     int64
 	PrevTotal   int64
 	PrevUniques int64
+	Aggregate   int64 // of Total, the events counted as nobody - visitors who hadn't allowed analytics
 }
 
 const insightsTopSeries = 8

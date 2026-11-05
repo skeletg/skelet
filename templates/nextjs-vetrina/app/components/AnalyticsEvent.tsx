@@ -4,24 +4,13 @@ import { useEffect } from "react";
 
 import { track } from "@skelet/storefront-core/track/events";
 import { readClientConsent } from "@skelet/storefront-react/consent/client";
-import { useAnalyticsConsent } from "@skelet/storefront-react/consent/use-consent";
-
-type DataLayerEntry = Record<string, unknown>;
-
-declare global {
-  interface Window {
-    dataLayer?: DataLayerEntry[];
-  }
-}
 
 export function AnalyticsEvent({
-  enabled,
   event,
   eventId,
   payload,
   stripParam,
 }: {
-  enabled?: boolean; // omit on cached routes - a server-side consent read forces them dynamic
   event: string;
   // Shared with the server's own copy so a platform counts it once - a purchase's is the order id. Omitted, each firing mints one
   eventId?: string;
@@ -30,16 +19,9 @@ export function AnalyticsEvent({
   // fired, so a refresh, bookmark or shared link can't replay a sign-up or a purchase into reporting
   stripParam?: string;
 }) {
-  const clientConsent = useAnalyticsConsent();
-  const on = enabled ?? clientConsent;
   useEffect(() => {
     if (typeof window === "undefined") return;
     const id = eventId ?? crypto.randomUUID();
-    if (on) {
-      window.dataLayer ??= [];
-      if (payload?.ecommerce) window.dataLayer.push({ ecommerce: null }); // GA4's reset, so the last event's items don't merge in
-      window.dataLayer.push({ event, event_id: id, ...(payload ?? {}) });
-    }
     // The server-side destinations each need their own category, which the backend checks - so any grant sends it
     const c = readClientConsent();
     if (c.analytics || c.ads || c.personalization) track(event, id, payload?.ecommerce);
@@ -47,9 +29,9 @@ export function AnalyticsEvent({
     // part of a one-shot view, and React.StrictMode would otherwise double-fire on
     // every re-render that produces a new object identity
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [on, event]);
+  }, [event]);
 
-  // Separate from the push: the param must go even when consent says don't track, or a
+  // Separate from the send: the param must go even when consent says don't track, or a
   // later consent grant would fire it after all
   useEffect(() => {
     if (!stripParam || typeof window === "undefined") return;

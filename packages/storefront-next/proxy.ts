@@ -29,6 +29,8 @@ import { CONSENT_COOKIE, CONSENT_COOKIE_OPTS } from "@skelet/storefront-core/con
 import { parseConsent, resolveConsentCookie } from "@skelet/storefront-core/consent/categories";
 import { getPrivacy } from "@skelet/storefront-core/consent/mode";
 import { clickCookieWrites } from "@skelet/storefront-core/consent/click-ids";
+import { COUNT_PATH, countableView } from "@skelet/storefront-core/analytics/aggregate-view";
+import { SESSION_COOKIE, SESSION_TTL, SIGNED_OUT_COOKIE, sessionWrite } from "@skelet/storefront-core/analytics/session";
 
 // Every request a Next storefront serves, before it renders: the channel and locale it's for, a near-expiry customer
 // session rotated, the visitor id minted, a ?promo= code held for the cart, and a crawler's fetch reported. A template's
@@ -56,34 +58,43 @@ const REFRESH_TIMEOUT_MS = 3000;
 const BOT_UA =
   /bot\b|bot\/|crawl|spider|slurp|gptbot|chatgpt|claude|anthropic|gemini|google-extended|googleother|perplexity|bingbot|adidxbot|duckduck|yandex|baidu|sogou|bytespider|ccbot|diffbot|amazonbot|applebot|facebookexternalhit|twitterbot|linkedinbot|pinterest|slackbot|telegram|whatsapp|discordbot|embedly|ahrefs|semrush|mj12|dotbot|screaming frog|blexbot|dataforseo|uptimerobot|pingdom|statuscake|datadog|lighthouse|headless|phantom|selenium|playwright|puppeteer|python-requests|python-urllib|aiohttp|scrapy|go-http-client|node-fetch|okhttp|httpclient|libwww|java\/|curl\/|wget|\+http/i;
 
-function reportCrawl(req: NextRequest, event: NextFetchEvent, channelId: string) {
+// What a page request reports, decided once and sent from here so nothing touches the browser: a crawler's fetch, for
+// the SEO crawl log, or a view from a visitor without analytics consent, counted as nobody - the path alone, and only
+// where the shop counts them (the backend drops it too when it doesn't, or when Signals is off). Lens counts the rest
+function reportPage(req: NextRequest, event: NextFetchEvent, channelId: string, analytics: boolean, counts: boolean) {
   // Wrapped so a bad env or a synchronous fetch throw can never break page serving
   try {
     const ua = req.headers.get("user-agent") ?? "";
-    if (req.method !== "GET" || !ua || !BOT_UA.test(ua)) return;
-    const forwardedFor = clientIP(req.headers);
-    const ip = forwardedFor.split(",")[0]?.trim() ?? "";
-    const ref = req.headers.get("referer") ?? "";
     const path = req.nextUrl.pathname;
-    // Forward the crawler's IP so the backend rate-limits the BOT, not this Next server -
-    // otherwise every beacon shares one bucket and heavy crawls drop past the cap
-    const beaconHeaders: Record<string, string> = { "Content-Type": "application/json" };
-    if (channelId) beaconHeaders["X-Channel-Id"] = channelId;
-    if (forwardedFor) beaconHeaders["X-Forwarded-For"] = forwardedFor;
-    event.waitUntil(
-      fetch(`${BACKEND_INTERNAL_URL}${BEACON.crawl}`, {
-        method: "POST",
-        headers: beaconHeaders,
-        body: JSON.stringify({ path, ua, ip, ref }),
-        // Bounded so a slow backend can't leave sockets hanging on a high-volume crawl
-        signal: AbortSignal.timeout(BEACON_TIMEOUT_MS),
-      }).catch(() => {
-        // a tracking hiccup must never affect the crawler's response
-      }),
-    );
+    if (req.method === "GET" && ua && BOT_UA.test(ua)) {
+      const forwardedFor = clientIP(req.headers);
+      const ip = forwardedFor.split(",")[0]?.trim() ?? "";
+      postToBackend(req, event, channelId, BEACON.crawl, { path, ua, ip, ref: req.headers.get("referer") ?? "" });
+    } else if (channelId && counts && isPagePath(path) && countableView(req.method, req.headers, analytics, !ua)) {
+      postToBackend(req, event, channelId, COUNT_PATH, { path });
+    }
   } catch {
-    // swallow - analytics must never break the response path
+    // swallow - reporting must never break the response path
   }
+}
+
+// postToBackend sends a report after the response, bounded so a slow backend can't leave sockets hanging. The visitor's
+// IP goes along so the backend rate-limits them, not this Next server - otherwise every report shares one bucket
+function postToBackend(req: NextRequest, event: NextFetchEvent, channelId: string, path: string, body: unknown) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (channelId) headers["X-Channel-Id"] = channelId;
+  const forwardedFor = clientIP(req.headers);
+  if (forwardedFor) headers["X-Forwarded-For"] = forwardedFor;
+  event.waitUntil(
+    fetch(`${BACKEND_INTERNAL_URL}${path}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(BEACON_TIMEOUT_MS),
+    }).catch(() => {
+      // a reporting hiccup must never affect the response
+    }),
+  );
 }
 
 // --- Session refresh ---
@@ -185,8 +196,6 @@ export async function storefrontProxy(req: NextRequest, event: NextFetchEvent): 
     return new NextResponse("No storefront is configured for this host", { status: 404 });
   }
 
-  // Record crawler page fetches (runs for every matched page request).
-  reportCrawl(req, event, channelId);
 
   const url = req.nextUrl;
   const code = url.searchParams.get(PROMO_QUERY_PARAM);
@@ -202,6 +211,7 @@ export async function storefrontProxy(req: NextRequest, event: NextFetchEvent): 
     : undefined;
   const consent = parseConsent(consentWrite ?? rawConsent);
   const analytics = consent?.analytics ?? false;
+  reportPage(req, event, channelId, analytics, privacy?.counts ?? true);
   const clickWrites = clickCookieWrites(
     url.searchParams,
     (name) => req.cookies.get(name)?.value,
@@ -210,7 +220,11 @@ export async function storefrontProxy(req: NextRequest, event: NextFetchEvent): 
     req.headers.get("host") ?? "",
     process.env.NODE_ENV === "production",
   );
-  const existingAid = req.cookies.get(AID_COOKIE)?.value;
+  const signedOut = req.cookies.has(SIGNED_OUT_COOKIE);
+  const priorSession = req.cookies.get(SESSION_COOKIE)?.value;
+  const sessionValue = sessionWrite(signedOut && analytics ? undefined : priorSession, analytics, Date.now());
+  const priorAid = req.cookies.get(AID_COOKIE)?.value;
+  const existingAid = signedOut ? undefined : priorAid;
   const newAid = analytics && !existingAid ? crypto.randomUUID() : undefined;
 
   // Writes applied to whatever response we return (persist to the browser).
@@ -221,8 +235,14 @@ export async function storefrontProxy(req: NextRequest, event: NextFetchEvent): 
       res.cookies.set(CONSENT_COOKIE, consentWrite, consentWrite ? CONSENT_COOKIE_OPTS : { ...CONSENT_COOKIE_OPTS, maxAge: 0 });
     }
     if (analytics) res.cookies.set(AID_COOKIE, newAid ?? existingAid!, AID_OPTS);
-    else if (existingAid) res.cookies.set(AID_COOKIE, "", { ...AID_OPTS, maxAge: 0 });
+    else if (priorAid) res.cookies.set(AID_COOKIE, "", { ...AID_OPTS, maxAge: 0 });
+    if (signedOut) res.cookies.set(SIGNED_OUT_COOKIE, "", { path: "/", maxAge: 0 });
     for (const w of clickWrites) res.cookies.set(w.name, w.value, w.options);
+    if (sessionValue !== undefined) {
+      res.cookies.set(SESSION_COOKIE, sessionValue, {
+        path: "/", httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: sessionValue ? SESSION_TTL : 0,
+      });
+    }
     if (session.kind === "refreshed") {
       const opts = sessionCookieOptions();
       res.cookies.set(ACCESS_TOKEN_COOKIE, session.accessToken, { ...opts, maxAge: ACCESS_TOKEN_MAX_AGE });
@@ -252,6 +272,7 @@ export async function storefrontProxy(req: NextRequest, event: NextFetchEvent): 
   if (newAid) forward[AID_COOKIE] = newAid;
   if (consentWrite !== undefined) forward[CONSENT_COOKIE] = consentWrite;
   for (const w of clickWrites) forward[w.name] = w.value; // a deletion too, so this render can't send what was just withdrawn
+  if (sessionValue !== undefined) forward[SESSION_COOKIE] = sessionValue;
   if (session.kind === "refreshed") {
     forward[ACCESS_TOKEN_COOKIE] = session.accessToken;
     forward[REFRESH_TOKEN_COOKIE] = session.refreshToken;

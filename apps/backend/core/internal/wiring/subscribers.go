@@ -124,7 +124,7 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 
 	registerEventSubscribers(bus, d.WebhookDispatcher, d.Order)
 	registerEmailOptIns(bus, d.Consent)
-	d.Tracking.Subscribe(bus, d.Order, d.Channel) // the shop's own events to the platforms - independent of Signals
+	d.Tracking.Subscribe(bus, d.Order, d.Channel, d.Consent, d.Customer) // the shop's own events to the platforms - independent of Signals
 	d.Catalog.RegisterSubscribers(bus)
 	subscribeOrderReactors(d)
 	ordercapture.Register(bus, d.Order, d.Payment)
@@ -147,8 +147,8 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 	}
 	roster.Register(bus, d.Queries, d.SignalsClient, resync) // keeps the suite's copy current between the 6-hourly sweeps
 	activity.RegisterConversionAttribution(bus, d.SignalsClient)
-	activity.NewTracker(d.SignalsClient, d.Order).Subscribe(bus) // every customer-facing action onto the analytics spine, so the profile timeline reflects the whole journey
-	d.BackInStock.Register(bus)                                  // on restock, resolved customers enrol into the back_in_stock flow and guests get a direct mail
+	activity.NewTracker(d.SignalsClient, d.Order, d.Config).Subscribe(bus) // every customer-facing action onto the analytics spine, so the profile timeline reflects the whole journey
+	d.BackInStock.Register(bus)                                            // on restock, resolved customers enrol into the back_in_stock flow and guests get a direct mail
 }
 
 // Everything reacting to an order's lifecycle - all outbox-durable, so every handler here has to tolerate a replay

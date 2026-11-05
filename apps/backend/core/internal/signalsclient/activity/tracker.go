@@ -26,6 +26,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
+	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
 
 // Satisfied by *signalsclient.Client - an interface so the tracker tests without a service
@@ -35,8 +36,9 @@ type activityRecorder interface {
 
 // The spine's source column for what this package emits - core writes only these two
 const (
-	sourceCommerce = "commerce"
-	sourceAccount  = "account"
+	sourceCommerce  = "commerce"
+	sourceAccount   = "account"
+	sourceAggregate = "aggregate" // counted as nobody - the suite keeps it out of every per-person read
 )
 
 const signalsWriteTimeout = 2 * time.Second
@@ -45,19 +47,46 @@ type orderLookup interface {
 	GetByID(ctx context.Context, id uuid.UUID) (order.Order, error)
 }
 
-type Tracker struct {
-	rec    activityRecorder
-	orders orderLookup
+// Settings reads a shop's switches - satisfied by *config.Service
+type Settings interface {
+	GetBool(ctx context.Context, path string, scope config.Scope) (bool, error)
 }
 
-func NewTracker(rec *signalsclient.Client, orders orderLookup) *Tracker {
-	return &Tracker{rec: rec, orders: orders}
+// AggregateCountsSetting is whether a shop counts visitors who decline analytics, as nobody
+const AggregateCountsSetting = "general/privacy/aggregate_counts"
+
+type Tracker struct {
+	rec      activityRecorder
+	orders   orderLookup
+	settings Settings
+}
+
+// NewTracker needs the shop's settings: whether a visitor who declined analytics is counted at all is the shop's call,
+// and every path here - the live events, a backfill, a counted page view - has to follow it
+func NewTracker(rec activityRecorder, orders orderLookup, settings Settings) *Tracker {
+	return &Tracker{rec: rec, orders: orders, settings: settings}
+}
+
+// countsNobody is the shop's aggregate_counts switch - a setting that won't read keeps its default, on
+func (t *Tracker) countsNobody(ctx context.Context, channelID uuid.UUID) bool {
+	on, err := t.settings.GetBool(ctx, AggregateCountsSetting, config.Scope{Kind: config.ScopeChannel, ChannelID: &channelID})
+	return err != nil || on
+}
+
+// CountView counts a page view from a visitor who declined analytics, as nobody - the path alone, every view its own
+func (t *Tracker) CountView(ctx context.Context, channelID uuid.UUID, path string) error {
+	return t.emitAs(ctx, sourceCommerce, "page_view", channelID, actor{nobody: true}, "agg:"+uuid.NewString(), map[string]any{"path": path})
 }
 
 // BackfillOrder replays a past order's placement, for orders that never reached the suite - placedAt must be the time the
 // live event carried, since the dedupe key only collapses a copy in the same daily partition
+// An order placed without analytics consent is skipped: it already counted, under an id of its own before such orders
+// counted as nobody and as nobody since, and the key it would get now matches neither, so a replay would count it twice
 func (t *Tracker) BackfillOrder(ctx context.Context, o order.Order, placedAt time.Time) error {
-	held := &Tracker{rec: t.rec, orders: heldOrder(o)} // the gift-card follow-up reads the order the caller already has
+	if orderActor(o).nobody {
+		return nil
+	}
+	held := &Tracker{rec: t.rec, orders: heldOrder(o), settings: t.settings} // the gift-card follow-up reads the order the caller already has
 	return held.onOrderPlaced(events.WithEmittedAt(ctx, placedAt), &order.OrderPlaced{
 		OrderID: o.ID, OrderNumber: o.Number, CustomerID: o.CustomerID, Email: o.Email, AnonID: o.AnonID,
 		ChannelID: o.ChannelID, TotalCents: o.TotalAmount, Currency: o.CurrencyCode,
@@ -109,34 +138,65 @@ func (t *Tracker) Subscribe(bus *events.Bus) {
 	bus.Subscribe(auth.EventPasswordReset, t.onPasswordReset)
 }
 
-func (t *Tracker) emit(ctx context.Context, source, name string, channel uuid.UUID, cust *uuid.UUID, dedupe string, props map[string]any) error {
-	return t.emitID(ctx, source, name, channel, cust, "", dedupe, props)
+// actor is who an event is about: a customer, a visitor id, or nobody - a visitor who declined analytics, counted in
+// totals and revenue and never on a profile
+type actor struct {
+	cust   *uuid.UUID
+	anon   string
+	nobody bool
 }
 
-// emitID also accepts an anon id for guest commerce - No-op when neither a
-// customer nor an anon id is present
-// An unreachable suite hands the event back to the outbox, whose replay the dedupe key collapses - a refusal is final
-func (t *Tracker) emitID(ctx context.Context, source, name string, channel uuid.UUID, cust *uuid.UUID, anon, dedupe string, props map[string]any) error {
-	if cust == nil && anon == "" {
-		return nil
+// shopperActor is a shopper's own action: theirs, or nobody when they refused analytics
+func shopperActor(s *auth.Shopper, cust *uuid.UUID, anon string) actor {
+	if s.AnalyticsRefused() {
+		return actor{nobody: true}
 	}
+	return actor{cust: cust, anon: anon}
+}
+
+// orderActor is who an order's events belong to - nobody when it was placed without analytics consent (the snapshot
+// is the consent at purchase), else the customer or the guest it was placed as
+func orderActor(o order.Order) actor {
+	if o.Shopper.AnalyticsRefused() {
+		return actor{nobody: true}
+	}
+	return actor{cust: o.CustomerID, anon: guestVisitor(o.CustomerID, o.AnonID, o.Email)}
+}
+
+// emit is an account action, which is always the customer's own
+func (t *Tracker) emit(ctx context.Context, source, name string, channel uuid.UUID, cust *uuid.UUID, dedupe string, props map[string]any) error {
+	return t.emitAs(ctx, source, name, channel, actor{cust: cust}, dedupe, props)
+}
+
+// emitAs records one event for who it is about. Nobody goes as an aggregate event, only where the shop counts them:
+// no customer and no visitor id, and the suite keeps only amounts and items, the hour, and a keyed hash of the dedupe
+// key, so nothing it holds leads back to the order or line. An event with no one at all has no place on the spine
+// An unreachable suite hands the event back to the outbox, whose replay the dedupe key collapses - a refusal is final
+func (t *Tracker) emitAs(ctx context.Context, source, name string, channel uuid.UUID, who actor, dedupe string, props map[string]any) error {
+	spec := signalsclient.ActivitySpec{EventName: name, Source: source, ChannelID: channel, At: eventTime(ctx), Props: props, DedupeKey: dedupe}
+	switch {
+	case who.nobody:
+		if !t.countsNobody(ctx, channel) {
+			return nil
+		}
+		spec.Source = sourceAggregate
+	case who.cust == nil && who.anon == "":
+		return nil
+	default:
+		spec.CustomerID, spec.AnonID = who.cust, who.anon
+	}
+	return t.record(ctx, spec)
+}
+
+func (t *Tracker) record(ctx context.Context, spec signalsclient.ActivitySpec) error {
 	ctx, cancel := context.WithTimeout(ctx, signalsWriteTimeout)
 	defer cancel()
-	err := t.rec.RecordActivity(ctx, signalsclient.ActivitySpec{
-		EventName:  name,
-		Source:     source,
-		ChannelID:  channel,
-		CustomerID: cust,
-		AnonID:     anon,
-		At:         eventTime(ctx),
-		Props:      props,
-		DedupeKey:  dedupe,
-	})
+	err := t.rec.RecordActivity(ctx, spec)
 	if signalsclient.Unreachable(err) {
-		return fmt.Errorf("record %s activity: %w", name, err)
+		return fmt.Errorf("record %s activity: %w", spec.EventName, err)
 	}
 	if err != nil {
-		slog.Warn("signals refused an activity write (dropped)", "event", name, "err", err)
+		slog.Warn("signals refused an activity write (dropped)", "event", spec.EventName, "err", err)
 	}
 	return nil
 }
@@ -146,10 +206,9 @@ func eventTime(ctx context.Context) time.Time {
 	return events.EmittedAtOr(ctx, time.Now())
 }
 
-// Who an order's later events belong to - the customer, or for a guest the visitor id it was placed under
+// An order's later events: who they belong to, and the order they name
 type orderRef struct {
-	cust    *uuid.UUID
-	anon    string
+	who     actor
 	number  string
 	channel uuid.UUID
 }
@@ -163,22 +222,13 @@ func (t *Tracker) resolveOrder(ctx context.Context, orderID uuid.UUID) (orderRef
 	if err != nil {
 		return orderRef{}, fmt.Errorf("load order %s: %w", orderID, err)
 	}
-	if unprofiled(o) {
-		return orderRef{anon: orderOnlyActor(orderID), number: o.Number, channel: o.ChannelID}, nil
-	}
-	return orderRef{cust: o.CustomerID, anon: orderActor(o.CustomerID, o.AnonID, o.Email), number: o.Number, channel: o.ChannelID}, nil
+	return orderRef{who: orderActor(o), number: o.Number, channel: o.ChannelID}, nil
 }
 
-// unprofiled is an order a shop's visitor placed after refusing analytics - it still counts in revenue, but under an id
-// of its own, so nothing links it to them, their browsing or their other orders. The snapshot is the consent at purchase
-func unprofiled(o order.Order) bool { return o.Tracking != nil && !o.Tracking.Consent.Analytics }
-
-func orderOnlyActor(orderID uuid.UUID) string { return "order_" + orderID.String() }
-
-// orderActor is who a guest order belongs to: the storefront visitor when one was sent, else a hash of the receipt email,
-// so admin drafts, headless shops and API orders still land and one guest's repeat orders read as one person - an erased
-// guest's scrubbed address names nobody, so their orders stay off the spine
-func orderActor(cust *uuid.UUID, anon, email string) string {
+// guestVisitor is who a guest order belongs to: the storefront visitor when one was sent, else a hash of the receipt
+// email, so admin drafts, headless shops and API orders still land and one guest's repeat orders read as one person - an
+// erased guest's scrubbed address names nobody, so their orders stay off the spine
+func guestVisitor(cust *uuid.UUID, anon, email string) string {
 	if cust != nil || anon != "" {
 		return anon
 	}
@@ -188,10 +238,6 @@ func orderActor(cust *uuid.UUID, anon, email string) string {
 	}
 	sum := sha256.Sum256([]byte(email))
 	return "guest_" + hex.EncodeToString(sum[:16])
-}
-
-func (t *Tracker) emitOrder(ctx context.Context, name string, o orderRef, dedupe string, props map[string]any) error {
-	return t.emitID(ctx, sourceCommerce, name, o.channel, o.cust, o.anon, dedupe, props)
 }
 
 // bucketing collapses rapid repeats (cart churn, logins) into one dedupe key - derived from eventTime, not the wall clock, so a redelivery lands on the same key
@@ -215,21 +261,13 @@ func (t *Tracker) onOrderPlaced(ctx context.Context, e events.Event) error {
 	if err != nil {
 		return fmt.Errorf("load order %s: %w", ev.OrderID, err)
 	}
-	cust, anon := ev.CustomerID, orderActor(ev.CustomerID, ev.AnonID, ev.Email)
-	if unprofiled(o) {
-		cust, anon = nil, orderOnlyActor(ev.OrderID)
-	}
-	if cust == nil && anon == "" {
-		return nil
-	}
-	if err := t.emitID(ctx, sourceCommerce, "order_placed", ev.ChannelID, cust, anon,
-		"act:order_placed:"+ev.OrderID.String(),
+	placed := orderRef{who: orderActor(o), number: ev.OrderNumber, channel: ev.ChannelID}
+	if err := t.emitAs(ctx, sourceCommerce, "order_placed", placed.channel, placed.who, "act:order_placed:"+ev.OrderID.String(),
 		map[string]any{"order_id": ev.OrderID.String(), "order_number": ev.OrderNumber, "total_cents": ev.TotalCents, "currency": ev.Currency}); err != nil {
 		return err
 	}
 	if o.GiftCardAmount > 0 {
-		return t.emitID(ctx, sourceCommerce, "giftcard_redeemed", ev.ChannelID, cust, anon,
-			"act:gc:"+ev.OrderID.String(),
+		return t.emitAs(ctx, sourceCommerce, "giftcard_redeemed", placed.channel, placed.who, "act:gc:"+ev.OrderID.String(),
 			map[string]any{"order_number": ev.OrderNumber, "amount_cents": o.GiftCardAmount, "currency": ev.Currency})
 	}
 	return nil
@@ -244,7 +282,7 @@ func (t *Tracker) onOrderStatusChanged(ctx context.Context, e events.Event) erro
 	if err != nil {
 		return err
 	}
-	return t.emitOrder(ctx, "order_"+ev.ToStatus, o,
+	return t.emitAs(ctx, sourceCommerce, "order_"+ev.ToStatus, o.channel, o.who,
 		"act:order_status:"+ev.ToStatus+":"+ev.OrderID.String()+":"+itoa(secBucket(ctx)),
 		map[string]any{"order_id": ev.OrderID.String(), "order_number": o.number, "from": ev.FromStatus, "status": ev.ToStatus})
 }
@@ -258,7 +296,7 @@ func (t *Tracker) onOrderPayment(ctx context.Context, e events.Event) error {
 	if err != nil {
 		return err
 	}
-	return t.emitOrder(ctx, "order_payment_"+ev.Status, o,
+	return t.emitAs(ctx, sourceCommerce, "order_payment_"+ev.Status, o.channel, o.who,
 		"act:order_pay:"+ev.Status+":"+ev.OrderID.String()+":"+ev.Reference,
 		map[string]any{"order_number": o.number, "status": ev.Status, "reference": ev.Reference})
 }
@@ -272,7 +310,7 @@ func (t *Tracker) onOrderShipped(ctx context.Context, e events.Event) error {
 	if err != nil {
 		return err
 	}
-	return t.emitOrder(ctx, "order_shipped", o,
+	return t.emitAs(ctx, sourceCommerce, "order_shipped", o.channel, o.who,
 		"act:order_shipped:"+ev.FulfillmentID.String(),
 		map[string]any{"order_number": o.number, "fully_shipped": ev.FullyShipped})
 }
@@ -314,7 +352,7 @@ func (t *Tracker) recordReturn(ctx context.Context, name string, orderID, return
 	if err != nil {
 		return err
 	}
-	return t.emitOrder(ctx, name, o,
+	return t.emitAs(ctx, sourceCommerce, name, o.channel, o.who,
 		"act:"+name+":"+returnID.String(),
 		map[string]any{"order_number": o.number, "return_id": returnID.String()})
 }
@@ -328,57 +366,57 @@ func (t *Tracker) onOrderEdited(ctx context.Context, e events.Event) error {
 	if err != nil {
 		return err
 	}
-	return t.emitOrder(ctx, "order_edited", o,
+	return t.emitAs(ctx, sourceCommerce, "order_edited", o.channel, o.who,
 		"act:order_edited:"+ev.OrderID.String()+":"+itoa(secBucket(ctx)),
 		map[string]any{"order_number": o.number, "new_amount_due": ev.NewAmountDue})
 }
 
 func (t *Tracker) onCartAdd(ctx context.Context, e events.Event) error {
 	ev, ok := e.(*cart.LineAdded)
-	if !ok || ev.Shopper.AnalyticsRefused() {
+	if !ok {
 		return nil
 	}
-	return t.emitID(ctx, sourceCommerce, "cart_add", ev.ChannelID, ev.CustomerID, ev.AnonID,
+	return t.emitAs(ctx, sourceCommerce, "cart_add", ev.ChannelID, shopperActor(ev.Shopper, ev.CustomerID, ev.AnonID),
 		"act:cart_add:"+ev.LineID.String(),
 		map[string]any{"sku": ev.ProductSku, "qty": ev.Quantity, "unit_price": ev.UnitPrice})
 }
 
 func (t *Tracker) onCartBundleAdd(ctx context.Context, e events.Event) error {
 	ev, ok := e.(*cart.BundleAdded)
-	if !ok || ev.Shopper.AnalyticsRefused() {
+	if !ok {
 		return nil
 	}
-	return t.emitID(ctx, sourceCommerce, "cart_add", ev.ChannelID, ev.CustomerID, ev.AnonID,
+	return t.emitAs(ctx, sourceCommerce, "cart_add", ev.ChannelID, shopperActor(ev.Shopper, ev.CustomerID, ev.AnonID),
 		"act:cart_add:"+ev.LineID.String(),
 		map[string]any{"sku": ev.ProductSku, "qty": ev.Quantity, "unit_price": ev.UnitPrice, "bundle": true})
 }
 
 func (t *Tracker) onCartUpdate(ctx context.Context, e events.Event) error {
 	ev, ok := e.(*cart.LineUpdated)
-	if !ok || ev.Shopper.AnalyticsRefused() {
+	if !ok {
 		return nil
 	}
-	return t.emitID(ctx, sourceCommerce, "cart_update", ev.ChannelID, ev.CustomerID, ev.AnonID,
+	return t.emitAs(ctx, sourceCommerce, "cart_update", ev.ChannelID, shopperActor(ev.Shopper, ev.CustomerID, ev.AnonID),
 		"act:cart_upd:"+ev.LineID.String()+":"+itoa(minuteBucket(ctx)),
 		map[string]any{"line_id": ev.LineID.String(), "qty": ev.Quantity})
 }
 
 func (t *Tracker) onCartRemove(ctx context.Context, e events.Event) error {
 	ev, ok := e.(*cart.LineRemoved)
-	if !ok || ev.Shopper.AnalyticsRefused() {
+	if !ok {
 		return nil
 	}
-	return t.emitID(ctx, sourceCommerce, "cart_remove", ev.ChannelID, ev.CustomerID, ev.AnonID,
+	return t.emitAs(ctx, sourceCommerce, "cart_remove", ev.ChannelID, shopperActor(ev.Shopper, ev.CustomerID, ev.AnonID),
 		"act:cart_rm:"+ev.LineID.String()+":"+itoa(minuteBucket(ctx)),
 		map[string]any{"line_id": ev.LineID.String()})
 }
 
 func (t *Tracker) onCartCleared(ctx context.Context, e events.Event) error {
 	ev, ok := e.(*cart.Cleared)
-	if !ok || ev.Shopper.AnalyticsRefused() {
+	if !ok {
 		return nil
 	}
-	return t.emitID(ctx, sourceCommerce, "cart_cleared", ev.ChannelID, ev.CustomerID, ev.AnonID,
+	return t.emitAs(ctx, sourceCommerce, "cart_cleared", ev.ChannelID, shopperActor(ev.Shopper, ev.CustomerID, ev.AnonID),
 		"act:cart_clear:"+ev.CartID.String()+":"+itoa(minuteBucket(ctx)), nil)
 }
 
@@ -428,14 +466,14 @@ func (t *Tracker) onDownloadAccessed(ctx context.Context, e events.Event) error 
 	if !ok {
 		return nil
 	}
-	o := orderRef{cust: ev.CustomerID}
+	o := orderRef{who: actor{cust: ev.CustomerID}}
 	if ev.OrderID != nil {
 		var err error
 		if o, err = t.resolveOrder(ctx, *ev.OrderID); err != nil {
 			return err
 		}
-		if ev.CustomerID != nil {
-			o.cust = ev.CustomerID
+		if ev.CustomerID != nil && !o.who.nobody { // a signed-in download is theirs, unless the order was bought as nobody
+			o.who.cust = ev.CustomerID
 		}
 	}
 	// A grant issued without an order names no channel, so the storefront request that downloaded supplies it - and one with neither stays off the spine, where no per-channel report could show it
@@ -445,7 +483,7 @@ func (t *Tracker) onDownloadAccessed(ctx context.Context, e events.Event) error 
 	if o.channel == uuid.Nil {
 		return nil
 	}
-	return t.emitOrder(ctx, "download_accessed", o,
+	return t.emitAs(ctx, sourceCommerce, "download_accessed", o.channel, o.who,
 		"act:dl:"+ev.GrantID.String()+":"+itoa(minuteBucket(ctx)),
 		map[string]any{"name": ev.Title, "order_number": o.number})
 }
