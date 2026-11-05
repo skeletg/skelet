@@ -8,11 +8,14 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
+	"github.com/skeletg/skelet/apps/backend/core/internal/wishlist"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/consentkind"
 	"github.com/skeletg/skelet/apps/backend/sdk"
@@ -117,7 +120,7 @@ func TestCartChangesAndSignUpsBecomeEvents(t *testing.T) {
 	fs := newFakeStore(Destination{ID: dest, ChannelID: ch, Kind: "t-all", Enabled: true})
 	svc := &Service{store: fs}
 	bus := events.NewBus()
-	svc.Subscribe(bus, noOrders{}, oneChannel{"EUR"}, optedIn{"a@example.com": true}, nil)
+	svc.Subscribe(bus, noOrders{}, oneChannel{"EUR"}, optedIn{"a@example.com": true}, nil, nil)
 	ctx := events.WithEmittedAt(context.Background(), time.Unix(1700000000, 0))
 	cust, line := uuid.New(), uuid.New()
 
@@ -218,7 +221,7 @@ func TestOptOutsReachOnlyTheKindsBuiltToRemove(t *testing.T) {
 	bus := events.NewBus()
 	phone := "+381601234567"
 	cust := customer.Customer{ID: uuid.New(), ChannelID: ch, Email: "out@example.com", Phone: &phone}
-	svc.Subscribe(bus, noOrders{}, oneChannel{"EUR"}, nil, oneCustomer{cust})
+	svc.Subscribe(bus, noOrders{}, oneChannel{"EUR"}, nil, oneCustomer{cust}, nil)
 	ctx := events.WithEmittedAt(context.Background(), time.Unix(1700000000, 0))
 
 	_ = bus.DispatchAsyncNow(ctx, &consent.ConsentChanged{CustomerID: cust.ID, Kind: consentkind.MarketingEmail, OptedIn: false})
@@ -249,7 +252,7 @@ func TestAQuantityChangeIsAnAddOrRemovalOfTheDifference(t *testing.T) {
 	fs := newFakeStore(Destination{ID: uuid.New(), ChannelID: ch, Kind: "t-all", Enabled: true})
 	svc := &Service{store: fs}
 	bus := events.NewBus()
-	svc.Subscribe(bus, noOrders{}, oneChannel{"EUR"}, nil, nil)
+	svc.Subscribe(bus, noOrders{}, oneChannel{"EUR"}, nil, nil, nil)
 	line := uuid.New()
 	at := time.Unix(1700000000, 0)
 	for i, q := range [][2]float64{{1, 3}, {3, 2}, {2, 2}} {
@@ -277,7 +280,7 @@ func TestCheckoutChoicesAreShippingAndPaymentInfo(t *testing.T) {
 	fs := newFakeStore(Destination{ID: uuid.New(), ChannelID: ch, Kind: "t-all", Enabled: true})
 	svc := &Service{store: fs}
 	bus := events.NewBus()
-	svc.Subscribe(bus, noOrders{}, oneChannel{"EUR"}, nil, nil)
+	svc.Subscribe(bus, noOrders{}, oneChannel{"EUR"}, nil, nil, nil)
 	lines := []cart.CartLine{{ProductSku: "SKU-1", ProductName: "Mug", UnitPrice: 1500, Quantity: 2}, {ProductSku: "SKU-2", UnitPrice: 990, Quantity: 1}}
 	ctx := events.WithEmittedAt(context.Background(), time.Unix(1700000000, 0))
 	_ = bus.DispatchAsyncNow(ctx, &cart.CheckoutChosen{ChannelID: ch, CartID: uuid.New(), Step: cart.StepShipping, Choice: "dhl:express", Lines: lines})
@@ -291,5 +294,38 @@ func TestCheckoutChoicesAreShippingAndPaymentInfo(t *testing.T) {
 	}
 	if pay := got[AddPaymentInfo]; pay == nil || pay.PaymentType != "cod" || pay.ShippingTier != "" || pay.Currency != "EUR" {
 		t.Errorf("add_payment_info: %+v", pay)
+	}
+}
+
+type oneProduct struct{ p catalog.Product }
+
+func (o oneProduct) GetProduct(_ context.Context, id uuid.UUID, _ string) (catalog.Product, error) {
+	if id != o.p.ID {
+		return catalog.Product{}, apperr.New("NOT_FOUND", apperr.ClassNotFound, "no product")
+	}
+	return o.p, nil
+}
+
+func TestAWishlistSaveIsAddToWishlist(t *testing.T) {
+	ch := uuid.New()
+	registerTestKind(t, sdk.Destination{Kind: "t-all"})
+	fs := newFakeStore(Destination{ID: uuid.New(), ChannelID: ch, Kind: "t-all", Enabled: true})
+	svc := &Service{store: fs}
+	bus := events.NewBus()
+	mug := catalog.Product{ID: uuid.New(), SKU: "SKU-1", Content: &catalog.ProductContent{Name: "Mug"}}
+	svc.Subscribe(bus, noOrders{}, oneChannel{"EUR"}, nil, nil, oneProduct{mug})
+	cust := uuid.New()
+	ctx := context.Background()
+	shopper := &auth.Shopper{Consent: auth.Consent{Analytics: true}, AnonID: "visitor-1"}
+	_ = bus.DispatchAsyncNow(ctx, &wishlist.ItemAdded{CustomerID: cust, ProductID: mug.ID, ChannelID: ch, Shopper: shopper})
+	_ = bus.DispatchAsyncNow(ctx, &wishlist.ItemAdded{CustomerID: cust, ProductID: uuid.New(), ChannelID: ch}) // since deleted
+	_ = bus.DispatchAsyncNow(ctx, &wishlist.ItemAdded{CustomerID: cust, ProductID: mug.ID})                    // no shop
+
+	if len(fs.events) != 1 {
+		t.Fatalf("queued %d events, want only the save on a shop of a product that exists", len(fs.events))
+	}
+	ev := fs.events[0]
+	if ev.Name != AddToWishlist || *ev.User.CustomerID != cust || ev.User.AnonID != "visitor-1" || ev.Ecommerce.Items[0].ItemID != "SKU-1" || ev.Ecommerce.Items[0].ItemName != "Mug" {
+		t.Errorf("add_to_wishlist: %+v %+v", ev, ev.Ecommerce)
 	}
 }

@@ -13,11 +13,14 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
+	"github.com/skeletg/skelet/apps/backend/core/internal/wishlist"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/consentkind"
 )
@@ -35,6 +38,11 @@ type channelReader interface {
 	GetByID(ctx context.Context, id uuid.UUID) (channel.Channel, error)
 }
 
+// Satisfied by *catalog.Service
+type productReader interface {
+	GetProduct(ctx context.Context, id uuid.UUID, locale string) (catalog.Product, error)
+}
+
 // Satisfied by *consent.Service
 type emailMarketing interface {
 	EmailMarketingAllowed(ctx context.Context, channelID uuid.UUID, customerID *uuid.UUID, email string) (bool, error)
@@ -43,11 +51,11 @@ type emailMarketing interface {
 // Subscribe turns the server's own events into tracking events: purchases, refunds and cancellations off the order
 // outbox, cart adds and removals, storefront sign-ups. An order event uses the consent snapshotted at placement, the
 // rest the consent the visitor had when they acted
-func (s *Service) Subscribe(bus *events.Bus, orders orderReader, channels channelReader, marketing emailMarketing, customers customerReader) {
+func (s *Service) Subscribe(bus *events.Bus, orders orderReader, channels channelReader, marketing emailMarketing, customers customerReader, products productReader) {
 	if bus == nil {
 		return
 	}
-	h := handlers{svc: s, orders: orders, channels: channels, marketing: marketing, customers: customers}
+	h := handlers{svc: s, orders: orders, channels: channels, marketing: marketing, customers: customers, products: products}
 	bus.Subscribe(order.EventPlaced, h.onPlaced)
 	bus.Subscribe(order.EventRefunded, h.onRefunded)
 	bus.Subscribe(order.EventCancelled, h.onCancelled)
@@ -56,6 +64,7 @@ func (s *Service) Subscribe(bus *events.Bus, orders orderReader, channels channe
 	bus.Subscribe(cart.EventLineUpdated, h.onLineUpdated)
 	bus.Subscribe(cart.EventLineRemoved, h.onLineRemoved)
 	bus.Subscribe(cart.EventCheckoutChosen, h.onCheckoutChosen)
+	bus.Subscribe(wishlist.EventItemAdded, h.onWishlistAdded)
 	bus.Subscribe(customer.EventRegistered, h.onRegistered)
 	bus.Subscribe(consent.EventChanged, h.onConsentChanged)
 	bus.Subscribe(customer.EventDeleted, h.onDeleted)
@@ -68,6 +77,7 @@ type handlers struct {
 	channels  channelReader
 	marketing emailMarketing // nil: no event says its email may be marketed to
 	customers customerReader // nil: an opt-out from the account page reaches no destination
+	products  productReader  // nil: a wishlist save reaches no destination
 }
 
 // track sends the event, first noting whether its email may receive marketing - a failed lookup goes back to the
@@ -362,6 +372,38 @@ func (h handlers) onCheckoutChosen(ctx context.Context, e events.Event) error {
 		// The cart and the moment, so a replay collapses while switching back and forth is each its own event
 		ID: name + ":" + ev.CartID.String() + ":" + strconv.FormatInt(eventTime(ctx).UnixMilli(), 10), Name: name,
 		OccurredAt: eventTime(ctx), ChannelID: ev.ChannelID, Source: "server", User: User{CustomerID: ev.CustomerID}, Ecommerce: ec,
+	}
+	WithShopper(&out, ev.Shopper)
+	return h.svc.Track(ctx, out)
+}
+
+// shortcut: no value or price, since a product's price is per channel listing and per variant - add them if a platform's
+// wishlist audiences need value
+func (h handlers) onWishlistAdded(ctx context.Context, e events.Event) error {
+	ev, ok := e.(*wishlist.ItemAdded)
+	if !ok || ev.ChannelID == uuid.Nil || h.products == nil {
+		return nil
+	}
+	ch, err := h.channels.GetByID(ctx, ev.ChannelID)
+	if err != nil {
+		return fmt.Errorf("load channel %s: %w", ev.ChannelID, err)
+	}
+	p, err := h.products.GetProduct(ctx, ev.ProductID, ch.DefaultLocale)
+	if apperr.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("load product %s: %w", ev.ProductID, err)
+	}
+	item := Item{ItemID: p.SKU}
+	if p.Content != nil {
+		item.ItemName = p.Content.Name
+	}
+	cust, at := ev.CustomerID, eventTime(ctx)
+	out := Event{
+		ID: AddToWishlist + ":" + cust.String() + ":" + ev.ProductID.String() + ":" + strconv.FormatInt(at.UnixMilli(), 10), Name: AddToWishlist,
+		OccurredAt: at, ChannelID: ev.ChannelID, Source: "server", User: User{CustomerID: &cust},
+		Ecommerce: &Ecommerce{Currency: ch.CurrencyCode, Items: []Item{item}},
 	}
 	WithShopper(&out, ev.Shopper)
 	return h.svc.Track(ctx, out)

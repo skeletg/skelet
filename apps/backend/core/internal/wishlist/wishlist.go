@@ -12,10 +12,12 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
 const (
@@ -27,6 +29,8 @@ const (
 type ItemAdded struct {
 	CustomerID uuid.UUID
 	ProductID  uuid.UUID
+	ChannelID  uuid.UUID     // the shop it was saved on, nil outside a storefront request
+	Shopper    *auth.Shopper // the visitor as their consent stood, nil for a caller with no banner
 }
 
 func (*ItemAdded) Type() string { return EventItemAdded }
@@ -79,7 +83,11 @@ func (s *Service) Add(ctx context.Context, customerID, productID uuid.UUID) erro
 			return ErrFull
 		}
 	}
-	s.publish(ctx, &ItemAdded{CustomerID: customerID, ProductID: productID})
+	ev := &ItemAdded{CustomerID: customerID, ProductID: productID, Shopper: auth.ShopperFromContext(ctx)}
+	if ch, ok := channel.FromContext(ctx); ok && ch != nil {
+		ev.ChannelID = ch.ID
+	}
+	s.publish(ctx, ev)
 	return nil
 }
 
