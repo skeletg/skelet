@@ -30,27 +30,42 @@ RETURNING *;
 -- name: DeleteTrackingDestination :exec
 DELETE FROM tracking_destinations WHERE id = $1;
 
--- name: EnqueueTrackingDelivery :exec
--- A replayed event finds its row already there and changes nothing
-INSERT INTO tracking_deliveries (destination_id, event_id, event_name, payload)
-VALUES (sqlc.arg(destination_id), sqlc.arg(event_id), sqlc.arg(event_name), sqlc.arg(payload))
-ON CONFLICT (destination_id, event_id) DO NOTHING;
+-- name: EnqueueTrackingEvent :exec
+-- The event once and a delivery for each destination, in one statement - a replayed event finds both already there and
+-- changes nothing, and a destination enabled since its first run gets its delivery. The no-op update is what lets a
+-- replay read back the stored event's id
+WITH ev AS (
+    INSERT INTO tracking_events (channel_id, event_id, event_name, customer_id, anon_id, email, payload)
+    VALUES (sqlc.arg(channel_id), sqlc.arg(event_id), sqlc.arg(event_name), sqlc.narg(customer_id),
+            sqlc.arg(anon_id), sqlc.arg(email), sqlc.arg(payload))
+    ON CONFLICT (channel_id, event_name, event_id) DO UPDATE SET event_name = EXCLUDED.event_name
+    RETURNING id
+)
+INSERT INTO tracking_deliveries (destination_id, tracking_event_id)
+SELECT dest, ev.id FROM ev, unnest(sqlc.arg(destination_ids)::uuid[]) AS dest
+ON CONFLICT (destination_id, tracking_event_id) DO NOTHING;
 
 -- name: ClaimDueTrackingDeliveries :many
 -- Claimed under a short lease by pushing next_attempt_at forward, so a crash mid-send replays the row once it lapses -
--- delivery is at least once, and SKIP LOCKED splits the work across replicas
-UPDATE tracking_deliveries
-SET    attempts = attempts + 1,
-       next_attempt_at = NOW() + make_interval(secs => sqlc.arg(lease_seconds)::int),
-       updated_at = NOW()
-WHERE  id IN (
-    SELECT id FROM tracking_deliveries
-    WHERE  status = 'pending' AND next_attempt_at <= NOW()
-    ORDER  BY next_attempt_at
-    LIMIT  sqlc.arg(batch_size)::int
-    FOR UPDATE SKIP LOCKED
+-- delivery is at least once, and SKIP LOCKED splits the work across replicas. Same columns as ListTrackingDeliveries
+WITH claimed AS (
+    UPDATE tracking_deliveries
+    SET    attempts = attempts + 1,
+           next_attempt_at = NOW() + make_interval(secs => sqlc.arg(lease_seconds)::int),
+           updated_at = NOW()
+    WHERE  id IN (
+        SELECT id FROM tracking_deliveries
+        WHERE  status = 'pending' AND next_attempt_at <= NOW()
+        ORDER  BY next_attempt_at
+        LIMIT  sqlc.arg(batch_size)::int
+        FOR UPDATE SKIP LOCKED
+    )
+    RETURNING *
 )
-RETURNING *;
+SELECT c.id, c.destination_id, e.event_id, e.event_name, e.payload, c.status, c.attempts, c.next_attempt_at,
+       c.last_error, c.created_at, c.updated_at
+FROM   claimed c
+JOIN   tracking_events e ON e.id = c.tracking_event_id;
 
 -- name: MarkTrackingDeliverySent :exec
 UPDATE tracking_deliveries SET status = 'sent', last_error = '', updated_at = NOW() WHERE id = $1;
@@ -68,11 +83,21 @@ SET    status = 'pending', attempts = 0, next_attempt_at = NOW(), last_error = '
 WHERE  id = $1 AND status = 'dead';
 
 -- name: ListTrackingDeliveries :many
-SELECT * FROM tracking_deliveries
-WHERE  destination_id = sqlc.arg(destination_id)
-ORDER  BY created_at DESC
+-- Same columns as ClaimDueTrackingDeliveries
+SELECT d.id, d.destination_id, e.event_id, e.event_name, e.payload, d.status, d.attempts, d.next_attempt_at,
+       d.last_error, d.created_at, d.updated_at
+FROM   tracking_deliveries d
+JOIN   tracking_events e ON e.id = d.tracking_event_id
+WHERE  d.destination_id = sqlc.arg(destination_id)
+ORDER  BY d.created_at DESC
 LIMIT  sqlc.arg(lim);
 
 -- name: PruneTrackingDeliveries :execrows
 -- The log is for following up a recent problem; a pending row is never pruned
 DELETE FROM tracking_deliveries WHERE status <> 'pending' AND updated_at < $1;
+
+-- name: PruneTrackingEvents :execrows
+-- An event goes with the last of its deliveries
+DELETE FROM tracking_events e
+WHERE  e.created_at < $1
+  AND  NOT EXISTS (SELECT 1 FROM tracking_deliveries d WHERE d.tracking_event_id = e.id);

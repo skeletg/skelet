@@ -22,7 +22,7 @@ type store interface {
 	Create(ctx context.Context, d Destination) (Destination, error)
 	Update(ctx context.Context, d Destination) (Destination, error)
 	Delete(ctx context.Context, id uuid.UUID) error
-	Enqueue(ctx context.Context, destinationID uuid.UUID, ev Event) error
+	Enqueue(ctx context.Context, destinationIDs []uuid.UUID, ev Event) error // the event once, a delivery per destination
 	ClaimDue(ctx context.Context, batch, leaseSeconds int32) ([]Delivery, error)
 	MarkSent(ctx context.Context, id uuid.UUID) error
 	Reschedule(ctx context.Context, id uuid.UUID, at time.Time, reason string) error
@@ -61,17 +61,16 @@ func (s *Service) Track(ctx context.Context, ev Event) error {
 	if err != nil {
 		return err
 	}
-	var errs []error
+	var to []uuid.UUID
 	for _, d := range dests {
-		k, ok := KindFor(d.Kind)
-		if !ok || !wants(d, k, ev.Name) || !Allowed(s.purposes(ctx, d, k), ev.Consent) {
-			continue
-		}
-		if err := s.store.Enqueue(ctx, d.ID, ev); err != nil {
-			errs = append(errs, err) // the replay this error triggers is a no-op for the destinations that did enqueue
+		if k, ok := KindFor(d.Kind); ok && wants(d, k, ev.Name) && Allowed(s.purposes(ctx, d, k), ev.Consent) {
+			to = append(to, d.ID)
 		}
 	}
-	return errors.Join(errs...)
+	if len(to) == 0 {
+		return nil
+	}
+	return s.store.Enqueue(ctx, to, ev)
 }
 
 func wants(d Destination, k Kind, name string) bool {

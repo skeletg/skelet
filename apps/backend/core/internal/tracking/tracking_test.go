@@ -24,7 +24,7 @@ type fakeStore struct {
 	mu         sync.Mutex
 	dests      map[uuid.UUID]Destination
 	deliveries map[uuid.UUID]*Delivery
-	keys       map[string]bool // destination+event id, the table's unique key
+	keys       map[string]bool // destination+event name+event id, the tables' unique keys together
 }
 
 func newFakeStore(ds ...Destination) *fakeStore {
@@ -64,17 +64,19 @@ func (f *fakeStore) Update(_ context.Context, d Destination) (Destination, error
 	return d, nil
 }
 func (f *fakeStore) Delete(_ context.Context, id uuid.UUID) error { delete(f.dests, id); return nil }
-func (f *fakeStore) Enqueue(_ context.Context, dest uuid.UUID, ev Event) error {
+func (f *fakeStore) Enqueue(_ context.Context, dests []uuid.UUID, ev Event) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	key := dest.String() + "/" + ev.ID
-	if f.keys[key] {
-		return nil
-	}
-	f.keys[key] = true
 	payload := fmt.Appendf(nil, `{"event_id":%q,"name":%q,"channel_id":%q}`, ev.ID, ev.Name, ev.ChannelID)
-	id := uuid.New()
-	f.deliveries[id] = &Delivery{ID: id, DestinationID: dest, EventID: ev.ID, EventName: ev.Name, Payload: payload, Status: "pending"}
+	for _, dest := range dests {
+		key := dest.String() + "/" + ev.Name + "/" + ev.ID
+		if f.keys[key] {
+			continue
+		}
+		f.keys[key] = true
+		id := uuid.New()
+		f.deliveries[id] = &Delivery{ID: id, DestinationID: dest, EventID: ev.ID, EventName: ev.Name, Payload: payload, Status: "pending"}
+	}
 	return nil
 }
 func (f *fakeStore) ClaimDue(_ context.Context, batch, _ int32) ([]Delivery, error) {
