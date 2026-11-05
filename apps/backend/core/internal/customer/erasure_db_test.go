@@ -2,6 +2,7 @@ package customer
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -71,6 +72,19 @@ func (f *fixture) seedFootprint(t *testing.T, ch uuid.UUID, c Customer, withOrde
 	}
 	f.exec(t, `INSERT INTO signup_form_submissions (form_id, channel_id, email, customer_id) VALUES ($1, $2, $3, NULL), ($1, $2, 'x@y.invalid', $4)`, signupForm, ch, c.Email, c.ID)
 	f.exec(t, `INSERT INTO email_opt_ins (channel_id, email, kind, source) VALUES ($1, $2, 'marketing_email', 'checkout')`, ch, strings.ToLower(c.Email))
+	f.exec(t, `UPDATE orders SET anon_id = $2 WHERE id = $1`, fp.guest, "visitor-"+suffix)
+	var dest uuid.UUID
+	if err := f.conn.QueryRow(`INSERT INTO tracking_destinations (channel_id, kind, name) VALUES ($1, 't', 't') RETURNING id`, ch).Scan(&dest); err != nil {
+		t.Fatal(err)
+	}
+	for i, user := range []string{
+		`{"customer_id":"` + c.ID.String() + `"}`,
+		`{"email":"` + shout + `","ip":"203.0.113.7"}`,
+		`{"anon_id":"visitor-` + suffix + `"}`, // a guest page view, named only by the visitor id its order carried
+		`{"email":"someone-else@example.invalid"}`,
+	} {
+		f.exec(t, `INSERT INTO tracking_deliveries (destination_id, event_id, event_name, payload) VALUES ($1, $2, 'purchase', jsonb_build_object('user', $3::jsonb))`, dest, strconv.Itoa(i), user)
+	}
 	f.exec(t, `INSERT INTO web_form_submissions (form_id, channel_id, answers, customer_id) VALUES
 		($1, $2, jsonb_build_object('email', $3::text), NULL), ($1, $2, '{"q":"a"}', $4)`, webForm, ch, strings.ToUpper(c.Email), c.ID)
 	f.exec(t, `INSERT INTO download_grants (token, order_id, customer_id, email, product_id, download_id, title, url)
@@ -122,6 +136,7 @@ func (fp *footprint) assertScrubbed(t *testing.T, c Customer) {
 		"product questions with a name or address": fp.count(t, `SELECT count(*) FROM product_questions WHERE product_id = $1 AND (author_email <> '' OR author_name <> 'Redacted')`, fp.product),
 		"signup submissions":                       fp.count(t, `SELECT count(*) FROM signup_form_submissions WHERE channel_id = $1`, fp.ch),
 		"guest email opt-ins":                      fp.count(t, `SELECT count(*) FROM email_opt_ins WHERE channel_id = $1`, fp.ch),
+		"tracking events naming the customer":      fp.count(t, `SELECT count(*) FROM tracking_deliveries d JOIN tracking_destinations t ON t.id = d.destination_id WHERE t.channel_id = $1 AND d.payload->'user'->>'email' IS DISTINCT FROM 'someone-else@example.invalid'`, fp.ch),
 		"web form submissions":                     fp.count(t, `SELECT count(*) FROM web_form_submissions WHERE channel_id = $1`, fp.ch),
 		"download grants with the address":         fp.count(t, `SELECT count(*) FROM download_grants WHERE product_id = $1 AND email <> ''`, fp.product),
 		"gift cards with the address or a note":    fp.count(t, `SELECT count(*) FROM gift_cards WHERE channel_id = $1 AND (lower(recipient_email) = $2 OR message <> '')`, fp.ch, addr),
@@ -135,6 +150,9 @@ func (fp *footprint) assertScrubbed(t *testing.T, c Customer) {
 	}
 	if n := fp.count(t, `SELECT count(*) FROM gift_cards WHERE channel_id = $1 AND recipient_email = 'friend@example.invalid'`, fp.ch); n != 1 {
 		t.Error("the recipient address on a card the customer bought for someone else was erased - it isn't the customer's")
+	}
+	if n := fp.count(t, `SELECT count(*) FROM tracking_deliveries d JOIN tracking_destinations t ON t.id = d.destination_id WHERE t.channel_id = $1`, fp.ch); n != 1 {
+		t.Error("another shopper's tracking event was deleted with the customer's")
 	}
 	if n := fp.count(t, `SELECT count(*) FROM back_in_stock_requests WHERE channel_id = $1`, fp.elsewhre); n != 1 {
 		t.Error("another channel's back-in-stock request for the same address was deleted - it belongs to another account")

@@ -11,6 +11,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -336,6 +337,29 @@ func TestTheWorkerRetriesDeadLettersAndKeepsSecretsOutOfTheLog(t *testing.T) {
 	}
 	if err := svc.Redeliver(ctx, f.ID); err != nil || state(flaky).Status != "pending" {
 		t.Error("a dead letter must go back in the queue on redelivery")
+	}
+}
+
+func TestASendThatPanicsEndsDeadAndACutErrorStaysValidText(t *testing.T) {
+	ch, dest := uuid.New(), uuid.New()
+	registerTestKind(t, Kind{Kind: "t-panics", Send: func(context.Context, *http.Client, Destination, Event) error { panic("mapping bug") }})
+	fs := newFakeStore(Destination{ID: dest, ChannelID: ch, Kind: "t-panics", Enabled: true})
+	svc := &Service{store: fs}
+	ctx := context.Background()
+	if err := svc.Track(ctx, Event{ID: "o1", Name: Purchase, ChannelID: ch}); err != nil {
+		t.Fatal(err)
+	}
+	w := NewWorker(svc, http.DefaultClient)
+	for range maxAttempts {
+		_ = fs.set(fs.byDestination(dest)[0].ID, func(d *Delivery) { d.NextAttemptAt = time.Time{} })
+		w.RunOnce(ctx)
+	}
+	if d := fs.byDestination(dest)[0]; d.Status != "dead" || !strings.Contains(d.LastError, "mapping bug") {
+		t.Errorf("a panicking send: %+v, want dead with the panic in the log", d)
+	}
+
+	if s := redact(strings.Repeat("a", 999)+"é", &Destination{}); !utf8.ValidString(s) {
+		t.Error("cutting the error through a multi-byte rune left invalid UTF-8")
 	}
 }
 
