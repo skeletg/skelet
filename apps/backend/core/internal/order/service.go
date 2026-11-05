@@ -386,6 +386,7 @@ type PaymentAuthorizer interface {
 // Converts a cart into a confirmed order, authenticated or guest, where guests pass inline addresses and an explicit cart id
 // The whole create, add-lines, emit and convert-cart sequence is one transaction so a failure leaves no partial state - Plugins hook order.placing (sync, pre-commit, can abort or enrich) and order.placed (async, post-commit), both carrying a nil-able CustomerID
 func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, error) {
+	in.MarketingOptIn = in.MarketingOptIn && in.CustomerID == nil // the guest tick only - an account keeps its own consent
 	// resolveCheckout owns all the input validation and resolution
 	cc, err := s.resolveCheckout(ctx, in, false)
 	if err != nil {
@@ -690,7 +691,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 				TotalCents:     order.TotalAmount,
 				Currency:       order.CurrencyCode,
 				Tags:           placing.Tags,
-				MarketingOptIn: in.MarketingOptIn && in.CustomerID == nil,
+				MarketingOptIn: in.MarketingOptIn,
 			}); err != nil {
 				return fmt.Errorf("enqueue order.placed: %w", err)
 			}
@@ -717,7 +718,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			TotalCents:     orderTotal,
 			Currency:       orderCurrency,
 			Tags:           placing.Tags,
-			MarketingOptIn: in.MarketingOptIn && in.CustomerID == nil,
+			MarketingOptIn: in.MarketingOptIn,
 		})
 	}
 
