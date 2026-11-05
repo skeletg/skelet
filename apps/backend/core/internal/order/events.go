@@ -180,6 +180,8 @@ type OrderPlaced struct {
 	TotalCents int64
 	Currency   string
 	Tags       []string
+	// A guest ticked the email opt-in at checkout - kept under their address until someone proves they own it
+	MarketingOptIn bool
 }
 
 func (*OrderPlaced) Type() string { return EventPlaced }

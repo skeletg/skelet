@@ -130,14 +130,14 @@ INSERT INTO orders (
     shipping_postal_code, shipping_country, shipping_phone,
     subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount,
     currency_code, customer_note, payment_provider, shipping_method_id,
-    shipping_carrier_slug, shipping_method_code, po_number, shipping_tax_amount, anon_id, business_ids
+    shipping_carrier_slug, shipping_method_code, po_number, shipping_tax_amount, anon_id, business_ids, metadata
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
     $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
     $27, $28, $29, $30, $31,
     $32, $33, $34, $35,
-    $36, $37, $38, $39, $40, $41
+    $36, $37, $38, $39, $40, $41, $42
 ) RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need
 `
 
@@ -183,6 +183,7 @@ type CreateOrderParams struct {
 	ShippingTaxAmount   int64           `json:"shipping_tax_amount"`
 	AnonID              string          `json:"anon_id"`
 	BusinessIds         json.RawMessage `json:"business_ids"`
+	Metadata            json.RawMessage `json:"metadata"`
 }
 
 func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (Order, error) {
@@ -228,6 +229,7 @@ func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (Order
 		arg.ShippingTaxAmount,
 		arg.AnonID,
 		arg.BusinessIds,
+		arg.Metadata,
 	)
 	var i Order
 	err := row.Scan(

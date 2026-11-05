@@ -70,6 +70,7 @@ func (f *fixture) seedFootprint(t *testing.T, ch uuid.UUID, c Customer, withOrde
 		t.Fatal(err)
 	}
 	f.exec(t, `INSERT INTO signup_form_submissions (form_id, channel_id, email, customer_id) VALUES ($1, $2, $3, NULL), ($1, $2, 'x@y.invalid', $4)`, signupForm, ch, c.Email, c.ID)
+	f.exec(t, `INSERT INTO email_opt_ins (channel_id, email, kind, source) VALUES ($1, $2, 'marketing_email', 'checkout')`, ch, strings.ToLower(c.Email))
 	f.exec(t, `INSERT INTO web_form_submissions (form_id, channel_id, answers, customer_id) VALUES
 		($1, $2, jsonb_build_object('email', $3::text), NULL), ($1, $2, '{"q":"a"}', $4)`, webForm, ch, strings.ToUpper(c.Email), c.ID)
 	f.exec(t, `INSERT INTO download_grants (token, order_id, customer_id, email, product_id, download_id, title, url)
@@ -120,6 +121,7 @@ func (fp *footprint) assertScrubbed(t *testing.T, c Customer) {
 		"package addresses":                        fp.count(t, `SELECT count(*) FROM order_shipments WHERE order_id IN ($1, $2) AND ship_to IS NOT NULL`, fp.guest, fp.order),
 		"product questions with a name or address": fp.count(t, `SELECT count(*) FROM product_questions WHERE product_id = $1 AND (author_email <> '' OR author_name <> 'Redacted')`, fp.product),
 		"signup submissions":                       fp.count(t, `SELECT count(*) FROM signup_form_submissions WHERE channel_id = $1`, fp.ch),
+		"guest email opt-ins":                      fp.count(t, `SELECT count(*) FROM email_opt_ins WHERE channel_id = $1`, fp.ch),
 		"web form submissions":                     fp.count(t, `SELECT count(*) FROM web_form_submissions WHERE channel_id = $1`, fp.ch),
 		"download grants with the address":         fp.count(t, `SELECT count(*) FROM download_grants WHERE product_id = $1 AND email <> ''`, fp.product),
 		"gift cards with the address or a note":    fp.count(t, `SELECT count(*) FROM gift_cards WHERE channel_id = $1 AND (lower(recipient_email) = $2 OR message <> '')`, fp.ch, addr),

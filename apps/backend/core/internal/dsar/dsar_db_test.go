@@ -109,7 +109,7 @@ func TestTheBundleCarriesEverySectionWhole(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, key := range []string{"reviews", "productQuestions", "subscriptions", "giftCards", "savedPaymentMethods", "carts", "orderShipments",
-		"downloadGrants", "backInStockRequests", "signupFormSubmissions", "webFormSubmissions", "storeCredit", "loyaltyPoints"} {
+		"downloadGrants", "backInStockRequests", "signupFormSubmissions", "emailOptIns", "webFormSubmissions", "storeCredit", "loyaltyPoints"} {
 		if _, ok := bundle.Extra[key]; !ok {
 			t.Errorf("the bundle has no %s section", key)
 		}

@@ -100,3 +100,12 @@ func toStored(row db.CustomerConsent) StoredConsent {
 		UpdatedAt:  row.UpdatedAt,
 	}
 }
+
+func (r *postgresRepository) RecordEmailOptIn(ctx context.Context, o EmailOptIn) error {
+	if err := r.queries.RecordEmailOptIn(ctx, db.RecordEmailOptInParams{
+		ChannelID: o.ChannelID, Email: o.Email, Kind: o.Kind, Source: o.Source, Reference: o.Reference,
+	}); err != nil {
+		return fmt.Errorf("record email opt-in: %w", err)
+	}
+	return nil
+}

@@ -9,14 +9,14 @@ INSERT INTO orders (
     shipping_postal_code, shipping_country, shipping_phone,
     subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount,
     currency_code, customer_note, payment_provider, shipping_method_id,
-    shipping_carrier_slug, shipping_method_code, po_number, shipping_tax_amount, anon_id, business_ids
+    shipping_carrier_slug, shipping_method_code, po_number, shipping_tax_amount, anon_id, business_ids, metadata
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
     $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
     $27, $28, $29, $30, $31,
     $32, $33, $34, $35,
-    $36, $37, $38, $39, $40, $41
+    $36, $37, $38, $39, $40, $41, $42
 ) RETURNING *;
 
 -- name: GetOrderByID :one

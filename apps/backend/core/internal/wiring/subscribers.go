@@ -119,6 +119,7 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 	})
 
 	registerEventSubscribers(bus, d.WebhookDispatcher, d.Order)
+	registerEmailOptIns(bus, d.Consent)
 	d.Catalog.RegisterSubscribers(bus)
 	subscribeOrderReactors(d)
 	ordercapture.Register(bus, d.Order, d.Payment)
@@ -299,4 +300,21 @@ func paymentEventToOrderStatus(eventName string) string { // maps the payment.* 
 		return order.PaymentVoided
 	}
 	return ""
+}
+
+type emailOptIns interface {
+	RecordEmailOptIn(ctx context.Context, channelID uuid.UUID, email, source, reference string) error
+}
+
+// A guest's checkout opt-in is kept under their address with the order number as proof, and never applied to an account -
+// not even one whose owner later verifies the address, since anyone can tick the box at checkout under someone else's
+// email. Owning the address proves who they are, not that they ticked it. Idempotent, so a replay is harmless
+func registerEmailOptIns(bus *events.Bus, optIns emailOptIns) {
+	bus.Subscribe(order.EventPlaced, func(ctx context.Context, e events.Event) error {
+		evt := e.(*order.OrderPlaced)
+		if !evt.MarketingOptIn {
+			return nil
+		}
+		return optIns.RecordEmailOptIn(ctx, evt.ChannelID, evt.Email, consent.SourceCheckout, evt.OrderNumber)
+	})
 }

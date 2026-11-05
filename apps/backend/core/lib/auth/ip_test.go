@@ -1,7 +1,10 @@
 package auth
 
 import (
+	"context"
+	"maps"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -84,6 +87,64 @@ func TestSanitizeAnonID(t *testing.T) {
 	for _, tc := range cases {
 		if got := SanitizeAnonID(tc.in); got != tc.want {
 			t.Errorf("%s: SanitizeAnonID(%q) = %q, want %q", tc.name, tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestParseConsent(t *testing.T) {
+	for _, tc := range []struct {
+		in   string
+		want Consent
+		ok   bool
+	}{
+		{"v2:a1.d0.p1", Consent{Analytics: true, Personalization: true}, true},
+		{"auto:a0.d1.p0", Consent{Ads: true}, true},
+		{"all", Consent{true, true, true}, true},
+		{"essential", Consent{}, true},
+		{"", Consent{}, false},
+		{"v2:a1.d1", Consent{}, false},
+		{"v2:a2.d1.p1", Consent{}, false},
+		{"v3:a1.d1.p1", Consent{}, false},
+		{"v2:a1.d1.p1 ", Consent{}, false},
+	} {
+		got, ok := ParseConsent(tc.in)
+		if got != tc.want || ok != tc.ok {
+			t.Errorf("ParseConsent(%q) = %+v, %v; want %+v, %v", tc.in, got, ok, tc.want, tc.ok)
+		}
+	}
+}
+
+func TestClickIDs(t *testing.T) {
+	ctxWith := func(consent, clicks string) context.Context {
+		r, _ := http.NewRequest(http.MethodPost, "/", nil)
+		r.Header.Set(ConsentHeader, consent)
+		r.Header.Set(ClickIDsHeader, clicks)
+		return WithRequest(context.Background(), r)
+	}
+	got := ClickIDs(ctxWith("v2:a0.d1.p0", "cjevent=c1&fbc=fb.1.5.Iw_1&evil=x&gclid="+url.QueryEscape("a;b")))
+	if want := map[string]string{"cjevent": "c1", "fbc": "fb.1.5.Iw_1"}; !maps.Equal(got, want) {
+		t.Errorf("ClickIDs = %v, want %v", got, want)
+	}
+	for _, consent := range []string{"v2:a1.d0.p1", "", "garbage"} {
+		if got := ClickIDs(ctxWith(consent, "gclid=g1&fbp=fb.1.1.1")); got != nil {
+			t.Errorf("consent %q: ClickIDs = %v, want no ad ids without ads consent", consent, got)
+		}
+	}
+	// The storefront forwards an affiliate id without ads consent only where the merchant made that network necessary
+	if got := ClickIDs(ctxWith("v2:a0.d0.p0", "cjevent=c1&gclid=g1")); !maps.Equal(got, map[string]string{"cjevent": "c1"}) {
+		t.Errorf("ClickIDs = %v, want the affiliate id alone", got)
+	}
+	if got := ClickIDs(context.Background()); got != nil {
+		t.Errorf("no request: ClickIDs = %v", got)
+	}
+}
+
+func TestAnalyticsRefused(t *testing.T) {
+	for consent, want := range map[string]bool{"v2:a0.d1.p1": true, "essential": true, "v2:a1.d0.p0": false, "": false, "junk": false} {
+		r, _ := http.NewRequest(http.MethodPost, "/", nil)
+		r.Header.Set(ConsentHeader, consent)
+		if got := AnalyticsRefused(WithRequest(context.Background(), r)); got != want {
+			t.Errorf("AnalyticsRefused(%q) = %v, want %v", consent, got, want)
 		}
 	}
 }

@@ -41,7 +41,7 @@ export function PaymentStep({
   savedCards: SavedPaymentMethod[];
   storeCreditBalance: number;
   signedIn: boolean;
-  emailOptIn: boolean; // signed in on their own order - a guest offer has no account to keep the choice
+  emailOptIn: boolean; // false on a guest offer opened while signed in - the tick would belong to the recipient
   consent: CheckoutSettings["termsConsent"];
   currency: Currency;
 }) {

@@ -27,7 +27,8 @@ import { getChannelLocales } from "@skelet/storefront-core/locale/backend-locale
 import { clearRewriteMark, isOwnRewrite, markRewrite } from "@skelet/storefront-core/rewrite-mark";
 import { CONSENT_COOKIE, CONSENT_COOKIE_OPTS } from "@skelet/storefront-core/consent/cookie";
 import { parseConsent, resolveConsentCookie } from "@skelet/storefront-core/consent/categories";
-import { getConsentMode } from "@skelet/storefront-core/consent/mode";
+import { getPrivacy } from "@skelet/storefront-core/consent/mode";
+import { clickCookieWrites } from "@skelet/storefront-core/consent/click-ids";
 
 // Every request a Next storefront serves, before it renders: the channel and locale it's for, a near-expiry customer
 // session rotated, the visitor id minted, a ?promo= code held for the cart, and a crawler's fetch reported. A template's
@@ -195,10 +196,20 @@ export async function storefrontProxy(req: NextRequest, event: NextFetchEvent): 
 
   // The store's consent mode settles the cookie before anything reads it - under opt-out a first visit already counts
   const rawConsent = req.cookies.get(CONSENT_COOKIE)?.value;
-  const consentWrite = channelId
-    ? resolveConsentCookie(rawConsent, await getConsentMode(channelId), req.headers.get("sec-gpc") === "1")
+  const privacy = channelId ? await getPrivacy(channelId) : undefined;
+  const consentWrite = privacy
+    ? resolveConsentCookie(rawConsent, privacy.mode, req.headers.get("sec-gpc") === "1")
     : undefined;
-  const analytics = parseConsent(consentWrite ?? rawConsent)?.analytics ?? false;
+  const consent = parseConsent(consentWrite ?? rawConsent);
+  const analytics = consent?.analytics ?? false;
+  const clickWrites = clickCookieWrites(
+    url.searchParams,
+    (name) => req.cookies.get(name)?.value,
+    consent?.ads ?? false,
+    privacy?.necessary ?? new Set(),
+    req.headers.get("host") ?? "",
+    process.env.NODE_ENV === "production",
+  );
   const existingAid = req.cookies.get(AID_COOKIE)?.value;
   const newAid = analytics && !existingAid ? crypto.randomUUID() : undefined;
 
@@ -211,6 +222,7 @@ export async function storefrontProxy(req: NextRequest, event: NextFetchEvent): 
     }
     if (analytics) res.cookies.set(AID_COOKIE, newAid ?? existingAid!, AID_OPTS);
     else if (existingAid) res.cookies.set(AID_COOKIE, "", { ...AID_OPTS, maxAge: 0 });
+    for (const w of clickWrites) res.cookies.set(w.name, w.value, w.options);
     if (session.kind === "refreshed") {
       const opts = sessionCookieOptions();
       res.cookies.set(ACCESS_TOKEN_COOKIE, session.accessToken, { ...opts, maxAge: ACCESS_TOKEN_MAX_AGE });
@@ -239,6 +251,7 @@ export async function storefrontProxy(req: NextRequest, event: NextFetchEvent): 
   const forward: Record<string, string> = {};
   if (newAid) forward[AID_COOKIE] = newAid;
   if (consentWrite !== undefined) forward[CONSENT_COOKIE] = consentWrite;
+  for (const w of clickWrites) forward[w.name] = w.value; // a deletion too, so this render can't send what was just withdrawn
   if (session.kind === "refreshed") {
     forward[ACCESS_TOKEN_COOKIE] = session.accessToken;
     forward[REFRESH_TOKEN_COOKIE] = session.refreshToken;

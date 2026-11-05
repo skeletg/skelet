@@ -1284,6 +1284,7 @@ export type MutationOpenCartOfferArgs = {
 export type MutationPlaceOrderArgs = {
   acceptTerms?: InputMaybe<Scalars['Boolean']['input']>;
   cartId?: InputMaybe<Scalars['ID']['input']>;
+  marketingOptIn?: InputMaybe<Scalars['Boolean']['input']>;
   paymentToken?: InputMaybe<Scalars['String']['input']>;
   savedPaymentMethodId?: InputMaybe<Scalars['ID']['input']>;
 };
