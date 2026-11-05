@@ -45,6 +45,10 @@ views and checkout steps go through the shop's own `/t/e` path. No third-party s
 An event reaches a destination only when the visitor allowed every category that destination needs. An order placed
 by an admin or an API client has no banner choice behind it, so it reaches only destinations that need no consent.
 
+Each event is stored once while it waits to be sent. Within an hour of its last delivery, its personal data (email,
+phone, IP, click ids) is deleted. Only its key stays, for 48 hours, so a replay can't send it twice. A delivery that
+failed keeps its event for 30 days so it can be retried. Erasing a customer deletes their waiting and failed events.
+
 **Leaving a list needs no consent.** When a customer turns email marketing off, or their account is deleted or
 erased, destinations built to remove people - Google Ads Customer Match - are told whatever the visitor's cookie
 choice. Every other destination still needs the visitor's consent for it.

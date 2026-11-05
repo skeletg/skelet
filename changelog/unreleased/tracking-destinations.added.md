@@ -22,5 +22,6 @@
   - Each needs the visitor's matching cookie choice: analytics for GA4 and the webhook, advertising
     for the ad and affiliate platforms, personalization for Klaviyo and Attentive.
   - Set them up with `skelet cli tracking add` and check one with `skelet cli tracking test`. The
-    dashboard pages come later.
+    dashboard pages come later. A secret goes in `--secret`, which is stored encrypted: a secret or
+    an unknown key passed as a `--set` setting is refused.
 - **Plugins can add their own tracking destinations** through the SDK's `RegisterDestination`.
