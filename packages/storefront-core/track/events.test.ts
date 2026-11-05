@@ -19,3 +19,24 @@ describe("browser tracking", () => {
     });
   });
 });
+
+describe("GA4 items and search", () => {
+  it("names a product by its SKU at the price shown, with its place in the list", async () => {
+    const { ga4Item } = await import("./items");
+    const p = { sku: "SKU-1", name: "Mug", price: 1290, defaultPrice: 1500, defaultCurrencyCode: "EUR" };
+    expect(ga4Item(p, 0, { id: "/c/mugs", name: "Mugs" })).toEqual({
+      item_id: "SKU-1",
+      item_name: "Mug",
+      price: 12.9,
+      index: 0,
+      item_list_id: "/c/mugs",
+      item_list_name: "Mugs",
+    });
+  });
+
+  it("carries a search term apart from the url, trimmed to what the backend takes", () => {
+    const body = trackPayload("search", "e-2", undefined, "https://shop.example/search?q=mug", "", "en", "", ` ${"x".repeat(300)} `);
+    expect(body.page_url).toBe("https://shop.example/search");
+    expect(body.search_term).toHaveLength(200);
+  });
+});

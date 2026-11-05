@@ -20,7 +20,16 @@ export function cleanUrl(href: string): string {
   }
 }
 
-export function trackPayload(name: string, eventId: string, ecommerce: unknown, href: string, referrer: string, locale: string, title = "") {
+export function trackPayload(
+  name: string,
+  eventId: string,
+  ecommerce: unknown,
+  href: string,
+  referrer: string,
+  locale: string,
+  title = "",
+  searchTerm = "",
+) {
   return {
     event_id: eventId,
     name,
@@ -29,13 +38,14 @@ export function trackPayload(name: string, eventId: string, ecommerce: unknown, 
     referrer: cleanUrl(referrer),
     locale,
     page_title: title.slice(0, 300) || undefined,
+    search_term: searchTerm.trim().slice(0, 200) || undefined, // the term a search carries, which cleanUrl drops with the query
   };
 }
 
-export function track(name: string, eventId: string, ecommerce?: unknown) {
+export function track(name: string, eventId: string, ecommerce?: unknown, searchTerm?: string) {
   if (typeof navigator === "undefined") return;
   const body = JSON.stringify(
-    trackPayload(name, eventId, ecommerce, location.href, document.referrer, document.documentElement.lang, document.title),
+    trackPayload(name, eventId, ecommerce, location.href, document.referrer, document.documentElement.lang, document.title, searchTerm),
   );
   // sendBeacon survives the page being left, which a view or checkout step often is right away
   if (!navigator.sendBeacon?.(TRACK_PATH, new Blob([body], { type: "application/json" }))) {
