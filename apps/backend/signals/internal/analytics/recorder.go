@@ -322,7 +322,7 @@ type ActivitySpec struct { // a server-side action, from authenticated flows rat
 	Source     string // SourceCommerce | SourceAccount
 	ChannelID  uuid.UUID
 	CustomerID *uuid.UUID
-	AnonID     string // for guest commerce: attribute to the anon visitor when no customer
+	AnonID     string // the visitor - on guest commerce the one acted as, on a sign-in or sign-up the one stitched to CustomerID
 	At         time.Time
 	Props      map[string]any
 	DedupeKey  string // keeps ingest idempotent against the at-least-once event bus - outbox replays, detached-goroutine retries
@@ -338,7 +338,7 @@ func (r *Recorder) RecordActivity(ctx context.Context, a ActivitySpec) (bool, er
 		return false, nil
 	}
 	// A sign-in or sign-up core saw with the visitor's id is proof the two are one person, sent only with analytics consent
-	if a.Source == SourceAccount && a.CustomerID != nil && a.AnonID != "" {
+	if a.Source == SourceAccount && (a.EventName == "login" || a.EventName == "registered") && a.CustomerID != nil && a.AnonID != "" {
 		if err := r.Identify(ctx, a.AnonID, *a.CustomerID, a.ChannelID); err != nil {
 			return false, err
 		}
