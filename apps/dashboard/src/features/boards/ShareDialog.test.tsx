@@ -9,7 +9,6 @@ const board = {
   id: 'b1',
   name: 'Product X',
   updatedAt: '2026-11-04T10:00:00Z',
-  status: 'published',
   access: 'own',
   favourite: false,
   owner: { __typename: 'BoardOwner', id: 'me', name: 'Ada', removed: false },

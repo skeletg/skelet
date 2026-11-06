@@ -36,21 +36,20 @@ func TestAccessMatrix(t *testing.T) {
 		b      Ownership
 		shares []Share
 	}{
-		{"private draft", Ownership{OwnerID: owner, Status: StatusDraft}, shares},
-		{"private", Ownership{OwnerID: owner, Status: StatusPublished}, nil},
-		{"shared", Ownership{OwnerID: owner, Status: StatusPublished}, shares},
-		{"shop board", Ownership{Status: StatusPublished}, nil},
+		{"private", Ownership{OwnerID: owner}, nil},
+		{"shared", Ownership{OwnerID: owner}, shares},
+		{"shop board", Ownership{}, nil},
 	}
-	want := map[string][4]Access{ // private draft, private, shared, shop board
-		"owner":                    {Own, Own, Own, View},
-		"admin share, view":        {NoAccess, NoAccess, View, View},
-		"admin share, edit":        {NoAccess, NoAccess, Edit, View},
-		"role share, view":         {NoAccess, NoAccess, View, View},
-		"role share, edit":         {NoAccess, NoAccess, Edit, View},
-		"left the role":            {NoAccess, NoAccess, NoAccess, View},
-		"unrelated, boards.view":   {NoAccess, NoAccess, NoAccess, View},
-		"unrelated, boards.manage": {NoAccess, NoAccess, NoAccess, Own},
-		"superuser":                {Own, Own, Own, Own},
+	want := map[string][3]Access{ // private, shared, shop board
+		"owner":                    {Own, Own, View},
+		"admin share, view":        {NoAccess, View, View},
+		"admin share, edit":        {NoAccess, Edit, View},
+		"role share, view":         {NoAccess, View, View},
+		"role share, edit":         {NoAccess, Edit, View},
+		"left the role":            {NoAccess, NoAccess, View},
+		"unrelated, boards.view":   {NoAccess, NoAccess, View},
+		"unrelated, boards.manage": {NoAccess, NoAccess, Own},
+		"superuser":                {Own, Own, Own},
 	}
 	for _, ac := range actors {
 		for i, bd := range boards {
@@ -64,7 +63,7 @@ func TestAccessMatrix(t *testing.T) {
 // A superuser's own lists show what they'd see as themselves; the bypass is for "All boards" and for acting
 func TestASuperusersOwnListLeavesOutOtherPeoplesPrivateBoards(t *testing.T) {
 	su := Actor{AdminID: uuid.New(), Superuser: true}
-	private := Ownership{OwnerID: uuid.New(), Status: StatusPublished}
+	private := Ownership{OwnerID: uuid.New()}
 	if access(private, nil, su.asSelf()) != NoAccess || access(private, nil, su) != Own {
 		t.Fatal("a superuser lists someone's private board as themselves, or can't act on it")
 	}

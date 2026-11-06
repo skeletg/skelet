@@ -12,6 +12,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/admin"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 )
@@ -86,7 +87,7 @@ func (p *boardPeople) summariesOut(in []*signalsv1.BoardSummary) []*model.BoardS
 	for _, b := range in {
 		out = append(out, &model.BoardSummary{
 			ID: b.GetId(), Name: b.GetName(), UpdatedAt: b.GetUpdatedAt().AsTime(), ReportCount: b.GetReportCount(),
-			Status: b.GetStatus(), Access: b.GetAccess(), Favourite: b.GetFavourite(), Owner: p.owner(b.GetOwnerAdminId()),
+			Access: b.GetAccess(), Favourite: b.GetFavourite(), Owner: p.owner(b.GetOwnerAdminId()),
 			DraftUpdatedAt: timeOrNil(b.GetDraftUpdatedAt()),
 		})
 	}
@@ -106,7 +107,7 @@ func (p *boardPeople) boardOut(b *signalsv1.Board) (*model.Board, error) {
 	out := &model.Board{
 		ID: b.GetId(), ChannelID: b.GetChannelId(), Name: b.GetName(), UpdatedAt: b.GetUpdatedAt().AsTime(),
 		Reports: []*model.BoardReport{}, Shares: []*model.BoardShare{},
-		Status: b.GetStatus(), Access: b.GetAccess(), Favourite: b.GetFavourite(), Owner: p.owner(b.GetOwnerAdminId()),
+		Access: b.GetAccess(), Favourite: b.GetFavourite(), Owner: p.owner(b.GetOwnerAdminId()),
 		DraftUpdatedAt: timeOrNil(b.GetDraftUpdatedAt()),
 	}
 	for _, r := range b.GetReports() {
@@ -166,13 +167,7 @@ func (r *Resolver) manyBoards(ctx context.Context, bs []*signalsv1.BoardSummary)
 // shop - the share dialog warns rather than refuses, since a grant can be added after the share
 func (r *Resolver) shareTargets(ctx context.Context, channelID uuid.UUID) ([]*model.BoardShareTarget, error) {
 	sees := func(id uuid.UUID, superuser bool, grants []auth.Grant) (bool, bool) {
-		if superuser {
-			return true, true
-		}
-		c := auth.NewGrantChecker(id, auth.NewGrantSet(grants))
-		boards, _ := c.HasChannelPermission(ctx, id, "boards.view", channelID, nil)
-		data, _ := c.HasChannelPermission(ctx, id, "customers.view", channelID, nil)
-		return boards, data
+		return boardSight(ctx, id, superuser, grants, channelID)
 	}
 	admins, err := r.AdminSvc.List(ctx)
 	if err != nil {
@@ -207,6 +202,47 @@ func (r *Resolver) shareTargets(ctx context.Context, channelID uuid.UUID) ([]*mo
 		out = append(out, &model.BoardShareTarget{Kind: "role", ID: ro.ID.String(), Name: ro.Name, SeesBoards: b, SeesData: d})
 	}
 	return out, nil
+}
+
+// boardSight is whether someone with these grants would open boards on the shop, and see the numbers on them
+func boardSight(ctx context.Context, id uuid.UUID, superuser bool, grants []auth.Grant, channelID uuid.UUID) (boards, data bool) {
+	if superuser {
+		return true, true
+	}
+	c := auth.NewGrantChecker(id, auth.NewGrantSet(grants))
+	boards, _ = c.HasChannelPermission(ctx, id, "boards.view", channelID, nil)
+	data, _ = c.HasChannelPermission(ctx, id, "customers.view", channelID, nil)
+	return boards, data
+}
+
+// checkBoardOwner holds a board's new owner to an active admin who can open boards on its shop - anyone else would
+// leave it orphaned the moment it's handed over. Signals can't know who that is, so core checks before relaying
+func (r *Resolver) checkBoardOwner(ctx context.Context, channelID, adminID string) error {
+	refuse := apperr.New("BOARD_OWNER_INVALID", apperr.ClassValidation, "a board can only be handed to an active admin who can open boards on this shop")
+	aid, err := uuid.Parse(adminID)
+	if err != nil {
+		return refuse
+	}
+	cid, err := uuid.Parse(channelID)
+	if err != nil {
+		return refuse
+	}
+	p, err := r.boardPeople(ctx)
+	if err != nil {
+		return err
+	}
+	a, ok := p.admins[aid]
+	if !ok || !a.IsActive {
+		return refuse
+	}
+	grants, err := r.AdminSvc.Grants(ctx, aid)
+	if err != nil {
+		return err
+	}
+	if boards, _ := boardSight(ctx, aid, a.IsSuperuser, grants, cid); !boards {
+		return refuse
+	}
+	return nil
 }
 
 func deref(s *string) string {

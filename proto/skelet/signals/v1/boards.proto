@@ -18,10 +18,9 @@ service BoardService {
   rpc CreateStarterBoards(CreateStarterBoardsRequest) returns (CreateStarterBoardsResponse);
   // Replaces who the board is shared with - its owner's to change, and only once it's saved
   rpc SetBoardShares(SetBoardSharesRequest) returns (SetBoardSharesResponse);
-  // Gives up ownership so everyone on the shop sees the board
-  rpc MakeShopBoard(MakeShopBoardRequest) returns (MakeShopBoardResponse);
-  // Makes the caller the owner of a board whose owner was removed - core checks the owner is gone before calling
-  rpc ClaimBoard(ClaimBoardRequest) returns (ClaimBoardResponse);
+  // Hands the board to another admin, or with no admin makes it a shop board - for whoever owns it: its owner, a
+  // superuser, or boards.manage on a shop board. Core checks the new owner is an active admin before calling
+  rpc TransferBoard(TransferBoardRequest) returns (TransferBoardResponse);
   rpc SetBoardFavourite(SetBoardFavouriteRequest) returns (SetBoardFavouriteResponse);
   // Keeps the caller's unsaved edits between visits, until they save or discard them
   rpc SaveBoardDraft(SaveBoardDraftRequest) returns (SaveBoardDraftResponse);
@@ -36,13 +35,11 @@ message BoardSummary {
   int32 report_count = 4;
   // Empty for a shop board, which everyone on the shop sees
   string owner_admin_id = 5;
-  // draft | published
-  string status = 6;
   // For the caller: view | edit | own
-  string access = 7;
-  bool favourite = 8;
+  string access = 6;
+  bool favourite = 7;
   // When the caller's unsaved edits were last kept, unset when there are none
-  google.protobuf.Timestamp draft_updated_at = 9;
+  google.protobuf.Timestamp draft_updated_at = 8;
 }
 
 message Board {
@@ -54,17 +51,15 @@ message Board {
   repeated BoardReport reports = 5;
   // Empty for a shop board, which everyone on the shop sees
   string owner_admin_id = 6;
-  // draft | published - a draft is its owner's alone until its first save
-  string status = 7;
   // For the caller: view | edit | own
-  string access = 8;
-  bool favourite = 9;
+  string access = 7;
+  bool favourite = 8;
   // When the caller's unsaved edits were last kept, unset when there are none
-  google.protobuf.Timestamp draft_updated_at = 10;
-  // On a single read, for a caller who owns the board
-  repeated BoardShare shares = 11;
-  // On a single read, the caller's unsaved edits
-  BoardDraft draft = 12;
+  google.protobuf.Timestamp draft_updated_at = 9;
+  // For a caller who owns the board
+  repeated BoardShare shares = 10;
+  // The caller's unsaved edits
+  BoardDraft draft = 11;
 }
 
 // Exactly one of admin_id and role_id is set
@@ -172,23 +167,15 @@ message SetBoardSharesResponse {
   Board board = 1;
 }
 
-message MakeShopBoardRequest {
+message TransferBoardRequest {
   string channel_id = 1;
   string id = 2;
+  // Empty makes it a shop board
+  string owner_admin_id = 3;
 }
 
-message MakeShopBoardResponse {
-  Board board = 1;
-}
-
-message ClaimBoardRequest {
-  string channel_id = 1;
-  string id = 2;
-}
-
-message ClaimBoardResponse {
-  Board board = 1;
-}
+// No board: handing it to someone else can leave the caller unable to open it
+message TransferBoardResponse {}
 
 message SetBoardFavouriteRequest {
   string channel_id = 1;

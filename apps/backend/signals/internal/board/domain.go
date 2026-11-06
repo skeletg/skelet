@@ -47,7 +47,6 @@ type Summary struct {
 // Ownership is who a board belongs to, and what that means for the admin asking - a list and a single read both carry it
 type Ownership struct {
 	OwnerID uuid.UUID // uuid.Nil: a shop board
-	Status  string    // StatusDraft until its first Save
 	// For the admin asking: what they may do, whether they starred it, and when their unsaved edits were last kept
 	Access    Access
 	Favourite bool

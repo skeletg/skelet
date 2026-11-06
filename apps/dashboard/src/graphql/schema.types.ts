@@ -820,7 +820,6 @@ export type Board = {
   owner?: Maybe<BoardOwner>;
   reports: Array<BoardReport>;
   shares: Array<BoardShare>;
-  status: Scalars['String']['output'];
   updatedAt: Scalars['Time']['output'];
 };
 
@@ -937,7 +936,6 @@ export type BoardSummary = {
   name: Scalars['String']['output'];
   owner?: Maybe<BoardOwner>;
   reportCount: Scalars['Int']['output'];
-  status: Scalars['String']['output'];
   updatedAt: Scalars['Time']['output'];
 };
 
@@ -3974,7 +3972,6 @@ export type Mutation = {
   cancelSubscription: CustomerSubscription;
   capturePayment: Order;
   changePassword: Scalars['Boolean']['output'];
-  claimBoard: Board;
   claimCMSPage: CmsPage;
   clearCategoryCover: Category;
   clearCategoryListing: Category;
@@ -4161,7 +4158,6 @@ export type Mutation = {
   issueReturnRefund: OrderReturn;
   logout: Scalars['Boolean']['output'];
   logoutOtherDevices: Scalars['Boolean']['output'];
-  makeShopBoard: Board;
   markAllNotificationsRead: Scalars['Boolean']['output'];
   markNotificationRead: Scalars['Boolean']['output'];
   markProcessing: Order;
@@ -4326,6 +4322,7 @@ export type Mutation = {
   syncCanonicalUrlRewrite: UrlRewrite;
   syncProductInventory: InventoryItem;
   syncProductInventoryBatch: SyncProductInventoryBatchResult;
+  transferBoard: Scalars['Boolean']['output'];
   translateCMSPage: CmsPage;
   unassignAttribute: ProductType;
   unassignCMSAttribute: CmsPageType;
@@ -4777,12 +4774,6 @@ export type MutationCapturePaymentArgs = {
 export type MutationChangePasswordArgs = {
   currentPassword: Scalars['String']['input'];
   newPassword: Scalars['String']['input'];
-};
-
-
-export type MutationClaimBoardArgs = {
-  channelId: Scalars['ID']['input'];
-  id: Scalars['ID']['input'];
 };
 
 
@@ -5786,12 +5777,6 @@ export type MutationLogoutOtherDevicesArgs = {
 };
 
 
-export type MutationMakeShopBoardArgs = {
-  channelId: Scalars['ID']['input'];
-  id: Scalars['ID']['input'];
-};
-
-
 export type MutationMarkNotificationReadArgs = {
   id: Scalars['ID']['input'];
 };
@@ -6744,6 +6729,13 @@ export type MutationSyncProductInventoryArgs = {
 
 export type MutationSyncProductInventoryBatchArgs = {
   items: Array<SyncProductInventoryInput>;
+};
+
+
+export type MutationTransferBoardArgs = {
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
+  ownerId?: InputMaybe<Scalars['ID']['input']>;
 };
 
 

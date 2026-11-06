@@ -2,23 +2,22 @@
 -- read and write of a board names its shop, so an id alone reaches nothing in another
 
 -- name: ListBoards :many
-SELECT b.id, b.name, b.updated_at, b.owner_admin_id, b.status, (SELECT count(*) FROM board_reports r WHERE r.board_id = b.id)::int AS report_count
+SELECT b.id, b.name, b.updated_at, b.owner_admin_id, (SELECT count(*) FROM board_reports r WHERE r.board_id = b.id)::int AS report_count
 FROM boards b WHERE b.channel_id = sqlc.arg(channel_id) ORDER BY b.name, b.id;
 
 -- name: GetBoard :one
-SELECT id, name, updated_at, owner_admin_id, status FROM boards WHERE id = sqlc.arg(id) AND channel_id = sqlc.arg(channel_id);
+SELECT id, name, updated_at, owner_admin_id FROM boards WHERE id = sqlc.arg(id) AND channel_id = sqlc.arg(channel_id);
 
 -- name: BoardReports :many
 SELECT title, size, definition FROM board_reports WHERE board_id = sqlc.arg(board_id) ORDER BY position;
 
 -- name: CreateBoard :one
-INSERT INTO boards (channel_id, name, owner_admin_id, status)
-VALUES (sqlc.arg(channel_id), sqlc.arg(name), sqlc.narg(owner_admin_id), sqlc.arg(status)) RETURNING id, updated_at;
+INSERT INTO boards (channel_id, name, owner_admin_id)
+VALUES (sqlc.arg(channel_id), sqlc.arg(name), sqlc.narg(owner_admin_id)) RETURNING id, updated_at;
 
 -- name: TouchBoard :execrows
--- Only when nobody saved it since the caller read it - a stale save would silently drop the other admin's reports.
--- A save publishes a draft board
-UPDATE boards SET name = sqlc.arg(name), status = 'published', updated_at = now()
+-- Only when nobody saved it since the caller read it - a stale save would silently drop the other admin's reports
+UPDATE boards SET name = sqlc.arg(name), updated_at = now()
 WHERE id = sqlc.arg(id) AND channel_id = sqlc.arg(channel_id) AND updated_at = sqlc.arg(read_at);
 
 -- name: ClearBoardReports :exec
@@ -52,6 +51,10 @@ SELECT admin_id, role_id, level FROM board_shares WHERE board_id = sqlc.arg(boar
 -- Every share on a shop's boards, so a list works out each board's access in one read
 SELECT s.board_id, s.admin_id, s.role_id, s.level FROM board_shares s JOIN boards b ON b.id = s.board_id
 WHERE b.channel_id = sqlc.arg(channel_id);
+
+-- name: RemoveBoardAdminShare :exec
+-- The new owner of a board owns it - a share of their own would only shadow that
+DELETE FROM board_shares WHERE board_id = sqlc.arg(board_id) AND admin_id = sqlc.arg(admin_id);
 
 -- name: ClearBoardShares :exec
 DELETE FROM board_shares WHERE board_id = sqlc.arg(board_id);

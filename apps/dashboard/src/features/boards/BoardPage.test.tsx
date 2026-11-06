@@ -237,22 +237,6 @@ describe('BoardPage', () => {
     })
     expect(await screen.findAllByText("You need customer analytics on Main to see this report's numbers.", {}, SLOW)).toHaveLength(2)
   })
-
-  it('says a new board is a draft, and its first Save publishes it', async () => {
-    renderPage({
-      path: '/boards/b1',
-      routes: { '/boards/:id': <BoardPage /> },
-      adminId: 'admin-1',
-      scope: channelScope,
-      mocks: [meMock({ superuser: true }), ...boardMocks(() => {}, { ...board, status: 'draft' })],
-    })
-    expect(await screen.findByText('A draft only you can see - Save to keep it.', {}, SLOW)).toBeTruthy()
-    const save = screen.getByRole('button', { name: 'Save' })
-    await waitFor(() => expect(save).toHaveProperty('disabled', false))
-    expect(screen.queryByRole('button', { name: 'Share' })).toBeNull() // a draft can't be shared yet
-    fireEvent.click(save)
-    expect(within(await screen.findByRole('alertdialog', {}, SLOW)).getByText('Publish')).toBeTruthy()
-  })
 })
 
 function draftWrites(onKeep: (v: Record<string, unknown>) => void) {

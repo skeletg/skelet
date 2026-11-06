@@ -27,7 +27,7 @@ export const BOARD_VIEWS = [
   { v: 'mine', l: 'Mine' },
   { v: 'shared', l: 'Shared with me' },
   { v: 'shop', l: 'Shop boards' },
-  { v: 'drafts', l: 'My drafts' },
+  { v: 'drafts', l: 'Unsaved changes' },
 ] as const
 type View = (typeof BOARD_VIEWS)[number]['v'] | 'every'
 
@@ -42,7 +42,7 @@ export function inView(view: View, me: string, b: Row): boolean {
     case 'shop':
       return !b.owner
     case 'drafts':
-      return b.status === 'draft' || !!b.draftUpdatedAt
+      return !!b.draftUpdatedAt
     default:
       return true
   }
@@ -101,11 +101,7 @@ export function BoardsPage() {
             <Link to={`/synapse/boards/${row.original.id}`} className="font-medium hover:underline">
               {row.original.name}
             </Link>
-            {row.original.status === 'draft' ? (
-              <Badge variant="outline">Draft</Badge>
-            ) : row.original.draftUpdatedAt ? (
-              <Badge variant="outline">Unsaved changes</Badge>
-            ) : null}
+            {row.original.draftUpdatedAt && <Badge variant="outline">Unsaved changes</Badge>}
           </span>
         ),
       },
@@ -207,7 +203,7 @@ function NewBoardButton({ channelId }: { channelId: string }) {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>New board</DialogTitle>
-            <DialogDescription>It's a draft only you can see until you save it, and private until you share it.</DialogDescription>
+            <DialogDescription>It's yours and private until you share it.</DialogDescription>
           </DialogHeader>
           <form
             className="space-y-2"

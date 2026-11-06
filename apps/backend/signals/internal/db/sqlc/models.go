@@ -31,7 +31,6 @@ type Board struct {
 	CreatedAt    time.Time     `json:"created_at"`
 	UpdatedAt    time.Time     `json:"updated_at"`
 	OwnerAdminID uuid.NullUUID `json:"owner_admin_id"`
-	Status       string        `json:"status"`
 }
 
 type BoardDraft struct {

@@ -271,15 +271,14 @@ func (q *Queries) CountBoards(ctx context.Context, channelID uuid.UUID) (int32, 
 }
 
 const createBoard = `-- name: CreateBoard :one
-INSERT INTO boards (channel_id, name, owner_admin_id, status)
-VALUES ($1, $2, $3, $4) RETURNING id, updated_at
+INSERT INTO boards (channel_id, name, owner_admin_id)
+VALUES ($1, $2, $3) RETURNING id, updated_at
 `
 
 type CreateBoardParams struct {
 	ChannelID    uuid.UUID     `json:"channel_id"`
 	Name         string        `json:"name"`
 	OwnerAdminID uuid.NullUUID `json:"owner_admin_id"`
-	Status       string        `json:"status"`
 }
 
 type CreateBoardRow struct {
@@ -288,12 +287,7 @@ type CreateBoardRow struct {
 }
 
 func (q *Queries) CreateBoard(ctx context.Context, arg CreateBoardParams) (CreateBoardRow, error) {
-	row := q.db.QueryRowContext(ctx, createBoard,
-		arg.ChannelID,
-		arg.Name,
-		arg.OwnerAdminID,
-		arg.Status,
-	)
+	row := q.db.QueryRowContext(ctx, createBoard, arg.ChannelID, arg.Name, arg.OwnerAdminID)
 	var i CreateBoardRow
 	err := row.Scan(&i.ID, &i.UpdatedAt)
 	return i, err
@@ -331,7 +325,7 @@ func (q *Queries) DeleteBoardDraft(ctx context.Context, arg DeleteBoardDraftPara
 }
 
 const getBoard = `-- name: GetBoard :one
-SELECT id, name, updated_at, owner_admin_id, status FROM boards WHERE id = $1 AND channel_id = $2
+SELECT id, name, updated_at, owner_admin_id FROM boards WHERE id = $1 AND channel_id = $2
 `
 
 type GetBoardParams struct {
@@ -344,7 +338,6 @@ type GetBoardRow struct {
 	Name         string        `json:"name"`
 	UpdatedAt    time.Time     `json:"updated_at"`
 	OwnerAdminID uuid.NullUUID `json:"owner_admin_id"`
-	Status       string        `json:"status"`
 }
 
 func (q *Queries) GetBoard(ctx context.Context, arg GetBoardParams) (GetBoardRow, error) {
@@ -355,7 +348,6 @@ func (q *Queries) GetBoard(ctx context.Context, arg GetBoardParams) (GetBoardRow
 		&i.Name,
 		&i.UpdatedAt,
 		&i.OwnerAdminID,
-		&i.Status,
 	)
 	return i, err
 }
@@ -384,7 +376,7 @@ func (q *Queries) GetBoardDraft(ctx context.Context, arg GetBoardDraftParams) (G
 
 const listBoards = `-- name: ListBoards :many
 
-SELECT b.id, b.name, b.updated_at, b.owner_admin_id, b.status, (SELECT count(*) FROM board_reports r WHERE r.board_id = b.id)::int AS report_count
+SELECT b.id, b.name, b.updated_at, b.owner_admin_id, (SELECT count(*) FROM board_reports r WHERE r.board_id = b.id)::int AS report_count
 FROM boards b WHERE b.channel_id = $1 ORDER BY b.name, b.id
 `
 
@@ -393,7 +385,6 @@ type ListBoardsRow struct {
 	Name         string        `json:"name"`
 	UpdatedAt    time.Time     `json:"updated_at"`
 	OwnerAdminID uuid.NullUUID `json:"owner_admin_id"`
-	Status       string        `json:"status"`
 	ReportCount  int32         `json:"report_count"`
 }
 
@@ -413,7 +404,6 @@ func (q *Queries) ListBoards(ctx context.Context, channelID uuid.UUID) ([]ListBo
 			&i.Name,
 			&i.UpdatedAt,
 			&i.OwnerAdminID,
-			&i.Status,
 			&i.ReportCount,
 		); err != nil {
 			return nil, err
@@ -476,6 +466,21 @@ func (q *Queries) PutBoardDraft(ctx context.Context, arg PutBoardDraftParams) (t
 	return updated_at, err
 }
 
+const removeBoardAdminShare = `-- name: RemoveBoardAdminShare :exec
+DELETE FROM board_shares WHERE board_id = $1 AND admin_id = $2
+`
+
+type RemoveBoardAdminShareParams struct {
+	BoardID uuid.UUID     `json:"board_id"`
+	AdminID uuid.NullUUID `json:"admin_id"`
+}
+
+// The new owner of a board owns it - a share of their own would only shadow that
+func (q *Queries) RemoveBoardAdminShare(ctx context.Context, arg RemoveBoardAdminShareParams) error {
+	_, err := q.db.ExecContext(ctx, removeBoardAdminShare, arg.BoardID, arg.AdminID)
+	return err
+}
+
 const removeBoardFavourite = `-- name: RemoveBoardFavourite :exec
 DELETE FROM board_favourites WHERE admin_id = $1 AND board_id = $2
 `
@@ -523,7 +528,7 @@ func (q *Queries) SweepBoardDrafts(ctx context.Context, before time.Time) (int64
 }
 
 const touchBoard = `-- name: TouchBoard :execrows
-UPDATE boards SET name = $1, status = 'published', updated_at = now()
+UPDATE boards SET name = $1, updated_at = now()
 WHERE id = $2 AND channel_id = $3 AND updated_at = $4
 `
 
@@ -534,8 +539,7 @@ type TouchBoardParams struct {
 	ReadAt    time.Time `json:"read_at"`
 }
 
-// Only when nobody saved it since the caller read it - a stale save would silently drop the other admin's reports.
-// A save publishes a draft board
+// Only when nobody saved it since the caller read it - a stale save would silently drop the other admin's reports
 func (q *Queries) TouchBoard(ctx context.Context, arg TouchBoardParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, touchBoard,
 		arg.Name,

@@ -23,12 +23,10 @@ func (a Access) String() string {
 }
 
 const (
-	StatusDraft     = "draft"
-	StatusPublished = "published"
-	ShareView       = "view"
-	ShareEdit       = "edit"
-	maxShares       = 100
-	maxDraft        = 256 << 10
+	ShareView = "view"
+	ShareEdit = "edit"
+	maxShares = 100
+	maxDraft  = 256 << 10
 	// DraftKeep is how long unsaved edits wait for their admin to come back
 	DraftKeep = 30 * 24 * time.Hour
 )
@@ -60,18 +58,11 @@ type Draft struct {
 
 // access is the one answer to "what may this admin do with this board" - every check in the service goes through it
 //
-//   - a draft is its owner's alone
 //   - the owner owns it; a superuser can do anything
 //   - a shop board (no owner) is everyone's on the shop to view, and theirs to manage with boards.manage
 //   - otherwise the best of the shares to the admin or to a role they hold
 func access(b Ownership, shares []Share, a Actor) Access {
 	mine := b.OwnerID != uuid.Nil && b.OwnerID == a.AdminID
-	if b.Status == StatusDraft {
-		if mine || a.Superuser {
-			return Own
-		}
-		return NoAccess
-	}
 	if mine || a.Superuser {
 		return Own
 	}

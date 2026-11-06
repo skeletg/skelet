@@ -27,7 +27,7 @@ func (r *repo) list(ctx context.Context, channelID uuid.UUID) ([]Summary, error)
 	for _, row := range rows {
 		out = append(out, Summary{
 			ID: row.ID, Name: row.Name, UpdatedAt: row.UpdatedAt, ReportCount: int(row.ReportCount),
-			OwnerID: row.OwnerAdminID.UUID, Status: row.Status,
+			OwnerID: row.OwnerAdminID.UUID,
 		})
 	}
 	return out, nil
@@ -41,7 +41,7 @@ func (r *repo) get(ctx context.Context, channelID, id uuid.UUID) (Board, error) 
 	if err != nil {
 		return Board{}, err
 	}
-	b := Board{ID: row.ID, ChannelID: channelID, Name: row.Name, UpdatedAt: row.UpdatedAt, OwnerID: row.OwnerAdminID.UUID, Status: row.Status}
+	b := Board{ID: row.ID, ChannelID: channelID, Name: row.Name, UpdatedAt: row.UpdatedAt, OwnerID: row.OwnerAdminID.UUID}
 	reports, err := r.q.BoardReports(ctx, id)
 	if err != nil {
 		return Board{}, err
@@ -75,7 +75,7 @@ func (r *repo) createIfNone(ctx context.Context, channelID uuid.UUID, boards []B
 			return err
 		}
 		for _, b := range boards {
-			b.ChannelID, b.Status = channelID, StatusPublished // shop boards: no owner, seen by everyone on the shop
+			b.ChannelID = channelID // shop boards: no owner, seen by everyone on the shop
 			if _, err := insertBoard(ctx, q, b); err != nil {
 				return err
 			}
@@ -85,7 +85,7 @@ func (r *repo) createIfNone(ctx context.Context, channelID uuid.UUID, boards []B
 }
 
 func insertBoard(ctx context.Context, q *db.Queries, b Board) (Board, error) {
-	row, err := q.CreateBoard(ctx, db.CreateBoardParams{ChannelID: b.ChannelID, Name: b.Name, OwnerAdminID: nullID(b.OwnerID), Status: b.Status})
+	row, err := q.CreateBoard(ctx, db.CreateBoardParams{ChannelID: b.ChannelID, Name: b.Name, OwnerAdminID: nullID(b.OwnerID)})
 	if err != nil {
 		return b, err
 	}
@@ -165,7 +165,8 @@ func (r *repo) setShares(ctx context.Context, boardID, by uuid.UUID, shares []Sh
 	})
 }
 
-// setOwner hands the board to an admin, or with uuid.Nil makes it a shop board - whose shares go, since everyone sees it
+// setOwner hands the board to an admin - whose own share goes, since they own it now - or with uuid.Nil makes it a
+// shop board, whose shares all go since everyone sees it
 func (r *repo) setOwner(ctx context.Context, channelID, boardID, owner uuid.UUID) error {
 	return r.inTx(ctx, func(q *db.Queries) error {
 		if _, err := q.SetBoardOwner(ctx, db.SetBoardOwnerParams{ID: boardID, ChannelID: channelID, OwnerAdminID: nullID(owner)}); err != nil {
@@ -174,7 +175,7 @@ func (r *repo) setOwner(ctx context.Context, channelID, boardID, owner uuid.UUID
 		if owner == uuid.Nil {
 			return q.ClearBoardShares(ctx, boardID)
 		}
-		return nil
+		return q.RemoveBoardAdminShare(ctx, db.RemoveBoardAdminShareParams{BoardID: boardID, AdminID: nullID(owner)})
 	})
 }
 

@@ -96,9 +96,9 @@ func (s *Service) load(ctx context.Context, channelID uuid.UUID, a Actor, id uui
 	return b, shares, nil
 }
 
-// Create starts a board as the actor's private draft, published by its first Save
+// Create starts a board as the actor's own, private until they share it
 func (s *Service) Create(ctx context.Context, channelID uuid.UUID, a Actor, name string, reports []Report) (Board, error) {
-	b, err := Board{ChannelID: channelID, Name: name, Reports: reports, OwnerID: a.AdminID, Status: StatusDraft}.normalized()
+	b, err := Board{ChannelID: channelID, Name: name, Reports: reports, OwnerID: a.AdminID}.normalized()
 	if err != nil {
 		return Board{}, err
 	}
@@ -108,7 +108,7 @@ func (s *Service) Create(ctx context.Context, channelID uuid.UUID, a Actor, name
 }
 
 // Save replaces a board's name and reports - readAt is the UpdatedAt the caller loaded, so two admins can't overwrite
-// each other unseen. It publishes a draft board and clears the saver's draft
+// each other unseen. It clears the saver's draft
 func (s *Service) Save(ctx context.Context, channelID uuid.UUID, a Actor, id uuid.UUID, name string, reports []Report, readAt time.Time) (Board, error) {
 	if _, _, err := s.load(ctx, channelID, a, id, Edit); err != nil {
 		return Board{}, err
@@ -130,16 +130,13 @@ func (s *Service) Delete(ctx context.Context, channelID uuid.UUID, a Actor, id u
 	return s.r.delete(ctx, channelID, id)
 }
 
-// SetShares replaces who the board is shared with. A draft is its owner's alone until saved, and a shop board is
-// everyone's already, so neither takes shares
+// SetShares replaces who the board is shared with. A shop board is everyone's already, so it takes none
 func (s *Service) SetShares(ctx context.Context, channelID uuid.UUID, a Actor, id uuid.UUID, shares []Share) (Board, error) {
 	b, _, err := s.load(ctx, channelID, a, id, Own)
 	if err != nil {
 		return Board{}, err
 	}
 	switch {
-	case b.Status == StatusDraft:
-		return Board{}, fmt.Errorf("%w: save the board before sharing it", ErrInvalid)
 	case b.OwnerID == uuid.Nil:
 		return Board{}, fmt.Errorf("%w: a shop board is shared with everyone on the shop already", ErrInvalid)
 	case len(shares) > maxShares:
@@ -168,41 +165,17 @@ func (s *Service) SetShares(ctx context.Context, channelID uuid.UUID, a Actor, i
 	return s.Get(ctx, channelID, a, id)
 }
 
-// MakeShopBoard gives up ownership so everyone on the shop sees the board, and the shop's managers run it
-func (s *Service) MakeShopBoard(ctx context.Context, channelID uuid.UUID, a Actor, id uuid.UUID) (Board, error) {
-	b, _, err := s.load(ctx, channelID, a, id, Own)
-	if err != nil {
-		return Board{}, err
+// Transfer hands the board to another admin, or with uuid.Nil makes it a shop board everyone on the shop sees and its
+// managers run - which takes boards.manage. Only whoever owns it may: its owner, a superuser (an orphaned board is
+// handed on this way), or a manager on a shop board. Core checks the new owner is an active admin
+func (s *Service) Transfer(ctx context.Context, channelID uuid.UUID, a Actor, id, to uuid.UUID) error {
+	if _, _, err := s.load(ctx, channelID, a, id, Own); err != nil {
+		return err
 	}
-	if !a.CanManage && !a.Superuser {
-		return Board{}, ErrForbidden
+	if to == uuid.Nil && !a.CanManage && !a.Superuser {
+		return ErrForbidden
 	}
-	if b.Status == StatusDraft {
-		return Board{}, fmt.Errorf("%w: save the board before making it a shop board", ErrInvalid)
-	}
-	if err := s.r.setOwner(ctx, channelID, id, uuid.Nil); err != nil {
-		return Board{}, err
-	}
-	return s.Get(ctx, channelID, a, id)
-}
-
-// Claim makes the actor the owner of a board whose owner was removed. Only core knows an admin is gone, so it checks
-// that before calling; here it takes boards.manage and a board the actor could already open
-func (s *Service) Claim(ctx context.Context, channelID uuid.UUID, a Actor, id uuid.UUID) (Board, error) {
-	b, _, err := s.load(ctx, channelID, a, id, View)
-	if err != nil {
-		return Board{}, err
-	}
-	if !a.CanManage && !a.Superuser {
-		return Board{}, ErrForbidden
-	}
-	if b.OwnerID == uuid.Nil || b.Status == StatusDraft {
-		return Board{}, fmt.Errorf("%w: only a saved board with an owner can be claimed", ErrInvalid)
-	}
-	if err := s.r.setOwner(ctx, channelID, id, a.AdminID); err != nil {
-		return Board{}, err
-	}
-	return s.Get(ctx, channelID, a, id)
+	return s.r.setOwner(ctx, channelID, id, to)
 }
 
 func (s *Service) SetFavourite(ctx context.Context, channelID uuid.UUID, a Actor, id uuid.UUID, on bool) error {

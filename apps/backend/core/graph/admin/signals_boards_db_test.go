@@ -17,21 +17,22 @@ import (
 // fakeBoards answers as Signals would for one board, and records what core relayed to it
 type fakeBoards struct {
 	signalsv1.BoardServiceClient
-	owner            string
-	claimed, savedTo int
+	owner       string
+	savedTo     int
+	transferred []string // the new owner of each transfer relayed, "" for a shop board
 }
 
 func (f *fakeBoards) board() *signalsv1.Board {
-	return &signalsv1.Board{Id: uuid.NewString(), Name: "Product X", UpdatedAt: timestamppb.Now(), OwnerAdminId: f.owner, Status: "published", Access: "own"}
+	return &signalsv1.Board{Id: uuid.NewString(), Name: "Product X", UpdatedAt: timestamppb.Now(), OwnerAdminId: f.owner, Access: "own"}
 }
 
 func (f *fakeBoards) GetBoard(context.Context, *signalsv1.GetBoardRequest, ...grpc.CallOption) (*signalsv1.GetBoardResponse, error) {
 	return &signalsv1.GetBoardResponse{Board: f.board()}, nil
 }
 
-func (f *fakeBoards) ClaimBoard(context.Context, *signalsv1.ClaimBoardRequest, ...grpc.CallOption) (*signalsv1.ClaimBoardResponse, error) {
-	f.claimed++
-	return &signalsv1.ClaimBoardResponse{Board: f.board()}, nil
+func (f *fakeBoards) TransferBoard(_ context.Context, req *signalsv1.TransferBoardRequest, _ ...grpc.CallOption) (*signalsv1.TransferBoardResponse, error) {
+	f.transferred = append(f.transferred, req.GetOwnerAdminId())
+	return &signalsv1.TransferBoardResponse{}, nil
 }
 
 func (f *fakeBoards) SaveBoard(context.Context, *signalsv1.SaveBoardRequest, ...grpc.CallOption) (*signalsv1.SaveBoardResponse, error) {
@@ -48,21 +49,35 @@ func boardsFixture(t *testing.T, boards *fakeBoards) (escalationFixture, *Resolv
 	return f, r
 }
 
-// A claim is only for a board whose owner core no longer has - Signals can't know that, so core is where it's held
-func TestABoardCanOnlyBeClaimedOnceItsOwnerIsGone(t *testing.T) {
+// A board is only handed to an active admin who can open boards on its shop - Signals can't know who that is, so core
+// is where it's held. No new owner makes it a shop board
+func TestABoardIsHandedOnlyToSomeoneWhoCanOpenIt(t *testing.T) {
 	boards := &fakeBoards{}
 	f, r := boardsFixture(t, boards)
 	m := &mutationResolver{r}
-	ownerID, _ := f.admin(t)
-	_, manager := f.admin(t, f.role(t, adminpkg.RolePermissionScopeInput{PermissionSlug: "boards.manage", ChannelID: &f.channel}))
-
-	boards.owner = ownerID.String()
-	if _, err := m.ClaimBoard(manager, f.channel.String(), uuid.NewString()); !hasCode(err, "BOARD_HAS_OWNER") || boards.claimed != 0 {
-		t.Fatalf("claiming a board whose owner is here: err %v, %d claims relayed", err, boards.claimed)
+	boardsHere := f.role(t, adminpkg.RolePermissionScopeInput{PermissionSlug: "boards.view", ChannelID: &f.channel})
+	_, owner := f.admin(t, boardsHere)
+	colleague, _ := f.admin(t, boardsHere)
+	outsider, _ := f.admin(t) // no boards here
+	transfer := func(to *string) error {
+		_, err := m.TransferBoard(owner, f.channel.String(), uuid.NewString(), to)
+		return err
 	}
-	boards.owner = uuid.NewString() // an admin core doesn't have - deleted
-	if _, err := m.ClaimBoard(manager, f.channel.String(), uuid.NewString()); err != nil || boards.claimed != 1 {
-		t.Fatalf("claiming an orphan: err %v, %d claims relayed", err, boards.claimed)
+	str := func(s string) *string { return &s }
+
+	for name, to := range map[string]*string{"no boards here": str(outsider.String()), "no such admin": str(uuid.NewString()), "not an id": str("x")} {
+		if err := transfer(to); !hasCode(err, "BOARD_OWNER_INVALID") {
+			t.Errorf("handing to %s: err %v, want BOARD_OWNER_INVALID", name, err)
+		}
+	}
+	if err := transfer(str(colleague.String())); err != nil {
+		t.Fatal(err)
+	}
+	if err := transfer(nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(boards.transferred) != 2 || boards.transferred[0] != colleague.String() || boards.transferred[1] != "" {
+		t.Fatalf("relayed %q, want the colleague and then a shop board", boards.transferred)
 	}
 }
 

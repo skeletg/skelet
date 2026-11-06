@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
-	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -78,40 +77,21 @@ func (r *mutationResolver) SetBoardShares(ctx context.Context, channelID string,
 	return r.oneBoard(ctx, res.GetBoard())
 }
 
-func (r *mutationResolver) MakeShopBoard(ctx context.Context, channelID string, id string) (*model.Board, error) {
-	authed, err := r.signalsChannel(ctx, "boards.manage", channelID)
+func (r *mutationResolver) TransferBoard(ctx context.Context, channelID string, id string, ownerID *string) (bool, error) {
+	authed, err := r.signalsChannel(ctx, "boards.view", channelID) // own access - Signals checks
 	if err != nil {
-		return nil, err
+		return false, err
 	}
-	res, err := r.SignalsAPI.Boards.MakeShopBoard(authed, &signalsv1.MakeShopBoardRequest{ChannelId: channelID, Id: id})
-	if err != nil {
-		return nil, signalsErr(err)
+	to := deref(ownerID)
+	if to != "" {
+		if err := r.checkBoardOwner(ctx, channelID, to); err != nil {
+			return false, err
+		}
 	}
-	return r.oneBoard(ctx, res.GetBoard())
-}
-
-func (r *mutationResolver) ClaimBoard(ctx context.Context, channelID string, id string) (*model.Board, error) {
-	authed, err := r.signalsChannel(ctx, "boards.manage", channelID)
-	if err != nil {
-		return nil, err
+	if _, err := r.SignalsAPI.Boards.TransferBoard(authed, &signalsv1.TransferBoardRequest{ChannelId: channelID, Id: id, OwnerAdminId: to}); err != nil {
+		return false, signalsErr(err)
 	}
-	// Only core knows an admin is gone, so it's here that a claim is held to a board whose owner is
-	cur, err := r.SignalsAPI.Boards.GetBoard(authed, &signalsv1.GetBoardRequest{ChannelId: channelID, Id: id})
-	if err != nil {
-		return nil, signalsErr(err)
-	}
-	people, err := r.boardPeople(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if o := people.owner(cur.GetBoard().GetOwnerAdminId()); o == nil || !o.Removed {
-		return nil, apperr.New("BOARD_HAS_OWNER", apperr.ClassConflict, "only a board whose owner was removed can be claimed")
-	}
-	res, err := r.SignalsAPI.Boards.ClaimBoard(authed, &signalsv1.ClaimBoardRequest{ChannelId: channelID, Id: id})
-	if err != nil {
-		return nil, signalsErr(err)
-	}
-	return people.boardOut(res.GetBoard())
+	return true, nil
 }
 
 func (r *mutationResolver) SetBoardFavourite(ctx context.Context, channelID string, id string, favourite bool) (bool, error) {

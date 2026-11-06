@@ -139,28 +139,21 @@ func (s *boardServer) SetBoardShares(ctx context.Context, req *signalsv1.SetBoar
 	return &signalsv1.SetBoardSharesResponse{Board: boardProto(b)}, nil
 }
 
-func (s *boardServer) MakeShopBoard(ctx context.Context, req *signalsv1.MakeShopBoardRequest) (*signalsv1.MakeShopBoardResponse, error) {
-	cid, a, id, err := boardRef(ctx, "boards.manage", req.GetChannelId(), req.GetId())
+func (s *boardServer) TransferBoard(ctx context.Context, req *signalsv1.TransferBoardRequest) (*signalsv1.TransferBoardResponse, error) {
+	cid, a, id, err := boardRef(ctx, "boards.view", req.GetChannelId(), req.GetId()) // own access - the service checks
 	if err != nil {
 		return nil, err
 	}
-	b, err := s.svc.MakeShopBoard(ctx, cid, a, id)
-	if err != nil {
+	to := uuid.Nil
+	if req.GetOwnerAdminId() != "" {
+		if to, err = parseID("owner_admin_id", req.GetOwnerAdminId()); err != nil {
+			return nil, err
+		}
+	}
+	if err := s.svc.Transfer(ctx, cid, a, id, to); err != nil {
 		return nil, boardErr(err)
 	}
-	return &signalsv1.MakeShopBoardResponse{Board: boardProto(b)}, nil
-}
-
-func (s *boardServer) ClaimBoard(ctx context.Context, req *signalsv1.ClaimBoardRequest) (*signalsv1.ClaimBoardResponse, error) {
-	cid, a, id, err := boardRef(ctx, "boards.manage", req.GetChannelId(), req.GetId())
-	if err != nil {
-		return nil, err
-	}
-	b, err := s.svc.Claim(ctx, cid, a, id)
-	if err != nil {
-		return nil, boardErr(err)
-	}
-	return &signalsv1.ClaimBoardResponse{Board: boardProto(b)}, nil
+	return &signalsv1.TransferBoardResponse{}, nil
 }
 
 func (s *boardServer) SetBoardFavourite(ctx context.Context, req *signalsv1.SetBoardFavouriteRequest) (*signalsv1.SetBoardFavouriteResponse, error) {
@@ -223,7 +216,7 @@ func summariesProto(bs []board.Summary) []*signalsv1.BoardSummary {
 	for _, b := range bs {
 		p := &signalsv1.BoardSummary{
 			Id: b.ID.String(), Name: b.Name, UpdatedAt: timestamppb.New(b.UpdatedAt), ReportCount: count32(b.ReportCount),
-			Status: b.Status, Access: b.Access.String(), Favourite: b.Favourite,
+			Access: b.Access.String(), Favourite: b.Favourite,
 		}
 		p.OwnerAdminId, p.DraftUpdatedAt = ownerProto(b.Ownership), draftAtProto(b.Ownership)
 		out = append(out, p)
@@ -248,7 +241,7 @@ func draftAtProto(o board.Ownership) *timestamppb.Timestamp {
 func boardProto(b board.Board) *signalsv1.Board {
 	out := &signalsv1.Board{
 		Id: b.ID.String(), ChannelId: b.ChannelID.String(), Name: b.Name, UpdatedAt: timestamppb.New(b.UpdatedAt),
-		OwnerAdminId: ownerProto(b.Ownership), Status: b.Status, Access: b.Access.String(), Favourite: b.Favourite,
+		OwnerAdminId: ownerProto(b.Ownership), Access: b.Access.String(), Favourite: b.Favourite,
 		DraftUpdatedAt: draftAtProto(b.Ownership),
 	}
 	for _, sh := range b.Shares {

@@ -552,7 +552,6 @@ type ComplexityRoot struct {
 		Owner          func(childComplexity int) int
 		Reports        func(childComplexity int) int
 		Shares         func(childComplexity int) int
-		Status         func(childComplexity int) int
 		UpdatedAt      func(childComplexity int) int
 	}
 
@@ -620,7 +619,6 @@ type ComplexityRoot struct {
 		Name           func(childComplexity int) int
 		Owner          func(childComplexity int) int
 		ReportCount    func(childComplexity int) int
-		Status         func(childComplexity int) int
 		UpdatedAt      func(childComplexity int) int
 	}
 
@@ -2524,7 +2522,6 @@ type ComplexityRoot struct {
 		CancelSubscription                func(childComplexity int, id string) int
 		CapturePayment                    func(childComplexity int, orderID string, amount *int32) int
 		ChangePassword                    func(childComplexity int, currentPassword string, newPassword string) int
-		ClaimBoard                        func(childComplexity int, channelID string, id string) int
 		ClaimCMSPage                      func(childComplexity int, id string) int
 		ClearCategoryCover                func(childComplexity int, categoryID string) int
 		ClearCategoryListing              func(childComplexity int, categoryID string, channelID string) int
@@ -2711,7 +2708,6 @@ type ComplexityRoot struct {
 		IssueReturnRefund                 func(childComplexity int, id string, reason *string) int
 		Logout                            func(childComplexity int, token string) int
 		LogoutOtherDevices                func(childComplexity int, currentRefreshToken string) int
-		MakeShopBoard                     func(childComplexity int, channelID string, id string) int
 		MarkAllNotificationsRead          func(childComplexity int) int
 		MarkNotificationRead              func(childComplexity int, id string) int
 		MarkProcessing                    func(childComplexity int, id string) int
@@ -2875,6 +2871,7 @@ type ComplexityRoot struct {
 		SyncCanonicalURLRewrite           func(childComplexity int, input model.SyncCanonicalURLRewriteInput) int
 		SyncProductInventory              func(childComplexity int, input model.SyncProductInventoryInput) int
 		SyncProductInventoryBatch         func(childComplexity int, items []*model.SyncProductInventoryInput) int
+		TransferBoard                     func(childComplexity int, channelID string, id string, ownerID *string) int
 		TranslateCMSPage                  func(childComplexity int, pageID string, sourceLocale string, targetLocale string) int
 		UnassignAttribute                 func(childComplexity int, productTypeID string, attributeID string) int
 		UnassignCMSAttribute              func(childComplexity int, pageTypeID string, attributeID string) int
@@ -5494,8 +5491,7 @@ type MutationResolver interface {
 	DeleteBoard(ctx context.Context, channelID string, id string) (bool, error)
 	CreateStarterBoards(ctx context.Context, channelID string) ([]*model.BoardSummary, error)
 	SetBoardShares(ctx context.Context, channelID string, id string, shares []*model.BoardShareInput) (*model.Board, error)
-	MakeShopBoard(ctx context.Context, channelID string, id string) (*model.Board, error)
-	ClaimBoard(ctx context.Context, channelID string, id string) (*model.Board, error)
+	TransferBoard(ctx context.Context, channelID string, id string, ownerID *string) (bool, error)
 	SetBoardFavourite(ctx context.Context, channelID string, id string, favourite bool) (bool, error)
 	SaveBoardDraft(ctx context.Context, channelID string, id string, payload interface{}, baseUpdatedAt time.Time) (*time.Time, error)
 	DiscardBoardDraft(ctx context.Context, channelID string, id string) (bool, error)
@@ -7991,12 +7987,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Board.Shares(childComplexity), true
-	case "Board.status":
-		if e.ComplexityRoot.Board.Status == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Board.Status(childComplexity), true
 	case "Board.updatedAt":
 		if e.ComplexityRoot.Board.UpdatedAt == nil {
 			break
@@ -8263,12 +8253,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.BoardSummary.ReportCount(childComplexity), true
-	case "BoardSummary.status":
-		if e.ComplexityRoot.BoardSummary.Status == nil {
-			break
-		}
-
-		return e.ComplexityRoot.BoardSummary.Status(childComplexity), true
 	case "BoardSummary.updatedAt":
 		if e.ComplexityRoot.BoardSummary.UpdatedAt == nil {
 			break
@@ -16823,17 +16807,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ChangePassword(childComplexity, args["currentPassword"].(string), args["newPassword"].(string)), true
-	case "Mutation.claimBoard":
-		if e.ComplexityRoot.Mutation.ClaimBoard == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_claimBoard_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.ClaimBoard(childComplexity, args["channelId"].(string), args["id"].(string)), true
 	case "Mutation.claimCMSPage":
 		if e.ComplexityRoot.Mutation.ClaimCMSPage == nil {
 			break
@@ -18880,17 +18853,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.LogoutOtherDevices(childComplexity, args["currentRefreshToken"].(string)), true
-	case "Mutation.makeShopBoard":
-		if e.ComplexityRoot.Mutation.MakeShopBoard == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_makeShopBoard_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.MakeShopBoard(childComplexity, args["channelId"].(string), args["id"].(string)), true
 	case "Mutation.markAllNotificationsRead":
 		if e.ComplexityRoot.Mutation.MarkAllNotificationsRead == nil {
 			break
@@ -20679,6 +20641,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SyncProductInventoryBatch(childComplexity, args["items"].([]*model.SyncProductInventoryInput)), true
+	case "Mutation.transferBoard":
+		if e.ComplexityRoot.Mutation.TransferBoard == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_transferBoard_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.TransferBoard(childComplexity, args["channelId"].(string), args["id"].(string), args["ownerId"].(*string)), true
 	case "Mutation.translateCMSPage":
 		if e.ComplexityRoot.Mutation.TranslateCMSPage == nil {
 			break
@@ -40019,7 +39992,6 @@ type BoardSummary {
   name:        String!
   updatedAt:   Time!
   reportCount: Int!
-  status:      String!      # draft (its owner's alone, until its first save) | published
   access:      String!      # the caller's: view | edit | own
   favourite:   Boolean!     # the caller's star
   owner:       BoardOwner   # null on a shop board
@@ -40032,7 +40004,6 @@ type Board {
   name:      String!
   updatedAt: Time!        # send back as saveBoard's readAt
   reports:   [BoardReport!]!
-  status:    String!      # draft (its owner's alone, until its first save) | published
   access:    String!      # the caller's: view | edit | own
   favourite: Boolean!     # the caller's star
   owner:     BoardOwner   # null on a shop board
@@ -40153,19 +40124,19 @@ extend type Query {
 }
 
 extend type Mutation {
-  # A new board is the caller's private draft until its first save
+  # A new board is the caller's, and private until they share it
   createBoard(channelId: ID!, name: String!, reports: [BoardReportInput!]): Board!
-  # Replaces the name and every report, and publishes a draft. Refused when the board was saved since readAt
+  # Replaces the name and every report. Refused when the board was saved since readAt (its updatedAt as loaded)
   saveBoard(channelId: ID!, id: ID!, name: String!, reports: [BoardReportInput!]!, readAt: Time!): Board!
   deleteBoard(channelId: ID!, id: ID!): Boolean!
   # The four starter boards, as shop boards, for a shop that has none - a shop with any is left as it is
   createStarterBoards(channelId: ID!): [BoardSummary!]!
   # Replaces who the board is shared with - its owner's to change, once it's saved
   setBoardShares(channelId: ID!, id: ID!, shares: [BoardShareInput!]!): Board!
-  # Gives up ownership: everyone on the shop sees it, and its managers run it
-  makeShopBoard(channelId: ID!, id: ID!): Board!
-  # Takes over a board whose owner was deleted
-  claimBoard(channelId: ID!, id: ID!): Board!
+  # Hands the board to another active admin with boards.view here, or with no ownerId makes it a shop board everyone on
+  # the shop sees and its managers run. For whoever owns it: its owner, a superuser (how an orphaned board is handed
+  # on), or boards.manage on a shop board. Answers no board, since the caller may no longer be able to open it
+  transferBoard(channelId: ID!, id: ID!, ownerId: ID): Boolean!
   setBoardFavourite(channelId: ID!, id: ID!, favourite: Boolean!): Boolean!
   # Keeps the caller's unsaved edits between visits; answers when they were kept
   saveBoardDraft(channelId: ID!, id: ID!, payload: JSON!, baseUpdatedAt: Time!): Time!
@@ -42631,8 +42602,6 @@ func (ec *executionContext) childFields_Board(ctx context.Context, field graphql
 		return ec.fieldContext_Board_updatedAt(ctx, field)
 	case "reports":
 		return ec.fieldContext_Board_reports(ctx, field)
-	case "status":
-		return ec.fieldContext_Board_status(ctx, field)
 	case "access":
 		return ec.fieldContext_Board_access(ctx, field)
 	case "favourite":
@@ -42771,8 +42740,6 @@ func (ec *executionContext) childFields_BoardSummary(ctx context.Context, field 
 		return ec.fieldContext_BoardSummary_updatedAt(ctx, field)
 	case "reportCount":
 		return ec.fieldContext_BoardSummary_reportCount(ctx, field)
-	case "status":
-		return ec.fieldContext_BoardSummary_status(ctx, field)
 	case "access":
 		return ec.fieldContext_BoardSummary_access(ctx, field)
 	case "favourite":
@@ -51297,28 +51264,6 @@ func (ec *executionContext) field_Mutation_changePassword_args(ctx context.Conte
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_claimBoard_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNID2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["channelId"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "id",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNID2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["id"] = arg1
-	return args, nil
-}
-
 func (ec *executionContext) field_Mutation_claimCMSPage_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -54480,28 +54425,6 @@ func (ec *executionContext) field_Mutation_logout_args(ctx context.Context, rawA
 		return nil, err
 	}
 	args["token"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Mutation_makeShopBoard_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNID2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["channelId"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "id",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNID2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["id"] = arg1
 	return args, nil
 }
 
@@ -57930,6 +57853,36 @@ func (ec *executionContext) field_Mutation_syncProductInventory_args(ctx context
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_transferBoard_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "ownerId",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOID2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["ownerId"] = arg2
 	return args, nil
 }
 
@@ -72570,29 +72523,6 @@ func (ec *executionContext) fieldContext_Board_reports(_ context.Context, field 
 	return fc, nil
 }
 
-func (ec *executionContext) _Board_status(ctx context.Context, field graphql.CollectedField, obj *model.Board) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Board_status(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Status, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Board_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("Board", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
 func (ec *executionContext) _Board_access(ctx context.Context, field graphql.CollectedField, obj *model.Board) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -73671,29 +73601,6 @@ func (ec *executionContext) _BoardSummary_reportCount(ctx context.Context, field
 }
 func (ec *executionContext) fieldContext_BoardSummary_reportCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("BoardSummary", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _BoardSummary_status(ctx context.Context, field graphql.CollectedField, obj *model.BoardSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_BoardSummary_status(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Status, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_BoardSummary_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("BoardSummary", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _BoardSummary_access(ctx context.Context, field graphql.CollectedField, obj *model.BoardSummary) (ret graphql.Marshaler) {
@@ -125107,34 +125014,34 @@ func (ec *executionContext) fieldContext_Mutation_setBoardShares(ctx context.Con
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_makeShopBoard(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Mutation_transferBoard(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_makeShopBoard(ctx, field)
+			return ec.fieldContext_Mutation_transferBoard(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().MakeShopBoard(ctx, fc.Args["channelId"].(string), fc.Args["id"].(string))
+			return ec.Resolvers.Mutation().TransferBoard(ctx, fc.Args["channelId"].(string), fc.Args["id"].(string), fc.Args["ownerId"].(*string))
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.Board) graphql.Marshaler {
-			return ec.marshalNBoard2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoard(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_Mutation_makeShopBoard(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Mutation_transferBoard(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_Board(ctx, field)
+			return nil, errors.New("field of type Boolean does not have child fields")
 		},
 	}
 	defer func() {
@@ -125144,51 +125051,7 @@ func (ec *executionContext) fieldContext_Mutation_makeShopBoard(ctx context.Cont
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_makeShopBoard_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_claimBoard(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_claimBoard(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().ClaimBoard(ctx, fc.Args["channelId"].(string), fc.Args["id"].(string))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.Board) graphql.Marshaler {
-			return ec.marshalNBoard2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoard(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Mutation_claimBoard(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_Board(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_claimBoard_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Mutation_transferBoard_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -186636,11 +186499,6 @@ func (ec *executionContext) _Board(ctx context.Context, sel ast.SelectionSet, ob
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "status":
-			out.Values[i] = ec._Board_status(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		case "access":
 			out.Values[i] = ec._Board_access(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -187127,11 +186985,6 @@ func (ec *executionContext) _BoardSummary(ctx context.Context, sel ast.Selection
 			}
 		case "reportCount":
 			out.Values[i] = ec._BoardSummary_reportCount(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "status":
-			out.Values[i] = ec._BoardSummary_status(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -203446,16 +203299,9 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "makeShopBoard":
+		case "transferBoard":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_makeShopBoard(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "claimBoard":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_claimBoard(ctx, field)
+				return ec._Mutation_transferBoard(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++

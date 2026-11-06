@@ -724,7 +724,6 @@ type Board struct {
 	Name           string         `json:"name"`
 	UpdatedAt      time.Time      `json:"updatedAt"`
 	Reports        []*BoardReport `json:"reports"`
-	Status         string         `json:"status"`
 	Access         string         `json:"access"`
 	Favourite      bool           `json:"favourite"`
 	Owner          *BoardOwner    `json:"owner,omitempty"`
@@ -823,7 +822,6 @@ type BoardSummary struct {
 	Name           string      `json:"name"`
 	UpdatedAt      time.Time   `json:"updatedAt"`
 	ReportCount    int32       `json:"reportCount"`
-	Status         string      `json:"status"`
 	Access         string      `json:"access"`
 	Favourite      bool        `json:"favourite"`
 	Owner          *BoardOwner `json:"owner,omitempty"`

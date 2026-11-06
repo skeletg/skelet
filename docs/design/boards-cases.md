@@ -179,6 +179,15 @@ Creating a board needs `boards.manage` on the channel, and the creator becomes i
 - **The removed admin's own rows stay.** Their drafts expire after 30 days. Their favourites and admin shares point
   at an id nobody can sign in as, so they grant nothing.
 
+### As built
+
+- **Sharing replaces the whole list** with `SetBoardShares`, rather than separate `ShareBoard` and `UnshareBoard`
+  calls: the share dialog edits the list and applies it with its own button.
+- **A shop board takes no shares.** Everyone on the shop sees it already, so the "Share and unshare" cell for a shop
+  board with `boards.manage` doesn't apply. Its managers can still hand it to an admin.
+- **`TransferBoard` with no new owner makes a shop board**, which takes `boards.manage`. Core refuses a new owner who
+  isn't an active admin with `boards.view` on the shop, since the board would be orphaned at once.
+
 ### What changes in #210's code
 
 - **Proto:** `BoardSummary` gains `owner`, `my_access`, `favourite` and `has_my_draft`. New calls: `ShareBoard`,

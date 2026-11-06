@@ -22,20 +22,18 @@ import { BUILDERS, KINDS, ReportResult, describeReport, kindOf } from '@/shared/
 import type { ReportKind } from '@/shared/analytics/kinds/definition'
 import { cleanReport, type ReportSize } from './report'
 import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
-import { added } from '@/shared/saving/diff'
 import { useSaveRegistry, useSaveSection } from '@/shared/saving/saveRegistry'
 import {
   BoardDocument,
   BoardsDocument,
-  ClaimBoardDocument,
   DeleteBoardDocument,
   DiscardBoardDraftDocument,
-  MakeShopBoardDocument,
   SaveBoardDocument,
   SaveBoardDraftDocument,
   SetBoardFavouriteDocument,
   type BoardFullFragment,
 } from './Boards.gql'
+import { HandOverDialog } from './HandOverDialog'
 import { ShareDialog } from './ShareDialog'
 import { boardDiff, fresh, keyed, unkeyed, type AddToBoardState, type DraftReport } from './boardDiff'
 import { EditPanel } from './EditPanel'
@@ -96,10 +94,8 @@ export function BoardPage() {
   const [keepDraft] = useMutation(SaveBoardDraftDocument)
   const [dropDraft] = useMutation(DiscardBoardDraftDocument, { refetchQueries: [BoardsDocument] })
   const [star] = useMutation(SetBoardFavouriteDocument, { refetchQueries: [BoardsDocument, BoardDocument] })
-  const [makeShop] = useMutation(MakeShopBoardDocument, { refetchQueries: [BoardsDocument] })
-  const [claim, claiming] = useMutation(ClaimBoardDocument, { refetchQueries: [BoardsDocument] })
   const [sharing, setSharing] = useState(false)
-  const [confirmingShop, setConfirmingShop] = useState(false)
+  const [handingOver, setHandingOver] = useState(false)
   const [deleteBoard] = useMutation(DeleteBoardDocument, { refetchQueries: [BoardsDocument] })
   const [confirmingSave, setConfirmingSave] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -119,13 +115,12 @@ export function BoardPage() {
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [changesKey, loadedId, canEdit])
-  const publish = board?.status === 'draft' ? [added('Publish', 'Save it to keep it - it stays private to you until you share it')] : []
 
   useSaveSection(
     {
       id: 'board',
       title: 'Board',
-      diff: board && loadedId === board.id ? [...publish, ...changes] : [],
+      diff: changes,
       save: async () => {
         if (!board) return
         const res = await saveBoard({
@@ -253,23 +248,16 @@ export function BoardPage() {
                 <StarIcon className={board.favourite ? 'size-4 fill-current' : 'size-4'} />
               </Button>
             )}
-            {board?.owner?.removed && canManage && (
-              <Button size="sm" variant="outline" disabled={claiming.loading} onClick={() => void claim({ variables: { channelId, id: board.id } })}>
-                Claim it
+            {canOwn && board?.owner && (
+              <Button size="sm" variant="outline" onClick={() => setSharing(true)}>
+                <Share2Icon className="size-4" />
+                Share
               </Button>
             )}
-            {canOwn && board?.owner && board.status === 'published' && (
-              <>
-                <Button size="sm" variant="outline" onClick={() => setSharing(true)}>
-                  <Share2Icon className="size-4" />
-                  Share
-                </Button>
-                {canManage && (
-                  <Button size="sm" variant="ghost" onClick={() => setConfirmingShop(true)}>
-                    Make it a shop board
-                  </Button>
-                )}
-              </>
+            {canOwn && board && (
+              <Button size="sm" variant="ghost" onClick={() => setHandingOver(true)}>
+                Hand over
+              </Button>
             )}
             {canEdit && board && (
               <>
@@ -301,7 +289,6 @@ export function BoardPage() {
           </Alert>
         )}
         {loading && !board && <p className="py-6 text-sm text-muted-foreground">Loading…</p>}
-        {claiming.error && <p className="px-6 pt-4 text-sm text-destructive">{claiming.error.message}</p>}
         {restoredAt && (
           <div className="mx-6 mt-4 flex flex-wrap items-center gap-3 rounded-md border border-info/40 bg-info-soft px-3 py-2 text-sm">
             <span className="flex-1">
@@ -388,16 +375,7 @@ export function BoardPage() {
       {board && (
         <>
           <ShareDialog channelId={channelId} shop={selectedChannel?.name ?? 'this shop'} board={board} open={sharing} onOpenChange={setSharing} />
-          <ConfirmDialog
-            open={confirmingShop}
-            onOpenChange={setConfirmingShop}
-            title={`Make ${board.name} a shop board?`}
-            description={`Everyone on ${selectedChannel?.name ?? 'this shop'} with access to boards will see it, and anyone who manages boards here can change, share or delete it. You stop being its owner, and its current shares go.`}
-            confirmLabel="Make it a shop board"
-            onConfirm={async () => {
-              await makeShop({ variables: { channelId, id: board.id } })
-            }}
-          />
+          <HandOverDialog channelId={channelId} shop={selectedChannel?.name ?? 'this shop'} board={board} canManage={canManage} open={handingOver} onOpenChange={setHandingOver} />
         </>
       )}
     </DetailPageLayout>
@@ -417,9 +395,8 @@ function readDraft(payload: unknown): { name: string; reports: DraftReport[] } |
 
 // Who sees the board, in one line under its name
 export function sharingSummary(b: BoardFullFragment, shop: string): string {
-  if (b.status === 'draft') return 'A draft only you can see - Save to keep it.'
   if (!b.owner) return `A shop board: everyone on ${shop} with access to boards sees it.`
-  const owner = b.owner.removed ? 'Its owner was removed - someone who manages boards here can claim it.' : b.access === 'own' ? '' : `${b.owner.name}'s board. `
+  const owner = b.owner.removed ? 'Its owner was removed - a superuser can hand it to someone.' : b.access === 'own' ? '' : `${b.owner.name}'s board. `
   if (b.owner.removed) return owner
   if (b.access === 'own' && b.shares.length === 0) return 'Private - only you can see it.'
   if (b.access === 'own') return `Shared with ${b.shares.map((s) => `${s.name} (${s.level === 'edit' ? 'can edit' : 'can view'})`).join(', ')}.`

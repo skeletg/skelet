@@ -29,7 +29,6 @@ query Boards($channelId: ID!, $all: Boolean) {
     name
     updatedAt
     reportCount
-    status
     access
     favourite
     draftUpdatedAt
@@ -51,7 +50,6 @@ fragment BoardFull on Board {
   id
   name
   updatedAt
-  status
   access
   favourite
   owner {
@@ -113,16 +111,8 @@ mutation SetBoardShares($channelId: ID!, $id: ID!, $shares: [BoardShareInput!]!)
   }
 }
 
-mutation MakeShopBoard($channelId: ID!, $id: ID!) {
-  makeShopBoard(channelId: $channelId, id: $id) {
-    ...BoardFull
-  }
-}
-
-mutation ClaimBoard($channelId: ID!, $id: ID!) {
-  claimBoard(channelId: $channelId, id: $id) {
-    ...BoardFull
-  }
+mutation TransferBoard($channelId: ID!, $id: ID!, $ownerId: ID) {
+  transferBoard(channelId: $channelId, id: $id, ownerId: $ownerId)
 }
 
 mutation SetBoardFavourite($channelId: ID!, $id: ID!, $favourite: Boolean!) {
