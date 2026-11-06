@@ -73,6 +73,13 @@ type Store struct { // ingest is batched by a background flusher, and Close drai
 
 var _ analytics.SpineStore = (*Store)(nil)
 
+// Per-query limits, the defaults for any SIGNALS_CH_URL leaves unset - a report past them fails with ClickHouse's error
+// instead of starving every other query on the server
+var queryLimits = clickhouse.Settings{
+	"max_execution_time": 60,      // seconds
+	"max_memory_usage":   4 << 30, // bytes
+}
+
 var errBufferFull = errors.New("spinech: ingest buffer full, event dropped") // shedding is data loss, not deduplication - callers get an error so it can't read as "already recorded"
 
 func New(ctx context.Context, dsn string) (*Store, error) {
@@ -109,6 +116,12 @@ func open(ctx context.Context, dsn string) (driver.Conn, *clickhouse.Options, er
 		opts.Settings = clickhouse.Settings{}
 	}
 	opts.Settings["do_not_merge_across_partitions_select_final"] = 1 // every read runs FINAL to collapse not-yet-merged duplicates - this keeps that affordable, and it's sound because ReplacingMergeTree only dedups within a partition
+	// One runaway report must not take the server down for every shop on it - a DSN setting of the same name overrides these
+	for k, v := range queryLimits {
+		if _, set := opts.Settings[k]; !set {
+			opts.Settings[k] = v
+		}
+	}
 	conn, err := clickhouse.Open(opts)
 	if err != nil {
 		return nil, nil, err
