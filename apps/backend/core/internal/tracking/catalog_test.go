@@ -46,3 +46,20 @@ func TestTheCatalogueIsWhatThePluginsRegister(t *testing.T) {
 		}
 	}
 }
+
+// The dashboard trusts a kind's TestMode field to tell a test send from a real one, so there is at most one, and the
+// platforms with a test mode keep theirs
+func TestEachPlatformDeclaresItsTestMode(t *testing.T) {
+	withTestMode := map[string]bool{"ga4": true, "google_ads": true, "google_ads_audience": true, "meta_capi": true, "openai": true, "awin": true}
+	for _, r := range sdk.Destinations() {
+		n := 0
+		for _, f := range r.Destination.Fields {
+			if f.TestMode {
+				n++
+			}
+		}
+		if n > 1 || (n == 1) != withTestMode[r.Destination.Kind] {
+			t.Errorf("%s has %d test-mode fields, want %v", r.Destination.Kind, n, withTestMode[r.Destination.Kind])
+		}
+	}
+}

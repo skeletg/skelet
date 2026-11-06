@@ -10884,6 +10884,7 @@ export type TrackingDestination = {
   health: TrackingHealth;
   id: Scalars['ID']['output'];
   importedFrom?: Maybe<Scalars['ID']['output']>;
+  inTestMode: Scalars['Boolean']['output'];
   kind: Scalars['String']['output'];
   name: Scalars['String']['output'];
   needsSecret: Scalars['Boolean']['output'];
@@ -10905,6 +10906,7 @@ export type TrackingField = {
   label: Scalars['String']['output'];
   required: Scalars['Boolean']['output'];
   secret: Scalars['Boolean']['output'];
+  testMode: Scalars['Boolean']['output'];
 };
 
 export type TrackingHealth = {

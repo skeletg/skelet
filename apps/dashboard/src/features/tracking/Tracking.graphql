@@ -12,6 +12,7 @@ fragment TrackingDestinationFields on TrackingDestination {
   }
   secretSet
   needsSecret
+  inTestMode
   importedFrom
   health {
     lastSentAt
@@ -37,6 +38,7 @@ fragment TrackingPlatformFields on TrackingPlatform {
     help
     required
     secret
+    testMode
   }
 }
 

@@ -95,3 +95,17 @@ func TestOnlyADeadDeliveryCanBeRetried(t *testing.T) {
 		t.Errorf("retrying a dead letter: %v, %s", err, fs.deliveries[dead].Status)
 	}
 }
+
+// A test-mode setting holding anything but "false" is on, and a kind without one is never in test mode
+func TestTestModeIsTheKindsOwnSetting(t *testing.T) {
+	registerTestKind(t, sdk.Destination{Kind: "t-testmode", Label: "t", Fields: []sdk.DestinationField{{Key: "validate", TestMode: true}}})
+	for v, want := range map[string]bool{"": false, "false": false, "true": true, "TEST123": true} {
+		if got := InTestMode(Destination{Kind: "t-testmode", Config: map[string]string{"validate": v}}); got != want {
+			t.Errorf("validate=%q: in test mode %v, want %v", v, got, want)
+		}
+	}
+	secretKind(t, "t-nomode", nil)
+	if InTestMode(Destination{Kind: "t-nomode", Config: map[string]string{"validate": "true"}}) {
+		t.Error("a kind without a test-mode field reported test mode")
+	}
+}

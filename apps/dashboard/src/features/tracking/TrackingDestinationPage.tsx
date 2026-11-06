@@ -92,8 +92,8 @@ function DestinationForm({ destination, platform, refetch }: { destination: Dest
     },
   })
 
-  const testValue = guide.testField ? destination.config.find((c) => c.key === guide.testField?.key)?.value ?? '' : ''
-  const inTestMode = testValue !== '' && testValue !== 'false'
+  const testKey = platform.fields.find((f) => f.testMode)?.key
+  const { inTestMode } = destination
   const status = destinationStatus(destination)
 
   const act = async (fn: () => Promise<unknown>) => {
@@ -116,7 +116,7 @@ function DestinationForm({ destination, platform, refetch }: { destination: Dest
   const goLive = () =>
     act(async () => {
       const values = toTrackingDestinationValues(platform.fields, destination)
-      if (guide.testField) values.settings[guide.testField.key] = ''
+      if (testKey) values.settings[testKey] = ''
       await update({ variables: { id: destination.id, input: toTrackingDestinationInput(platform.fields, values, true) } })
     })
 
@@ -193,7 +193,7 @@ function DestinationForm({ destination, platform, refetch }: { destination: Dest
               <Alert variant="success">
                 <AlertTitle>{platform.label} accepted the test</AlertTitle>
                 <AlertDescription>
-                  {inTestMode ? 'It ran in test mode, so nothing was recorded.' : guide.noTestMode ? 'It is recorded there as a real purchase of 10 EUR.' : 'Check it arrived in ' + platform.label + '.'}
+                  {inTestMode ? 'It ran in test mode, so nothing was recorded.' : !testKey ? 'It is recorded there as a real purchase of 10 EUR.' : 'Check it arrived in ' + platform.label + '.'}
                 </AlertDescription>
               </Alert>
             ) : (
@@ -250,7 +250,7 @@ function DestinationForm({ destination, platform, refetch }: { destination: Dest
                 </Button>
               </div>
               {record.registry.isDirty && <p className="text-xs text-muted-foreground">Save your changes first.</p>}
-              {guide.noTestMode && <p className="text-xs text-muted-foreground">{platform.label} has no test mode - a test send is recorded there as a real purchase of 10 EUR.</p>}
+              {!testKey && <p className="text-xs text-muted-foreground">{platform.label} has no test mode - a test send is recorded there as a real purchase of 10 EUR.</p>}
             </div>
           </DetailPageSection>
         )}
@@ -260,7 +260,7 @@ function DestinationForm({ destination, platform, refetch }: { destination: Dest
             <Alert variant="warning">
               <AlertTitle>Still in test mode</AlertTitle>
               <AlertDescription>
-                {guide.testField?.note}. Events reach {platform.label} but aren't recorded.{' '}
+                {guide.testMode?.note ?? 'Its test-mode setting is on'}. Events reach {platform.label} but aren't recorded.{' '}
                 {canManage && (
                   <Button type="button" variant="link" className="h-auto p-0" onClick={goLive} disabled={record.registry.isDirty}>
                     Leave test mode

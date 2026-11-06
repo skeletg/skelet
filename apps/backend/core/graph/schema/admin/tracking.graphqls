@@ -9,6 +9,8 @@ type TrackingField {
   required: Boolean!
   # Write-only: stored encrypted, never returned - a destination only says whether it is set
   secret:   Boolean!
+  # The setting that keeps sends out of the platform's live reports while it is set - at most one per platform
+  testMode: Boolean!
 }
 
 # One platform skelet can send to - every first-party one, whether or not this build compiled its plugin in
@@ -60,6 +62,8 @@ type TrackingDestination {
   secretSet:   Boolean!
   # The platform requires a secret this destination doesn't have yet - an imported one, until it is entered
   needsSecret: Boolean!
+  # Its platform's test-mode setting is on, so its sends aren't recorded as real
+  inTestMode:  Boolean!
   # The Signals event destination it was imported from
   importedFrom: ID
   health:    TrackingHealth!

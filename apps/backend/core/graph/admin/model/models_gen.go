@@ -5276,6 +5276,7 @@ type TrackingDestination struct {
 	Config          []*TrackingConfigValue `json:"config"`
 	SecretSet       bool                   `json:"secretSet"`
 	NeedsSecret     bool                   `json:"needsSecret"`
+	InTestMode      bool                   `json:"inTestMode"`
 	ImportedFrom    *string                `json:"importedFrom,omitempty"`
 	Health          *TrackingHealth        `json:"health"`
 	CreatedAt       time.Time              `json:"createdAt"`
@@ -5295,6 +5296,7 @@ type TrackingField struct {
 	Help     string `json:"help"`
 	Required bool   `json:"required"`
 	Secret   bool   `json:"secret"`
+	TestMode bool   `json:"testMode"`
 }
 
 type TrackingHealth struct {

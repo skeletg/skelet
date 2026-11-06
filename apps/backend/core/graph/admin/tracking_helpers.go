@@ -119,8 +119,9 @@ func toTrackingDestination(d tracking.Destination, h tracking.Health) *model.Tra
 		ID: d.ID.String(), ChannelID: d.ChannelID.String(), Kind: d.Kind, Name: d.Name, Enabled: d.Enabled,
 		Events: nonNilStrings(d.Events), EffectiveEvents: nonNilStrings(d.Events),
 		Config: configValues(d.Config, secretKey(k)), SecretSet: d.Secret != "", NeedsSecret: tracking.NeedsSecret(d),
-		Health:    &model.TrackingHealth{LastSentAt: d.LastSentAt, LastError: h.LastError, Dead24h: int32(h.Dead24h)},
-		CreatedAt: d.CreatedAt, UpdatedAt: d.UpdatedAt,
+		InTestMode: tracking.InTestMode(d),
+		Health:     &model.TrackingHealth{LastSentAt: d.LastSentAt, LastError: h.LastError, Dead24h: int32(h.Dead24h)},
+		CreatedAt:  d.CreatedAt, UpdatedAt: d.UpdatedAt,
 	}
 	if len(d.Events) == 0 {
 		m.EffectiveEvents = nonNilStrings(k.DefaultEvents)
@@ -170,7 +171,7 @@ func (r *Resolver) trackingPlatforms(ctx context.Context, channelID uuid.UUID) [
 			p.Purposes = append(p.Purposes, string(purpose))
 		}
 		for _, f := range k.Fields {
-			p.Fields = append(p.Fields, &model.TrackingField{Key: f.Key, Label: f.Label, Help: f.Help, Required: f.Required, Secret: f.Secret})
+			p.Fields = append(p.Fields, &model.TrackingField{Key: f.Key, Label: f.Label, Help: f.Help, Required: f.Required, Secret: f.Secret, TestMode: f.TestMode})
 		}
 		if k.NecessarySetting != "" {
 			setting := k.NecessarySetting

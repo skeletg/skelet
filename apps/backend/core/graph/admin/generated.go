@@ -4691,6 +4691,7 @@ type ComplexityRoot struct {
 		Health          func(childComplexity int) int
 		ID              func(childComplexity int) int
 		ImportedFrom    func(childComplexity int) int
+		InTestMode      func(childComplexity int) int
 		Kind            func(childComplexity int) int
 		Name            func(childComplexity int) int
 		NeedsSecret     func(childComplexity int) int
@@ -4704,6 +4705,7 @@ type ComplexityRoot struct {
 		Label    func(childComplexity int) int
 		Required func(childComplexity int) int
 		Secret   func(childComplexity int) int
+		TestMode func(childComplexity int) int
 	}
 
 	TrackingHealth struct {
@@ -30249,6 +30251,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.TrackingDestination.ImportedFrom(childComplexity), true
+	case "TrackingDestination.inTestMode":
+		if e.ComplexityRoot.TrackingDestination.InTestMode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TrackingDestination.InTestMode(childComplexity), true
 	case "TrackingDestination.kind":
 		if e.ComplexityRoot.TrackingDestination.Kind == nil {
 			break
@@ -30310,6 +30318,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.TrackingField.Secret(childComplexity), true
+	case "TrackingField.testMode":
+		if e.ComplexityRoot.TrackingField.TestMode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TrackingField.TestMode(childComplexity), true
 
 	case "TrackingHealth.dead24h":
 		if e.ComplexityRoot.TrackingHealth.Dead24h == nil {
@@ -40291,6 +40305,8 @@ type TrackingField {
   required: Boolean!
   # Write-only: stored encrypted, never returned - a destination only says whether it is set
   secret:   Boolean!
+  # The setting that keeps sends out of the platform's live reports while it is set - at most one per platform
+  testMode: Boolean!
 }
 
 # One platform skelet can send to - every first-party one, whether or not this build compiled its plugin in
@@ -40342,6 +40358,8 @@ type TrackingDestination {
   secretSet:   Boolean!
   # The platform requires a secret this destination doesn't have yet - an imported one, until it is entered
   needsSecret: Boolean!
+  # Its platform's test-mode setting is on, so its sends aren't recorded as real
+  inTestMode:  Boolean!
   # The Signals event destination it was imported from
   importedFrom: ID
   health:    TrackingHealth!
@@ -48484,6 +48502,8 @@ func (ec *executionContext) childFields_TrackingDestination(ctx context.Context,
 		return ec.fieldContext_TrackingDestination_secretSet(ctx, field)
 	case "needsSecret":
 		return ec.fieldContext_TrackingDestination_needsSecret(ctx, field)
+	case "inTestMode":
+		return ec.fieldContext_TrackingDestination_inTestMode(ctx, field)
 	case "importedFrom":
 		return ec.fieldContext_TrackingDestination_importedFrom(ctx, field)
 	case "health":
@@ -48508,6 +48528,8 @@ func (ec *executionContext) childFields_TrackingField(ctx context.Context, field
 		return ec.fieldContext_TrackingField_required(ctx, field)
 	case "secret":
 		return ec.fieldContext_TrackingField_secret(ctx, field)
+	case "testMode":
+		return ec.fieldContext_TrackingField_testMode(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type TrackingField", field.Name)
 }
@@ -160508,6 +160530,29 @@ func (ec *executionContext) fieldContext_TrackingDestination_needsSecret(_ conte
 	return graphql.NewScalarFieldContext("TrackingDestination", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _TrackingDestination_inTestMode(ctx context.Context, field graphql.CollectedField, obj *model.TrackingDestination) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TrackingDestination_inTestMode(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.InTestMode, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TrackingDestination_inTestMode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TrackingDestination", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _TrackingDestination_importedFrom(ctx context.Context, field graphql.CollectedField, obj *model.TrackingDestination) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -160721,6 +160766,29 @@ func (ec *executionContext) _TrackingField_secret(ctx context.Context, field gra
 	)
 }
 func (ec *executionContext) fieldContext_TrackingField_secret(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TrackingField", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _TrackingField_testMode(ctx context.Context, field graphql.CollectedField, obj *model.TrackingField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TrackingField_testMode(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TestMode, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TrackingField_testMode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("TrackingField", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
@@ -216573,6 +216641,11 @@ func (ec *executionContext) _TrackingDestination(ctx context.Context, sel ast.Se
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "inTestMode":
+			out.Values[i] = ec._TrackingDestination_inTestMode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "importedFrom":
 			out.Values[i] = ec._TrackingDestination_importedFrom(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
@@ -216648,6 +216721,11 @@ func (ec *executionContext) _TrackingField(ctx context.Context, sel ast.Selectio
 			}
 		case "secret":
 			out.Values[i] = ec._TrackingField_secret(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "testMode":
+			out.Values[i] = ec._TrackingField_testMode(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

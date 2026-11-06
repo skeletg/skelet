@@ -166,6 +166,19 @@ type Imported struct {
 	LegacyID uuid.UUID
 }
 
+// InTestMode reports a destination whose kind's test-mode setting is on - its sends stay out of the platform's live
+// reports. A kind without one is never in test mode
+func InTestMode(d Destination) bool {
+	k, _ := KindFor(d.Kind)
+	for _, f := range k.Fields {
+		if f.TestMode {
+			v := d.Config[f.Key]
+			return v != "" && v != "false"
+		}
+	}
+	return false
+}
+
 // Import copies destinations from elsewhere (old Signals ones) - always disabled and without a secret, which the admin
 // enters before turning one on. Every one is checked before any is saved, so a refusal imports nothing. It returns the
 // newly imported; one imported before is left as it was
