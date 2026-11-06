@@ -799,7 +799,7 @@ func (r *postgresRepository) CreateOrder(ctx context.Context, o Order) (Order, e
 		ShippingCarrierSlug: sqlnull.String(o.ShippingCarrierSlug),
 		ShippingMethodCode:  sqlnull.String(o.ShippingMethodCode),
 		AnonID:              o.AnonID,
-		Metadata:            orderMetadataJSON(o.Tracking),
+		Metadata:            orderMetadataJSON(o.Shopper),
 	})
 	if err != nil {
 		return Order{}, fmt.Errorf("create order: %w", err)
@@ -1282,7 +1282,7 @@ func toOrder(row db.Order) Order {
 		PONumber:          row.PoNumber.String,
 		FulfillmentNeed:   row.FulfillmentNeed,
 		BusinessIDs:       decodeBusinessIDs(row.BusinessIds),
-		Tracking:          decodeTracking(row.Metadata),
+		Shopper:           decodeShopper(row.Metadata),
 		Carrier:           row.Carrier,
 		TrackingNumber:    row.TrackingNumber,
 		CreatedAt:         row.CreatedAt,
@@ -1441,17 +1441,19 @@ func businessIDsJSON(ids []BusinessID) json.RawMessage {
 	return b
 }
 
-func orderMetadataJSON(t *Tracking) json.RawMessage {
+func orderMetadataJSON(t *auth.Shopper) json.RawMessage {
 	if t == nil {
 		return json.RawMessage(`{}`)
 	}
-	b, _ := json.Marshal(map[string]*Tracking{"tracking": t}) // strings and bools - can't fail
+	b, _ := json.Marshal(map[string]*auth.Shopper{"tracking": t}) // strings and bools - can't fail
 	return b
 }
 
 // An undecodable snapshot reads as none - the order's events then go out as if no shop had placed it
-func decodeTracking(raw json.RawMessage) *Tracking {
-	var m struct{ Tracking *Tracking }
+func decodeShopper(raw json.RawMessage) *auth.Shopper {
+	var m struct {
+		Tracking *auth.Shopper `json:"tracking"`
+	}
 	if json.Unmarshal(raw, &m) != nil {
 		return nil
 	}

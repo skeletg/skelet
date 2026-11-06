@@ -110,14 +110,10 @@ func (r *postgresRepository) RecordEmailOptIn(ctx context.Context, o EmailOptIn)
 	return nil
 }
 
-func (r *postgresRepository) ListEmailOptIns(ctx context.Context, channelID uuid.UUID, email string) ([]EmailOptIn, error) {
-	rows, err := r.queries.ListEmailOptIns(ctx, db.ListEmailOptInsParams{ChannelID: channelID, Email: email})
+func (r *postgresRepository) HasEmailOptIn(ctx context.Context, channelID uuid.UUID, email, kind string) (bool, error) {
+	ok, err := r.queries.HasEmailOptIn(ctx, db.HasEmailOptInParams{ChannelID: channelID, Email: email, Kind: kind})
 	if err != nil {
-		return nil, fmt.Errorf("list email opt-ins: %w", err)
+		return false, fmt.Errorf("read email opt-in: %w", err)
 	}
-	out := make([]EmailOptIn, len(rows))
-	for i, row := range rows {
-		out[i] = EmailOptIn{ChannelID: row.ChannelID, Email: row.Email, Kind: row.Kind, Source: row.Source, Reference: row.Reference, CreatedAt: row.CreatedAt}
-	}
-	return out, nil
+	return ok, nil
 }

@@ -20,7 +20,8 @@ const ContractsAbout = `The SYNC comments name contracts that span two or three 
 fails a build: every path a SYNC comment names still exists, the CMS block types agree across the
 backend, the dashboard and each storefront, the anonymous-cacheable operations match, every lexical
 node the dashboard authors has a storefront renderer, the conditional-option evaluators are the same
-code, the security headers match across the copies that must, every x-widget a Go schema asks for is
+code, the consent cookie's format and the click ids it forwards agree between the backend and the storefront,
+the security headers match across the copies that must, every x-widget a Go schema asks for is
 registered, and the core-to-Signals proto stays compatible with main. Each extractor fails when it
 finds nothing, so a moved file can't turn it into a no-op.`
 
@@ -39,6 +40,9 @@ const (
 	publicOps     = storefrontPkg + "/public-ops.ts"
 	reactPkg      = "packages/storefront-react"
 	pkgOptVis     = storefrontPkg + "/optionVisibility.ts"
+	goConsent     = "apps/backend/core/lib/auth/consent.go"
+	tsConsent     = storefrontPkg + "/consent/categories.ts"
+	tsClickIDs    = storefrontPkg + "/consent/click-ids.ts"
 	// This gate's own source talks about SYNC comments, so it stays out of the scan for them
 	self = "cmd/skelet/internal/gates"
 )
@@ -57,6 +61,8 @@ func contractCheck(root string, out io.Writer) int {
 	c.cacheableOps()
 	c.lexicalNodes()
 	c.evaluators()
+	c.consentFormat()
+	c.clickIDs()
 	c.frameworkFree()
 	c.headers()
 	c.widgets()
@@ -648,3 +654,72 @@ func (c contracts) proto() {
 	}
 	c.r.pass("no breaking changes against %s", baseline)
 }
+
+var (
+	goConsentRe = regexp.MustCompile("consentValue = regexp.MustCompile\\(`([^`]+)`\\)")
+	tsConsentRe = regexp.MustCompile(`const V2 = /(.+)/;`)
+	goKeyList   = func(name string) *regexp.Regexp {
+		return regexp.MustCompile(`var ` + name + ` = \[\]string\{([^}]*)\}`)
+	}
+	tsClickID = regexp.MustCompile(`\{ key: "([a-z]+)".*\}`)
+)
+
+// consentFormat - the storefront writes the consent cookie and core parses the header it becomes, so a format one side
+// changes alone reads as no consent at all
+func (c contracts) consentFormat() {
+	c.r.section("the consent cookie's format agrees")
+	if !c.inPackage(tsConsent) {
+		return
+	}
+	g, t := goConsentRe.FindStringSubmatch(c.read(goConsent)), tsConsentRe.FindStringSubmatch(c.read(tsConsent))
+	switch {
+	case g == nil || t == nil:
+		c.r.bad("consent pattern extraction came back empty - %s or %s changed shape", goConsent, tsConsent)
+	case g[1] == t[1]:
+		c.r.pass("core's ParseConsent and storefront-core's parseConsent read %s", g[1])
+	default:
+		c.r.bad("consent patterns differ:\n          < %s\n          > %s", g[1], t[1])
+	}
+}
+
+// clickIDs - core keeps only the click ids it knows, each under the consent its kind needs, so an id the storefront
+// stores and core doesn't list is dropped, and one core treats as an ad id is lost if the storefront makes it an affiliate's
+func (c contracts) clickIDs() {
+	c.r.section("the click ids agree")
+	if !c.inPackage(tsClickIDs) {
+		return
+	}
+	goSrc := c.read(goConsent)
+	list := func(name string) []string {
+		m := goKeyList(name).FindStringSubmatch(goSrc)
+		if m == nil {
+			return nil
+		}
+		return set([]string{m[1]}, quotedKey)
+	}
+	goAd, goAff := list("adClickIDKeys"), list("affiliateClickIDKeys")
+	var tsAd, tsAff []string
+	for line := range strings.SplitSeq(c.read(tsClickIDs), "\n") {
+		if m := tsClickID.FindStringSubmatch(line); m != nil {
+			if strings.Contains(line, "affiliate: true") {
+				tsAff = append(tsAff, m[1])
+			} else {
+				tsAd = append(tsAd, m[1])
+			}
+		}
+	}
+	slices.Sort(tsAd)
+	slices.Sort(tsAff)
+	switch {
+	case len(goAd) == 0 || len(tsAd) == 0:
+		c.r.bad("click id extraction came back empty - %s or %s changed shape", goConsent, tsClickIDs)
+	case slices.Equal(goAd, tsAd) && slices.Equal(goAff, tsAff):
+		c.r.pass("%d ad and %d affiliate click ids on both sides", len(goAd), len(goAff))
+	default:
+		c.r.bad("click ids differ (ad, then affiliate)")
+		c.sides(goAd, tsAd)
+		c.sides(goAff, tsAff)
+	}
+}
+
+var quotedKey = regexp.MustCompile(`"([a-z]+)"`)

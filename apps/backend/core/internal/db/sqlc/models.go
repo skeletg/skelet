@@ -2738,17 +2738,15 @@ type TaxRuleEffect struct {
 }
 
 type TrackingDelivery struct {
-	ID            uuid.UUID       `json:"id"`
-	DestinationID uuid.UUID       `json:"destination_id"`
-	EventID       string          `json:"event_id"`
-	EventName     string          `json:"event_name"`
-	Payload       json.RawMessage `json:"payload"`
-	Status        string          `json:"status"`
-	Attempts      int32           `json:"attempts"`
-	NextAttemptAt time.Time       `json:"next_attempt_at"`
-	LastError     string          `json:"last_error"`
-	CreatedAt     time.Time       `json:"created_at"`
-	UpdatedAt     time.Time       `json:"updated_at"`
+	ID              uuid.UUID `json:"id"`
+	DestinationID   uuid.UUID `json:"destination_id"`
+	Status          string    `json:"status"`
+	Attempts        int32     `json:"attempts"`
+	NextAttemptAt   time.Time `json:"next_attempt_at"`
+	LastError       string    `json:"last_error"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+	TrackingEventID uuid.UUID `json:"tracking_event_id"`
 }
 
 type TrackingDestination struct {
@@ -2763,6 +2761,19 @@ type TrackingDestination struct {
 	CreatedAt    time.Time       `json:"created_at"`
 	UpdatedAt    time.Time       `json:"updated_at"`
 	ImportedFrom uuid.NullUUID   `json:"imported_from"`
+	LastSentAt   sql.NullTime    `json:"last_sent_at"`
+}
+
+type TrackingEvent struct {
+	ID         uuid.UUID       `json:"id"`
+	ChannelID  uuid.UUID       `json:"channel_id"`
+	EventID    string          `json:"event_id"`
+	EventName  string          `json:"event_name"`
+	CustomerID uuid.NullUUID   `json:"customer_id"`
+	AnonID     string          `json:"anon_id"`
+	Email      string          `json:"email"`
+	Payload    json.RawMessage `json:"payload"`
+	CreatedAt  time.Time       `json:"created_at"`
 }
 
 type UrlRewrite struct {

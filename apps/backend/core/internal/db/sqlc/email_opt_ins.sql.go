@@ -11,45 +11,25 @@ import (
 	"github.com/google/uuid"
 )
 
-const listEmailOptIns = `-- name: ListEmailOptIns :many
-SELECT channel_id, email, kind, source, reference, created_at FROM email_opt_ins
-WHERE  channel_id = $1 AND email = $2
-ORDER  BY kind
+const hasEmailOptIn = `-- name: HasEmailOptIn :one
+SELECT EXISTS (
+    SELECT 1 FROM email_opt_ins
+    WHERE  channel_id = $1 AND email = $2 AND kind = $3
+)
 `
 
-type ListEmailOptInsParams struct {
+type HasEmailOptInParams struct {
 	ChannelID uuid.UUID `json:"channel_id"`
 	Email     string    `json:"email"`
+	Kind      string    `json:"kind"`
 }
 
-func (q *Queries) ListEmailOptIns(ctx context.Context, arg ListEmailOptInsParams) ([]EmailOptIn, error) {
-	rows, err := q.db.QueryContext(ctx, listEmailOptIns, arg.ChannelID, arg.Email)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []EmailOptIn{}
-	for rows.Next() {
-		var i EmailOptIn
-		if err := rows.Scan(
-			&i.ChannelID,
-			&i.Email,
-			&i.Kind,
-			&i.Source,
-			&i.Reference,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+// A guest's own permission for their address - never read as an account's consent
+func (q *Queries) HasEmailOptIn(ctx context.Context, arg HasEmailOptInParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasEmailOptIn, arg.ChannelID, arg.Email, arg.Kind)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const recordEmailOptIn = `-- name: RecordEmailOptIn :exec

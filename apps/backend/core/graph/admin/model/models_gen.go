@@ -5294,14 +5294,14 @@ type TrackingConfigValueInput struct {
 }
 
 type TrackingDelivery struct {
-	ID            string    `json:"id"`
-	EventName     string    `json:"eventName"`
-	EventID       string    `json:"eventId"`
-	Status        string    `json:"status"`
-	Attempts      int32     `json:"attempts"`
-	LastError     string    `json:"lastError"`
-	NextAttemptAt time.Time `json:"nextAttemptAt"`
-	CreatedAt     time.Time `json:"createdAt"`
+	ID            string                 `json:"id"`
+	EventName     string                 `json:"eventName"`
+	EventID       string                 `json:"eventId"`
+	Status        TrackingDeliveryStatus `json:"status"`
+	Attempts      int32                  `json:"attempts"`
+	LastError     string                 `json:"lastError"`
+	NextAttemptAt time.Time              `json:"nextAttemptAt"`
+	CreatedAt     time.Time              `json:"createdAt"`
 }
 
 type TrackingDestination struct {
@@ -5315,6 +5315,7 @@ type TrackingDestination struct {
 	Config          []*TrackingConfigValue `json:"config"`
 	SecretSet       bool                   `json:"secretSet"`
 	NeedsSecret     bool                   `json:"needsSecret"`
+	InTestMode      bool                   `json:"inTestMode"`
 	ImportedFrom    *string                `json:"importedFrom,omitempty"`
 	Health          *TrackingHealth        `json:"health"`
 	CreatedAt       time.Time              `json:"createdAt"`
@@ -5334,6 +5335,7 @@ type TrackingField struct {
 	Help     string `json:"help"`
 	Required bool   `json:"required"`
 	Secret   bool   `json:"secret"`
+	TestMode bool   `json:"testMode"`
 }
 
 type TrackingHealth struct {
@@ -9685,6 +9687,61 @@ func (e *SubscriptionStatus) UnmarshalJSON(b []byte) error {
 }
 
 func (e SubscriptionStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type TrackingDeliveryStatus string
+
+const (
+	TrackingDeliveryStatusPending TrackingDeliveryStatus = "PENDING"
+	TrackingDeliveryStatusDead    TrackingDeliveryStatus = "DEAD"
+)
+
+var AllTrackingDeliveryStatus = []TrackingDeliveryStatus{
+	TrackingDeliveryStatusPending,
+	TrackingDeliveryStatusDead,
+}
+
+func (e TrackingDeliveryStatus) IsValid() bool {
+	switch e {
+	case TrackingDeliveryStatusPending, TrackingDeliveryStatusDead:
+		return true
+	}
+	return false
+}
+
+func (e TrackingDeliveryStatus) String() string {
+	return string(e)
+}
+
+func (e *TrackingDeliveryStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = TrackingDeliveryStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid TrackingDeliveryStatus", str)
+	}
+	return nil
+}
+
+func (e TrackingDeliveryStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *TrackingDeliveryStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e TrackingDeliveryStatus) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

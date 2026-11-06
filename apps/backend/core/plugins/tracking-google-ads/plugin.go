@@ -80,7 +80,7 @@ var (
 	customerField    = sdk.DestinationField{Key: "customer_id", Label: "Google Ads customer ID", Help: "The account, digits only (123-456-7890 becomes 1234567890)", Required: true}
 	loginField       = sdk.DestinationField{Key: "login_customer_id", Label: "Manager account ID", Help: "Only when the credentials reach the account through a manager account - empty uses the account itself"}
 	credentialsField = sdk.DestinationField{Key: "credentials", Label: "Google credentials JSON", Help: "A service account key, or an authorized-user file with a refresh token. Its account needs access to the Google Ads account, and the Data Manager API enabled in its Cloud project", Required: true, Secret: true}
-	validateField    = sdk.DestinationField{Key: "validate_only", Label: "Validate only", Help: "true has Google check each request and record nothing - for setting up"}
+	validateField    = sdk.DestinationField{Key: "validate_only", Label: "Validate only", Help: "true has Google check each request and record nothing - for setting up", TestMode: true}
 )
 
 func Send(ctx context.Context, client *http.Client, d sdk.DestinationConfig, ev sdk.ShopEvent) error {
