@@ -237,6 +237,26 @@ describe('BoardPage', () => {
     })
     expect(await screen.findAllByText("You need customer analytics on Main to see this report's numbers.", {}, SLOW)).toHaveLength(2)
   })
+
+  it('opens unsaved edits kept against an older board - one with a report since removed - without failing', async () => {
+    const [first, second] = board.reports.map(cleanReport)
+    // kept when the board had three reports: the third moved to the front. Someone has since saved it down to two
+    const kept = [{ ...second, title: 'Moved up', key: 's2', from: 2 }, { ...first, key: 's0', from: 0 }]
+    const stale = {
+      ...board,
+      draft: { __typename: 'BoardDraft', payload: { name: board.name, reports: kept }, baseUpdatedAt: '2026-11-01T10:00:00Z', updatedAt: '2026-11-01T11:00:00Z' },
+    }
+    renderPage({
+      path: '/boards/b1',
+      routes: { '/boards/:id': <BoardPage /> },
+      adminId: 'admin-1',
+      scope: channelScope,
+      mocks: [meMock({ superuser: true }), ...boardMocks(() => {}, stale)],
+    })
+    expect(await screen.findByText(/These are your unsaved changes from/, {}, SLOW)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(within(await screen.findByRole('alertdialog', {}, SLOW)).getByText('Report · Moved up')).toBeTruthy()
+  })
 })
 
 function draftWrites(onKeep: (v: Record<string, unknown>) => void) {

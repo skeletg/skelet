@@ -77,7 +77,9 @@ export function BoardPage() {
     setDraftName(kept?.name ?? board.name)
     setBase(kept ? board.draft!.baseUpdatedAt : board.updatedAt)
     setRestoredAt(kept ? board.draft!.updatedAt : null)
-    const reports = kept?.reports ?? keyed(saved)
+    // A kept draft's positions are the board as it was then - one past the end of the board as it is now reads as added,
+    // and Save refuses the draft as stale anyway
+    const reports = kept ? kept.reports.map((r) => (r.from !== null && r.from >= saved.length ? { ...r, from: null } : r)) : keyed(saved)
     if (arriving) {
       const added = fresh(arriving)
       setDraft([...reports, added])
