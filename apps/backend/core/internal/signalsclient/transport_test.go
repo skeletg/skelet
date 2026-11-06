@@ -71,7 +71,7 @@ func TestTheContractRunsOverTLS(t *testing.T) {
 	go func() { _ = srv.Serve(ln) }()
 	t.Cleanup(srv.Stop)
 
-	addr := "localhost:" + strings.TrimPrefix(ln.Addr().String(), "127.0.0.1:")
+	addr := ln.Addr().String() // the address it listens on - "localhost" can resolve to ::1 first and be refused, not verified
 	call := func(tr Transport) error {
 		c, err := New(addr, tr, auth.MustServiceKeys("test-secret"), time.Minute, nil)
 		if err != nil {

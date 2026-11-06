@@ -160,6 +160,7 @@ func (s *Service) Authenticate(ctx context.Context, channelID uuid.UUID, email, 
 			IP:        ip,
 			UserAgent: ua,
 			ChannelID: channelID,
+			Shopper:   auth.ShopperFromContext(ctx),
 		})
 	}
 	return c, nil

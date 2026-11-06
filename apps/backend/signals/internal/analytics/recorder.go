@@ -322,7 +322,7 @@ type ActivitySpec struct { // a server-side action, from authenticated flows rat
 	Source     string // SourceCommerce | SourceAccount
 	ChannelID  uuid.UUID
 	CustomerID *uuid.UUID
-	AnonID     string // for guest commerce: attribute to the anon visitor when no customer
+	AnonID     string // the visitor - on guest commerce the one acted as, on a sign-in or sign-up the one stitched to CustomerID
 	At         time.Time
 	Props      map[string]any
 	DedupeKey  string // keeps ingest idempotent against the at-least-once event bus - outbox replays, detached-goroutine retries
@@ -336,6 +336,12 @@ func (r *Recorder) RecordActivity(ctx context.Context, a ActivitySpec) (bool, er
 		a = r.asNobody(a)
 	} else if a.CustomerID == nil && a.AnonID == "" {
 		return false, nil
+	}
+	// A sign-in or sign-up core saw with the visitor's id is proof the two are one person, sent only with analytics consent
+	if a.Source == SourceAccount && (a.EventName == "login" || a.EventName == "registered") && a.CustomerID != nil && a.AnonID != "" {
+		if err := r.Identify(ctx, a.AnonID, *a.CustomerID, a.ChannelID); err != nil {
+			return false, err
+		}
 	}
 	var ch *uuid.UUID
 	if a.ChannelID != uuid.Nil {
@@ -354,7 +360,7 @@ func (r *Recorder) RecordActivity(ctx context.Context, a ActivitySpec) (bool, er
 	})
 }
 
-// Stitches an anonymous visitor to a known customer, upserting last-write-wins on anon_id plus a one-off identify event as a timeline marker - re-firing is idempotent
+// Stitches an anonymous visitor to a known customer, first-write-wins on anon_id (the visitor stays with the customer it was first stitched to), plus a one-off identify event as a timeline marker - re-firing is idempotent
 // No past event is rewritten: profile reads resolve web activity through the mapping, so anonymous activity attributes retroactively
 func (r *Recorder) Identify(ctx context.Context, anonID string, customerID, channelID uuid.UUID) error {
 	if anonID == "" || customerID == uuid.Nil {
