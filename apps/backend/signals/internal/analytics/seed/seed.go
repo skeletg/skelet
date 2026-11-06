@@ -94,10 +94,8 @@ func Generate(channelID uuid.UUID, cfg Config, sink Sink) (int, error) {
 	for range cfg.Days/7 + 1 {
 		g.sending = append(g.sending, g.uuid())
 	}
-	if err := g.run(); err != nil {
-		return g.n, err
-	}
-	return g.n, nil
+	err := g.run()
+	return g.n, err
 }
 
 func (g *gen) run() error {
