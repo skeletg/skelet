@@ -32,7 +32,7 @@ Two gaps show up in every question:
 ### The journey, step by step
 
 Each competitor step comes from the vendor's docs. The chrome-devtools browser failed to start ("Target closed") during
-this stage, so nothing was clicked through and there are no screenshots yet. Skelet's steps today come from the code
+this stage, so nothing was clicked through. Skelet's steps today come from the code
 (`features/boards/*` and `features/synapse/*`).
 
 | Step | Mixpanel | Amplitude | PostHog | GA4 Explorations | Skelet today | Skelet proposed |
@@ -347,22 +347,11 @@ plus or minus edits made in the period. All three come from tables that already 
 ## 4. Heuristic evaluation and cognitive walkthrough
 
 **How this was done:**
-- **Screenshots:** headless Chromium (Microsoft's Playwright image, on the dashboard container's network), signed in
-  as the dev superuser on the Default Store (15,448 events, 23 event names). Each builder was captured in its
-  default state, plus the boards list, a board and the "Add to board" dialog. They're in
-  [boards-cases/](boards-cases/).
-- **Interactions not captured** (filters, breakdowns, switching events) were checked in the code
+- **Checked in the running dev dashboard** as the dev superuser on the Default Store (15,448 events, 23 event names):
+  each builder in its default state, plus the boards list, a board and the "Add to board" dialog.
+- **Interactions not exercised** (filters, breakdowns, switching events) were checked in the code
   (`features/synapse/*`). Those findings are marked *code*.
 - **Severity uses Nielsen's scale:** 0 not a problem, 1 cosmetic, 2 minor, 3 major, 4 blocks the task.
-
-| Builder | Screenshot |
-|---|---|
-| Insights | [synapse-insights.png](boards-cases/synapse-insights.png) |
-| Funnel | [synapse-funnels.png](boards-cases/synapse-funnels.png) |
-| Flow | [synapse-flows.png](boards-cases/synapse-flows.png) |
-| Engagement | [synapse-stickiness.png](boards-cases/synapse-stickiness.png) |
-| Retention | [synapse-retention.png](boards-cases/synapse-retention.png) |
-| Boards list, a board, Add to board | [boards.png](boards-cases/boards.png), [board.png](boards-cases/board.png), [add-to-board-dialog.png](boards-cases/add-to-board-dialog.png) |
 
 ### Issues, most severe first
 
