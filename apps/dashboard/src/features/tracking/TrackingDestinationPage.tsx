@@ -74,6 +74,7 @@ function DestinationForm({ destination, platform, refetch }: { destination: Dest
   const [test, setTest] = useState<{ ok: boolean; message: string } | null>(null)
   const [opError, setOpError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [confirmTest, setConfirmTest] = useState(false)
 
   const baseline = useMemo(() => toTrackingDestinationValues(platform.fields, destination), [destination, platform])
   const record = useRecordForm({
@@ -109,6 +110,8 @@ function DestinationForm({ destination, platform, refetch }: { destination: Dest
       const res = await sendTest({ variables: { id: destination.id } })
       setTest(res.data?.sendTrackingTest ?? null)
     })
+  // Outside test mode the platform records the sample purchase as real revenue
+  const askTest = () => (inTestMode ? void runTest() : setConfirmTest(true))
   // Going live drops the test setting and switches it on in one save, so no real event is sent in test mode
   const goLive = () =>
     act(async () => {
@@ -156,7 +159,7 @@ function DestinationForm({ destination, platform, refetch }: { destination: Dest
                 />
                 <span className={destination.enabled ? 'font-medium' : 'text-muted-foreground'}>{destination.enabled ? 'On' : 'Off'}</span>
               </label>
-              <Button type="button" variant="outline" size="sm" onClick={runTest} disabled={testing || destination.needsSecret}>
+              <Button type="button" variant="outline" size="sm" onClick={askTest} disabled={testing || destination.needsSecret}>
                 <SendIcon className="size-4" />
                 {testing ? 'Sending…' : 'Send test'}
               </Button>
@@ -238,7 +241,7 @@ function DestinationForm({ destination, platform, refetch }: { destination: Dest
                 ))}
               </ol>
               <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={runTest} disabled={testing || destination.needsSecret}>
+                <Button type="button" variant="outline" size="sm" onClick={askTest} disabled={testing || destination.needsSecret}>
                   <SendIcon className="size-4" />
                   Send a test
                 </Button>
@@ -272,6 +275,14 @@ function DestinationForm({ destination, platform, refetch }: { destination: Dest
         <PlatformIntro platform={platform} />
       </RecordFormPage>
 
+      <ConfirmDialog
+        open={confirmTest}
+        onOpenChange={setConfirmTest}
+        title="Send a real test purchase?"
+        description={`${destination.name} isn't in test mode, so ${platform.label} records the sample 10 EUR purchase as a real conversion in its reports.`}
+        confirmLabel="Send test"
+        onConfirm={runTest}
+      />
       <ConfirmDialog
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
