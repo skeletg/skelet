@@ -116,9 +116,8 @@ ON CONFLICT (imported_from) WHERE imported_from IS NOT NULL DO NOTHING
 RETURNING *;
 
 -- name: TrackingDestinationHealth :many
--- Each destination of a channel with its last success, last failure and failures in the past day
+-- Each destination of a channel with its last failure and failures in the past day
 SELECT d.id,
-       COALESCE(d.last_sent_at, 'epoch'::timestamptz)::timestamptz AS last_sent_at, -- the epoch stands for never
        COALESCE((SELECT x.last_error FROM tracking_deliveries x WHERE x.destination_id = d.id AND x.status = 'dead'
                  ORDER BY x.created_at DESC LIMIT 1), '')::text AS last_error,
        (SELECT COUNT(*) FROM tracking_deliveries x WHERE x.destination_id = d.id AND x.status = 'dead'

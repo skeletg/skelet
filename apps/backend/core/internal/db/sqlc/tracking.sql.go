@@ -552,7 +552,6 @@ func (q *Queries) ScrubSettledTrackingEvents(ctx context.Context) (int64, error)
 
 const trackingDestinationHealth = `-- name: TrackingDestinationHealth :many
 SELECT d.id,
-       COALESCE(d.last_sent_at, 'epoch'::timestamptz)::timestamptz AS last_sent_at, -- the epoch stands for never
        COALESCE((SELECT x.last_error FROM tracking_deliveries x WHERE x.destination_id = d.id AND x.status = 'dead'
                  ORDER BY x.created_at DESC LIMIT 1), '')::text AS last_error,
        (SELECT COUNT(*) FROM tracking_deliveries x WHERE x.destination_id = d.id AND x.status = 'dead'
@@ -562,13 +561,12 @@ WHERE  d.channel_id = $1
 `
 
 type TrackingDestinationHealthRow struct {
-	ID         uuid.UUID `json:"id"`
-	LastSentAt time.Time `json:"last_sent_at"`
-	LastError  string    `json:"last_error"`
-	Dead24h    int32     `json:"dead_24h"`
+	ID        uuid.UUID `json:"id"`
+	LastError string    `json:"last_error"`
+	Dead24h   int32     `json:"dead_24h"`
 }
 
-// Each destination of a channel with its last success, last failure and failures in the past day
+// Each destination of a channel with its last failure and failures in the past day
 func (q *Queries) TrackingDestinationHealth(ctx context.Context, channelID uuid.UUID) ([]TrackingDestinationHealthRow, error) {
 	rows, err := q.db.QueryContext(ctx, trackingDestinationHealth, channelID)
 	if err != nil {
@@ -578,12 +576,7 @@ func (q *Queries) TrackingDestinationHealth(ctx context.Context, channelID uuid.
 	items := []TrackingDestinationHealthRow{}
 	for rows.Next() {
 		var i TrackingDestinationHealthRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.LastSentAt,
-			&i.LastError,
-			&i.Dead24h,
-		); err != nil {
+		if err := rows.Scan(&i.ID, &i.LastError, &i.Dead24h); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

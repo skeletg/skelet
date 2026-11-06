@@ -70,6 +70,9 @@ func toRoute(row db.TrackingDestination) (Destination, error) {
 		from := row.ImportedFrom.UUID
 		d.ImportedFrom = &from
 	}
+	if row.LastSentAt.Valid {
+		d.LastSentAt = &row.LastSentAt.Time
+	}
 	if err := json.Unmarshal(row.Config, &d.Config); err != nil {
 		return Destination{}, fmt.Errorf("destination %s config: %w", row.ID, err)
 	}
@@ -237,12 +240,7 @@ func (r *repository) Health(ctx context.Context, channelID uuid.UUID) (map[uuid.
 	}
 	out := make(map[uuid.UUID]Health, len(rows))
 	for _, row := range rows {
-		h := Health{LastError: row.LastError, Dead24h: int(row.Dead24h)}
-		if row.LastSentAt.Unix() > 0 {
-			at := row.LastSentAt
-			h.LastSentAt = &at
-		}
-		out[row.ID] = h
+		out[row.ID] = Health{LastError: row.LastError, Dead24h: int(row.Dead24h)}
 	}
 	return out, nil
 }

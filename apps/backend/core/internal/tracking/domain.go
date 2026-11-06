@@ -124,15 +124,15 @@ type Destination struct {
 	Secret    string
 	// The Signals event destination this was imported from - nil for one set up here
 	ImportedFrom *uuid.UUID
+	LastSentAt   *time.Time // stamped at most once a minute; nil: never
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
 
-// Health is a destination's recent record: when it last delivered, its latest failure and how many failed in a day
+// Health is a destination's recent failures: the latest and how many failed in a day
 type Health struct {
-	LastSentAt *time.Time // nil: never
-	LastError  string     // already redacted by the worker
-	Dead24h    int
+	LastError string // already redacted by the worker
+	Dead24h   int
 }
 
 // Kind is a plugin's destination as it registered it, plus the plugin it came from and where that plugin is on

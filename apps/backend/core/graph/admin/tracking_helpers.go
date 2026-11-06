@@ -118,7 +118,7 @@ func toTrackingDestination(d tracking.Destination, h tracking.Health) *model.Tra
 		ID: d.ID.String(), ChannelID: d.ChannelID.String(), Kind: d.Kind, Name: d.Name, Enabled: d.Enabled,
 		Events: nonNilStrings(d.Events), EffectiveEvents: nonNilStrings(d.Events),
 		Config: configValues(d.Config, secretKey(k)), SecretSet: d.Secret != "", NeedsSecret: tracking.NeedsSecret(d),
-		Health:    &model.TrackingHealth{LastSentAt: h.LastSentAt, LastError: h.LastError, Dead24h: int32(h.Dead24h)},
+		Health:    &model.TrackingHealth{LastSentAt: d.LastSentAt, LastError: h.LastError, Dead24h: int32(h.Dead24h)},
 		CreatedAt: d.CreatedAt, UpdatedAt: d.UpdatedAt,
 	}
 	if len(d.Events) == 0 {
