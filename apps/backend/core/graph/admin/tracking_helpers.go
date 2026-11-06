@@ -149,7 +149,7 @@ func configValues(cfg map[string]string, secret string) []*model.TrackingConfigV
 
 func toTrackingDelivery(d tracking.Delivery) *model.TrackingDelivery {
 	return &model.TrackingDelivery{
-		ID: d.ID.String(), EventName: d.EventName, EventID: d.EventID, Status: d.Status, Attempts: d.Attempts,
+		ID: d.ID.String(), EventName: d.EventName, EventID: d.EventID, Status: model.TrackingDeliveryStatus(strings.ToUpper(d.Status)), Attempts: d.Attempts,
 		LastError: d.LastError, NextAttemptAt: d.NextAttemptAt, CreatedAt: d.CreatedAt,
 	}
 }

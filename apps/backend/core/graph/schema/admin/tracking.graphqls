@@ -77,13 +77,18 @@ input TrackingDestinationInput {
   config:  [TrackingConfigValueInput!]!
 }
 
+# Where a delivery stands. A sent one is deleted, so it never shows
+enum TrackingDeliveryStatus {
+  PENDING # waiting for its next attempt
+  DEAD    # gave up after its last retry - redeliverTrackingDelivery puts it back
+}
+
 # One event bound for a destination. The event itself isn't returned - it holds the shopper's email, IP and click ids
 type TrackingDelivery {
   id:            ID!
   eventName:     String!
   eventId:       String!
-  # pending | sent | dead
-  status:        String!
+  status:        TrackingDeliveryStatus!
   attempts:      Int!
   lastError:     String!
   nextAttemptAt: Time!
@@ -116,8 +121,8 @@ extend type Query {
   trackingPlatforms(channelId: ID!): [TrackingPlatform!]!
   trackingDestinations(channelId: ID!): [TrackingDestination!]!
   trackingDestination(id: ID!): TrackingDestination
-  # Newest first. status: pending | dead, empty for all - a sent delivery is not kept. limit at most 200
-  trackingDeliveries(destinationId: ID!, status: String, limit: Int): [TrackingDelivery!]!
+  # Newest first, every status when it is null. limit at most 200
+  trackingDeliveries(destinationId: ID!, status: TrackingDeliveryStatus, limit: Int): [TrackingDelivery!]!
   # Needs settings.manage as well; empty when Signals is off
   signalsImportCandidates(channelId: ID!): [SignalsImportCandidate!]!
 }

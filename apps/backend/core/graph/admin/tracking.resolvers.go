@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -175,17 +176,14 @@ func (r *queryResolver) TrackingDestination(ctx context.Context, id string) (*mo
 	return r.trackingDestinationWithHealth(ctx, d)
 }
 
-func (r *queryResolver) TrackingDeliveries(ctx context.Context, destinationID string, status *string, limit *int32) ([]*model.TrackingDelivery, error) {
+func (r *queryResolver) TrackingDeliveries(ctx context.Context, destinationID string, status *model.TrackingDeliveryStatus, limit *int32) ([]*model.TrackingDelivery, error) {
 	d, err := r.requireTrackingDestination(ctx, trackingView, destinationID)
 	if err != nil {
 		return nil, err
 	}
-	want := ""
+	want := "" // every status
 	if status != nil {
-		want = *status
-	}
-	if want != "" && want != "pending" && want != "dead" {
-		return nil, apperr.New("TRACKING_BAD_STATUS", apperr.ClassValidation, "status is pending or dead")
+		want = strings.ToLower(string(*status))
 	}
 	n := int32(50)
 	if limit != nil && *limit > 0 {

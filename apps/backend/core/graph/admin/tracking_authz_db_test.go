@@ -105,7 +105,7 @@ func TestTrackingDestinationsStayInTheirChannel(t *testing.T) {
 	}
 	got, _ := qr.TrackingDestination(manageB, inB.ID.String())
 	retried, err := mr.RedeliverTrackingDelivery(manageB, logB[0].ID.String())
-	if err != nil || retried.Status != "pending" {
+	if err != nil || retried.Status != model.TrackingDeliveryStatusPending {
 		t.Errorf("channel B's own admin retrying its dead delivery: %+v %v", retried, err)
 	}
 	if _, err := mr.RedeliverTrackingDelivery(manageB, logB[0].ID.String()); err == nil {

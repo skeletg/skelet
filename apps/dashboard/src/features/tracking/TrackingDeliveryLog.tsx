@@ -6,28 +6,29 @@ import { DataTable } from '@/components/data-table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useRefetchWhenShown, useVisiblePollInterval } from '@/lib/visible-poll'
+import type { TrackingDeliveryStatus } from '@/graphql/schema.types'
 import { eventLabel } from './platformGuides'
 import { RedeliverTrackingDeliveryDocument, TrackingDeliveriesDocument, type TrackingDeliveriesQuery } from './Tracking.gql'
 
 type Delivery = TrackingDeliveriesQuery['trackingDeliveries'][number]
 
-const FILTERS = [
-  { value: '', label: 'All' },
-  { value: 'dead', label: 'Failed' },
-  { value: 'pending', label: 'Waiting' },
-] as const
+const FILTERS: { value: TrackingDeliveryStatus | null; label: string }[] = [
+  { value: null, label: 'All' },
+  { value: 'DEAD', label: 'Failed' },
+  { value: 'PENDING', label: 'Waiting' },
+]
 
-const STATUS: Record<string, { label: string; variant: 'warning' | 'destructive' }> = {
-  pending: { label: 'Waiting', variant: 'warning' },
-  dead: { label: 'Failed', variant: 'destructive' },
+const STATUS: Record<TrackingDeliveryStatus, { label: string; variant: 'warning' | 'destructive' }> = {
+  PENDING: { label: 'Waiting', variant: 'warning' },
+  DEAD: { label: 'Failed', variant: 'destructive' },
 }
 
 // What is still waiting or retrying and what gave up - a sent delivery is deleted, so a healthy log is empty. The event itself isn't shown - it holds the shopper's
 // email, IP and click ids - only its name, id and the platform's last answer
 export function TrackingDeliveryLog({ destinationId, canManage }: { destinationId: string; canManage: boolean }) {
-  const [status, setStatus] = useState('')
+  const [status, setStatus] = useState<TrackingDeliveryStatus | null>(null)
   const { data, loading, error, refetch } = useQuery(TrackingDeliveriesDocument, {
-    variables: { destinationId, status: status || null, limit: 100 },
+    variables: { destinationId, status, limit: 100 },
     pollInterval: useVisiblePollInterval(15000),
   })
   useRefetchWhenShown(refetch)
@@ -42,7 +43,7 @@ export function TrackingDeliveryLog({ destinationId, canManage }: { destinationI
         id: 'status',
         header: 'Status',
         cell: ({ row }) => {
-          const s = STATUS[row.original.status] ?? { label: row.original.status, variant: 'warning' as const }
+          const s = STATUS[row.original.status]
           return <Badge variant={s.variant}>{s.label}</Badge>
         },
       },
@@ -57,7 +58,7 @@ export function TrackingDeliveryLog({ destinationId, canManage }: { destinationI
         id: 'retry',
         header: '',
         cell: ({ row }) =>
-          canManage && row.original.status === 'dead' ? (
+          canManage && row.original.status === 'DEAD' ? (
             <Button
               variant="outline"
               size="sm"
@@ -90,7 +91,7 @@ export function TrackingDeliveryLog({ destinationId, canManage }: { destinationI
     <div className="grid gap-3">
       <div className="flex flex-wrap gap-2" role="group" aria-label="Filter deliveries">
         {FILTERS.map((f) => (
-          <Button key={f.value} size="sm" variant={status === f.value ? 'secondary' : 'ghost'} aria-pressed={status === f.value} onClick={() => setStatus(f.value)}>
+          <Button key={f.label} size="sm" variant={status === f.value ? 'secondary' : 'ghost'} aria-pressed={status === f.value} onClick={() => setStatus(f.value)}>
             {f.label}
           </Button>
         ))}
@@ -102,7 +103,7 @@ export function TrackingDeliveryLog({ destinationId, canManage }: { destinationI
         loading={loading && !data}
         error={error ? { message: error.message } : null}
         getRowId={(row) => row.id}
-        emptyState={status === 'dead' ? 'Nothing has failed.' : 'Nothing waiting or failed.'}
+        emptyState={status === 'DEAD' ? 'Nothing has failed.' : 'Nothing waiting or failed.'}
       />
       <p className="text-xs text-muted-foreground">Failed sends retry after 10s, 1m, 5m, 30m and 2h before giving up. Entries are kept for 30 days.</p>
     </div>
