@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
@@ -95,11 +96,9 @@ func (r *mutationResolver) RedeliverTrackingDelivery(ctx context.Context, id str
 	if err := r.TrackingSvc.Redeliver(ctx, d.ID); err != nil {
 		return nil, err
 	}
-	again, err := r.TrackingSvc.Delivery(ctx, d.ID)
-	if err != nil {
-		return nil, err
-	}
-	return toTrackingDelivery(again), nil
+	// Not read back: a worker may send it, and so delete it, before a second read
+	d.Status, d.Attempts, d.LastError, d.NextAttemptAt = "pending", 0, "", time.Now()
+	return toTrackingDelivery(d), nil
 }
 
 func (r *mutationResolver) ImportSignalsDestinations(ctx context.Context, channelID string, legacyIds []string) ([]*model.TrackingDestination, error) {
