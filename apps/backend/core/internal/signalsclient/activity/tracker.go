@@ -495,7 +495,7 @@ func (t *Tracker) onRegistered(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	return t.emitID(ctx, sourceAccount, "registered", ev.ChannelID, ref(ev.CustomerID), identifies(ev.Shopper),
+	return t.emitAs(ctx, sourceAccount, "registered", ev.ChannelID, actor{cust: ref(ev.CustomerID), anon: identifies(ev.Shopper)},
 		"act:registered:"+ev.CustomerID.String(),
 		map[string]any{"source": ev.Source})
 }
@@ -564,7 +564,7 @@ func (t *Tracker) onLogin(ctx context.Context, e events.Event) error {
 	if ip := anonymizeIP(ev.IP); ip != "" {
 		props = map[string]any{"ip": ip}
 	}
-	return t.emitID(ctx, sourceAccount, "login", ev.ChannelID, ref(ev.SubjectID), identifies(ev.Shopper),
+	return t.emitAs(ctx, sourceAccount, "login", ev.ChannelID, actor{cust: ref(ev.SubjectID), anon: identifies(ev.Shopper)},
 		"act:login:"+ev.SubjectID.String()+":"+itoa(secBucket(ctx)), props)
 }
 
