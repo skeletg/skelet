@@ -1,0 +1,146 @@
+# Server-side tracking: shop events sent from the backend to analytics, ad, affiliate and marketing platforms. Each
+# destination belongs to one channel; its platform (kind) comes from a compiled-in plugin. Reads need tracking.view on
+# the channel, changes tracking.manage.
+
+type TrackingField {
+  key:      String!
+  label:    String!
+  help:     String!
+  required: Boolean!
+  # Write-only: stored encrypted, never returned - a destination only says whether it is set
+  secret:   Boolean!
+  # The setting that keeps sends out of the platform's live reports while it is set - at most one per platform
+  testMode: Boolean!
+}
+
+# One platform skelet can send to - every first-party one, whether or not this build compiled its plugin in
+type TrackingPlatform {
+  kind:       String!
+  label:      String!
+  pluginSlug: String!
+  # The plugin is compiled into this build. False: enable it with `skelet cli plugin enable <pluginSlug>` and rebuild
+  installed:  Boolean!
+  # The plugin is switched on for the channel
+  availableOnChannel: Boolean!
+  # Consent categories every event needs: analytics | ads | personalization. Empty when not installed
+  purposes:      [String!]!
+  defaultEvents: [String!]!
+  fields:        [TrackingField!]!
+  # A channel setting that makes it need no consent (affiliate networks the merchant treats as necessary)
+  necessarySetting: String
+}
+
+type TrackingConfigValue {
+  key:   String!
+  value: String!
+}
+
+input TrackingConfigValueInput {
+  key:   String!
+  value: String!
+}
+
+type TrackingHealth {
+  lastSentAt: Time
+  # The latest failure, credentials redacted
+  lastError:  String!
+  # Deliveries that gave up in the past 24 hours
+  dead24h:    Int!
+}
+
+type TrackingDestination {
+  id:        ID!
+  channelId: ID!
+  kind:      String!
+  name:      String!
+  enabled:   Boolean!
+  # Chosen events; empty means the platform's defaults
+  events:          [String!]!
+  effectiveEvents: [String!]!
+  # Settings without the secret field
+  config:      [TrackingConfigValue!]!
+  secretSet:   Boolean!
+  # The platform requires a secret this destination doesn't have yet - an imported one, until it is entered
+  needsSecret: Boolean!
+  # Its platform's test-mode setting is on, so its sends aren't recorded as real
+  inTestMode:  Boolean!
+  # The Signals event destination it was imported from
+  importedFrom: ID
+  health:    TrackingHealth!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+input TrackingDestinationInput {
+  name:    String!
+  enabled: Boolean
+  # Empty means the platform's defaults
+  events:  [String!]
+  # The platform's settings. The secret field's value may be included here; it is stored encrypted, and empty keeps the
+  # stored one
+  config:  [TrackingConfigValueInput!]!
+}
+
+# Where a delivery stands. A sent one is deleted, so it never shows
+enum TrackingDeliveryStatus {
+  PENDING # waiting for its next attempt
+  DEAD    # gave up after its last retry - redeliverTrackingDelivery puts it back
+}
+
+# One event bound for a destination. The event itself isn't returned - it holds the shopper's email, IP and click ids
+type TrackingDelivery {
+  id:            ID!
+  eventName:     String!
+  eventId:       String!
+  status:        TrackingDeliveryStatus!
+  attempts:      Int!
+  lastError:     String!
+  nextAttemptAt: Time!
+  createdAt:     Time!
+}
+
+type TrackingTestResult {
+  ok:      Boolean!
+  # The platform's answer when it refused, credentials redacted
+  message: String!
+}
+
+# An old Signals event destination and what it would become here
+type SignalsImportCandidate {
+  legacyId:      ID!
+  name:          String!
+  legacyKind:    String!
+  # Null when it can't be imported - see problem
+  targetKind:    String
+  config:        [TrackingConfigValue!]!
+  signalsActive: Boolean!
+  # The destination it was already imported as
+  importedAs:    ID
+  # Event filters set on the Signals destination; they don't carry over
+  droppedFilters: [String!]!
+  problem:       String
+}
+
+extend type Query {
+  trackingPlatforms(channelId: ID!): [TrackingPlatform!]!
+  trackingDestinations(channelId: ID!): [TrackingDestination!]!
+  trackingDestination(id: ID!): TrackingDestination
+  # Newest first, every status when it is null. limit at most 200
+  trackingDeliveries(destinationId: ID!, status: TrackingDeliveryStatus, limit: Int): [TrackingDelivery!]!
+  # Needs settings.manage as well; empty when Signals is off
+  signalsImportCandidates(channelId: ID!): [SignalsImportCandidate!]!
+}
+
+extend type Mutation {
+  createTrackingDestination(channelId: ID!, kind: String!, input: TrackingDestinationInput!): TrackingDestination!
+  updateTrackingDestination(id: ID!, input: TrackingDestinationInput!): TrackingDestination!
+  setTrackingDestinationEnabled(id: ID!, enabled: Boolean!): TrackingDestination!
+  deleteTrackingDestination(id: ID!): Boolean!
+  # Sends one sample purchase now and reports the platform's answer. Use the platform's test or validate setting first,
+  # or it counts as a real purchase there
+  sendTrackingTest(id: ID!): TrackingTestResult!
+  # Only a delivery that gave up (dead) can be retried
+  redeliverTrackingDelivery(id: ID!): TrackingDelivery!
+  # Copies Signals event destinations here, disabled and without their secrets. Importing one again changes nothing
+  importSignalsDestinations(channelId: ID!, legacyIds: [ID!]!): [TrackingDestination!]!
+}

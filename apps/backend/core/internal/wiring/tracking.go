@@ -25,5 +25,10 @@ func newTrackingService(q *db.Queries, cipher *secrets.Cipher, cfg *config.Servi
 
 // The same SSRF-safe transport webhooks use - a destination's endpoint (a server-side GTM container, say) is typed by an admin
 func newTrackingWorker(svc *tracking.Service, allow AllowPrivateTargets) *tracking.Worker {
-	return tracking.NewWorker(svc, &http.Client{Transport: otelx.HTTPTransport(webhook.SafeTransport(bool(allow))), Timeout: 30 * time.Second})
+	return tracking.NewWorker(svc, trackingHTTPClient(allow))
+}
+
+// Shared by the worker and the dashboard's test sends, so a test reaches exactly what a real delivery would
+func trackingHTTPClient(allow AllowPrivateTargets) *http.Client {
+	return &http.Client{Transport: otelx.HTTPTransport(webhook.SafeTransport(bool(allow))), Timeout: 30 * time.Second}
 }

@@ -177,7 +177,7 @@ func runTrackingDeliveries(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	defer done()
-	rows, err := svc.Deliveries(cmd.Context(), id, trackLimit)
+	rows, err := svc.Deliveries(cmd.Context(), id, "", trackLimit)
 	if err != nil {
 		return err
 	}

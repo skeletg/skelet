@@ -78,6 +78,11 @@ func TestAnEventIsStoredOnceForEveryDestination(t *testing.T) {
 			}
 		}
 	}
+	for _, id := range dests {
+		if d, err := repo.Get(ctx, id); err != nil || d.LastSentAt == nil {
+			t.Errorf("destination %s has no last-sent time after a delivery was marked sent (%v)", id, err)
+		}
+	}
 	now := time.Now()
 	if _, err := repo.Prune(ctx, now.Add(-30*24*time.Hour), now.Add(-48*time.Hour)); err != nil {
 		t.Fatal(err)

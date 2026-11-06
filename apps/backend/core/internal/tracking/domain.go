@@ -122,8 +122,17 @@ type Destination struct {
 	Events    []string // empty: the kind's defaults
 	Config    map[string]string
 	Secret    string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	// The Signals event destination this was imported from - nil for one set up here
+	ImportedFrom *uuid.UUID
+	LastSentAt   *time.Time // stamped at most once a minute; nil: never
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+// Health is a destination's recent failures: the latest and how many failed in a day
+type Health struct {
+	LastError string // already redacted by the worker
+	Dead24h   int
 }
 
 // Kind is a plugin's destination as it registered it, plus the plugin it came from and where that plugin is on

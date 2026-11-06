@@ -64,6 +64,7 @@ const NO_STAGED_EDITS: Record<string, string> = {
   '@/features/scheduler/ScheduledJobsList': 'job create/edit dialogs with their own Save',
 
   '@/features/destinations/DestinationsPage': 'row edit dialogs with their own Save',
+  '@/features/tracking/TrackingPage': 'catalogue and list - setup and editing are their own pages, the import a dialog',
   '@/features/shipping/ShippingBoxesPage': 'row edit dialogs with their own Save',
   '@/features/orders/OrderDetail': 'order lifecycle actions and edit dialogs, no staged page form',
   '@/features/emails/EmailsHub': 'tab hub over three list tabs - the editors are their own routes',

@@ -3,6 +3,8 @@
 export function scopePermissionForPath(pathname: string): string | undefined {
   // Covers the section/group panes (/settings/:section[/:group]) and the email paths
   if (pathname === '/settings' || pathname.startsWith('/settings/')) return 'config.view'
+  if (pathname === '/tracking' || pathname.startsWith('/tracking/')) return 'tracking.view'
+  if (pathname === '/privacy') return 'config.view'
   if (pathname.startsWith('/pulse')) return 'emails.view'
   if (pathname.startsWith('/campaigns')) return 'campaigns.view'
   if (pathname.startsWith('/flows')) return 'flows.view'

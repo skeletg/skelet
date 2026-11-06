@@ -180,7 +180,13 @@ registerNavNode({
           permission: 'qna.view',
         },
         {
-          title: 'Event destinations',
+          title: 'Tracking',
+          path: '/tracking',
+          element: lazyPage(() => import('@/features/tracking/TrackingPage'), 'TrackingPage'),
+          permission: 'tracking.view',
+        },
+        {
+          title: 'Signals event export',
           path: '/destinations',
           element: lazyPage(() => import('@/features/destinations/DestinationsPage'), 'DestinationsPage'),
           permission: 'settings.manage',
@@ -406,6 +412,12 @@ registerNavNode({
       permission: 'config.view',
     },
     {
+      title: 'Privacy',
+      path: '/privacy',
+      element: lazyPage(() => import('@/features/settings/PrivacyPage'), 'PrivacyPage'),
+      permission: 'config.view',
+    },
+    {
       title: 'Tax rules',
       path: '/tax',
       element: lazyPage(() => import('@/features/tax/TaxRulesTable'), 'TaxRulesTable'),
@@ -494,6 +506,8 @@ const detailLeaves = [
   { title: 'New country', path: '/countries/new', element: lazyPage(() => import('@/features/countries/CountryForm'), 'CountryCreatePage') },
   { title: 'Edit country', path: '/countries/:code', element: lazyPage(() => import('@/features/countries/CountryForm'), 'CountryEditPage') },
   { title: 'New webhook', path: '/webhooks/new', element: lazyPage(() => import('@/features/webhooks/WebhookCreate'), 'WebhookCreate'), permission: 'webhooks.manage' },
+  { title: 'Set up tracking', path: '/tracking/new/:kind', element: lazyPage(() => import('@/features/tracking/TrackingSetupPage'), 'TrackingSetupPage'), permission: 'tracking.manage' },
+  { title: 'Tracking destination', path: '/tracking/:id', element: lazyPage(() => import('@/features/tracking/TrackingDestinationPage'), 'TrackingDestinationPage'), permission: 'tracking.view' },
   { title: 'Webhook detail', path: '/webhooks/:id', element: lazyPage(() => import('@/features/webhooks/WebhookDetail'), 'WebhookDetail') },
   { title: 'New blog post', path: '/blog/posts/new', element: lazyPage(() => import('@/features/blog/BlogPostCreate'), 'BlogPostCreate') },
   { title: 'Blog post detail', path: '/blog/posts/:id', element: lazyPage(() => import('@/features/blog/BlogPostDetail'), 'BlogPostDetail') },

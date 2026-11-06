@@ -4884,6 +4884,18 @@ type SignalsChatReply struct {
 	Reply string `json:"reply"`
 }
 
+type SignalsImportCandidate struct {
+	LegacyID       string                 `json:"legacyId"`
+	Name           string                 `json:"name"`
+	LegacyKind     string                 `json:"legacyKind"`
+	TargetKind     *string                `json:"targetKind,omitempty"`
+	Config         []*TrackingConfigValue `json:"config"`
+	SignalsActive  bool                   `json:"signalsActive"`
+	ImportedAs     *string                `json:"importedAs,omitempty"`
+	DroppedFilters []string               `json:"droppedFilters"`
+	Problem        *string                `json:"problem,omitempty"`
+}
+
 type SignalsInsight struct {
 	Level  string `json:"level"`
 	Title  string `json:"title"`
@@ -5230,6 +5242,84 @@ type TopProduct struct {
 	Cost       int    `json:"cost"`
 	Margin     int    `json:"margin"`
 	OrderCount int32  `json:"orderCount"`
+}
+
+type TrackingConfigValue struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type TrackingConfigValueInput struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type TrackingDelivery struct {
+	ID            string                 `json:"id"`
+	EventName     string                 `json:"eventName"`
+	EventID       string                 `json:"eventId"`
+	Status        TrackingDeliveryStatus `json:"status"`
+	Attempts      int32                  `json:"attempts"`
+	LastError     string                 `json:"lastError"`
+	NextAttemptAt time.Time              `json:"nextAttemptAt"`
+	CreatedAt     time.Time              `json:"createdAt"`
+}
+
+type TrackingDestination struct {
+	ID              string                 `json:"id"`
+	ChannelID       string                 `json:"channelId"`
+	Kind            string                 `json:"kind"`
+	Name            string                 `json:"name"`
+	Enabled         bool                   `json:"enabled"`
+	Events          []string               `json:"events"`
+	EffectiveEvents []string               `json:"effectiveEvents"`
+	Config          []*TrackingConfigValue `json:"config"`
+	SecretSet       bool                   `json:"secretSet"`
+	NeedsSecret     bool                   `json:"needsSecret"`
+	InTestMode      bool                   `json:"inTestMode"`
+	ImportedFrom    *string                `json:"importedFrom,omitempty"`
+	Health          *TrackingHealth        `json:"health"`
+	CreatedAt       time.Time              `json:"createdAt"`
+	UpdatedAt       time.Time              `json:"updatedAt"`
+}
+
+type TrackingDestinationInput struct {
+	Name    string                      `json:"name"`
+	Enabled *bool                       `json:"enabled,omitempty"`
+	Events  []string                    `json:"events,omitempty"`
+	Config  []*TrackingConfigValueInput `json:"config"`
+}
+
+type TrackingField struct {
+	Key      string `json:"key"`
+	Label    string `json:"label"`
+	Help     string `json:"help"`
+	Required bool   `json:"required"`
+	Secret   bool   `json:"secret"`
+	TestMode bool   `json:"testMode"`
+}
+
+type TrackingHealth struct {
+	LastSentAt *time.Time `json:"lastSentAt,omitempty"`
+	LastError  string     `json:"lastError"`
+	Dead24h    int32      `json:"dead24h"`
+}
+
+type TrackingPlatform struct {
+	Kind               string           `json:"kind"`
+	Label              string           `json:"label"`
+	PluginSlug         string           `json:"pluginSlug"`
+	Installed          bool             `json:"installed"`
+	AvailableOnChannel bool             `json:"availableOnChannel"`
+	Purposes           []string         `json:"purposes"`
+	DefaultEvents      []string         `json:"defaultEvents"`
+	Fields             []*TrackingField `json:"fields"`
+	NecessarySetting   *string          `json:"necessarySetting,omitempty"`
+}
+
+type TrackingTestResult struct {
+	Ok      bool   `json:"ok"`
+	Message string `json:"message"`
 }
 
 type TransactionalSlot struct {
@@ -9558,6 +9648,61 @@ func (e *SubscriptionStatus) UnmarshalJSON(b []byte) error {
 }
 
 func (e SubscriptionStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type TrackingDeliveryStatus string
+
+const (
+	TrackingDeliveryStatusPending TrackingDeliveryStatus = "PENDING"
+	TrackingDeliveryStatusDead    TrackingDeliveryStatus = "DEAD"
+)
+
+var AllTrackingDeliveryStatus = []TrackingDeliveryStatus{
+	TrackingDeliveryStatusPending,
+	TrackingDeliveryStatusDead,
+}
+
+func (e TrackingDeliveryStatus) IsValid() bool {
+	switch e {
+	case TrackingDeliveryStatusPending, TrackingDeliveryStatusDead:
+		return true
+	}
+	return false
+}
+
+func (e TrackingDeliveryStatus) String() string {
+	return string(e)
+}
+
+func (e *TrackingDeliveryStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = TrackingDeliveryStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid TrackingDeliveryStatus", str)
+	}
+	return nil
+}
+
+func (e TrackingDeliveryStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *TrackingDeliveryStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e TrackingDeliveryStatus) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
