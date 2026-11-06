@@ -52,7 +52,7 @@ export function SynapseStickiness() {
       <DetailPageHeader
         title="Engagement"
         badges={isChannel ? <Badge variant="secondary">{selectedChannel?.name}</Badge> : undefined}
-        actions={isChannel ? <AddToBoard channelId={channelId} title={event ? `Returning on ${eventLabel(event)}` : 'Returning shoppers'} definition={{ kind: 'stickiness', event }} /> : undefined}
+        actions={isChannel ? <AddToBoard channelId={channelId} title={event ? `Returning on ${eventLabel(event)}` : 'Returning shoppers'} definition={{ kind: 'STICKINESS', event }} /> : undefined}
         meta={
           <span className="text-xs text-muted-foreground">
             Do people come back? The return rate compares one window to the next - set the window to your store’s buying

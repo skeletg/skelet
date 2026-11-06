@@ -28,7 +28,7 @@ To change the plan, edit `TrackingPlan` in `apps/backend/signals/internal/analyt
 | `$search` | An on-site search and how many results it found. | `query` string, `results` number |
 | `$experiment` | The variation of an experiment a shopper saw. | `experiment` string, `variation` string |
 | `$js_error` | A script error on the page. | `line` number, `message` string, `sessionId` string, `source` string |
-| `$rage_click` | Three or more clicks in one spot within a second. | `selector` string, `sessionId` string, `x` number, `y` number |
+| `$rage_click` | Three or more clicks in one spot within a second. | `selector` string, `sessionId` string, `text` string, `x` number, `y` number |
 | `$dead_click` | A click that changed nothing on the page. | `selector` string, `sessionId` string, `x` number, `y` number |
 | `$web_vitals` | A Core Web Vitals measurement. | `metric` string, `sessionId` string, `value` number |
 | `view_item` | A product was viewed. Older storefronts send it; the server's own events are the source of truth. | `sku` string |

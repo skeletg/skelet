@@ -719,22 +719,66 @@ type BlogTagContent struct {
 }
 
 type Board struct {
-	ID          string         `json:"id"`
-	ChannelID   string         `json:"channelId"`
-	Name        string         `json:"name"`
-	UpdatedAt   time.Time      `json:"updatedAt"`
-	ReportCount int32          `json:"reportCount"`
-	Reports     []*BoardReport `json:"reports"`
+	ID        string         `json:"id"`
+	ChannelID string         `json:"channelId"`
+	Name      string         `json:"name"`
+	UpdatedAt time.Time      `json:"updatedAt"`
+	Reports   []*BoardReport `json:"reports"`
 }
 
 type BoardReport struct {
-	Title      string `json:"title"`
-	Definition any    `json:"definition"`
+	Title      string                 `json:"title"`
+	Definition *BoardReportDefinition `json:"definition"`
+}
+
+type BoardReportDefinition struct {
+	Kind        BoardReportKind      `json:"kind"`
+	SinceDays   *int32               `json:"sinceDays,omitempty"`
+	Event       *string              `json:"event,omitempty"`
+	Measure     *string              `json:"measure,omitempty"`
+	Unit        *string              `json:"unit,omitempty"`
+	Breakdown   *string              `json:"breakdown,omitempty"`
+	Steps       []string             `json:"steps,omitempty"`
+	Filters     []*BoardReportFilter `json:"filters,omitempty"`
+	WindowHours *int32               `json:"windowHours,omitempty"`
+	StartEvent  *string              `json:"startEvent,omitempty"`
+	ReturnEvent *string              `json:"returnEvent,omitempty"`
+	Periods     *int32               `json:"periods,omitempty"`
+	Depth       *int32               `json:"depth,omitempty"`
+}
+
+type BoardReportDefinitionInput struct {
+	Kind        BoardReportKind             `json:"kind"`
+	SinceDays   *int32                      `json:"sinceDays,omitempty"`
+	Event       *string                     `json:"event,omitempty"`
+	Measure     *string                     `json:"measure,omitempty"`
+	Unit        *string                     `json:"unit,omitempty"`
+	Breakdown   *string                     `json:"breakdown,omitempty"`
+	Steps       []string                    `json:"steps,omitempty"`
+	Filters     []*SynapseFunnelFilterInput `json:"filters,omitempty"`
+	WindowHours *int32                      `json:"windowHours,omitempty"`
+	StartEvent  *string                     `json:"startEvent,omitempty"`
+	ReturnEvent *string                     `json:"returnEvent,omitempty"`
+	Periods     *int32                      `json:"periods,omitempty"`
+	Depth       *int32                      `json:"depth,omitempty"`
+}
+
+type BoardReportFilter struct {
+	Step  int32  `json:"step"`
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
 type BoardReportInput struct {
-	Title      string `json:"title"`
-	Definition any    `json:"definition"`
+	Title      string                      `json:"title"`
+	Definition *BoardReportDefinitionInput `json:"definition"`
+}
+
+type BoardSummary struct {
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+	ReportCount int32     `json:"reportCount"`
 }
 
 type BotAgent struct {
@@ -2997,10 +3041,10 @@ type LensPageVitals struct {
 }
 
 type LensPlanIssue struct {
-	Kind  string `json:"kind"`
-	Event string `json:"event"`
-	Prop  string `json:"prop"`
-	Count int32  `json:"count"`
+	Kind  LensPlanIssueKind `json:"kind"`
+	Event string            `json:"event"`
+	Prop  string            `json:"prop"`
+	Count int32             `json:"count"`
 }
 
 type LensRageElement struct {
@@ -6577,6 +6621,67 @@ func (e BlogPostStatus) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+type BoardReportKind string
+
+const (
+	BoardReportKindInsights   BoardReportKind = "INSIGHTS"
+	BoardReportKindFunnel     BoardReportKind = "FUNNEL"
+	BoardReportKindRetention  BoardReportKind = "RETENTION"
+	BoardReportKindStickiness BoardReportKind = "STICKINESS"
+	BoardReportKindFlow       BoardReportKind = "FLOW"
+)
+
+var AllBoardReportKind = []BoardReportKind{
+	BoardReportKindInsights,
+	BoardReportKindFunnel,
+	BoardReportKindRetention,
+	BoardReportKindStickiness,
+	BoardReportKindFlow,
+}
+
+func (e BoardReportKind) IsValid() bool {
+	switch e {
+	case BoardReportKindInsights, BoardReportKindFunnel, BoardReportKindRetention, BoardReportKindStickiness, BoardReportKindFlow:
+		return true
+	}
+	return false
+}
+
+func (e BoardReportKind) String() string {
+	return string(e)
+}
+
+func (e *BoardReportKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = BoardReportKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid BoardReportKind", str)
+	}
+	return nil
+}
+
+func (e BoardReportKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *BoardReportKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e BoardReportKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 type BundleInputType string
 
 const (
@@ -7735,6 +7840,65 @@ func (e *InventoryMode) UnmarshalJSON(b []byte) error {
 }
 
 func (e InventoryMode) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type LensPlanIssueKind string
+
+const (
+	LensPlanIssueKindUnknownEvent LensPlanIssueKind = "UNKNOWN_EVENT"
+	LensPlanIssueKindUnknownProp  LensPlanIssueKind = "UNKNOWN_PROP"
+	LensPlanIssueKindBadType      LensPlanIssueKind = "BAD_TYPE"
+	LensPlanIssueKindServerProp   LensPlanIssueKind = "SERVER_PROP"
+)
+
+var AllLensPlanIssueKind = []LensPlanIssueKind{
+	LensPlanIssueKindUnknownEvent,
+	LensPlanIssueKindUnknownProp,
+	LensPlanIssueKindBadType,
+	LensPlanIssueKindServerProp,
+}
+
+func (e LensPlanIssueKind) IsValid() bool {
+	switch e {
+	case LensPlanIssueKindUnknownEvent, LensPlanIssueKindUnknownProp, LensPlanIssueKindBadType, LensPlanIssueKindServerProp:
+		return true
+	}
+	return false
+}
+
+func (e LensPlanIssueKind) String() string {
+	return string(e)
+}
+
+func (e *LensPlanIssueKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = LensPlanIssueKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid LensPlanIssueKind", str)
+	}
+	return nil
+}
+
+func (e LensPlanIssueKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *LensPlanIssueKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e LensPlanIssueKind) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

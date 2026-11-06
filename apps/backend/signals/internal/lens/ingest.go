@@ -40,6 +40,9 @@ type Batch struct {
 	Events []Event `json:"events"`
 }
 
+// The events binned into the heatmap grid
+var heatmapEvents = map[string]bool{"click": true, "move": true, "scroll": true}
+
 type cellKey struct {
 	page, viewport, state, kind string
 	x, y                        int
@@ -52,6 +55,9 @@ type elemKey struct {
 func (s *Service) Ingest(ctx context.Context, channelID uuid.UUID, anonID string, hit analytics.Hit, b Batch, verifiedCustomer uuid.UUID) {
 	kept := b.Events[:0]
 	for i := range b.Events {
+		if hit.IsBot && heatmapEvents[b.Events[i].Type] {
+			continue // a crawler's clicks and scrolls would skew the heatmaps, which have no bot filter
+		}
 		if clean(&b.Events[i]) {
 			kept = append(kept, b.Events[i])
 		}
@@ -101,9 +107,6 @@ func (s *Service) Ingest(ctx context.Context, channelID uuid.UUID, anonID string
 		}
 	}
 
-	if hit.IsBot { // a crawler's clicks and scrolls would skew the heatmaps, which have no bot filter
-		return
-	}
 	// The grid goes to the spine as raw increments - a viral page would turn per-cell upserts into hot-row lock contention
 	// Key and timestamp both come from the first event, so a sendBeacon retransmit reproduces the flush byte-for-byte and collapses on the same dedupe key
 	batchKey, at := anonID, time.Time{}
@@ -203,15 +206,9 @@ func (s *Service) recordView(ctx context.Context, channelID uuid.UUID, anonID st
 	if ip := analytics.AnonymizeIP(hit.IP); ip != "" {
 		props["ip"] = ip
 	}
-	// A bot that renders JS fires the tracker too, so flag it and keep human Lens metrics honest - comprehensive crawl analytics come from the server-side beacon instead
+	// Comprehensive crawl analytics come from the server-side beacon, this only keeps human Lens metrics honest
 	if hit.IsBot {
-		props["is_bot"] = true
-		if hit.BotName != "" {
-			props["bot_name"] = hit.BotName
-		}
-		if hit.BotCat != "" {
-			props["bot_category"] = hit.BotCat
-		}
+		hit.FlagBot(props)
 	} else if s.rollup != nil {
 		// Feeds the bot dashboard's bot-vs-human counter, the Lens-hub view breakdowns and the visitor seen-table, so the hub reads bounded rollups rather than raw spine events - bots are excluded, their crawls counted via the beacon
 		s.rollup.AddHumanView(channelID, e.PageKey, hit.Device, e.Referrer, anonID, hit.At)
@@ -235,11 +232,7 @@ func (s *Service) planned(channelID uuid.UUID, name string, e Event) bool {
 	keep, issues := analytics.ApplyPlan(name, e.Props)
 	if s.rollup != nil {
 		for _, is := range issues {
-			key := is.Event
-			if is.Prop != "" {
-				key += "." + is.Prop
-			}
-			s.rollup.AddSignal(channelID, is.Kind, key, msToTime(e.TS))
+			s.rollup.AddSignal(channelID, is.Kind, is.Key(), msToTime(e.TS))
 		}
 	}
 	return keep
@@ -248,23 +241,18 @@ func (s *Service) planned(channelID uuid.UUID, name string, e Event) bool {
 func (s *Service) recordCustom(ctx context.Context, channelID uuid.UUID, anonID string, hit analytics.Hit, e Event) {
 	props := map[string]any{"name": e.Name, "page_key": e.PageKey}
 	maps.Copy(props, e.Props)
-	if hit.IsBot { // a bot that runs the tracker sends interactions too - flagged like its page views, and kept out of the human rollups
-		props["is_bot"] = true
-		if hit.BotName != "" {
-			props["bot_name"] = hit.BotName
-		}
-		if hit.BotCat != "" {
-			props["bot_category"] = hit.BotCat
-		}
-	} else {
+	name := customName(e.Name)
+	// A bot's interactions stay out of the human rollups, and a promoted event has its own spine name instead of a rollup
+	if hit.IsBot {
+		hit.FlagBot(props)
+	} else if name == analytics.EventCustom {
 		switch e.Name {
-		case sigRageClick, sigDeadClick, sigJSError, sigWebVitals:
+		case analytics.EventRageClick, analytics.EventDeadClick, analytics.EventJSError, analytics.EventWebVitals:
 			// Reserved UX signals roll into their own dim and bump the recording's counter, but do NOT feed the interactions list - still stored on the spine, whose raw props drive the errors list and vitals percentiles
 			s.recordSignal(ctx, channelID, e)
-		case sigSearch:
+		case analytics.EventSearch:
 			// On-site search rolls the normalized term into dim='search', plus 'search_zero' when it returned nothing - kept out of the interactions list, with raw props on the spine for a future search-to-conversion funnel
 			s.recordSearch(ctx, channelID, e)
-		case analytics.EventProductFilter, analytics.EventViewItem, analytics.EventBeginCheckout, analytics.EventPurchase:
 		default:
 			if s.rollup != nil {
 				// Named UI interactions stay 'custom' and feed the hub's interactions list
@@ -273,7 +261,7 @@ func (s *Service) recordCustom(ctx context.Context, channelID uuid.UUID, anonID 
 		}
 	}
 	_, _ = s.rec.RecordWeb(ctx, analytics.WebSpec{
-		EventName: customName(e.Name),
+		EventName: name,
 		ChannelID: channelID,
 		AnonID:    anonID,
 		EventID:   orEventID(e.ID),
@@ -297,11 +285,11 @@ func customName(name string) string {
 func (s *Service) recordSignal(ctx context.Context, channelID uuid.UUID, e Event) {
 	var dim, kind string
 	switch e.Name {
-	case sigRageClick:
+	case analytics.EventRageClick:
 		dim, kind = "rage", "rage"
-	case sigDeadClick:
+	case analytics.EventDeadClick:
 		dim, kind = "dead", "dead"
-	case sigJSError:
+	case analytics.EventJSError:
 		dim, kind = "error", "error"
 	}
 	if dim != "" && s.rollup != nil {

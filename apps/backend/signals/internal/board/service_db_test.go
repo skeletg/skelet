@@ -78,6 +78,22 @@ func TestStarterBoardsAreAddedOnce(t *testing.T) {
 	if err != nil || len(again) != 4 {
 		t.Fatalf("a second call left %d boards, %v - want the same four", len(again), err)
 	}
+
+	// Two admins clicking at once still get one set
+	racing := uuid.New()
+	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM boards WHERE channel_id = $1`, racing) })
+	errs := make(chan error, 2)
+	for range 2 {
+		go func() { _, err := svc.CreateStarters(ctx, racing); errs <- err }()
+	}
+	for range 2 {
+		if err := <-errs; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if bs, _ := svc.List(ctx, racing); len(bs) != 4 {
+		t.Fatalf("concurrent starters left %d boards, want 4", len(bs))
+	}
 }
 
 func TestARetiredShopsBoardsGo(t *testing.T) {

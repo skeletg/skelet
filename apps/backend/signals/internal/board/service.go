@@ -3,7 +3,6 @@ package board
 import (
 	"context"
 	"database/sql"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,25 +14,18 @@ type Service struct{ r *repo }
 
 func NewService(conn *sql.DB) *Service { return &Service{r: &repo{conn: conn, q: db.New(conn)}} }
 
-func (s *Service) List(ctx context.Context, channelID uuid.UUID) ([]Board, error) {
+func (s *Service) List(ctx context.Context, channelID uuid.UUID) ([]Summary, error) {
 	return s.r.list(ctx, channelID)
 }
 
 // Get answers not-found for another shop's board too, so an id alone says nothing about other shops
 func (s *Service) Get(ctx context.Context, channelID, id uuid.UUID) (Board, error) {
-	b, err := s.r.get(ctx, id)
-	if err != nil {
-		return Board{}, err
-	}
-	if b.ChannelID != channelID {
-		return Board{}, ErrNotFound
-	}
-	return b, nil
+	return s.r.get(ctx, channelID, id)
 }
 
 func (s *Service) Create(ctx context.Context, channelID uuid.UUID, name string, reports []Report) (Board, error) {
-	b := tidy(Board{ChannelID: channelID, Name: name, Reports: reports})
-	if err := b.validate(); err != nil {
+	b, err := Board{ChannelID: channelID, Name: name, Reports: reports}.normalized()
+	if err != nil {
 		return Board{}, err
 	}
 	return s.r.create(ctx, b)
@@ -41,46 +33,27 @@ func (s *Service) Create(ctx context.Context, channelID uuid.UUID, name string, 
 
 // Save replaces a board's name and reports - readAt is the UpdatedAt the caller loaded, so two admins can't overwrite each other unseen
 func (s *Service) Save(ctx context.Context, channelID, id uuid.UUID, name string, reports []Report, readAt time.Time) (Board, error) {
-	if _, err := s.Get(ctx, channelID, id); err != nil {
-		return Board{}, err
-	}
-	b := tidy(Board{ID: id, ChannelID: channelID, Name: name, Reports: reports})
-	if err := b.validate(); err != nil {
+	b, err := Board{ID: id, ChannelID: channelID, Name: name, Reports: reports}.normalized()
+	if err != nil {
 		return Board{}, err
 	}
 	if err := s.r.save(ctx, b, readAt); err != nil {
 		return Board{}, err
 	}
-	return s.Get(ctx, channelID, id)
+	return s.r.get(ctx, channelID, id)
 }
 
 func (s *Service) Delete(ctx context.Context, channelID, id uuid.UUID) error {
-	if _, err := s.Get(ctx, channelID, id); err != nil {
-		return err
-	}
-	return s.r.delete(ctx, id)
+	return s.r.delete(ctx, channelID, id)
 }
 
 // CreateStarters adds the four starter boards to a shop that has none yet, and does nothing to one that does
-func (s *Service) CreateStarters(ctx context.Context, channelID uuid.UUID) ([]Board, error) {
-	have, err := s.r.list(ctx, channelID)
-	if err != nil || len(have) > 0 {
-		return have, err
-	}
-	for _, st := range Starters {
-		if _, err := s.Create(ctx, channelID, st.Name, st.Reports); err != nil {
-			return nil, err
-		}
+func (s *Service) CreateStarters(ctx context.Context, channelID uuid.UUID) ([]Summary, error) {
+	// Starters are already tidy and valid - TestEveryStarterBoardIsValid holds them to it
+	if err := s.r.createIfNone(ctx, channelID, Starters); err != nil {
+		return nil, err
 	}
 	return s.r.list(ctx, channelID)
-}
-
-func tidy(b Board) Board {
-	b.Name = strings.TrimSpace(b.Name)
-	for i := range b.Reports {
-		b.Reports[i].Title = strings.TrimSpace(b.Reports[i].Title)
-	}
-	return b
 }
 
 // Starters are the boards a new shop can begin from, one per area the seed fills

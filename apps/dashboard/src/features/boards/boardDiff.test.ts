@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { BoardReport } from '@/shared/analytics/report'
+import type { BoardReport } from './report'
 import { boardDiff } from './boardDiff'
 
-const views: BoardReport = { title: 'Views', definition: { kind: 'insights', event: 'page_view' } }
-const funnel: BoardReport = { title: 'Funnel', definition: { kind: 'funnel', steps: ['page_view', 'order_placed'] } }
+const views: BoardReport = { title: 'Views', definition: { kind: 'INSIGHTS', event: 'page_view' } }
+const funnel: BoardReport = { title: 'Funnel', definition: { kind: 'FUNNEL', steps: ['page_view', 'order_placed'] } }
 
 describe('boardDiff', () => {
   it('is empty for an untouched board', () => {

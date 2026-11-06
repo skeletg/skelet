@@ -5,6 +5,7 @@ syntax = "proto3";
 package skelet.signals.v1;
 
 import "google/protobuf/timestamp.proto";
+import "skelet/signals/v1/synapse.proto";
 
 service BoardService {
   rpc ListBoards(ListBoardsRequest) returns (ListBoardsResponse);
@@ -17,6 +18,14 @@ service BoardService {
   rpc CreateStarterBoards(CreateStarterBoardsRequest) returns (CreateStarterBoardsResponse);
 }
 
+// One board in the list, without its reports
+message BoardSummary {
+  string id = 1;
+  string name = 2;
+  google.protobuf.Timestamp updated_at = 3;
+  int32 report_count = 4;
+}
+
 message Board {
   string id = 1;
   string channel_id = 2;
@@ -24,15 +33,29 @@ message Board {
   // What a save sends back as read_at
   google.protobuf.Timestamp updated_at = 4;
   repeated BoardReport reports = 5;
-  // Filled on a list, where reports is empty
-  int32 report_count = 6;
 }
 
 message BoardReport {
   string title = 1;
-  // The report's definition as JSON, version definition_version - Signals refuses fields it doesn't know
-  string definition_json = 2;
-  int32 definition_version = 3;
+  BoardReportDefinition definition = 2;
+}
+
+// One saved report - which engine and its settings, the arguments that engine's Synapse read takes. A zero value is
+// unset; Signals checks the fields its kind needs
+message BoardReportDefinition {
+  string kind = 1; // insights | funnel | retention | stickiness | flow
+  int32 since_days = 2; // 0 = the board's period
+  string event = 3; // insights, stickiness, the flow's focus
+  string measure = 4; // insights: total | unique
+  string unit = 5; // insights and retention: day | week
+  string breakdown = 6; // insights, funnel
+  repeated string steps = 7; // funnel
+  repeated FunnelFilter filters = 8; // funnel
+  int32 window_hours = 9; // funnel
+  string start_event = 10; // retention
+  string return_event = 11; // retention
+  int32 periods = 12; // retention
+  int32 depth = 13; // flow
 }
 
 message ListBoardsRequest {
@@ -40,7 +63,7 @@ message ListBoardsRequest {
 }
 
 message ListBoardsResponse {
-  repeated Board boards = 1;
+  repeated BoardSummary boards = 1;
 }
 
 message GetBoardRequest {
@@ -86,5 +109,5 @@ message CreateStarterBoardsRequest {
 }
 
 message CreateStarterBoardsResponse {
-  repeated Board boards = 1;
+  repeated BoardSummary boards = 1;
 }

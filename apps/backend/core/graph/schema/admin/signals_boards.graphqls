@@ -1,29 +1,82 @@
 # Boards - a shop's shared dashboards of saved reports, kept in Signals. Gated boards.view / boards.manage on the
 # board's channel; each report still runs through the Synapse query of its kind, under that query's own grant.
 
-type Board {
+# One board in the list, without its reports
+type BoardSummary {
   id:          ID!
-  channelId:   ID!
   name:        String!
-  updatedAt:   Time!        # send back as saveBoard's readAt
+  updatedAt:   Time!
   reportCount: Int!
-  reports:     [BoardReport!]!   # empty on the boards list
+}
+
+type Board {
+  id:        ID!
+  channelId: ID!
+  name:      String!
+  updatedAt: Time!        # send back as saveBoard's readAt
+  reports:   [BoardReport!]!
 }
 
 type BoardReport {
   title:      String!
-  # { kind: insights|funnel|retention|stickiness|flow, sinceDays?, event?, measure?, unit?, breakdown?, steps?,
-  #   filters?, windowHours?, startEvent?, returnEvent?, periods?, depth? } - unknown fields are refused
-  definition: JSON!
+  definition: BoardReportDefinition!
+}
+
+enum BoardReportKind {
+  INSIGHTS
+  FUNNEL
+  RETENTION
+  STICKINESS
+  FLOW
+}
+
+# One saved report - which engine and its settings, the arguments that engine's Synapse query takes. Each kind reads
+# its own fields; an unset one takes the query's default
+type BoardReportDefinition {
+  kind:        BoardReportKind!
+  sinceDays:   Int                   # unset = the board's period
+  event:       String                # insights, stickiness, the flow's focus
+  measure:     String                # insights: total | unique
+  unit:        String                # insights and retention: day | week
+  breakdown:   String                # insights, funnel
+  steps:       [String!]             # funnel
+  filters:     [BoardReportFilter!]  # funnel
+  windowHours: Int                   # funnel
+  startEvent:  String                # retention
+  returnEvent: String                # retention
+  periods:     Int                   # retention
+  depth:       Int                   # flow
+}
+
+type BoardReportFilter {
+  step:  Int!   # 0-based
+  key:   String!
+  value: String!
+}
+
+input BoardReportDefinitionInput {
+  kind:        BoardReportKind!
+  sinceDays:   Int
+  event:       String
+  measure:     String
+  unit:        String
+  breakdown:   String
+  steps:       [String!]
+  filters:     [SynapseFunnelFilterInput!]
+  windowHours: Int
+  startEvent:  String
+  returnEvent: String
+  periods:     Int
+  depth:       Int
 }
 
 input BoardReportInput {
   title:      String!
-  definition: JSON!
+  definition: BoardReportDefinitionInput!
 }
 
 extend type Query {
-  boards(channelId: ID!): [Board!]!
+  boards(channelId: ID!): [BoardSummary!]!
   board(channelId: ID!, id: ID!): Board!
 }
 
@@ -33,5 +86,5 @@ extend type Mutation {
   saveBoard(channelId: ID!, id: ID!, name: String!, reports: [BoardReportInput!]!, readAt: Time!): Board!
   deleteBoard(channelId: ID!, id: ID!): Boolean!
   # The four starter boards, for a shop that has none - a shop with any is left as it is
-  createStarterBoards(channelId: ID!): [Board!]!
+  createStarterBoards(channelId: ID!): [BoardSummary!]!
 }
