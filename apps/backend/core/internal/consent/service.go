@@ -2,7 +2,6 @@ package consent
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -50,32 +49,6 @@ func (s *Service) RecordEmailOptIn(ctx context.Context, channelID uuid.UUID, ema
 		}
 	}
 	return nil
-}
-
-// ClaimEmailOptIns gives the customer who proved they own an address the opt-ins a guest gave under it. A choice the account
-// made after the tick stands, which also makes a repeat claim a no-op. Returns how many it applied
-func (s *Service) ClaimEmailOptIns(ctx context.Context, customerID, channelID uuid.UUID, email string) (int, error) {
-	optIns, err := s.repo.ListEmailOptIns(ctx, channelID, strings.ToLower(strings.TrimSpace(email)))
-	if err != nil {
-		return 0, err
-	}
-	n := 0
-	for _, o := range optIns {
-		current, err := s.repo.Get(ctx, customerID, o.Kind)
-		if err != nil {
-			return n, err
-		}
-		if current != nil && !current.UpdatedAt.Before(o.CreatedAt) {
-			continue
-		}
-		switch _, err := s.SetConsent(ctx, customerID, o.Kind, true, o.Source); {
-		case err == nil:
-			n++
-		case !errors.Is(err, ErrUnknownConsent): // a kind the store has since removed is skipped
-			return n, err
-		}
-	}
-	return n, nil
 }
 
 // The dashboard's write - the history names the admin who made it, nil when an integration token did
@@ -191,14 +164,5 @@ func (s *Service) EmailMarketingAllowed(ctx context.Context, channelID uuid.UUID
 	if customerID != nil {
 		return s.IsOptedIn(ctx, *customerID, consentkind.MarketingEmail)
 	}
-	optIns, err := s.repo.ListEmailOptIns(ctx, channelID, strings.ToLower(strings.TrimSpace(email)))
-	if err != nil {
-		return false, err
-	}
-	for _, o := range optIns {
-		if o.Kind == consentkind.MarketingEmail {
-			return true, nil
-		}
-	}
-	return false, nil
+	return s.repo.HasEmailOptIn(ctx, channelID, strings.ToLower(strings.TrimSpace(email)), consentkind.MarketingEmail)
 }

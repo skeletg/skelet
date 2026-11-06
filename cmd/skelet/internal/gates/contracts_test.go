@@ -32,7 +32,10 @@ func contractTree(t *testing.T) string {
 		nginxConf:                     "add_header Content-Security-Policy \"default-src 'self'; img-src 'self' ${UPLOAD_ORIGINS}\" always;\nadd_header Permissions-Policy \"camera=(), geolocation=()\" always;\n",
 		caddyfile:                     "header Content-Security-Policy \"default-src 'self'; img-src 'self' {$UPLOAD_ORIGINS}\"\nheader Permissions-Policy \"camera=(), geolocation=()\"\n",
 		"apps/backend/core/internal/rules/schema.go": "package rules\n\nvar s = `{\"x-widget\": \"segment-picker\"}`\n",
-		widgetReg: "export const FORM_WIDGETS = {\n  'segment-picker': SegmentPicker,\n}\n",
+		widgetReg:  "export const FORM_WIDGETS = {\n  'segment-picker': SegmentPicker,\n}\n",
+		goConsent:  "package auth\n\nvar consentValue = regexp.MustCompile(`^v2:a([01])$`)\n\nvar adClickIDKeys = []string{\"gclid\", \"fbp\"}\n\nvar affiliateClickIDKeys = []string{\"awc\"}\n",
+		tsConsent:  "const V2 = /^v2:a([01])$/;\n",
+		tsClickIDs: "export const CLICK_IDS = [\n  { key: \"gclid\", param: \"gclid\" },\n  { key: \"awc\", param: \"awc\", affiliate: true },\n  { key: \"fbp\", param: \"\" },\n];\n",
 	})
 	git(t, root, "add", "-A")
 	git(t, root, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
@@ -67,7 +70,9 @@ func TestContractsHealthy(t *testing.T) {
 		"ok    storefront-core PUBLIC_OPS == frontCacheableOps (2 ops)",
 		"ok    shop renders all 3 authored node types and variants",
 		"ok    storefront-core evaluator matches the dashboard's, modulo formatting",
-		"ok    packages/storefront-core imports none of next, react, react-dom, next-intl, server-only (3 files)",
+		"ok    packages/storefront-core imports none of next, react, react-dom, next-intl, server-only (5 files)",
+		"ok    core's ParseConsent and storefront-core's parseConsent read ^v2:a([01])$",
+		"ok    2 ad and 1 affiliate click ids on both sides",
 		"ok    packages/storefront-react imports none of next, next-intl (1 files)",
 		"ok    Content-Security-Policy matches " + nginxConf,
 		"ok    Permissions-Policy matches " + caddyfile,
@@ -157,5 +162,19 @@ func TestAMovedCaddyfileFails(t *testing.T) {
 	git(t, root, "add", "-A")
 	if out, code := contractsOut(t, root); code != 1 || !strings.Contains(out, "is missing but a Caddyfile is tracked at deploy/edge/Caddyfile") {
 		t.Errorf("exit %d:\n%s", code, out)
+	}
+}
+
+// A click id the storefront makes an affiliate's while core treats it as an ad id, or a consent format changed on one
+// side, fails the check
+func TestContractsCatchConsentDrift(t *testing.T) {
+	root := contractTree(t)
+	put(t, root, map[string]string{
+		tsConsent:  "const V2 = /^v3:a([01])$/;\n",
+		tsClickIDs: "export const CLICK_IDS = [\n  { key: \"gclid\", param: \"gclid\", affiliate: true },\n  { key: \"awc\", param: \"awc\", affiliate: true },\n  { key: \"fbp\", param: \"\" },\n];\n",
+	})
+	out, code := contractsOut(t, root)
+	if code == 0 || !strings.Contains(out, "consent patterns differ") || !strings.Contains(out, "click ids differ") {
+		t.Fatalf("drift passed, exit %d:\n%s", code, out)
 	}
 }

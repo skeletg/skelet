@@ -66,6 +66,7 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 	if err != nil {
 		return Order{}, err
 	}
+	before := editedLines(o) // each line's net sales as the order stood, for what the edit changed
 	if !editableStatuses[o.Status] {
 		return Order{}, apperr.New("ORDER_NOT_EDITABLE", apperr.ClassConflict,
 			fmt.Sprintf("an order in status %q cannot be edited", o.Status))
@@ -294,7 +295,7 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 	// caps it), amountDue↑ above the authorization needs a re-auth, surfaced here
 	newAmountDue := updated.AmountDue()
 	if s.bus != nil {
-		s.publishDurable(ctx, &OrderEdited{OrderID: o.ID, ChannelID: o.ChannelID, OldAmountDue: oldAmountDue, NewAmountDue: newAmountDue})
+		s.publishDurable(ctx, &OrderEdited{OrderID: o.ID, ChannelID: o.ChannelID, OldAmountDue: oldAmountDue, NewAmountDue: newAmountDue, Before: before})
 	}
 	return s.repo.GetOrderByID(ctx, o.ID)
 }

@@ -34,7 +34,7 @@ func init() {
 			{Key: "advertiser_id", Label: "Advertiser ID", Required: true},
 			{Key: "api_key", Label: "API key", Help: "Awin > Account > API credentials", Required: true, Secret: true},
 			{Key: "commission_group", Label: "Commission group", Help: "The group every sale commissions under - empty for DEFAULT"},
-			{Key: "test", Label: "Test mode", Help: "true marks orders as tests, which Awin doesn't track"},
+			{Key: "test", Label: "Test mode", Help: "true marks orders as tests, which Awin doesn't track", TestMode: true},
 		},
 		Send: Send,
 	})

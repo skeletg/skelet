@@ -14,6 +14,7 @@ type ClickId = {
   affiliate?: boolean; // the merchant may make it necessary, per network
 };
 
+// SYNC: core keeps only the ids apps/backend/core/lib/auth/consent.go lists, under the same ad or affiliate rule - skelet check compares them
 export const CLICK_IDS: ClickId[] = [
   { key: "gclid", param: "gclid", cookie: "sk_gclid", maxAge: 90 * DAY },
   { key: "gbraid", param: "gbraid", cookie: "sk_gbraid", maxAge: 90 * DAY },
