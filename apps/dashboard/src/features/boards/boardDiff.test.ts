@@ -40,7 +40,7 @@ describe('boardDiff', () => {
   it('names the new order when the reports that stayed moved', () => {
     const [v, f] = keyed(saved)
     const d = boardDiff('Mine', saved, 'Mine', [f, v, fresh(views)])
-    expect(d).toContainEqual(expect.objectContaining({ label: 'Report order', before: 'Views, Funnel', after: 'Funnel, Views' }))
+    expect(d).toContainEqual(expect.objectContaining({ label: 'Report order', before: '1. Views, 2. Funnel', after: '2. Funnel, 1. Views' }))
   })
   it("doesn't count a setting cleared back to unset, or set in another order, as a change", () => {
     const [v] = keyed([views])
@@ -49,5 +49,9 @@ describe('boardDiff', () => {
   it('shows a duplicated report as added, not as the one it was copied from', () => {
     const [v] = keyed([views])
     expect(boardDiff('Mine', [views], 'Mine', [v, fresh({ ...v, title: 'Views (copy)' })])).toEqual([expect.objectContaining({ kind: 'add', label: 'Report · Views (copy)' })])
+  })
+  it('shows two reports of the same title swapping places', () => {
+    const [a, b] = keyed([views, views])
+    expect(boardDiff('Mine', [views, views], 'Mine', [b, a])).toEqual([expect.objectContaining({ label: 'Report order', before: '1. Views, 2. Views', after: '2. Views, 1. Views' })])
   })
 })

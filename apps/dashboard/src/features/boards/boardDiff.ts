@@ -37,7 +37,8 @@ export function boardDiff(name: string, reports: BoardReport[], draftName: strin
   for (const d of draft) if (d.from === null) out.push(added(`Report · ${d.title.trim()}`, describeReport(d.definition)))
   const order = draft.flatMap((d) => (d.from === null ? [] : [d.from]))
   if (order.some((f, i) => i > 0 && f < order[i - 1])) {
-    const titles = (positions: number[]) => positions.map((p) => reports[p].title).join(', ')
+    // Numbered, so swapping two reports of the same title still reads as a change
+    const titles = (positions: number[]) => positions.map((p) => `${p + 1}. ${reports[p].title}`).join(', ')
     out.push(changed('Report order', titles([...order].sort((a, b) => a - b)), titles(order)))
   }
   return out.filter((e) => e !== null)
