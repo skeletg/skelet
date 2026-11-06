@@ -39421,9 +39421,17 @@ type LensOverview {
   planIssues:   [LensPlanIssue!]!    # Data health: what ingest stripped against the tracking plan, most frequent first
 }
 
-# One kind of tracking-plan breach in the window (docs/tracking-plan.md)
+# What ingest dropped against the tracking plan (docs/tracking-plan.md)
+enum LensPlanIssueKind {
+  UNKNOWN_EVENT # a $ event the plan doesn't have - the whole event
+  UNKNOWN_PROP  # a property the event's plan entry doesn't list
+  BAD_TYPE      # a planned property with the wrong type
+  SERVER_PROP   # a property only the server may set
+}
+
+# One kind of tracking-plan breach in the window
 type LensPlanIssue {
-  kind:  String!   # plan_unknown_event | plan_unknown_prop | plan_bad_type | plan_server_prop
+  kind:  LensPlanIssueKind!
   event: String!   # the event name, or "custom" for a merchant-named event
   prop:  String!   # empty when the whole event was dropped
   count: Int!
@@ -97583,15 +97591,15 @@ func (ec *executionContext) _LensPlanIssue_kind(ctx context.Context, field graph
 			return obj.Kind, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v model.LensPlanIssueKind) graphql.Marshaler {
+			return ec.marshalNLensPlanIssueKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐLensPlanIssueKind(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
 func (ec *executionContext) fieldContext_LensPlanIssue_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("LensPlanIssue", field, false, false, errors.New("field of type String does not have child fields"))
+	return graphql.NewScalarFieldContext("LensPlanIssue", field, false, false, errors.New("field of type LensPlanIssueKind does not have child fields"))
 }
 
 func (ec *executionContext) _LensPlanIssue_event(ctx context.Context, field graphql.CollectedField, obj *model.LensPlanIssue) (ret graphql.Marshaler) {
@@ -224473,6 +224481,16 @@ func (ec *executionContext) marshalNLensPlanIssue2ᚖgithubᚗcomᚋskeletgᚋsk
 		return graphql.Null
 	}
 	return ec._LensPlanIssue(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNLensPlanIssueKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐLensPlanIssueKind(ctx context.Context, v any) (model.LensPlanIssueKind, error) {
+	var res model.LensPlanIssueKind
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNLensPlanIssueKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐLensPlanIssueKind(ctx context.Context, sel ast.SelectionSet, v model.LensPlanIssueKind) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) marshalNLensRageElement2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐLensRageElementᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LensRageElement) graphql.Marshaler {

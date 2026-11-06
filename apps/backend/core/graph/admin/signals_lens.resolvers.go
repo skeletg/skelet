@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"math"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
@@ -31,7 +32,7 @@ func (r *queryResolver) LensOverview(ctx context.Context, channelID string, sinc
 		PlanIssues:   []*model.LensPlanIssue{},
 	}
 	for _, i := range ov.GetPlanIssues() {
-		out.PlanIssues = append(out.PlanIssues, &model.LensPlanIssue{Kind: i.GetKind(), Event: i.GetEvent(), Prop: i.GetProp(), Count: int32(min(i.GetCount(), math.MaxInt32))})
+		out.PlanIssues = append(out.PlanIssues, &model.LensPlanIssue{Kind: model.LensPlanIssueKind(strings.ToUpper(strings.TrimPrefix(i.GetKind(), "plan_"))), Event: i.GetEvent(), Prop: i.GetProp(), Count: int32(min(i.GetCount(), math.MaxInt32))})
 	}
 	for _, p := range ov.GetTopPages() {
 		out.TopPages = append(out.TopPages, &model.LensPageStat{

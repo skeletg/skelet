@@ -11,9 +11,17 @@ type LensOverview {
   planIssues:   [LensPlanIssue!]!    # Data health: what ingest stripped against the tracking plan, most frequent first
 }
 
-# One kind of tracking-plan breach in the window (docs/tracking-plan.md)
+# What ingest dropped against the tracking plan (docs/tracking-plan.md)
+enum LensPlanIssueKind {
+  UNKNOWN_EVENT # a $ event the plan doesn't have - the whole event
+  UNKNOWN_PROP  # a property the event's plan entry doesn't list
+  BAD_TYPE      # a planned property with the wrong type
+  SERVER_PROP   # a property only the server may set
+}
+
+# One kind of tracking-plan breach in the window
 type LensPlanIssue {
-  kind:  String!   # plan_unknown_event | plan_unknown_prop | plan_bad_type | plan_server_prop
+  kind:  LensPlanIssueKind!
   event: String!   # the event name, or "custom" for a merchant-named event
   prop:  String!   # empty when the whole event was dropped
   count: Int!

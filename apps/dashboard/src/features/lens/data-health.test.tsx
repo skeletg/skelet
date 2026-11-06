@@ -1,14 +1,19 @@
-import { render, screen } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { DataHealthSection } from './LensHome'
+import type { ReactNode } from 'react'
+import { renderPage } from '@/test/page-harness'
+import { DataHealthSection } from './DataHealthSection'
+
+// DataTable keeps its column and density preferences per admin, so the section renders as a page would
+const show = (node: ReactNode) => renderPage({ path: '/', routes: { '/': node }, mocks: [], adminId: 'admin-1' })
 
 describe('DataHealthSection', () => {
   it('lists what ingest dropped, with a readable issue', () => {
-    render(
+    show(
       <DataHealthSection
         issues={[
-          { kind: 'plan_server_prop', event: 'page_view', prop: 'revenue_cents', count: 1200 },
-          { kind: 'plan_unknown_event', event: '$made_up', prop: '', count: 3 },
+          { kind: 'SERVER_PROP', event: 'page_view', prop: 'revenue_cents', count: 1200 },
+          { kind: 'UNKNOWN_EVENT', event: '$made_up', prop: '', count: 3 },
         ]}
       />,
     )
@@ -20,7 +25,7 @@ describe('DataHealthSection', () => {
   })
 
   it('says so when every event matched', () => {
-    render(<DataHealthSection issues={[]} />)
+    show(<DataHealthSection issues={[]} />)
     expect(screen.getByText('Every browser event matched the tracking plan.')).toBeTruthy()
   })
 })

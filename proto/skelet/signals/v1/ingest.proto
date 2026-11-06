@@ -170,6 +170,7 @@ message RecordActivityRequest {
   string channel_id = 3;
   // One of customer_id or anon_id is required - an action attributable to nobody has no place on a profile
   optional string customer_id = 4;
+  // On a login or registered account event with customer_id too, the visitor signed in as that customer - the suite stitches the two
   string anon_id = 5;
   google.protobuf.Timestamp at = 6;
   // The event's properties as a JSON object, opaque to the wire
