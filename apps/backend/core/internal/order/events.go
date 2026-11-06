@@ -355,6 +355,8 @@ type OrderEdited struct {
 	ChannelID    uuid.UUID
 	OldAmountDue int64
 	NewAmountDue int64
+	// The lines and their net sales before a line edit, empty for an address edit - what changed is them against now
+	Before []EditedLine `json:",omitempty"`
 }
 
 func (*OrderEdited) Type() string                { return EventEdited }

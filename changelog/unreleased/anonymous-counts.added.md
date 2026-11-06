@@ -5,3 +5,5 @@
     much of a total they make up.
   - The new `general/privacy/aggregate_counts` setting (on by default) turns it off.
   - `docs/privacy.md` explains the legal basis and gives suggested privacy-notice text.
+- **`skelet check` compares the consent cookie's format and the forwarded click ids** between core
+  and the storefront, so a change on one side alone fails the check.

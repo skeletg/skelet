@@ -304,6 +304,7 @@ export default async function CheckoutPage({
                 savedCards={savedCards}
                 storeCreditBalance={customer?.storeCreditBalance ?? 0}
                 signedIn={!!customer}
+                emailOptIn={!(customer && offer?.isGuest)}
                 consent={settings.termsConsent}
                 currency={currency}
               />
