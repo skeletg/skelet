@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -49,49 +48,62 @@ func (s *Store) Funnel(ctx context.Context, channelID uuid.UUID, q analytics.Fun
 	if q.Window > 0 {
 		window = q.Window.Milliseconds()
 	}
-	conds := make([][]any, len(steps)) // each step's condition args, in the order its SQL binds them
-	condSQL := make([]string, len(steps))
+	conds := make([]string, len(steps))
+	condArgs := make([][]any, len(steps))
 	for i, st := range steps {
-		condSQL[i], conds[i] = "e.event_name = ?", []any{st}
+		conds[i], condArgs[i] = "e.event_name = ?", []any{st}
 		for _, f := range q.Filters {
 			if f.Step == i {
-				condSQL[i] += " AND " + propText + " = ?"
-				conds[i] = append(conds[i], f.Key, f.Key, f.Key, f.Value)
+				prop, propArgs := propText(f.Key)
+				conds[i] += " AND " + prop + " = ?"
+				condArgs[i] = append(append(condArgs[i], propArgs...), f.Value)
 			}
 		}
 	}
-	cols := make([]string, len(steps))
-	inHolders := make([]string, len(steps))
-	for i := range steps {
-		cols[i] = fmt.Sprintf("toInt64(countIf(level >= %d))", i+1)
-		inHolders[i] = "?"
-	}
 	var args []any
-	for _, c := range conds {
-		args = append(args, c...)
+	for _, a := range condArgs {
+		args = append(args, a...)
 	}
-	// The breakdown is the property's value on a person's first step-one event
-	bd := "''"
+	// The breakdown is the property's value on a person's first step-one event - a person who never reached step one
+	// lands in '' with nothing counted, and HAVING drops that group
+	bd := "'(none)'"
 	if q.Breakdown != "" {
-		bd = "argMinIf(" + propText + ", e.occurred_at, " + condSQL[0] + ")"
-		args = append(append(args, q.Breakdown, q.Breakdown, q.Breakdown), conds[0]...)
+		label, labelArgs := propLabel(q.Breakdown)
+		bd = "argMinIf(" + label + ", e.occurred_at, " + conds[0] + ")"
+		args = append(append(args, labelArgs...), condArgs[0]...)
 	}
 	args = append(args, channelID, since)
-	for _, st := range steps {
+	cols := make([]string, len(steps))      // people per step and group
+	names := make([]string, len(steps))     // the same, by name
+	totals := make([]string, len(steps))    // people per step over every group, before the cap
+	inHolders := make([]string, len(steps)) // event_name IN (...)
+	for i, st := range steps {
+		names[i] = fmt.Sprintf("c%d", i+1)
+		cols[i] = fmt.Sprintf("toInt64(countIf(level >= %d)) AS %s", i+1, names[i])
+		totals[i] = fmt.Sprintf("sum(%s) OVER ()", names[i])
+		inHolders[i] = "?"
 		args = append(args, st)
 	}
+	args = append(args, uint64(analytics.FunnelBreakdownMax))
 	// the empty-actor guard - without it every unattributable event (zero customer, empty anon) merges into one phantom person whose combined stream walks the funnel
 	sql := fmt.Sprintf(`
-		SELECT if(bd = '', '(none)', bd) AS value, %s
+		SELECT bd, %s, %s
 		FROM (
-			SELECT windowFunnel(%d)(toUInt64(toUnixTimestamp64Milli(e.occurred_at)), %s) AS level, %s AS bd
-			FROM analytics_events AS e FINAL
-			WHERE e.channel_id = ? AND e.occurred_at >= ? AND %s AND e.event_name IN (%s)
-			  AND %s != ''
-			GROUP BY %s
+			SELECT bd, %s
+			FROM (
+				SELECT windowFunnel(%d)(toUInt64(toUnixTimestamp64Milli(e.occurred_at)), %s) AS level, %s AS bd
+				FROM analytics_events AS e FINAL
+				WHERE e.channel_id = ? AND e.occurred_at >= ? AND %s AND e.event_name IN (%s)
+				  AND %s != ''
+				GROUP BY %s
+			)
+			GROUP BY bd
+			HAVING c1 > 0
 		)
-		GROUP BY value`,
-		strings.Join(cols, ", "), window, strings.Join(condSQL, ", "), bd,
+		ORDER BY c1 DESC, bd
+		LIMIT ?`,
+		strings.Join(names, ", "), strings.Join(totals, ", "), strings.Join(cols, ", "),
+		window, strings.Join(conds, ", "), bd,
 		notBot, strings.Join(inHolders, ", "), resolvedActor, resolvedActor)
 	rows, err := s.conn.Query(ctx, sql, args...)
 	if err != nil {
@@ -104,52 +116,42 @@ func (s *Store) Funnel(ctx context.Context, channelID uuid.UUID, q analytics.Fun
 		for i := range b.Counts {
 			dest = append(dest, &b.Counts[i])
 		}
+		for i := range out.Steps {
+			dest = append(dest, &out.Steps[i].Count)
+		}
 		if err := rows.Scan(dest...); err != nil {
 			return out, err
 		}
-		for i, n := range b.Counts {
-			out.Steps[i].Count += n
-		}
-		if b.Counts[0] > 0 { // people with only later steps never started, so they'd be an all-zero row
+		if q.Breakdown != "" {
 			out.Breakdown = append(out.Breakdown, b)
 		}
 	}
-	if err := rows.Err(); err != nil {
-		return out, err
-	}
-	if q.Breakdown == "" {
-		out.Breakdown = nil
-		return out, nil
-	}
-	sort.Slice(out.Breakdown, func(i, j int) bool {
-		a, b := out.Breakdown[i], out.Breakdown[j]
-		if a.Counts[0] != b.Counts[0] {
-			return a.Counts[0] > b.Counts[0]
-		}
-		return a.Value < b.Value
-	})
-	if len(out.Breakdown) > analytics.FunnelBreakdownMax {
-		out.Breakdown = out.Breakdown[:analytics.FunnelBreakdownMax]
-	}
-	return out, nil
+	return out, rows.Err()
 }
 
-// propText is a property as text, for filters and breakdowns - numbers and bools as written, missing as ” - binding
-// the key three times
-const propText = "if(JSONType(e.properties, ?) = 'String', JSONExtractString(e.properties, ?), JSONExtractRaw(e.properties, ?))"
+// propText is a property as text, for filters and breakdowns: numbers and bools as written, missing or JSON null as ”.
+// It returns its own args because the key binds once per mention
+func propText(key string) (string, []any) {
+	return "multiIf(JSONType(e.properties, ?) = 'String', JSONExtractString(e.properties, ?), " +
+			"JSONType(e.properties, ?) = 'Null', '', JSONExtractRaw(e.properties, ?))",
+		[]any{key, key, key, key}
+}
+
+// propLabel is propText as a group label, '(none)' where it's empty
+func propLabel(key string) (string, []any) {
+	sql, args := propText(key)
+	return "ifNull(nullIf(" + sql + ", ''), '(none)')", args
+}
 
 func (s *Store) Insights(ctx context.Context, channelID uuid.UUID, event, breakdown, measure, unit string, since, now time.Time) (analytics.Insights, error) {
 	bucket := "toStartOfDay(e.occurred_at)"
 	if unit == "week" {
 		bucket = "toStartOfWeek(e.occurred_at, 1)" // Monday, matching date_trunc('week')
 	}
-	// breakdown: no key -> '(none)'; else missing/'' -> '(none)' - non-string values stringify via JSONExtractRaw - bare JSONExtractString returns '' for numbers and booleans, folding them all into '(none)'
+	// breakdown: no key, or the property missing or empty -> '(none)'
 	bdCol, bdArgs := "'(none)'", []any(nil)
 	if breakdown != "" {
-		bdCol = "if((multiIf(NOT JSONHas(e.properties, ?), '', " +
-			"JSONType(e.properties, ?) = 'String', JSONExtractString(e.properties, ?), " +
-			"JSONType(e.properties, ?) = 'Null', '', JSONExtractRaw(e.properties, ?)) AS bdv) = '', '(none)', bdv)"
-		bdArgs = []any{breakdown, breakdown, breakdown, breakdown, breakdown}
+		bdCol, bdArgs = propLabel(breakdown)
 	}
 	evCond, evArg := "", []any(nil)
 	if event != "" {
