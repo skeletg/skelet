@@ -1,11 +1,12 @@
-import { describeReport, type BoardReport } from '@/shared/analytics/report'
-import { added, changed, removed } from '@/shared/saving/diff'
+import { added, changed, removed, sameJson } from '@/shared/saving/diff'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
+import { reportOf, type BoardReport, type ReportDefinition } from './report'
 
 // What "Add to board" hands this page - a report staged on arrival, saved like any other edit
 export type AddToBoardState = { add?: BoardReport }
 
-const same = (a: BoardReport, b: BoardReport) => a.title === b.title && JSON.stringify(a.definition) === JSON.stringify(b.definition)
+const same = (a: BoardReport, b: BoardReport) => a.title === b.title && sameJson(a.definition, b.definition)
+const describe = (d: ReportDefinition) => reportOf(d)?.describe(d) ?? d.kind
 
 // boardDiff is the staged change list the header Save reviews: the name, each report added or taken off, a title
 // changed in place, and the order when only that moved
@@ -21,7 +22,7 @@ export function boardDiff(name: string, reports: BoardReport[], draftName: strin
     else gone.push(r)
   }
   for (const g of [...gone]) {
-    const i = left.findIndex((d) => JSON.stringify(d.definition) === JSON.stringify(g.definition))
+    const i = left.findIndex((d) => sameJson(d.definition, g.definition))
     if (i >= 0) {
       const t = changed(`Report · ${g.title} · title`, g.title, left[i].title.trim())
       if (t) out.push(t)
@@ -29,8 +30,8 @@ export function boardDiff(name: string, reports: BoardReport[], draftName: strin
       gone.splice(gone.indexOf(g), 1)
     }
   }
-  for (const g of gone) out.push(removed(`Report · ${g.title}`, describeReport(g.definition)))
-  for (const a of left) out.push(added(`Report · ${a.title}`, describeReport(a.definition)))
+  for (const g of gone) out.push(removed(`Report · ${g.title}`, describe(g.definition)))
+  for (const a of left) out.push(added(`Report · ${a.title}`, describe(a.definition)))
   if (out.length === 0) {
     const order = (rs: BoardReport[]) => rs.map((r) => r.title).join(', ')
     const o = changed('Report order', order(reports), order(draft))

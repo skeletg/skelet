@@ -1,55 +1,44 @@
-// A saved report - which Synapse engine and its settings, as a board stores it (Signals' board.Definition, version 1).
-// Signals refuses fields it doesn't know, so this type and that struct move together
-export type ReportKind = 'insights' | 'funnel' | 'retention' | 'stickiness' | 'flow'
+import type { BoardReportDefinitionInput, BoardReportKind } from '@/graphql/schema.types'
+import type { ReactNode } from 'react'
+import type { BoardReportFieldsFragment } from './Boards.gql'
+import { FlowTile, FunnelTile, InsightsTile, RetentionTile, StickinessTile, type TileProps } from './tiles'
 
-export type ReportDefinition = {
-  kind: ReportKind
-  sinceDays?: number // unset = the board's period
-  event?: string // insights, stickiness, the flow's focus
-  measure?: 'total' | 'unique'
-  unit?: 'day' | 'week'
-  breakdown?: string
-  steps?: string[]
-  filters?: { step: number; key: string; value: string }[]
-  windowHours?: number
-  startEvent?: string
-  returnEvent?: string
-  periods?: number
-  depth?: number
-}
-
+// A saved report - which Synapse engine and its settings, as a board stores it
+export type ReportKind = BoardReportKind
+export type ReportDefinition = BoardReportDefinitionInput
 export type BoardReport = { title: string; definition: ReportDefinition }
 
-export const REPORT_KIND_LABEL: Record<ReportKind, string> = {
-  insights: 'Insights',
-  funnel: 'Funnel',
-  retention: 'Retention',
-  stickiness: 'Engagement',
-  flow: 'Flow',
-}
-
-// Drops unset keys, so a definition built from page state compares and saves the same as one read back
-export function cleanDefinition(d: ReportDefinition): ReportDefinition {
+// A definition as the input takes it: unset keys dropped, and no __typename, which Apollo adds to every object a query
+// reads and an input refuses. A definition built from page state and one read back then compare and save the same
+export function cleanDefinition(d: ReportDefinition | BoardReportFieldsFragment['definition']): ReportDefinition {
+  const { filters, ...rest } = d
+  const fields = { ...rest, filters: filters?.map(({ step, key, value }) => ({ step, key, value })) }
   return Object.fromEntries(
-    Object.entries(d).filter(([, v]) => v !== undefined && v !== null && v !== '' && !(Array.isArray(v) && v.length === 0)),
+    Object.entries(fields).filter(
+      ([k, v]) => k !== '__typename' && v !== undefined && v !== null && v !== '' && !(Array.isArray(v) && v.length === 0),
+    ),
   ) as ReportDefinition
 }
 
-// One line saying what a report counts, for the save dialog and a tile's subtitle
-export function describeReport(d: ReportDefinition): string {
-  switch (d.kind) {
-    case 'insights':
-      return `${d.measure === 'unique' ? 'People doing' : 'Count of'} ${d.event || 'any event'}${d.breakdown ? ` by ${d.breakdown}` : ''}`
-    case 'funnel':
-      return (d.steps ?? []).join(' → ') + (d.windowHours ? ` within ${d.windowHours} h` : '')
-    case 'retention':
-      return `${d.startEvent} then ${d.returnEvent}, by ${d.unit ?? 'day'}`
-    case 'stickiness':
-      return `Returning on ${d.event || 'any activity'}`
-    case 'flow':
-      return `After ${d.event}`
-  }
+export const cleanReport = (r: BoardReportFieldsFragment): BoardReport => ({ title: r.title, definition: cleanDefinition(r.definition) })
+
+// Each report kind once: its name, the one line saying what it counts, and the tile that runs it through the Synapse
+// query of its kind - the same read the report page makes. An unset setting takes that query's own default
+export const REPORTS: Record<ReportKind, { label: string; describe: (d: ReportDefinition) => string; Tile: (p: TileProps) => ReactNode }> = {
+  INSIGHTS: {
+    label: 'Insights',
+    describe: (d) => `${d.measure === 'unique' ? 'People doing' : 'Count of'} ${d.event || 'any event'}${d.breakdown ? ` by ${d.breakdown}` : ''}`,
+    Tile: InsightsTile,
+  },
+  FUNNEL: {
+    label: 'Funnel',
+    describe: (d) => (d.steps ?? []).join(' → ') + (d.windowHours ? ` within ${d.windowHours} h` : ''),
+    Tile: FunnelTile,
+  },
+  RETENTION: { label: 'Retention', describe: (d) => `${d.startEvent} then ${d.returnEvent}, by ${d.unit ?? 'day'}`, Tile: RetentionTile },
+  STICKINESS: { label: 'Engagement', describe: (d) => `Returning on ${d.event || 'any activity'}`, Tile: StickinessTile },
+  FLOW: { label: 'Flow', describe: (d) => `After ${d.event}`, Tile: FlowTile },
 }
 
-// The board-wide period every report without its own uses
-export const PERIODS = [7, 30, 90, 180] as const
+// A kind this build doesn't know - saved by a newer one - has no entry
+export const reportOf = (d: ReportDefinition) => REPORTS[d.kind] as (typeof REPORTS)[ReportKind] | undefined

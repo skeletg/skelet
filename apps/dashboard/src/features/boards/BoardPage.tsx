@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { ChevronDownIcon, ChevronUpIcon, Trash2Icon, XIcon } from 'lucide-react'
@@ -12,11 +12,11 @@ import { useConfigScope } from '@/lib/config-scope'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 import { PeriodPicker } from '@/shared/analytics/PeriodPicker'
-import { REPORT_KIND_LABEL, describeReport, type BoardReport } from '@/shared/analytics/report'
 import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
 import { useSaveRegistry, useSaveSection } from '@/shared/saving/saveRegistry'
 import { BoardDocument, BoardsDocument, DeleteBoardDocument, SaveBoardDocument } from './Boards.gql'
 import { boardDiff, type AddToBoardState } from './boardDiff'
+import { cleanReport, reportOf, type BoardReport } from './report'
 import { ReportTile } from './ReportTile'
 
 export function BoardPage() {
@@ -29,7 +29,7 @@ export function BoardPage() {
   const canManage = isChannel && canAccessChannelScope('boards.manage', channelId)
   const { data, loading, error } = useQuery(BoardDocument, { variables: { channelId, id }, skip: !isChannel || !id })
   const board = data?.board
-  const saved: BoardReport[] = (board?.reports ?? []) as BoardReport[]
+  const saved = useMemo(() => (board?.reports ?? []).map(cleanReport), [board])
 
   const [draftName, setDraftName] = useState('')
   const [draft, setDraft] = useState<BoardReport[]>([])
@@ -40,7 +40,7 @@ export function BoardPage() {
   if (board && loadedId !== board.id) {
     setLoadedId(board.id)
     setDraftName(board.name)
-    setDraft(arriving ? [...(board.reports as BoardReport[]), arriving] : (board.reports as BoardReport[]))
+    setDraft(arriving ? [...saved, arriving] : saved)
   }
   useEffect(() => {
     if (arriving) navigate(location.pathname, { replace: true, state: null }) // a refresh mustn't add it a second time
@@ -63,10 +63,10 @@ export function BoardPage() {
       save: async () => {
         if (!board) return
         const res = await saveBoard({
-          variables: { channelId, id: board.id, name: draftName.trim(), reports: draft.map((r) => ({ title: r.title.trim(), definition: r.definition })), readAt: board.updatedAt },
+          variables: { channelId, id: board.id, name: draftName.trim(), reports: draft.map((r) => ({ ...r, title: r.title.trim() })), readAt: board.updatedAt },
         })
         const next = res.data?.saveBoard
-        if (next) setDraft(next.reports as BoardReport[])
+        if (next) setDraft(next.reports.map(cleanReport))
       },
     },
     registry.contextValue,
@@ -170,7 +170,7 @@ export function BoardPage() {
                       <h3 className="font-medium">{r.title}</h3>
                     )}
                     <p className="mt-1 truncate text-xs text-muted-foreground">
-                      {REPORT_KIND_LABEL[r.definition.kind] ?? r.definition.kind} · {describeReport(r.definition)}
+                      {reportOf(r.definition)?.label ?? r.definition.kind} · {reportOf(r.definition)?.describe(r.definition)}
                     </p>
                   </div>
                   {canManage && (

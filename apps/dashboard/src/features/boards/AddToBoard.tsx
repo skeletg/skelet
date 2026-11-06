@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { usePermissions } from '@/shared/auth/usePermissions'
-import { cleanDefinition, describeReport, type ReportDefinition } from '@/shared/analytics/report'
+import { REPORTS, cleanDefinition, type ReportDefinition } from './report'
 import { BoardsDocument, CreateBoardDocument } from './Boards.gql'
 import type { AddToBoardState } from './boardDiff'
 
@@ -53,7 +53,7 @@ export function AddToBoard({ channelId, title, definition }: { channelId: string
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Add to board</DialogTitle>
-            <DialogDescription>{describeReport(report.definition)}</DialogDescription>
+            <DialogDescription>{REPORTS[report.definition.kind].describe(report.definition)}</DialogDescription>
           </DialogHeader>
           <form
             className="space-y-3"

@@ -8,32 +8,13 @@ import {
   SynapseRetentionDocument,
   SynapseStickinessDocument,
 } from '@/features/synapse/Synapse.gql'
-import type { ReportDefinition } from '@/shared/analytics/report'
+import type { ReportDefinition } from './report'
 
 const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0)
 
-// ReportTile runs one saved report through the Synapse query of its kind - the same reads the report pages make
-export function ReportTile({ channelId, definition, sinceDays }: { channelId: string; definition: ReportDefinition; sinceDays: number }) {
-  const days = definition.sinceDays || sinceDays
-  switch (definition.kind) {
-    case 'insights':
-      return <InsightsTile channelId={channelId} d={definition} sinceDays={days} />
-    case 'funnel':
-      return <FunnelTile channelId={channelId} d={definition} sinceDays={days} />
-    case 'retention':
-      return <RetentionTile channelId={channelId} d={definition} sinceDays={days} />
-    case 'stickiness':
-      return <StickinessTile channelId={channelId} d={definition} sinceDays={days} />
-    case 'flow':
-      return <FlowTile channelId={channelId} d={definition} sinceDays={days} />
-    default:
-      return <Note>This report was saved by a newer version and can't be shown here.</Note>
-  }
-}
+export type TileProps = { channelId: string; d: ReportDefinition; sinceDays: number }
 
-type TileProps = { channelId: string; d: ReportDefinition; sinceDays: number }
-
-function Note({ children }: { children: React.ReactNode }) {
+export function Note({ children }: { children: React.ReactNode }) {
   return <p className="py-6 text-center text-sm text-muted-foreground">{children}</p>
 }
 
@@ -69,9 +50,9 @@ function Headline({ value, label, delta }: { value: number; label: string; delta
   )
 }
 
-function InsightsTile({ channelId, d, sinceDays }: TileProps) {
+export function InsightsTile({ channelId, d, sinceDays }: TileProps) {
   const { data, loading, error } = useQuery(SynapseInsightsDocument, {
-    variables: { channelId, event: d.event || null, breakdown: d.breakdown || null, measure: d.measure ?? 'total', unit: d.unit ?? 'day', sinceDays },
+    variables: { channelId, event: d.event || null, breakdown: d.breakdown || null, measure: d.measure ?? null, unit: d.unit ?? null, sinceDays },
   })
   const ins = data?.synapseInsights
   const unique = d.measure === 'unique'
@@ -99,7 +80,7 @@ function InsightsTile({ channelId, d, sinceDays }: TileProps) {
   )
 }
 
-function FunnelTile({ channelId, d, sinceDays }: TileProps) {
+export function FunnelTile({ channelId, d, sinceDays }: TileProps) {
   const { data, loading, error } = useQuery(SynapseFunnelDocument, {
     variables: { channelId, steps: d.steps ?? [], sinceDays, windowHours: d.windowHours ?? null, filters: d.filters ?? [], breakdown: d.breakdown || null },
   })
@@ -126,9 +107,9 @@ function FunnelTile({ channelId, d, sinceDays }: TileProps) {
   )
 }
 
-function RetentionTile({ channelId, d, sinceDays }: TileProps) {
+export function RetentionTile({ channelId, d, sinceDays }: TileProps) {
   const { data, loading, error } = useQuery(SynapseRetentionDocument, {
-    variables: { channelId, startEvent: d.startEvent ?? '', returnEvent: d.returnEvent ?? '', sinceDays, periods: d.periods ?? 8, unit: d.unit ?? 'day' },
+    variables: { channelId, startEvent: d.startEvent ?? '', returnEvent: d.returnEvent ?? '', sinceDays, periods: d.periods ?? null, unit: d.unit ?? null },
   })
   const r = data?.synapseRetention
   const buckets = (r?.buckets ?? []).filter((b) => b.period > 0)
@@ -152,7 +133,7 @@ function RetentionTile({ channelId, d, sinceDays }: TileProps) {
   )
 }
 
-function StickinessTile({ channelId, d, sinceDays }: TileProps) {
+export function StickinessTile({ channelId, d, sinceDays }: TileProps) {
   const { data, loading, error } = useQuery(SynapseStickinessDocument, { variables: { channelId, event: d.event || null, sinceDays } })
   const st = data?.synapseStickiness
   return (
@@ -173,8 +154,8 @@ function StickinessTile({ channelId, d, sinceDays }: TileProps) {
   )
 }
 
-function FlowTile({ channelId, d, sinceDays }: TileProps) {
-  const { data, loading, error } = useQuery(SynapseFlowDocument, { variables: { channelId, event: d.event ?? '', sinceDays, depth: d.depth ?? 3 } })
+export function FlowTile({ channelId, d, sinceDays }: TileProps) {
+  const { data, loading, error } = useQuery(SynapseFlowDocument, { variables: { channelId, event: d.event ?? '', sinceDays, depth: d.depth ?? null } })
   const f = data?.synapseFlow
   return (
     <State loading={loading && !f} error={error}>

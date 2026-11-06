@@ -48,7 +48,7 @@ export function SynapseFlow() {
       <DetailPageHeader
         title="Flow"
         badges={isChannel ? <Badge variant="secondary">{selectedChannel?.name}</Badge> : undefined}
-        actions={isChannel ? <AddToBoard channelId={channelId} title={`After ${eventLabel(focus)}`} definition={{ kind: 'flow', event: focus, depth: 4 }} /> : undefined}
+        actions={isChannel ? <AddToBoard channelId={channelId} title={`After ${eventLabel(focus)}`} definition={{ kind: 'FLOW', event: focus, depth: 4 }} /> : undefined}
         meta={
           <span className="text-xs text-muted-foreground">
             What people do next, one step at a time - click a step to follow the path deeper. People resolved across

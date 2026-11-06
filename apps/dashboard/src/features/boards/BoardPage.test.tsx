@@ -14,7 +14,27 @@ const channelScope = {
   selectedChannel: { id: 'c1', name: 'Main', slug: 'main' },
 } as unknown as ConfigScopeContextValue
 
-const report = (title: string, event: string) => ({ __typename: 'BoardReport', title, definition: { kind: 'stickiness', event } })
+// As the query reads it: every field of the definition, unset ones null, each object with its __typename
+const report = (title: string, event: string) => ({
+  __typename: 'BoardReport',
+  title,
+  definition: {
+    __typename: 'BoardReportDefinition',
+    kind: 'STICKINESS',
+    sinceDays: null,
+    event,
+    measure: null,
+    unit: null,
+    breakdown: null,
+    steps: null,
+    filters: null,
+    windowHours: null,
+    startEvent: null,
+    returnEvent: null,
+    periods: null,
+    depth: null,
+  },
+})
 const board = {
   __typename: 'Board',
   id: 'b1',
@@ -65,7 +85,8 @@ describe('BoardPage', () => {
       id: 'b1',
       name: 'Weekly review',
       readAt: '2026-11-04T10:00:00.123456Z',
-      reports: [{ title: 'Buyers', definition: { kind: 'stickiness', event: 'order_placed' } }],
     })
+    // Sent back as the input takes it - no nulls, no __typename
+    expect((saved as unknown as { reports: unknown[] }).reports).toEqual([{ title: 'Buyers', definition: { kind: 'STICKINESS', event: 'order_placed' } }])
   })
 })
