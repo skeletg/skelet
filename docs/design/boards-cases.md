@@ -1,6 +1,6 @@
 # Boards as owned, shareable cases
 
-This is the design for turning Boards (PR #200, shared per shop) into boards that are owned, private by default and
+This is the design for turning Boards (PR #210, shared per shop) into boards that are owned, private by default and
 shareable, and that can carry a subject such as "sku = X" or "campaign Y" that every report on the board follows.
 Reports are built inside the board, so nobody has to jump between screens. Each section is one stage, written and
 agreed before the next one starts.
@@ -106,8 +106,8 @@ Sources (stage 1): [PostHog dashboards](https://posthog.com/docs/product-analyti
 | Draft | `board_drafts` (new) | `board_id`, `admin_id`, `payload jsonb` (name, subject, reports), `base_updated_at`, `updated_at` |
 | Report | inside the board, as now | A copy per board (answer 1). Gains `size` and an opt-out from the subject |
 
-**A shop board is a board with no owner.** That's what the four starter boards and every board from #200 already
-are, so **#200 needs no data migration**: those rows keep `owner_admin_id = NULL` and keep behaving the way they do
+**A shop board is a board with no owner.** That's what the four starter boards and every board from #210 already
+are, so **#210 needs no data migration**: those rows keep `owner_admin_id = NULL` and keep behaving the way they do
 today. Only boards created from now on get an owner and start private.
 
 ### Who can do what
@@ -171,9 +171,9 @@ Creating a board needs `boards.manage` on the channel, and the creator becomes i
   channel who could already open it, and to superusers. Claiming makes them the owner. Nothing is deleted
   automatically.
 
-### What changes in #200's code
+### What changes in #210's code
 
-- **Proto:** `ListBoards` returns `owner`, `status`, `my_access`, `favourite` and `has_my_draft`. New calls:
+- **Proto:** `BoardSummary` gains `owner`, `status`, `my_access`, `favourite` and `has_my_draft`. New calls:
   `ShareBoard`, `UnshareBoard`, `SetBoardFavourite`, `SaveBoardDraft`, `DiscardBoardDraft`, `TransferBoard` and
   `AdminRemoved`.
 - **Core:** the service token gains `RoleIDs`, there's the `boardShareTargets` query, and `DeleteAdmin` publishes
@@ -270,8 +270,8 @@ asked. Adding `sku` to both is a two-line change in the tracker, and it goes in 
 
 ### What changes
 
-- **Signals `board`:** `Board.Subject []PropertyFilter` (in boards and drafts), and `Definition.IgnoreSubject` and
-  `Definition.SumKey`. `DefinitionVersion` goes to 2, and a version-1 definition reads as before.
+- **Signals `board`:** `Board.Subject []PropertyFilter` (in boards and drafts). `BoardReportDefinition` gains
+  `ignore_subject` and `sum_key`. Both empty mean today's behaviour, so stored reports need no migration.
 - **Proto and core:** each Synapse request takes `filters`, and Insights takes `sum_key`. The relaying resolvers pass
   them through.
 - **Dashboard:**
