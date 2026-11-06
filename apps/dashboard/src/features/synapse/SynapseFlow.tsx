@@ -14,6 +14,7 @@ import { useConfigScope } from '@/lib/config-scope'
 import { eventLabel } from './eventLabel'
 import { type SynapseFlowQuery, SynapseFlowDocument, SynapseOverviewDocument } from './Synapse.gql'
 import { formatNumber } from '@/lib/format'
+import { AddToBoard } from '@/features/boards/AddToBoard'
 
 type FlowNode = { id: string; parentId: string; event: string; depth: number; count: number }
 const TOP = 12 // show the busiest next steps; rarer ones fold into "show more"
@@ -47,6 +48,7 @@ export function SynapseFlow() {
       <DetailPageHeader
         title="Flow"
         badges={isChannel ? <Badge variant="secondary">{selectedChannel?.name}</Badge> : undefined}
+        actions={isChannel ? <AddToBoard channelId={channelId} title={`After ${eventLabel(focus)}`} definition={{ kind: 'FLOW', event: focus, depth: 4 }} /> : undefined}
         meta={
           <span className="text-xs text-muted-foreground">
             What people do next, one step at a time - click a step to follow the path deeper. People resolved across

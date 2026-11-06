@@ -17,6 +17,7 @@ import { aggregateNote } from './aggregateNote'
 import { eventLabel } from './eventLabel'
 import { SynapseInsightsDocument, SynapseOverviewDocument } from './Synapse.gql'
 import { formatNumber, formatShortDay } from '@/lib/format'
+import { AddToBoard } from '@/features/boards/AddToBoard'
 
 type Measure = 'total' | 'unique'
 type Unit = 'day' | 'week'
@@ -91,6 +92,7 @@ export function SynapseInsights() {
       <DetailPageHeader
         title="Insights"
         badges={isChannel ? <Badge variant="secondary">{selectedChannel?.name}</Badge> : undefined}
+        actions={isChannel ? <AddToBoard channelId={channelId} title={event ? eventLabel(event) : 'All events'} definition={{ kind: 'INSIGHTS', event, breakdown, measure, unit }} /> : undefined}
         meta={
           <span className="text-xs text-muted-foreground">
             Ad-hoc breakdown - measure any event over time, split by a property. People resolved across anonymous +

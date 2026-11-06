@@ -808,6 +808,81 @@ export type BlogTagContent = {
   updatedAt: Scalars['Time']['output'];
 };
 
+export type Board = {
+  __typename?: 'Board';
+  channelId: Scalars['ID']['output'];
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  reports: Array<BoardReport>;
+  updatedAt: Scalars['Time']['output'];
+};
+
+export type BoardReport = {
+  __typename?: 'BoardReport';
+  definition: BoardReportDefinition;
+  title: Scalars['String']['output'];
+};
+
+export type BoardReportDefinition = {
+  __typename?: 'BoardReportDefinition';
+  breakdown?: Maybe<Scalars['String']['output']>;
+  depth?: Maybe<Scalars['Int']['output']>;
+  event?: Maybe<Scalars['String']['output']>;
+  filters?: Maybe<Array<BoardReportFilter>>;
+  kind: BoardReportKind;
+  measure?: Maybe<Scalars['String']['output']>;
+  periods?: Maybe<Scalars['Int']['output']>;
+  returnEvent?: Maybe<Scalars['String']['output']>;
+  sinceDays?: Maybe<Scalars['Int']['output']>;
+  startEvent?: Maybe<Scalars['String']['output']>;
+  steps?: Maybe<Array<Scalars['String']['output']>>;
+  unit?: Maybe<Scalars['String']['output']>;
+  windowHours?: Maybe<Scalars['Int']['output']>;
+};
+
+export type BoardReportDefinitionInput = {
+  breakdown?: InputMaybe<Scalars['String']['input']>;
+  depth?: InputMaybe<Scalars['Int']['input']>;
+  event?: InputMaybe<Scalars['String']['input']>;
+  filters?: InputMaybe<Array<SynapseFunnelFilterInput>>;
+  kind: BoardReportKind;
+  measure?: InputMaybe<Scalars['String']['input']>;
+  periods?: InputMaybe<Scalars['Int']['input']>;
+  returnEvent?: InputMaybe<Scalars['String']['input']>;
+  sinceDays?: InputMaybe<Scalars['Int']['input']>;
+  startEvent?: InputMaybe<Scalars['String']['input']>;
+  steps?: InputMaybe<Array<Scalars['String']['input']>>;
+  unit?: InputMaybe<Scalars['String']['input']>;
+  windowHours?: InputMaybe<Scalars['Int']['input']>;
+};
+
+export type BoardReportFilter = {
+  __typename?: 'BoardReportFilter';
+  key: Scalars['String']['output'];
+  step: Scalars['Int']['output'];
+  value: Scalars['String']['output'];
+};
+
+export type BoardReportInput = {
+  definition: BoardReportDefinitionInput;
+  title: Scalars['String']['input'];
+};
+
+export type BoardReportKind =
+  | 'FLOW'
+  | 'FUNNEL'
+  | 'INSIGHTS'
+  | 'RETENTION'
+  | 'STICKINESS';
+
+export type BoardSummary = {
+  __typename?: 'BoardSummary';
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  reportCount: Scalars['Int']['output'];
+  updatedAt: Scalars['Time']['output'];
+};
+
 export type BotAgent = {
   __typename?: 'BotAgent';
   category: Scalars['String']['output'];
@@ -3865,6 +3940,7 @@ export type Mutation = {
   createBlogCategory: BlogCategory;
   createBlogPost: BlogPost;
   createBlogTag: BlogTag;
+  createBoard: Board;
   createCMSAttribute: CmsAttribute;
   createCMSAttributeGroup: CmsAttributeGroup;
   createCMSBlockType: CmsBlockType;
@@ -3905,6 +3981,7 @@ export type Mutation = {
   createShippingMethod: ShippingMethod;
   createShippingZone: ShippingZone;
   createSignupForm: SignupForm;
+  createStarterBoards: Array<BoardSummary>;
   createTaxRule: TaxRule;
   createTrackingDestination: TrackingDestination;
   createUrlRewrite: UrlRewrite;
@@ -3926,6 +4003,7 @@ export type Mutation = {
   deleteBlogPostContent: Scalars['Boolean']['output'];
   deleteBlogTag: Scalars['Boolean']['output'];
   deleteBlogTagContent: Scalars['Boolean']['output'];
+  deleteBoard: Scalars['Boolean']['output'];
   deleteBundleOption: Product;
   deleteBundleOptionContent: Product;
   deleteBundleSelection: Product;
@@ -4091,6 +4169,7 @@ export type Mutation = {
   runAdminAction: AdminActionResult;
   runChatAction: ChatActionResult;
   runScheduledJobNow: ScheduledJob;
+  saveBoard: Board;
   saveChatConversation: Scalars['ID']['output'];
   saveDeliveryPoints: Array<DeliveryPointAdmin>;
   saveEmailBlock: EmailBlockSnippet;
@@ -4771,6 +4850,13 @@ export type MutationCreateBlogTagArgs = {
 };
 
 
+export type MutationCreateBoardArgs = {
+  channelId: Scalars['ID']['input'];
+  name: Scalars['String']['input'];
+  reports?: InputMaybe<Array<BoardReportInput>>;
+};
+
+
 export type MutationCreateCmsAttributeArgs = {
   input: CreateCmsAttributeInput;
 };
@@ -4974,6 +5060,11 @@ export type MutationCreateSignupFormArgs = {
 };
 
 
+export type MutationCreateStarterBoardsArgs = {
+  channelId: Scalars['ID']['input'];
+};
+
+
 export type MutationCreateTaxRuleArgs = {
   input: CreateTaxRuleInput;
 };
@@ -5085,6 +5176,12 @@ export type MutationDeleteBlogTagArgs = {
 export type MutationDeleteBlogTagContentArgs = {
   locale: Scalars['String']['input'];
   tagId: Scalars['ID']['input'];
+};
+
+
+export type MutationDeleteBoardArgs = {
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
 };
 
 
@@ -5974,6 +6071,15 @@ export type MutationRunChatActionArgs = {
 
 export type MutationRunScheduledJobNowArgs = {
   id: Scalars['ID']['input'];
+};
+
+
+export type MutationSaveBoardArgs = {
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
+  name: Scalars['String']['input'];
+  readAt: Scalars['Time']['input'];
+  reports: Array<BoardReportInput>;
 };
 
 
@@ -8033,6 +8139,8 @@ export type Query = {
   blogPosts: BlogPostList;
   blogTag?: Maybe<BlogTag>;
   blogTags: Array<BlogTag>;
+  board: Board;
+  boards: Array<BoardSummary>;
   botTraffic: BotTraffic;
   cacheRevalidations: Array<CacheRevalidation>;
   cacheSurfaces: Array<CacheSurface>;
@@ -8347,6 +8455,17 @@ export type QueryBlogPostsArgs = {
 export type QueryBlogTagArgs = {
   id?: InputMaybe<Scalars['ID']['input']>;
   slug?: InputMaybe<Scalars['String']['input']>;
+};
+
+
+export type QueryBoardArgs = {
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryBoardsArgs = {
+  channelId: Scalars['ID']['input'];
 };
 
 

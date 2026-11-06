@@ -13,6 +13,7 @@ import { useConfigScope } from '@/lib/config-scope'
 import { eventLabel } from './eventLabel'
 import { SynapseOverviewDocument, SynapseRetentionDocument } from './Synapse.gql'
 import { formatNumber } from '@/lib/format'
+import { AddToBoard } from '@/features/boards/AddToBoard'
 
 type Unit = 'day' | 'week'
 type Bucket = { period: number; count: number; eligible: number }
@@ -56,6 +57,7 @@ export function SynapseRetention() {
       <DetailPageHeader
         title="Retention"
         badges={isChannel ? <Badge variant="secondary">{selectedChannel?.name}</Badge> : undefined}
+        actions={isChannel ? <AddToBoard channelId={channelId} title={`${eventLabel(startEvent)} retention`} definition={{ kind: 'RETENTION', startEvent, returnEvent, unit, periods, sinceDays: 60 }} /> : undefined}
         meta={
           <span className="text-xs text-muted-foreground">
             Of the people who did the start event, how many came back and did the return event in each later period -

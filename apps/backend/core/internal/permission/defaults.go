@@ -59,6 +59,11 @@ func init() {
 	RegisterGroup(Group{Slug: "lens", Name: "Web Analytics", SortOrder: 16})                         // own capability, so a role can get analytics access without broader settings/customer reach
 	Register(Definition{Group: "lens", Slug: "lens.view", Name: "View Web Analytics", SortOrder: 1}) // no .manage twin - Lens is query-only, and the one that existed gated nothing; add it back with the write path it guards
 
+	// Boards are shared per shop, and their reports still need the grants of the data they show (customers.view for Synapse)
+	RegisterGroup(Group{Slug: "boards", Name: "Boards", SortOrder: 17})
+	Register(Definition{Group: "boards", Slug: "boards.view", Name: "View Boards", SortOrder: 1})
+	Register(Definition{Group: "boards", Slug: "boards.manage", Name: "Manage Boards", SortOrder: 2})
+
 	// Pulse - campaigns, automation flows and the email builder they render from, each its own group so a
 	// role can be granted one without the others
 	RegisterGroup(Group{Slug: "campaigns", Name: "Email Campaigns", SortOrder: 12})

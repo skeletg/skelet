@@ -157,6 +157,7 @@ func (c *ChannelRoster) sweepRetired(ctx context.Context) error {
 		{"template overrides", c.qs.PruneOrphanedEmailTemplates},
 		{"event destinations", c.qs.PruneOrphanedDestinations},
 		{"experiments", c.qs.PruneOrphanedExperiments},
+		{"boards", c.qs.PruneOrphanedBoards},
 		{"channel settings", c.qs.PruneOrphanedChannelSettings},
 		{"lens traffic", c.qs.PruneOrphanedLensTraffic},
 		{"lens visitors", c.qs.PruneOrphanedLensVisitors},

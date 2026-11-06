@@ -14,6 +14,7 @@ import { useConfigScope } from '@/lib/config-scope'
 import { eventLabel } from './eventLabel'
 import { SynapseFunnelDocument, SynapseOverviewDocument } from './Synapse.gql'
 import { formatNumber } from '@/lib/format'
+import { AddToBoard } from '@/features/boards/AddToBoard'
 
 // A step's own filters travel with it when it moves or goes
 type StepFilter = { key: string; value: string }
@@ -84,6 +85,7 @@ export function SynapseFunnel() {
       <DetailPageHeader
         title="Funnel"
         badges={isChannel ? <Badge variant="secondary">{selectedChannel?.name}</Badge> : undefined}
+        actions={isChannel ? <AddToBoard channelId={channelId} title={steps.map(eventLabel).join(' → ')} definition={{ kind: 'FUNNEL', steps, filters, windowHours: windowHours ?? undefined, breakdown }} /> : undefined}
         meta={
           <span className="text-xs text-muted-foreground">
             Ordered conversion - how many people complete each step in sequence, within the conversion window. People

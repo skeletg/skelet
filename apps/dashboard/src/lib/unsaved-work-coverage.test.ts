@@ -70,6 +70,12 @@ const NO_STAGED_EDITS: Record<string, string> = {
   '@/features/emails/EmailsHub': 'tab hub over three list tabs - the editors are their own routes',
   '@/features/searchmerch/SearchMerchPage':
     'synonym/pin/redirect/boost rows are add-and-delete CRUD, nothing staged',
+  // Report pages: their controls are what the report shows, and Add to board is a dialog with its own Create
+  '@/features/synapse/SynapseFunnel': 'report controls only - Add to board is its own dialog',
+  '@/features/synapse/SynapseRetention': 'report controls only - Add to board is its own dialog',
+  '@/features/synapse/SynapseFlow': 'report controls only - Add to board is its own dialog',
+  '@/features/synapse/SynapseStickiness': 'report controls only - Add to board is its own dialog',
+  '@/features/synapse/SynapseInsights': 'report controls only - Add to board is its own dialog',
 }
 
 function resolve(spec: string, fromKey: string): string | null {
