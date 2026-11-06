@@ -351,10 +351,13 @@ func (s *Store) Retention(ctx context.Context, channelID uuid.UUID, startEvent, 
 				GROUP BY actor
 			)
 		),
+		-- one row per person per period, its latest return: cohorts sit on the same period grid, so any return in a period
+		-- lands in the same bucket, and the latest is the one that can clear the anchor inside the anchor's own period
 		returns AS (
-			SELECT `+resolvedActor+` AS actor, toInt64(toUnixTimestamp64Milli(e.occurred_at)) AS ts_ms
+			SELECT `+resolvedActor+` AS actor, max(toInt64(toUnixTimestamp64Milli(e.occurred_at))) AS ts_ms
 			FROM analytics_events AS e FINAL
 			WHERE e.channel_id = ? AND e.occurred_at >= ? AND `+notBot+` AND e.event_name = ? AND `+resolvedActor+` != ''
+			GROUP BY actor, intDiv(toInt64(toUnixTimestamp64Milli(e.occurred_at)) + 62135596800000, ?)
 		),
 		bucketed AS (
 			SELECT a.actor, any(a.cohort_ms) AS cohort_ms,
@@ -365,7 +368,7 @@ func (s *Store) Retention(ctx context.Context, channelID uuid.UUID, startEvent, 
 		SELECT cohort_ms, toInt64(count()) AS size,
 		       sumForEach(arrayMap(b -> toInt64(has(buckets, b)), range(?))) AS counts
 		FROM bucketed GROUP BY cohort_ms`,
-		unitMs, channelID, since, startEvent, channelID, since, returnEvent,
+		unitMs, channelID, since, startEvent, channelID, since, returnEvent, unitMs,
 		unitMs, unitMs, int64(periods), uint64(periods))
 	if err != nil {
 		return out, err
