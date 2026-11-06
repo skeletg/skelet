@@ -8,11 +8,13 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/configstore"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/activity"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
+	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/dbconn"
 )
 
@@ -25,7 +27,8 @@ var signalsBackfillOrdersCmd = &cobra.Command{
 	Use:   "backfill-orders",
 	Short: "Replay every placed order into Signals - safe to re-run, orders it already holds are skipped by their dedupe key",
 	Long: "For orders that never reached Signals: placed while the suite was off or unreachable for longer than the outbox retries, " +
-		"or guest orders from before guests without a visitor id were recorded. Each lands at its original time.",
+		"or guest orders from before guests without a visitor id were recorded. Each lands at its original time. " +
+		"Orders placed without analytics consent are skipped - they already count, and a replay would count them twice.",
 	Args: cobra.NoArgs,
 	RunE: runSignalsBackfillOrders,
 }
@@ -55,7 +58,8 @@ func runSignalsBackfillOrders(cmd *cobra.Command, _ []string) error {
 	defer func() { _ = signals.Close() }()
 
 	repo := order.NewRepository(db.New(conn))
-	tracker := activity.NewTracker(signals, nil) // a backfill hands each order over, so the tracker never looks one up
+	// A backfill hands each order over, so the tracker never looks one up
+	tracker := activity.NewTracker(signals, nil, config.NewService(configstore.New(db.New(conn))))
 	ctx := cmd.Context()
 	const page = 500
 	processed, skipped := 0, 0

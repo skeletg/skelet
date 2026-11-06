@@ -147,13 +147,8 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 	}
 	roster.Register(bus, d.Queries, d.SignalsClient, resync) // keeps the suite's copy current between the 6-hourly sweeps
 	activity.RegisterConversionAttribution(bus, d.SignalsClient)
-	tracker := activity.NewTracker(d.SignalsClient, d.Order)
-	tracker.SetAggregateSwitch(func(ctx context.Context, ch uuid.UUID) bool {
-		on, err := d.Config.GetBool(ctx, "general/privacy/aggregate_counts", config.Scope{Kind: config.ScopeChannel, ChannelID: &ch})
-		return err != nil || on // a setting that won't read keeps its default
-	})
-	tracker.Subscribe(bus)      // every customer-facing action onto the analytics spine, so the profile timeline reflects the whole journey
-	d.BackInStock.Register(bus) // on restock, resolved customers enrol into the back_in_stock flow and guests get a direct mail
+	activity.NewTracker(d.SignalsClient, d.Order, d.Config).Subscribe(bus) // every customer-facing action onto the analytics spine, so the profile timeline reflects the whole journey
+	d.BackInStock.Register(bus)                                            // on restock, resolved customers enrol into the back_in_stock flow and guests get a direct mail
 }
 
 // Everything reacting to an order's lifecycle - all outbox-durable, so every handler here has to tolerate a replay
@@ -314,13 +309,11 @@ func paymentEventToOrderStatus(eventName string) string { // maps the payment.* 
 
 type emailOptIns interface {
 	RecordEmailOptIn(ctx context.Context, channelID uuid.UUID, email, source, reference string) error
-	ClaimEmailOptIns(ctx context.Context, customerID, channelID uuid.UUID, email string) (int, error)
 }
 
-// A guest's checkout opt-in is kept under their address with the order number as proof, and handed to whoever proves they
-// own it - on email verified, like the guest-order claim, for the same reason. Never at once onto an account that already
-// has: an unpaid cash-on-delivery order under someone's address would flip their consent without signing in. Idempotent,
-// so a replay is harmless
+// A guest's checkout opt-in is kept under their address with the order number as proof, and never applied to an account -
+// not even one whose owner later verifies the address, since anyone can tick the box at checkout under someone else's
+// email. Owning the address proves who they are, not that they ticked it. Idempotent, so a replay is harmless
 func registerEmailOptIns(bus *events.Bus, optIns emailOptIns) {
 	bus.Subscribe(order.EventPlaced, func(ctx context.Context, e events.Event) error {
 		evt := e.(*order.OrderPlaced)
@@ -328,10 +321,5 @@ func registerEmailOptIns(bus *events.Bus, optIns emailOptIns) {
 			return nil
 		}
 		return optIns.RecordEmailOptIn(ctx, evt.ChannelID, evt.Email, consent.SourceCheckout, evt.OrderNumber)
-	})
-	bus.Subscribe(customer.EventEmailVerified, func(ctx context.Context, e events.Event) error {
-		evt := e.(*customer.CustomerEmailVerified)
-		_, err := optIns.ClaimEmailOptIns(ctx, evt.CustomerID, evt.ChannelID, evt.Email)
-		return err
 	})
 }

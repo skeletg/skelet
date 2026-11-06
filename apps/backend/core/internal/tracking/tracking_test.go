@@ -11,6 +11,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -24,8 +25,8 @@ type fakeStore struct {
 	mu         sync.Mutex
 	dests      map[uuid.UUID]Destination
 	deliveries map[uuid.UUID]*Delivery
-	keys       map[string]bool // destination+event id, the table's unique key
-	events     []Event         // what Enqueue was handed, in order
+	keys       map[string]bool // destination+event name+event id, the tables' unique keys together
+	events     []Event         // each event Enqueue stored, in order - once however many destinations it went to
 }
 
 func newFakeStore(ds ...Destination) *fakeStore {
@@ -65,18 +66,24 @@ func (f *fakeStore) Update(_ context.Context, d Destination) (Destination, error
 	return d, nil
 }
 func (f *fakeStore) Delete(_ context.Context, id uuid.UUID) error { delete(f.dests, id); return nil }
-func (f *fakeStore) Enqueue(_ context.Context, dest uuid.UUID, ev Event) error {
+func (f *fakeStore) Enqueue(_ context.Context, dests []uuid.UUID, ev Event) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	key := dest.String() + "/" + ev.ID
-	if f.keys[key] {
-		return nil
-	}
-	f.keys[key] = true
-	f.events = append(f.events, ev)
 	payload := fmt.Appendf(nil, `{"event_id":%q,"name":%q,"channel_id":%q}`, ev.ID, ev.Name, ev.ChannelID)
-	id := uuid.New()
-	f.deliveries[id] = &Delivery{ID: id, DestinationID: dest, EventID: ev.ID, EventName: ev.Name, Payload: payload, Status: "pending"}
+	stored := false
+	for _, dest := range dests {
+		key := dest.String() + "/" + ev.Name + "/" + ev.ID
+		if f.keys[key] {
+			continue
+		}
+		f.keys[key] = true
+		id := uuid.New()
+		f.deliveries[id] = &Delivery{ID: id, DestinationID: dest, EventID: ev.ID, EventName: ev.Name, Payload: payload, Status: "pending"}
+		stored = true
+	}
+	if stored {
+		f.events = append(f.events, ev)
+	}
 	return nil
 }
 func (f *fakeStore) ClaimDue(_ context.Context, batch, _ int32) ([]Delivery, error) {
@@ -99,7 +106,10 @@ func (f *fakeStore) set(id uuid.UUID, fn func(*Delivery)) error {
 	return nil
 }
 func (f *fakeStore) MarkSent(_ context.Context, id uuid.UUID) error {
-	return f.set(id, func(d *Delivery) { d.Status = "sent" })
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.deliveries, id)
+	return nil
 }
 func (f *fakeStore) Reschedule(_ context.Context, id uuid.UUID, at time.Time, reason string) error {
 	return f.set(id, func(d *Delivery) { d.NextAttemptAt, d.LastError = at, reason })
@@ -139,7 +149,7 @@ func (f *fakeStore) Import(_ context.Context, d Destination, legacyID uuid.UUID)
 	return d, true, nil
 }
 func (f *fakeStore) Health(context.Context, uuid.UUID) (map[uuid.UUID]Health, error) { return nil, nil }
-func (f *fakeStore) Prune(context.Context, time.Time) (int64, error)                 { return 0, nil }
+func (f *fakeStore) Prune(context.Context, time.Time, time.Time) (int64, error)      { return 0, nil }
 
 func (f *fakeStore) byDestination(id uuid.UUID) []Delivery {
 	var out []Delivery
@@ -158,11 +168,12 @@ func (f fakeSettings) GetBool(_ context.Context, path string, _ config.Scope) (b
 }
 
 // registerTestKind registers a kind for one test and removes it after
-func registerTestKind(t *testing.T, k Kind) {
+func registerTestKind(t *testing.T, d sdk.Destination) {
 	t.Helper()
-	if k.Send == nil {
-		k.Send = func(context.Context, *http.Client, Destination, Event) error { return nil }
+	if d.Send == nil {
+		d.Send = func(context.Context, *http.Client, sdk.DestinationConfig, Event) error { return nil }
 	}
+	k := Kind{Destination: d}
 	RegisterKind(k)
 	t.Cleanup(func() {
 		kindsMu.Lock()
@@ -171,12 +182,12 @@ func registerTestKind(t *testing.T, k Kind) {
 	})
 }
 
-func consentOf(raw string) *auth.Consent {
+func consentOf(raw string) *sdk.ShopConsent {
 	c, ok := auth.ParseConsent(raw)
 	if !ok {
 		return nil
 	}
-	return &c
+	return &sdk.ShopConsent{Analytics: c.Analytics, Ads: c.Ads, Personalization: c.Personalization}
 }
 
 // Every combination of the visitor's choices against every purpose set a destination can need
@@ -215,9 +226,9 @@ func TestTheConsentMatrix(t *testing.T) {
 
 func TestTrackQueuesOnlyWhereConsentAndTheEventListAllow(t *testing.T) {
 	ch := uuid.New()
-	registerTestKind(t, Kind{Kind: "t-analytics", Purposes: []Purpose{PurposeAnalytics}})
-	registerTestKind(t, Kind{Kind: "t-ads", Purposes: []Purpose{PurposeAds}, DefaultEvents: []string{Purchase}})
-	registerTestKind(t, Kind{Kind: "t-affiliate", Purposes: []Purpose{PurposeAds}, NecessarySetting: "general/privacy/t_necessary"})
+	registerTestKind(t, sdk.Destination{Kind: "t-analytics", Purposes: []Purpose{PurposeAnalytics}})
+	registerTestKind(t, sdk.Destination{Kind: "t-ads", Purposes: []Purpose{PurposeAds}, DefaultEvents: []string{Purchase}})
+	registerTestKind(t, sdk.Destination{Kind: "t-affiliate", Purposes: []Purpose{PurposeAds}, NecessarySetting: "general/privacy/t_necessary"})
 	ga, meta, cj := uuid.New(), uuid.New(), uuid.New()
 	other, off, gone := uuid.New(), uuid.New(), uuid.New()
 	fs := newFakeStore(
@@ -281,7 +292,7 @@ func TestTrackQueuesOnlyWhereConsentAndTheEventListAllow(t *testing.T) {
 }
 
 func TestADestinationNeedsAKnownKindAndAName(t *testing.T) {
-	registerTestKind(t, Kind{Kind: "t-known"})
+	registerTestKind(t, sdk.Destination{Kind: "t-known"})
 	svc := &Service{store: newFakeStore()}
 	if _, err := svc.Create(context.Background(), Destination{Kind: "t-nope", Name: "x"}); !errors.Is(err, ErrUnknownKind) {
 		t.Errorf("unknown kind: %v", err)
@@ -289,7 +300,7 @@ func TestADestinationNeedsAKnownKindAndAName(t *testing.T) {
 	if _, err := svc.Create(context.Background(), Destination{Kind: "t-known", Name: "  "}); !errors.Is(err, ErrNameMissing) {
 		t.Errorf("blank name: %v", err)
 	}
-	registerTestKind(t, Kind{Kind: "t-fields", Fields: []sdk.DestinationField{{Key: "id", Label: "ID", Required: true}, {Key: "token", Label: "Token", Required: true, Secret: true}}})
+	registerTestKind(t, sdk.Destination{Kind: "t-fields", Fields: []sdk.DestinationField{{Key: "id", Label: "ID", Required: true}, {Key: "token", Label: "Token", Required: true, Secret: true}}})
 	ctx := context.Background()
 	if _, err := svc.Create(ctx, Destination{Kind: "t-fields", Name: "x", Secret: "s"}); !errors.Is(err, ErrFieldMissing) {
 		t.Errorf("missing required field: %v", err)
@@ -304,6 +315,12 @@ func TestADestinationNeedsAKnownKindAndAName(t *testing.T) {
 	d.Secret = ""
 	if _, err := svc.Update(ctx, d); err != nil {
 		t.Errorf("an update that keeps the stored secret: %v", err)
+	}
+	// The settings are plain JSON - a secret typed there, or anything the kind doesn't declare, is refused
+	for _, cfg := range []map[string]string{{"id": "1", "token": "sk_live"}, {"id": "1", "stray": "x"}} {
+		if _, err := svc.Create(ctx, Destination{Kind: "t-fields", Name: "x", Config: cfg, Secret: "s"}); !errors.Is(err, ErrFieldUnknown) {
+			t.Errorf("settings %v: %v, want refused", cfg, err)
+		}
 	}
 }
 
@@ -325,7 +342,7 @@ func TestTheWorkerRetriesDeadLettersAndKeepsSecretsOutOfTheLog(t *testing.T) {
 		}
 	}))
 	defer srv.Close()
-	registerTestKind(t, Kind{Kind: "t-http", Send: func(ctx context.Context, c *http.Client, d Destination, ev Event) error {
+	registerTestKind(t, sdk.Destination{Kind: "t-http", Send: func(ctx context.Context, c *http.Client, d sdk.DestinationConfig, ev Event) error {
 		req, _ := http.NewRequestWithContext(ctx, http.MethodPost, srv.URL+d.Config["path"]+"?api_secret="+d.Secret, nil)
 		res, err := c.Do(req)
 		if err != nil {
@@ -336,7 +353,7 @@ func TestTheWorkerRetriesDeadLettersAndKeepsSecretsOutOfTheLog(t *testing.T) {
 		case res.StatusCode >= 500:
 			return fmt.Errorf("POST %s: %d", req.URL, res.StatusCode)
 		case res.StatusCode >= 400:
-			return Permanent(fmt.Errorf("POST %s: %d", req.URL, res.StatusCode))
+			return sdk.Permanent(fmt.Errorf("POST %s: %d", req.URL, res.StatusCode))
 		}
 		return nil
 	}})
@@ -355,8 +372,8 @@ func TestTheWorkerRetriesDeadLettersAndKeepsSecretsOutOfTheLog(t *testing.T) {
 	w.RunOnce(ctx)
 
 	state := func(dest uuid.UUID) Delivery { return fs.byDestination(dest)[0] }
-	if s := state(ok); s.Status != "sent" {
-		t.Errorf("the healthy destination's delivery is %q - a failing one held it up", s.Status)
+	if left := fs.byDestination(ok); len(left) != 0 {
+		t.Errorf("the healthy destination's delivery is still %q - a failing one held it up", left[0].Status)
 	}
 	if s := state(refuses); s.Status != "dead" || s.Attempts != 1 {
 		t.Errorf("a 4xx refusal: %+v, want dead after one attempt", s)
@@ -384,6 +401,29 @@ func TestTheWorkerRetriesDeadLettersAndKeepsSecretsOutOfTheLog(t *testing.T) {
 	}
 }
 
+func TestASendThatPanicsEndsDeadAndACutErrorStaysValidText(t *testing.T) {
+	ch, dest := uuid.New(), uuid.New()
+	registerTestKind(t, sdk.Destination{Kind: "t-panics", Send: func(context.Context, *http.Client, sdk.DestinationConfig, Event) error { panic("mapping bug") }})
+	fs := newFakeStore(Destination{ID: dest, ChannelID: ch, Kind: "t-panics", Enabled: true})
+	svc := &Service{store: fs}
+	ctx := context.Background()
+	if err := svc.Track(ctx, Event{ID: "o1", Name: Purchase, ChannelID: ch}); err != nil {
+		t.Fatal(err)
+	}
+	w := NewWorker(svc, http.DefaultClient)
+	for range maxAttempts {
+		_ = fs.set(fs.byDestination(dest)[0].ID, func(d *Delivery) { d.NextAttemptAt = time.Time{} })
+		w.RunOnce(ctx)
+	}
+	if d := fs.byDestination(dest)[0]; d.Status != "dead" || !strings.Contains(d.LastError, "mapping bug") {
+		t.Errorf("a panicking send: %+v, want dead with the panic in the log", d)
+	}
+
+	if s := redact(strings.Repeat("a", 999)+"é", &Destination{}); !utf8.ValidString(s) {
+		t.Error("cutting the error through a multi-byte rune left invalid UTF-8")
+	}
+}
+
 func TestDecimalFollowsTheCurrency(t *testing.T) {
 	for _, tc := range []struct {
 		minor    int64
@@ -398,9 +438,9 @@ func TestDecimalFollowsTheCurrency(t *testing.T) {
 
 func TestASendTestGoesStraightToThePlatform(t *testing.T) {
 	var got Event
-	registerTestKind(t, Kind{Kind: "t-direct", Send: func(_ context.Context, _ *http.Client, d Destination, ev Event) error {
+	registerTestKind(t, sdk.Destination{Kind: "t-direct", Send: func(_ context.Context, _ *http.Client, d sdk.DestinationConfig, ev Event) error {
 		got = ev
-		return Permanent(errors.New("400 " + d.Name))
+		return sdk.Permanent(errors.New("400 " + d.Name))
 	}})
 	id := uuid.New()
 	svc := &Service{store: newFakeStore(Destination{ID: id, ChannelID: uuid.New(), Kind: "t-direct", Name: "acct", Enabled: true})}

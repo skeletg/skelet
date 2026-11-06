@@ -9,6 +9,7 @@ export const NONE_GRANTED: Consent = { analytics: false, ads: false, personaliza
 
 // "auto:" marks a value the store set under opt-out mode rather than one the visitor chose - switching the store back
 // to opt-in drops it, so nobody counts as having agreed to something they were never asked
+// SYNC: the same pattern as consentValue in apps/backend/core/lib/auth/consent.go - skelet check compares them
 const V2 = /^(?:v2|auto):a([01])\.d([01])\.p([01])$/;
 
 // null = no choice made yet (or a value we don't recognise, which must not count as a grant)
