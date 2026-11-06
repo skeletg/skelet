@@ -177,7 +177,7 @@ function DestinationForm({ destination, platform, refetch }: { destination: Dest
           )
         }
         after={
-          <DetailPageSection title="Delivery log" description="Every event this destination was sent, with the platform's answer.">
+          <DetailPageSection title="Delivery log" description="Events still waiting to be sent or that failed, with the platform's answer. Sent events leave the log.">
             <TrackingDeliveryLog destinationId={destination.id} canManage={canManage} />
           </DetailPageSection>
         }

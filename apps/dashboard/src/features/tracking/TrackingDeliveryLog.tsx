@@ -22,7 +22,7 @@ const STATUS: Record<string, { label: string; variant: 'warning' | 'destructive'
   dead: { label: 'Failed', variant: 'destructive' },
 }
 
-// What was sent, what is still retrying and what gave up. The event itself isn't shown - it holds the shopper's
+// What is still waiting or retrying and what gave up - a sent delivery is deleted, so a healthy log is empty. The event itself isn't shown - it holds the shopper's
 // email, IP and click ids - only its name, id and the platform's last answer
 export function TrackingDeliveryLog({ destinationId, canManage }: { destinationId: string; canManage: boolean }) {
   const [status, setStatus] = useState('')
@@ -102,7 +102,7 @@ export function TrackingDeliveryLog({ destinationId, canManage }: { destinationI
         loading={loading && !data}
         error={error ? { message: error.message } : null}
         getRowId={(row) => row.id}
-        emptyState={status === 'dead' ? 'Nothing has failed.' : 'Nothing sent yet - events appear here as shoppers browse and buy.'}
+        emptyState={status === 'dead' ? 'Nothing has failed.' : 'Nothing waiting or failed.'}
       />
       <p className="text-xs text-muted-foreground">Failed sends retry after 10s, 1m, 5m, 30m and 2h before giving up. Entries are kept for 30 days.</p>
     </div>
