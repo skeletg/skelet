@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -25,16 +26,17 @@ import (
 // Until the dashboard pages land, this is how a destination is set up and checked
 var TrackingCmd = &cobra.Command{
 	Use:   "tracking",
-	Short: "Server-side tracking destinations: list, add, inspect deliveries, send a test event",
+	Short: "Event and catalogue destinations: configure accounts and inspect deliveries",
 }
 
 var (
-	trackChannel string
-	trackKind    string
-	trackName    string
-	trackSet     []string
-	trackSecret  string
-	trackLimit   int32
+	trackChannel     string
+	trackKind        string
+	trackName        string
+	trackSet         []string
+	trackSecret      string
+	trackLimit       int32
+	trackSecretStdin bool
 )
 
 func init() {
@@ -44,9 +46,9 @@ func init() {
 	add := &cobra.Command{
 		Use:   "add",
 		Short: "Add a destination to a channel",
-		Long:  "The secret is read from TRACKING_SECRET when --secret is not given, so it needn't land in shell history.",
+		Long:  "Use --secret-stdin to read credentials without putting them in command arguments. Otherwise --secret or the container's TRACKING_SECRET supplies the credential.",
 		Example: `  skelet cli tracking add --channel <id> --kind ga4 --name "GA4" --set measurement_id=G-XXXX --set validate=true
-  TRACKING_SECRET=... skelet cli tracking add --channel <id> --kind meta_capi --name Meta --set pixel_id=123 --set test_event_code=TEST1`,
+  printf '%s' "$META_TOKEN" | skelet cli tracking add --secret-stdin --channel <id> --kind meta_capi --name Meta --set pixel_id=123 --set test_event_code=TEST1`,
 		Args: cobra.NoArgs,
 		RunE: runTrackingAdd,
 	}
@@ -55,10 +57,13 @@ func init() {
 	add.Flags().StringVar(&trackName, "name", "", "a name for it (required)")
 	add.Flags().StringArrayVar(&trackSet, "set", nil, "a setting as key=value, repeatable")
 	add.Flags().StringVar(&trackSecret, "secret", "", "the secret setting, else TRACKING_SECRET")
+	add.Flags().BoolVar(&trackSecretStdin, "secret-stdin", false, "read the secret's exact bytes from stdin, at most 64 KiB")
 	deliveries := &cobra.Command{Use: "deliveries <destination-id>", Short: "A destination's latest deliveries, newest first", Args: cobra.ExactArgs(1), RunE: runTrackingDeliveries}
 	deliveries.Flags().Int32Var(&trackLimit, "limit", 20, "how many")
 	test := &cobra.Command{Use: "test <destination-id>", Short: "Send one sample purchase now and print the platform's answer", Args: cobra.ExactArgs(1), RunE: runTrackingTest}
-	TrackingCmd.AddCommand(kinds, list, add, deliveries, test)
+	catalog := &cobra.Command{Use: "catalog-send <destination-id>", Short: "Queue a catalogue refresh and upload", Args: cobra.ExactArgs(1), RunE: runTrackingCatalogSend}
+	retry := &cobra.Command{Use: "retry <delivery-id>", Short: "Retry a dead delivery", Args: cobra.ExactArgs(1), RunE: runTrackingRetry}
+	TrackingCmd.AddCommand(kinds, list, add, deliveries, test, catalog, retry)
 }
 
 func trackingService() (*tracking.Service, func(), error) {
@@ -87,13 +92,14 @@ func registerTrackingKinds() {
 	if !trackingKindsDone {
 		trackingKindsDone = true
 		tracking.RegisterPluginKinds(sdk.Destinations(), plugin.Enabled)
+		tracking.RegisterCatalogKinds(sdk.ProductFeeds(), plugin.Enabled, nil)
 	}
 }
 
 func runTrackingKinds(cmd *cobra.Command, _ []string) error {
 	registerTrackingKinds()
 	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', 0)
-	fmt.Fprintln(w, "KIND\tLABEL\tNEEDS\tSETTINGS")
+	fmt.Fprintln(w, "KIND\tTYPE\tLABEL\tNEEDS\tSETTINGS")
 	for _, k := range tracking.Kinds() {
 		var fields []string
 		for _, f := range k.Fields {
@@ -110,9 +116,43 @@ func runTrackingKinds(cmd *cobra.Command, _ []string) error {
 		for i, p := range k.Purposes {
 			needs[i] = string(p)
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", k.Kind, k.Label, strings.Join(needs, "+"), strings.Join(fields, ", "))
+		typ := "events"
+		if k.Catalog {
+			typ = "catalogue"
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", k.Kind, typ, k.Label, strings.Join(needs, "+"), strings.Join(fields, ", "))
 	}
 	return w.Flush()
+}
+
+func runTrackingCatalogSend(cmd *cobra.Command, args []string) error {
+	id, err := uuid.Parse(args[0])
+	if err != nil {
+		return err
+	}
+	svc, done, err := trackingService()
+	if err != nil {
+		return err
+	}
+	defer done()
+	if err := svc.QueueCatalog(cmd.Context(), id); err != nil {
+		return err
+	}
+	fmt.Fprintln(cmd.OutOrStdout(), "catalogue refresh queued; inspect it with: skelet cli tracking deliveries", id)
+	return nil
+}
+
+func runTrackingRetry(cmd *cobra.Command, args []string) error {
+	id, err := uuid.Parse(args[0])
+	if err != nil {
+		return err
+	}
+	svc, done, err := trackingService()
+	if err != nil {
+		return err
+	}
+	defer done()
+	return svc.Redeliver(cmd.Context(), id)
 }
 
 func runTrackingList(cmd *cobra.Command, _ []string) error {
@@ -151,6 +191,16 @@ func runTrackingAdd(cmd *cobra.Command, _ []string) error {
 		cfg[k] = v
 	}
 	secret := trackSecret
+	if trackSecretStdin {
+		if secret != "" {
+			return fmt.Errorf("use either --secret or --secret-stdin")
+		}
+		var err error
+		secret, err = readTrackingSecret(cmd.InOrStdin())
+		if err != nil {
+			return err
+		}
+	}
 	if secret == "" {
 		secret = os.Getenv("TRACKING_SECRET")
 	}
@@ -163,8 +213,23 @@ func runTrackingAdd(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "added %s (%s) - check it with: skelet cli tracking test %s\n", d.ID, d.Kind, d.ID)
+	check := "test"
+	if k, ok := tracking.KindFor(d.Kind); ok && k.Catalog {
+		check = "catalog-send"
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "added %s (%s) - check it with: skelet cli tracking %s %s\n", d.ID, d.Kind, check, d.ID)
 	return nil
+}
+
+func readTrackingSecret(r io.Reader) (string, error) {
+	b, err := io.ReadAll(io.LimitReader(r, (64<<10)+1))
+	if err != nil {
+		return "", err
+	}
+	if len(b) > 64<<10 {
+		return "", fmt.Errorf("tracking secret exceeds 64 KiB")
+	}
+	return string(b), nil
 }
 
 func runTrackingDeliveries(cmd *cobra.Command, args []string) error {
@@ -182,9 +247,9 @@ func runTrackingDeliveries(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', 0)
-	fmt.Fprintln(w, "WHEN\tEVENT\tSTATUS\tATTEMPTS\tLAST ERROR")
+	fmt.Fprintln(w, "ID\tWHEN\tEVENT\tSTATUS\tATTEMPTS\tLAST ERROR")
 	for _, d := range rows {
-		fmt.Fprintf(w, "%s\t%s %s\t%s\t%d\t%s\n", d.CreatedAt.Format(time.DateTime), d.EventName, d.EventID, d.Status, d.Attempts, d.LastError)
+		fmt.Fprintf(w, "%s\t%s\t%s %s\t%s\t%d\t%s\n", d.ID, d.CreatedAt.Format(time.DateTime), d.EventName, d.EventID, d.Status, d.Attempts, d.LastError)
 	}
 	return w.Flush()
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/catalogio"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/plugin"
@@ -15,19 +16,27 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/webhook"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
+	"github.com/skeletg/skelet/apps/backend/core/lib/feedtransport"
 	"github.com/skeletg/skelet/apps/backend/core/lib/otelx"
 	"github.com/skeletg/skelet/apps/backend/core/lib/ratelimit"
 	"github.com/skeletg/skelet/apps/backend/core/lib/secrets"
 	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
-func newTrackingService(q *db.Queries, cipher *secrets.Cipher, cfg *config.Service) *tracking.Service {
+func newTrackingService(q *db.Queries, cipher *secrets.Cipher, cfg *config.Service, channels *channel.Service, exporter *catalogio.ProductFeedExporter, allow AllowPrivateTargets) *tracking.Service {
 	var sealer tracking.Sealer // a nil *Cipher in the interface would read as a key that panics on use
 	if cipher != nil {
 		sealer = cipher
 	}
-	pluginKinds.Do(func() { tracking.RegisterPluginKinds(sdk.Destinations(), plugin.Enabled) })
+	pluginKinds.Do(func() {
+		tracking.RegisterPluginKinds(sdk.Destinations(), plugin.Enabled)
+		tracking.RegisterCatalogKinds(sdk.ProductFeeds(), plugin.Enabled, catalogSender(channels, exporter, feedtransport.New(bool(allow))))
+	})
 	return tracking.NewService(q, sealer, cfg)
+}
+
+func newCatalogWorker(svc *tracking.Service) *tracking.CatalogWorker {
+	return tracking.NewCatalogWorker(svc)
 }
 
 var pluginKinds sync.Once // the kinds are process-wide, and a second registration of one would panic

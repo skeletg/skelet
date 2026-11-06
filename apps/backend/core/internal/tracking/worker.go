@@ -16,8 +16,8 @@ import (
 
 const (
 	pollInterval = 2 * time.Second
-	batchSize    = 100
-	leaseSeconds = 60 // well past sendTimeout, so a slow send isn't claimed twice
+	batchSize    = workers // claim only what can start before its lease expires
+	leaseSeconds = 60      // well past sendTimeout, so a slow send isn't claimed twice
 	sendTimeout  = 15 * time.Second
 	workers      = 8
 	logRetention = 30 * 24 * time.Hour
@@ -33,9 +33,18 @@ var maxAttempts = int32(1 + len(retryDelays))
 // event alone and never holds up the rest. At least once: a crash mid-send replays the row once its lease lapses, and
 // the event id lets the platform dedupe
 type Worker struct {
-	store  store
-	client *http.Client
-	poll   time.Duration
+	store   store
+	client  *http.Client
+	poll    time.Duration
+	catalog bool
+}
+
+type CatalogWorker struct{ *Worker }
+
+func (w *CatalogWorker) Run(ctx context.Context) { w.Worker.Run(ctx) }
+
+func NewCatalogWorker(s *Service) *CatalogWorker {
+	return &CatalogWorker{&Worker{store: s.store, poll: pollInterval, catalog: true}}
 }
 
 // The client must be the SSRF-safe one - a destination's endpoint is configured by an admin and may name anything
@@ -66,7 +75,11 @@ func (w *Worker) Run(ctx context.Context) {
 func (w *Worker) RunOnce(ctx context.Context) int {
 	done := 0
 	for ctx.Err() == nil {
-		due, err := w.store.ClaimDue(ctx, batchSize, leaseSeconds)
+		batch, lease := int32(batchSize), int32(leaseSeconds)
+		if w.catalog {
+			batch, lease = 2, 31*60
+		}
+		due, err := w.store.ClaimDue(ctx, batch, lease, w.catalog)
 		if err != nil {
 			slog.Warn("claim tracking deliveries", "err", err)
 			return done
@@ -92,15 +105,16 @@ func (w *Worker) RunOnce(ctx context.Context) int {
 				defer wg.Done()
 				defer func() { <-sem }()
 				defer func() {
-					if rec := recover(); rec != nil { // a kind's mapping bug must not take the process down; the lease replays the row
-						slog.Error("tracking send panicked", "delivery", item.ID, "kind", d.Kind, "panic", rec, "stack", string(debug.Stack()))
+					if rec := recover(); rec != nil {
+						slog.Error("tracking send panicked", "delivery", item.ID, "kind", d.Kind, "panic", redact(fmt.Sprint(rec), &d), "stack", string(debug.Stack()))
+						w.fail(ctx, item, &d, fmt.Errorf("destination sender panicked"))
 					}
 				}()
 				w.deliver(ctx, item, d)
 			}(item, *d)
 		}
 		wg.Wait()
-		if len(due) < batchSize {
+		if len(due) < int(batch) {
 			return done
 		}
 	}
@@ -115,6 +129,29 @@ func (w *Worker) deliver(ctx context.Context, item Delivery, d Destination) {
 		return
 	case !ok:
 		w.dead(ctx, item, d, "kind "+d.Kind+" is not in this build")
+		return
+	case k.Available != nil && !k.Available(ctx, d.ChannelID):
+		w.dead(ctx, item, d, "plugin disabled on this channel")
+		return
+	}
+	if item.EventName == CatalogSnapshot {
+		if !k.Catalog || k.SendCatalog == nil {
+			w.dead(ctx, item, d, "catalogue sender unavailable")
+			return
+		}
+		sendCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
+		defer cancel()
+		if err := k.SendCatalog(sendCtx, d); err != nil {
+			w.fail(ctx, item, &d, err)
+			return
+		}
+		if err := w.store.MarkSent(ctx, item.ID); err != nil {
+			slog.Warn("mark catalogue delivery sent", "delivery", item.ID, "err", err)
+		}
+		return
+	}
+	if k.Catalog {
+		w.dead(ctx, item, d, "catalogue destination cannot receive shopper events")
 		return
 	}
 	var ev Event

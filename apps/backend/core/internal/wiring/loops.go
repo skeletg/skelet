@@ -105,6 +105,7 @@ func startBackgroundLoops(
 	jobs *scheduler.Service, hooks *webhook.Service, dispatcher *webhook.Dispatcher, relay *outbox.Outbox,
 	transfers *datajob.Service, chans *channel.Service, cfg *config.Service, signals *signalsclient.Client, enabled SignalsEnabled,
 	trackingWorker *tracking.Worker,
+	catalogWorker *tracking.CatalogWorker,
 ) {
 	// The scheduled push is stamped a whole interval out by Seed, so on the run that first creates the
 	// roster table the suite would answer every beacon with "not a channel I serve" until it fires
@@ -116,10 +117,11 @@ func startBackgroundLoops(
 			return nil
 		}})
 	}
-	parkLoops(lc, rc, bg, "scheduler+webhook-queue+tracking-queue+outbox+data-transfer",
+	parkLoops(lc, rc, bg, "scheduler+webhook-queue+tracking-queue+catalogue-queue+outbox+data-transfer",
 		jobs.Run, // only claiming moves - the admin jobs UI still works either way, since List/Get read the DB
 		func(ctx context.Context) { webhook.NewQueueWorker(hooks, dispatcher).Run(ctx) }, // enqueueing stays in-process, only delivery moves
 		trackingWorker.Run, // the same split: Track enqueues in-process, any replica sends
+		catalogWorker.Run,  // large uploads have their own concurrency and lease budget
 		transfers.Run,      // import/export runs claim with SKIP LOCKED, so every replica running this is the point
 		relay.Run,          // last, so a replayed event can't fire before its subscribers exist
 	)

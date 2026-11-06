@@ -156,8 +156,12 @@ func (r *repository) Enqueue(ctx context.Context, destinationID uuid.UUID, ev Ev
 	return nil
 }
 
-func (r *repository) ClaimDue(ctx context.Context, batch, leaseSeconds int32) ([]Delivery, error) {
-	rows, err := r.q.ClaimDueTrackingDeliveries(ctx, db.ClaimDueTrackingDeliveriesParams{BatchSize: batch, LeaseSeconds: leaseSeconds})
+func (r *repository) EnqueueCatalog(ctx context.Context, id uuid.UUID) error {
+	return r.q.EnqueueCatalogDelivery(ctx, db.EnqueueCatalogDeliveryParams{DestinationID: id, EventID: uuid.NewString()})
+}
+
+func (r *repository) ClaimDue(ctx context.Context, batch, leaseSeconds int32, catalog bool) ([]Delivery, error) {
+	rows, err := r.q.ClaimDueTrackingDeliveries(ctx, db.ClaimDueTrackingDeliveriesParams{BatchSize: batch, LeaseSeconds: leaseSeconds, Catalog: catalog})
 	if err != nil {
 		return nil, fmt.Errorf("claim tracking deliveries: %w", err)
 	}

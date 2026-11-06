@@ -46,11 +46,18 @@ SET    attempts = attempts + 1,
 WHERE  id IN (
     SELECT id FROM tracking_deliveries
     WHERE  status = 'pending' AND next_attempt_at <= NOW()
+       AND (event_name = 'catalog_snapshot') = sqlc.arg(catalog)::boolean
     ORDER  BY next_attempt_at
     LIMIT  sqlc.arg(batch_size)::int
     FOR UPDATE SKIP LOCKED
 )
 RETURNING *;
+
+-- name: EnqueueCatalogDelivery :exec
+-- Coalesce refreshes while an account already has a pending catalogue delivery.
+INSERT INTO tracking_deliveries (destination_id, event_id, event_name, payload)
+VALUES (sqlc.arg(destination_id), sqlc.arg(event_id), 'catalog_snapshot', '{}'::jsonb)
+ON CONFLICT DO NOTHING;
 
 -- name: MarkTrackingDeliverySent :exec
 UPDATE tracking_deliveries SET status = 'sent', last_error = '', updated_at = NOW() WHERE id = $1;

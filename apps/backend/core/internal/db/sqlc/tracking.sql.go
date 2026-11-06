@@ -22,8 +22,9 @@ SET    attempts = attempts + 1,
 WHERE  id IN (
     SELECT id FROM tracking_deliveries
     WHERE  status = 'pending' AND next_attempt_at <= NOW()
+       AND (event_name = 'catalog_snapshot') = $2::boolean
     ORDER  BY next_attempt_at
-    LIMIT  $2::int
+    LIMIT  $3::int
     FOR UPDATE SKIP LOCKED
 )
 RETURNING id, destination_id, event_id, event_name, payload, status, attempts, next_attempt_at, last_error, created_at, updated_at
@@ -31,13 +32,14 @@ RETURNING id, destination_id, event_id, event_name, payload, status, attempts, n
 
 type ClaimDueTrackingDeliveriesParams struct {
 	LeaseSeconds int32 `json:"lease_seconds"`
+	Catalog      bool  `json:"catalog"`
 	BatchSize    int32 `json:"batch_size"`
 }
 
 // Claimed under a short lease by pushing next_attempt_at forward, so a crash mid-send replays the row once it lapses -
 // delivery is at least once, and SKIP LOCKED splits the work across replicas
 func (q *Queries) ClaimDueTrackingDeliveries(ctx context.Context, arg ClaimDueTrackingDeliveriesParams) ([]TrackingDelivery, error) {
-	rows, err := q.db.QueryContext(ctx, claimDueTrackingDeliveries, arg.LeaseSeconds, arg.BatchSize)
+	rows, err := q.db.QueryContext(ctx, claimDueTrackingDeliveries, arg.LeaseSeconds, arg.Catalog, arg.BatchSize)
 	if err != nil {
 		return nil, err
 	}
@@ -120,6 +122,23 @@ DELETE FROM tracking_destinations WHERE id = $1
 
 func (q *Queries) DeleteTrackingDestination(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteTrackingDestination, id)
+	return err
+}
+
+const enqueueCatalogDelivery = `-- name: EnqueueCatalogDelivery :exec
+INSERT INTO tracking_deliveries (destination_id, event_id, event_name, payload)
+VALUES ($1, $2, 'catalog_snapshot', '{}'::jsonb)
+ON CONFLICT DO NOTHING
+`
+
+type EnqueueCatalogDeliveryParams struct {
+	DestinationID uuid.UUID `json:"destination_id"`
+	EventID       string    `json:"event_id"`
+}
+
+// Coalesce refreshes while an account already has a pending catalogue delivery.
+func (q *Queries) EnqueueCatalogDelivery(ctx context.Context, arg EnqueueCatalogDeliveryParams) error {
+	_, err := q.db.ExecContext(ctx, enqueueCatalogDelivery, arg.DestinationID, arg.EventID)
 	return err
 }
 

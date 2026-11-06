@@ -1,0 +1,1 @@
+- Disabling a tracking plugin on a channel now stops its queued deliveries and retries. They remain in the delivery log and can be retried after the plugin is enabled again.

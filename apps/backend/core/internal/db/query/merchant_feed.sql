@@ -33,7 +33,23 @@ SELECT
   COALESCE(NULLIF(c.meta_description, ''), NULLIF(c.short_description ->> 'plain', ''), NULLIF(c.description ->> 'plain', ''),
     NULLIF(cd.meta_description, ''), NULLIF(cd.short_description ->> 'plain', ''), NULLIF(cd.description ->> 'plain', ''),
     '')::text                                                                             AS description,
-  COALESCE(p.attributes ->> sqlc.arg(brand_attribute)::text, '')::text                    AS brand,
+  COALESCE(NULLIF(p.attributes ->> sqlc.arg(brand_attribute)::text, ''),
+    (SELECT COALESCE(NULLIF(vc.name, ''), NULLIF(vd.name, ''), v.name)
+     FROM catalog_product_attribute_values pv
+     JOIN catalog_attributes a ON a.id = pv.attribute_id
+     JOIN catalog_attribute_values v ON v.id = pv.attribute_value_id
+     LEFT JOIN catalog_attribute_value_content vc ON vc.value_id = v.id AND vc.locale = sqlc.arg(locale)::text
+     LEFT JOIN catalog_attribute_value_content vd ON vd.value_id = v.id AND vd.locale = sqlc.arg(default_locale)::text
+     WHERE pv.product_id = p.id AND a.slug = sqlc.arg(brand_attribute)::text
+     ORDER BY pv.sort_order, v.id LIMIT 1), '')::text AS brand,
+  COALESCE((SELECT jsonb_object_agg(a.slug, COALESCE(NULLIF(vc.name, ''), NULLIF(vd.name, ''), v.name))
+    FROM catalog_product_configurable_options o
+    JOIN catalog_attributes a ON a.id = o.attribute_id
+    JOIN catalog_product_attribute_values pv ON pv.attribute_id = o.attribute_id AND pv.product_id = p.id
+    JOIN catalog_attribute_values v ON v.id = pv.attribute_value_id
+    LEFT JOIN catalog_attribute_value_content vc ON vc.value_id = v.id AND vc.locale = sqlc.arg(locale)::text
+    LEFT JOIN catalog_attribute_value_content vd ON vd.value_id = v.id AND vd.locale = sqlc.arg(default_locale)::text
+    WHERE o.product_id = parent.id), '{}'::jsonb)::jsonb AS variant_options,
   COALESCE(
     (SELECT m.s3_key FROM catalog_product_media m
       WHERE m.product_id = p.id AND m.status = 'ready'
