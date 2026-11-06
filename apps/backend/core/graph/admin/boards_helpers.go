@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/admin"
@@ -14,17 +16,24 @@ import (
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 )
 
-// A report definition crosses as JSON text - Signals reads it strictly and answers what it refuses
-func boardReportsIn(in []*model.BoardReportInput) ([]*signalsv1.BoardReport, error) {
+// A definition's unset fields cross as zero values, and come back to the dashboard as null
+func boardReportsIn(in []*model.BoardReportInput) []*signalsv1.BoardReport {
 	out := make([]*signalsv1.BoardReport, 0, len(in))
 	for _, r := range in {
-		raw, err := json.Marshal(r.Definition)
-		if err != nil {
-			return nil, fmt.Errorf("report %q: definition: %w", r.Title, err)
+		d := r.Definition
+		filters := make([]*signalsv1.FunnelFilter, 0, len(d.Filters))
+		for _, f := range d.Filters {
+			filters = append(filters, &signalsv1.FunnelFilter{Step: f.Step, Key: f.Key, Value: f.Value})
 		}
-		out = append(out, &signalsv1.BoardReport{Title: r.Title, DefinitionJson: string(raw)})
+		out = append(out, &signalsv1.BoardReport{Title: r.Title, Size: strings.ToLower(string(ptrOr(r.Size, ""))), Definition: &signalsv1.BoardReportDefinition{
+			Kind: strings.ToLower(string(d.Kind)), SinceDays: ptrOr(d.SinceDays, 0), Event: ptrOr(d.Event, ""),
+			Measure: ptrOr(d.Measure, ""), Unit: ptrOr(d.Unit, ""), Breakdown: ptrOr(d.Breakdown, ""), Steps: d.Steps,
+			Filters: filters, WindowHours: ptrOr(d.WindowHours, 0), StartEvent: ptrOr(d.StartEvent, ""),
+			ReturnEvent: ptrOr(d.ReturnEvent, ""), Periods: ptrOr(d.Periods, 0), Depth: ptrOr(d.Depth, 0),
+			WindowDays: ptrOr(d.WindowDays, 0),
+		}})
 	}
-	return out, nil
+	return out
 }
 
 // boardPeople names the admins and roles on boards. Signals keeps only their ids, and an owner core no longer has
@@ -72,34 +81,47 @@ func (p *boardPeople) owner(id string) *model.BoardOwner {
 	return &model.BoardOwner{ID: id, Name: adminName(a)}
 }
 
-func (p *boardPeople) boardsOut(in []*signalsv1.Board) ([]*model.Board, error) {
-	out := make([]*model.Board, 0, len(in))
+func (p *boardPeople) summariesOut(in []*signalsv1.BoardSummary) []*model.BoardSummary {
+	out := make([]*model.BoardSummary, 0, len(in))
 	for _, b := range in {
-		m, err := p.boardOut(b)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, m)
+		out = append(out, &model.BoardSummary{
+			ID: b.GetId(), Name: b.GetName(), UpdatedAt: b.GetUpdatedAt().AsTime(), ReportCount: b.GetReportCount(),
+			Status: b.GetStatus(), Access: b.GetAccess(), Favourite: b.GetFavourite(), Owner: p.owner(b.GetOwnerAdminId()),
+			DraftUpdatedAt: timeOrNil(b.GetDraftUpdatedAt()),
+		})
 	}
-	return out, nil
+	return out
+}
+
+// timeOrNil is an unset timestamp as null
+func timeOrNil(t *timestamppb.Timestamp) *time.Time {
+	if t == nil {
+		return nil
+	}
+	at := t.AsTime()
+	return &at
 }
 
 func (p *boardPeople) boardOut(b *signalsv1.Board) (*model.Board, error) {
 	out := &model.Board{
 		ID: b.GetId(), ChannelID: b.GetChannelId(), Name: b.GetName(), UpdatedAt: b.GetUpdatedAt().AsTime(),
-		ReportCount: b.GetReportCount(), Reports: []*model.BoardReport{}, Shares: []*model.BoardShare{},
+		Reports: []*model.BoardReport{}, Shares: []*model.BoardShare{},
 		Status: b.GetStatus(), Access: b.GetAccess(), Favourite: b.GetFavourite(), Owner: p.owner(b.GetOwnerAdminId()),
-	}
-	if t := b.GetDraftUpdatedAt(); t != nil {
-		at := t.AsTime()
-		out.DraftUpdatedAt = &at
+		DraftUpdatedAt: timeOrNil(b.GetDraftUpdatedAt()),
 	}
 	for _, r := range b.GetReports() {
-		var def any
-		if err := json.Unmarshal([]byte(r.GetDefinitionJson()), &def); err != nil {
-			return nil, fmt.Errorf("report %q: definition: %w", r.GetTitle(), err)
+		d := r.GetDefinition()
+		var filters []*model.BoardReportFilter
+		for _, f := range d.GetFilters() {
+			filters = append(filters, &model.BoardReportFilter{Step: f.GetStep(), Key: f.GetKey(), Value: f.GetValue()})
 		}
-		out.Reports = append(out.Reports, &model.BoardReport{Title: r.GetTitle(), Definition: def})
+		out.Reports = append(out.Reports, &model.BoardReport{Title: r.GetTitle(), Size: nilIfZero(model.BoardReportSize(strings.ToUpper(r.GetSize()))), Definition: &model.BoardReportDefinition{
+			Kind: model.BoardReportKind(strings.ToUpper(d.GetKind())), SinceDays: nilIfZero(d.GetSinceDays()), Event: nilIfZero(d.GetEvent()),
+			Measure: nilIfZero(d.GetMeasure()), Unit: nilIfZero(d.GetUnit()), Breakdown: nilIfZero(d.GetBreakdown()), Steps: d.GetSteps(),
+			Filters: filters, WindowHours: nilIfZero(d.GetWindowHours()), StartEvent: nilIfZero(d.GetStartEvent()),
+			ReturnEvent: nilIfZero(d.GetReturnEvent()), Periods: nilIfZero(d.GetPeriods()), Depth: nilIfZero(d.GetDepth()),
+			WindowDays: nilIfZero(d.GetWindowDays()),
+		}})
 	}
 	for _, sh := range b.GetShares() {
 		s := &model.BoardShare{Level: sh.GetLevel()}
@@ -132,12 +154,12 @@ func (r *Resolver) oneBoard(ctx context.Context, b *signalsv1.Board) (*model.Boa
 	return p.boardOut(b)
 }
 
-func (r *Resolver) manyBoards(ctx context.Context, bs []*signalsv1.Board) ([]*model.Board, error) {
+func (r *Resolver) manyBoards(ctx context.Context, bs []*signalsv1.BoardSummary) ([]*model.BoardSummary, error) {
 	p, err := r.boardPeople(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return p.boardsOut(bs)
+	return p.summariesOut(bs), nil
 }
 
 // shareTargets is every active admin and every role, each with whether they'd see the board and its numbers on this
@@ -192,4 +214,12 @@ func deref(s *string) string {
 		return ""
 	}
 	return *s
+}
+
+func nilIfZero[T comparable](v T) *T {
+	var zero T
+	if v == zero {
+		return nil
+	}
+	return &v
 }

@@ -64,7 +64,7 @@ type Draft struct {
 //   - the owner owns it; a superuser can do anything
 //   - a shop board (no owner) is everyone's on the shop to view, and theirs to manage with boards.manage
 //   - otherwise the best of the shares to the admin or to a role they hold
-func access(b Board, shares []Share, a Actor) Access {
+func access(b Ownership, shares []Share, a Actor) Access {
 	mine := b.OwnerID != uuid.Nil && b.OwnerID == a.AdminID
 	if b.Status == StatusDraft {
 		if mine || a.Superuser {

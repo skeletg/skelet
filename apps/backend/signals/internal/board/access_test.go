@@ -33,13 +33,13 @@ func TestAccessMatrix(t *testing.T) {
 	}
 	boards := []struct {
 		name   string
-		b      Board
+		b      Ownership
 		shares []Share
 	}{
-		{"private draft", Board{OwnerID: owner, Status: StatusDraft}, shares},
-		{"private", Board{OwnerID: owner, Status: StatusPublished}, nil},
-		{"shared", Board{OwnerID: owner, Status: StatusPublished}, shares},
-		{"shop board", Board{Status: StatusPublished}, nil},
+		{"private draft", Ownership{OwnerID: owner, Status: StatusDraft}, shares},
+		{"private", Ownership{OwnerID: owner, Status: StatusPublished}, nil},
+		{"shared", Ownership{OwnerID: owner, Status: StatusPublished}, shares},
+		{"shop board", Ownership{Status: StatusPublished}, nil},
 	}
 	want := map[string][4]Access{ // private draft, private, shared, shop board
 		"owner":                    {Own, Own, Own, View},
@@ -64,7 +64,7 @@ func TestAccessMatrix(t *testing.T) {
 // A superuser's own lists show what they'd see as themselves; the bypass is for "All boards" and for acting
 func TestASuperusersOwnListLeavesOutOtherPeoplesPrivateBoards(t *testing.T) {
 	su := Actor{AdminID: uuid.New(), Superuser: true}
-	private := Board{OwnerID: uuid.New(), Status: StatusPublished}
+	private := Ownership{OwnerID: uuid.New(), Status: StatusPublished}
 	if access(private, nil, su.asSelf()) != NoAccess || access(private, nil, su) != Own {
 		t.Fatal("a superuser lists someone's private board as themselves, or can't act on it")
 	}

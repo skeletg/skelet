@@ -4,6 +4,7 @@ import { useMutation, useQuery } from '@apollo/client/react'
 import { LayoutGridIcon, PlusIcon, StarIcon } from 'lucide-react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { DataTable, DataTableColumnHeader, useListUrlState } from '@/components/data-table'
+import { DetailPageBody, DetailPageHeader, DetailPageLayout, DetailPageSection } from '@/components/layout/detail-page'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -52,7 +53,7 @@ const ACCESS_LABEL: Record<string, string> = { view: 'Can view', edit: 'Can edit
 export function BoardsPage() {
   const urlState = useListUrlState()
   const [params, setParams] = useSearchParams()
-  const { effectiveChannelId, isChannel } = useConfigScope()
+  const { effectiveChannelId, isChannel, selectedChannel } = useConfigScope()
   const channelId = effectiveChannelId ?? ''
   const { canAccessChannelScope, isSuperuser } = usePermissions()
   const { data: meData } = useQuery(MeDocument, { fetchPolicy: 'cache-first' })
@@ -97,7 +98,7 @@ export function BoardsPage() {
         header: ({ column }) => <DataTableColumnHeader column={column} title="Name" />,
         cell: ({ row }) => (
           <span className="flex items-center gap-2">
-            <Link to={`/boards/${row.original.id}`} className="font-medium hover:underline">
+            <Link to={`/synapse/boards/${row.original.id}`} className="font-medium hover:underline">
               {row.original.name}
             </Link>
             {row.original.status === 'draft' ? (
@@ -130,43 +131,56 @@ export function BoardsPage() {
     [channelId, me, star],
   )
 
-  if (!isChannel) return <ChannelRequired what="Boards" />
-
   return (
-    <div className="grid gap-4">
-      <Tabs value={every ? 'every' : view} onValueChange={setView}>
-        <TabsList>
-          {BOARD_VIEWS.map((v) => (
-            <TabsTrigger key={v.v} value={v.v}>
-              {v.l}
-            </TabsTrigger>
-          ))}
-          {isSuperuser && <TabsTrigger value="every">Every board</TabsTrigger>}
-        </TabsList>
-      </Tabs>
-      <DataTable
-        urlState={urlState}
-        columns={columns}
-        data={rows}
-        loading={loading && !data}
-        error={error ? { message: error.message } : null}
-        getRowId={(row) => row.id}
-        emptyState={
-          <div className="space-y-3 py-6 text-center">
-            <p>{(data?.boards.length ?? 0) > 0 ? 'No boards in this view.' : 'No boards yet. A board puts the reports you watch side by side, private to you until you share it.'}</p>
-            {canManage && (data?.boards.length ?? 0) === 0 && (
-              <Button size="sm" variant="outline" disabled={starters.loading} onClick={() => void createStarters({ variables: { channelId } })}>
-                <LayoutGridIcon className="size-4" />
-                Add the starter boards
-              </Button>
-            )}
-            {starters.error && <p className="text-sm text-destructive">{starters.error.message}</p>}
-          </div>
-        }
-        searchPlaceholder="Search boards…"
-        toolbarRightSlot={canManage ? <NewBoardButton channelId={channelId} /> : null}
+    <DetailPageLayout>
+      <DetailPageHeader
+        title="Boards"
+        badges={isChannel ? <Badge variant="secondary">{selectedChannel?.name}</Badge> : undefined}
+        meta={<span className="text-xs text-muted-foreground">Synapse reports saved side by side - private to you until you share them, or shop boards everyone here sees.</span>}
       />
-    </div>
+      <DetailPageBody>
+        <DetailPageSection>
+          {!isChannel ? (
+            <ChannelRequired what="Boards" />
+          ) : (
+            <div className="grid gap-4">
+              <Tabs value={every ? 'every' : view} onValueChange={setView}>
+                <TabsList>
+                  {BOARD_VIEWS.map((v) => (
+                    <TabsTrigger key={v.v} value={v.v}>
+                      {v.l}
+                    </TabsTrigger>
+                  ))}
+                  {isSuperuser && <TabsTrigger value="every">Every board</TabsTrigger>}
+                </TabsList>
+              </Tabs>
+              <DataTable
+                urlState={urlState}
+                columns={columns}
+                data={rows}
+                loading={loading && !data}
+                error={error ? { message: error.message } : null}
+                getRowId={(row) => row.id}
+                emptyState={
+                  <div className="space-y-3 py-6 text-center">
+                    <p>{(data?.boards.length ?? 0) > 0 ? 'No boards in this view.' : 'No boards yet. A board puts the reports you watch side by side, private to you until you share it.'}</p>
+                    {canManage && (data?.boards.length ?? 0) === 0 && (
+                      <Button size="sm" variant="outline" disabled={starters.loading} onClick={() => void createStarters({ variables: { channelId } })}>
+                        <LayoutGridIcon className="size-4" />
+                        Add the starter boards
+                      </Button>
+                    )}
+                    {starters.error && <p className="text-sm text-destructive">{starters.error.message}</p>}
+                  </div>
+                }
+                searchPlaceholder="Search boards…"
+                toolbarRightSlot={canManage ? <NewBoardButton channelId={channelId} /> : null}
+              />
+            </div>
+          )}
+        </DetailPageSection>
+      </DetailPageBody>
+    </DetailPageLayout>
   )
 }
 
@@ -180,7 +194,7 @@ function NewBoardButton({ channelId }: { channelId: string }) {
     const id = res.data?.createBoard.id
     if (id) {
       setOpen(false)
-      navigate(`/boards/${id}`)
+      navigate(`/synapse/boards/${id}`)
     }
   }
   return (

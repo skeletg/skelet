@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { CopyIcon, GripVerticalIcon, Maximize2Icon, Minimize2Icon, PencilIcon, PlusIcon, Share2Icon, StarIcon, Trash2Icon, XIcon } from 'lucide-react'
+import { CopyIcon, GripVerticalIcon, PencilIcon, PlusIcon, Share2Icon, StarIcon, Trash2Icon, XIcon } from 'lucide-react'
 import { DetailPageBody, DetailPageHeader, DetailPageLayout } from '@/components/layout/detail-page'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -18,8 +18,9 @@ import { usePermissions } from '@/shared/auth/usePermissions'
 import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 import { ChannelRequired } from '@/shared/analytics/ChannelRequired'
 import { PeriodPicker } from '@/shared/analytics/PeriodPicker'
-import { BUILDERS, ReportControls, ReportResult, suggestTitle } from '@/shared/analytics/kinds'
-import { DEFAULT_DEFINITIONS, REPORT_KIND_LABEL, REPORT_SIZE_LABEL, describeReport, type BoardReport, type ReportDefinition, type ReportKind, type ReportSize } from '@/shared/analytics/report'
+import { BUILDERS, KINDS, ReportResult, describeReport, kindOf } from '@/shared/analytics/kinds'
+import type { ReportKind } from '@/shared/analytics/kinds/definition'
+import { cleanReport, type ReportSize } from './report'
 import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
 import { added } from '@/shared/saving/diff'
 import { useSaveRegistry, useSaveSection } from '@/shared/saving/saveRegistry'
@@ -36,13 +37,12 @@ import {
   type BoardFullFragment,
 } from './Boards.gql'
 import { ShareDialog } from './ShareDialog'
-import { boardDiff, keyed, unkeyed, type AddToBoardState, type DraftReport } from './boardDiff'
-
-const newKey = () => `n${crypto.randomUUID()}` // a report added since the board was loaded - boardDiff reads it as new
+import { boardDiff, fresh, keyed, unkeyed, type AddToBoardState, type DraftReport } from './boardDiff'
+import { EditPanel } from './EditPanel'
 
 // A tile's width in the board's grid, which is 1 column narrow, 2 from a medium width, 4 wide and 5 very wide - measured
 // on the grid itself, so opening the edit panel narrows it rather than squeezing four tiles into the space left
-const SPAN: Record<ReportSize, string> = { small: 'col-span-1', medium: 'col-span-1 @2xl:col-span-2', full: 'col-span-full' }
+const SPAN: Record<ReportSize, string> = { SMALL: 'col-span-1', MEDIUM: 'col-span-1 @2xl:col-span-2', FULL: 'col-span-full' }
 
 // BoardPage is the board as a canvas: tiles are added, built, resized and reordered in place, the edit panel sits beside
 // the grid while the tile previews each change, and the header Save applies the lot
@@ -58,7 +58,7 @@ export function BoardPage() {
   const seesData = isChannel && canAccessChannelScope('customers.view', channelId)
   const { data, loading, error } = useQuery(BoardDocument, { variables: { channelId, id }, skip: !isChannel || !id })
   const board = data?.board
-  const saved: BoardReport[] = (board?.reports ?? []) as BoardReport[]
+  const saved = useMemo(() => (board?.reports ?? []).map(cleanReport), [board])
   const canEdit = board?.access === 'edit' || board?.access === 'own'
   const canOwn = board?.access === 'own'
 
@@ -79,11 +79,11 @@ export function BoardPage() {
     setDraftName(kept?.name ?? board.name)
     setBase(kept ? board.draft!.baseUpdatedAt : board.updatedAt)
     setRestoredAt(kept ? board.draft!.updatedAt : null)
-    const reports = kept?.reports ?? keyed(board.reports as BoardReport[])
+    const reports = kept?.reports ?? keyed(saved)
     if (arriving) {
-      const key = newKey()
-      setDraft([...reports, { ...arriving, key }])
-      setEditing(key)
+      const added = fresh(arriving)
+      setDraft([...reports, added])
+      setEditing(added.key)
     } else setDraft(reports)
   }
   useEffect(() => {
@@ -129,11 +129,11 @@ export function BoardPage() {
       save: async () => {
         if (!board) return
         const res = await saveBoard({
-          variables: { channelId, id: board.id, name: draftName.trim(), reports: unkeyed(draft).map((r) => ({ title: r.title.trim(), definition: r.definition })), readAt: base },
+          variables: { channelId, id: board.id, name: draftName.trim(), reports: unkeyed(draft).map((r) => ({ ...r, title: r.title.trim() })), readAt: base },
         })
         const next = res.data?.saveBoard
         if (next) {
-          setDraft(keyed(next.reports as BoardReport[]))
+          setDraft(keyed(next.reports.map(cleanReport)))
           setDraftName(next.name)
           setBase(next.updatedAt)
           setRestoredAt(null)
@@ -157,12 +157,12 @@ export function BoardPage() {
     }
   }
 
-  const update = (key: string, patch: Partial<BoardReport>) => setDraft((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)))
+  const update = (key: string, patch: Partial<DraftReport>) => setDraft((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)))
   const add = (kind: ReportKind) => {
-    const definition = DEFAULT_DEFINITIONS[kind]
-    const key = newKey()
-    setDraft((rs) => [...rs, { key, title: suggestTitle(definition), definition }])
-    setEditing(key)
+    const { start, title } = KINDS[kind]
+    const added = fresh({ title: title(start), size: 'MEDIUM', definition: start })
+    setDraft((rs) => [...rs, added])
+    setEditing(added.key)
     setFocused(false)
   }
   const remove = (key: string) => {
@@ -172,7 +172,7 @@ export function BoardPage() {
   const duplicate = (key: string) =>
     setDraft((rs) => {
       const i = rs.findIndex((r) => r.key === key)
-      return [...rs.slice(0, i + 1), { ...rs[i], key: newKey(), title: `${rs[i].title} (copy)` }, ...rs.slice(i + 1)]
+      return [...rs.slice(0, i + 1), fresh({ ...rs[i], title: `${rs[i].title} (copy)` }), ...rs.slice(i + 1)]
     })
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
   const onDragEnd = ({ active, over }: DragEndEvent) => {
@@ -197,7 +197,7 @@ export function BoardPage() {
     if (!board) return
     await dropDraft({ variables: { channelId, id: board.id } })
     setDraftName(board.name)
-    setDraft(keyed(board.reports as BoardReport[]))
+    setDraft(keyed(saved))
     setBase(board.updatedAt)
     setRestoredAt(null)
     setEditing(null)
@@ -223,7 +223,7 @@ export function BoardPage() {
   return (
     <DetailPageLayout>
       <DetailPageHeader
-        backTo="/boards"
+        backTo="/synapse/boards"
         backLabel="Back to boards"
         title={
           canEdit && board ? (
@@ -382,7 +382,7 @@ export function BoardPage() {
         onConfirm={async () => {
           if (!board) return
           await deleteBoard({ variables: { channelId, id: board.id } })
-          navigate('/boards')
+          navigate('/synapse/boards')
         }}
       />
       {board && (
@@ -406,11 +406,13 @@ export function BoardPage() {
 
 const DRAFT_DELAY_MS = 1000
 
-// The kept draft is the page's own staging, as it was written - anything else reads as no draft
+// The kept draft is the page's own staging, as it was written - anything else, such as one kept by an older build,
+// reads as no draft
 function readDraft(payload: unknown): { name: string; reports: DraftReport[] } | null {
   const p = payload as { name?: unknown; reports?: unknown } | null | undefined
   if (!p || typeof p.name !== 'string' || !Array.isArray(p.reports)) return null
-  return { name: p.name, reports: p.reports as DraftReport[] }
+  const current = (r: unknown) => typeof r === 'object' && r !== null && 'from' in r && 'size' in r && 'definition' in r
+  return p.reports.every(current) ? { name: p.name, reports: p.reports as DraftReport[] } : null
 }
 
 // Who sees the board, in one line under its name
@@ -440,7 +442,7 @@ type TileProps = {
 
 function Tile({ r, channelId, sinceDays, canManage, editing, focused, onEdit, onRemove, onDuplicate, seesData, shop }: TileProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: r.key, disabled: !canManage || focused })
-  const size = focused ? 'full' : (r.definition.size ?? 'medium')
+  const size: ReportSize = focused ? 'FULL' : r.size
   return (
     <section
       ref={setNodeRef}
@@ -457,7 +459,7 @@ function Tile({ r, channelId, sinceDays, canManage, editing, focused, onEdit, on
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-medium">{r.title || 'Untitled report'}</h3>
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
-            {REPORT_KIND_LABEL[r.definition.kind] ?? r.definition.kind} · {describeReport(r.definition)}
+            {kindOf(r.definition)?.label ?? r.definition.kind} · {describeReport(r.definition)}
           </p>
         </div>
         {canManage && (
@@ -477,71 +479,10 @@ function Tile({ r, channelId, sinceDays, canManage, editing, focused, onEdit, on
         )}
       </div>
       {seesData ? (
-        <ReportResult channelId={channelId} d={r.definition} sinceDays={r.definition.sinceDays || sinceDays} compact={size !== 'full'} />
+        <ReportResult channelId={channelId} d={r.definition} sinceDays={r.definition.sinceDays || sinceDays} compact={size !== 'FULL'} />
       ) : (
         <p className="py-6 text-center text-sm text-muted-foreground">You need customer analytics on {shop} to see this report's numbers.</p>
       )}
     </section>
-  )
-}
-
-// EditPanel builds the tile being edited, beside the grid rather than over it, so the board stays usable and the tile
-// shows each change as it's made - the changes are staged on the board like any other edit
-function EditPanel({ r, channelId, focused, onChange, onFocus, onClose }: { r: DraftReport; channelId: string; focused: boolean; onChange: (patch: Partial<BoardReport>) => void; onFocus: () => void; onClose: () => void }) {
-  const d = r.definition
-  const builder = d.kind === 'stickiness' ? 'retention' : d.kind
-  const setDefinition = (next: ReportDefinition) => onChange({ definition: { ...next, size: d.size, sinceDays: d.sinceDays } })
-  return (
-    <aside aria-label={`Edit ${r.title}`} className="sticky top-0 max-h-[calc(100vh-10rem)] w-[26rem] shrink-0 space-y-4 overflow-y-auto rounded-md border bg-background p-4">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="font-semibold">Edit report</h2>
-        <div className="flex">
-          <Button size="icon" variant="ghost" className="size-7" aria-label={focused ? 'Back to the board' : 'Expand the report'} onClick={onFocus}>
-            {focused ? <Minimize2Icon className="size-4" /> : <Maximize2Icon className="size-4" />}
-          </Button>
-          <Button size="icon" variant="ghost" className="size-7" aria-label="Close the editor" onClick={onClose}>
-            <XIcon className="size-4" />
-          </Button>
-        </div>
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor="tile-title">Title</Label>
-        <Input id="tile-title" value={r.title} onChange={(e) => onChange({ title: e.target.value })} />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label htmlFor="tile-kind">Report</Label>
-          <select
-            id="tile-kind"
-            value={builder}
-            onChange={(e) => {
-              const next = DEFAULT_DEFINITIONS[e.target.value as ReportKind]
-              onChange({ title: suggestTitle(next), definition: { ...next, size: d.size } })
-            }}
-            className="w-full rounded border bg-background px-2 py-1.5 text-sm"
-          >
-            {BUILDERS.map((b) => (
-              <option key={b.kind} value={b.kind}>
-                {b.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="tile-size">Size</Label>
-          <select id="tile-size" value={d.size ?? 'medium'} onChange={(e) => onChange({ definition: { ...d, size: e.target.value as ReportSize } })} className="w-full rounded border bg-background px-2 py-1.5 text-sm">
-            {(Object.keys(REPORT_SIZE_LABEL) as ReportSize[]).map((s) => (
-              <option key={s} value={s}>
-                {REPORT_SIZE_LABEL[s]}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-      <div className="border-t pt-4">
-        <ReportControls channelId={channelId} value={d} onChange={setDefinition} />
-      </div>
-      <p className="text-xs text-muted-foreground">Changes show on the tile straight away and are kept when you Save the board. Esc closes this panel.</p>
-    </aside>
   )
 }

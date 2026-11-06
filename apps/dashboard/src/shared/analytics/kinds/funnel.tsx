@@ -5,8 +5,8 @@ import { cn } from '@/lib/utils'
 import { formatNumber } from '@/lib/format'
 import { eventLabel } from '@/features/synapse/eventLabel'
 import { SynapseFunnelDocument } from '@/features/synapse/Synapse.gql'
-import type { ReportDefinition } from '../report'
-import { Note, State, pct, useTopEvents, type ControlsProps, type ResultProps } from './ui'
+import type { ControlsProps, Kind, ReportDefinition, ResultProps } from './definition'
+import { Note, State, pct, useTopEvents } from './ui'
 
 const WINDOWS: { label: string; hours: number | null }[] = [
   { label: 'Any time in the period', hours: null },
@@ -31,7 +31,7 @@ export function removeStep(d: ReportDefinition, i: number): ReportDefinition {
   return { ...d, steps, filters }
 }
 
-export function FunnelControls({ channelId, value: d, onChange }: ControlsProps) {
+function FunnelControls({ channelId, value: d, onChange }: ControlsProps) {
   const available = useTopEvents(channelId)
   const steps = d.steps ?? []
   const filters = d.filters ?? []
@@ -158,7 +158,7 @@ function StepFilterForm({ step, onAdd }: { step: number; onAdd: (f: { key: strin
   )
 }
 
-export function FunnelResult({ channelId, d, sinceDays, compact }: ResultProps) {
+function FunnelResult({ channelId, d, sinceDays, compact }: ResultProps) {
   const steps = d.steps ?? []
   const breakdown = d.breakdown ?? ''
   const { data, loading, error } = useQuery(SynapseFunnelDocument, {
@@ -241,4 +241,14 @@ export function FunnelResult({ channelId, d, sinceDays, compact }: ResultProps) 
       </div>
     </State>
   )
+}
+
+export const funnel: Kind = {
+  label: 'Funnel',
+  menu: { label: 'Funnel', hint: 'Conversion through steps, in order' },
+  describe: (d) => (d.steps ?? []).join(' → ') + (d.windowHours ? ` within ${d.windowHours} h` : ''),
+  title: (d) => (d.steps ?? []).map(eventLabel).join(' → '),
+  start: { kind: 'FUNNEL', steps: ['page_view', 'view_item', 'cart_add', 'begin_checkout', 'order_placed'] },
+  Controls: FunnelControls,
+  Result: FunnelResult,
 }

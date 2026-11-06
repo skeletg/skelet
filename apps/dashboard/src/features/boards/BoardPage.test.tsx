@@ -6,6 +6,7 @@ import type { ConfigScopeContextValue } from '@/lib/config-scope'
 import { SynapseInsightsDocument, SynapseOverviewDocument, SynapseStickinessDocument } from '@/features/synapse/Synapse.gql'
 import { BoardDocument, DiscardBoardDraftDocument, SaveBoardDocument, SaveBoardDraftDocument } from './Boards.gql'
 import { BoardPage } from './BoardPage'
+import { cleanReport } from './report'
 
 const channelScope = {
   ...globalScope,
@@ -16,7 +17,29 @@ const channelScope = {
   selectedChannel: { id: 'c1', name: 'Main', slug: 'main' },
 } as unknown as ConfigScopeContextValue
 
-const report = (title: string, event: string) => ({ __typename: 'BoardReport', title, definition: { kind: 'stickiness', event } })
+// As the query reads it: every field of the definition, unset ones null, each object with its __typename
+const report = (title: string, event: string) => ({
+  __typename: 'BoardReport',
+  title,
+  definition: {
+    __typename: 'BoardReportDefinition',
+    kind: 'STICKINESS' as const,
+    sinceDays: null,
+    event,
+    measure: null,
+    unit: null,
+    breakdown: null,
+    steps: null,
+    filters: null,
+    windowHours: null,
+    startEvent: null,
+    returnEvent: null,
+    periods: null,
+    depth: null,
+    windowDays: null,
+  },
+  size: null,
+})
 const board = {
   __typename: 'Board',
   id: 'b1',
@@ -35,8 +58,8 @@ describe('BoardPage', () => {
   it('stages a rename and a removed report, and saves them with the board as read', async () => {
     let saved: Record<string, unknown> | null = null
     renderPage({
-      path: '/boards/b1',
-      routes: { '/boards/:id': <BoardPage /> },
+      path: '/synapse/boards/b1',
+      routes: { '/synapse/boards/:id': <BoardPage /> },
       adminId: 'admin-1',
       scope: channelScope,
       mocks: [
@@ -74,15 +97,16 @@ describe('BoardPage', () => {
       id: 'b1',
       name: 'Weekly review',
       readAt: '2026-11-04T10:00:00.123456Z',
-      reports: [{ title: 'Buyers', definition: { kind: 'stickiness', event: 'order_placed' } }],
     })
+    // Sent back as the input takes it - no nulls, no __typename
+    expect((saved as unknown as { reports: unknown[] }).reports).toEqual([{ title: 'Buyers', size: 'MEDIUM', definition: { kind: 'STICKINESS', event: 'order_placed' } }])
   })
 
   it('adds a report from the header, builds and sizes it in the panel beside the tile, and saves it with the board', async () => {
     let saved: Record<string, unknown> | null = null
     renderPage({
-      path: '/boards/b1',
-      routes: { '/boards/:id': <BoardPage /> },
+      path: '/synapse/boards/b1',
+      routes: { '/synapse/boards/:id': <BoardPage /> },
       adminId: 'admin-1',
       scope: channelScope,
       mocks: [meMock({ superuser: true }), ...boardMocks((v) => (saved = v))],
@@ -93,7 +117,7 @@ describe('BoardPage', () => {
     const panel = await screen.findByRole('complementary', { name: 'Edit Page view' }, SLOW)
     expect(screen.getByRole('region', { name: 'Page view' })).toBeTruthy() // the tile is on the grid while it's built
     fireEvent.click(within(panel).getByRole('button', { name: 'Unique' }))
-    fireEvent.change(within(panel).getByRole('combobox', { name: 'Size' }), { target: { value: 'full' } })
+    fireEvent.change(within(panel).getByRole('combobox', { name: 'Size' }), { target: { value: 'FULL' } })
     fireEvent.change(within(panel).getByRole('textbox', { name: 'Title' }), { target: { value: 'Visitors' } })
 
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -102,22 +126,22 @@ describe('BoardPage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Apply 1 change' }))
     await waitFor(() => expect(saved).not.toBeNull(), SLOW)
     expect((saved as unknown as { reports: unknown[] }).reports).toEqual([
-      ...board.reports.map(({ title, definition }) => ({ title, definition })),
-      { title: 'Visitors', definition: { kind: 'insights', event: 'page_view', measure: 'unique', unit: 'day', size: 'full' } },
+      ...board.reports.map(cleanReport),
+      { title: 'Visitors', size: 'FULL', definition: { kind: 'INSIGHTS', event: 'page_view', measure: 'unique', unit: 'day' } },
     ])
   })
 
   it("stages a saved report's resize as just that, and Esc closes the panel", async () => {
     renderPage({
-      path: '/boards/b1',
-      routes: { '/boards/:id': <BoardPage /> },
+      path: '/synapse/boards/b1',
+      routes: { '/synapse/boards/:id': <BoardPage /> },
       adminId: 'admin-1',
       scope: channelScope,
       mocks: [meMock({ superuser: true }), ...boardMocks(() => {})],
     })
     fireEvent.click(await screen.findByRole('button', { name: 'Edit Buyers' }, SLOW))
     const panel = await screen.findByRole('complementary', { name: 'Edit Buyers' })
-    fireEvent.change(within(panel).getByRole('combobox', { name: 'Size' }), { target: { value: 'small' } })
+    fireEvent.change(within(panel).getByRole('combobox', { name: 'Size' }), { target: { value: 'SMALL' } })
     fireEvent.keyDown(window, { key: 'Escape' })
     await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull())
 
@@ -149,7 +173,7 @@ describe('BoardPage', () => {
       updatedAt: '2026-11-05T09:00:00Z',
       draft: {
         __typename: 'BoardDraft',
-        payload: { name: 'Weekly, kept', reports: [{ ...board.reports[1], key: 's1' }] },
+        payload: { name: 'Weekly, kept', reports: [{ ...cleanReport(board.reports[1]), key: 's1', from: 1 }] },
         baseUpdatedAt: '2026-11-04T10:00:00.123456Z',
         updatedAt: '2026-11-04T18:00:00Z',
       },
@@ -171,6 +195,23 @@ describe('BoardPage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /^Apply/ }))
     await waitFor(() => expect(saved).not.toBeNull(), SLOW)
     expect(saved).toMatchObject({ name: 'Weekly, kept', readAt: '2026-11-04T10:00:00.123456Z' }) // a newer save in between is refused, not overwritten
+  })
+
+  it('opens the saved board when the kept draft is in a shape this build no longer writes', async () => {
+    const oldDraft = {
+      ...board,
+      draft: { __typename: 'BoardDraft', payload: { name: 'Old shape', reports: [{ ...board.reports[1], key: 's1' }] }, baseUpdatedAt: board.updatedAt, updatedAt: board.updatedAt },
+    }
+    renderPage({
+      path: '/boards/b1',
+      routes: { '/boards/:id': <BoardPage /> },
+      adminId: 'admin-1',
+      scope: channelScope,
+      mocks: [meMock({ superuser: true }), ...boardMocks(() => {}, oldDraft)],
+    })
+    expect(await screen.findByRole('region', { name: 'Returning' }, SLOW)).toBeTruthy()
+    expect((screen.getByRole('textbox', { name: 'Board name' }) as HTMLInputElement).value).toBe(board.name)
+    expect(screen.queryByText(/These are your unsaved changes from/)).toBeNull()
   })
 
   it('shows someone with view access the board without anything to change', async () => {

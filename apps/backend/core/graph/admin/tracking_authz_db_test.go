@@ -37,15 +37,16 @@ func TestTrackingDestinationsStayInTheirChannel(t *testing.T) {
 	chA, chB := mk("trk-a"), mk("trk-b")
 
 	kind := "t-authz-" + suffix
-	tracking.RegisterKind(tracking.Kind{Kind: kind, Label: "Test", Send: func(context.Context, *http.Client, tracking.Destination, tracking.Event) error { return nil },
-		Fields: []sdk.DestinationField{{Key: "account", Label: "Account", Required: true}, {Key: "api_secret", Label: "Secret", Required: true, Secret: true}}})
+	dest := sdk.Destination{Kind: kind, Label: "Test", Send: func(context.Context, *http.Client, sdk.DestinationConfig, tracking.Event) error { return nil },
+		Fields: []sdk.DestinationField{{Key: "account", Label: "Account", Required: true}, {Key: "api_secret", Label: "Secret", Required: true, Secret: true}}}
+	tracking.RegisterKind(tracking.Kind{Destination: dest})
 	svc := tracking.NewService(q, nil, nil)
 	const secret = "super-secret-value-123"
 	inB, err := svc.Create(ctx, tracking.Destination{ChannelID: chB, Kind: kind, Name: "B", Config: map[string]string{"account": "b"}, Secret: secret})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := q.EnqueueTrackingDelivery(ctx, db.EnqueueTrackingDeliveryParams{DestinationID: inB.ID, EventID: "e1", EventName: "purchase", Payload: []byte(`{}`)}); err != nil {
+	if err := q.EnqueueTrackingEvent(ctx, db.EnqueueTrackingEventParams{DestinationIds: []uuid.UUID{inB.ID}, ChannelID: chB, EventID: "e1", EventName: "purchase", Payload: []byte(`{}`)}); err != nil {
 		t.Fatal(err)
 	}
 	logB, err := svc.Deliveries(ctx, inB.ID, "", 10)
@@ -104,7 +105,7 @@ func TestTrackingDestinationsStayInTheirChannel(t *testing.T) {
 	}
 	got, _ := qr.TrackingDestination(manageB, inB.ID.String())
 	retried, err := mr.RedeliverTrackingDelivery(manageB, logB[0].ID.String())
-	if err != nil || retried.Status != "pending" {
+	if err != nil || retried.Status != model.TrackingDeliveryStatusPending {
 		t.Errorf("channel B's own admin retrying its dead delivery: %+v %v", retried, err)
 	}
 	if _, err := mr.RedeliverTrackingDelivery(manageB, logB[0].ID.String()); err == nil {

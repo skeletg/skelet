@@ -75,6 +75,7 @@ const NO_STAGED_EDITS: Record<string, string> = {
   '@/features/synapse/SynapseRetention': 'report controls only, kept in the URL - Add to board is its own dialog',
   '@/features/synapse/SynapseFlow': 'report controls only - Add to board is its own dialog',
   '@/features/synapse/SynapseInsights': 'report controls only - Add to board is its own dialog',
+  '@/features/boards/BoardsPage': 'a list of boards - New board and the starter boards are explicit creates, nothing staged',
 }
 
 function resolve(spec: string, fromKey: string): string | null {

@@ -1,3 +1,28 @@
+fragment BoardReportFields on BoardReport {
+  title
+  size
+  definition {
+    kind
+    sinceDays
+    event
+    measure
+    unit
+    breakdown
+    steps
+    filters {
+      step
+      key
+      value
+    }
+    windowHours
+    startEvent
+    returnEvent
+    periods
+    depth
+    windowDays
+  }
+}
+
 query Boards($channelId: ID!, $all: Boolean) {
   boards(channelId: $channelId, all: $all) {
     id
@@ -35,8 +60,7 @@ fragment BoardFull on Board {
     removed
   }
   reports {
-    title
-    definition
+    ...BoardReportFields
   }
   shares {
     adminId

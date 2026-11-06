@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@apollo/client/react'
 import {
   FilterIcon,
+  LayoutGridIcon,
   LayersIcon,
   LineChartIcon,
   RepeatIcon,
@@ -20,13 +21,15 @@ import {
   DetailPageSection,
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
+import { usePermissions } from '@/shared/auth/usePermissions'
 import { customerLabel, useCustomerNames } from '@/shared/signals/useCustomerNames'
 import { eventLabel } from './eventLabel'
 import { SynapseOverviewDocument, SynapseStickinessDocument } from './Synapse.gql'
 import { Empty, Panel, Tile } from '@/components/layout/panels'
 import { formatCents, formatDate, formatNumber, formatShortDay } from '@/lib/format'
 
-// The Synapse tools, described so the hub explains what each one is
+// The Synapse tools, described so the hub explains what each one is - Boards only for an admin who may see them
+const BOARDS = { to: '/synapse/boards', icon: <LayoutGridIcon className="size-5" />, title: 'Boards', desc: 'Reports saved side by side, shared with the shop.' }
 const REPORTS: { to: string; icon: ReactNode; title: string; desc: string }[] = [
   { to: '/synapse/insights', icon: <LineChartIcon className="size-5" />, title: 'Insights', desc: 'Measure any event over time, broken down by any property.' },
   { to: '/synapse/funnels', icon: <FilterIcon className="size-5" />, title: 'Funnels', desc: 'Step-by-step conversion and where people drop off.' },
@@ -38,6 +41,7 @@ const REPORTS: { to: string; icon: ReactNode; title: string; desc: string }[] = 
 export function SynapseHome() {
   const { effectiveChannelId, isChannel, selectedChannel } = useConfigScope()
   const channelId = effectiveChannelId ?? ''
+  const canBoards = usePermissions().has('boards.view')
   const skip = !effectiveChannelId
 
   const { data, error: ovError } = useQuery(SynapseOverviewDocument, { variables: { channelId, sinceDays: 30 }, skip, fetchPolicy: 'cache-and-network' })
@@ -70,7 +74,7 @@ export function SynapseHome() {
         )}
         <DetailPageSection title="Explore" description="Pick a report. Each works per channel and resolves people across their anonymous + signed-in activity.">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {REPORTS.map((r) => (
+            {(canBoards ? [BOARDS, ...REPORTS] : REPORTS).map((r) => (
               <Link key={r.to} to={r.to} className="group flex items-start gap-3 rounded-lg border p-4 transition hover:border-primary/40 hover:bg-muted/40">
                 <span className="grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">{r.icon}</span>
                 <span className="min-w-0">

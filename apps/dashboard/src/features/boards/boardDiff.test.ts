@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import type { BoardReport } from '@/shared/analytics/report'
-import { boardDiff, keyed, type DraftReport } from './boardDiff'
+import type { BoardReport } from './report'
+import { boardDiff, fresh, keyed } from './boardDiff'
 
-const views: BoardReport = { title: 'Views', definition: { kind: 'insights', event: 'page_view' } }
-const funnel: BoardReport = { title: 'Funnel', definition: { kind: 'funnel', steps: ['page_view', 'order_placed'] } }
+const views: BoardReport = { title: 'Views', size: 'MEDIUM', definition: { kind: 'INSIGHTS', event: 'page_view' } }
+const funnel: BoardReport = { title: 'Funnel', size: 'MEDIUM', definition: { kind: 'FUNNEL', steps: ['page_view', 'order_placed'] } }
 const saved = [views, funnel]
-const fresh = (r: BoardReport, key = 'n1'): DraftReport => ({ ...r, key })
 
 describe('boardDiff', () => {
   it('is empty for an untouched board', () => {
@@ -35,12 +34,24 @@ describe('boardDiff', () => {
   })
   it('shows a resize on its own, not as a settings change', () => {
     const [v] = keyed([views])
-    const d = boardDiff('Mine', [views], 'Mine', [{ ...v, definition: { ...v.definition, size: 'full' } }])
+    const d = boardDiff('Mine', [views], 'Mine', [{ ...v, size: 'FULL' }])
     expect(d).toEqual([expect.objectContaining({ label: 'Report · Views · size', before: 'Medium', after: 'Full row' })])
   })
   it('names the new order when the reports that stayed moved', () => {
     const [v, f] = keyed(saved)
-    const d = boardDiff('Mine', saved, 'Mine', [f, v, fresh(views, 'n2')])
-    expect(d).toContainEqual(expect.objectContaining({ label: 'Report order', before: 'Views, Funnel', after: 'Funnel, Views' }))
+    const d = boardDiff('Mine', saved, 'Mine', [f, v, fresh(views)])
+    expect(d).toContainEqual(expect.objectContaining({ label: 'Report order', before: '1. Views, 2. Funnel', after: '2. Funnel, 1. Views' }))
+  })
+  it("doesn't count a setting cleared back to unset, or set in another order, as a change", () => {
+    const [v] = keyed([views])
+    expect(boardDiff('Mine', [views], 'Mine', [{ ...v, definition: { breakdown: '', event: 'page_view', kind: 'INSIGHTS' } }])).toEqual([])
+  })
+  it('shows a duplicated report as added, not as the one it was copied from', () => {
+    const [v] = keyed([views])
+    expect(boardDiff('Mine', [views], 'Mine', [v, fresh({ ...v, title: 'Views (copy)' })])).toEqual([expect.objectContaining({ kind: 'add', label: 'Report · Views (copy)' })])
+  })
+  it('shows two reports of the same title swapping places', () => {
+    const [a, b] = keyed([views, views])
+    expect(boardDiff('Mine', [views, views], 'Mine', [b, a])).toEqual([expect.objectContaining({ label: 'Report order', before: '1. Views, 2. Views', after: '2. Views, 1. Views' })])
   })
 })

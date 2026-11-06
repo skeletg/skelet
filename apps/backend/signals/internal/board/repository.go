@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,55 +18,79 @@ type repo struct {
 	q    *db.Queries
 }
 
-func (r *repo) list(ctx context.Context, channelID uuid.UUID) ([]Board, error) {
+func (r *repo) list(ctx context.Context, channelID uuid.UUID) ([]Summary, error) {
 	rows, err := r.q.ListBoards(ctx, channelID)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]Board, 0, len(rows))
+	out := make([]Summary, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, Board{
-			ID: row.ID, ChannelID: channelID, Name: row.Name, UpdatedAt: row.UpdatedAt, ReportCount: int(row.ReportCount),
+		out = append(out, Summary{
+			ID: row.ID, Name: row.Name, UpdatedAt: row.UpdatedAt, ReportCount: int(row.ReportCount),
 			OwnerID: row.OwnerAdminID.UUID, Status: row.Status,
 		})
 	}
 	return out, nil
 }
 
-func (r *repo) get(ctx context.Context, id uuid.UUID) (Board, error) {
-	row, err := r.q.GetBoard(ctx, id)
+func (r *repo) get(ctx context.Context, channelID, id uuid.UUID) (Board, error) {
+	row, err := r.q.GetBoard(ctx, db.GetBoardParams{ID: id, ChannelID: channelID})
 	if errors.Is(err, sql.ErrNoRows) {
 		return Board{}, ErrNotFound
 	}
 	if err != nil {
 		return Board{}, err
 	}
-	b := Board{ID: row.ID, ChannelID: row.ChannelID, Name: row.Name, UpdatedAt: row.UpdatedAt, OwnerID: row.OwnerAdminID.UUID, Status: row.Status}
+	b := Board{ID: row.ID, ChannelID: channelID, Name: row.Name, UpdatedAt: row.UpdatedAt, OwnerID: row.OwnerAdminID.UUID, Status: row.Status}
 	reports, err := r.q.BoardReports(ctx, id)
 	if err != nil {
 		return Board{}, err
 	}
 	for _, rr := range reports {
 		var d Definition
-		if err := json.Unmarshal(rr.Definition, &d); err != nil { // a newer shape than this build reads still shows its title
-			d = Definition{}
+		if err := json.Unmarshal(rr.Definition, &d); err != nil {
+			return Board{}, fmt.Errorf("board %s, report %q: %w", id, rr.Title, err)
 		}
-		b.Reports = append(b.Reports, Report{Title: rr.Title, Definition: d})
+		b.Reports = append(b.Reports, Report{Title: rr.Title, Size: rr.Size, Definition: d})
 	}
-	b.ReportCount = len(b.Reports)
 	return b, nil
 }
 
 func (r *repo) create(ctx context.Context, b Board) (Board, error) {
-	err := r.inTx(ctx, func(q *db.Queries) error {
-		row, err := q.CreateBoard(ctx, db.CreateBoardParams{ChannelID: b.ChannelID, Name: b.Name, OwnerAdminID: nullID(b.OwnerID), Status: b.Status})
-		if err != nil {
-			return err
-		}
-		b.ID, b.UpdatedAt = row.ID, row.UpdatedAt
-		return writeReports(ctx, q, b.ID, b.Reports)
+	err := r.inTx(ctx, func(q *db.Queries) (err error) {
+		b, err = insertBoard(ctx, q, b)
+		return err
 	})
 	return b, err
+}
+
+// createIfNone adds boards to a shop that has none, under a per-shop lock so concurrent calls add them once
+func (r *repo) createIfNone(ctx context.Context, channelID uuid.UUID, boards []Board) error {
+	return r.inTx(ctx, func(q *db.Queries) error {
+		if err := q.LockChannelBoards(ctx, channelID); err != nil {
+			return err
+		}
+		n, err := q.CountBoards(ctx, channelID)
+		if err != nil || n > 0 {
+			return err
+		}
+		for _, b := range boards {
+			b.ChannelID, b.Status = channelID, StatusPublished // shop boards: no owner, seen by everyone on the shop
+			if _, err := insertBoard(ctx, q, b); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func insertBoard(ctx context.Context, q *db.Queries, b Board) (Board, error) {
+	row, err := q.CreateBoard(ctx, db.CreateBoardParams{ChannelID: b.ChannelID, Name: b.Name, OwnerAdminID: nullID(b.OwnerID), Status: b.Status})
+	if err != nil {
+		return b, err
+	}
+	b.ID, b.UpdatedAt = row.ID, row.UpdatedAt
+	return b, writeReports(ctx, q, b.ID, b.Reports)
 }
 
 // save replaces the board's name and reports in one go, refused when someone else saved it after readAt - and the
@@ -75,11 +100,16 @@ func (r *repo) save(ctx context.Context, b Board, readAt time.Time, by uuid.UUID
 		if err := q.DeleteBoardDraft(ctx, db.DeleteBoardDraftParams{BoardID: b.ID, AdminID: by}); err != nil {
 			return err
 		}
-		n, err := q.RenameBoard(ctx, db.RenameBoardParams{ID: b.ID, Name: b.Name, ReadAt: readAt})
+		n, err := q.TouchBoard(ctx, db.TouchBoardParams{ID: b.ID, ChannelID: b.ChannelID, Name: b.Name, ReadAt: readAt})
 		if err != nil {
 			return err
 		}
-		if n == 0 {
+		if n == 0 { // missing from this shop, or saved since readAt
+			if _, err := q.GetBoard(ctx, db.GetBoardParams{ID: b.ID, ChannelID: b.ChannelID}); errors.Is(err, sql.ErrNoRows) {
+				return ErrNotFound
+			} else if err != nil {
+				return err
+			}
 			return ErrStale
 		}
 		if err := q.ClearBoardReports(ctx, b.ID); err != nil {
@@ -89,8 +119,11 @@ func (r *repo) save(ctx context.Context, b Board, readAt time.Time, by uuid.UUID
 	})
 }
 
-func (r *repo) delete(ctx context.Context, id uuid.UUID) error {
-	_, err := r.q.DeleteBoard(ctx, id)
+func (r *repo) delete(ctx context.Context, channelID, id uuid.UUID) error {
+	n, err := r.q.DeleteBoard(ctx, db.DeleteBoardParams{ID: id, ChannelID: channelID})
+	if err == nil && n == 0 {
+		return ErrNotFound
+	}
 	return err
 }
 
@@ -133,9 +166,9 @@ func (r *repo) setShares(ctx context.Context, boardID, by uuid.UUID, shares []Sh
 }
 
 // setOwner hands the board to an admin, or with uuid.Nil makes it a shop board - whose shares go, since everyone sees it
-func (r *repo) setOwner(ctx context.Context, boardID, owner uuid.UUID) error {
+func (r *repo) setOwner(ctx context.Context, channelID, boardID, owner uuid.UUID) error {
 	return r.inTx(ctx, func(q *db.Queries) error {
-		if _, err := q.SetBoardOwner(ctx, db.SetBoardOwnerParams{ID: boardID, OwnerAdminID: nullID(owner)}); err != nil {
+		if _, err := q.SetBoardOwner(ctx, db.SetBoardOwnerParams{ID: boardID, ChannelID: channelID, OwnerAdminID: nullID(owner)}); err != nil {
 			return err
 		}
 		if owner == uuid.Nil {
@@ -208,7 +241,7 @@ func writeReports(ctx context.Context, q *db.Queries, boardID uuid.UUID, reports
 			return err
 		}
 		if err := q.AddBoardReport(ctx, db.AddBoardReportParams{
-			BoardID: boardID, Position: int32(i), Title: rep.Title, Definition: raw, DefinitionVersion: DefinitionVersion,
+			BoardID: boardID, Position: int32(i), Title: rep.Title, Size: rep.Size, Definition: raw,
 		}); err != nil {
 			return err
 		}

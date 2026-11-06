@@ -62,12 +62,12 @@ func TestBoardsStayInTheirShopAndRefuseAStaleSave(t *testing.T) {
 	if err != nil || len(got.Reports) != 1 || got.Reports[0].Definition.Event != "page_view" {
 		t.Fatalf("board = %+v, %v", got, err)
 	}
-	funnel := Report{Title: "Funnel", Definition: Definition{Kind: "funnel", Steps: []string{"page_view", "order_placed"}}}
+	funnel := Report{Title: "Funnel", Size: "full", Definition: Definition{Kind: "funnel", Steps: []string{"page_view", "order_placed"}}}
 	saved, err := svc.Save(ctx, shop, me, b.ID, "Mine", []Report{funnel, views}, got.UpdatedAt)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(saved.Reports) != 2 || saved.Reports[0].Title != "Funnel" || saved.Reports[1].Title != "Views" {
+	if len(saved.Reports) != 2 || saved.Reports[0].Title != "Funnel" || saved.Reports[0].Size != "full" || saved.Reports[1].Title != "Views" {
 		t.Fatalf("saved reports = %+v, want them in the order sent", saved.Reports)
 	}
 	if _, err := svc.Save(ctx, shop, me, b.ID, "Mine", nil, got.UpdatedAt); !errors.Is(err, ErrStale) {
@@ -254,7 +254,7 @@ func TestMakingAShopBoardAndClaimingAnOrphan(t *testing.T) {
 }
 
 func TestStarterBoardsAreShopBoardsAddedOnce(t *testing.T) {
-	_, svc, shop := newShop(t)
+	conn, svc, shop := newShop(t)
 	ctx := context.Background()
 	me := Actor{AdminID: uuid.New(), CanManage: true}
 	first, err := svc.CreateStarters(ctx, shop, me)
@@ -272,6 +272,21 @@ func TestStarterBoardsAreShopBoardsAddedOnce(t *testing.T) {
 	}
 	if seen, _ := svc.List(ctx, shop, Actor{AdminID: uuid.New()}, false); len(seen) != 4 {
 		t.Fatalf("someone with boards.view sees %d starters, want all 4", len(seen))
+	}
+	// Two admins clicking at once still get one set
+	racing := uuid.New()
+	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM boards WHERE channel_id = $1`, racing) })
+	errs := make(chan error, 2)
+	for range 2 {
+		go func() { _, err := svc.CreateStarters(ctx, racing, me); errs <- err }()
+	}
+	for range 2 {
+		if err := <-errs; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if bs, _ := svc.List(ctx, racing, me, false); len(bs) != 4 {
+		t.Fatalf("concurrent starters left %d boards, want 4", len(bs))
 	}
 }
 

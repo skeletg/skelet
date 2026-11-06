@@ -55,7 +55,7 @@ func (s *boardServer) ListBoards(ctx context.Context, req *signalsv1.ListBoardsR
 	if err != nil {
 		return nil, boardErr(err)
 	}
-	return &signalsv1.ListBoardsResponse{Boards: boardsProto(bs)}, nil
+	return &signalsv1.ListBoardsResponse{Boards: summariesProto(bs)}, nil
 }
 
 func (s *boardServer) GetBoard(ctx context.Context, req *signalsv1.GetBoardRequest) (*signalsv1.GetBoardResponse, error) {
@@ -75,10 +75,7 @@ func (s *boardServer) CreateBoard(ctx context.Context, req *signalsv1.CreateBoar
 	if err != nil {
 		return nil, err
 	}
-	reports, err := reportsFrom(req.GetReports())
-	if err != nil {
-		return nil, err
-	}
+	reports := reportsFrom(req.GetReports())
 	b, err := s.svc.Create(ctx, cid, a, req.GetName(), reports)
 	if err != nil {
 		return nil, boardErr(err)
@@ -95,10 +92,7 @@ func (s *boardServer) SaveBoard(ctx context.Context, req *signalsv1.SaveBoardReq
 	if req.GetReadAt() == nil {
 		return nil, invalidArgument("read_at is required - the board's updated_at as loaded")
 	}
-	reports, err := reportsFrom(req.GetReports())
-	if err != nil {
-		return nil, err
-	}
+	reports := reportsFrom(req.GetReports())
 	b, err := s.svc.Save(ctx, cid, a, id, req.GetName(), reports, req.GetReadAt().AsTime())
 	if err != nil {
 		return nil, boardErr(err)
@@ -126,7 +120,7 @@ func (s *boardServer) CreateStarterBoards(ctx context.Context, req *signalsv1.Cr
 	if err != nil {
 		return nil, boardErr(err)
 	}
-	return &signalsv1.CreateStarterBoardsResponse{Boards: boardsProto(bs)}, nil
+	return &signalsv1.CreateStarterBoardsResponse{Boards: summariesProto(bs)}, nil
 }
 
 func (s *boardServer) SetBoardShares(ctx context.Context, req *signalsv1.SetBoardSharesRequest) (*signalsv1.SetBoardSharesResponse, error) {
@@ -206,37 +200,56 @@ func (s *boardServer) DiscardBoardDraft(ctx context.Context, req *signalsv1.Disc
 	return &signalsv1.DiscardBoardDraftResponse{}, nil
 }
 
-func reportsFrom(in []*signalsv1.BoardReport) ([]board.Report, error) {
+func reportsFrom(in []*signalsv1.BoardReport) []board.Report {
 	out := make([]board.Report, 0, len(in))
 	for _, r := range in {
-		d, err := board.ParseDefinition([]byte(r.GetDefinitionJson()))
-		if err != nil {
-			return nil, boardErr(err)
+		d := r.GetDefinition()
+		filters := make([]board.Filter, 0, len(d.GetFilters()))
+		for _, f := range d.GetFilters() {
+			filters = append(filters, board.Filter{Step: int(f.GetStep()), Key: f.GetKey(), Value: f.GetValue()})
 		}
-		out = append(out, board.Report{Title: r.GetTitle(), Definition: d})
-	}
-	return out, nil
-}
-
-func boardsProto(bs []board.Board) []*signalsv1.Board {
-	out := make([]*signalsv1.Board, 0, len(bs))
-	for _, b := range bs {
-		out = append(out, boardProto(b))
+		out = append(out, board.Report{Title: r.GetTitle(), Size: r.GetSize(), Definition: board.Definition{
+			Kind: d.GetKind(), SinceDays: int(d.GetSinceDays()), Event: d.GetEvent(), Measure: d.GetMeasure(), Unit: d.GetUnit(),
+			Breakdown: d.GetBreakdown(), Steps: d.GetSteps(), Filters: filters, WindowHours: int(d.GetWindowHours()),
+			StartEvent: d.GetStartEvent(), ReturnEvent: d.GetReturnEvent(), Periods: int(d.GetPeriods()), Depth: int(d.GetDepth()),
+			WindowDays: int(d.GetWindowDays()),
+		}})
 	}
 	return out
 }
 
+func summariesProto(bs []board.Summary) []*signalsv1.BoardSummary {
+	out := make([]*signalsv1.BoardSummary, 0, len(bs))
+	for _, b := range bs {
+		p := &signalsv1.BoardSummary{
+			Id: b.ID.String(), Name: b.Name, UpdatedAt: timestamppb.New(b.UpdatedAt), ReportCount: count32(b.ReportCount),
+			Status: b.Status, Access: b.Access.String(), Favourite: b.Favourite,
+		}
+		p.OwnerAdminId, p.DraftUpdatedAt = ownerProto(b.Ownership), draftAtProto(b.Ownership)
+		out = append(out, p)
+	}
+	return out
+}
+
+func ownerProto(o board.Ownership) string {
+	if o.OwnerID == uuid.Nil {
+		return ""
+	}
+	return o.OwnerID.String()
+}
+
+func draftAtProto(o board.Ownership) *timestamppb.Timestamp {
+	if o.DraftAt.IsZero() {
+		return nil
+	}
+	return timestamppb.New(o.DraftAt)
+}
+
 func boardProto(b board.Board) *signalsv1.Board {
 	out := &signalsv1.Board{
-		Id: b.ID.String(), ChannelId: b.ChannelID.String(), Name: b.Name,
-		UpdatedAt: timestamppb.New(b.UpdatedAt), ReportCount: count32(b.ReportCount),
-		Status: b.Status, Access: b.Access.String(), Favourite: b.Favourite,
-	}
-	if b.OwnerID != uuid.Nil {
-		out.OwnerAdminId = b.OwnerID.String()
-	}
-	if !b.DraftAt.IsZero() {
-		out.DraftUpdatedAt = timestamppb.New(b.DraftAt)
+		Id: b.ID.String(), ChannelId: b.ChannelID.String(), Name: b.Name, UpdatedAt: timestamppb.New(b.UpdatedAt),
+		OwnerAdminId: ownerProto(b.Ownership), Status: b.Status, Access: b.Access.String(), Favourite: b.Favourite,
+		DraftUpdatedAt: draftAtProto(b.Ownership),
 	}
 	for _, sh := range b.Shares {
 		p := &signalsv1.BoardShare{Level: sh.Level}
@@ -251,8 +264,17 @@ func boardProto(b board.Board) *signalsv1.Board {
 		out.Draft = &signalsv1.BoardDraft{PayloadJson: string(d.Payload), BaseUpdatedAt: timestamppb.New(d.BaseUpdatedAt), UpdatedAt: timestamppb.New(d.UpdatedAt)}
 	}
 	for _, r := range b.Reports {
-		raw, _ := board.DefinitionJSON(r.Definition)
-		out.Reports = append(out.Reports, &signalsv1.BoardReport{Title: r.Title, DefinitionJson: raw, DefinitionVersion: board.DefinitionVersion})
+		d := r.Definition
+		filters := make([]*signalsv1.FunnelFilter, 0, len(d.Filters))
+		for _, f := range d.Filters {
+			filters = append(filters, &signalsv1.FunnelFilter{Step: count32(f.Step), Key: f.Key, Value: f.Value})
+		}
+		out.Reports = append(out.Reports, &signalsv1.BoardReport{Title: r.Title, Size: r.Size, Definition: &signalsv1.BoardReportDefinition{
+			Kind: d.Kind, SinceDays: count32(d.SinceDays), Event: d.Event, Measure: d.Measure, Unit: d.Unit,
+			Breakdown: d.Breakdown, Steps: d.Steps, Filters: filters, WindowHours: count32(d.WindowHours),
+			StartEvent: d.StartEvent, ReturnEvent: d.ReturnEvent, Periods: count32(d.Periods), Depth: count32(d.Depth),
+			WindowDays: count32(d.WindowDays),
+		}})
 	}
 	return out
 }

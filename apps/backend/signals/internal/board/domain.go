@@ -4,23 +4,18 @@
 package board
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 )
 
-// DefinitionVersion is the shape Definition has today - stored beside each report so a later shape can still read it
-const DefinitionVersion = 1
-
 const (
-	maxName       = 120
-	maxReports    = 24
-	maxDefinition = 8 << 10
+	maxName    = 120
+	maxReports = 24
 )
 
 var (
@@ -30,24 +25,38 @@ var (
 )
 
 type Board struct {
+	ID        uuid.UUID
+	ChannelID uuid.UUID
+	Name      string
+	UpdatedAt time.Time
+	Reports   []Report
+	Ownership
+	Shares []Share // for an admin who owns it
+	Draft  *Draft  // the asking admin's unsaved edits
+}
+
+// Summary is one board in the list, without its reports
+type Summary struct {
 	ID          uuid.UUID
-	ChannelID   uuid.UUID
 	Name        string
 	UpdatedAt   time.Time
-	Reports     []Report
-	ReportCount int       // on a list read, where Reports is empty
-	OwnerID     uuid.UUID // uuid.Nil: a shop board
-	Status      string    // StatusDraft until its first Save
+	ReportCount int
+	Ownership
+}
+
+// Ownership is who a board belongs to, and what that means for the admin asking - a list and a single read both carry it
+type Ownership struct {
+	OwnerID uuid.UUID // uuid.Nil: a shop board
+	Status  string    // StatusDraft until its first Save
 	// For the admin asking: what they may do, whether they starred it, and when their unsaved edits were last kept
 	Access    Access
 	Favourite bool
 	DraftAt   time.Time
-	Shares    []Share // on a single read, for an admin who owns it
-	Draft     *Draft  // on a single read, the asking admin's unsaved edits
 }
 
 type Report struct {
 	Title      string
+	Size       string // the tile's width on the board: small | medium (unset) | full
 	Definition Definition
 }
 
@@ -67,28 +76,12 @@ type Definition struct {
 	Periods     int      `json:"periods,omitempty"`     // retention
 	Depth       int      `json:"depth,omitempty"`       // flow
 	WindowDays  int      `json:"windowDays,omitempty"`  // stickiness: the return window, 0 = the shop's default
-	Size        string   `json:"size,omitempty"`        // the tile's width on the board: small | medium (unset) | full
 }
 
 type Filter struct {
 	Step  int    `json:"step"`
 	Key   string `json:"key"`
 	Value string `json:"value"`
-}
-
-// ParseDefinition reads a definition the dashboard sent, refusing fields it doesn't know so a typo can't save a
-// report that silently runs differently
-func ParseDefinition(raw []byte) (Definition, error) {
-	if len(raw) > maxDefinition {
-		return Definition{}, fmt.Errorf("%w: a report definition is over %d bytes", ErrInvalid, maxDefinition)
-	}
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
-	var d Definition
-	if err := dec.Decode(&d); err != nil {
-		return Definition{}, fmt.Errorf("%w: report definition: %w", ErrInvalid, err)
-	}
-	return d, d.validate()
 }
 
 func (d Definition) validate() error {
@@ -131,33 +124,32 @@ func (d Definition) validate() error {
 	if d.Unit != "" && d.Unit != "day" && d.Unit != "week" {
 		return bad("unit is day or week")
 	}
-	if d.Size != "" && d.Size != "small" && d.Size != "medium" && d.Size != "full" {
-		return bad("size is small, medium or full")
-	}
 	return nil
 }
 
-func (b Board) validate() error {
-	name := strings.TrimSpace(b.Name)
-	if name == "" || len(name) > maxName {
-		return fmt.Errorf("%w: a board needs a name of up to %d characters", ErrInvalid, maxName)
+// normalized is the board as it's stored - name and titles trimmed - or why it can't be
+func (b Board) normalized() (Board, error) {
+	b.Name = strings.TrimSpace(b.Name)
+	if b.Name == "" || utf8.RuneCountInString(b.Name) > maxName {
+		return Board{}, fmt.Errorf("%w: a board needs a name of up to %d characters", ErrInvalid, maxName)
 	}
 	if len(b.Reports) > maxReports {
-		return fmt.Errorf("%w: a board holds up to %d reports", ErrInvalid, maxReports)
+		return Board{}, fmt.Errorf("%w: a board holds up to %d reports", ErrInvalid, maxReports)
 	}
-	for _, r := range b.Reports {
-		if t := strings.TrimSpace(r.Title); t == "" || len(t) > maxName {
-			return fmt.Errorf("%w: each report needs a title of up to %d characters", ErrInvalid, maxName)
+	reports := make([]Report, len(b.Reports)) // a copy, so the caller's slice keeps its own titles
+	for i, r := range b.Reports {
+		r.Title = strings.TrimSpace(r.Title)
+		if r.Title == "" || utf8.RuneCountInString(r.Title) > maxName {
+			return Board{}, fmt.Errorf("%w: each report needs a title of up to %d characters", ErrInvalid, maxName)
+		}
+		if r.Size != "" && r.Size != "small" && r.Size != "medium" && r.Size != "full" {
+			return Board{}, fmt.Errorf("%w: a report's size is small, medium or full", ErrInvalid)
 		}
 		if err := r.Definition.validate(); err != nil {
-			return err
+			return Board{}, err
 		}
+		reports[i] = r
 	}
-	return nil
-}
-
-// DefinitionJSON is a definition as the wire carries it
-func DefinitionJSON(d Definition) (string, error) {
-	raw, err := json.Marshal(d)
-	return string(raw), err
+	b.Reports = reports
+	return b, nil
 }

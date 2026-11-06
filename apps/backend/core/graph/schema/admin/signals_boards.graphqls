@@ -3,20 +3,32 @@
 # one, and to run shop boards); Signals decides each admin's access to each board. Each report still runs through the
 # Synapse query of its kind, under that query's own grant - so a board never shows anyone data they couldn't query
 
-type Board {
+# One board in the list, without its reports
+type BoardSummary {
   id:          ID!
-  channelId:   ID!
   name:        String!
-  updatedAt:   Time!        # send back as saveBoard's readAt
+  updatedAt:   Time!
   reportCount: Int!
-  reports:     [BoardReport!]!   # empty on the boards list
   status:      String!      # draft (its owner's alone, until its first save) | published
   access:      String!      # the caller's: view | edit | own
   favourite:   Boolean!     # the caller's star
   owner:       BoardOwner   # null on a shop board
   draftUpdatedAt: Time      # when the caller's unsaved edits were last kept
-  shares:      [BoardShare!]!    # on a single read, for a caller who owns it
-  draft:       BoardDraft        # on a single read, the caller's unsaved edits
+}
+
+type Board {
+  id:        ID!
+  channelId: ID!
+  name:      String!
+  updatedAt: Time!        # send back as saveBoard's readAt
+  reports:   [BoardReport!]!
+  status:    String!      # draft (its owner's alone, until its first save) | published
+  access:    String!      # the caller's: view | edit | own
+  favourite: Boolean!     # the caller's star
+  owner:     BoardOwner   # null on a shop board
+  draftUpdatedAt: Time    # when the caller's unsaved edits were last kept
+  shares:    [BoardShare!]!   # for a caller who owns it
+  draft:     BoardDraft       # the caller's unsaved edits
 }
 
 type BoardOwner {
@@ -49,14 +61,71 @@ type BoardShareTarget {
 
 type BoardReport {
   title:      String!
-  # { kind: insights|funnel|retention|stickiness|flow, sinceDays?, event?, measure?, unit?, breakdown?, steps?,
-  #   filters?, windowHours?, startEvent?, returnEvent?, periods?, depth?, windowDays?, size? } - unknown fields are refused
-  definition: JSON!
+  size:       BoardReportSize       # unset = MEDIUM
+  definition: BoardReportDefinition!
+}
+
+enum BoardReportKind {
+  INSIGHTS
+  FUNNEL
+  RETENTION
+  STICKINESS
+  FLOW
+}
+
+# A report's width on its board
+enum BoardReportSize {
+  SMALL
+  MEDIUM
+  FULL
+}
+
+# One saved report - which engine and its settings, the arguments that engine's Synapse query takes. Each kind reads
+# its own fields; an unset one takes the query's default
+type BoardReportDefinition {
+  kind:        BoardReportKind!
+  sinceDays:   Int                   # unset = the board's period
+  event:       String                # insights, stickiness, the flow's focus
+  measure:     String                # insights: total | unique
+  unit:        String                # insights and retention: day | week
+  breakdown:   String                # insights, funnel
+  steps:       [String!]             # funnel
+  filters:     [BoardReportFilter!]  # funnel
+  windowHours: Int                   # funnel
+  startEvent:  String                # retention
+  returnEvent: String                # retention
+  periods:     Int                   # retention
+  depth:       Int                   # flow
+  windowDays:  Int                   # stickiness: the return window, unset = the shop's default
+}
+
+type BoardReportFilter {
+  step:  Int!   # 0-based
+  key:   String!
+  value: String!
+}
+
+input BoardReportDefinitionInput {
+  kind:        BoardReportKind!
+  sinceDays:   Int
+  event:       String
+  measure:     String
+  unit:        String
+  breakdown:   String
+  steps:       [String!]
+  filters:     [SynapseFunnelFilterInput!]
+  windowHours: Int
+  startEvent:  String
+  returnEvent: String
+  periods:     Int
+  depth:       Int
+  windowDays:  Int
 }
 
 input BoardReportInput {
   title:      String!
-  definition: JSON!
+  size:       BoardReportSize
+  definition: BoardReportDefinitionInput!
 }
 
 input BoardShareInput {
@@ -67,7 +136,7 @@ input BoardShareInput {
 
 extend type Query {
   # The boards the caller can open. all: a superuser's every board on the shop, not only their own view of it
-  boards(channelId: ID!, all: Boolean): [Board!]!
+  boards(channelId: ID!, all: Boolean): [BoardSummary!]!
   board(channelId: ID!, id: ID!): Board!
   # Admins and roles a board on this shop can be shared with - names only, gated boards.manage
   boardShareTargets(channelId: ID!): [BoardShareTarget!]!
@@ -80,7 +149,7 @@ extend type Mutation {
   saveBoard(channelId: ID!, id: ID!, name: String!, reports: [BoardReportInput!]!, readAt: Time!): Board!
   deleteBoard(channelId: ID!, id: ID!): Boolean!
   # The four starter boards, as shop boards, for a shop that has none - a shop with any is left as it is
-  createStarterBoards(channelId: ID!): [Board!]!
+  createStarterBoards(channelId: ID!): [BoardSummary!]!
   # Replaces who the board is shared with - its owner's to change, once it's saved
   setBoardShares(channelId: ID!, id: ID!, shares: [BoardShareInput!]!): Board!
   # Gives up ownership: everyone on the shop sees it, and its managers run it

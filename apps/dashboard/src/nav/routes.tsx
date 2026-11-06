@@ -276,14 +276,6 @@ registerNavNode({
       permission: 'customers.view',
     },
     {
-      title: 'Boards',
-      subtitle: 'Shared report dashboards',
-      path: '/boards',
-      feature: 'signals',
-      element: lazyPage(() => import('@/features/boards/BoardsPage'), 'BoardsPage'),
-      permission: 'boards.view',
-    },
-    {
       title: 'Prism',
       subtitle: 'Frontend A/B experiments',
       path: '/prism',
@@ -613,7 +605,8 @@ const detailLeaves = [
   // in-app links), not the sidebar Lives under Synapse, not the operational customer record
   { title: 'Customer profile', path: '/synapse/customers/:id', element: lazyPage(() => import('@/features/synapse/SynapseCustomer'), 'SynapseCustomer'), permission: 'customers.view', feature: 'signals' },
   { title: 'Visitor profile', path: '/synapse/visitors/:anonId', element: lazyPage(() => import('@/features/synapse/SynapseVisitor'), 'SynapseVisitor'), permission: 'customers.view', feature: 'signals' },
-  { title: 'Board', path: '/boards/:id', element: lazyPage(() => import('@/features/boards/BoardPage'), 'BoardPage'), permission: 'boards.view', feature: 'signals' },
+  { title: 'Boards', path: '/synapse/boards', element: lazyPage(() => import('@/features/boards/BoardsPage'), 'BoardsPage'), permission: 'boards.view', feature: 'signals' },
+  { title: 'Board', path: '/synapse/boards/:id', element: lazyPage(() => import('@/features/boards/BoardPage'), 'BoardPage'), permission: 'boards.view', feature: 'signals' },
   { title: 'Funnel', path: '/synapse/funnels', element: lazyPage(() => import('@/features/synapse/SynapseFunnel'), 'SynapseFunnel'), permission: 'customers.view', feature: 'signals' },
   { title: 'Retention', path: '/synapse/retention', element: lazyPage(() => import('@/features/synapse/SynapseRetention'), 'SynapseRetention'), permission: 'customers.view', feature: 'signals' },
   { title: 'Behavioural segments', path: '/synapse/segments', element: lazyPage(() => import('@/features/synapse/SynapseSegments'), 'SynapseSegments'), permission: 'customers.view', feature: 'signals' },
