@@ -13,6 +13,9 @@ or with --signals or --sdk first, from that module: skelet go --signals test ./.
 	ShellAbout = `A bash shell in the app container. Arguments go to bash.`
 	CLIAbout   = `The ops CLI in the app container - skelet cli admin list, skelet cli job run <name>. It asks for a
 terminal only when stdin is one, so piping and CI work.`
+	SeedAbout = `Fills the dev Signals spine with deterministic demo activity, one shop profile per channel, so every
+report and board has data - skelet seed, skelet seed --channel <id>, skelet seed --events 10m for the load
+set, skelet seed --purge to remove it. Development only; a rerun replaces the earlier seed.`
 	ProviderAbout = `Conformance-checks a remote provider endpoint against the contract core enforces. The endpoint can
 live anywhere - this only speaks signed HTTP.
 
@@ -31,6 +34,12 @@ func CLI(root string, args []string) int { return CLICall(root, args...).Replace
 // CLICall is the ops CLI as a command, for setup, which runs it and carries on
 func CLICall(root string, args ...string) sys.Call {
 	return app(root, true, append([]string{"go", "run", "./cmd/cli"}, args...))
+}
+
+// Seed runs in the Signals container, the one process with both of the suite's databases in its environment
+func Seed(root string, args []string) int {
+	t := compose.Target{Service: "signals", Flags: append(compose.UserFlags(), "-w", "/var/www/backend/signals")}
+	return In(root, t, append([]string{"go", "run", "./cmd/seed"}, args...)...).Replace()
 }
 
 // The checker's flags are a published contract - remote-provider repos run it from their own CI - so they pass

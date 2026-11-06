@@ -585,6 +585,31 @@ func (s *Store) PruneIdentities(ctx context.Context, before time.Time) (int64, e
 	return int64(n), nil
 }
 
+// PurgeSeed drops what the demo seed wrote on the given channels (none = every channel) - events by their dedupe-key
+// prefix, stitches by their visitor-id prefix - and reports the events removed
+func (s *Store) PurgeSeed(ctx context.Context, keyPrefix, anonPrefix string, channels []uuid.UUID) (int64, error) {
+	if err := s.flush(ctx); err != nil { // nothing buffered may land after the delete
+		return 0, err
+	}
+	scope, args := "", []any{}
+	if len(channels) > 0 {
+		scope, args = " AND channel_id IN ?", []any{channels}
+	}
+	var n uint64
+	if err := s.conn.QueryRow(ctx, "SELECT count() FROM analytics_events WHERE startsWith(dedupe_key, ?)"+scope, append([]any{keyPrefix}, args...)...).Scan(&n); err != nil {
+		return 0, err
+	}
+	sync := clickhouse.Context(ctx, clickhouse.WithSettings(clickhouse.Settings{"mutations_sync": 1}))
+	if err := s.conn.Exec(sync, "DELETE FROM analytics_events WHERE startsWith(dedupe_key, ?)"+scope, append([]any{keyPrefix}, args...)...); err != nil {
+		return 0, err
+	}
+	if err := s.conn.Exec(sync, "DELETE FROM analytics_identities WHERE startsWith(anon_id, ?)"+scope, append([]any{anonPrefix}, args...)...); err != nil {
+		return 0, err
+	}
+	s.RefreshIdentities(ctx)
+	return int64(n), nil
+}
+
 func (s *Store) RefreshIdentities(ctx context.Context) { // refreshIdentities fully reloads the identity dictionary so reads stop resolving erased mappings - best-effort and node-local (incremental refreshes never see deletes, so cluster replicas need their own reload, see the prod overlay header)
 	if err := s.conn.Exec(ctx, "SYSTEM RELOAD DICTIONARY "+identityDictName); err != nil {
 		log.Printf("[spinech] reload %s after identity erasure: %v", identityDictName, err)
