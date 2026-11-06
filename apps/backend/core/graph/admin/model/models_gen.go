@@ -728,6 +728,7 @@ type Board struct {
 
 type BoardReport struct {
 	Title      string                 `json:"title"`
+	Size       *BoardReportSize       `json:"size,omitempty"`
 	Definition *BoardReportDefinition `json:"definition"`
 }
 
@@ -746,7 +747,6 @@ type BoardReportDefinition struct {
 	Periods     *int32               `json:"periods,omitempty"`
 	Depth       *int32               `json:"depth,omitempty"`
 	WindowDays  *int32               `json:"windowDays,omitempty"`
-	Size        *BoardReportSize     `json:"size,omitempty"`
 }
 
 type BoardReportDefinitionInput struct {
@@ -764,7 +764,6 @@ type BoardReportDefinitionInput struct {
 	Periods     *int32                      `json:"periods,omitempty"`
 	Depth       *int32                      `json:"depth,omitempty"`
 	WindowDays  *int32                      `json:"windowDays,omitempty"`
-	Size        *BoardReportSize            `json:"size,omitempty"`
 }
 
 type BoardReportFilter struct {
@@ -775,6 +774,7 @@ type BoardReportFilter struct {
 
 type BoardReportInput struct {
 	Title      string                      `json:"title"`
+	Size       *BoardReportSize            `json:"size,omitempty"`
 	Definition *BoardReportDefinitionInput `json:"definition"`
 }
 

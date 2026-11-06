@@ -38,6 +38,7 @@ message Board {
 message BoardReport {
   string title = 1;
   BoardReportDefinition definition = 2;
+  string size = 3; // the tile's width on the board: small | medium (unset) | full
 }
 
 // One saved report - which engine and its settings, the arguments that engine's Synapse read takes. A zero value is
@@ -57,7 +58,6 @@ message BoardReportDefinition {
   int32 periods = 12; // retention
   int32 depth = 13; // flow
   int32 window_days = 14; // stickiness: the return window, 0 = the shop's default
-  string size = 15; // the tile's width on the board: small | medium (unset) | full
 }
 
 message ListBoardsRequest {

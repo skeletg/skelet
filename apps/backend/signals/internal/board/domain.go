@@ -41,6 +41,7 @@ type Summary struct {
 
 type Report struct {
 	Title      string
+	Size       string // the tile's width on the board: small | medium (unset) | full
 	Definition Definition
 }
 
@@ -60,7 +61,6 @@ type Definition struct {
 	Periods     int      `json:"periods,omitempty"`     // retention
 	Depth       int      `json:"depth,omitempty"`       // flow
 	WindowDays  int      `json:"windowDays,omitempty"`  // stickiness: the return window, 0 = the shop's default
-	Size        string   `json:"size,omitempty"`        // the tile's width on the board: small | medium (unset) | full
 }
 
 type Filter struct {
@@ -109,9 +109,6 @@ func (d Definition) validate() error {
 	if d.Unit != "" && d.Unit != "day" && d.Unit != "week" {
 		return bad("unit is day or week")
 	}
-	if d.Size != "" && d.Size != "small" && d.Size != "medium" && d.Size != "full" {
-		return bad("size is small, medium or full")
-	}
 	return nil
 }
 
@@ -129,6 +126,9 @@ func (b Board) normalized() (Board, error) {
 		r.Title = strings.TrimSpace(r.Title)
 		if r.Title == "" || utf8.RuneCountInString(r.Title) > maxName {
 			return Board{}, fmt.Errorf("%w: each report needs a title of up to %d characters", ErrInvalid, maxName)
+		}
+		if r.Size != "" && r.Size != "small" && r.Size != "medium" && r.Size != "full" {
+			return Board{}, fmt.Errorf("%w: a report's size is small, medium or full", ErrInvalid)
 		}
 		if err := r.Definition.validate(); err != nil {
 			return Board{}, err

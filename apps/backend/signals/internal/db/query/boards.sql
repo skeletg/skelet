@@ -9,7 +9,7 @@ FROM boards b WHERE b.channel_id = sqlc.arg(channel_id) ORDER BY b.name, b.id;
 SELECT id, name, updated_at FROM boards WHERE id = sqlc.arg(id) AND channel_id = sqlc.arg(channel_id);
 
 -- name: BoardReports :many
-SELECT title, definition FROM board_reports WHERE board_id = sqlc.arg(board_id) ORDER BY position;
+SELECT title, size, definition FROM board_reports WHERE board_id = sqlc.arg(board_id) ORDER BY position;
 
 -- name: CreateBoard :one
 INSERT INTO boards (channel_id, name) VALUES (sqlc.arg(channel_id), sqlc.arg(name)) RETURNING id, updated_at;
@@ -23,8 +23,8 @@ WHERE id = sqlc.arg(id) AND channel_id = sqlc.arg(channel_id) AND updated_at = s
 DELETE FROM board_reports WHERE board_id = sqlc.arg(board_id);
 
 -- name: AddBoardReport :exec
-INSERT INTO board_reports (board_id, position, title, definition)
-VALUES (sqlc.arg(board_id), sqlc.arg(position), sqlc.arg(title), sqlc.arg(definition));
+INSERT INTO board_reports (board_id, position, title, size, definition)
+VALUES (sqlc.arg(board_id), sqlc.arg(position), sqlc.arg(title), sqlc.arg(size), sqlc.arg(definition));
 
 -- name: DeleteBoard :execrows
 DELETE FROM boards WHERE id = sqlc.arg(id) AND channel_id = sqlc.arg(channel_id);

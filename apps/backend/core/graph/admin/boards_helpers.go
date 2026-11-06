@@ -16,12 +16,12 @@ func boardReportsIn(in []*model.BoardReportInput) []*signalsv1.BoardReport {
 		for _, f := range d.Filters {
 			filters = append(filters, &signalsv1.FunnelFilter{Step: f.Step, Key: f.Key, Value: f.Value})
 		}
-		out = append(out, &signalsv1.BoardReport{Title: r.Title, Definition: &signalsv1.BoardReportDefinition{
+		out = append(out, &signalsv1.BoardReport{Title: r.Title, Size: strings.ToLower(string(ptrOr(r.Size, ""))), Definition: &signalsv1.BoardReportDefinition{
 			Kind: strings.ToLower(string(d.Kind)), SinceDays: ptrOr(d.SinceDays, 0), Event: ptrOr(d.Event, ""),
 			Measure: ptrOr(d.Measure, ""), Unit: ptrOr(d.Unit, ""), Breakdown: ptrOr(d.Breakdown, ""), Steps: d.Steps,
 			Filters: filters, WindowHours: ptrOr(d.WindowHours, 0), StartEvent: ptrOr(d.StartEvent, ""),
 			ReturnEvent: ptrOr(d.ReturnEvent, ""), Periods: ptrOr(d.Periods, 0), Depth: ptrOr(d.Depth, 0),
-			WindowDays: ptrOr(d.WindowDays, 0), Size: strings.ToLower(string(ptrOr(d.Size, ""))),
+			WindowDays: ptrOr(d.WindowDays, 0),
 		}})
 	}
 	return out
@@ -45,12 +45,12 @@ func boardOut(b *signalsv1.Board) *model.Board {
 		for _, f := range d.GetFilters() {
 			filters = append(filters, &model.BoardReportFilter{Step: f.GetStep(), Key: f.GetKey(), Value: f.GetValue()})
 		}
-		out.Reports = append(out.Reports, &model.BoardReport{Title: r.GetTitle(), Definition: &model.BoardReportDefinition{
+		out.Reports = append(out.Reports, &model.BoardReport{Title: r.GetTitle(), Size: nilIfZero(model.BoardReportSize(strings.ToUpper(r.GetSize()))), Definition: &model.BoardReportDefinition{
 			Kind: model.BoardReportKind(strings.ToUpper(d.GetKind())), SinceDays: nilIfZero(d.GetSinceDays()), Event: nilIfZero(d.GetEvent()),
 			Measure: nilIfZero(d.GetMeasure()), Unit: nilIfZero(d.GetUnit()), Breakdown: nilIfZero(d.GetBreakdown()), Steps: d.GetSteps(),
 			Filters: filters, WindowHours: nilIfZero(d.GetWindowHours()), StartEvent: nilIfZero(d.GetStartEvent()),
 			ReturnEvent: nilIfZero(d.GetReturnEvent()), Periods: nilIfZero(d.GetPeriods()), Depth: nilIfZero(d.GetDepth()),
-			WindowDays: nilIfZero(d.GetWindowDays()), Size: nilIfZero(model.BoardReportSize(strings.ToUpper(d.GetSize()))),
+			WindowDays: nilIfZero(d.GetWindowDays()),
 		}})
 	}
 	return out

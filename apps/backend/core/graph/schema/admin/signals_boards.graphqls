@@ -19,6 +19,7 @@ type Board {
 
 type BoardReport {
   title:      String!
+  size:       BoardReportSize       # unset = MEDIUM
   definition: BoardReportDefinition!
 }
 
@@ -30,7 +31,7 @@ enum BoardReportKind {
   FLOW
 }
 
-# A tile's width on the board; unset is MEDIUM
+# A report's width on its board
 enum BoardReportSize {
   SMALL
   MEDIUM
@@ -54,7 +55,6 @@ type BoardReportDefinition {
   periods:     Int                   # retention
   depth:       Int                   # flow
   windowDays:  Int                   # stickiness: the return window, unset = the shop's default
-  size:        BoardReportSize
 }
 
 type BoardReportFilter {
@@ -78,11 +78,11 @@ input BoardReportDefinitionInput {
   periods:     Int
   depth:       Int
   windowDays:  Int
-  size:        BoardReportSize
 }
 
 input BoardReportInput {
   title:      String!
+  size:       BoardReportSize
   definition: BoardReportDefinitionInput!
 }
 

@@ -38,6 +38,7 @@ type BoardReport struct {
 	Position   int32           `json:"position"`
 	Title      string          `json:"title"`
 	Definition json.RawMessage `json:"definition"`
+	Size       string          `json:"size"`
 }
 
 type BrowseNotified struct {

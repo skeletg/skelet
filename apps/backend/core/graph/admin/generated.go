@@ -551,6 +551,7 @@ type ComplexityRoot struct {
 
 	BoardReport struct {
 		Definition func(childComplexity int) int
+		Size       func(childComplexity int) int
 		Title      func(childComplexity int) int
 	}
 
@@ -564,7 +565,6 @@ type ComplexityRoot struct {
 		Periods     func(childComplexity int) int
 		ReturnEvent func(childComplexity int) int
 		SinceDays   func(childComplexity int) int
-		Size        func(childComplexity int) int
 		StartEvent  func(childComplexity int) int
 		Steps       func(childComplexity int) int
 		Unit        func(childComplexity int) int
@@ -7915,6 +7915,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.BoardReport.Definition(childComplexity), true
+	case "BoardReport.size":
+		if e.ComplexityRoot.BoardReport.Size == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardReport.Size(childComplexity), true
 	case "BoardReport.title":
 		if e.ComplexityRoot.BoardReport.Title == nil {
 			break
@@ -7976,12 +7982,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.BoardReportDefinition.SinceDays(childComplexity), true
-	case "BoardReportDefinition.size":
-		if e.ComplexityRoot.BoardReportDefinition.Size == nil {
-			break
-		}
-
-		return e.ComplexityRoot.BoardReportDefinition.Size(childComplexity), true
 	case "BoardReportDefinition.startEvent":
 		if e.ComplexityRoot.BoardReportDefinition.StartEvent == nil {
 			break
@@ -39732,6 +39732,7 @@ type Board {
 
 type BoardReport {
   title:      String!
+  size:       BoardReportSize       # unset = MEDIUM
   definition: BoardReportDefinition!
 }
 
@@ -39743,7 +39744,7 @@ enum BoardReportKind {
   FLOW
 }
 
-# A tile's width on the board; unset is MEDIUM
+# A report's width on its board
 enum BoardReportSize {
   SMALL
   MEDIUM
@@ -39767,7 +39768,6 @@ type BoardReportDefinition {
   periods:     Int                   # retention
   depth:       Int                   # flow
   windowDays:  Int                   # stickiness: the return window, unset = the shop's default
-  size:        BoardReportSize
 }
 
 type BoardReportFilter {
@@ -39791,11 +39791,11 @@ input BoardReportDefinitionInput {
   periods:     Int
   depth:       Int
   windowDays:  Int
-  size:        BoardReportSize
 }
 
 input BoardReportInput {
   title:      String!
+  size:       BoardReportSize
   definition: BoardReportDefinitionInput!
 }
 
@@ -42280,6 +42280,8 @@ func (ec *executionContext) childFields_BoardReport(ctx context.Context, field g
 	switch field.Name {
 	case "title":
 		return ec.fieldContext_BoardReport_title(ctx, field)
+	case "size":
+		return ec.fieldContext_BoardReport_size(ctx, field)
 	case "definition":
 		return ec.fieldContext_BoardReport_definition(ctx, field)
 	}
@@ -42316,8 +42318,6 @@ func (ec *executionContext) childFields_BoardReportDefinition(ctx context.Contex
 		return ec.fieldContext_BoardReportDefinition_depth(ctx, field)
 	case "windowDays":
 		return ec.fieldContext_BoardReportDefinition_windowDays(ctx, field)
-	case "size":
-		return ec.fieldContext_BoardReportDefinition_size(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type BoardReportDefinition", field.Name)
 }
@@ -71970,6 +71970,29 @@ func (ec *executionContext) fieldContext_BoardReport_title(_ context.Context, fi
 	return graphql.NewScalarFieldContext("BoardReport", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _BoardReport_size(ctx context.Context, field graphql.CollectedField, obj *model.BoardReport) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardReport_size(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Size, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.BoardReportSize) graphql.Marshaler {
+			return ec.marshalOBoardReportSize2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardReportSize(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_BoardReport_size(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardReport", field, false, false, errors.New("field of type BoardReportSize does not have child fields"))
+}
+
 func (ec *executionContext) _BoardReport_definition(ctx context.Context, field graphql.CollectedField, obj *model.BoardReport) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -72331,29 +72354,6 @@ func (ec *executionContext) _BoardReportDefinition_windowDays(ctx context.Contex
 }
 func (ec *executionContext) fieldContext_BoardReportDefinition_windowDays(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("BoardReportDefinition", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _BoardReportDefinition_size(ctx context.Context, field graphql.CollectedField, obj *model.BoardReportDefinition) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_BoardReportDefinition_size(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Size, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.BoardReportSize) graphql.Marshaler {
-			return ec.marshalOBoardReportSize2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardReportSize(ctx, selections, v)
-		},
-		true,
-		false,
-	)
-}
-func (ec *executionContext) fieldContext_BoardReportDefinition_size(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("BoardReportDefinition", field, false, false, errors.New("field of type BoardReportSize does not have child fields"))
 }
 
 func (ec *executionContext) _BoardReportFilter_step(ctx context.Context, field graphql.CollectedField, obj *model.BoardReportFilter) (ret graphql.Marshaler) {
@@ -168083,7 +168083,7 @@ func (ec *executionContext) unmarshalInputBoardReportDefinitionInput(ctx context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"kind", "sinceDays", "event", "measure", "unit", "breakdown", "steps", "filters", "windowHours", "startEvent", "returnEvent", "periods", "depth", "windowDays", "size"}
+	fieldsInOrder := [...]string{"kind", "sinceDays", "event", "measure", "unit", "breakdown", "steps", "filters", "windowHours", "startEvent", "returnEvent", "periods", "depth", "windowDays"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -168188,13 +168188,6 @@ func (ec *executionContext) unmarshalInputBoardReportDefinitionInput(ctx context
 				return it, err
 			}
 			it.WindowDays = data
-		case "size":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("size"))
-			data, err := ec.unmarshalOBoardReportSize2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardReportSize(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Size = data
 		}
 	}
 	return it, nil
@@ -168211,7 +168204,7 @@ func (ec *executionContext) unmarshalInputBoardReportInput(ctx context.Context, 
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"title", "definition"}
+	fieldsInOrder := [...]string{"title", "size", "definition"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -168225,6 +168218,13 @@ func (ec *executionContext) unmarshalInputBoardReportInput(ctx context.Context, 
 				return it, err
 			}
 			it.Title = data
+		case "size":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("size"))
+			data, err := ec.unmarshalOBoardReportSize2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardReportSize(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Size = data
 		case "definition":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("definition"))
 			data, err := ec.unmarshalNBoardReportDefinitionInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardReportDefinitionInput(ctx, v)
@@ -185036,6 +185036,11 @@ func (ec *executionContext) _BoardReport(ctx context.Context, sel ast.SelectionS
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "size":
+			out.Values[i] = ec._BoardReport_size(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		case "definition":
 			out.Values[i] = ec._BoardReport_definition(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -185141,11 +185146,6 @@ func (ec *executionContext) _BoardReportDefinition(ctx context.Context, sel ast.
 			}
 		case "windowDays":
 			out.Values[i] = ec._BoardReportDefinition_windowDays(ctx, field, obj)
-			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
-			}
-		case "size":
-			out.Values[i] = ec._BoardReportDefinition_size(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
