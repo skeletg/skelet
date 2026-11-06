@@ -63,14 +63,9 @@ func (s *Service) Delete(ctx context.Context, channelID, id uuid.UUID) error {
 
 // CreateStarters adds the four starter boards to a shop that has none yet, and does nothing to one that does
 func (s *Service) CreateStarters(ctx context.Context, channelID uuid.UUID) ([]Board, error) {
-	have, err := s.r.list(ctx, channelID)
-	if err != nil || len(have) > 0 {
-		return have, err
-	}
-	for _, st := range Starters {
-		if _, err := s.Create(ctx, channelID, st.Name, st.Reports); err != nil {
-			return nil, err
-		}
+	// Starters are already tidy and valid - TestEveryStarterBoardIsValid holds them to it
+	if err := s.r.createIfNone(ctx, channelID, Starters); err != nil {
+		return nil, err
 	}
 	return s.r.list(ctx, channelID)
 }

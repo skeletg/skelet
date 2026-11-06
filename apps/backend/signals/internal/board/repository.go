@@ -54,15 +54,40 @@ func (r *repo) get(ctx context.Context, id uuid.UUID) (Board, error) {
 }
 
 func (r *repo) create(ctx context.Context, b Board) (Board, error) {
-	err := r.inTx(ctx, func(q *db.Queries) error {
-		row, err := q.CreateBoard(ctx, db.CreateBoardParams{ChannelID: b.ChannelID, Name: b.Name})
-		if err != nil {
-			return err
-		}
-		b.ID, b.UpdatedAt = row.ID, row.UpdatedAt
-		return writeReports(ctx, q, b.ID, b.Reports)
+	err := r.inTx(ctx, func(q *db.Queries) (err error) {
+		b, err = insertBoard(ctx, q, b)
+		return err
 	})
 	return b, err
+}
+
+// createIfNone adds boards to a shop that has none, under a per-shop lock so concurrent calls add them once
+func (r *repo) createIfNone(ctx context.Context, channelID uuid.UUID, boards []Board) error {
+	return r.inTx(ctx, func(q *db.Queries) error {
+		if err := q.LockChannelBoards(ctx, channelID); err != nil {
+			return err
+		}
+		n, err := q.CountBoards(ctx, channelID)
+		if err != nil || n > 0 {
+			return err
+		}
+		for _, b := range boards {
+			b.ChannelID = channelID
+			if _, err := insertBoard(ctx, q, b); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func insertBoard(ctx context.Context, q *db.Queries, b Board) (Board, error) {
+	row, err := q.CreateBoard(ctx, db.CreateBoardParams{ChannelID: b.ChannelID, Name: b.Name})
+	if err != nil {
+		return b, err
+	}
+	b.ID, b.UpdatedAt = row.ID, row.UpdatedAt
+	return b, writeReports(ctx, q, b.ID, b.Reports)
 }
 
 // save replaces the board's name and reports in one go, refused when someone else saved it after readAt

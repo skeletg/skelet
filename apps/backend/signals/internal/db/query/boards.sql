@@ -30,3 +30,10 @@ DELETE FROM boards WHERE id = sqlc.arg(id);
 
 -- name: PruneOrphanedBoards :execrows
 DELETE FROM boards b WHERE NOT EXISTS (SELECT 1 FROM channel_roster c WHERE c.channel_id = b.channel_id);
+
+-- name: LockChannelBoards :exec
+-- Serialises the starter boards per shop, so two admins clicking at once can't both see an empty shop
+SELECT pg_advisory_xact_lock(hashtextextended('boards-starters:' || sqlc.arg(channel_id)::uuid::text, 0));
+
+-- name: CountBoards :one
+SELECT count(*)::int FROM boards WHERE channel_id = sqlc.arg(channel_id);

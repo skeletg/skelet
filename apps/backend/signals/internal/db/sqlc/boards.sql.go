@@ -87,6 +87,17 @@ func (q *Queries) ClearBoardReports(ctx context.Context, boardID uuid.UUID) erro
 	return err
 }
 
+const countBoards = `-- name: CountBoards :one
+SELECT count(*)::int FROM boards WHERE channel_id = $1
+`
+
+func (q *Queries) CountBoards(ctx context.Context, channelID uuid.UUID) (int32, error) {
+	row := q.db.QueryRowContext(ctx, countBoards, channelID)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createBoard = `-- name: CreateBoard :one
 INSERT INTO boards (channel_id, name) VALUES ($1, $2) RETURNING id, updated_at
 `
@@ -183,6 +194,16 @@ func (q *Queries) ListBoards(ctx context.Context, channelID uuid.UUID) ([]ListBo
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockChannelBoards = `-- name: LockChannelBoards :exec
+SELECT pg_advisory_xact_lock(hashtextextended('boards-starters:' || $1::uuid::text, 0))
+`
+
+// Serialises the starter boards per shop, so two admins clicking at once can't both see an empty shop
+func (q *Queries) LockChannelBoards(ctx context.Context, channelID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, lockChannelBoards, channelID)
+	return err
 }
 
 const pruneOrphanedBoards = `-- name: PruneOrphanedBoards :execrows
