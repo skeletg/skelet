@@ -35,6 +35,8 @@ CREATE TABLE public.tracking_deliveries (
 );
 CREATE INDEX tracking_deliveries_due_idx ON public.tracking_deliveries (next_attempt_at) WHERE status = 'pending';
 CREATE INDEX tracking_deliveries_log_idx ON public.tracking_deliveries (destination_id, created_at DESC);
+-- The hourly prune of settled rows, which would otherwise read the whole queue
+CREATE INDEX tracking_deliveries_prune_idx ON public.tracking_deliveries (updated_at) WHERE status <> 'pending';
 
 -- migrate:down
 DROP TABLE public.tracking_deliveries;

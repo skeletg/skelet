@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getConsentMode } from "./mode";
+import { getConsentMode, getPrivacy } from "./mode";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -21,5 +21,14 @@ describe("getConsentMode", () => {
   it("asks first when it never had an answer", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 502 })));
     expect(await getConsentMode("ch-2")).toBe("opt_in");
+  });
+});
+
+describe("getPrivacy counts", () => {
+  it("follows the shop's aggregate-counts setting, and stays on when it can't read it", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ data: { publicConfig: [{ path: "general/privacy/aggregate_counts", value: "false" }] } })));
+    expect((await getPrivacy("ch-3")).counts).toBe(false);
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ data: { publicConfig: [] } })));
+    expect((await getPrivacy("ch-4")).counts).toBe(true);
   });
 });

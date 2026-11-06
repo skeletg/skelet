@@ -31,6 +31,7 @@ export function PaymentStep({
   savedCards,
   storeCreditBalance,
   signedIn,
+  emailOptIn,
   consent,
   currency,
 }: {
@@ -40,6 +41,7 @@ export function PaymentStep({
   savedCards: SavedPaymentMethod[];
   storeCreditBalance: number;
   signedIn: boolean;
+  emailOptIn: boolean; // false on a guest offer opened while signed in - the tick would belong to the recipient
   consent: CheckoutSettings["termsConsent"];
   currency: Currency;
 }) {
@@ -63,6 +65,7 @@ export function PaymentStep({
         checkout={checkout}
         note={note}
         savedCards={savedCards}
+        emailOptIn={emailOptIn}
         consent={consent}
         currency={currency}
       />
@@ -75,6 +78,7 @@ function PlaceOrderForm({
   checkout,
   note,
   savedCards,
+  emailOptIn,
   consent,
   currency,
 }: {
@@ -82,6 +86,7 @@ function PlaceOrderForm({
   checkout: CheckoutState;
   note: string;
   savedCards: SavedPaymentMethod[];
+  emailOptIn: boolean;
   consent: CheckoutSettings["termsConsent"];
   currency: Currency;
 }) {
@@ -118,10 +123,12 @@ function PlaceOrderForm({
           />
         </label>
       </details>
-      <label className="flex items-start gap-2 text-sm">
-        <input type="checkbox" name={fields.marketingOptIn.name} className="mt-0.5 size-4 rounded accent-primary" />
-        <span>{t("marketingOptIn")}</span>
-      </label>
+      {emailOptIn ? (
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" name={fields.marketingOptIn.name} className="mt-0.5 size-4 rounded accent-primary" />
+          <span>{t("marketingOptIn")}</span>
+        </label>
+      ) : null}
       <Consent consent={consent} field={fields.tos} />
       <button
         type="submit"
