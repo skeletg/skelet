@@ -3390,9 +3390,15 @@ export type LensPlanIssue = {
   __typename?: 'LensPlanIssue';
   count: Scalars['Int']['output'];
   event: Scalars['String']['output'];
-  kind: Scalars['String']['output'];
+  kind: LensPlanIssueKind;
   prop: Scalars['String']['output'];
 };
+
+export type LensPlanIssueKind =
+  | 'BAD_TYPE'
+  | 'SERVER_PROP'
+  | 'UNKNOWN_EVENT'
+  | 'UNKNOWN_PROP';
 
 export type LensRageElement = {
   __typename?: 'LensRageElement';

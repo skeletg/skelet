@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	signalsdb "github.com/skeletg/skelet/apps/backend/signals/internal/db/sqlc"
 )
 
@@ -208,9 +209,9 @@ func (s *Service) SessionSignals(ctx context.Context, channelID uuid.UUID, sessi
 	order := make([]string, 0, 4)
 	for _, r := range rows {
 		switch r.Name {
-		case sigJSError:
+		case analytics.EventJSError:
 			sig.Errors = append(sig.Errors, SessionError{Message: r.Message, At: r.OccurredAt})
-		case sigWebVitals:
+		case analytics.EventWebVitals:
 			m := asString(r.Metric)
 			if m == "" {
 				continue
