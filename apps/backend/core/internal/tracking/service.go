@@ -12,8 +12,8 @@ import (
 	"github.com/google/uuid"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
-	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // store is what the service and the worker need of the database - the postgres repository, or a test's fake
@@ -24,9 +24,9 @@ type store interface {
 	Create(ctx context.Context, d Destination) (Destination, error)
 	Update(ctx context.Context, d Destination) (Destination, error)
 	Delete(ctx context.Context, id uuid.UUID) error
-	Enqueue(ctx context.Context, destinationID uuid.UUID, ev Event) error
+	Enqueue(ctx context.Context, destinationIDs []uuid.UUID, ev Event) error // the event once, a delivery per destination
 	ClaimDue(ctx context.Context, batch, leaseSeconds int32) ([]Delivery, error)
-	MarkSent(ctx context.Context, id uuid.UUID) error
+	MarkSent(ctx context.Context, id uuid.UUID) error // the row goes - the log is what is pending or failed
 	Reschedule(ctx context.Context, id uuid.UUID, at time.Time, reason string) error
 	MarkDead(ctx context.Context, id uuid.UUID, reason string) error
 	Retry(ctx context.Context, id uuid.UUID) (bool, error)
@@ -34,7 +34,7 @@ type store interface {
 	ListDeliveries(ctx context.Context, destinationID uuid.UUID, status string, limit int32) ([]Delivery, error)
 	Import(ctx context.Context, d Destination, legacyID uuid.UUID) (Destination, bool, error)
 	Health(ctx context.Context, channelID uuid.UUID) (map[uuid.UUID]Health, error)
-	Prune(ctx context.Context, before time.Time) (int64, error)
+	Prune(ctx context.Context, logBefore, replayBefore time.Time) (int64, error)
 }
 
 // Settings reads a channel's switches - satisfied by *config.Service
@@ -55,6 +55,7 @@ var (
 	ErrUnknownKind  = errors.New("unknown tracking destination kind")
 	ErrNameMissing  = errors.New("a tracking destination needs a name")
 	ErrFieldMissing = errors.New("a required setting is missing")
+	ErrFieldUnknown = errors.New("not a setting of this destination - a secret goes in the secret, never the settings")
 	ErrNeedsSecret  = errors.New("enter the destination's secret before turning it on")
 	ErrNotDead      = errors.New("only a delivery that gave up can be retried")
 )
@@ -69,23 +70,29 @@ func (s *Service) Track(ctx context.Context, ev Event) error {
 	if err != nil {
 		return err
 	}
-	var errs []error
+	var to []uuid.UUID
 	for _, d := range dests {
-		k, ok := KindFor(d.Kind)
-		if !ok || !wants(d, k, ev.Name) || (k.Available != nil && !k.Available(ctx, ev.ChannelID)) || (!removal(k, ev.Name) && !Allowed(s.purposes(ctx, d, k), ev.Consent)) {
-			continue
-		}
-		if err := s.store.Enqueue(ctx, d.ID, ev); err != nil {
-			errs = append(errs, err) // the replay this error triggers is a no-op for the destinations that did enqueue
+		if s.routes(ctx, d, ev) {
+			to = append(to, d.ID)
 		}
 	}
-	return errors.Join(errs...)
+	if len(to) == 0 {
+		return nil
+	}
+	return s.store.Enqueue(ctx, to, ev)
 }
 
-// An opt-out reaches the kinds built to act on it - those that name it by default - with no consent check. Anything
-// else, such as a webhook taking every event, still needs the visitor's consent for it
-func removal(k Kind, name string) bool {
-	return name == MarketingOptOut && slices.Contains(k.DefaultEvents, name)
+// routes is whether an event goes to a destination: a kind this build has, switched on for the channel, wanting the
+// event, and allowed by the visitor's consent unless the kind is built to act on it regardless
+func (s *Service) routes(ctx context.Context, d Destination, ev Event) bool {
+	k, ok := KindFor(d.Kind)
+	switch {
+	case !ok, !wants(d, k, ev.Name), k.Available != nil && !k.Available(ctx, ev.ChannelID):
+		return false
+	case k.takesRegardless(ev.Name):
+		return true
+	}
+	return Allowed(s.purposes(ctx, d, k), ev.Consent)
 }
 
 func wants(d Destination, k Kind, name string) bool {
@@ -153,13 +160,45 @@ func NeedsSecret(d Destination) bool {
 	return false
 }
 
-// Import copies a destination from elsewhere (an old Signals one) - always disabled and without its secret, which the
-// admin enters before turning it on. imported is false when the same source was imported before
-func (s *Service) Import(ctx context.Context, d Destination, legacyID uuid.UUID) (out Destination, imported bool, err error) {
-	if err := validate(d, false); err != nil {
-		return Destination{}, false, err
+// Imported is a destination copied from elsewhere, with the id of the one it was copied from
+type Imported struct {
+	Destination
+	LegacyID uuid.UUID
+}
+
+// InTestMode reports a destination whose kind's test-mode setting is on - its sends stay out of the platform's live
+// reports. A kind without one is never in test mode
+func InTestMode(d Destination) bool {
+	k, _ := KindFor(d.Kind)
+	for _, f := range k.Fields {
+		if f.TestMode {
+			v := d.Config[f.Key]
+			return v != "" && v != "false"
+		}
 	}
-	return s.store.Import(ctx, d, legacyID)
+	return false
+}
+
+// Import copies destinations from elsewhere (old Signals ones) - always disabled and without a secret, which the admin
+// enters before turning one on. Every one is checked before any is saved, so a refusal imports nothing. It returns the
+// newly imported; one imported before is left as it was
+func (s *Service) Import(ctx context.Context, items []Imported) ([]Destination, error) {
+	for _, it := range items {
+		if err := validate(it.Destination, false); err != nil {
+			return nil, fmt.Errorf("%s: %w", it.Name, err)
+		}
+	}
+	out := []Destination{}
+	for _, it := range items {
+		d, imported, err := s.store.Import(ctx, it.Destination, it.LegacyID)
+		if err != nil {
+			return nil, err
+		}
+		if imported {
+			out = append(out, d)
+		}
+	}
+	return out, nil
 }
 
 // Health is each destination of a channel with its last success, last failure and failures in the past day
@@ -205,6 +244,12 @@ func validate(d Destination, creating bool) error {
 			return fmt.Errorf("%w: %s", ErrFieldMissing, f.Label)
 		}
 	}
+	// The settings are stored as plain JSON and only the secret is sealed, so only a declared, non-secret field goes there
+	for key := range d.Config {
+		if i := slices.IndexFunc(k.Fields, func(f sdk.DestinationField) bool { return f.Key == key }); i < 0 || k.Fields[i].Secret {
+			return fmt.Errorf("%w: %s", ErrFieldUnknown, key)
+		}
+	}
 	return nil
 }
 
@@ -221,11 +266,11 @@ func (s *Service) SendTest(ctx context.Context, client *http.Client, id uuid.UUI
 	}
 	ev := Event{
 		ID: "test-" + uuid.NewString(), Name: Purchase, OccurredAt: time.Now().UTC(), ChannelID: d.ChannelID, Source: "server",
-		Consent:   &auth.Consent{Analytics: true, Ads: true, Personalization: true},
+		Consent:   &sdk.ShopConsent{Analytics: true, Ads: true, Personalization: true},
 		User:      User{AnonID: "test-visitor", Email: "test@example.com"},
 		Ecommerce: &Ecommerce{Currency: "EUR", Value: 10, TransactionID: "TEST-1", Items: []Item{{ItemID: "TEST-SKU", ItemName: "Test item", Price: 10, Quantity: 1}}},
 	}
-	if err := k.Send(ctx, client, d, ev); err != nil {
+	if err := k.Send(ctx, client, d.config(), ev); err != nil {
 		// The platform's answer goes back to an admin screen - a transport error can quote the request URL, secret and all
 		return ev, errors.New(redact(err.Error(), &d))
 	}

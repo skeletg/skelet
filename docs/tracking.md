@@ -60,7 +60,7 @@ Setting a platform up is guided:
 5. **Turn it on** - leaves test mode and switches it on in one save.
 
 A destination's page keeps its settings behind the one reviewed Save, with **Send test**, the on/off switch and
-**Delete** acting at once, and a **delivery log** of what was sent, what is retrying and what gave up, with Retry on
+**Delete** acting at once, its last successful send, and a **delivery log** of what is retrying and what gave up, with Retry on
 the failed ones. The log shows the event and the platform's answer, never the event's contents, which hold the
 shopper's email, IP and click ids. Credentials are write-only: stored encrypted and never shown again.
 

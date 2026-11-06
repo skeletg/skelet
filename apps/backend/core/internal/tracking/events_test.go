@@ -15,6 +15,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/consentkind"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 func sampleOrder() order.Order {
@@ -22,14 +23,14 @@ func sampleOrder() order.Order {
 	phone := "+381601234567"
 	return order.Order{
 		ID: uuid.New(), Number: "ORD-000042", ChannelID: uuid.New(), CustomerID: &cust, Email: "a@example.com",
-		CurrencyCode: "EUR", SubtotalAmount: 5000, DiscountAmount: 500, TaxAmount: 900, ShippingAmount: 490,
+		CurrencyCode: "EUR", SubtotalAmount: 5000, DiscountAmount: 500, TaxAmount: 900, ShippingAmount: 490, TotalAmount: 5890,
 		BillingAddress: order.OrderAddress{Phone: &phone},
 		CreatedAt:      time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC),
 		Lines: []order.OrderLine{
 			{ID: line1, ProductSku: "SKU-1", ProductName: "Mug", UnitPrice: 1500, Quantity: 2},
 			{ID: line2, ProductSku: "SKU-2", ProductName: "Tee", UnitPrice: 2000, Quantity: 1},
 		},
-		Tracking: &auth.Shopper{
+		Shopper: &auth.Shopper{
 			Consent: auth.Consent{Analytics: true, Ads: true}, AnonID: "visitor-1",
 			ClickIDs: map[string]string{"gclid": "g1"}, IP: "203.0.113.7", UserAgent: "Mozilla/5.0",
 		},
@@ -55,7 +56,7 @@ func TestAPurchaseCarriesTheOrderAsGA4AndTheConsentOfThePlacement(t *testing.T) 
 		t.Errorf("user: %+v", ev.User)
 	}
 
-	o.Tracking = nil // an admin draft - no banner applied
+	o.Shopper = nil // an admin draft - no banner applied
 	if PurchaseEvent(o).Consent != nil {
 		t.Error("an order no shop placed must carry no consent, so only necessary destinations get it")
 	}
@@ -63,16 +64,30 @@ func TestAPurchaseCarriesTheOrderAsGA4AndTheConsentOfThePlacement(t *testing.T) 
 
 func TestARefundReportsWhatTheMemoGaveBack(t *testing.T) {
 	o := sampleOrder()
-	memo := order.CreditMemo{ID: uuid.New(), TotalCents: 1990, ShippingRefundCents: 490, Lines: []order.CreditMemoLine{{OrderLineID: o.Lines[0].ID, Quantity: 1}}}
-	ev := RefundEvent(o, memo, time.Now())
-	if ev.Name != Refund || ev.ID != "refund:"+memo.ID.String() || ev.Ecommerce.Value != 19.9 || ev.Ecommerce.Shipping != 4.9 {
+	// one of two mugs: 1500 less its 10% discount share - the 4.90 shipping and the tax in TotalCents aren't the purchase's
+	memo := order.CreditMemo{ID: uuid.New(), TotalCents: 2110, ShippingRefundCents: 490, Lines: []order.CreditMemoLine{{OrderLineID: o.Lines[0].ID, Quantity: 1}}}
+	ev := RefundEvent(o, memo, 0, time.Now())
+	if ev.Name != Refund || ev.ID != "refund:"+memo.ID.String() || ev.Ecommerce.Value != 13.5 || ev.Ecommerce.Shipping != 4.9 {
 		t.Errorf("refund: %+v %+v", ev, ev.Ecommerce)
 	}
 	if len(ev.Ecommerce.Items) != 1 || ev.Ecommerce.Items[0].ItemID != "SKU-1" || ev.Ecommerce.Items[0].Quantity != 1 {
 		t.Errorf("refund items: %+v", ev.Ecommerce.Items)
 	}
-	if c := CancelEvent(o, 0.5, time.Now()); c.ID != "cancel:"+o.ID.String() || c.Name != Refund || c.Ecommerce.Value != 22.5 {
+
+	// a full refund after it takes back only what is left, so refunds never pass the purchase's 45
+	full := order.CreditMemo{ID: uuid.New(), TotalCents: 5890, ShippingRefundCents: 490}
+	if v := RefundEvent(o, full, 1350, time.Now()).Ecommerce.Value; v != 31.5 {
+		t.Errorf("full refund after a partial = %v, want 31.5", v)
+	}
+	if v := RefundEvent(o, full, 0, time.Now()).Ecommerce.Value; v != 45 {
+		t.Errorf("a line-less full refund = %v, want the purchase's 45", v)
+	}
+
+	if c := CancelEvent(o, 0.5, 0, time.Now()); c.ID != "cancel:"+o.ID.String() || c.Name != Refund || c.Ecommerce.Value != 22.5 {
 		t.Errorf("cancel: %+v %+v", c, c.Ecommerce)
+	}
+	if v := CancelEvent(o, 1, 1350, time.Now()).Ecommerce.Value; v != 31.5 {
+		t.Errorf("cancel after a refund = %v, want 31.5 - the refund already took 13.5 back", v)
 	}
 }
 
@@ -85,9 +100,6 @@ func (c oneChannel) GetByID(_ context.Context, id uuid.UUID) (channel.Channel, e
 type noOrders struct{}
 
 func (noOrders) GetByID(context.Context, uuid.UUID) (order.Order, error) { return order.Order{}, nil }
-func (noOrders) GetCreditMemo(context.Context, uuid.UUID) (order.CreditMemo, error) {
-	return order.CreditMemo{}, nil
-}
 func (noOrders) ListCreditMemos(context.Context, uuid.UUID) ([]order.CreditMemo, error) {
 	return nil, nil
 }
@@ -100,7 +112,7 @@ func (o optedIn) EmailMarketingAllowed(_ context.Context, _ uuid.UUID, _ *uuid.U
 
 func TestCartChangesAndSignUpsBecomeEvents(t *testing.T) {
 	ch := uuid.New()
-	registerTestKind(t, Kind{Kind: "t-all"})
+	registerTestKind(t, sdk.Destination{Kind: "t-all"})
 	dest := uuid.New()
 	fs := newFakeStore(Destination{ID: dest, ChannelID: ch, Kind: "t-all", Enabled: true})
 	svc := &Service{store: fs}
@@ -125,7 +137,7 @@ func TestCartChangesAndSignUpsBecomeEvents(t *testing.T) {
 }
 
 func TestAnEventSaysWhetherItsEmailMayBeMarketedTo(t *testing.T) {
-	registerTestKind(t, Kind{Kind: "t-capture"})
+	registerTestKind(t, sdk.Destination{Kind: "t-capture"})
 	ch := uuid.New()
 	fs := newFakeStore(Destination{ID: uuid.New(), ChannelID: ch, Kind: "t-capture", Enabled: true})
 	h := handlers{svc: &Service{store: fs}, marketing: optedIn{"yes@example.com": true}}
@@ -150,21 +162,13 @@ type memoOrders struct {
 }
 
 func (m memoOrders) GetByID(context.Context, uuid.UUID) (order.Order, error) { return m.o, nil }
-func (m memoOrders) GetCreditMemo(_ context.Context, id uuid.UUID) (order.CreditMemo, error) {
-	for _, c := range m.memos {
-		if c.ID == id {
-			return c, nil
-		}
-	}
-	return order.CreditMemo{}, nil
-}
 func (m memoOrders) ListCreditMemos(context.Context, uuid.UUID) ([]order.CreditMemo, error) {
 	return m.memos, nil
 }
 
 // A platform that restates a conversion needs what the order is still worth, not what one refund gave back
 func TestRefundsAndCancellationsSayWhatTheOrderIsStillWorth(t *testing.T) {
-	registerTestKind(t, Kind{Kind: "t-worth"})
+	registerTestKind(t, sdk.Destination{Kind: "t-worth"})
 	o := sampleOrder() // 50.00 - 5.00 discount + 9.00 tax + 4.90 shipping = 58.90
 	first := order.CreditMemo{ID: uuid.New(), OrderID: o.ID, TotalCents: 1000}
 	second := order.CreditMemo{ID: uuid.New(), OrderID: o.ID, TotalCents: 2000}
@@ -205,8 +209,8 @@ func (o oneCustomer) GetByID(context.Context, uuid.UUID) (customer.Customer, err
 
 // Taking someone off a list needs no consent - but only kinds built for removals hear it, never a catch-all webhook
 func TestOptOutsReachOnlyTheKindsBuiltToRemove(t *testing.T) {
-	registerTestKind(t, Kind{Kind: "t-remover", Purposes: []Purpose{PurposeAds}, DefaultEvents: []string{Purchase, MarketingOptOut}})
-	registerTestKind(t, Kind{Kind: "t-catchall", Purposes: []Purpose{PurposeAnalytics}})
+	registerTestKind(t, sdk.Destination{Kind: "t-remover", Purposes: []Purpose{PurposeAds}, DefaultEvents: []string{Purchase, MarketingOptOut}})
+	registerTestKind(t, sdk.Destination{Kind: "t-catchall", Purposes: []Purpose{PurposeAnalytics}})
 	ch := uuid.New()
 	remover, catchall := uuid.New(), uuid.New()
 	fs := newFakeStore(Destination{ID: remover, ChannelID: ch, Kind: "t-remover", Enabled: true}, Destination{ID: catchall, ChannelID: ch, Kind: "t-catchall", Enabled: true})

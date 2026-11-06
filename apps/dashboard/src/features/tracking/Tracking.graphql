@@ -12,6 +12,7 @@ fragment TrackingDestinationFields on TrackingDestination {
   }
   secretSet
   needsSecret
+  inTestMode
   importedFrom
   health {
     lastSentAt
@@ -37,6 +38,7 @@ fragment TrackingPlatformFields on TrackingPlatform {
     help
     required
     secret
+    testMode
   }
 }
 
@@ -61,7 +63,7 @@ query TrackingPlatforms($channelId: ID!) {
   }
 }
 
-query TrackingDeliveries($destinationId: ID!, $status: String, $limit: Int) {
+query TrackingDeliveries($destinationId: ID!, $status: TrackingDeliveryStatus, $limit: Int) {
   trackingDeliveries(destinationId: $destinationId, status: $status, limit: $limit) {
     id
     eventName

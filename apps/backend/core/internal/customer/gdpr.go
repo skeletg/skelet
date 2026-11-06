@@ -147,6 +147,10 @@ func scrubPersonalData(ctx context.Context, q *db.Queries, c Customer) error {
 			_, err := q.ScrubCustomerOrderShipments(ctx, db.ScrubCustomerOrderShipmentsParams{CustomerID: nid, ChannelID: ch, Email: addr})
 			return err
 		}},
+		{"delete tracking events", func() error {
+			_, err := q.DeleteCustomerTrackingEvents(ctx, db.DeleteCustomerTrackingEventsParams{ChannelID: ch, CustomerID: id, Email: addr})
+			return err
+		}},
 		{"scrub orders", func() error { _, err := q.ScrubCustomerOrders(ctx, nid); return err }},
 		{"scrub guest orders", func() error {
 			_, err := q.ScrubGuestOrdersByEmail(ctx, db.ScrubGuestOrdersByEmailParams{CustomerID: id, ChannelID: ch, Email: addr})
