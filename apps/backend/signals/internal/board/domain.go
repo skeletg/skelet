@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 )
@@ -122,14 +123,14 @@ func (d Definition) validate() error {
 
 func (b Board) validate() error {
 	name := strings.TrimSpace(b.Name)
-	if name == "" || len(name) > maxName {
+	if name == "" || utf8.RuneCountInString(name) > maxName {
 		return fmt.Errorf("%w: a board needs a name of up to %d characters", ErrInvalid, maxName)
 	}
 	if len(b.Reports) > maxReports {
 		return fmt.Errorf("%w: a board holds up to %d reports", ErrInvalid, maxReports)
 	}
 	for _, r := range b.Reports {
-		if t := strings.TrimSpace(r.Title); t == "" || len(t) > maxName {
+		if t := strings.TrimSpace(r.Title); t == "" || utf8.RuneCountInString(t) > maxName {
 			return fmt.Errorf("%w: each report needs a title of up to %d characters", ErrInvalid, maxName)
 		}
 		if err := r.Definition.validate(); err != nil {

@@ -2,6 +2,7 @@ package board
 
 import (
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -35,5 +36,14 @@ func TestEveryStarterBoardIsValid(t *testing.T) {
 		if err := b.validate(); err != nil {
 			t.Errorf("%s: %v", b.Name, err)
 		}
+	}
+}
+
+func TestNameLimitCountsCharacters(t *testing.T) {
+	if err := (Board{Name: strings.Repeat("ж", maxName)}).validate(); err != nil {
+		t.Errorf("a %d-letter Cyrillic name was refused: %v", maxName, err)
+	}
+	if err := (Board{Name: strings.Repeat("ж", maxName+1)}).validate(); !errors.Is(err, ErrInvalid) {
+		t.Errorf("a name over the limit: %v, want ErrInvalid", err)
 	}
 }
