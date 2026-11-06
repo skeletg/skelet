@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -299,31 +298,21 @@ func (s *Store) Flow(ctx context.Context, channelID uuid.UUID, focus string, sin
 	}
 	defer rows.Close()
 	var (
-		events                   []analytics.SpineActorEvent
-		cohort, continued, steps int64
+		paths  []analytics.FlowPathCount
+		totals analytics.FlowTotals
 	)
-	for i := 0; rows.Next(); i++ {
-		var (
-			path []string
-			n    int64
-		)
-		if err := rows.Scan(&path, &n, &cohort, &continued, &steps); err != nil {
+	for rows.Next() {
+		var p analytics.FlowPathCount
+		if err := rows.Scan(&p.Path, &p.People, &totals.Cohort, &totals.Continued, &totals.Steps); err != nil {
 			return analytics.FlowResult{}, err
 		}
-		actor := strconv.Itoa(i) // one stand-in actor per distinct path, carrying everyone who took it
-		for _, name := range path {
-			events = append(events, analytics.SpineActorEvent{Actor: actor, EventName: name, People: n})
-		}
+		p.Path = p.Path[1:] // every path opens on the focus event
+		paths = append(paths, p)
 	}
 	if err := rows.Err(); err != nil {
 		return analytics.FlowResult{}, err
 	}
-	out := analytics.FlowFromEvents(events, focus, depth, topK)
-	out.Cohort, out.Continued, out.AvgSteps = cohort, continued, 0
-	if continued > 0 {
-		out.AvgSteps = float64(steps) / float64(continued)
-	}
-	return out, nil
+	return analytics.FlowFromPaths(paths, totals, focus, topK), nil
 }
 
 // The distinct journeys a Flow read brings back - the tree only shows the top few children per step, so the rare tail past this changes nothing on screen

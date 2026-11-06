@@ -12,7 +12,6 @@ type SpineActorEvent struct {
 	Actor      string
 	EventName  string
 	OccurredAt time.Time // rows arrive ordered by actor, then this
-	People     int64     // how many people the actor's rows stand for, read off its first row - 0 means one; a store that groups identical journeys sends each once
 }
 
 // Classic cohort retention: cohorts by the period bucket of each person's first start event, returns relative to that bucket, and per-bucket eligible denominators - a cohort only counts toward period N once it's old enough to have reached it
@@ -138,60 +137,74 @@ func RetentionFromCohorts(cohorts []RetentionCohortRow, now time.Time, periods i
 	return out
 }
 
-// A forward path tree from a focus event - names must already be resolved (custom events under their real name, the $experiment ping dropped), depth caps the journey length and topK keeps the busiest children per node
+// One journey after the focus event and how many people took it - repeats collapsed, focus excluded, depth steps at most
+type FlowPathCount struct {
+	Path   []string
+	People int64
+}
+
+// A flow's headline numbers - who reached the focus event, who took a step after it, and how many steps those took in all
+type FlowTotals struct {
+	Cohort, Continued, Steps int64
+}
+
+// The reference walker - names must already be resolved (custom events under their real name, the $experiment ping
+// dropped): each actor's journey from their first focus event, then the tree FlowFromPaths builds for a store
 func FlowFromEvents(events []SpineActorEvent, focus string, depth, topK int) FlowResult {
-	if depth < 1 {
-		depth = 1
-	}
-	if topK < 1 {
-		topK = 1
-	}
-	edges := map[string]map[string]int64{} // parent path → child event → count
-	pathCounts := map[string]int64{}       // complete collapsed path → people
-	var cohort, continued, totalSteps int64
-	curActor := ""
-	have := false
-	var prefix, lastEvent string
-	steps := 0
-	hitFocus := false
-	var people int64 = 1
-	process := func(eventName string) {
-		if !hitFocus {
-			if eventName == focus {
-				hitFocus, cohort, prefix, lastEvent = true, cohort+people, focus, focus
-			}
-			return
-		}
-		if eventName == lastEvent || steps >= depth {
-			return
-		}
-		if edges[prefix] == nil {
-			edges[prefix] = map[string]int64{}
-		}
-		edges[prefix][eventName] += people
-		prefix += flowSep + eventName
-		lastEvent = eventName
-		steps++
-	}
+	depth = max(depth, 1)
+	var (
+		paths   []FlowPathCount
+		totals  FlowTotals
+		actor   string
+		reached bool
+		steps   []string
+		prev    string // the last event kept, so a repeat collapses
+	)
 	finalize := func() {
-		if hitFocus && steps > 0 {
-			pathCounts[prefix] += people
-			totalSteps += int64(steps) * people
-			continued += people
+		if !reached {
+			return
+		}
+		paths = append(paths, FlowPathCount{Path: steps, People: 1})
+		totals.Cohort++
+		if len(steps) > 0 {
+			totals.Continued++
+			totals.Steps += int64(len(steps))
 		}
 	}
-	weight := func(ev SpineActorEvent) int64 { return max(ev.People, 1) }
-	for _, ev := range events {
-		if !have {
-			curActor, have, people = ev.Actor, true, weight(ev)
-		} else if ev.Actor != curActor {
+	for i, ev := range events {
+		if i == 0 || ev.Actor != actor {
 			finalize()
-			curActor, hitFocus, prefix, lastEvent, steps, people = ev.Actor, false, "", "", 0, weight(ev)
+			actor, reached, steps = ev.Actor, false, nil
 		}
-		process(ev.EventName)
+		switch {
+		case !reached:
+			reached, prev = ev.EventName == focus, focus
+		case len(steps) < depth && ev.EventName != prev:
+			steps, prev = append(steps, ev.EventName), ev.EventName
+		}
 	}
-	if have {
-		finalize()
+	finalize()
+	return FlowFromPaths(paths, totals, focus, topK)
+}
+
+// A forward path tree from grouped journeys - topK keeps the busiest children per node. The totals come separately
+// because a store may hand over only its most common journeys
+func FlowFromPaths(paths []FlowPathCount, totals FlowTotals, focus string, topK int) FlowResult {
+	topK = max(topK, 1)
+	edges := map[string]map[string]int64{} // parent path → child event → people
+	ended := map[string]int64{}            // complete path → people who took it exactly
+	for _, p := range paths {
+		prefix := focus
+		for _, ev := range p.Path {
+			if edges[prefix] == nil {
+				edges[prefix] = map[string]int64{}
+			}
+			edges[prefix][ev] += p.People
+			prefix += flowSep + ev
+		}
+		if len(p.Path) > 0 {
+			ended[prefix] += p.People
+		}
 	}
 
 	type qi struct {
@@ -203,65 +216,43 @@ func FlowFromEvents(events []SpineActorEvent, focus string, depth, topK int) Flo
 	for len(queue) > 0 {
 		it := queue[0]
 		queue = queue[1:]
-		if it.depth >= depth {
-			continue
-		}
-		children := edges[it.prefix]
-		if len(children) == 0 {
-			continue
-		}
-		type ec struct {
-			event string
-			count int64
-		}
-		ranked := make([]ec, 0, len(children))
-		for ev, c := range children {
-			ranked = append(ranked, ec{ev, c})
-		}
-		sort.Slice(ranked, func(a, b int) bool {
-			if ranked[a].count != ranked[b].count {
-				return ranked[a].count > ranked[b].count
-			}
-			return ranked[a].event < ranked[b].event
-		})
-		if len(ranked) > topK {
-			ranked = ranked[:topK]
-		}
-		for _, rk := range ranked {
-			childPrefix := it.prefix + flowSep + rk.event
-			nodes = append(nodes, FlowNode{ID: childPrefix, ParentID: it.prefix, Event: rk.event, Depth: it.depth + 1, Count: rk.count})
+		for _, rk := range ranked(edges[it.prefix], topK) {
+			childPrefix := it.prefix + flowSep + rk.key
+			nodes = append(nodes, FlowNode{ID: childPrefix, ParentID: it.prefix, Event: rk.key, Depth: it.depth + 1, Count: rk.count})
 			queue = append(queue, qi{childPrefix, it.depth + 1})
 		}
 	}
 
-	type pc struct {
-		path  string
-		count int64
-	}
-	rankedPaths := make([]pc, 0, len(pathCounts))
-	for p, c := range pathCounts {
-		rankedPaths = append(rankedPaths, pc{p, c})
-	}
-	sort.Slice(rankedPaths, func(a, b int) bool {
-		if rankedPaths[a].count != rankedPaths[b].count {
-			return rankedPaths[a].count > rankedPaths[b].count
-		}
-		return rankedPaths[a].path < rankedPaths[b].path
-	})
 	const maxPaths = 6
-	if len(rankedPaths) > maxPaths {
-		rankedPaths = rankedPaths[:maxPaths]
-	}
-	topPaths := make([]FlowPath, 0, len(rankedPaths))
-	for _, rk := range rankedPaths {
-		seq := strings.Split(rk.path, flowSep)[1:]
-		topPaths = append(topPaths, FlowPath{Events: seq, Count: rk.count})
+	topPaths := []FlowPath{}
+	for _, rk := range ranked(ended, maxPaths) {
+		topPaths = append(topPaths, FlowPath{Events: strings.Split(rk.key, flowSep)[1:], Count: rk.count})
 	}
 	avg := 0.0
-	if continued > 0 {
-		avg = float64(totalSteps) / float64(continued)
+	if totals.Continued > 0 {
+		avg = float64(totals.Steps) / float64(totals.Continued)
 	}
-	return FlowResult{Cohort: cohort, Nodes: nodes, Continued: continued, AvgSteps: avg, TopPaths: topPaths}
+	return FlowResult{Cohort: totals.Cohort, Nodes: nodes, Continued: totals.Continued, AvgSteps: avg, TopPaths: topPaths}
+}
+
+type keyCount struct {
+	key   string
+	count int64
+}
+
+// The n largest counts, ties by key
+func ranked(m map[string]int64, n int) []keyCount {
+	out := make([]keyCount, 0, len(m))
+	for k, c := range m {
+		out = append(out, keyCount{k, c})
+	}
+	sort.Slice(out, func(a, b int) bool {
+		if out[a].count != out[b].count {
+			return out[a].count > out[b].count
+		}
+		return out[a].key < out[b].key
+	})
+	return out[:min(n, len(out))]
 }
 
 type InsightsSeriesInput struct { // one cell from the per-engine InsightsSeries query - what the shared rollup below folds
