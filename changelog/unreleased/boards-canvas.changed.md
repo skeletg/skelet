@@ -12,3 +12,5 @@
 - **Add to board** opens on the board last added to.
 - Charts on these pages draw in the chart colours rather than the brand colour, and retention
   cohorts of fewer than 20 people are faded.
+- **Boards are part of Synapse.** They're no longer a separate entry in the sidebar: the Synapse
+  home opens them from a Boards card, at `/synapse/boards`.

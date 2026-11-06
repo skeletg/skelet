@@ -165,7 +165,7 @@ export function BoardPage() {
   return (
     <DetailPageLayout>
       <DetailPageHeader
-        backTo="/boards"
+        backTo="/synapse/boards"
         backLabel="Back to boards"
         title={
           canManage && board ? (
@@ -280,7 +280,7 @@ export function BoardPage() {
         onConfirm={async () => {
           if (!board) return
           await deleteBoard({ variables: { channelId, id: board.id } })
-          navigate('/boards')
+          navigate('/synapse/boards')
         }}
       />
     </DetailPageLayout>

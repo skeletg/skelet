@@ -52,8 +52,8 @@ describe('BoardPage', () => {
   it('stages a rename and a removed report, and saves them with the board as read', async () => {
     let saved: Record<string, unknown> | null = null
     renderPage({
-      path: '/boards/b1',
-      routes: { '/boards/:id': <BoardPage /> },
+      path: '/synapse/boards/b1',
+      routes: { '/synapse/boards/:id': <BoardPage /> },
       adminId: 'admin-1',
       scope: channelScope,
       mocks: [
@@ -98,8 +98,8 @@ describe('BoardPage', () => {
   it('adds a report from the header, builds and sizes it in the panel beside the tile, and saves it with the board', async () => {
     let saved: Record<string, unknown> | null = null
     renderPage({
-      path: '/boards/b1',
-      routes: { '/boards/:id': <BoardPage /> },
+      path: '/synapse/boards/b1',
+      routes: { '/synapse/boards/:id': <BoardPage /> },
       adminId: 'admin-1',
       scope: channelScope,
       mocks: [meMock({ superuser: true }), ...boardMocks((v) => (saved = v))],
@@ -126,8 +126,8 @@ describe('BoardPage', () => {
 
   it("stages a saved report's resize as just that, and Esc closes the panel", async () => {
     renderPage({
-      path: '/boards/b1',
-      routes: { '/boards/:id': <BoardPage /> },
+      path: '/synapse/boards/b1',
+      routes: { '/synapse/boards/:id': <BoardPage /> },
       adminId: 'admin-1',
       scope: channelScope,
       mocks: [meMock({ superuser: true }), ...boardMocks(() => {})],

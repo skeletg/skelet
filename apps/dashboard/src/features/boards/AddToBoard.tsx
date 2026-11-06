@@ -37,14 +37,14 @@ export function AddToBoard({ channelId, title, definition }: { channelId: string
   async function submit() {
     if (boardId) {
       localStorage.setItem(lastBoardKey(channelId), boardId)
-      navigate(`/boards/${boardId}`, { state: { add: report } satisfies AddToBoardState })
+      navigate(`/synapse/boards/${boardId}`, { state: { add: report } satisfies AddToBoardState })
       return
     }
     const res = await create({ variables: { channelId, name: newBoard.trim(), reports: [report] } })
     const id = res.data?.createBoard.id
     if (id) {
       localStorage.setItem(lastBoardKey(channelId), id)
-      navigate(`/boards/${id}`)
+      navigate(`/synapse/boards/${id}`)
     }
   }
 

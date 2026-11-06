@@ -119,7 +119,7 @@ there's no shared subsystem behind them beyond the event spine:
 | **Synapse** | `/synapse` | Customer analytics - profiles, segments, funnels, retention, lifecycle flows |
 | **Pulse** | `/pulse` | Email and marketing engagement - opens, clicks, attributed revenue, top links |
 | **Prism** | `/prism` | Storefront A/B experiments - assignment, variants, results |
-| **Boards** | `/boards` | A shop's shared dashboards: saved Synapse reports side by side in a two-column grid, edited through the page's one Save. "Add to board" on Insights, Funnel, Retention, Engagement and Flow puts the report on one. `boards.view` / `boards.manage`, and each report still needs `customers.view` to show its data |
+| **Boards** | `/synapse/boards` | A shop's shared dashboards, inside Synapse: saved Synapse reports side by side on a canvas where each is built, sized and reordered in place, then kept through the page's one Save. "Add to board" on Insights, Funnel, Retention and Flow puts the report on one. `boards.view` / `boards.manage`, and each report still needs `customers.view` to show its data |
 
 ### The spine
 
