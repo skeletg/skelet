@@ -25,17 +25,17 @@ function Search() {
 describe('readReport', () => {
   it("falls back to the page's default for a missing, broken or foreign report", () => {
     const p = (q: string) => new URLSearchParams({ q })
-    expect(readReport(new URLSearchParams(), ['insights']).kind).toBe('insights')
-    expect(readReport(p('{oops'), ['insights']).kind).toBe('insights')
-    expect(readReport(p('{"kind":"funnel","steps":["a","b"]}'), ['insights']).kind).toBe('insights')
-    expect(readReport(p('{"kind":"insights","event":"cart_add"}'), ['insights']).event).toBe('cart_add')
+    expect(readReport(new URLSearchParams(), ['INSIGHTS']).kind).toBe('INSIGHTS')
+    expect(readReport(p('{oops'), ['INSIGHTS']).kind).toBe('INSIGHTS')
+    expect(readReport(p('{"kind":"FUNNEL","steps":["a","b"]}'), ['INSIGHTS']).kind).toBe('INSIGHTS')
+    expect(readReport(p('{"kind":"INSIGHTS","event":"cart_add"}'), ['INSIGHTS']).event).toBe('cart_add')
   })
 })
 
 describe('a report page', () => {
   it('opens the report and period in its URL, and writes each change back to it', async () => {
     const asked: Record<string, unknown>[] = []
-    const q = encodeURIComponent(JSON.stringify({ kind: 'insights', event: 'cart_add' }))
+    const q = encodeURIComponent(JSON.stringify({ kind: 'INSIGHTS', event: 'cart_add' }))
     renderPage({
       path: `/x?q=${q}&days=90`,
       routes: {
@@ -69,7 +69,7 @@ describe('a report page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Unique' }))
     await waitFor(() => expect(asked.at(-1)).toMatchObject({ event: 'cart_add', measure: 'unique', sinceDays: 90 }), SLOW)
     const search = new URLSearchParams(screen.getByTestId('search').textContent ?? '')
-    expect(JSON.parse(search.get('q') ?? '')).toMatchObject({ kind: 'insights', event: 'cart_add', measure: 'unique' })
+    expect(JSON.parse(search.get('q') ?? '')).toMatchObject({ kind: 'INSIGHTS', event: 'cart_add', measure: 'unique' })
     expect(search.get('days')).toBe('90')
   })
 

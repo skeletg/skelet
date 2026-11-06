@@ -1,3 +1,28 @@
+fragment BoardReportFields on BoardReport {
+  title
+  definition {
+    kind
+    sinceDays
+    event
+    measure
+    unit
+    breakdown
+    steps
+    filters {
+      step
+      key
+      value
+    }
+    windowHours
+    startEvent
+    returnEvent
+    periods
+    depth
+    windowDays
+    size
+  }
+}
+
 query Boards($channelId: ID!) {
   boards(channelId: $channelId) {
     id
@@ -13,8 +38,7 @@ query Board($channelId: ID!, $id: ID!) {
     name
     updatedAt
     reports {
-      title
-      definition
+      ...BoardReportFields
     }
   }
 }
@@ -31,8 +55,7 @@ mutation SaveBoard($channelId: ID!, $id: ID!, $name: String!, $reports: [BoardRe
     name
     updatedAt
     reports {
-      title
-      definition
+      ...BoardReportFields
     }
   }
 }

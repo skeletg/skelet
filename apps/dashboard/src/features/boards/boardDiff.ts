@@ -1,4 +1,4 @@
-import { REPORT_SIZE_LABEL, describeReport, type BoardReport, type ReportDefinition } from '@/shared/analytics/report'
+import { REPORT_SIZE_LABEL, describeReport, type BoardReport, type ReportDefinition } from './report'
 import { added, changed, removed } from '@/shared/saving/diff'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 
@@ -13,7 +13,7 @@ export const keyed = (reports: BoardReport[]): DraftReport[] => reports.map((r, 
 export const unkeyed = (draft: DraftReport[]): BoardReport[] => draft.map((d) => ({ title: d.title, definition: d.definition }))
 
 const settings = (d: ReportDefinition) => JSON.stringify({ ...d, size: undefined }) // stringify drops the undefined size
-const sizeLabel = (d: ReportDefinition) => REPORT_SIZE_LABEL[d.size ?? 'medium']
+const sizeLabel = (d: ReportDefinition) => REPORT_SIZE_LABEL[d.size ?? 'MEDIUM']
 
 // boardDiff is the staged change list the header Save reviews: the name, each report added, removed, retitled,
 // rebuilt or resized, and the order when the reports that stayed moved

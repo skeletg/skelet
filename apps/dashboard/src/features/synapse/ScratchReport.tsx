@@ -7,7 +7,8 @@ import { useConfigScope } from '@/lib/config-scope'
 import { AddToBoard } from '@/features/boards/AddToBoard'
 import { ChannelRequired } from '@/shared/analytics/ChannelRequired'
 import { PeriodPicker } from '@/shared/analytics/PeriodPicker'
-import { DEFAULT_DEFINITIONS, PERIODS, cleanDefinition, type ReportDefinition, type ReportKind } from '@/shared/analytics/report'
+import { PERIODS } from '@/shared/analytics/PeriodPicker'
+import { REPORTS, cleanDefinition, type ReportDefinition, type ReportKind } from '@/features/boards/report'
 import { ReportControls, ReportResult, suggestTitle } from '@/shared/analytics/kinds'
 
 // The report is kept in the URL (?q=<definition>&days=<period>), so a reload, the back button or a pasted link opens
@@ -19,7 +20,7 @@ export function readReport(params: URLSearchParams, kinds: ReportKind[]): Report
   } catch {
     // not a report - the default below
   }
-  return DEFAULT_DEFINITIONS[kinds[0]]
+  return REPORTS[kinds[0]].start
 }
 
 // ScratchReport is a report page: build a report with nothing to save, and put it on a board when it's worth keeping.

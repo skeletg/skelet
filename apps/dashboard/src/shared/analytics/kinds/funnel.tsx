@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { formatNumber } from '@/lib/format'
 import { eventLabel } from '@/features/synapse/eventLabel'
 import { SynapseFunnelDocument } from '@/features/synapse/Synapse.gql'
-import type { ReportDefinition } from '../report'
+import type { ReportDefinition } from '@/features/boards/report'
 import { Note, State, pct, useTopEvents, type ControlsProps, type ResultProps } from './ui'
 
 const WINDOWS: { label: string; hours: number | null }[] = [

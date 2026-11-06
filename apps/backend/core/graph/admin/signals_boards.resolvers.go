@@ -14,15 +14,11 @@ func (r *mutationResolver) CreateBoard(ctx context.Context, channelID string, na
 	if err != nil {
 		return nil, err
 	}
-	reps, err := boardReportsIn(reports)
-	if err != nil {
-		return nil, err
-	}
-	res, err := r.SignalsAPI.Boards.CreateBoard(authed, &signalsv1.CreateBoardRequest{ChannelId: channelID, Name: name, Reports: reps})
+	res, err := r.SignalsAPI.Boards.CreateBoard(authed, &signalsv1.CreateBoardRequest{ChannelId: channelID, Name: name, Reports: boardReportsIn(reports)})
 	if err != nil {
 		return nil, signalsErr(err)
 	}
-	return boardOut(res.GetBoard())
+	return boardOut(res.GetBoard()), nil
 }
 
 func (r *mutationResolver) SaveBoard(ctx context.Context, channelID string, id string, name string, reports []*model.BoardReportInput, readAt time.Time) (*model.Board, error) {
@@ -30,17 +26,13 @@ func (r *mutationResolver) SaveBoard(ctx context.Context, channelID string, id s
 	if err != nil {
 		return nil, err
 	}
-	reps, err := boardReportsIn(reports)
-	if err != nil {
-		return nil, err
-	}
 	res, err := r.SignalsAPI.Boards.SaveBoard(authed, &signalsv1.SaveBoardRequest{
-		ChannelId: channelID, Id: id, Name: name, Reports: reps, ReadAt: timestamppb.New(readAt),
+		ChannelId: channelID, Id: id, Name: name, Reports: boardReportsIn(reports), ReadAt: timestamppb.New(readAt),
 	})
 	if err != nil {
 		return nil, signalsErr(err)
 	}
-	return boardOut(res.GetBoard())
+	return boardOut(res.GetBoard()), nil
 }
 
 func (r *mutationResolver) DeleteBoard(ctx context.Context, channelID string, id string) (bool, error) {
@@ -54,7 +46,7 @@ func (r *mutationResolver) DeleteBoard(ctx context.Context, channelID string, id
 	return true, nil
 }
 
-func (r *mutationResolver) CreateStarterBoards(ctx context.Context, channelID string) ([]*model.Board, error) {
+func (r *mutationResolver) CreateStarterBoards(ctx context.Context, channelID string) ([]*model.BoardSummary, error) {
 	authed, err := r.signalsChannel(ctx, "boards.manage", channelID)
 	if err != nil {
 		return nil, err
@@ -63,10 +55,10 @@ func (r *mutationResolver) CreateStarterBoards(ctx context.Context, channelID st
 	if err != nil {
 		return nil, signalsErr(err)
 	}
-	return boardsOut(res.GetBoards())
+	return boardSummariesOut(res.GetBoards()), nil
 }
 
-func (r *queryResolver) Boards(ctx context.Context, channelID string) ([]*model.Board, error) {
+func (r *queryResolver) Boards(ctx context.Context, channelID string) ([]*model.BoardSummary, error) {
 	authed, err := r.signalsChannel(ctx, "boards.view", channelID)
 	if err != nil {
 		return nil, err
@@ -75,7 +67,7 @@ func (r *queryResolver) Boards(ctx context.Context, channelID string) ([]*model.
 	if err != nil {
 		return nil, signalsErr(err)
 	}
-	return boardsOut(res.GetBoards())
+	return boardSummariesOut(res.GetBoards()), nil
 }
 
 func (r *queryResolver) Board(ctx context.Context, channelID string, id string) (*model.Board, error) {
@@ -87,5 +79,5 @@ func (r *queryResolver) Board(ctx context.Context, channelID string, id string) 
 	if err != nil {
 		return nil, signalsErr(err)
 	}
-	return boardOut(res.GetBoard())
+	return boardOut(res.GetBoard()), nil
 }

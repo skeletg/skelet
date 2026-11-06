@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 import { formatNumber } from '@/lib/format'
 import { eventLabel } from '@/features/synapse/eventLabel'
 import { SynapseRetentionDocument, SynapseStickinessDocument } from '@/features/synapse/Synapse.gql'
-import type { ReportDefinition } from '../report'
+import type { ReportDefinition } from '@/features/boards/report'
 import { Bars, EventSelect, Field, Headline, Note, State, StatTile, Toggle, pct, useTopEvents, type ControlsProps, type ResultProps } from './ui'
 
 type Bucket = { period: number; count: number; eligible: number }
@@ -20,31 +20,31 @@ const fmtDay = (v: string) => {
 }
 
 // One builder answers "do people come back?" two ways; switching view carries the event across
-export function switchRetentionView(d: ReportDefinition, view: 'stickiness' | 'retention'): ReportDefinition {
+export function switchRetentionView(d: ReportDefinition, view: 'STICKINESS' | 'RETENTION'): ReportDefinition {
   if (view === d.kind) return d
   const { size } = d
-  if (view === 'stickiness') return { kind: 'stickiness', event: d.returnEvent || undefined, size }
+  if (view === 'STICKINESS') return { kind: 'STICKINESS', event: d.returnEvent || undefined, size }
   const ev = d.event || 'order_placed'
-  return { kind: 'retention', startEvent: ev, returnEvent: ev, unit: 'week', periods: 8, size }
+  return { kind: 'RETENTION', startEvent: ev, returnEvent: ev, unit: 'week', periods: 8, size }
 }
 
 export function RetentionControls({ channelId, value: d, onChange }: ControlsProps) {
   const events = useTopEvents(channelId)
-  const view = d.kind === 'stickiness' ? 'stickiness' : 'retention'
+  const view = d.kind === 'STICKINESS' ? 'STICKINESS' : 'RETENTION'
   return (
     <div className="flex flex-wrap items-end gap-3 text-sm">
       <Field label="View">
         <Toggle
           label="View"
           options={[
-            { v: 'stickiness', l: 'Return rate' },
-            { v: 'retention', l: 'By cohort' },
+            { v: 'STICKINESS', l: 'Return rate' },
+            { v: 'RETENTION', l: 'By cohort' },
           ]}
           value={view}
           onChange={(v) => onChange(switchRetentionView(d, v))}
         />
       </Field>
-      {view === 'stickiness' ? (
+      {view === 'STICKINESS' ? (
         <>
           <Field label="Active means doing">
             <EventSelect label="Active means doing" value={d.event ?? ''} onChange={(event) => onChange({ ...d, event })} events={events} anyLabel="Any activity" />

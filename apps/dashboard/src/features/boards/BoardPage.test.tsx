@@ -6,6 +6,7 @@ import type { ConfigScopeContextValue } from '@/lib/config-scope'
 import { SynapseInsightsDocument, SynapseOverviewDocument, SynapseStickinessDocument } from '@/features/synapse/Synapse.gql'
 import { BoardDocument, SaveBoardDocument } from './Boards.gql'
 import { BoardPage } from './BoardPage'
+import { cleanReport } from './report'
 
 const channelScope = {
   ...globalScope,
@@ -16,7 +17,29 @@ const channelScope = {
   selectedChannel: { id: 'c1', name: 'Main', slug: 'main' },
 } as unknown as ConfigScopeContextValue
 
-const report = (title: string, event: string) => ({ __typename: 'BoardReport', title, definition: { kind: 'stickiness', event } })
+// As the query reads it: every field of the definition, unset ones null, each object with its __typename
+const report = (title: string, event: string) => ({
+  __typename: 'BoardReport',
+  title,
+  definition: {
+    __typename: 'BoardReportDefinition',
+    kind: 'STICKINESS' as const,
+    sinceDays: null,
+    event,
+    measure: null,
+    unit: null,
+    breakdown: null,
+    steps: null,
+    filters: null,
+    windowHours: null,
+    startEvent: null,
+    returnEvent: null,
+    periods: null,
+    depth: null,
+    windowDays: null,
+    size: null,
+  },
+})
 const board = {
   __typename: 'Board',
   id: 'b1',
@@ -67,8 +90,9 @@ describe('BoardPage', () => {
       id: 'b1',
       name: 'Weekly review',
       readAt: '2026-11-04T10:00:00.123456Z',
-      reports: [{ title: 'Buyers', definition: { kind: 'stickiness', event: 'order_placed' } }],
     })
+    // Sent back as the input takes it - no nulls, no __typename
+    expect((saved as unknown as { reports: unknown[] }).reports).toEqual([{ title: 'Buyers', definition: { kind: 'STICKINESS', event: 'order_placed' } }])
   })
 
   it('adds a report from the header, builds and sizes it in the panel beside the tile, and saves it with the board', async () => {
@@ -86,7 +110,7 @@ describe('BoardPage', () => {
     const panel = await screen.findByRole('complementary', { name: 'Edit Page view' }, SLOW)
     expect(screen.getByRole('region', { name: 'Page view' })).toBeTruthy() // the tile is on the grid while it's built
     fireEvent.click(within(panel).getByRole('button', { name: 'Unique' }))
-    fireEvent.change(within(panel).getByRole('combobox', { name: 'Size' }), { target: { value: 'full' } })
+    fireEvent.change(within(panel).getByRole('combobox', { name: 'Size' }), { target: { value: 'FULL' } })
     fireEvent.change(within(panel).getByRole('textbox', { name: 'Title' }), { target: { value: 'Visitors' } })
 
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -95,8 +119,8 @@ describe('BoardPage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Apply 1 change' }))
     await waitFor(() => expect(saved).not.toBeNull(), SLOW)
     expect((saved as unknown as { reports: unknown[] }).reports).toEqual([
-      ...board.reports.map(({ title, definition }) => ({ title, definition })),
-      { title: 'Visitors', definition: { kind: 'insights', event: 'page_view', measure: 'unique', unit: 'day', size: 'full' } },
+      ...board.reports.map(cleanReport),
+      { title: 'Visitors', definition: { kind: 'INSIGHTS', event: 'page_view', measure: 'unique', unit: 'day', size: 'FULL' } },
     ])
   })
 
@@ -110,7 +134,7 @@ describe('BoardPage', () => {
     })
     fireEvent.click(await screen.findByRole('button', { name: 'Edit Buyers' }, SLOW))
     const panel = await screen.findByRole('complementary', { name: 'Edit Buyers' })
-    fireEvent.change(within(panel).getByRole('combobox', { name: 'Size' }), { target: { value: 'small' } })
+    fireEvent.change(within(panel).getByRole('combobox', { name: 'Size' }), { target: { value: 'SMALL' } })
     fireEvent.keyDown(window, { key: 'Escape' })
     await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull())
 

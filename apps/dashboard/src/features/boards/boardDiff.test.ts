@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { BoardReport } from '@/shared/analytics/report'
+import type { BoardReport } from './report'
 import { boardDiff, keyed, type DraftReport } from './boardDiff'
 
-const views: BoardReport = { title: 'Views', definition: { kind: 'insights', event: 'page_view' } }
-const funnel: BoardReport = { title: 'Funnel', definition: { kind: 'funnel', steps: ['page_view', 'order_placed'] } }
+const views: BoardReport = { title: 'Views', definition: { kind: 'INSIGHTS', event: 'page_view' } }
+const funnel: BoardReport = { title: 'Funnel', definition: { kind: 'FUNNEL', steps: ['page_view', 'order_placed'] } }
 const saved = [views, funnel]
 const fresh = (r: BoardReport, key = 'n1'): DraftReport => ({ ...r, key })
 
@@ -35,7 +35,7 @@ describe('boardDiff', () => {
   })
   it('shows a resize on its own, not as a settings change', () => {
     const [v] = keyed([views])
-    const d = boardDiff('Mine', [views], 'Mine', [{ ...v, definition: { ...v.definition, size: 'full' } }])
+    const d = boardDiff('Mine', [views], 'Mine', [{ ...v, definition: { ...v.definition, size: 'FULL' } }])
     expect(d).toEqual([expect.objectContaining({ label: 'Report · Views · size', before: 'Medium', after: 'Full row' })])
   })
   it('names the new order when the reports that stayed moved', () => {

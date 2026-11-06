@@ -158,15 +158,13 @@ func TestRollupInsightsSeries(t *testing.T) {
 	}
 }
 
-func TestFlowFromEventsCountsEachRowsPeople(t *testing.T) {
-	grouped := FlowFromEvents([]SpineActorEvent{
-		{Actor: "0", EventName: "page_view", People: 3}, {Actor: "0", EventName: "cart_add", People: 3},
-		{Actor: "1", EventName: "page_view", People: 2},
-	}, "page_view", 4, 6)
-	if grouped.Cohort != 5 || grouped.Continued != 3 || grouped.AvgSteps != 1 {
-		t.Fatalf("cohort %d continued %d avg %v, want 5, 3 and 1", grouped.Cohort, grouped.Continued, grouped.AvgSteps)
+func TestFlowFromPathsTakesItsTotals(t *testing.T) {
+	f := FlowFromPaths([]FlowPathCount{{Path: []string{"cart_add"}, People: 3}, {People: 2}},
+		FlowTotals{Cohort: 9, Continued: 4, Steps: 6}, "page_view", 6)
+	if f.Cohort != 9 || f.Continued != 4 || f.AvgSteps != 1.5 {
+		t.Fatalf("cohort %d continued %d avg %v, want the totals given: 9, 4 and 1.5", f.Cohort, f.Continued, f.AvgSteps)
 	}
-	if len(grouped.Nodes) != 1 || grouped.Nodes[0].Count != 3 || len(grouped.TopPaths) != 1 || grouped.TopPaths[0].Count != 3 {
-		t.Fatalf("nodes %+v paths %+v, want cart_add taken by 3", grouped.Nodes, grouped.TopPaths)
+	if len(f.Nodes) != 1 || f.Nodes[0].Count != 3 || len(f.TopPaths) != 1 || f.TopPaths[0].Count != 3 {
+		t.Fatalf("nodes %+v paths %+v, want cart_add taken by 3", f.Nodes, f.TopPaths)
 	}
 }

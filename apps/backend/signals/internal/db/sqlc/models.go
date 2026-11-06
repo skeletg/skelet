@@ -33,12 +33,11 @@ type Board struct {
 }
 
 type BoardReport struct {
-	ID                uuid.UUID       `json:"id"`
-	BoardID           uuid.UUID       `json:"board_id"`
-	Position          int32           `json:"position"`
-	Title             string          `json:"title"`
-	Definition        json.RawMessage `json:"definition"`
-	DefinitionVersion int32           `json:"definition_version"`
+	ID         uuid.UUID       `json:"id"`
+	BoardID    uuid.UUID       `json:"board_id"`
+	Position   int32           `json:"position"`
+	Title      string          `json:"title"`
+	Definition json.RawMessage `json:"definition"`
 }
 
 type BrowseNotified struct {

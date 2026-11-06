@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 import { formatNumber } from '@/lib/format'
 import { eventLabel } from '@/features/synapse/eventLabel'
 import { SynapseOverviewDocument } from '@/features/synapse/Synapse.gql'
-import type { ReportDefinition } from '../report'
+import type { ReportDefinition } from '@/features/boards/report'
 
 // What every kind's controls and result take - the board's sheet and the report pages hand them the same props
 export type ControlsProps = { channelId: string; value: ReportDefinition; onChange: (next: ReportDefinition) => void }
