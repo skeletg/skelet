@@ -40,6 +40,9 @@ type Batch struct {
 	Events []Event `json:"events"`
 }
 
+// The events binned into the heatmap grid
+var heatmapEvents = map[string]bool{"click": true, "move": true, "scroll": true}
+
 type cellKey struct {
 	page, viewport, state, kind string
 	x, y                        int
@@ -52,6 +55,9 @@ type elemKey struct {
 func (s *Service) Ingest(ctx context.Context, channelID uuid.UUID, anonID string, hit analytics.Hit, b Batch, verifiedCustomer uuid.UUID) {
 	kept := b.Events[:0]
 	for i := range b.Events {
+		if hit.IsBot && heatmapEvents[b.Events[i].Type] {
+			continue // a crawler's clicks and scrolls would skew the heatmaps, which have no bot filter
+		}
 		if clean(&b.Events[i]) {
 			kept = append(kept, b.Events[i])
 		}
@@ -68,9 +74,13 @@ func (s *Service) Ingest(ctx context.Context, channelID uuid.UUID, anonID string
 		state := stateOr(e.State)
 		switch e.Type {
 		case analytics.EventPageView:
-			s.recordView(ctx, channelID, anonID, hit, e)
+			if s.planned(channelID, e.Type, e) {
+				s.recordView(ctx, channelID, anonID, hit, e)
+			}
 		case analytics.EventCustom:
-			s.recordCustom(ctx, channelID, anonID, e)
+			if s.planned(channelID, e.Name, e) {
+				s.recordCustom(ctx, channelID, anonID, hit, e)
+			}
 		case analytics.EventIdentify:
 			// Stitch only to the session-verified customer - no token, no stitch
 			if verifiedCustomer != uuid.Nil && anonID != "" {
@@ -196,15 +206,9 @@ func (s *Service) recordView(ctx context.Context, channelID uuid.UUID, anonID st
 	if ip := analytics.AnonymizeIP(hit.IP); ip != "" {
 		props["ip"] = ip
 	}
-	// A bot that renders JS fires the tracker too, so flag it and keep human Lens metrics honest - comprehensive crawl analytics come from the server-side beacon instead
+	// Comprehensive crawl analytics come from the server-side beacon, this only keeps human Lens metrics honest
 	if hit.IsBot {
-		props["is_bot"] = true
-		if hit.BotName != "" {
-			props["bot_name"] = hit.BotName
-		}
-		if hit.BotCat != "" {
-			props["bot_category"] = hit.BotCat
-		}
+		hit.FlagBot(props)
 	} else if s.rollup != nil {
 		// Feeds the bot dashboard's bot-vs-human counter, the Lens-hub view breakdowns and the visitor seen-table, so the hub reads bounded rollups rather than raw spine events - bots are excluded, their crawls counted via the beacon
 		s.rollup.AddHumanView(channelID, e.PageKey, hit.Device, e.Referrer, anonID, hit.At)
@@ -223,32 +227,41 @@ func (s *Service) recordView(ctx context.Context, channelID uuid.UUID, anonID st
 	})
 }
 
-func (s *Service) recordCustom(ctx context.Context, channelID uuid.UUID, anonID string, e Event) {
+// Holds a browser event to the tracking plan, counting what it strips for Data health - false drops the event
+func (s *Service) planned(channelID uuid.UUID, name string, e Event) bool {
+	keep, issues := analytics.ApplyPlan(name, e.Props)
+	if s.rollup != nil {
+		for _, is := range issues {
+			s.rollup.AddSignal(channelID, is.Kind, is.Key(), msToTime(e.TS))
+		}
+	}
+	return keep
+}
+
+func (s *Service) recordCustom(ctx context.Context, channelID uuid.UUID, anonID string, hit analytics.Hit, e Event) {
 	props := map[string]any{"name": e.Name, "page_key": e.PageKey}
 	maps.Copy(props, e.Props)
-	// Promote known semantic browsing events, currently facet and filter selections, out of the generic "custom" channel to a first-class spine event so they're countable and labelable on the Synapse profile
-	eventName := analytics.EventCustom
-	switch e.Name {
-	case analytics.EventProductFilter:
-		eventName = analytics.EventProductFilter
-	case analytics.EventViewItem, analytics.EventBeginCheckout, analytics.EventPurchase:
-		// Commerce funnel events get a first-class spine name so the Synapse funnel can count checkout starts - buried as 'custom' there would be no step between cart_add and order_placed
-		// Client-emitted, so consent-gated and sampled - the server-side cart_* and order events stay the unsampled source of truth, these just add browse-to-checkout visibility
-		eventName = e.Name
-	case sigRageClick, sigDeadClick, sigJSError, sigWebVitals:
-		// Reserved UX signals roll into their own dim and bump the recording's counter, but do NOT feed the interactions list - still stored on the spine, whose raw props drive the errors list and vitals percentiles
-		s.recordSignal(ctx, channelID, e)
-	case sigSearch:
-		// On-site search rolls the normalized term into dim='search', plus 'search_zero' when it returned nothing - kept out of the interactions list, with raw props on the spine for a future search-to-conversion funnel
-		s.recordSearch(ctx, channelID, e)
-	default:
-		if s.rollup != nil {
-			// Named UI interactions stay 'custom' and feed the hub's interactions list
-			s.rollup.AddInteraction(channelID, e.Name, msToTime(e.TS))
+	name := customName(e.Name)
+	// A bot's interactions stay out of the human rollups, and a promoted event has its own spine name instead of a rollup
+	if hit.IsBot {
+		hit.FlagBot(props)
+	} else if name == analytics.EventCustom {
+		switch e.Name {
+		case analytics.EventRageClick, analytics.EventDeadClick, analytics.EventJSError, analytics.EventWebVitals:
+			// Reserved UX signals roll into their own dim and bump the recording's counter, but do NOT feed the interactions list - still stored on the spine, whose raw props drive the errors list and vitals percentiles
+			s.recordSignal(ctx, channelID, e)
+		case analytics.EventSearch:
+			// On-site search rolls the normalized term into dim='search', plus 'search_zero' when it returned nothing - kept out of the interactions list, with raw props on the spine for a future search-to-conversion funnel
+			s.recordSearch(ctx, channelID, e)
+		default:
+			if s.rollup != nil {
+				// Named UI interactions stay 'custom' and feed the hub's interactions list
+				s.rollup.AddInteraction(channelID, e.Name, msToTime(e.TS))
+			}
 		}
 	}
 	_, _ = s.rec.RecordWeb(ctx, analytics.WebSpec{
-		EventName: eventName,
+		EventName: name,
 		ChannelID: channelID,
 		AnonID:    anonID,
 		EventID:   orEventID(e.ID),
@@ -257,15 +270,26 @@ func (s *Service) recordCustom(ctx context.Context, channelID uuid.UUID, anonID 
 	})
 }
 
+// The spine name a custom event is stored under - known browsing events, currently facet selections and the client
+// funnel steps, are promoted out of the generic "custom" channel so they're countable and selectable as funnel steps.
+// The funnel steps are client-emitted, so consent-gated and sampled - the server's cart and order events stay the source of truth
+func customName(name string) string {
+	switch name {
+	case analytics.EventProductFilter, analytics.EventViewItem, analytics.EventBeginCheckout, analytics.EventPurchase:
+		return name
+	}
+	return analytics.EventCustom
+}
+
 // Rolls page-level counts into lens_traffic_daily under the signal's own dim and bumps the recording's per-session counter when the event carries a replay sessionId - web vitals get neither, their percentiles come from raw spine props
 func (s *Service) recordSignal(ctx context.Context, channelID uuid.UUID, e Event) {
 	var dim, kind string
 	switch e.Name {
-	case sigRageClick:
+	case analytics.EventRageClick:
 		dim, kind = "rage", "rage"
-	case sigDeadClick:
+	case analytics.EventDeadClick:
 		dim, kind = "dead", "dead"
-	case sigJSError:
+	case analytics.EventJSError:
 		dim, kind = "error", "error"
 	}
 	if dim != "" && s.rollup != nil {

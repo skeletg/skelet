@@ -42,15 +42,6 @@ const MaxReplayChunkBytes = 5 << 20 // 5 MiB
 // Heatmap grid resolution in CSS px at a viewport bucket's fixed render width - document coordinates floor into cells of this size
 const cellSize = 10
 
-// Reserved custom-event names the storefront emits for UX signals - rage and dead clicks, JS errors, web vitals - routed out of the generic interaction path
-const (
-	sigRageClick = "$rage_click"
-	sigDeadClick = "$dead_click"
-	sigJSError   = "$js_error"
-	sigWebVitals = "$web_vitals"
-	sigSearch    = "$search"
-)
-
 // q is the primary read-write pool taking ingest upserts, snapshots and prunes; qr is an optional replica or bulkheaded pool used only by read aggregations, never for writes
 type Service struct {
 	q      *signalsdb.Queries // signals db: lens_* + browse_seen/browse_notified (ingest + reads)

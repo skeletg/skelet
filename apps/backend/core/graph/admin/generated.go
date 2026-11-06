@@ -2046,6 +2046,7 @@ type ComplexityRoot struct {
 		Daily        func(childComplexity int) int
 		Devices      func(childComplexity int) int
 		Interactions func(childComplexity int) int
+		PlanIssues   func(childComplexity int) int
 		Referrers    func(childComplexity int) int
 		TopPages     func(childComplexity int) int
 		Views        func(childComplexity int) int
@@ -2083,6 +2084,13 @@ type ComplexityRoot struct {
 		PageKey func(childComplexity int) int
 		Samples func(childComplexity int) int
 		Ttfb    func(childComplexity int) int
+	}
+
+	LensPlanIssue struct {
+		Count func(childComplexity int) int
+		Event func(childComplexity int) int
+		Kind  func(childComplexity int) int
+		Prop  func(childComplexity int) int
 	}
 
 	LensRageElement struct {
@@ -14304,6 +14312,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.LensOverview.Interactions(childComplexity), true
+	case "LensOverview.planIssues":
+		if e.ComplexityRoot.LensOverview.PlanIssues == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensOverview.PlanIssues(childComplexity), true
 	case "LensOverview.referrers":
 		if e.ComplexityRoot.LensOverview.Referrers == nil {
 			break
@@ -14458,6 +14472,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.LensPageVitals.Ttfb(childComplexity), true
+
+	case "LensPlanIssue.count":
+		if e.ComplexityRoot.LensPlanIssue.Count == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensPlanIssue.Count(childComplexity), true
+	case "LensPlanIssue.event":
+		if e.ComplexityRoot.LensPlanIssue.Event == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensPlanIssue.Event(childComplexity), true
+	case "LensPlanIssue.kind":
+		if e.ComplexityRoot.LensPlanIssue.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensPlanIssue.Kind(childComplexity), true
+	case "LensPlanIssue.prop":
+		if e.ComplexityRoot.LensPlanIssue.Prop == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensPlanIssue.Prop(childComplexity), true
 
 	case "LensRageElement.count":
 		if e.ComplexityRoot.LensRageElement.Count == nil {
@@ -39353,6 +39392,23 @@ type LensOverview {
   devices:      [LensLabelCount!]!
   referrers:    [LensLabelCount!]!
   interactions: [LensLabelCount!]!   # named UI interactions (sidebar/modal/custom), by count
+  planIssues:   [LensPlanIssue!]!    # Data health: what ingest stripped against the tracking plan, most frequent first
+}
+
+# What ingest dropped against the tracking plan (docs/tracking-plan.md)
+enum LensPlanIssueKind {
+  UNKNOWN_EVENT # a $ event the plan doesn't have - the whole event
+  UNKNOWN_PROP  # a property the event's plan entry doesn't list
+  BAD_TYPE      # a planned property with the wrong type
+  SERVER_PROP   # a property only the server may set
+}
+
+# One kind of tracking-plan breach in the window
+type LensPlanIssue {
+  kind:  LensPlanIssueKind!
+  event: String!   # the event name, or "custom" for a merchant-named event
+  prop:  String!   # empty when the whole event was dropped
+  count: Int!
 }
 
 type LensPageStat {
@@ -44734,6 +44790,8 @@ func (ec *executionContext) childFields_LensOverview(ctx context.Context, field 
 		return ec.fieldContext_LensOverview_referrers(ctx, field)
 	case "interactions":
 		return ec.fieldContext_LensOverview_interactions(ctx, field)
+	case "planIssues":
+		return ec.fieldContext_LensOverview_planIssues(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type LensOverview", field.Name)
 }
@@ -44802,6 +44860,20 @@ func (ec *executionContext) childFields_LensPageVitals(ctx context.Context, fiel
 		return ec.fieldContext_LensPageVitals_samples(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type LensPageVitals", field.Name)
+}
+
+func (ec *executionContext) childFields_LensPlanIssue(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "kind":
+		return ec.fieldContext_LensPlanIssue_kind(ctx, field)
+	case "event":
+		return ec.fieldContext_LensPlanIssue_event(ctx, field)
+	case "prop":
+		return ec.fieldContext_LensPlanIssue_prop(ctx, field)
+	case "count":
+		return ec.fieldContext_LensPlanIssue_count(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LensPlanIssue", field.Name)
 }
 
 func (ec *executionContext) childFields_LensRageElement(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -96877,6 +96949,38 @@ func (ec *executionContext) fieldContext_LensOverview_interactions(_ context.Con
 	return fc, nil
 }
 
+func (ec *executionContext) _LensOverview_planIssues(ctx context.Context, field graphql.CollectedField, obj *model.LensOverview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensOverview_planIssues(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PlanIssues, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensPlanIssue) graphql.Marshaler {
+			return ec.marshalNLensPlanIssue2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐLensPlanIssueᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensOverview_planIssues(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LensOverview",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensPlanIssue(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _LensPage_pageKey(ctx context.Context, field graphql.CollectedField, obj *model.LensPage) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -97394,6 +97498,98 @@ func (ec *executionContext) _LensPageVitals_samples(ctx context.Context, field g
 }
 func (ec *executionContext) fieldContext_LensPageVitals_samples(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("LensPageVitals", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensPlanIssue_kind(ctx context.Context, field graphql.CollectedField, obj *model.LensPlanIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensPlanIssue_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.LensPlanIssueKind) graphql.Marshaler {
+			return ec.marshalNLensPlanIssueKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐLensPlanIssueKind(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensPlanIssue_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensPlanIssue", field, false, false, errors.New("field of type LensPlanIssueKind does not have child fields"))
+}
+
+func (ec *executionContext) _LensPlanIssue_event(ctx context.Context, field graphql.CollectedField, obj *model.LensPlanIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensPlanIssue_event(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Event, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensPlanIssue_event(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensPlanIssue", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensPlanIssue_prop(ctx context.Context, field graphql.CollectedField, obj *model.LensPlanIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensPlanIssue_prop(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Prop, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensPlanIssue_prop(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensPlanIssue", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensPlanIssue_count(ctx context.Context, field graphql.CollectedField, obj *model.LensPlanIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensPlanIssue_count(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Count, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensPlanIssue_count(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensPlanIssue", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _LensRageElement_selector(ctx context.Context, field graphql.CollectedField, obj *model.LensRageElement) (ret graphql.Marshaler) {
@@ -193529,6 +193725,11 @@ func (ec *executionContext) _LensOverview(ctx context.Context, sel ast.Selection
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "planIssues":
+			out.Values[i] = ec._LensOverview_planIssues(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -193763,6 +193964,59 @@ func (ec *executionContext) _LensPageVitals(ctx context.Context, sel ast.Selecti
 			}
 		case "samples":
 			out.Values[i] = ec._LensPageVitals_samples(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var lensPlanIssueImplementors = []string{"LensPlanIssue"}
+
+func (ec *executionContext) _LensPlanIssue(ctx context.Context, sel ast.SelectionSet, obj *model.LensPlanIssue) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lensPlanIssueImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LensPlanIssue")
+		case "kind":
+			out.Values[i] = ec._LensPlanIssue_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "event":
+			out.Values[i] = ec._LensPlanIssue_event(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "prop":
+			out.Values[i] = ec._LensPlanIssue_prop(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "count":
+			out.Values[i] = ec._LensPlanIssue_count(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -223952,6 +224206,42 @@ func (ec *executionContext) marshalNLensPageVitals2ᚖgithubᚗcomᚋskeletgᚋs
 		return graphql.Null
 	}
 	return ec._LensPageVitals(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLensPlanIssue2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐLensPlanIssueᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LensPlanIssue) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLensPlanIssue2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐLensPlanIssue(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLensPlanIssue2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐLensPlanIssue(ctx context.Context, sel ast.SelectionSet, v *model.LensPlanIssue) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LensPlanIssue(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNLensPlanIssueKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐLensPlanIssueKind(ctx context.Context, v any) (model.LensPlanIssueKind, error) {
+	var res model.LensPlanIssueKind
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNLensPlanIssueKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐLensPlanIssueKind(ctx context.Context, sel ast.SelectionSet, v model.LensPlanIssueKind) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) marshalNLensRageElement2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐLensRageElementᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LensRageElement) graphql.Marshaler {

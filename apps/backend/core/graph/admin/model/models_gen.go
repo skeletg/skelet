@@ -2941,6 +2941,7 @@ type LensOverview struct {
 	Devices      []*LensLabelCount `json:"devices"`
 	Referrers    []*LensLabelCount `json:"referrers"`
 	Interactions []*LensLabelCount `json:"interactions"`
+	PlanIssues   []*LensPlanIssue  `json:"planIssues"`
 }
 
 type LensPage struct {
@@ -2974,6 +2975,13 @@ type LensPageVitals struct {
 	Inp     *float64 `json:"inp,omitempty"`
 	Ttfb    *float64 `json:"ttfb,omitempty"`
 	Samples int32    `json:"samples"`
+}
+
+type LensPlanIssue struct {
+	Kind  LensPlanIssueKind `json:"kind"`
+	Event string            `json:"event"`
+	Prop  string            `json:"prop"`
+	Count int32             `json:"count"`
 }
 
 type LensRageElement struct {
@@ -7696,6 +7704,65 @@ func (e *InventoryMode) UnmarshalJSON(b []byte) error {
 }
 
 func (e InventoryMode) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type LensPlanIssueKind string
+
+const (
+	LensPlanIssueKindUnknownEvent LensPlanIssueKind = "UNKNOWN_EVENT"
+	LensPlanIssueKindUnknownProp  LensPlanIssueKind = "UNKNOWN_PROP"
+	LensPlanIssueKindBadType      LensPlanIssueKind = "BAD_TYPE"
+	LensPlanIssueKindServerProp   LensPlanIssueKind = "SERVER_PROP"
+)
+
+var AllLensPlanIssueKind = []LensPlanIssueKind{
+	LensPlanIssueKindUnknownEvent,
+	LensPlanIssueKindUnknownProp,
+	LensPlanIssueKindBadType,
+	LensPlanIssueKindServerProp,
+}
+
+func (e LensPlanIssueKind) IsValid() bool {
+	switch e {
+	case LensPlanIssueKindUnknownEvent, LensPlanIssueKindUnknownProp, LensPlanIssueKindBadType, LensPlanIssueKindServerProp:
+		return true
+	}
+	return false
+}
+
+func (e LensPlanIssueKind) String() string {
+	return string(e)
+}
+
+func (e *LensPlanIssueKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = LensPlanIssueKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid LensPlanIssueKind", str)
+	}
+	return nil
+}
+
+func (e LensPlanIssueKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *LensPlanIssueKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e LensPlanIssueKind) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

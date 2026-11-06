@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	signalsdb "github.com/skeletg/skelet/apps/backend/signals/internal/db/sqlc"
 )
 
@@ -26,7 +27,7 @@ func TestASignalBumpsOnlyASessionOfItsOwnChannel(t *testing.T) {
 	}
 	svc := NewService(qs, nil, nil, nil)
 	rage := func(session uuid.UUID) {
-		svc.recordSignal(ctx, mine, Event{Name: sigRageClick, PageKey: "/", Props: map[string]any{"sessionId": session.String()}})
+		svc.recordSignal(ctx, mine, Event{Name: analytics.EventRageClick, PageKey: "/", Props: map[string]any{"sessionId": session.String()}})
 	}
 	rageCount := func(session uuid.UUID) int {
 		var n int

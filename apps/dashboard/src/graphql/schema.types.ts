@@ -3342,6 +3342,7 @@ export type LensOverview = {
   daily: Array<LensTimePoint>;
   devices: Array<LensLabelCount>;
   interactions: Array<LensLabelCount>;
+  planIssues: Array<LensPlanIssue>;
   referrers: Array<LensLabelCount>;
   topPages: Array<LensPageStat>;
   views: Scalars['Int']['output'];
@@ -3384,6 +3385,20 @@ export type LensPageVitals = {
   samples: Scalars['Int']['output'];
   ttfb?: Maybe<Scalars['Float']['output']>;
 };
+
+export type LensPlanIssue = {
+  __typename?: 'LensPlanIssue';
+  count: Scalars['Int']['output'];
+  event: Scalars['String']['output'];
+  kind: LensPlanIssueKind;
+  prop: Scalars['String']['output'];
+};
+
+export type LensPlanIssueKind =
+  | 'BAD_TYPE'
+  | 'SERVER_PROP'
+  | 'UNKNOWN_EVENT'
+  | 'UNKNOWN_PROP';
 
 export type LensRageElement = {
   __typename?: 'LensRageElement';

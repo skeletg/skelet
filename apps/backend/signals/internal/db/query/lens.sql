@@ -57,6 +57,15 @@ GROUP BY key
 ORDER BY count DESC
 LIMIT sqlc.arg(lim);
 
+-- name: LensPlanIssues :many
+-- What ingest stripped against the tracking plan (dim plan_*, key event or event.prop), for Data health. Rollup-backed.
+SELECT dim AS kind, key, SUM(views)::bigint AS count
+FROM lens_traffic_daily
+WHERE channel_id = sqlc.arg(channel_id) AND day >= sqlc.arg(since)::date AND dim LIKE 'plan\_%'
+GROUP BY dim, key
+ORDER BY count DESC
+LIMIT sqlc.arg(lim);
+
 -- Bot / crawler analytics (rollup-backed) -------------------------------------
 -- Counts are coalesced in-process into analytics_traffic_rollup - dashboards read the rollup and never raw events, so query cost is bounded
 

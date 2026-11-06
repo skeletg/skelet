@@ -144,3 +144,44 @@ func TestOverviewSurfacesAFailedRead(t *testing.T) {
 		t.Fatal("the overview answered zeros while the grid read failed")
 	}
 }
+
+func TestTheTrackingPlanHoldsAtIngest(t *testing.T) {
+	spine := &fakeSpine{}
+	svc := NewService(nil, analytics.NewRecorder(nil, spine), nil, nil)
+	svc.Ingest(context.Background(), uuid.New(), "anon-1", analytics.Hit{}, Batch{Events: []Event{
+		{ID: "v", Type: analytics.EventPageView, PageKey: "/", Props: map[string]any{"is_bot": false, "revenue_cents": 5000, "sku": "TEE"}},
+		{ID: "c", Type: analytics.EventCustom, PageKey: "/", Name: "Size guide", Props: map[string]any{"name": "purchase", "page_key": "/checkout", "action": "expand"}},
+		{ID: "x", Type: analytics.EventCustom, PageKey: "/", Name: "$made_up"},
+	}}, uuid.Nil)
+	views := spine.named(analytics.EventPageView)
+	if len(views) != 1 || views[0].Props["sku"] != "TEE" || views[0].Props["revenue_cents"] != nil || views[0].Props["is_bot"] != nil {
+		t.Fatalf("page view props = %v, want sku kept and the server's keys stripped", views)
+	}
+	custom := spine.named(analytics.EventCustom)
+	if len(custom) != 1 {
+		t.Fatalf("custom events = %v, want the interaction only, the unplanned $ event dropped", custom)
+	}
+	if p := custom[0].Props; p["name"] != "Size guide" || p["page_key"] != "/" || p["action"] != "expand" {
+		t.Fatalf("interaction props = %v, want the browser unable to rename it or move its page", p)
+	}
+}
+
+func TestABotIsFlaggedOnEveryWebEvent(t *testing.T) {
+	spine := &fakeSpine{}
+	svc := NewService(nil, analytics.NewRecorder(nil, spine), nil, nil)
+	bot := analytics.Hit{IsBot: true, BotName: "Googlebot", BotCat: "search"}
+	svc.Ingest(context.Background(), uuid.New(), "anon-1", bot, Batch{Events: []Event{
+		{ID: "v", Type: analytics.EventPageView, PageKey: "/", Viewport: "desktop"},
+		{ID: "c", Type: analytics.EventCustom, PageKey: "/", Name: analytics.EventProductFilter, Props: map[string]any{"filters": "red"}},
+		{ID: "k", Type: "click", PageKey: "/", Viewport: "desktop", X: 5, Y: 5},
+	}}, uuid.Nil)
+	for _, name := range []string{analytics.EventPageView, analytics.EventProductFilter} {
+		got := spine.named(name)
+		if len(got) != 1 || got[0].Props["is_bot"] != true || got[0].Props["bot_name"] != "Googlebot" {
+			t.Errorf("%s from a bot = %v, want it flagged", name, got)
+		}
+	}
+	if cells := spine.named("lens_cell"); len(cells) != 0 {
+		t.Errorf("a bot's click reached the heatmap: %v", cells)
+	}
+}

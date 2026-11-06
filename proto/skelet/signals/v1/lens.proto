@@ -177,6 +177,18 @@ message GetOverviewResponse {
   repeated LabelCount referrers = 6;
   // Named UI interactions, by count
   repeated LabelCount interactions = 7;
+  // What ingest stripped against the tracking plan (docs/tracking-plan.md), most frequent first
+  repeated PlanIssue plan_issues = 8;
+}
+
+message PlanIssue {
+  // plan_unknown_event | plan_unknown_prop | plan_bad_type | plan_server_prop
+  string kind = 1;
+  // The event name, or "custom" for a merchant-named event
+  string event = 2;
+  // Empty when the whole event was dropped
+  string prop = 3;
+  int64 count = 4;
 }
 
 message GetBotTrafficRequest {
