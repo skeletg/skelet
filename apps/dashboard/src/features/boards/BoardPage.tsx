@@ -4,7 +4,7 @@ import { useMutation, useQuery } from '@apollo/client/react'
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { CopyIcon, GripVerticalIcon, Maximize2Icon, Minimize2Icon, PencilIcon, PlusIcon, Trash2Icon, XIcon } from 'lucide-react'
+import { CopyIcon, GripVerticalIcon, PencilIcon, PlusIcon, Trash2Icon, XIcon } from 'lucide-react'
 import { DetailPageBody, DetailPageHeader, DetailPageLayout } from '@/components/layout/detail-page'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -18,14 +18,14 @@ import { usePermissions } from '@/shared/auth/usePermissions'
 import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 import { ChannelRequired } from '@/shared/analytics/ChannelRequired'
 import { PeriodPicker } from '@/shared/analytics/PeriodPicker'
-import { BUILDERS, ReportControls, ReportResult, suggestTitle } from '@/shared/analytics/kinds'
-import { REPORTS, REPORT_SIZE_LABEL, cleanReport, describeReport, reportOf, type BoardReport, type ReportDefinition, type ReportKind, type ReportSize } from './report'
+import { BUILDERS, KINDS, ReportResult, describeReport, kindOf } from '@/shared/analytics/kinds'
+import type { ReportKind } from '@/shared/analytics/kinds/definition'
+import { cleanReport, type ReportSize } from './report'
 import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
 import { useSaveRegistry, useSaveSection } from '@/shared/saving/saveRegistry'
 import { BoardDocument, BoardsDocument, DeleteBoardDocument, SaveBoardDocument } from './Boards.gql'
-import { boardDiff, keyed, unkeyed, type AddToBoardState, type DraftReport } from './boardDiff'
-
-const newKey = () => `n${crypto.randomUUID()}` // a report added since the board was loaded - boardDiff reads it as new
+import { boardDiff, fresh, keyed, unkeyed, type AddToBoardState, type DraftReport } from './boardDiff'
+import { EditPanel } from './EditPanel'
 
 // A tile's width in the board's grid, which is 1 column narrow, 2 from a medium width, 4 wide and 5 very wide - measured
 // on the grid itself, so opening the edit panel narrows it rather than squeezing four tiles into the space left
@@ -58,9 +58,9 @@ export function BoardPage() {
     setDraftName(board.name)
     const reports = keyed(saved)
     if (arriving) {
-      const key = newKey()
-      setDraft([...reports, { ...arriving, key }])
-      setEditing(key)
+      const added = fresh(arriving)
+      setDraft([...reports, added])
+      setEditing(added.key)
     } else setDraft(reports)
   }
   useEffect(() => {
@@ -109,12 +109,12 @@ export function BoardPage() {
     }
   }
 
-  const update = (key: string, patch: Partial<BoardReport>) => setDraft((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)))
+  const update = (key: string, patch: Partial<DraftReport>) => setDraft((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)))
   const add = (kind: ReportKind) => {
-    const definition = REPORTS[kind].start
-    const key = newKey()
-    setDraft((rs) => [...rs, { key, title: suggestTitle(definition), definition }])
-    setEditing(key)
+    const { start, title } = KINDS[kind]
+    const added = fresh({ title: title(start), size: 'MEDIUM', definition: start })
+    setDraft((rs) => [...rs, added])
+    setEditing(added.key)
     setFocused(false)
   }
   const remove = (key: string) => {
@@ -124,7 +124,7 @@ export function BoardPage() {
   const duplicate = (key: string) =>
     setDraft((rs) => {
       const i = rs.findIndex((r) => r.key === key)
-      return [...rs.slice(0, i + 1), { ...rs[i], key: newKey(), title: `${rs[i].title} (copy)` }, ...rs.slice(i + 1)]
+      return [...rs.slice(0, i + 1), fresh({ ...rs[i], title: `${rs[i].title} (copy)` }), ...rs.slice(i + 1)]
     })
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
   const onDragEnd = ({ active, over }: DragEndEvent) => {
@@ -301,7 +301,7 @@ type TileProps = {
 
 function Tile({ r, channelId, sinceDays, canManage, editing, focused, onEdit, onRemove, onDuplicate }: TileProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: r.key, disabled: !canManage || focused })
-  const size = focused ? 'FULL' : (r.definition.size ?? 'MEDIUM')
+  const size: ReportSize = focused ? 'FULL' : r.size
   return (
     <section
       ref={setNodeRef}
@@ -318,7 +318,7 @@ function Tile({ r, channelId, sinceDays, canManage, editing, focused, onEdit, on
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-medium">{r.title || 'Untitled report'}</h3>
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
-            {reportOf(r.definition)?.label ?? r.definition.kind} · {describeReport(r.definition)}
+            {kindOf(r.definition)?.label ?? r.definition.kind} · {describeReport(r.definition)}
           </p>
         </div>
         {canManage && (
@@ -339,66 +339,5 @@ function Tile({ r, channelId, sinceDays, canManage, editing, focused, onEdit, on
       </div>
       <ReportResult channelId={channelId} d={r.definition} sinceDays={r.definition.sinceDays || sinceDays} compact={size !== 'FULL'} />
     </section>
-  )
-}
-
-// EditPanel builds the tile being edited, beside the grid rather than over it, so the board stays usable and the tile
-// shows each change as it's made - the changes are staged on the board like any other edit
-function EditPanel({ r, channelId, focused, onChange, onFocus, onClose }: { r: DraftReport; channelId: string; focused: boolean; onChange: (patch: Partial<BoardReport>) => void; onFocus: () => void; onClose: () => void }) {
-  const d = r.definition
-  const builder = d.kind === 'STICKINESS' ? 'RETENTION' : d.kind
-  const setDefinition = (next: ReportDefinition) => onChange({ definition: { ...next, size: d.size, sinceDays: d.sinceDays } })
-  return (
-    <aside aria-label={`Edit ${r.title}`} className="sticky top-0 max-h-[calc(100vh-10rem)] w-[26rem] shrink-0 space-y-4 overflow-y-auto rounded-md border bg-background p-4">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="font-semibold">Edit report</h2>
-        <div className="flex">
-          <Button size="icon" variant="ghost" className="size-7" aria-label={focused ? 'Back to the board' : 'Expand the report'} onClick={onFocus}>
-            {focused ? <Minimize2Icon className="size-4" /> : <Maximize2Icon className="size-4" />}
-          </Button>
-          <Button size="icon" variant="ghost" className="size-7" aria-label="Close the editor" onClick={onClose}>
-            <XIcon className="size-4" />
-          </Button>
-        </div>
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor="tile-title">Title</Label>
-        <Input id="tile-title" value={r.title} onChange={(e) => onChange({ title: e.target.value })} />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label htmlFor="tile-kind">Report</Label>
-          <select
-            id="tile-kind"
-            value={builder}
-            onChange={(e) => {
-              const next = REPORTS[e.target.value as ReportKind].start
-              onChange({ title: suggestTitle(next), definition: { ...next, size: d.size } })
-            }}
-            className="w-full rounded border bg-background px-2 py-1.5 text-sm"
-          >
-            {BUILDERS.map((b) => (
-              <option key={b.kind} value={b.kind}>
-                {b.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="tile-size">Size</Label>
-          <select id="tile-size" value={d.size ?? 'MEDIUM'} onChange={(e) => onChange({ definition: { ...d, size: e.target.value as ReportSize } })} className="w-full rounded border bg-background px-2 py-1.5 text-sm">
-            {(Object.keys(REPORT_SIZE_LABEL) as ReportSize[]).map((s) => (
-              <option key={s} value={s}>
-                {REPORT_SIZE_LABEL[s]}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-      <div className="border-t pt-4">
-        <ReportControls channelId={channelId} value={d} onChange={setDefinition} />
-      </div>
-      <p className="text-xs text-muted-foreground">Changes show on the tile straight away and are kept when you Save the board. Esc closes this panel.</p>
-    </aside>
   )
 }

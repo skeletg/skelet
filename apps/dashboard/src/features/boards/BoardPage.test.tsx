@@ -37,8 +37,8 @@ const report = (title: string, event: string) => ({
     periods: null,
     depth: null,
     windowDays: null,
-    size: null,
   },
+  size: null,
 })
 const board = {
   __typename: 'Board',
@@ -92,7 +92,7 @@ describe('BoardPage', () => {
       readAt: '2026-11-04T10:00:00.123456Z',
     })
     // Sent back as the input takes it - no nulls, no __typename
-    expect((saved as unknown as { reports: unknown[] }).reports).toEqual([{ title: 'Buyers', definition: { kind: 'STICKINESS', event: 'order_placed' } }])
+    expect((saved as unknown as { reports: unknown[] }).reports).toEqual([{ title: 'Buyers', size: 'MEDIUM', definition: { kind: 'STICKINESS', event: 'order_placed' } }])
   })
 
   it('adds a report from the header, builds and sizes it in the panel beside the tile, and saves it with the board', async () => {
@@ -120,7 +120,7 @@ describe('BoardPage', () => {
     await waitFor(() => expect(saved).not.toBeNull(), SLOW)
     expect((saved as unknown as { reports: unknown[] }).reports).toEqual([
       ...board.reports.map(cleanReport),
-      { title: 'Visitors', definition: { kind: 'INSIGHTS', event: 'page_view', measure: 'unique', unit: 'day', size: 'FULL' } },
+      { title: 'Visitors', size: 'FULL', definition: { kind: 'INSIGHTS', event: 'page_view', measure: 'unique', unit: 'day' } },
     ])
   })
 

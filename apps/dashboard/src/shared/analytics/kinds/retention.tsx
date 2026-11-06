@@ -3,8 +3,8 @@ import { cn } from '@/lib/utils'
 import { formatNumber } from '@/lib/format'
 import { eventLabel } from '@/features/synapse/eventLabel'
 import { SynapseRetentionDocument, SynapseStickinessDocument } from '@/features/synapse/Synapse.gql'
-import type { ReportDefinition } from '@/features/boards/report'
-import { Bars, EventSelect, Field, Headline, Note, State, StatTile, Toggle, pct, useTopEvents, type ControlsProps, type ResultProps } from './ui'
+import type { ControlsProps, Kind, ReportDefinition, ResultProps } from './definition'
+import { Bars, EventSelect, Field, Headline, Note, State, StatTile, Toggle, pct, useTopEvents } from './ui'
 
 type Bucket = { period: number; count: number; eligible: number }
 const pctOf = (b?: Bucket | null): number | null => (b && b.eligible > 0 ? Math.round((b.count / b.eligible) * 100) : null)
@@ -19,16 +19,20 @@ const fmtDay = (v: string) => {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
+// What an unset unit reads as, and how many periods a unit reads
+const UNIT = 'week'
+const periodsFor = (unit: string) => (unit === 'day' ? 14 : 8)
+
 // One builder answers "do people come back?" two ways; switching view carries the event across
 export function switchRetentionView(d: ReportDefinition, view: 'STICKINESS' | 'RETENTION'): ReportDefinition {
   if (view === d.kind) return d
-  const { size } = d
-  if (view === 'STICKINESS') return { kind: 'STICKINESS', event: d.returnEvent || undefined, size }
-  const ev = d.event || 'order_placed'
-  return { kind: 'RETENTION', startEvent: ev, returnEvent: ev, unit: 'week', periods: 8, size }
+  const { sinceDays } = d
+  if (view === 'STICKINESS') return { kind: 'STICKINESS', event: d.returnEvent || undefined, sinceDays }
+  const ev = d.event || retention.start.startEvent
+  return { ...retention.start, startEvent: ev, returnEvent: ev, sinceDays }
 }
 
-export function RetentionControls({ channelId, value: d, onChange }: ControlsProps) {
+function RetentionControls({ channelId, value: d, onChange }: ControlsProps) {
   const events = useTopEvents(channelId)
   const view = d.kind === 'STICKINESS' ? 'STICKINESS' : 'RETENTION'
   return (
@@ -80,8 +84,8 @@ export function RetentionControls({ channelId, value: d, onChange }: ControlsPro
                 { v: 'day', l: 'Day' },
                 { v: 'week', l: 'Week' },
               ]}
-              value={d.unit ?? 'week'}
-              onChange={(unit) => onChange({ ...d, unit, periods: unit === 'day' ? 14 : 8 })}
+              value={d.unit ?? UNIT}
+              onChange={(unit) => onChange({ ...d, unit, periods: periodsFor(unit) })}
             />
           </Field>
         </>
@@ -90,9 +94,9 @@ export function RetentionControls({ channelId, value: d, onChange }: ControlsPro
   )
 }
 
-export function RetentionResult({ channelId, d, sinceDays, compact }: ResultProps) {
-  const unit = d.unit ?? 'week'
-  const periods = d.periods ?? (unit === 'day' ? 14 : 8)
+function RetentionResult({ channelId, d, sinceDays, compact }: ResultProps) {
+  const unit = d.unit ?? UNIT
+  const periods = d.periods ?? periodsFor(unit)
   const { data, loading, error } = useQuery(SynapseRetentionDocument, {
     variables: { channelId, startEvent: d.startEvent ?? '', returnEvent: d.returnEvent ?? '', sinceDays, periods, unit },
     skip: !channelId || !d.startEvent || !d.returnEvent,
@@ -194,7 +198,7 @@ function CohortRow({ label, size, buckets, emphasize }: { label: string; size: n
   )
 }
 
-export function StickinessResult({ channelId, d, sinceDays, compact }: ResultProps) {
+function StickinessResult({ channelId, d, sinceDays, compact }: ResultProps) {
   const { data, loading, error } = useQuery(SynapseStickinessDocument, {
     variables: { channelId, event: d.event || null, sinceDays, windowDays: d.windowDays ?? null },
     skip: !channelId,
@@ -285,4 +289,24 @@ export function StickinessResult({ channelId, d, sinceDays, compact }: ResultPro
       )}
     </State>
   )
+}
+
+export const retention: Kind = {
+  label: 'Retention by cohort',
+  menu: { label: 'Retention', hint: 'Whether people come back' },
+  describe: (d) => `${d.startEvent} then ${d.returnEvent}, by ${d.unit ?? UNIT}`,
+  title: (d) => `${eventLabel(d.startEvent ?? '')} retention`,
+  start: { kind: 'RETENTION', startEvent: 'order_placed', returnEvent: 'order_placed', unit: UNIT, periods: periodsFor(UNIT) },
+  Controls: RetentionControls,
+  Result: RetentionResult,
+}
+
+export const stickiness: Kind = {
+  label: 'Return rate',
+  builder: 'RETENTION',
+  describe: (d) => `Returning on ${d.event || 'any activity'}`,
+  title: (d) => (d.event ? `Returning on ${eventLabel(d.event)}` : 'Returning shoppers'),
+  start: { kind: 'STICKINESS' },
+  Controls: RetentionControls,
+  Result: StickinessResult,
 }

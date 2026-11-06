@@ -7,7 +7,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { usePermissions } from '@/shared/auth/usePermissions'
-import { REPORTS, cleanDefinition, type ReportDefinition } from './report'
+import { describeReport } from '@/shared/analytics/kinds'
+import { cleanDefinition, type ReportDefinition } from '@/shared/analytics/kinds/definition'
+import type { BoardReport } from './report'
 import { BoardsDocument, CreateBoardDocument } from './Boards.gql'
 import type { AddToBoardState } from './boardDiff'
 
@@ -30,7 +32,7 @@ export function AddToBoard({ channelId, title, definition }: { channelId: string
   const last = localStorage.getItem(lastBoardKey(channelId))
   const boardId = picked ?? (boards.find((b) => b.id === last) ?? boards[0])?.id ?? ''
   if (!canManage) return null
-  const report = { title: name.trim() || title, definition: cleanDefinition(definition) }
+  const report: BoardReport = { title: name.trim() || title, size: 'MEDIUM', definition: cleanDefinition(definition) }
 
   async function submit() {
     if (boardId) {
@@ -64,7 +66,7 @@ export function AddToBoard({ channelId, title, definition }: { channelId: string
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Add to board</DialogTitle>
-            <DialogDescription>{REPORTS[report.definition.kind].describe(report.definition)}</DialogDescription>
+            <DialogDescription>{describeReport(report.definition)}</DialogDescription>
           </DialogHeader>
           <form
             className="space-y-3"

@@ -6,30 +6,31 @@ import { DetailPageBody, DetailPageHeader, DetailPageLayout, DetailPageSection }
 import { useConfigScope } from '@/lib/config-scope'
 import { AddToBoard } from '@/features/boards/AddToBoard'
 import { ChannelRequired } from '@/shared/analytics/ChannelRequired'
-import { PeriodPicker } from '@/shared/analytics/PeriodPicker'
-import { PERIODS } from '@/shared/analytics/PeriodPicker'
-import { REPORTS, cleanDefinition, type ReportDefinition, type ReportKind } from '@/features/boards/report'
-import { ReportControls, ReportResult, suggestTitle } from '@/shared/analytics/kinds'
+import { PERIODS, PeriodPicker } from '@/shared/analytics/PeriodPicker'
+import { KINDS, ReportControls, ReportResult, builderOf } from '@/shared/analytics/kinds'
+import { cleanDefinition, type ReportDefinition, type ReportKind } from '@/shared/analytics/kinds/definition'
 
 // The report is kept in the URL (?q=<definition>&days=<period>), so a reload, the back button or a pasted link opens
-// the same report - anything that isn't one of this page's kinds falls back to its default
-export function readReport(params: URLSearchParams, kinds: ReportKind[]): ReportDefinition {
+// the same report. A link is only text someone may have edited, so anything this page's builder doesn't make, or whose
+// lists aren't lists, opens the page's start instead
+export function readReport(params: URLSearchParams, builder: ReportKind, start: ReportKind = builder): ReportDefinition {
   try {
     const d = JSON.parse(params.get('q') ?? '') as ReportDefinition
-    if (d && kinds.includes(d.kind)) return d
+    if (d && builderOf(d.kind) === builder && [d.steps, d.filters].every((v) => v == null || Array.isArray(v))) return d
   } catch {
-    // not a report - the default below
+    // not a report - the start below
   }
-  return REPORTS[kinds[0]].start
+  return KINDS[start].start
 }
 
 // ScratchReport is a report page: build a report with nothing to save, and put it on a board when it's worth keeping.
 // The board's sheet renders the same controls and result
-export function ScratchReport({ kinds, title, description, what, defaultDays = 30 }: { kinds: ReportKind[]; title: string; description: string; what: string; defaultDays?: number }) {
+// builder is the kind this page builds in, start the kind it opens on when the URL holds no report
+export function ScratchReport({ builder, start, title, description, what, defaultDays = 30 }: { builder: ReportKind; start?: ReportKind; title: string; description: string; what: string; defaultDays?: number }) {
   const { effectiveChannelId, isChannel, selectedChannel } = useConfigScope()
   const channelId = effectiveChannelId ?? ''
   const [params, setParams] = useSearchParams()
-  const d = readReport(params, kinds)
+  const d = readReport(params, builder, start)
   const days = Number(params.get('days'))
   const sinceDays = (PERIODS as readonly number[]).includes(days) ? days : defaultDays
   const update = (next: ReportDefinition, nextDays = sinceDays) =>
@@ -51,7 +52,7 @@ export function ScratchReport({ kinds, title, description, what, defaultDays = 3
           isChannel ? (
             <div className="flex items-center gap-3">
               <PeriodPicker value={sinceDays} onChange={(n) => update(d, n)} />
-              <AddToBoard channelId={channelId} title={suggestTitle(d)} definition={d} />
+              <AddToBoard channelId={channelId} title={KINDS[d.kind].title(d)} definition={d} />
             </div>
           ) : undefined
         }

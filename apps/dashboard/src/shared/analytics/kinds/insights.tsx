@@ -5,9 +5,11 @@ import { ChartTooltipContent } from '@/components/ui/chart'
 import { SERIES, SERIES_OTHER } from '@/lib/chart-colors'
 import { cn } from '@/lib/utils'
 import { formatNumber, formatShortDay } from '@/lib/format'
+import { eventLabel } from '@/features/synapse/eventLabel'
 import { aggregateNote } from '@/features/synapse/aggregateNote'
 import { SynapseInsightsDocument } from '@/features/synapse/Synapse.gql'
-import { Bars, EventSelect, Field, Headline, Note, State, StatTile, Toggle, pct, useTopEvents, type ControlsProps, type ResultProps } from './ui'
+import { Bars, EventSelect, Field, Headline, Note, State, StatTile, Toggle, pct, useTopEvents } from './ui'
+import type { ControlsProps, Kind, ResultProps } from './definition'
 
 // Breakdown properties the spine's events carry. '' = none
 export const BREAKDOWNS: { value: string; label: string }[] = [
@@ -22,8 +24,10 @@ export const BREAKDOWNS: { value: string; label: string }[] = [
   { value: 'page_key', label: 'Page' },
 ]
 const COLORS = [...SERIES, SERIES_OTHER]
+// What an unset measure and unit read as
+const DEFAULTS = { measure: 'total', unit: 'day' } as const
 
-export function InsightsControls({ channelId, value: d, onChange }: ControlsProps) {
+function InsightsControls({ channelId, value: d, onChange }: ControlsProps) {
   const events = useTopEvents(channelId)
   return (
     <div className="flex flex-wrap items-end gap-3 text-sm">
@@ -31,7 +35,7 @@ export function InsightsControls({ channelId, value: d, onChange }: ControlsProp
         <EventSelect label="Event" value={d.event ?? ''} onChange={(event) => onChange({ ...d, event })} events={events} anyLabel="Any event" />
       </Field>
       <Field label="Measure">
-        <Toggle label="Measure" options={[{ v: 'total', l: 'Total' }, { v: 'unique', l: 'Unique' }]} value={d.measure ?? 'total'} onChange={(measure) => onChange({ ...d, measure })} />
+        <Toggle label="Measure" options={[{ v: 'total', l: 'Total' }, { v: 'unique', l: 'Unique' }]} value={d.measure ?? DEFAULTS.measure} onChange={(measure) => onChange({ ...d, measure })} />
       </Field>
       <Field label="Break down by">
         <select aria-label="Break down by" value={d.breakdown ?? ''} onChange={(e) => onChange({ ...d, breakdown: e.target.value })} className="rounded border bg-background px-2 py-1.5 text-sm">
@@ -43,15 +47,15 @@ export function InsightsControls({ channelId, value: d, onChange }: ControlsProp
         </select>
       </Field>
       <Field label="By">
-        <Toggle label="By" options={[{ v: 'day', l: 'Day' }, { v: 'week', l: 'Week' }]} value={d.unit ?? 'day'} onChange={(unit) => onChange({ ...d, unit })} />
+        <Toggle label="By" options={[{ v: 'day', l: 'Day' }, { v: 'week', l: 'Week' }]} value={d.unit ?? DEFAULTS.unit} onChange={(unit) => onChange({ ...d, unit })} />
       </Field>
     </div>
   )
 }
 
-export function InsightsResult({ channelId, d, sinceDays, compact }: ResultProps) {
-  const measure = d.measure ?? 'total'
-  const unit = d.unit ?? 'day'
+function InsightsResult({ channelId, d, sinceDays, compact }: ResultProps) {
+  const measure = d.measure ?? DEFAULTS.measure
+  const unit = d.unit ?? DEFAULTS.unit
   const breakdown = d.breakdown ?? ''
   const { data, loading, error } = useQuery(SynapseInsightsDocument, {
     variables: { channelId, event: d.event || null, breakdown: breakdown || null, measure, unit, sinceDays },
@@ -196,4 +200,14 @@ export function InsightsResult({ channelId, d, sinceDays, compact }: ResultProps
       )}
     </State>
   )
+}
+
+export const insights: Kind = {
+  label: 'Insights',
+  menu: { label: 'Insights', hint: 'Count any event over time' },
+  describe: (d) => `${d.measure === 'unique' ? 'People doing' : 'Count of'} ${d.event || 'any event'}${d.breakdown ? ` by ${d.breakdown}` : ''}`,
+  title: (d) => (d.event ? eventLabel(d.event) : 'All events'),
+  start: { kind: 'INSIGHTS', event: 'page_view', ...DEFAULTS },
+  Controls: InsightsControls,
+  Result: InsightsResult,
 }

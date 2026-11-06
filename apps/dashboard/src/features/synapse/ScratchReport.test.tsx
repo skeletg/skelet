@@ -25,10 +25,16 @@ function Search() {
 describe('readReport', () => {
   it("falls back to the page's default for a missing, broken or foreign report", () => {
     const p = (q: string) => new URLSearchParams({ q })
-    expect(readReport(new URLSearchParams(), ['INSIGHTS']).kind).toBe('INSIGHTS')
-    expect(readReport(p('{oops'), ['INSIGHTS']).kind).toBe('INSIGHTS')
-    expect(readReport(p('{"kind":"FUNNEL","steps":["a","b"]}'), ['INSIGHTS']).kind).toBe('INSIGHTS')
-    expect(readReport(p('{"kind":"INSIGHTS","event":"cart_add"}'), ['INSIGHTS']).event).toBe('cart_add')
+    expect(readReport(new URLSearchParams(), 'INSIGHTS').kind).toBe('INSIGHTS')
+    expect(readReport(p('{oops'), 'INSIGHTS').kind).toBe('INSIGHTS')
+    expect(readReport(p('{"kind":"FUNNEL","steps":["a","b"]}'), 'INSIGHTS').kind).toBe('INSIGHTS')
+    expect(readReport(p('{"kind":"INSIGHTS","event":"cart_add"}'), 'INSIGHTS').event).toBe('cart_add')
+    expect(readReport(p('{"kind":"FUNNEL","steps":"page_view"}'), 'FUNNEL').steps).toHaveLength(5)
+  })
+  it("opens a view of the page's builder, and the page's start when there's no report", () => {
+    const p = (q: string) => new URLSearchParams({ q })
+    expect(readReport(p('{"kind":"STICKINESS"}'), 'RETENTION').kind).toBe('STICKINESS')
+    expect(readReport(new URLSearchParams(), 'RETENTION', 'STICKINESS').kind).toBe('STICKINESS')
   })
 })
 
