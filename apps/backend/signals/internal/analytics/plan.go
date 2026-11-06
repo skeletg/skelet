@@ -38,7 +38,7 @@ var TrackingPlan = []PlannedEvent{
 	{Name: "$search", About: "An on-site search and how many results it found.", Props: map[string]PropType{"query": PropString, "results": PropNumber}},
 	{Name: "$experiment", About: "The variation of an experiment a shopper saw.", Props: map[string]PropType{"experiment": PropString, "variation": PropString}},
 	{Name: "$js_error", About: "A script error on the page.", Props: map[string]PropType{"message": PropString, "source": PropString, "line": PropNumber, "sessionId": PropString}},
-	{Name: "$rage_click", About: "Three or more clicks in one spot within a second.", Props: map[string]PropType{"x": PropNumber, "y": PropNumber, "selector": PropString, "sessionId": PropString}},
+	{Name: "$rage_click", About: "Three or more clicks in one spot within a second.", Props: map[string]PropType{"x": PropNumber, "y": PropNumber, "selector": PropString, "text": PropString, "sessionId": PropString}},
 	{Name: "$dead_click", About: "A click that changed nothing on the page.", Props: map[string]PropType{"x": PropNumber, "y": PropNumber, "selector": PropString, "sessionId": PropString}},
 	{Name: "$web_vitals", About: "A Core Web Vitals measurement.", Props: map[string]PropType{"metric": PropString, "value": PropNumber, "sessionId": PropString}},
 	{Name: EventViewItem, About: "A product was viewed. Older storefronts send it; the server's own events are the source of truth.", Props: map[string]PropType{"sku": PropString}},

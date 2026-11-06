@@ -56,6 +56,11 @@ func TestApplyPlanOnNamedEvents(t *testing.T) {
 	if _, issues := ApplyPlan("$search", map[string]any{"results": "3"}); len(issues) != 1 || issues[0].Kind != IssueBadType {
 		t.Fatalf("results as a string: %v, want a bad type", issues)
 	}
+	// The tracker's own rage click, label included - the top rage elements list reads text
+	rage := map[string]any{"x": 10.0, "y": 20.0, "selector": "button.add", "text": "Add to cart", "sessionId": "s1"}
+	if keep, issues := ApplyPlan("$rage_click", rage); !keep || len(issues) != 0 || rage["text"] != "Add to cart" {
+		t.Fatalf("the tracker's rage click: keep=%v issues=%v props=%v", keep, issues, rage)
+	}
 }
 
 func TestEveryPlannedPropertyHasAKnownType(t *testing.T) {
