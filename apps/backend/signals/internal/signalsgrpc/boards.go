@@ -111,10 +111,11 @@ func reportsFrom(in []*signalsv1.BoardReport) []board.Report {
 		for _, f := range d.GetFilters() {
 			filters = append(filters, board.Filter{Step: int(f.GetStep()), Key: f.GetKey(), Value: f.GetValue()})
 		}
-		out = append(out, board.Report{Title: r.GetTitle(), Definition: board.Definition{
+		out = append(out, board.Report{Title: r.GetTitle(), Size: r.GetSize(), Definition: board.Definition{
 			Kind: d.GetKind(), SinceDays: int(d.GetSinceDays()), Event: d.GetEvent(), Measure: d.GetMeasure(), Unit: d.GetUnit(),
 			Breakdown: d.GetBreakdown(), Steps: d.GetSteps(), Filters: filters, WindowHours: int(d.GetWindowHours()),
 			StartEvent: d.GetStartEvent(), ReturnEvent: d.GetReturnEvent(), Periods: int(d.GetPeriods()), Depth: int(d.GetDepth()),
+			WindowDays: int(d.GetWindowDays()),
 		}})
 	}
 	return out
@@ -138,10 +139,11 @@ func boardProto(b board.Board) *signalsv1.Board {
 		for _, f := range d.Filters {
 			filters = append(filters, &signalsv1.FunnelFilter{Step: count32(f.Step), Key: f.Key, Value: f.Value})
 		}
-		out.Reports = append(out.Reports, &signalsv1.BoardReport{Title: r.Title, Definition: &signalsv1.BoardReportDefinition{
+		out.Reports = append(out.Reports, &signalsv1.BoardReport{Title: r.Title, Size: r.Size, Definition: &signalsv1.BoardReportDefinition{
 			Kind: d.Kind, SinceDays: count32(d.SinceDays), Event: d.Event, Measure: d.Measure, Unit: d.Unit,
 			Breakdown: d.Breakdown, Steps: d.Steps, Filters: filters, WindowHours: count32(d.WindowHours),
 			StartEvent: d.StartEvent, ReturnEvent: d.ReturnEvent, Periods: count32(d.Periods), Depth: count32(d.Depth),
+			WindowDays: count32(d.WindowDays),
 		}})
 	}
 	return out

@@ -19,6 +19,7 @@ type Board {
 
 type BoardReport {
   title:      String!
+  size:       BoardReportSize       # unset = MEDIUM
   definition: BoardReportDefinition!
 }
 
@@ -28,6 +29,13 @@ enum BoardReportKind {
   RETENTION
   STICKINESS
   FLOW
+}
+
+# A report's width on its board
+enum BoardReportSize {
+  SMALL
+  MEDIUM
+  FULL
 }
 
 # One saved report - which engine and its settings, the arguments that engine's Synapse query takes. Each kind reads
@@ -46,6 +54,7 @@ type BoardReportDefinition {
   returnEvent: String                # retention
   periods:     Int                   # retention
   depth:       Int                   # flow
+  windowDays:  Int                   # stickiness: the return window, unset = the shop's default
 }
 
 type BoardReportFilter {
@@ -68,10 +77,12 @@ input BoardReportDefinitionInput {
   returnEvent: String
   periods:     Int
   depth:       Int
+  windowDays:  Int
 }
 
 input BoardReportInput {
   title:      String!
+  size:       BoardReportSize
   definition: BoardReportDefinitionInput!
 }
 

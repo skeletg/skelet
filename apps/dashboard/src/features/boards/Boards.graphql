@@ -1,5 +1,6 @@
 fragment BoardReportFields on BoardReport {
   title
+  size
   definition {
     kind
     sinceDays
@@ -18,6 +19,7 @@ fragment BoardReportFields on BoardReport {
     returnEvent
     periods
     depth
+    windowDays
   }
 }
 

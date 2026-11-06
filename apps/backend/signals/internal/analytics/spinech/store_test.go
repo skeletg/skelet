@@ -2,6 +2,7 @@ package spinech
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -646,6 +647,49 @@ func TestFlow(t *testing.T) {
 	}
 	if f.Continued != 2 {
 		t.Fatalf("flow continued = %d, want 2 (only the returners did anything after)", f.Continued)
+	}
+}
+
+// The tracker's own $-events are page noise, not a step anyone took - they stay out of the paths, unless one is the focus
+func TestFlowLeavesOutTrackerEvents(t *testing.T) {
+	ctx := context.Background()
+	st := testStore(t)
+	ch := uuid.New()
+	at := time.Now().UTC().Add(-time.Hour)
+	add := func(name, custom string, n int) {
+		props := map[string]any{}
+		if custom != "" {
+			props["name"] = custom
+		}
+		if _, err := st.AppendEvent(ctx, analytics.SpineEvent{
+			EventName: name, OccurredAt: at.Add(time.Duration(n) * time.Minute), ChannelID: &ch, AnonID: "flow-noise", Source: "web",
+			Props: props, DedupeKey: "noise:" + uuid.NewString(),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add("page_view", "", 0)
+	add("custom", "$web_vitals", 1)
+	add("custom", "$rage_click", 2)
+	add("view_item", "", 3)
+	if err := st.flush(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	f, err := st.Flow(ctx, ch, "page_view", at.Add(-time.Minute), 3, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.TopPaths) != 1 || strings.Join(f.TopPaths[0].Events, ">") != "view_item" {
+		t.Fatalf("paths from page_view = %+v, want just view_item", f.TopPaths)
+	}
+	f, err = st.Flow(ctx, ch, "$rage_click", at.Add(-time.Minute), 3, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Cohort != 1 || len(f.TopPaths) != 1 || strings.Join(f.TopPaths[0].Events, ">") != "view_item" {
+		t.Fatalf("a flow from $rage_click = cohort %d, paths %+v; want 1 person going on to view_item", f.Cohort, f.TopPaths)
 	}
 }
 

@@ -1,4 +1,4 @@
-const PERIODS = [7, 30, 90, 180] as const
+export const PERIODS = [7, 30, 90, 180] as const
 
 // PeriodPicker is the window a board, or a report page, reads over
 export function PeriodPicker({ value, onChange }: { value: number; onChange: (days: number) => void }) {

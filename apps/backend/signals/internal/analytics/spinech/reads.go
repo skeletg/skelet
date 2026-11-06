@@ -256,7 +256,8 @@ func (s *Store) Stickiness(ctx context.Context, channelID uuid.UUID, event strin
 }
 
 func (s *Store) Flow(ctx context.Context, channelID uuid.UUID, focus string, since time.Time, depth, topK int) (analytics.FlowResult, error) {
-	// Custom events surface by their real name and $experiment is dropped - each journey is cut to what the walker uses: from the first focus event, repeats collapsed, depth steps at most
+	// Custom events surface by their real name, and the tracker's own $-events (experiments, vitals, rage and dead clicks)
+	// are dropped from the paths unless one is the focus - each journey is cut to what the walker uses: from the first focus event, repeats collapsed, depth steps at most
 	if depth < 1 {
 		depth = 1
 	}
@@ -284,7 +285,7 @@ func (s *Store) Flow(ctx context.Context, channelID uuid.UUID, focus string, sin
 				FROM analytics_events AS e FINAL
 				WHERE e.channel_id = ? AND e.occurred_at >= ? AND `+notBot+`
 				  AND `+resolvedActor+` IN (SELECT actor FROM focus_actors)
-				  AND NOT (e.event_name = 'custom' AND e.custom_name = '$experiment')
+				  AND NOT (e.event_name = 'custom' AND startsWith(e.custom_name, '$') AND e.custom_name != ?)
 				  AND `+resolvedActor+` != ''
 				GROUP BY actor
 			)
@@ -294,7 +295,7 @@ func (s *Store) Flow(ctx context.Context, channelID uuid.UUID, focus string, sin
 		)
 		ORDER BY n DESC, path
 		LIMIT ?`,
-		channelID, since, focus, focus, uint64(depth+1), focus, channelID, since, focus, uint64(flowMaxPaths))
+		channelID, since, focus, focus, uint64(depth+1), focus, channelID, since, focus, focus, uint64(flowMaxPaths))
 	if err != nil {
 		return analytics.FlowResult{}, err
 	}

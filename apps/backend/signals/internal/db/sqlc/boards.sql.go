@@ -14,14 +14,15 @@ import (
 )
 
 const addBoardReport = `-- name: AddBoardReport :exec
-INSERT INTO board_reports (board_id, position, title, definition)
-VALUES ($1, $2, $3, $4)
+INSERT INTO board_reports (board_id, position, title, size, definition)
+VALUES ($1, $2, $3, $4, $5)
 `
 
 type AddBoardReportParams struct {
 	BoardID    uuid.UUID       `json:"board_id"`
 	Position   int32           `json:"position"`
 	Title      string          `json:"title"`
+	Size       string          `json:"size"`
 	Definition json.RawMessage `json:"definition"`
 }
 
@@ -30,17 +31,19 @@ func (q *Queries) AddBoardReport(ctx context.Context, arg AddBoardReportParams) 
 		arg.BoardID,
 		arg.Position,
 		arg.Title,
+		arg.Size,
 		arg.Definition,
 	)
 	return err
 }
 
 const boardReports = `-- name: BoardReports :many
-SELECT title, definition FROM board_reports WHERE board_id = $1 ORDER BY position
+SELECT title, size, definition FROM board_reports WHERE board_id = $1 ORDER BY position
 `
 
 type BoardReportsRow struct {
 	Title      string          `json:"title"`
+	Size       string          `json:"size"`
 	Definition json.RawMessage `json:"definition"`
 }
 
@@ -53,7 +56,7 @@ func (q *Queries) BoardReports(ctx context.Context, boardID uuid.UUID) ([]BoardR
 	items := []BoardReportsRow{}
 	for rows.Next() {
 		var i BoardReportsRow
-		if err := rows.Scan(&i.Title, &i.Definition); err != nil {
+		if err := rows.Scan(&i.Title, &i.Size, &i.Definition); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

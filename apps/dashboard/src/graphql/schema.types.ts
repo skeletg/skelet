@@ -820,6 +820,7 @@ export type Board = {
 export type BoardReport = {
   __typename?: 'BoardReport';
   definition: BoardReportDefinition;
+  size?: Maybe<BoardReportSize>;
   title: Scalars['String']['output'];
 };
 
@@ -837,6 +838,7 @@ export type BoardReportDefinition = {
   startEvent?: Maybe<Scalars['String']['output']>;
   steps?: Maybe<Array<Scalars['String']['output']>>;
   unit?: Maybe<Scalars['String']['output']>;
+  windowDays?: Maybe<Scalars['Int']['output']>;
   windowHours?: Maybe<Scalars['Int']['output']>;
 };
 
@@ -853,6 +855,7 @@ export type BoardReportDefinitionInput = {
   startEvent?: InputMaybe<Scalars['String']['input']>;
   steps?: InputMaybe<Array<Scalars['String']['input']>>;
   unit?: InputMaybe<Scalars['String']['input']>;
+  windowDays?: InputMaybe<Scalars['Int']['input']>;
   windowHours?: InputMaybe<Scalars['Int']['input']>;
 };
 
@@ -865,6 +868,7 @@ export type BoardReportFilter = {
 
 export type BoardReportInput = {
   definition: BoardReportDefinitionInput;
+  size?: InputMaybe<BoardReportSize>;
   title: Scalars['String']['input'];
 };
 
@@ -874,6 +878,11 @@ export type BoardReportKind =
   | 'INSIGHTS'
   | 'RETENTION'
   | 'STICKINESS';
+
+export type BoardReportSize =
+  | 'FULL'
+  | 'MEDIUM'
+  | 'SMALL';
 
 export type BoardSummary = {
   __typename?: 'BoardSummary';

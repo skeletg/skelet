@@ -728,6 +728,7 @@ type Board struct {
 
 type BoardReport struct {
 	Title      string                 `json:"title"`
+	Size       *BoardReportSize       `json:"size,omitempty"`
 	Definition *BoardReportDefinition `json:"definition"`
 }
 
@@ -745,6 +746,7 @@ type BoardReportDefinition struct {
 	ReturnEvent *string              `json:"returnEvent,omitempty"`
 	Periods     *int32               `json:"periods,omitempty"`
 	Depth       *int32               `json:"depth,omitempty"`
+	WindowDays  *int32               `json:"windowDays,omitempty"`
 }
 
 type BoardReportDefinitionInput struct {
@@ -761,6 +763,7 @@ type BoardReportDefinitionInput struct {
 	ReturnEvent *string                     `json:"returnEvent,omitempty"`
 	Periods     *int32                      `json:"periods,omitempty"`
 	Depth       *int32                      `json:"depth,omitempty"`
+	WindowDays  *int32                      `json:"windowDays,omitempty"`
 }
 
 type BoardReportFilter struct {
@@ -771,6 +774,7 @@ type BoardReportFilter struct {
 
 type BoardReportInput struct {
 	Title      string                      `json:"title"`
+	Size       *BoardReportSize            `json:"size,omitempty"`
 	Definition *BoardReportDefinitionInput `json:"definition"`
 }
 
@@ -6677,6 +6681,63 @@ func (e *BoardReportKind) UnmarshalJSON(b []byte) error {
 }
 
 func (e BoardReportKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type BoardReportSize string
+
+const (
+	BoardReportSizeSmall  BoardReportSize = "SMALL"
+	BoardReportSizeMedium BoardReportSize = "MEDIUM"
+	BoardReportSizeFull   BoardReportSize = "FULL"
+)
+
+var AllBoardReportSize = []BoardReportSize{
+	BoardReportSizeSmall,
+	BoardReportSizeMedium,
+	BoardReportSizeFull,
+}
+
+func (e BoardReportSize) IsValid() bool {
+	switch e {
+	case BoardReportSizeSmall, BoardReportSizeMedium, BoardReportSizeFull:
+		return true
+	}
+	return false
+}
+
+func (e BoardReportSize) String() string {
+	return string(e)
+}
+
+func (e *BoardReportSize) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = BoardReportSize(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid BoardReportSize", str)
+	}
+	return nil
+}
+
+func (e BoardReportSize) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *BoardReportSize) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e BoardReportSize) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

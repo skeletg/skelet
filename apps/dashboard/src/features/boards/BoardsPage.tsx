@@ -4,13 +4,15 @@ import { useMutation, useQuery } from '@apollo/client/react'
 import { LayoutGridIcon, PlusIcon } from 'lucide-react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { DataTable, DataTableColumnHeader, useListUrlState } from '@/components/data-table'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { DetailPageBody, DetailPageHeader, DetailPageLayout, DetailPageSection } from '@/components/layout/detail-page'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useConfigScope } from '@/lib/config-scope'
 import { formatNumber } from '@/lib/format'
+import { ChannelRequired } from '@/shared/analytics/ChannelRequired'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { BoardsDocument, CreateBoardDocument, CreateStarterBoardsDocument, type BoardsQuery } from './Boards.gql'
 
@@ -18,7 +20,7 @@ type Row = BoardsQuery['boards'][number]
 
 export function BoardsPage() {
   const urlState = useListUrlState()
-  const { effectiveChannelId, isChannel } = useConfigScope()
+  const { effectiveChannelId, isChannel, selectedChannel } = useConfigScope()
   const channelId = effectiveChannelId ?? ''
   const { canAccessChannelScope } = usePermissions()
   const canManage = isChannel && canAccessChannelScope('boards.manage', channelId)
@@ -32,7 +34,7 @@ export function BoardsPage() {
         accessorKey: 'name',
         header: ({ column }) => <DataTableColumnHeader column={column} title="Name" />,
         cell: ({ row }) => (
-          <Link to={`/boards/${row.original.id}`} className="font-medium hover:underline">
+          <Link to={`/synapse/boards/${row.original.id}`} className="font-medium hover:underline">
             {row.original.name}
           </Link>
         ),
@@ -48,38 +50,44 @@ export function BoardsPage() {
     [],
   )
 
-  if (!isChannel) {
-    return (
-      <Alert>
-        <AlertTitle>Select a channel</AlertTitle>
-        <AlertDescription>Boards belong to a shop - pick one in the header scope picker.</AlertDescription>
-      </Alert>
-    )
-  }
-
   return (
-    <DataTable
-      urlState={urlState}
-      columns={columns}
-      data={rows}
-      loading={loading && !data}
-      error={error ? { message: error.message } : null}
-      getRowId={(row) => row.id}
-      emptyState={
-        <div className="space-y-3 py-6 text-center">
-          <p>No boards yet. A board puts the reports you watch side by side, shared with everyone on this shop.</p>
-          {canManage && (
-            <Button size="sm" variant="outline" disabled={starters.loading} onClick={() => void createStarters({ variables: { channelId } })}>
-              <LayoutGridIcon className="size-4" />
-              Add the starter boards
-            </Button>
+    <DetailPageLayout>
+      <DetailPageHeader
+        title="Boards"
+        badges={isChannel ? <Badge variant="secondary">{selectedChannel?.name}</Badge> : undefined}
+        meta={<span className="text-xs text-muted-foreground">Synapse reports saved side by side, shared with everyone on this shop.</span>}
+      />
+      <DetailPageBody>
+        <DetailPageSection>
+          {!isChannel ? (
+            <ChannelRequired what="Boards" />
+          ) : (
+            <DataTable
+              urlState={urlState}
+              columns={columns}
+              data={rows}
+              loading={loading && !data}
+              error={error ? { message: error.message } : null}
+              getRowId={(row) => row.id}
+              emptyState={
+                <div className="space-y-3 py-6 text-center">
+                  <p>No boards yet. A board puts the reports you watch side by side, shared with everyone on this shop.</p>
+                  {canManage && (
+                    <Button size="sm" variant="outline" disabled={starters.loading} onClick={() => void createStarters({ variables: { channelId } })}>
+                      <LayoutGridIcon className="size-4" />
+                      Add the starter boards
+                    </Button>
+                  )}
+                  {starters.error && <p className="text-sm text-destructive">{starters.error.message}</p>}
+                </div>
+              }
+              searchPlaceholder="Search boards…"
+              toolbarRightSlot={canManage ? <NewBoardButton channelId={channelId} /> : null}
+            />
           )}
-          {starters.error && <p className="text-sm text-destructive">{starters.error.message}</p>}
-        </div>
-      }
-      searchPlaceholder="Search boards…"
-      toolbarRightSlot={canManage ? <NewBoardButton channelId={channelId} /> : null}
-    />
+        </DetailPageSection>
+      </DetailPageBody>
+    </DetailPageLayout>
   )
 }
 
@@ -93,7 +101,7 @@ function NewBoardButton({ channelId }: { channelId: string }) {
     const id = res.data?.createBoard.id
     if (id) {
       setOpen(false)
-      navigate(`/boards/${id}`)
+      navigate(`/synapse/boards/${id}`)
     }
   }
   return (

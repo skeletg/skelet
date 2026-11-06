@@ -370,8 +370,12 @@ plus or minus edits made in the period. All three come from tables that already 
 | 14 | 2 | Insights, Retention toggles | Accessibility | Total/Unique and Day/Week are plain buttons with no `aria-pressed` (*code*), so a screen reader can't tell which one is selected | Use `aria-pressed`, or a radio group | boards-canvas |
 | 15 | 2 | Add to board dialog | Error prevention | The board picker defaults to "A new board…" even when the shop has boards, and the title defaults to the raw description ("All events") | Default to the last board used, and suggest a title from the definition plus the subject | boards-canvas |
 | 16 | 2 | Board | Minimalism | "Name" is a whole section with an always-open input. The empty state is a sentence with no button in it | The name becomes editable in the header. The empty state is the "+ Add report" tile | boards-canvas |
-| 17 | 1 | Boards list | Consistency | It has no page header or title, unlike every other list page | Use `DetailPageHeader` with the title "Boards" | boards-canvas |
+| 17 | – | Boards list | – | *Withdrawn:* most list pages have no page header either (checked while building), so the boards list follows the house pattern | – | – |
 | 18 | 1 | All five | Minimalism | Every subtitle repeats "People resolved across anonymous + signed-in activity" | Say it once, in an info tooltip next to "people" | boards-canvas |
+
+**Built in `feat/boards-canvas`:** #3 to #7, #11 to #16 and #18, and half of #10 (the page_view default; grouping the event list waits for the declared event keys of stage 3). The cross-links in #8 need engine work, so they
+move: "See where they went" to `engine-property-filters` (it needs Flow's exclusion), and "make this SKU the board's
+subject" to `boards-subject`.
 
 **What works and should stay:**
 - the prior-period delta and "includes 165 from visitors who declined analytics" on Insights

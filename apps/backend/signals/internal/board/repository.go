@@ -48,7 +48,7 @@ func (r *repo) get(ctx context.Context, channelID, id uuid.UUID) (Board, error) 
 		if err := json.Unmarshal(rr.Definition, &d); err != nil {
 			return Board{}, fmt.Errorf("board %s, report %q: %w", id, rr.Title, err)
 		}
-		b.Reports = append(b.Reports, Report{Title: rr.Title, Definition: d})
+		b.Reports = append(b.Reports, Report{Title: rr.Title, Size: rr.Size, Definition: d})
 	}
 	return b, nil
 }
@@ -127,7 +127,7 @@ func writeReports(ctx context.Context, q *db.Queries, boardID uuid.UUID, reports
 			return err
 		}
 		if err := q.AddBoardReport(ctx, db.AddBoardReportParams{
-			BoardID: boardID, Position: int32(i), Title: rep.Title, Definition: raw,
+			BoardID: boardID, Position: int32(i), Title: rep.Title, Size: rep.Size, Definition: raw,
 		}); err != nil {
 			return err
 		}

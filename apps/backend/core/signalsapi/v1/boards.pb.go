@@ -175,6 +175,7 @@ type BoardReport struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Title         string                 `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
 	Definition    *BoardReportDefinition `protobuf:"bytes,2,opt,name=definition,proto3" json:"definition,omitempty"`
+	Size          string                 `protobuf:"bytes,3,opt,name=size,proto3" json:"size,omitempty"` // the tile's width on the board: small | medium (unset) | full
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -223,6 +224,13 @@ func (x *BoardReport) GetDefinition() *BoardReportDefinition {
 	return nil
 }
 
+func (x *BoardReport) GetSize() string {
+	if x != nil {
+		return x.Size
+	}
+	return ""
+}
+
 // One saved report - which engine and its settings, the arguments that engine's Synapse read takes. A zero value is
 // unset; Signals checks the fields its kind needs
 type BoardReportDefinition struct {
@@ -240,6 +248,7 @@ type BoardReportDefinition struct {
 	ReturnEvent   string                 `protobuf:"bytes,11,opt,name=return_event,json=returnEvent,proto3" json:"return_event,omitempty"` // retention
 	Periods       int32                  `protobuf:"varint,12,opt,name=periods,proto3" json:"periods,omitempty"`                           // retention
 	Depth         int32                  `protobuf:"varint,13,opt,name=depth,proto3" json:"depth,omitempty"`                               // flow
+	WindowDays    int32                  `protobuf:"varint,14,opt,name=window_days,json=windowDays,proto3" json:"window_days,omitempty"`   // stickiness: the return window, 0 = the shop's default
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -361,6 +370,13 @@ func (x *BoardReportDefinition) GetPeriods() int32 {
 func (x *BoardReportDefinition) GetDepth() int32 {
 	if x != nil {
 		return x.Depth
+	}
+	return 0
+}
+
+func (x *BoardReportDefinition) GetWindowDays() int32 {
+	if x != nil {
+		return x.WindowDays
 	}
 	return 0
 }
@@ -967,12 +983,13 @@ const file_skelet_signals_v1_boards_proto_rawDesc = "" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x129\n" +
 	"\n" +
 	"updated_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x128\n" +
-	"\areports\x18\x05 \x03(\v2\x1e.skelet.signals.v1.BoardReportR\areports\"m\n" +
+	"\areports\x18\x05 \x03(\v2\x1e.skelet.signals.v1.BoardReportR\areports\"\x81\x01\n" +
 	"\vBoardReport\x12\x14\n" +
 	"\x05title\x18\x01 \x01(\tR\x05title\x12H\n" +
 	"\n" +
 	"definition\x18\x02 \x01(\v2(.skelet.signals.v1.BoardReportDefinitionR\n" +
-	"definition\"\x94\x03\n" +
+	"definition\x12\x12\n" +
+	"\x04size\x18\x03 \x01(\tR\x04size\"\xb5\x03\n" +
 	"\x15BoardReportDefinition\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x1d\n" +
 	"\n" +
@@ -989,7 +1006,9 @@ const file_skelet_signals_v1_boards_proto_rawDesc = "" +
 	"startEvent\x12!\n" +
 	"\freturn_event\x18\v \x01(\tR\vreturnEvent\x12\x18\n" +
 	"\aperiods\x18\f \x01(\x05R\aperiods\x12\x14\n" +
-	"\x05depth\x18\r \x01(\x05R\x05depth\"2\n" +
+	"\x05depth\x18\r \x01(\x05R\x05depth\x12\x1f\n" +
+	"\vwindow_days\x18\x0e \x01(\x05R\n" +
+	"windowDays\"2\n" +
 	"\x11ListBoardsRequest\x12\x1d\n" +
 	"\n" +
 	"channel_id\x18\x01 \x01(\tR\tchannelId\"M\n" +

@@ -41,6 +41,7 @@ type Summary struct {
 
 type Report struct {
 	Title      string
+	Size       string // the tile's width on the board: small | medium (unset) | full
 	Definition Definition
 }
 
@@ -59,6 +60,7 @@ type Definition struct {
 	ReturnEvent string   `json:"returnEvent,omitempty"` // retention
 	Periods     int      `json:"periods,omitempty"`     // retention
 	Depth       int      `json:"depth,omitempty"`       // flow
+	WindowDays  int      `json:"windowDays,omitempty"`  // stickiness: the return window, 0 = the shop's default
 }
 
 type Filter struct {
@@ -78,6 +80,9 @@ func (d Definition) validate() error {
 			return bad("measure is total or unique")
 		}
 	case "stickiness":
+		if d.WindowDays < 0 || d.WindowDays > 365 {
+			return bad("the return window is 1 to 365 days")
+		}
 	case "funnel":
 		if len(d.Steps) < 2 || len(d.Steps) > 8 {
 			return bad("a funnel has 2 to 8 steps")
@@ -121,6 +126,9 @@ func (b Board) normalized() (Board, error) {
 		r.Title = strings.TrimSpace(r.Title)
 		if r.Title == "" || utf8.RuneCountInString(r.Title) > maxName {
 			return Board{}, fmt.Errorf("%w: each report needs a title of up to %d characters", ErrInvalid, maxName)
+		}
+		if r.Size != "" && r.Size != "small" && r.Size != "medium" && r.Size != "full" {
+			return Board{}, fmt.Errorf("%w: a report's size is small, medium or full", ErrInvalid)
 		}
 		if err := r.Definition.validate(); err != nil {
 			return Board{}, err
