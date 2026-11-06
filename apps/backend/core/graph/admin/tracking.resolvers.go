@@ -11,7 +11,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tracking"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
-	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 )
 
 func (r *mutationResolver) CreateTrackingDestination(ctx context.Context, channelID string, kind string, input model.TrackingDestinationInput) (*model.TrackingDestination, error) {
@@ -107,35 +106,30 @@ func (r *mutationResolver) ImportSignalsDestinations(ctx context.Context, channe
 	if err != nil {
 		return nil, err
 	}
-	authed, err := r.signalsChannel(ctx, "settings.manage", channelID)
+	// The rows are read again here rather than taken from the client, so an import is only ever what Signals holds
+	legacy, err := r.signalsDestinations(ctx, channelID)
 	if err != nil {
 		return nil, err
 	}
-	out := []*model.TrackingDestination{}
-	if !r.SignalsEnabled {
-		return out, nil
-	}
-	// The rows are read again here rather than taken from the client, so an import is only ever what Signals holds
-	res, err := r.SignalsAPI.Destination.ListDestinations(authed, &signalsv1.ListDestinationsRequest{ChannelId: channelID})
-	if err != nil {
-		return nil, signalsErr(err)
-	}
-	for _, legacy := range res.GetDestinations() {
-		lid, err := uuid.Parse(legacy.GetId())
-		if err != nil || !slices.Contains(legacyIds, legacy.GetId()) {
+	var items []tracking.Imported
+	for _, l := range legacy {
+		lid, err := uuid.Parse(l.GetId())
+		if err != nil || !slices.Contains(legacyIds, l.GetId()) {
 			continue
 		}
-		kind, cfg, err := tracking.FromLegacy(legacy.GetKind(), legacy.GetTargetUrl())
+		kind, cfg, err := legacyTarget(l)
 		if err != nil {
-			return nil, err
+			return nil, err // before anything is saved
 		}
-		d, imported, err := r.TrackingSvc.Import(ctx, tracking.Destination{ChannelID: cid, Kind: kind, Name: legacy.GetName(), Config: cfg}, lid)
-		if err != nil {
-			return nil, err
-		}
-		if imported {
-			out = append(out, toTrackingDestination(d, tracking.Health{}))
-		}
+		items = append(items, tracking.Imported{ChannelID: cid, Kind: kind, Name: l.GetName(), Config: cfg, LegacyID: lid})
+	}
+	imported, err := r.TrackingSvc.Import(ctx, items)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*model.TrackingDestination, 0, len(imported))
+	for _, d := range imported {
+		out = append(out, toTrackingDestination(d, tracking.Health{}))
 	}
 	return out, nil
 }
@@ -205,25 +199,18 @@ func (r *queryResolver) SignalsImportCandidates(ctx context.Context, channelID s
 	if err != nil {
 		return nil, err
 	}
-	authed, err := r.signalsChannel(ctx, "settings.manage", channelID)
+	legacy, err := r.signalsDestinations(ctx, channelID)
 	if err != nil {
 		return nil, err
-	}
-	out := []*model.SignalsImportCandidate{}
-	if !r.SignalsEnabled {
-		return out, nil
-	}
-	res, err := r.SignalsAPI.Destination.ListDestinations(authed, &signalsv1.ListDestinationsRequest{ChannelId: channelID})
-	if err != nil {
-		return nil, signalsErr(err)
 	}
 	mine, err := r.TrackingSvc.List(ctx, cid)
 	if err != nil {
 		return nil, err
 	}
 	existing := importedFrom(mine)
-	for _, legacy := range res.GetDestinations() {
-		out = append(out, importCandidate(legacy, existing))
+	out := make([]*model.SignalsImportCandidate, 0, len(legacy))
+	for _, l := range legacy {
+		out = append(out, importCandidate(l, existing))
 	}
 	return out, nil
 }

@@ -12,6 +12,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tracking"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 	"github.com/skeletg/skelet/apps/backend/sdk"
@@ -214,19 +215,42 @@ func importCandidate(d *signalsv1.EventDestination, existing map[uuid.UUID]uuid.
 			c.ImportedAs = &s
 		}
 	}
-	kind, cfg, err := tracking.FromLegacy(d.GetKind(), d.GetTargetUrl())
+	kind, cfg, err := legacyTarget(d)
 	if err != nil {
 		problem := err.Error()
 		c.Problem = &problem
-		return c
+	}
+	if kind != "" { // mapped, even when its plugin is missing
+		c.TargetKind = &kind
+		c.Config = configValues(cfg, "")
+	}
+	return c
+}
+
+// legacyTarget is the kind and settings a Signals destination becomes here - refused when it doesn't map, or maps to a
+// plugin this build lacks. The preview and the import both go through it, so what one offers the other accepts
+func legacyTarget(d *signalsv1.EventDestination) (string, map[string]string, error) {
+	kind, cfg, err := tracking.FromLegacy(d.GetKind(), d.GetTargetUrl())
+	if err != nil {
+		return "", nil, err
 	}
 	if _, ok := tracking.KindFor(kind); !ok {
-		problem := "the " + kind + " plugin isn't in this build"
-		c.Problem = &problem
+		return kind, cfg, apperr.New("TRACKING_PLUGIN_MISSING", apperr.ClassValidation, "the "+kind+" plugin isn't in this build")
 	}
-	c.TargetKind = &kind
-	c.Config = configValues(cfg, "")
-	return c
+	return kind, cfg, nil
+}
+
+// The channel's Signals event destinations - none when Signals is off. Reading them needs settings.manage there too
+func (r *Resolver) signalsDestinations(ctx context.Context, channelID string) ([]*signalsv1.EventDestination, error) {
+	authed, err := r.signalsChannel(ctx, "settings.manage", channelID)
+	if err != nil || !r.SignalsEnabled {
+		return nil, err
+	}
+	res, err := r.SignalsAPI.Destination.ListDestinations(authed, &signalsv1.ListDestinationsRequest{ChannelId: channelID})
+	if err != nil {
+		return nil, signalsErr(err)
+	}
+	return res.GetDestinations(), nil
 }
 
 // The channel's destinations by the Signals one each was imported from
