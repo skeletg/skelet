@@ -417,7 +417,7 @@ func (s *Store) deleteSourceBefore(ctx context.Context, source string, before ti
 }
 
 // Buffered like events - identify fires on every logged-in page view
-// Repeats within a flush collapse to the newest, and a zero channel never replaces a real one; the flusher carries first_seen and channel forward from the stored row
+// Repeats within a flush keep the first customer and the newest stamp, and a zero channel never replaces a real one; the flusher carries first_seen and channel forward from the stored row
 func (s *Store) UpsertIdentity(_ context.Context, anonID string, customerID, channelID uuid.UUID) error {
 	s.idMu.Lock()
 	prev, had := s.ids[anonID]
@@ -459,12 +459,12 @@ func (s *Store) flushIdentities(ctx context.Context) error {
 			if p.lastSeen.Before(stale) { // the next page view re-sends it, and an erasure waits out this window
 				continue
 			}
-			if cur, newer := s.ids[anon]; newer { // a newer identify wins but keeps a channel it lacks
+			if cur, newer := s.ids[anon]; newer { // the re-buffered one came first, so its customer wins - the newer keeps its stamp and gains a channel it lacks
+				cur.customerID = p.customerID
 				if cur.channelID == uuid.Nil {
 					cur.channelID = p.channelID
-					s.ids[anon] = cur
 				}
-				continue
+				p = cur
 			}
 			s.ids[anon] = p
 		}
