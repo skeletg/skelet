@@ -66,7 +66,7 @@ func (s *synapseServer) GetFunnel(ctx context.Context, req *signalsv1.GetFunnelR
 	if len(steps) < 2 {
 		return nil, invalidArgument("a funnel needs at least two steps")
 	}
-	q := analytics.FunnelQuery{Steps: steps, Window: time.Duration(max(req.GetWindowSeconds(), 0)) * time.Second, Breakdown: req.GetBreakdown()}
+	q := analytics.FunnelQuery{Steps: steps, Window: time.Duration(min(max(req.GetWindowSeconds(), 0), funnelMaxWindow)) * time.Second, Breakdown: req.GetBreakdown()}
 	for _, f := range req.GetFilters() {
 		step, ok := at[f.GetStep()]
 		if f.GetKey() == "" || !ok {
@@ -92,6 +92,9 @@ func (s *synapseServer) GetFunnel(ctx context.Context, req *signalsv1.GetFunnelR
 	}
 	return &signalsv1.GetFunnelResponse{Steps: out, Breakdown: bd}, nil
 }
+
+// A conversion window past ten years is no limit at all - the clamp keeps an absurd one from overflowing the Duration
+const funnelMaxWindow = 10 * 365 * 24 * 3600
 
 func (s *synapseServer) GetFlow(ctx context.Context, req *signalsv1.GetFlowRequest) (*signalsv1.GetFlowResponse, error) {
 	cid, err := channelScope(ctx, "customers.view", req.GetChannelId())
