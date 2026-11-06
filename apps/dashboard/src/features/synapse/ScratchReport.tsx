@@ -12,11 +12,13 @@ import { cleanDefinition, type ReportDefinition, type ReportKind } from '@/share
 
 // The report is kept in the URL (?q=<definition>&days=<period>), so a reload, the back button or a pasted link opens
 // the same report. A link is only text someone may have edited, so anything this page's builder doesn't make, or whose
-// lists aren't lists, opens the page's start instead
+// fields aren't the text or lists they should be, opens the page's start instead
 export function readReport(params: URLSearchParams, builder: ReportKind, start: ReportKind = builder): ReportDefinition {
   try {
     const d = JSON.parse(params.get('q') ?? '') as ReportDefinition
-    if (d && builderOf(d.kind) === builder && [d.steps, d.filters].every((v) => v == null || Array.isArray(v))) return d
+    const text = (v: unknown) => v == null || typeof v === 'string'
+    const fieldsOk = [d?.event, d?.startEvent, d?.returnEvent].every(text) && [d?.steps, d?.filters].every((v) => v == null || Array.isArray(v)) && (d?.steps ?? []).every(text)
+    if (d && builderOf(d.kind) === builder && fieldsOk) return d
   } catch {
     // not a report - the start below
   }

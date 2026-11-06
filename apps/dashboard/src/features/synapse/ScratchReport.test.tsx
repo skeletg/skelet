@@ -30,6 +30,8 @@ describe('readReport', () => {
     expect(readReport(p('{"kind":"FUNNEL","steps":["a","b"]}'), 'INSIGHTS').kind).toBe('INSIGHTS')
     expect(readReport(p('{"kind":"INSIGHTS","event":"cart_add"}'), 'INSIGHTS').event).toBe('cart_add')
     expect(readReport(p('{"kind":"FUNNEL","steps":"page_view"}'), 'FUNNEL').steps).toHaveLength(5)
+    expect(readReport(p('{"kind":"FUNNEL","steps":[1,2]}'), 'FUNNEL').steps).toHaveLength(5)
+    expect(readReport(p('{"kind":"INSIGHTS","event":5}'), 'INSIGHTS').event).toBe('page_view')
   })
   it("opens a view of the page's builder, and the page's start when there's no report", () => {
     const p = (q: string) => new URLSearchParams({ q })
