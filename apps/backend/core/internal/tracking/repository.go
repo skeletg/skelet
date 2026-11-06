@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/lib/secrets"
 )
 
@@ -57,7 +59,9 @@ func (r *repository) open(stored string) (string, error) {
 	return r.sealer.Decrypt(stored)
 }
 
-func (r *repository) toDestination(row db.TrackingDestination) (Destination, error) {
+// toRoute is a destination without its secret - all Track needs to pick where an event goes, so the hot path never
+// decrypts one
+func toRoute(row db.TrackingDestination) (Destination, error) {
 	d := Destination{
 		ID: row.ID, ChannelID: row.ChannelID, Kind: row.Kind, Name: row.Name, Enabled: row.Enabled,
 		Events: row.Events, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
@@ -66,8 +70,19 @@ func (r *repository) toDestination(row db.TrackingDestination) (Destination, err
 		from := row.ImportedFrom.UUID
 		d.ImportedFrom = &from
 	}
+	if row.LastSentAt.Valid {
+		d.LastSentAt = &row.LastSentAt.Time
+	}
 	if err := json.Unmarshal(row.Config, &d.Config); err != nil {
 		return Destination{}, fmt.Errorf("destination %s config: %w", row.ID, err)
+	}
+	return d, nil
+}
+
+func (r *repository) toDestination(row db.TrackingDestination) (Destination, error) {
+	d, err := toRoute(row)
+	if err != nil {
+		return Destination{}, err
 	}
 	secret, err := r.open(row.Secret)
 	if err != nil {
@@ -77,10 +92,10 @@ func (r *repository) toDestination(row db.TrackingDestination) (Destination, err
 	return d, nil
 }
 
-func (r *repository) toDestinations(rows []db.TrackingDestination) ([]Destination, error) {
+func toDestinations(rows []db.TrackingDestination, conv func(db.TrackingDestination) (Destination, error)) ([]Destination, error) {
 	out := make([]Destination, 0, len(rows))
 	for _, row := range rows {
-		d, err := r.toDestination(row)
+		d, err := conv(row)
 		if err != nil {
 			return nil, err
 		}
@@ -94,7 +109,7 @@ func (r *repository) ListEnabled(ctx context.Context, channelID uuid.UUID) ([]De
 	if err != nil {
 		return nil, fmt.Errorf("list tracking destinations: %w", err)
 	}
-	return r.toDestinations(rows)
+	return toDestinations(rows, toRoute)
 }
 
 func (r *repository) List(ctx context.Context, channelID uuid.UUID) ([]Destination, error) {
@@ -102,7 +117,7 @@ func (r *repository) List(ctx context.Context, channelID uuid.UUID) ([]Destinati
 	if err != nil {
 		return nil, fmt.Errorf("list tracking destinations: %w", err)
 	}
-	return r.toDestinations(rows)
+	return toDestinations(rows, r.toDestination)
 }
 
 func (r *repository) Get(ctx context.Context, id uuid.UUID) (Destination, error) {
@@ -149,15 +164,17 @@ func (r *repository) Delete(ctx context.Context, id uuid.UUID) error {
 	return r.q.DeleteTrackingDestination(ctx, id)
 }
 
-func (r *repository) Enqueue(ctx context.Context, destinationID uuid.UUID, ev Event) error {
+func (r *repository) Enqueue(ctx context.Context, destinationIDs []uuid.UUID, ev Event) error {
 	payload, err := json.Marshal(ev)
 	if err != nil {
 		return fmt.Errorf("encode %s event: %w", ev.Name, err)
 	}
-	if err := r.q.EnqueueTrackingDelivery(ctx, db.EnqueueTrackingDeliveryParams{
-		DestinationID: destinationID, EventID: ev.ID, EventName: ev.Name, Payload: payload,
+	if err := r.q.EnqueueTrackingEvent(ctx, db.EnqueueTrackingEventParams{
+		DestinationIds: destinationIDs, ChannelID: ev.ChannelID, EventID: ev.ID, EventName: ev.Name,
+		CustomerID: sqlnull.UUID(ev.User.CustomerID), AnonID: ev.User.AnonID,
+		Email: strings.ToLower(strings.TrimSpace(ev.User.Email)), Payload: payload,
 	}); err != nil {
-		return fmt.Errorf("enqueue %s for %s: %w", ev.Name, destinationID, err)
+		return fmt.Errorf("enqueue %s: %w", ev.Name, err)
 	}
 	return nil
 }
@@ -175,7 +192,7 @@ func (r *repository) ClaimDue(ctx context.Context, batch, leaseSeconds int32) ([
 }
 
 func (r *repository) MarkSent(ctx context.Context, id uuid.UUID) error {
-	return r.q.MarkTrackingDeliverySent(ctx, id)
+	return r.q.DeleteTrackingDelivery(ctx, id)
 }
 
 func (r *repository) Reschedule(ctx context.Context, id uuid.UUID, at time.Time, reason string) error {
@@ -197,7 +214,7 @@ func (r *repository) GetDelivery(ctx context.Context, id uuid.UUID) (Delivery, e
 	if err != nil {
 		return Delivery{}, fmt.Errorf("get tracking delivery: %w", err)
 	}
-	return toDelivery(row), nil
+	return toDelivery(db.ClaimDueTrackingDeliveriesRow(row)), nil
 }
 
 // Imported disabled and without a secret; found is false when that Signals destination was imported before
@@ -223,12 +240,7 @@ func (r *repository) Health(ctx context.Context, channelID uuid.UUID) (map[uuid.
 	}
 	out := make(map[uuid.UUID]Health, len(rows))
 	for _, row := range rows {
-		h := Health{LastError: row.LastError, Dead24h: int(row.Dead24h)}
-		if row.LastSentAt.Unix() > 0 {
-			at := row.LastSentAt
-			h.LastSentAt = &at
-		}
-		out[row.ID] = h
+		out[row.ID] = Health{LastError: row.LastError, Dead24h: int(row.Dead24h)}
 	}
 	return out, nil
 }
@@ -240,16 +252,26 @@ func (r *repository) ListDeliveries(ctx context.Context, destinationID uuid.UUID
 	}
 	out := make([]Delivery, len(rows))
 	for i, row := range rows {
-		out[i] = toDelivery(row)
+		out[i] = toDelivery(db.ClaimDueTrackingDeliveriesRow(row)) // the two queries select the same columns
 	}
 	return out, nil
 }
 
-func (r *repository) Prune(ctx context.Context, before time.Time) (int64, error) {
-	return r.q.PruneTrackingDeliveries(ctx, before)
+// Prune drops dead letters past the log window, strips the visitor's data from every event with nothing left to
+// deliver, and drops those past the replay window
+func (r *repository) Prune(ctx context.Context, logBefore, replayBefore time.Time) (int64, error) {
+	n, err := r.q.PruneTrackingDeliveries(ctx, logBefore)
+	if err != nil {
+		return n, err
+	}
+	if _, err := r.q.ScrubSettledTrackingEvents(ctx); err != nil {
+		return n, err
+	}
+	m, err := r.q.PruneTrackingEvents(ctx, replayBefore)
+	return n + m, err
 }
 
-func toDelivery(row db.TrackingDelivery) Delivery {
+func toDelivery(row db.ClaimDueTrackingDeliveriesRow) Delivery {
 	return Delivery{
 		ID: row.ID, DestinationID: row.DestinationID, EventID: row.EventID, EventName: row.EventName, Payload: row.Payload,
 		Status: row.Status, Attempts: row.Attempts, NextAttemptAt: row.NextAttemptAt, LastError: row.LastError,

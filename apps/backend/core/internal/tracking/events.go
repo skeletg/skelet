@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
 	"time"
 
@@ -23,7 +24,6 @@ import (
 
 type orderReader interface {
 	GetByID(ctx context.Context, id uuid.UUID) (order.Order, error)
-	GetCreditMemo(ctx context.Context, id uuid.UUID) (order.CreditMemo, error)
 	ListCreditMemos(ctx context.Context, orderID uuid.UUID) ([]order.CreditMemo, error)
 }
 
@@ -105,18 +105,41 @@ func (h handlers) onPlaced(ctx context.Context, e events.Event) error {
 	return h.track(ctx, PurchaseEvent(o))
 }
 
-// PurchaseEvent is the order as GA4's purchase - the id is the order's own, so the browser's copy dedupes against it
+// PurchaseEvent is the order as GA4's purchase - the id is the order's own, so the browser's copy dedupes against it.
+// Its value is the items' net sales: after discount, without tax or shipping, the basis every refund is reported on
 func PurchaseEvent(o order.Order) Event {
 	ev := orderEvent(o, Purchase, o.ID.String(), o.CreatedAt)
 	ev.Ecommerce = &Ecommerce{
 		Currency:      o.CurrencyCode,
 		TransactionID: o.Number,
-		Value:         Decimal(o.SubtotalAmount-o.DiscountAmount, o.CurrencyCode),
+		Value:         Decimal(purchaseNet(o), o.CurrencyCode),
 		Tax:           Decimal(o.TaxAmount, o.CurrencyCode),
 		Shipping:      Decimal(o.ShippingAmount, o.CurrencyCode),
 		Items:         orderItems(o, nil),
 	}
 	return ev
+}
+
+func purchaseNet(o order.Order) int64 {
+	var net int64
+	for _, n := range order.LineNet(o) {
+		net += n
+	}
+	return net
+}
+
+// memoNet is what a credit memo takes back of the purchase's value: its lines' net sales, or for a memo naming no
+// lines its non-shipping part in the order's own proportion
+func memoNet(o order.Order, m order.CreditMemo) int64 {
+	var net int64
+	if len(m.Lines) > 0 {
+		for _, l := range m.Lines {
+			net += order.LineNetFor(o, l.OrderLineID, l.Quantity)
+		}
+	} else if nonShipping := o.TotalAmount - o.ShippingRefundable(); nonShipping > 0 && m.TotalCents > m.ShippingRefundCents {
+		net = (m.TotalCents - m.ShippingRefundCents) * purchaseNet(o) / nonShipping
+	}
+	return min(net, purchaseNet(o))
 }
 
 func (h handlers) onRefunded(ctx context.Context, e events.Event) error {
@@ -128,27 +151,28 @@ func (h handlers) onRefunded(ctx context.Context, e events.Event) error {
 	if !found {
 		return err
 	}
-	memo, err := h.orders.GetCreditMemo(ctx, ev.CreditMemoID)
-	if errors.Is(err, sql.ErrNoRows) {
+	// shortcut: a cancelled order's reversal is the cancellation's, so a memo after it (usually returning that same
+	// money) reports nothing - a memo for goods shipped before a partial cancel goes unreported; record the cancelled
+	// share on the order if that matters
+	if o.Status == order.OrderStatusCancelled {
 		return nil
 	}
+	memos, err := h.orders.ListCreditMemos(ctx, o.ID)
 	if err != nil {
-		return fmt.Errorf("load credit memo %s: %w", ev.CreditMemoID, err)
+		return fmt.Errorf("list credit memos of %s: %w", o.ID, err)
 	}
-	out := RefundEvent(o, memo, eventTime(ctx))
-	if err := h.valueAfter(ctx, o, 0, &out); err != nil {
-		return err
+	i := slices.IndexFunc(memos, func(m order.CreditMemo) bool { return m.ID == ev.CreditMemoID })
+	if i < 0 {
+		return nil
 	}
+	out := RefundEvent(o, memos[i], earlierMemos(o, memos, memos[i]), eventTime(ctx))
+	setValueAfter(&out, o, memos, 0)
 	return h.track(ctx, out)
 }
 
-// What the order is still worth once every credit memo, and a cancellation's share, is taken off - the purchase's own
-// value, tax and shipping in, never below zero
-func (h handlers) valueAfter(ctx context.Context, o order.Order, cancelled float64, ev *Event) error {
-	memos, err := h.orders.ListCreditMemos(ctx, o.ID)
-	if err != nil {
-		return fmt.Errorf("credit memos of %s: %w", o.ID, err)
-	}
+// setValueAfter is what the order is still worth once every credit memo, and a cancellation's share, is taken off -
+// the purchase's own value, tax and shipping in, never below zero
+func setValueAfter(ev *Event, o order.Order, memos []order.CreditMemo, cancelled float64) {
 	worth := o.SubtotalAmount - o.DiscountAmount + o.TaxAmount + o.ShippingAmount
 	left := worth
 	for _, m := range memos {
@@ -157,11 +181,22 @@ func (h handlers) valueAfter(ctx context.Context, o order.Order, cancelled float
 	left -= int64(math.Round(float64(worth) * cancelled))
 	v := Decimal(max(left, 0), o.CurrencyCode)
 	ev.Ecommerce.ValueAfter = &v
-	return nil
 }
 
-// RefundEvent is one credit memo - partial refunds each report what they gave back, by item where the memo names lines
-func RefundEvent(o order.Order, memo order.CreditMemo, at time.Time) Event {
+// earlierMemos is what the memos before m already took back, so all of them together never exceed the purchase
+func earlierMemos(o order.Order, memos []order.CreditMemo, m order.CreditMemo) int64 {
+	var sum int64
+	for _, x := range memos {
+		if x.CreatedAt.Before(m.CreatedAt) || (x.CreatedAt.Equal(m.CreatedAt) && x.ID.String() < m.ID.String()) {
+			sum += memoNet(o, x)
+		}
+	}
+	return sum
+}
+
+// RefundEvent is one credit memo - partial refunds each report what they gave back, by item where the memo names
+// lines, on the purchase's own basis and never past what earlier refunds left of it
+func RefundEvent(o order.Order, memo order.CreditMemo, earlier int64, at time.Time) Event {
 	qty := map[uuid.UUID]float64{}
 	for _, l := range memo.Lines {
 		qty[l.OrderLineID] += l.Quantity
@@ -170,7 +205,7 @@ func RefundEvent(o order.Order, memo order.CreditMemo, at time.Time) Event {
 	ev.Ecommerce = &Ecommerce{
 		Currency:      o.CurrencyCode,
 		TransactionID: o.Number,
-		Value:         Decimal(memo.TotalCents, o.CurrencyCode),
+		Value:         Decimal(max(min(memoNet(o, memo), purchaseNet(o)-earlier), 0), o.CurrencyCode),
 		Shipping:      Decimal(memo.ShippingRefundCents, o.CurrencyCode),
 		Items:         orderItems(o, qty),
 	}
@@ -186,21 +221,28 @@ func (h handlers) onCancelled(ctx context.Context, e events.Event) error {
 	if !found {
 		return err
 	}
-	out := CancelEvent(o, ev.RefundableFraction, eventTime(ctx))
-	if err := h.valueAfter(ctx, o, ev.RefundableFraction, &out); err != nil {
-		return err
+	memos, err := h.orders.ListCreditMemos(ctx, o.ID)
+	if err != nil {
+		return fmt.Errorf("list credit memos of %s: %w", o.ID, err)
 	}
+	var refunded int64
+	for _, m := range memos {
+		refunded += memoNet(o, m)
+	}
+	out := CancelEvent(o, ev.RefundableFraction, refunded, eventTime(ctx))
+	setValueAfter(&out, o, memos, ev.RefundableFraction)
 	return h.track(ctx, out)
 }
 
-// CancelEvent reverses the purchase a cancelled order reported, scaled to the share that never shipped - as a refund,
-// which is how the platforms take a reversal
-func CancelEvent(o order.Order, fraction float64, at time.Time) Event {
+// CancelEvent reverses the purchase a cancelled order reported, scaled to the share that never shipped and less what
+// credit memos already refunded - as a refund, which is how the platforms take a reversal
+func CancelEvent(o order.Order, fraction float64, refunded int64, at time.Time) Event {
+	net := purchaseNet(o)
 	ev := orderEvent(o, Refund, "cancel:"+o.ID.String(), at)
 	ev.Ecommerce = &Ecommerce{
 		Currency:      o.CurrencyCode,
 		TransactionID: o.Number,
-		Value:         Decimal(int64(math.Round(float64(o.SubtotalAmount-o.DiscountAmount)*fraction)), o.CurrencyCode),
+		Value:         Decimal(max(int64(math.Round(float64(net)*fraction))-refunded, 0), o.CurrencyCode),
 	}
 	return ev
 }
@@ -213,7 +255,7 @@ func orderEvent(o order.Order, name, id string, at time.Time) Event {
 	if o.BillingAddress.Phone != nil {
 		ev.User.Phone = *o.BillingAddress.Phone
 	}
-	ev.WithShopper(o.Tracking)
+	WithShopper(&ev, o.Shopper)
 	return ev
 }
 
@@ -273,7 +315,7 @@ func (h handlers) cartEvent(ctx context.Context, name string, channelID uuid.UUI
 			Items:    []Item{{ItemID: sku, Price: Decimal(unit, ch.CurrencyCode), Quantity: qty}},
 		},
 	}
-	ev.WithShopper(s)
+	WithShopper(&ev, s)
 	return h.svc.Track(ctx, ev)
 }
 
@@ -287,7 +329,7 @@ func (h handlers) onRegistered(ctx context.Context, e events.Event) error {
 		ID: "sign_up:" + cid.String(), Name: SignUp, OccurredAt: eventTime(ctx), ChannelID: ev.ChannelID,
 		Source: "server", User: User{CustomerID: &cid, Email: ev.Email},
 	}
-	out.WithShopper(ev.Shopper)
+	WithShopper(&out, ev.Shopper)
 	return h.track(ctx, out)
 }
 
