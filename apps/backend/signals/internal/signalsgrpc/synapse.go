@@ -2,6 +2,8 @@ package signalsgrpc
 
 import (
 	"context"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -55,24 +57,21 @@ func (s *synapseServer) GetFunnel(ctx context.Context, req *signalsv1.GetFunnelR
 	if err != nil {
 		return nil, err
 	}
-	steps := make([]string, 0, len(req.GetSteps()))
-	at := map[int32]int{} // a requested step's place once the empty ones are dropped, for the filters that name it
-	for i, s := range req.GetSteps() {
-		if s != "" {
-			at[int32(i)] = len(steps)
-			steps = append(steps, s)
-		}
+	steps := req.GetSteps()
+	if len(steps) < 2 || slices.Contains(steps, "") {
+		return nil, invalidArgument("a funnel needs at least two steps, each an event name")
 	}
-	if len(steps) < 2 {
-		return nil, invalidArgument("a funnel needs at least two steps")
+	q := analytics.FunnelQuery{
+		Steps:     steps,
+		Window:    time.Duration(min(max(req.GetWindowSeconds(), 0), funnelMaxWindow)) * time.Second,
+		Breakdown: strings.TrimSpace(req.GetBreakdown()),
 	}
-	q := analytics.FunnelQuery{Steps: steps, Window: time.Duration(min(max(req.GetWindowSeconds(), 0), funnelMaxWindow)) * time.Second, Breakdown: req.GetBreakdown()}
 	for _, f := range req.GetFilters() {
-		step, ok := at[f.GetStep()]
-		if f.GetKey() == "" || !ok {
+		key := strings.TrimSpace(f.GetKey())
+		if key == "" || f.GetStep() < 0 || int(f.GetStep()) >= len(steps) {
 			return nil, invalidArgument("a funnel filter needs a property and one of the funnel's steps")
 		}
-		q.Filters = append(q.Filters, analytics.FunnelFilter{Step: step, Key: f.GetKey(), Value: f.GetValue()})
+		q.Filters = append(q.Filters, analytics.FunnelFilter{Step: int(f.GetStep()), Key: key, Value: f.GetValue()})
 	}
 	res, err := s.rec.Funnel(ctx, cid, q, since(req.GetSinceDays(), 30))
 	if err != nil {
