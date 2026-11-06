@@ -1080,9 +1080,10 @@ type RecordActivityRequest struct {
 	Source    string `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
 	ChannelId string `protobuf:"bytes,3,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
 	// One of customer_id or anon_id is required - an action attributable to nobody has no place on a profile
-	CustomerId *string                `protobuf:"bytes,4,opt,name=customer_id,json=customerId,proto3,oneof" json:"customer_id,omitempty"`
-	AnonId     string                 `protobuf:"bytes,5,opt,name=anon_id,json=anonId,proto3" json:"anon_id,omitempty"`
-	At         *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=at,proto3" json:"at,omitempty"`
+	CustomerId *string `protobuf:"bytes,4,opt,name=customer_id,json=customerId,proto3,oneof" json:"customer_id,omitempty"`
+	// On a login or registered account event with customer_id too, the visitor signed in as that customer - the suite stitches the two
+	AnonId string                 `protobuf:"bytes,5,opt,name=anon_id,json=anonId,proto3" json:"anon_id,omitempty"`
+	At     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=at,proto3" json:"at,omitempty"`
 	// The event's properties as a JSON object, opaque to the wire
 	PropsJson string `protobuf:"bytes,7,opt,name=props_json,json=propsJson,proto3" json:"props_json,omitempty"`
 	// Keeps the write idempotent against an at-least-once bus - an outbox replay collapses on it

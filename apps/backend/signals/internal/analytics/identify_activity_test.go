@@ -37,3 +37,15 @@ func TestASignInWithAVisitorIDStitchesIt(t *testing.T) {
 		t.Fatal("a cart event stitched a visitor")
 	}
 }
+
+func TestOnlyASignInOrSignUpStitches(t *testing.T) {
+	spine := &stitchSpine{stitched: map[string]uuid.UUID{}}
+	rec := NewRecorder(nil, spine)
+	cust := uuid.New()
+	if _, err := rec.RecordActivity(context.Background(), ActivitySpec{EventName: "password_changed", Source: SourceAccount, ChannelID: uuid.New(), CustomerID: &cust, AnonID: "anon-3", DedupeKey: "c"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := spine.stitched["anon-3"]; ok {
+		t.Fatal("an account event other than a sign-in stitched a visitor")
+	}
+}

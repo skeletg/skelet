@@ -441,7 +441,6 @@ func since(days, fallback int32) time.Time {
 	return time.Now().AddDate(0, 0, -int(windowDays(days, fallback)))
 }
 
-// A ranked top-N takes a limit rather than a page, and one outside the bounds falls back
 // count32 narrows a count for the wire, saturating at the int32 ceiling - a plain conversion wraps a huge total negative
 func count32[T ~int | ~int32 | ~int64](v T) int32 {
 	return int32(min(max(int64(v), math.MinInt32), math.MaxInt32))

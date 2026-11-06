@@ -2,7 +2,6 @@ package lens
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -44,11 +43,9 @@ type Overview struct {
 	PlanIssues   []PlanIssue
 }
 
-// What ingest stripped against the tracking plan, for Data health - Prop is empty when the whole event was dropped
+// What ingest stripped against the tracking plan, for Data health, and how often in the window
 type PlanIssue struct {
-	Kind  string
-	Event string
-	Prop  string
+	analytics.PlanIssue
 	Count int64
 }
 
@@ -125,11 +122,7 @@ func (s *Service) Overview(ctx context.Context, channelID uuid.UUID, since time.
 		return Overview{}, err
 	}
 	for _, r := range issues {
-		event, prop, _ := strings.Cut(r.Key, ".")
-		if r.Kind == analytics.IssueUnknownEvent {
-			event, prop = r.Key, "" // a dropped event's name is the whole key, dots and all
-		}
-		out.PlanIssues = append(out.PlanIssues, PlanIssue{Kind: r.Kind, Event: event, Prop: prop, Count: r.Count})
+		out.PlanIssues = append(out.PlanIssues, PlanIssue{analytics.ParsePlanIssue(r.Kind, r.Key), r.Count})
 	}
 	return out, nil
 }

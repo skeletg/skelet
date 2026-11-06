@@ -35,12 +35,12 @@ var TrackingPlan = []PlannedEvent{
 		"utm_source": PropString, "utm_medium": PropString, "utm_campaign": PropString, "search_query": PropString,
 	}},
 	{Name: EventProductFilter, About: "A shopper narrowed a product list.", Attrs: true, Props: map[string]PropType{"filters": PropString}},
-	{Name: "$search", About: "An on-site search and how many results it found.", Props: map[string]PropType{"query": PropString, "results": PropNumber}},
-	{Name: "$experiment", About: "The variation of an experiment a shopper saw.", Props: map[string]PropType{"experiment": PropString, "variation": PropString}},
-	{Name: "$js_error", About: "A script error on the page.", Props: map[string]PropType{"message": PropString, "source": PropString, "line": PropNumber, "sessionId": PropString}},
-	{Name: "$rage_click", About: "Three or more clicks in one spot within a second.", Props: map[string]PropType{"x": PropNumber, "y": PropNumber, "selector": PropString, "sessionId": PropString}},
-	{Name: "$dead_click", About: "A click that changed nothing on the page.", Props: map[string]PropType{"x": PropNumber, "y": PropNumber, "selector": PropString, "sessionId": PropString}},
-	{Name: "$web_vitals", About: "A Core Web Vitals measurement.", Props: map[string]PropType{"metric": PropString, "value": PropNumber, "sessionId": PropString}},
+	{Name: EventSearch, About: "An on-site search and how many results it found.", Props: map[string]PropType{"query": PropString, "results": PropNumber}},
+	{Name: EventExperiment, About: "The variation of an experiment a shopper saw.", Props: map[string]PropType{"experiment": PropString, "variation": PropString}},
+	{Name: EventJSError, About: "A script error on the page.", Props: map[string]PropType{"message": PropString, "source": PropString, "line": PropNumber, "sessionId": PropString}},
+	{Name: EventRageClick, About: "Three or more clicks in one spot within a second.", Props: map[string]PropType{"x": PropNumber, "y": PropNumber, "selector": PropString, "text": PropString, "sessionId": PropString}},
+	{Name: EventDeadClick, About: "A click that changed nothing on the page.", Props: map[string]PropType{"x": PropNumber, "y": PropNumber, "selector": PropString, "sessionId": PropString}},
+	{Name: EventWebVitals, About: "A Core Web Vitals measurement.", Props: map[string]PropType{"metric": PropString, "value": PropNumber, "sessionId": PropString}},
 	{Name: EventViewItem, About: "A product was viewed. Older storefronts send it; the server's own events are the source of truth.", Props: map[string]PropType{"sku": PropString}},
 	{Name: EventBeginCheckout, About: "Checkout was opened. Older storefronts send it.", Props: map[string]PropType{}},
 	{Name: EventPurchase, About: "An order was placed. Older storefronts send it; revenue only ever comes from the server's order events.", Props: map[string]PropType{}},
@@ -66,6 +66,24 @@ type PlanIssue struct {
 	Kind  string
 	Event string
 	Prop  string // empty for IssueUnknownEvent
+}
+
+// Key is the issue's rollup key: the event, then the property after a dot. Only an unknown event's name can hold a dot,
+// and it carries no property, so ParsePlanIssue can split the key back on the first one
+func (p PlanIssue) Key() string {
+	if p.Prop == "" {
+		return p.Event
+	}
+	return p.Event + "." + p.Prop
+}
+
+// ParsePlanIssue reads an issue back from its rollup dim and Key
+func ParsePlanIssue(kind, key string) PlanIssue {
+	if kind == IssueUnknownEvent {
+		return PlanIssue{Kind: kind, Event: key}
+	}
+	event, prop, _ := strings.Cut(key, ".")
+	return PlanIssue{Kind: kind, Event: event, Prop: prop}
 }
 
 var (
