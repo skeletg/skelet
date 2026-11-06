@@ -2,15 +2,22 @@
 type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
 /** Internal type. DO NOT USE DIRECTLY. */
 export type Incremental<T> = T | { [P in keyof T]?: P extends ' $fragmentName' | '__typename' ? T[P] : never };
+import type * as Types from '../../graphql/schema.types';
 
 import type { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-node/core';
+export type LensPlanIssueKind =
+  | 'BAD_TYPE'
+  | 'SERVER_PROP'
+  | 'UNKNOWN_EVENT'
+  | 'UNKNOWN_PROP';
+
 export type LensOverviewQueryVariables = Exact<{
   channelId: string | number;
   sinceDays?: number | null | undefined;
 }>;
 
 
-export type LensOverviewQuery = { lensOverview: { views: number, visitors: number, daily: Array<{ date: string, views: number }>, topPages: Array<{ pageKey: string, views: number, visitors: number, clicks: number, avgScroll: number }>, devices: Array<{ label: string, views: number }>, referrers: Array<{ label: string, views: number }>, interactions: Array<{ label: string, views: number }>, planIssues: Array<{ kind: string, event: string, prop: string, count: number }> } };
+export type LensOverviewQuery = { lensOverview: { views: number, visitors: number, daily: Array<{ date: string, views: number }>, topPages: Array<{ pageKey: string, views: number, visitors: number, clicks: number, avgScroll: number }>, devices: Array<{ label: string, views: number }>, referrers: Array<{ label: string, views: number }>, interactions: Array<{ label: string, views: number }>, planIssues: Array<{ kind: Types.LensPlanIssueKind, event: string, prop: string, count: number }> } };
 
 export type BotTrafficQueryVariables = Exact<{
   channelId: string | number;
