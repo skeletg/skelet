@@ -83,3 +83,15 @@ func TestEveryPlannedPropertyHasAKnownType(t *testing.T) {
 		}
 	}
 }
+
+func TestAPlanIssueRoundTripsThroughItsKey(t *testing.T) {
+	for _, is := range []PlanIssue{
+		{Kind: IssueUnknownProp, Event: EventPageView, Prop: "coupon"},
+		{Kind: IssueBadType, Event: CustomEvent, Prop: "a.b"}, // a merchant's property name may hold a dot
+		{Kind: IssueUnknownEvent, Event: "$made.up"},          // so may an unknown event's name, which has no property
+	} {
+		if got := ParsePlanIssue(is.Kind, is.Key()); got != is {
+			t.Errorf("%+v came back as %+v", is, got)
+		}
+	}
+}

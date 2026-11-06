@@ -31,6 +31,13 @@ const (
 	EventViewItem      = "view_item"      // the three below are storefront funnel events promoted out of the generic "custom" channel, so they're countable and selectable as funnel steps
 	EventBeginCheckout = "begin_checkout"
 	EventPurchase      = "purchase"
+	// Reserved custom-event names the storefront tracker emits, held to the tracking plan
+	EventSearch     = "$search"
+	EventExperiment = "$experiment"
+	EventJSError    = "$js_error"
+	EventRageClick  = "$rage_click"
+	EventDeadClick  = "$dead_click"
+	EventWebVitals  = "$web_vitals"
 )
 
 const (
@@ -89,6 +96,17 @@ func (r *Recorder) SpineStore() SpineStore { return r.spine } // the queue consu
 // The Recorder reads and writes the signals database and the spine only - it holds no commerce handle
 func NewRecorder(qs *signalsdb.Queries, spine SpineStore) *Recorder {
 	return &Recorder{qs: qs, spine: spine}
+}
+
+// FlagBot marks a bot's web event so human reports leave it out - a bot that renders JS fires the tracker too
+func (h Hit) FlagBot(props map[string]any) {
+	props["is_bot"] = true
+	if h.BotName != "" {
+		props["bot_name"] = h.BotName
+	}
+	if h.BotCat != "" {
+		props["bot_category"] = h.BotCat
+	}
 }
 
 type Hit struct {
