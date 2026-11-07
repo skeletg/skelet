@@ -18,21 +18,47 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
+	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
+	"github.com/skeletg/skelet/apps/backend/core/internal/shoptools"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/core/internal/wishlist"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
+	"github.com/skeletg/skelet/apps/backend/core/signalsapi"
+	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 )
 
 type fakeRecorder struct {
 	calls []signalsclient.ActivitySpec
 	err   error
+	turns []*signalsv1.AssistantTurnRecord
+	ai    []signalsclient.AIActivitySpec
+}
+
+func (f *fakeRecorder) RecordAIActivity(_ context.Context, a signalsclient.AIActivitySpec) error {
+	f.ai = append(f.ai, a)
+	return f.err
+}
+
+type fakeProducts map[string][]db.ProductRefsBySKURow
+
+func (f fakeProducts) ProductRefsBySKU(_ context.Context, skus []string) ([]db.ProductRefsBySKURow, error) {
+	var out []db.ProductRefsBySKURow
+	for _, s := range skus {
+		out = append(out, f[s]...)
+	}
+	return out, nil
+}
+
+func (f *fakeRecorder) RecordAssistantTurn(_ context.Context, t *signalsv1.AssistantTurnRecord) error {
+	f.turns = append(f.turns, t)
+	return f.err
 }
 
 func (f *fakeRecorder) RecordActivity(_ context.Context, a signalsclient.ActivitySpec) error {
@@ -58,7 +84,7 @@ func (c countsNobody) GetBool(context.Context, string, config.Scope) (bool, erro
 
 func newTracker(o order.Order) (*Tracker, *fakeRecorder) {
 	fr := &fakeRecorder{}
-	return NewTracker(fr, &fakeOrders{o: o}, countsNobody(true)), fr
+	return NewTracker(fr, &fakeOrders{o: o}, countsNobody(true), nil), fr
 }
 
 func TestASignInCarriesTheVisitorOnlyWithAnalyticsConsent(t *testing.T) {
@@ -419,7 +445,7 @@ func TestAnUnreachableSuiteHandsActivityBackToTheOutbox(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			bus := events.NewBus()
 			fr := &fakeRecorder{err: tc.err}
-			NewTracker(fr, &fakeOrders{o: order.Order{CustomerID: &cid, GiftCardAmount: 500}}, countsNobody(true)).Subscribe(bus)
+			NewTracker(fr, &fakeOrders{o: order.Order{CustomerID: &cid, GiftCardAmount: 500}}, countsNobody(true), nil).Subscribe(bus)
 			err := bus.DispatchAsyncNow(context.Background(), &order.OrderPlaced{OrderID: uuid.New(), CustomerID: &cid, ChannelID: uuid.New()})
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("dispatch err = %v, want error %v", err, tc.wantErr)
@@ -493,7 +519,7 @@ func TestAnOrderThatWontLoadGoesBackToTheOutbox(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			fr := &fakeRecorder{}
-			tr := NewTracker(fr, &fakeOrders{o: order.Order{CustomerID: &cid}, err: tc.err}, countsNobody(true))
+			tr := NewTracker(fr, &fakeOrders{o: order.Order{CustomerID: &cid}, err: tc.err}, countsNobody(true), nil)
 			err := tr.onOrderShipped(context.Background(), &order.OrderFulfillmentCreated{OrderID: uuid.New(), FulfillmentID: uuid.New()})
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("err = %v, want error %v", err, tc.wantErr)
@@ -556,7 +582,7 @@ func TestAGiftCardLookupThatFailsGoesBackToTheOutbox(t *testing.T) {
 		"order gone":    {fmt.Errorf("get order: %w", sql.ErrNoRows), false},
 	} {
 		t.Run(name, func(t *testing.T) {
-			tr := NewTracker(&fakeRecorder{}, &fakeOrders{err: tc.err}, countsNobody(true))
+			tr := NewTracker(&fakeRecorder{}, &fakeOrders{err: tc.err}, countsNobody(true), nil)
 			err := tr.onOrderPlaced(context.Background(), &order.OrderPlaced{OrderID: uuid.New(), CustomerID: &cid, ChannelID: uuid.New()})
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("err = %v, want error %v", err, tc.wantErr)
@@ -573,7 +599,7 @@ func TestARefusedWriteIsLogged(t *testing.T) {
 	cid := uuid.New()
 	refused := status.Error(codes.PermissionDenied, "bad token")
 
-	tr := NewTracker(&fakeRecorder{err: refused}, &fakeOrders{}, countsNobody(true))
+	tr := NewTracker(&fakeRecorder{err: refused}, &fakeOrders{}, countsNobody(true), nil)
 	if err := tr.onRegistered(context.Background(), &customer.CustomerRegistered{CustomerID: cid, ChannelID: uuid.New()}); err != nil {
 		t.Fatal(err)
 	}
@@ -586,6 +612,120 @@ func TestARefusedWriteIsLogged(t *testing.T) {
 		if !strings.Contains(buf.String(), want) {
 			t.Errorf("log %q does not mention %q", buf.String(), want)
 		}
+	}
+}
+
+func TestAnAssistantTurnLandsOnTheVisitorWithoutItsWords(t *testing.T) {
+	tr, fr := newTracker(order.Order{})
+	ch, turn := uuid.New(), uuid.New()
+	ev := &shoptools.AssistantTurn{ID: turn, ChannelID: ch, AnonID: "visitor-1", Products: 3, CartChanged: true}
+	if err := tr.onAssistantTurn(context.Background(), ev); err != nil || len(fr.calls) != 1 {
+		t.Fatalf("err %v, %d writes", err, len(fr.calls))
+	}
+	got := fr.calls[0]
+	if got.EventName != "assistant_turn" || got.AnonID != "visitor-1" || got.ChannelID != ch || got.DedupeKey != "act:assistant:"+turn.String() {
+		t.Errorf("wrote %+v", got)
+	}
+	if got.Props["products"] != 3 || got.Props["cart_changed"] != true || got.Props["checkout"] != false {
+		t.Errorf("props = %v", got.Props)
+	}
+	fr.calls = nil
+	_ = tr.onAssistantTurn(context.Background(), &shoptools.AssistantTurn{ID: uuid.New(), ChannelID: ch})
+	if len(fr.calls) != 0 {
+		t.Errorf("a turn nobody can be credited with reached the spine: %+v", fr.calls)
+	}
+	_ = tr.onAssistantTurn(context.Background(), &shoptools.AssistantTurn{ID: uuid.New(), ChannelID: ch, AnonID: "visitor-1", Shopper: &auth.Shopper{}})
+	if len(fr.calls) != 1 || fr.calls[0].AnonID != "" || fr.calls[0].Source != sourceAggregate {
+		t.Errorf("a turn from a shopper who refused analytics = %+v - want it counted as nobody", fr.calls)
+	}
+}
+
+func TestAnAssistedOrderSaysWhoHelped(t *testing.T) {
+	cid := uuid.New()
+	tr, fr := newTracker(order.Order{CustomerID: &cid})
+	_ = tr.onOrderPlaced(context.Background(), &order.OrderPlaced{OrderID: uuid.New(), CustomerID: &cid, ChannelID: uuid.New(), AssistedBy: cart.AssistedAgent})
+	_ = tr.onOrderPlaced(context.Background(), &order.OrderPlaced{OrderID: uuid.New(), CustomerID: &cid, ChannelID: uuid.New()})
+	if len(fr.calls) != 3 || fr.calls[0].Props["assisted_by"] != cart.AssistedAgent {
+		t.Fatalf("calls = %+v", fr.calls)
+	}
+	if fr.calls[1].EventName != "assisted_order" || fr.calls[1].Props["assisted_by"] != cart.AssistedAgent {
+		t.Errorf("an assisted order's own event = %+v - want one segments can pick", fr.calls[1])
+	}
+	if _, ok := fr.calls[2].Props["assisted_by"]; ok || fr.calls[2].EventName != "order_placed" {
+		t.Errorf("an unassisted order carries assisted_by or its own event: %+v", fr.calls[2])
+	}
+}
+
+func TestCartsAndOrdersNameTheProductsBehindTheirSKUs(t *testing.T) {
+	cid, ch := uuid.New(), uuid.New()
+	tee, red := uuid.New(), uuid.New()
+	refs := fakeProducts{"TEE-RED": {{Sku: "TEE-RED", ID: red, ParentID: uuid.NullUUID{UUID: tee, Valid: true}}}, "MUG": {{Sku: "MUG", ID: uuid.New()}}}
+	fr := &fakeRecorder{}
+	tr := &Tracker{rec: fr, orders: &fakeOrders{o: order.Order{CustomerID: &cid, ChannelID: ch, Lines: []order.OrderLine{{ProductSku: "TEE-RED"}, {ProductSku: "MUG"}}}}, products: refs}
+	_ = tr.onCartAdd(context.Background(), &cart.LineAdded{ChannelID: ch, CustomerID: &cid, LineID: uuid.New(), ProductSku: "TEE-RED"})
+	if ids, _ := fr.calls[0].Props["product_ids"].([]string); len(ids) != 2 || ids[0] != red.String() || ids[1] != tee.String() {
+		t.Errorf("cart_add product_ids = %v - want the variant and the product it's sold through", fr.calls[0].Props["product_ids"])
+	}
+	_ = tr.onOrderPlaced(context.Background(), &order.OrderPlaced{OrderID: uuid.New(), CustomerID: &cid, ChannelID: ch})
+	if ids, _ := fr.calls[1].Props["product_ids"].([]string); len(ids) != 3 {
+		t.Errorf("order_placed product_ids = %v - want both lines' products and the tee's parent", fr.calls[1].Props["product_ids"])
+	}
+	_ = tr.onReturnRequested(context.Background(), &order.OrderReturnRequested{OrderID: uuid.New(), ReturnID: uuid.New()})
+	if last := fr.calls[len(fr.calls)-1]; last.EventName != "return_requested" || last.Props["order_id"] == "" || last.Props["order_id"] == nil {
+		t.Errorf("a return = %+v - want it naming its order", last)
+	}
+}
+
+func TestTheAssistantsAndAgentsActivityReachSignalsWithoutAPerson(t *testing.T) {
+	tr, fr := newTracker(order.Order{})
+	ch, shown := uuid.New(), uuid.New()
+	turn := &shoptools.AssistantTurn{ID: uuid.New(), ChannelID: ch, AnonID: "visitor-1", ShownProducts: []uuid.UUID{shown},
+		Tools: []string{"search_products", "show_products"}, Searches: []shoptools.Search{{Term: "wide boots", Results: 0}}}
+	if err := tr.onAssistantTurn(context.Background(), turn); err != nil {
+		t.Fatal(err)
+	}
+	if ids, _ := fr.calls[0].Props["product_ids"].([]string); len(ids) != 1 || ids[0] != shown.String() {
+		t.Errorf("assistant_turn product_ids = %v", fr.calls[0].Props["product_ids"])
+	}
+	if len(fr.ai) != 1 || fr.ai[0].Source != signalsapi.AISourceAssistant || len(fr.ai[0].Tools) != 2 || fr.ai[0].Searches[0].Term != "wide boots" || fr.ai[0].DedupeKey != "ai:assistant:"+turn.ID.String() {
+		t.Fatalf("AI activity = %+v", fr.ai)
+	}
+	_ = tr.onAssistantTurn(context.Background(), &shoptools.AssistantTurn{ID: uuid.New(), ChannelID: ch, Tools: []string{"get_cart"}})
+	if len(fr.ai) != 2 {
+		t.Error("a turn with no visitor to credit lost its tools from the AI counts too")
+	}
+	_ = tr.onAgentCall(context.Background(), &shoptools.AgentCall{ID: uuid.New(), ChannelID: ch, Agent: "ShopBot", Tool: "search_products", Searches: []shoptools.Search{{Term: "mugs", Results: 4}}})
+	if a := fr.ai[2]; a.Source != signalsapi.AISourceAgent || a.Agent != "ShopBot" || a.Tools[0] != "search_products" || a.Searches[0].Results != 4 {
+		t.Errorf("agent call = %+v", a)
+	}
+	if len(fr.calls) != 1 {
+		t.Errorf("an agent's call reached the person-level spine: %+v", fr.calls)
+	}
+}
+
+func TestAKeptTranscriptTravelsWithItsTurn(t *testing.T) {
+	tr, fr := newTracker(order.Order{})
+	cust, turn, conv := uuid.New(), uuid.New(), uuid.New()
+	ev := &shoptools.AssistantTurn{ID: turn, ChannelID: uuid.New(), CustomerID: &cust, AnonID: "visitor-1", Products: 1, CartChanged: true,
+		Transcript: &shoptools.Transcript{Conversation: conv, Question: "a mug?", Reply: "Here's one.", Model: "m", Rounds: []shoptools.Round{
+			{Thinking: "Search first.", Calls: []shoptools.Call{{Tool: "search_products", Input: []byte(`{"query":"mug"}`), Output: "Big mug"}}},
+			{Text: "Here's one."},
+		}}}
+	if err := tr.onAssistantTurn(context.Background(), ev); err != nil || len(fr.turns) != 1 {
+		t.Fatalf("err %v, %d transcripts", err, len(fr.turns))
+	}
+	got := fr.turns[0]
+	if got.GetId() != turn.String() || got.GetConversationId() != conv.String() || got.GetCustomerId() != cust.String() || got.GetAnonId() != "visitor-1" ||
+		got.GetQuestion() != "a mug?" || !got.GetCartChanged() || len(got.GetRounds()) != 2 {
+		t.Fatalf("record = %+v", got)
+	}
+	if c := got.GetRounds()[0].GetCalls()[0]; got.GetRounds()[0].GetThinking() != "Search first." || c.GetTool() != "search_products" || c.GetInputJson() != `{"query":"mug"}` || c.GetOutput() != "Big mug" {
+		t.Errorf("round = %+v", got.GetRounds()[0])
+	}
+	fr.turns = nil
+	_ = tr.onAssistantTurn(context.Background(), &shoptools.AssistantTurn{ID: uuid.New(), ChannelID: uuid.New(), AnonID: "v", Transcript: nil})
+	if len(fr.turns) != 0 {
+		t.Error("a turn the store doesn't keep was sent as a transcript")
 	}
 }
 
@@ -656,7 +796,7 @@ func TestCartActivityWithAnalyticsRefusedCountsAsNobody(t *testing.T) {
 func TestABackfillLeavesOrdersPlacedWithoutConsentAlone(t *testing.T) {
 	o := order.Order{ID: uuid.New(), Number: "1300", ChannelID: uuid.New(), TotalAmount: 900, CurrencyCode: "EUR", Shopper: &auth.Shopper{}}
 	fr := &fakeRecorder{}
-	if err := NewTracker(fr, nil, countsNobody(true)).BackfillOrder(context.Background(), o, time.Now()); err != nil {
+	if err := NewTracker(fr, nil, countsNobody(true), nil).BackfillOrder(context.Background(), o, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	if len(fr.calls) != 0 {

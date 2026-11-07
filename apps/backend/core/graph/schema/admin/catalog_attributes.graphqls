@@ -46,6 +46,8 @@ type AttributeValue {
   sortOrder: Int!
   # SEO opt-in. When true the storefront renders the bucket link as a real <a href> and removes the noindex meta when this value is the only active filter - letting Google rank the resulting URL.
   isIndexable: Boolean!
+  # Stands for every other value of its attribute when similar products are held to it - Unisex for Gender, One size for Size, Multicolour for Colour.
+  matchesAny: Boolean!
   # Localised description copy rendered under the H1 on the filter landing page (/products/f/<attr>/v/<value>). Sparse - one row per operator-translated locale; missing locales render as nothing.
   descriptions: [AttributeValueContent!]!
 }
@@ -90,6 +92,10 @@ type Attribute {
   synapseTrack:      Boolean!
   # When on (requires synapseTrack), a scheduled sync auto-creates a customer segment per popular value (e.g. "Tire size: 205/55R16"), targetable by Pulse / promotions / Prism. Managed segments - don't edit by hand.
   autoSegment:       Boolean!
+  # When on, a public attribute's values join the text embedded for search by meaning. Off keeps it on the storefront but out of the product's vector - for facts like care instructions that say nothing about what the product is.
+  embedded:          Boolean!
+  # When on, a product found similar to others - by the shopping assistant or a shopper's agent - must share a value with them on this attribute, like the same gender or the same brand. With several products, a value any of them has counts.
+  similarMatch:      Boolean!
   # Lower sortOrder first. The storefront renders facets in the order the
   # backend returns them, which is ascending sortOrder, then name.
   sortOrder:         Int!
@@ -156,6 +162,8 @@ input AttributeValueInput {
   sortOrder:   Int
   # Defaults to false when omitted - opt-in.
   isIndexable: Boolean
+  # Omitted keeps it as it is on an update, and off on a new value.
+  matchesAny:  Boolean
 }
 
 input CreateAttributeInput {
@@ -175,6 +183,10 @@ input CreateAttributeInput {
   h1Position:        AttributeH1Position
   synapseTrack:      Boolean
   autoSegment:       Boolean
+  # Defaults to true when omitted.
+  embedded:          Boolean
+  # Defaults to false when omitted.
+  similarMatch:      Boolean
   sortOrder:         Int
   values:            [AttributeValueInput!]
   metadata:          [MetadataInput!]
@@ -198,6 +210,8 @@ input UpdateAttributeInput {
   h1Position:        AttributeH1Position
   synapseTrack:      Boolean
   autoSegment:       Boolean
+  embedded:          Boolean
+  similarMatch:      Boolean
   sortOrder:         Int
   metadata:          [MetadataInput!]
   privateMetadata:   [MetadataInput!]

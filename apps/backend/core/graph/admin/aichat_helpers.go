@@ -18,6 +18,12 @@ func aiProviderError(ctx context.Context, err error) error {
 
 const compactSnapshotChars = 2500
 
+// How far the admin chat may go on one question
+const (
+	adminChatRounds    = 6
+	adminChatMaxTokens = 4096
+)
+
 // Plain consts rather than fmt.Sprintf format strings, so a literal "%" in the prompt needs no escaping
 const signalsPersona = "You are the analytics assistant inside the Skelet admin dashboard. Your main job is " +
 	"analyzing this store's Signals data (web traffic, customer behaviour, email engagement, A/B " +

@@ -20,7 +20,7 @@ func TestACountedViewHonoursTheShopsSetting(t *testing.T) {
 		r := httptest.NewRequest(method, CountPath, strings.NewReader(`{"path":"/en/products/blue-mug"}`))
 		r = r.WithContext(channel.WithChannel(r.Context(), ch))
 		w := httptest.NewRecorder()
-		NewTracker(fr, nil, countsNobody(on)).CountHandler(nil)(w, r)
+		NewTracker(fr, nil, countsNobody(on), nil).CountHandler(nil)(w, r)
 		if w.Code != http.StatusNoContent {
 			t.Errorf("status %d, want 204 whatever happens", w.Code)
 		}

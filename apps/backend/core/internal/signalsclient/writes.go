@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"maps"
+	"math"
 	"slices"
 	"time"
 
@@ -98,6 +99,45 @@ func (c *Client) RecordActivity(ctx context.Context, a ActivitySpec) error {
 		CustomerId: optionalID(a.CustomerID), AnonId: a.AnonID, At: stamp(a.At),
 		PropsJson: propsJSON(a.Props), DedupeKey: a.DedupeKey,
 	})
+	return err
+}
+
+func (c *Client) RecordAssistantTurn(ctx context.Context, t *signalsv1.AssistantTurnRecord) error {
+	sys, err := c.System(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = c.Ingest.RecordAssistantTurn(sys, &signalsv1.RecordAssistantTurnRequest{Turn: t})
+	return err
+}
+
+// AIActivitySpec is what the shopping assistant or a shopper's own agent did, counted per store - never a person's
+type AIActivitySpec struct {
+	ChannelID uuid.UUID
+	At        time.Time
+	Source    string // signalsapi.AISourceAssistant or AISourceAgent
+	Agent     string
+	Tools     []string
+	Searches  []AISearch
+	DedupeKey string
+}
+
+type AISearch struct {
+	Term    string
+	Results int
+}
+
+func (c *Client) RecordAIActivity(ctx context.Context, a AIActivitySpec) error {
+	sys, err := c.System(ctx)
+	if err != nil {
+		return err
+	}
+	req := &signalsv1.RecordAIActivityRequest{ChannelId: idString(a.ChannelID), At: stamp(a.At), Source: a.Source, Agent: a.Agent,
+		Tools: a.Tools, DedupeKey: a.DedupeKey}
+	for _, s := range a.Searches {
+		req.Searches = append(req.Searches, &signalsv1.AISearch{Term: s.Term, Results: int32(min(s.Results, math.MaxInt32))})
+	}
+	_, err = c.Ingest.RecordAIActivity(sys, req)
 	return err
 }
 

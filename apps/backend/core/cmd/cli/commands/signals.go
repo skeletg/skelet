@@ -59,7 +59,7 @@ func runSignalsBackfillOrders(cmd *cobra.Command, _ []string) error {
 
 	repo := order.NewRepository(db.New(conn))
 	// A backfill hands each order over, so the tracker never looks one up
-	tracker := activity.NewTracker(signals, nil, config.NewService(configstore.New(db.New(conn))))
+	tracker := activity.NewTracker(signals, nil, config.NewService(configstore.New(db.New(conn))), db.New(conn))
 	ctx := cmd.Context()
 	const page = 500
 	processed, skipped := 0, 0

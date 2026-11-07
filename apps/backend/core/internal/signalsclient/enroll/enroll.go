@@ -150,6 +150,13 @@ func (e *Enroller) OnCartAbandoned(ctx context.Context, channelID, customerID uu
 	return err
 }
 
+// Taken says a flow started on it - none did, and the cart goes to the usual recovery instead
+func (e *Enroller) OnAssistedCartAbandoned(ctx context.Context, channelID, customerID uuid.UUID, to string, cartID uuid.UUID, lastActivity time.Time) (bool, error) {
+	n, err := e.enroll(ctx, signalsapi.TriggerAssistedCartAbandoned, moment(signalsapi.TriggerAssistedCartAbandoned, cartID.String(), strconv.FormatInt(lastActivity.Unix(), 10)),
+		channelID, customerID, to, map[string]any{signalsapi.PayloadCartID: cartID.String()})
+	return n > 0, err
+}
+
 // The browsed product rides the run so the recovery email can show it through {{ product.* }}
 func (e *Enroller) OnBrowseAbandoned(ctx context.Context, channelID, customerID uuid.UUID, pageKey, sku, name, image string, lastBrowseAt time.Time) error {
 	_, err := e.enroll(ctx, signalsapi.TriggerBrowseAbandoned, moment(signalsapi.TriggerBrowseAbandoned, customerID.String(), strconv.FormatInt(lastBrowseAt.Unix(), 10)),

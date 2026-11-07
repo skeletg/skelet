@@ -1264,3 +1264,19 @@ func toCustomOptionRuleModels(ctx context.Context, rules []catalog.ProductOption
 	}
 	return out
 }
+
+// browse lists products through search by meaning where it's wired, the engine alone where it isn't
+func (r *Resolver) browse(ctx context.Context, req search.BrowseRequest) (search.BrowseResult, error) {
+	if r.ProductBrowse == nil {
+		return r.ProductSearch.BrowseProducts(ctx, req.ChannelID, req.Locale, req.Words, req.Filter, req.Sort, req.Limit, req.Offset, req.Boosts)
+	}
+	return r.ProductBrowse.Browse(ctx, req)
+}
+
+// Meaning reads the shopper's language first, then the store's own for products not written in theirs
+func (r *Resolver) meaningLocales(ctx context.Context, active string) []string {
+	if sv, ok := channel.FromContext(ctx); ok && sv != nil {
+		return search.MeaningLocales(active, sv.DefaultLocale)
+	}
+	return search.MeaningLocales(active, "")
+}

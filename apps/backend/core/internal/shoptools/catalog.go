@@ -52,7 +52,7 @@ func searchTool() tool {
 			Description: "Search the store's catalog. Every argument is optional - with none it lists the default ordering. Results carry each product's id and SKU " +
 				"for get_product, and facets you can pass back as filters to narrow the search.",
 			Schema: schema(map[string]any{
-				"query":      str("Words to search for, like \"waterproof hiking jacket\"."),
+				"query":      str("What the shopper wants, in their words, like \"waterproof hiking jacket\" or \"something warm for winter hikes\" - it finds products close in meaning, not only ones using the words."),
 				"category":   str("A category id from list_categories."),
 				"collection": str("A collection id."),
 				"price_min":  map[string]any{"type": "number", "minimum": 0, "maximum": maxPrice, "description": "Lowest price, in the store's currency (major units, like 49.99)."},
@@ -133,15 +133,35 @@ func runSearch(ctx context.Context, c call) (string, error) {
 		return "", err
 	}
 	res := out.BrowseProducts
-	if len(res.Items) == 0 {
+	items, fused := res.Items, false
+	// Meaning joins a first page of plain words in the store's own order - with filters or a sort the model asked for exactly that list
+	if query := strings.TrimSpace(c.a.Query); query != "" && offset == 0 && c.a.Sort == "" && len(filter) == 0 {
+		if near := c.nearProducts(ctx, query, limit); len(near) > 0 {
+			if items, err = fuseHits(ctx, c, res.Items, near, limit); err != nil {
+				return "", err
+			}
+			fused = true
+		}
+	}
+	if offset == 0 { // what the words matched - meaning finds something close for nearly anything, so it can't show a gap
+		logSearch(ctx, c.a.Query, res.TotalCount)
+	}
+	if len(items) == 0 {
 		if offset > 0 {
 			return fmt.Sprintf("No more products - all %d were on earlier pages.", res.TotalCount), nil
 		}
-		return "No products match that. Try fewer words or filters.", nil
+		return noProductsFound, nil
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "%d products match (showing %d-%d):\n", res.TotalCount, offset+1, offset+len(res.Items))
-	for _, p := range res.Items {
+	switch {
+	case fused && len(res.Items) == 0:
+		b.WriteString("No product uses those words, but these are close in what they mean:\n")
+	case fused:
+		fmt.Fprintf(&b, "%d products match the words. The best of them and of the products closest in meaning:\n", res.TotalCount)
+	default:
+		fmt.Fprintf(&b, "%d products match (showing %d-%d):\n", res.TotalCount, offset+1, offset+len(res.Items))
+	}
+	for _, p := range items {
 		b.WriteString("- ")
 		writeHit(&b, c, p)
 	}
@@ -164,6 +184,53 @@ func runSearch(ctx context.Context, c call) (string, error) {
 		shown++
 	}
 	return b.String(), nil
+}
+
+// What a search that found nothing answers - the assistant's transcript counts on these to tell an empty search from one
+// that found something
+const (
+	noProductsFound = "No products match that. Try fewer words or filters."
+	noPagesFound    = "No store page mentions that. Omit query to see every page."
+	noPagesAtAll    = "The store has no pages published."
+)
+
+var hitsDoc = document("hits", `query AgentHits($ids: [ID!]!) {
+  productsByIds(ids: $ids) { id sku name kind url price compareAtPrice defaultCurrencyCode inStock }
+}`)
+
+// fuseHits ranks the words' first page and the nearest products together, reading the near ones the storefront way - one
+// it doesn't show this shopper drops out
+func fuseHits(ctx context.Context, c call, words []productHit, near []string, limit int) ([]productHit, error) {
+	byID := make(map[string]productHit, len(words)+len(near))
+	ids := make([]string, len(words))
+	for i, p := range words {
+		byID[p.ID], ids[i] = p, p.ID
+	}
+	order := fuse(ids, near, limit)
+	var missing []string
+	for _, id := range order {
+		if _, ok := byID[id]; !ok {
+			missing = append(missing, id)
+		}
+	}
+	if len(missing) > 0 {
+		var out struct {
+			ProductsByIds []productHit `json:"productsByIds"`
+		}
+		if err := c.gql().Do(ctx, hitsDoc, map[string]any{"ids": missing}, &out); err != nil {
+			return nil, err
+		}
+		for _, p := range out.ProductsByIds {
+			byID[p.ID] = p
+		}
+	}
+	items := make([]productHit, 0, len(order))
+	for _, id := range order {
+		if p, ok := byID[id]; ok {
+			items = append(items, p)
+		}
+	}
+	return items, nil
 }
 
 func writeHit(b *strings.Builder, c call, p productHit) {
@@ -202,6 +269,7 @@ const productFragment = `fragment AgentProduct on Product {
   groupedMembers { defaultQuantity member { sku name price inStock } }
   options { title isRequired }
   categories { name }
+  promotionalDisplays { publicLabel }
   reviewAggregates { count overallAverage }
   reviewSummary
   reviews(limit: 3) { overallRating title body isVerifiedPurchase }
@@ -248,6 +316,9 @@ type product struct {
 	Categories []struct {
 		Name string `json:"name"`
 	} `json:"categories"`
+	Promotions []struct {
+		PublicLabel string `json:"publicLabel"`
+	} `json:"promotionalDisplays"`
 	ReviewAggregates struct {
 		Count          int      `json:"count"`
 		OverallAverage *float64 `json:"overallAverage"`
@@ -281,6 +352,10 @@ func runProduct(ctx context.Context, c call) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return describeProduct(c, p), nil
+}
+
+func describeProduct(c call, p product) string {
 	cur := currency(p.DefaultCurrencyCode, c)
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s - %s\nid %s, sku %s\n", p.Name, link(c.ch, p.URL), p.ID, p.SKU)
@@ -297,6 +372,15 @@ func runProduct(ctx context.Context, c call) (string, error) {
 		b.WriteString(", out of stock\n")
 	}
 	writeQuantityRules(&b, p)
+	var promos []string
+	for _, pr := range p.Promotions {
+		if label := strings.TrimSpace(pr.PublicLabel); label != "" {
+			promos = append(promos, label)
+		}
+	}
+	if len(promos) > 0 {
+		fmt.Fprintf(&b, "Promotions on it: %s (store-wide conditions, like a minimum spend, are settled in the cart)\n", strings.Join(promos, "; "))
+	}
 	if len(p.Categories) > 0 {
 		names := make([]string, len(p.Categories))
 		for i, cat := range p.Categories {
@@ -315,7 +399,7 @@ func runProduct(ctx context.Context, c call) (string, error) {
 	}
 	writeBuyable(&b, c, p, cur)
 	writeReviews(&b, p)
-	return b.String(), nil
+	return b.String()
 }
 
 func writeQuantityRules(b *strings.Builder, p product) {
@@ -474,6 +558,10 @@ func findProduct(ctx context.Context, c call, ref string) (product, error) {
 		return product{}, err
 	}
 	if len(out.ProductsBySkus) == 0 {
+		// A name isn't a SKU, and saying the product doesn't exist sent the model off telling shoppers the store doesn't carry it
+		if strings.ContainsAny(ref, " \t") {
+			return product{}, refusal("That looks like a name - get_product takes an id, SKU or link. Find the product with search_products first.")
+		}
 		return product{}, notFound
 	}
 	return out.ProductsBySkus[0], nil
@@ -513,8 +601,14 @@ func productPath(ref string) (string, bool) {
 // A BCP 47 tag as the storefront prefixes paths with - "de", "en-GB", "pt-BR"
 var localeSegment = regexp.MustCompile(`^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$`)
 
-// The path as given, then without a leading locale segment, following one redirect
-func routeToProduct(ctx context.Context, c call, path string) (string, error) {
+type storeRoute struct {
+	Kind     string
+	EntityID string
+	Path     string // where it was found, a redirect followed
+}
+
+// resolveRoute finds what a store path shows: the path as given, then without a leading locale segment, following one redirect - nil when it's nothing
+func resolveRoute(ctx context.Context, c call, path string) (*storeRoute, error) {
 	candidates := []string{path}
 	if first, rest, ok := strings.Cut(path, "/"); ok && localeSegment.MatchString(first) {
 		candidates = append(candidates, rest)
@@ -529,7 +623,7 @@ func routeToProduct(ctx context.Context, c call, path string) (string, error) {
 				} `json:"route"`
 			}
 			if err := c.gql().Do(ctx, routeDoc, map[string]any{"path": p}, &out); err != nil {
-				return "", err
+				return nil, err
 			}
 			r := out.Route
 			if r == nil {
@@ -539,13 +633,21 @@ func routeToProduct(ctx context.Context, c call, path string) (string, error) {
 				p = strings.Trim(*r.RedirectTo, "/")
 				continue
 			}
-			if r.Kind != "PRODUCT" {
-				return "", refusal(fmt.Sprintf("That link is a %s page, not a product.", strings.ToLower(strings.ReplaceAll(r.Kind, "_", " "))))
-			}
-			return r.EntityID, nil
+			return &storeRoute{Kind: r.Kind, EntityID: r.EntityID, Path: p}, nil
 		}
 	}
-	return "", nil
+	return nil, nil
+}
+
+func routeToProduct(ctx context.Context, c call, path string) (string, error) {
+	r, err := resolveRoute(ctx, c, path)
+	if err != nil || r == nil {
+		return "", err
+	}
+	if r.Kind != "PRODUCT" {
+		return "", refusal(fmt.Sprintf("That link is a %s page, not a product.", strings.ToLower(strings.ReplaceAll(r.Kind, "_", " "))))
+	}
+	return r.EntityID, nil
 }
 
 type category struct {

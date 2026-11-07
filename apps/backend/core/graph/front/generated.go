@@ -93,6 +93,52 @@ type ComplexityRoot struct {
 		SubtotalDiscount  func(childComplexity int) int
 	}
 
+	AssistantLink struct {
+		Count   func(childComplexity int) int
+		Filters func(childComplexity int) int
+		Label   func(childComplexity int) int
+		Path    func(childComplexity int) int
+		Query   func(childComplexity int) int
+		Sort    func(childComplexity int) int
+	}
+
+	AssistantLinkFilter struct {
+		Slug   func(childComplexity int) int
+		Values func(childComplexity int) int
+	}
+
+	AssistantPage struct {
+		Kind  func(childComplexity int) int
+		Title func(childComplexity int) int
+	}
+
+	AssistantPoint struct {
+		Detail func(childComplexity int) int
+		Title  func(childComplexity int) int
+	}
+
+	AssistantProductDetail struct {
+		GoodFor    func(childComplexity int) int
+		Highlights func(childComplexity int) int
+		KeepInMind func(childComplexity int) int
+		ProductID  func(childComplexity int) int
+		Summary    func(childComplexity int) int
+	}
+
+	AssistantReply struct {
+		CartChanged func(childComplexity int) int
+		CartID      func(childComplexity int) int
+		Checkout    func(childComplexity int) int
+		Detail      func(childComplexity int) int
+		FollowUps   func(childComplexity int) int
+		Incomplete  func(childComplexity int) int
+		Links       func(childComplexity int) int
+		Navigate    func(childComplexity int) int
+		ProductIds  func(childComplexity int) int
+		Recap       func(childComplexity int) int
+		Reply       func(childComplexity int) int
+	}
+
 	Attribute struct {
 		Filterable         func(childComplexity int) int
 		ID                 func(childComplexity int) int
@@ -229,9 +275,11 @@ type ComplexityRoot struct {
 	}
 
 	BrowseProductsResult struct {
-		Facets     func(childComplexity int) int
-		Items      func(childComplexity int) int
-		TotalCount func(childComplexity int) int
+		AiOverview    func(childComplexity int) int
+		ByMeaningOnly func(childComplexity int) int
+		Facets        func(childComplexity int) int
+		Items         func(childComplexity int) int
+		TotalCount    func(childComplexity int) int
 	}
 
 	BundleMembership struct {
@@ -852,6 +900,7 @@ type ComplexityRoot struct {
 		AddToWishlist                  func(childComplexity int, productID string) int
 		ApplyCoupon                    func(childComplexity int, cartID string, code string) int
 		ApplyGiftCard                  func(childComplexity int, cartID string, code string) int
+		AskShopAssistant               func(childComplexity int, messages []*model1.AssistantMessage, cartID *string, page *string, conversationID *string) int
 		CancelSubscription             func(childComplexity int, id string) int
 		ChangeCustomerPassword         func(childComplexity int, currentPassword string, newPassword string) int
 		ClearCart                      func(childComplexity int, cartID string) int
@@ -1311,6 +1360,8 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
+		AssistantAvailable    func(childComplexity int) int
+		AssistantPage         func(childComplexity int, page string) int
 		Attribute             func(childComplexity int, id string) int
 		Attributes            func(childComplexity int) int
 		BlogAuthor            func(childComplexity int, slug *string, id *string) int
@@ -1378,12 +1429,15 @@ type ComplexityRoot struct {
 		Regions               func(childComplexity int, countryCode string) int
 		RootCategories        func(childComplexity int) int
 		Route                 func(childComplexity int, path string) int
+		SaleProducts          func(childComplexity int, limit *int32) int
 		SearchBlogPosts       func(childComplexity int, query string, limit *int32, offset *int32) int
+		SearchOverview        func(childComplexity int, query string) int
 		SearchProducts        func(childComplexity int, query string, limit *int32, offset *int32) int
 		SharedWishlist        func(childComplexity int, token string) int
 		ShippingQuotes        func(childComplexity int, countryCode string, cartID *string, regionCode *string, postalCode *string) int
 		SitemapCounts         func(childComplexity int) int
 		SitemapEntries        func(childComplexity int, entityType model1.SitemapEntityType, limit int32, offset int32) int
+		StorePromotions       func(childComplexity int) int
 		TrackOrder            func(childComplexity int, number string, email string, postalCode string) int
 		ValidateAddress       func(childComplexity int, street1 string, street2 *string, city string, state *string, postalCode string, countryCode string) int
 		WishlistProductIds    func(childComplexity int) int
@@ -1521,6 +1575,18 @@ type ComplexityRoot struct {
 		ProviderSlug func(childComplexity int) int
 	}
 
+	SearchOverview struct {
+		Products func(childComplexity int) int
+		Recap    func(childComplexity int) int
+		Text     func(childComplexity int) int
+	}
+
+	SearchOverviewProduct struct {
+		ID   func(childComplexity int) int
+		Name func(childComplexity int) int
+		URL  func(childComplexity int) int
+	}
+
 	ShippingQuote struct {
 		CarrierName      func(childComplexity int) int
 		CarrierSlug      func(childComplexity int) int
@@ -1544,6 +1610,12 @@ type ComplexityRoot struct {
 
 	StoreFeatures struct {
 		Signals func(childComplexity int) int
+	}
+
+	StorePromotion struct {
+		EndsAt func(childComplexity int) int
+		Label  func(childComplexity int) int
+		Terms  func(childComplexity int) int
 	}
 
 	SubmitWebFormResult struct {
@@ -1615,6 +1687,7 @@ type CustomerResolver interface {
 	StoreCreditBalance(ctx context.Context, obj *model.Customer) (int32, error)
 }
 type MutationResolver interface {
+	AskShopAssistant(ctx context.Context, messages []*model1.AssistantMessage, cartID *string, page *string, conversationID *string) (*model1.AssistantReply, error)
 	OpenCartOffer(ctx context.Context, token string) (*model1.CartOfferOpening, error)
 	MarkCartOfferOpened(ctx context.Context, cartID string) (bool, error)
 	CreateGuestCart(ctx context.Context) (*model1.Cart, error)
@@ -1742,6 +1815,8 @@ type ProductMembershipsResolver interface {
 	GroupedProducts(ctx context.Context, obj *model1.ProductMemberships) ([]*model1.GroupedMembership, error)
 }
 type QueryResolver interface {
+	AssistantAvailable(ctx context.Context) (bool, error)
+	AssistantPage(ctx context.Context, page string) (*model1.AssistantPage, error)
 	BlogPost(ctx context.Context, slug *string, id *string) (*model.BlogPost, error)
 	BlogPosts(ctx context.Context, filter *model.BlogPostFilter, limit *int32, offset *int32) (*model.BlogPostList, error)
 	PreviewBlogPost(ctx context.Context, token string) (*model.BlogPost, error)
@@ -1795,6 +1870,8 @@ type QueryResolver interface {
 	ConsentDefinitions(ctx context.Context) ([]*model.ConsentDefinition, error)
 	LoyaltyStatus(ctx context.Context) (*model1.LoyaltyStatus, error)
 	MyReferral(ctx context.Context) (*model1.ReferralInfo, error)
+	StorePromotions(ctx context.Context) ([]*model1.StorePromotion, error)
+	SaleProducts(ctx context.Context, limit *int32) ([]*model.Product, error)
 	MyDownloads(ctx context.Context) ([]*model1.DownloadGrant, error)
 	Locales(ctx context.Context, activeOnly *bool) ([]*model.Locale, error)
 	Locale(ctx context.Context, code string) (*model.Locale, error)
@@ -1809,6 +1886,7 @@ type QueryResolver interface {
 	ValidateAddress(ctx context.Context, street1 string, street2 *string, city string, state *string, postalCode string, countryCode string) (*model1.AddressValidationResult, error)
 	PaymentMethods(ctx context.Context, countryCode string, cartID *string) ([]*model1.PaymentMethodOption, error)
 	ProductQuestions(ctx context.Context, productID string, limit *int32) ([]*model1.ProductQuestion, error)
+	SearchOverview(ctx context.Context, query string) (*model1.SearchOverview, error)
 	SitemapCounts(ctx context.Context) (*model1.SitemapCounts, error)
 	SitemapEntries(ctx context.Context, entityType model1.SitemapEntityType, limit int32, offset int32) ([]*model1.SitemapEntry, error)
 	PublicStores(ctx context.Context, input *model1.PublicStoresInput) (*model1.PublicStoresResult, error)
@@ -2027,6 +2105,180 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AppliedPromotionCode.SubtotalDiscount(childComplexity), true
+
+	case "AssistantLink.count":
+		if e.ComplexityRoot.AssistantLink.Count == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantLink.Count(childComplexity), true
+	case "AssistantLink.filters":
+		if e.ComplexityRoot.AssistantLink.Filters == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantLink.Filters(childComplexity), true
+	case "AssistantLink.label":
+		if e.ComplexityRoot.AssistantLink.Label == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantLink.Label(childComplexity), true
+	case "AssistantLink.path":
+		if e.ComplexityRoot.AssistantLink.Path == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantLink.Path(childComplexity), true
+	case "AssistantLink.query":
+		if e.ComplexityRoot.AssistantLink.Query == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantLink.Query(childComplexity), true
+	case "AssistantLink.sort":
+		if e.ComplexityRoot.AssistantLink.Sort == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantLink.Sort(childComplexity), true
+
+	case "AssistantLinkFilter.slug":
+		if e.ComplexityRoot.AssistantLinkFilter.Slug == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantLinkFilter.Slug(childComplexity), true
+	case "AssistantLinkFilter.values":
+		if e.ComplexityRoot.AssistantLinkFilter.Values == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantLinkFilter.Values(childComplexity), true
+
+	case "AssistantPage.kind":
+		if e.ComplexityRoot.AssistantPage.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantPage.Kind(childComplexity), true
+	case "AssistantPage.title":
+		if e.ComplexityRoot.AssistantPage.Title == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantPage.Title(childComplexity), true
+
+	case "AssistantPoint.detail":
+		if e.ComplexityRoot.AssistantPoint.Detail == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantPoint.Detail(childComplexity), true
+	case "AssistantPoint.title":
+		if e.ComplexityRoot.AssistantPoint.Title == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantPoint.Title(childComplexity), true
+
+	case "AssistantProductDetail.goodFor":
+		if e.ComplexityRoot.AssistantProductDetail.GoodFor == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantProductDetail.GoodFor(childComplexity), true
+	case "AssistantProductDetail.highlights":
+		if e.ComplexityRoot.AssistantProductDetail.Highlights == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantProductDetail.Highlights(childComplexity), true
+	case "AssistantProductDetail.keepInMind":
+		if e.ComplexityRoot.AssistantProductDetail.KeepInMind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantProductDetail.KeepInMind(childComplexity), true
+	case "AssistantProductDetail.productId":
+		if e.ComplexityRoot.AssistantProductDetail.ProductID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantProductDetail.ProductID(childComplexity), true
+	case "AssistantProductDetail.summary":
+		if e.ComplexityRoot.AssistantProductDetail.Summary == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantProductDetail.Summary(childComplexity), true
+
+	case "AssistantReply.cartChanged":
+		if e.ComplexityRoot.AssistantReply.CartChanged == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantReply.CartChanged(childComplexity), true
+	case "AssistantReply.cartId":
+		if e.ComplexityRoot.AssistantReply.CartID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantReply.CartID(childComplexity), true
+	case "AssistantReply.checkout":
+		if e.ComplexityRoot.AssistantReply.Checkout == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantReply.Checkout(childComplexity), true
+	case "AssistantReply.detail":
+		if e.ComplexityRoot.AssistantReply.Detail == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantReply.Detail(childComplexity), true
+	case "AssistantReply.followUps":
+		if e.ComplexityRoot.AssistantReply.FollowUps == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantReply.FollowUps(childComplexity), true
+	case "AssistantReply.incomplete":
+		if e.ComplexityRoot.AssistantReply.Incomplete == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantReply.Incomplete(childComplexity), true
+	case "AssistantReply.links":
+		if e.ComplexityRoot.AssistantReply.Links == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantReply.Links(childComplexity), true
+	case "AssistantReply.navigate":
+		if e.ComplexityRoot.AssistantReply.Navigate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantReply.Navigate(childComplexity), true
+	case "AssistantReply.productIds":
+		if e.ComplexityRoot.AssistantReply.ProductIds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantReply.ProductIds(childComplexity), true
+	case "AssistantReply.recap":
+		if e.ComplexityRoot.AssistantReply.Recap == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantReply.Recap(childComplexity), true
+	case "AssistantReply.reply":
+		if e.ComplexityRoot.AssistantReply.Reply == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssistantReply.Reply(childComplexity), true
 
 	case "Attribute.filterable":
 		if e.ComplexityRoot.Attribute.Filterable == nil {
@@ -2583,6 +2835,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.BrowseFacetBucket.Value(childComplexity), true
 
+	case "BrowseProductsResult.aiOverview":
+		if e.ComplexityRoot.BrowseProductsResult.AiOverview == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BrowseProductsResult.AiOverview(childComplexity), true
+	case "BrowseProductsResult.byMeaningOnly":
+		if e.ComplexityRoot.BrowseProductsResult.ByMeaningOnly == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BrowseProductsResult.ByMeaningOnly(childComplexity), true
 	case "BrowseProductsResult.facets":
 		if e.ComplexityRoot.BrowseProductsResult.Facets == nil {
 			break
@@ -5336,6 +5600,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ApplyGiftCard(childComplexity, args["cartId"].(string), args["code"].(string)), true
+	case "Mutation.askShopAssistant":
+		if e.ComplexityRoot.Mutation.AskShopAssistant == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_askShopAssistant_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.AskShopAssistant(childComplexity, args["messages"].([]*model1.AssistantMessage), args["cartId"].(*string), args["page"].(*string), args["conversationId"].(*string)), true
 	case "Mutation.cancelSubscription":
 		if e.ComplexityRoot.Mutation.CancelSubscription == nil {
 			break
@@ -7783,6 +8058,23 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.PublicStoresResult.TotalCount(childComplexity), true
 
+	case "Query.assistantAvailable":
+		if e.ComplexityRoot.Query.AssistantAvailable == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.AssistantAvailable(childComplexity), true
+	case "Query.assistantPage":
+		if e.ComplexityRoot.Query.AssistantPage == nil {
+			break
+		}
+
+		args, err := ec.field_Query_assistantPage_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.AssistantPage(childComplexity, args["page"].(string)), true
 	case "Query.attribute":
 		if e.ComplexityRoot.Query.Attribute == nil {
 			break
@@ -8381,6 +8673,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Route(childComplexity, args["path"].(string)), true
+	case "Query.saleProducts":
+		if e.ComplexityRoot.Query.SaleProducts == nil {
+			break
+		}
+
+		args, err := ec.field_Query_saleProducts_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.SaleProducts(childComplexity, args["limit"].(*int32)), true
 	case "Query.searchBlogPosts":
 		if e.ComplexityRoot.Query.SearchBlogPosts == nil {
 			break
@@ -8392,6 +8695,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.SearchBlogPosts(childComplexity, args["query"].(string), args["limit"].(*int32), args["offset"].(*int32)), true
+	case "Query.searchOverview":
+		if e.ComplexityRoot.Query.SearchOverview == nil {
+			break
+		}
+
+		args, err := ec.field_Query_searchOverview_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.SearchOverview(childComplexity, args["query"].(string)), true
 	case "Query.searchProducts":
 		if e.ComplexityRoot.Query.SearchProducts == nil {
 			break
@@ -8442,6 +8756,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.SitemapEntries(childComplexity, args["entityType"].(model1.SitemapEntityType), args["limit"].(int32), args["offset"].(int32)), true
+	case "Query.storePromotions":
+		if e.ComplexityRoot.Query.StorePromotions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.StorePromotions(childComplexity), true
 	case "Query.trackOrder":
 		if e.ComplexityRoot.Query.TrackOrder == nil {
 			break
@@ -8974,6 +9294,44 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.SavedPaymentMethod.ProviderSlug(childComplexity), true
 
+	case "SearchOverview.products":
+		if e.ComplexityRoot.SearchOverview.Products == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SearchOverview.Products(childComplexity), true
+	case "SearchOverview.recap":
+		if e.ComplexityRoot.SearchOverview.Recap == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SearchOverview.Recap(childComplexity), true
+	case "SearchOverview.text":
+		if e.ComplexityRoot.SearchOverview.Text == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SearchOverview.Text(childComplexity), true
+
+	case "SearchOverviewProduct.id":
+		if e.ComplexityRoot.SearchOverviewProduct.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SearchOverviewProduct.ID(childComplexity), true
+	case "SearchOverviewProduct.name":
+		if e.ComplexityRoot.SearchOverviewProduct.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SearchOverviewProduct.Name(childComplexity), true
+	case "SearchOverviewProduct.url":
+		if e.ComplexityRoot.SearchOverviewProduct.URL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SearchOverviewProduct.URL(childComplexity), true
+
 	case "ShippingQuote.carrierName":
 		if e.ComplexityRoot.ShippingQuote.CarrierName == nil {
 			break
@@ -9055,6 +9413,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.StoreFeatures.Signals(childComplexity), true
+
+	case "StorePromotion.endsAt":
+		if e.ComplexityRoot.StorePromotion.EndsAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StorePromotion.EndsAt(childComplexity), true
+	case "StorePromotion.label":
+		if e.ComplexityRoot.StorePromotion.Label == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StorePromotion.Label(childComplexity), true
+	case "StorePromotion.terms":
+		if e.ComplexityRoot.StorePromotion.Terms == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StorePromotion.Terms(childComplexity), true
 
 	case "SubmitWebFormResult.errors":
 		if e.ComplexityRoot.SubmitWebFormResult.Errors == nil {
@@ -9172,6 +9549,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputAddBundleVariantPickInput,
 		ec.unmarshalInputAddConfiguredToCartInput,
 		ec.unmarshalInputAddressInput,
+		ec.unmarshalInputAssistantMessage,
 		ec.unmarshalInputAttributeFilterInput,
 		ec.unmarshalInputBlogPostFilter,
 		ec.unmarshalInputBrowseProductsFilter,
@@ -9264,6 +9642,90 @@ func newExecutionContext(
 }
 
 var sources = []*ast.Source{
+	{Name: "../schema/front/assistant.graphqls", Input: `# The storefront's AI shopping assistant. It answers through the store's AI provider with the same tools shoppers' own agents get over MCP, but on the shopper's own cart - the conversation lives in the browser
+
+input AssistantMessage {
+  # "user" or "assistant"
+  role:    String!
+  content: String!
+  # An assistant turn's recap, sent back as the reply gave it
+  recap:   String
+}
+
+type AssistantLinkFilter {
+  slug:   String!
+  values: [String!]!
+}
+
+# A place on the store a reply sends the shopper to: a narrowed product listing, or a page. The storefront builds the address from path, filters, sort and query with its own filter grammar
+type AssistantLink {
+  label:   String!
+  path:    String!
+  query:   String!
+  filters: [AssistantLinkFilter!]!
+  sort:    String!
+  # Products the listing shows; null for a page
+  count:   Int
+}
+
+type AssistantPoint {
+  title:  String!
+  detail: String!
+}
+
+# A product the reply explains, and the explanation laid out for its panel - empty when the reply only looked at it
+type AssistantProductDetail {
+  productId:  ID!
+  summary:    String!
+  highlights: [AssistantPoint!]!
+  goodFor:    [String!]!
+  keepInMind: [String!]!
+}
+
+type AssistantReply {
+  # Empty when the turn has nothing to say in words - the storefront then says so in the shopper's language, unless the turn showed something
+  reply:       String!
+  # The model stopped before it finished - the provider failed or the time ran out. What the turn did to the cart still stands, so the storefront keeps cartId and cartChanged and says the answer was cut short
+  incomplete:  Boolean!
+  # What the reply showed beyond its words - send it back with this turn, so later turns know which products it meant
+  recap:       String!
+  # Two or three things the shopper might say next, in their words, for the storefront to offer
+  followUps:   [String!]!
+  # Products to show under the reply as cards, in order
+  productIds:  [ID!]!
+  # The product the reply explains, for a panel with its details
+  detail:      AssistantProductDetail
+  # Buttons under the reply to a listing or a page
+  links:       [AssistantLink!]!
+  # The product list the shopper is on, refiltered or resorted - the storefront goes there straight away
+  navigate:    AssistantLink
+  # The shopper's cart the turn worked on - a guest's new one when they had none, for the storefront to keep
+  cartId:      ID
+  # The turn changed the cart, so the storefront shows it afresh
+  cartChanged: Boolean!
+  # The shopper is ready to buy: show them the way to their cart
+  checkout:    Boolean!
+}
+
+# What the shopper's page is, for the assistant's opening suggestions: product, listing, search, page, home or other, and the name it goes by
+type AssistantPage {
+  kind:  String!
+  title: String!
+}
+
+extend type Query {
+  # Whether the storefront shows the assistant: switched on for this store, with an AI provider set up that calls tools and a public address to link to. The storefront hides its button otherwise, rather than offering a chat that can only answer ASSISTANT_UNAVAILABLE
+  assistantAvailable: Boolean!
+  # Reads the page without asking the model anything. Refused with ASSISTANT_UNAVAILABLE when the channel doesn't show the assistant
+  assistantPage(page: String!): AssistantPage!
+}
+
+extend type Mutation {
+  # One turn with the shopping assistant: messages is the conversation so far, ending with the shopper's newest, cartId a guest's cart from their cookie (a signed-in customer's own cart is used regardless), and page the storefront path and query they're on. Refused with ASSISTANT_UNAVAILABLE when the channel doesn't show it, ASSISTANT_MESSAGE_INVALID for an empty or overlong message, and ASSISTANT_RATE_LIMITED or ASSISTANT_BUSY when asked too fast
+  # conversationId is the chat the storefront keeps, for a store that keeps transcripts to file the turn under. Send it only for a shopper who's signed in or agreed to analytics - without it nothing is kept
+  askShopAssistant(messages: [AssistantMessage!]!, cartId: ID, page: String, conversationId: ID): AssistantReply!
+}
+`, BuiltIn: false},
 	{Name: "../schema/front/blog.graphqls", Input: `enum BlogPostStatus {
   DRAFT
   SCHEDULED
@@ -10424,6 +10886,10 @@ type BrowseProductsResult {
   items:      [Product!]!
   totalCount: Int!
   facets:     [BrowseFacet!]!
+  # True when the query's words matched nothing and these are the products closest in meaning. Worth telling the shopper, and worth reporting apart from the searches the words answered
+  byMeaningOnly: Boolean!
+  # True when the store writes an AI overview for this search - meaning answered it, on a first page with no filters and the default sort. Ask searchOverview only then, so a search that gets none never waits on it
+  aiOverview: Boolean!
 }
 
 # One facet group keyed by the catalog attribute's slug. Each value bucket reports the count of products that would match if the user added that value to the current filter set (with the matching slug's active values excluded - Algolia-style "don't collapse my facet").
@@ -10943,6 +11409,23 @@ type ReferralInfo {
 extend type Query {
   # Requires a signed-in customer; mints the share code on first read.
   myReferral: ReferralInfo!
+}
+`, BuiltIn: false},
+	{Name: "../schema/front/deals.graphqls", Input: `# What's on offer at the store right now, for the storefront and shoppers' agents alike
+
+type StorePromotion {
+  # The merchant's public label, in the request's locale where it has one
+  label:  String!
+  terms:  String!
+  # When it ends, if it does
+  endsAt: Time
+}
+
+extend type Query {
+  # Automatic promotions running on this store that the shopper could get - the store, the time and a signed-in customer's group and segments are checked, while what only a cart settles, like a minimum spend, is left to the terms. Highest priority first. A code-only promotion isn't listed - its code is the shopper's to bring
+  storePromotions: [StorePromotion!]!
+  # Products selling below their strike-through price on this store right now, the biggest saving first - kept a minute at a time. limit has a default page and a cap, like the sale page's
+  saleProducts(limit: Int): [Product!]!
 }
 `, BuiltIn: false},
 	{Name: "../schema/front/downloads.graphqls", Input: `# Digital downloads the customer has access to (granted once an order with a downloadable product is paid or its card authorized, and expired if it is cancelled, voided or refunded). downloadUrl is the token-gated link the storefront points at; hitting it consumes one use and serves the file - streamed when it lives in our storage, redirected when it is hosted elsewhere.
@@ -11589,6 +12072,27 @@ scalar Int64
 type Query
 type Mutation
 `, BuiltIn: false},
+	{Name: "../schema/front/search_overview.graphqls", Input: `# A few sentences above a search's results, written from the products listed - only for a search the store's search page answers by meaning, while the store has its AI overview and its shopping assistant on
+type SearchOverview {
+  # Plain text in the shopper's language; [[n]] stands for the nth of products, for the storefront to show as that product's name and link
+  text:     String!
+  products: [SearchOverviewProduct!]!
+  # What a chat carried on from it should know it showed, in the assistant's own words for its earlier replies
+  recap:    String!
+}
+
+type SearchOverviewProduct {
+  id:   ID!
+  name: String!
+  # As Product.url - link to /<url>
+  url:  String!
+}
+
+extend type Query {
+  # Null when there's nothing to show: the overview is off, the search read as keywords its words answered, the assistant isn't available, or the shopper asked too fast. It reads the first page of the search with no filters, so ask only for that page. A new one can take a few seconds; asked again it comes from the cache
+  searchOverview(query: String!): SearchOverview
+}
+`, BuiltIn: false},
 	{Name: "../schema/front/sitemap.graphqls", Input: `# Catalog sitemap feeds for the storefront's chunked sitemap files. The backend owns which URLs are advertisable (published on the active channel, not seo_noindex, canonical path with channel overrides applied); the storefront only formats XML. Counts drive how many 45k-URL chunks each entity type needs.
 
 enum SitemapEntityType {
@@ -11920,6 +12424,98 @@ func (ec *executionContext) childFields_AppliedPromotionCode(ctx context.Context
 	return nil, fmt.Errorf("no field named %q was found under type AppliedPromotionCode", field.Name)
 }
 
+func (ec *executionContext) childFields_AssistantLink(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "label":
+		return ec.fieldContext_AssistantLink_label(ctx, field)
+	case "path":
+		return ec.fieldContext_AssistantLink_path(ctx, field)
+	case "query":
+		return ec.fieldContext_AssistantLink_query(ctx, field)
+	case "filters":
+		return ec.fieldContext_AssistantLink_filters(ctx, field)
+	case "sort":
+		return ec.fieldContext_AssistantLink_sort(ctx, field)
+	case "count":
+		return ec.fieldContext_AssistantLink_count(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AssistantLink", field.Name)
+}
+
+func (ec *executionContext) childFields_AssistantLinkFilter(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "slug":
+		return ec.fieldContext_AssistantLinkFilter_slug(ctx, field)
+	case "values":
+		return ec.fieldContext_AssistantLinkFilter_values(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AssistantLinkFilter", field.Name)
+}
+
+func (ec *executionContext) childFields_AssistantPage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "kind":
+		return ec.fieldContext_AssistantPage_kind(ctx, field)
+	case "title":
+		return ec.fieldContext_AssistantPage_title(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AssistantPage", field.Name)
+}
+
+func (ec *executionContext) childFields_AssistantPoint(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "title":
+		return ec.fieldContext_AssistantPoint_title(ctx, field)
+	case "detail":
+		return ec.fieldContext_AssistantPoint_detail(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AssistantPoint", field.Name)
+}
+
+func (ec *executionContext) childFields_AssistantProductDetail(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "productId":
+		return ec.fieldContext_AssistantProductDetail_productId(ctx, field)
+	case "summary":
+		return ec.fieldContext_AssistantProductDetail_summary(ctx, field)
+	case "highlights":
+		return ec.fieldContext_AssistantProductDetail_highlights(ctx, field)
+	case "goodFor":
+		return ec.fieldContext_AssistantProductDetail_goodFor(ctx, field)
+	case "keepInMind":
+		return ec.fieldContext_AssistantProductDetail_keepInMind(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AssistantProductDetail", field.Name)
+}
+
+func (ec *executionContext) childFields_AssistantReply(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "reply":
+		return ec.fieldContext_AssistantReply_reply(ctx, field)
+	case "incomplete":
+		return ec.fieldContext_AssistantReply_incomplete(ctx, field)
+	case "recap":
+		return ec.fieldContext_AssistantReply_recap(ctx, field)
+	case "followUps":
+		return ec.fieldContext_AssistantReply_followUps(ctx, field)
+	case "productIds":
+		return ec.fieldContext_AssistantReply_productIds(ctx, field)
+	case "detail":
+		return ec.fieldContext_AssistantReply_detail(ctx, field)
+	case "links":
+		return ec.fieldContext_AssistantReply_links(ctx, field)
+	case "navigate":
+		return ec.fieldContext_AssistantReply_navigate(ctx, field)
+	case "cartId":
+		return ec.fieldContext_AssistantReply_cartId(ctx, field)
+	case "cartChanged":
+		return ec.fieldContext_AssistantReply_cartChanged(ctx, field)
+	case "checkout":
+		return ec.fieldContext_AssistantReply_checkout(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AssistantReply", field.Name)
+}
+
 func (ec *executionContext) childFields_Attribute(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -12198,6 +12794,10 @@ func (ec *executionContext) childFields_BrowseProductsResult(ctx context.Context
 		return ec.fieldContext_BrowseProductsResult_totalCount(ctx, field)
 	case "facets":
 		return ec.fieldContext_BrowseProductsResult_facets(ctx, field)
+	case "byMeaningOnly":
+		return ec.fieldContext_BrowseProductsResult_byMeaningOnly(ctx, field)
+	case "aiOverview":
+		return ec.fieldContext_BrowseProductsResult_aiOverview(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type BrowseProductsResult", field.Name)
 }
@@ -14422,6 +15022,30 @@ func (ec *executionContext) childFields_SavedPaymentMethod(ctx context.Context, 
 	return nil, fmt.Errorf("no field named %q was found under type SavedPaymentMethod", field.Name)
 }
 
+func (ec *executionContext) childFields_SearchOverview(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "text":
+		return ec.fieldContext_SearchOverview_text(ctx, field)
+	case "products":
+		return ec.fieldContext_SearchOverview_products(ctx, field)
+	case "recap":
+		return ec.fieldContext_SearchOverview_recap(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SearchOverview", field.Name)
+}
+
+func (ec *executionContext) childFields_SearchOverviewProduct(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_SearchOverviewProduct_id(ctx, field)
+	case "name":
+		return ec.fieldContext_SearchOverviewProduct_name(ctx, field)
+	case "url":
+		return ec.fieldContext_SearchOverviewProduct_url(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SearchOverviewProduct", field.Name)
+}
+
 func (ec *executionContext) childFields_ShippingQuote(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "carrierSlug":
@@ -14470,6 +15094,18 @@ func (ec *executionContext) childFields_StoreFeatures(ctx context.Context, field
 		return ec.fieldContext_StoreFeatures_signals(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type StoreFeatures", field.Name)
+}
+
+func (ec *executionContext) childFields_StorePromotion(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "label":
+		return ec.fieldContext_StorePromotion_label(ctx, field)
+	case "terms":
+		return ec.fieldContext_StorePromotion_terms(ctx, field)
+	case "endsAt":
+		return ec.fieldContext_StorePromotion_endsAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type StorePromotion", field.Name)
 }
 
 func (ec *executionContext) childFields_SubmitWebFormResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -14783,6 +15419,44 @@ func (ec *executionContext) field_Mutation_applyGiftCard_args(ctx context.Contex
 		return nil, err
 	}
 	args["code"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_askShopAssistant_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "messages",
+		func(ctx context.Context, v any) ([]*model1.AssistantMessage, error) {
+			return ec.unmarshalNAssistantMessage2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAssistantMessageᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["messages"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "cartId",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOID2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["cartId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "page",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["page"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "conversationId",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOID2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["conversationId"] = arg3
 	return args, nil
 }
 
@@ -16110,6 +16784,20 @@ func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_assistantPage_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "page",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["page"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_attribute_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -16824,6 +17512,20 @@ func (ec *executionContext) field_Query_route_args(ctx context.Context, rawArgs 
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_saleProducts_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_searchBlogPosts_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -16851,6 +17553,20 @@ func (ec *executionContext) field_Query_searchBlogPosts_args(ctx context.Context
 		return nil, err
 	}
 	args["offset"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_searchOverview_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "query",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["query"] = arg0
 	return args, nil
 }
 
@@ -17793,6 +18509,695 @@ func (ec *executionContext) fieldContext_AppliedPromotionCode_freeGifts(_ contex
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _AssistantLink_label(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantLink_label(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Label, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantLink_label(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssistantLink", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AssistantLink_path(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantLink_path(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Path, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantLink_path(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssistantLink", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AssistantLink_query(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantLink_query(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Query, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantLink_query(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssistantLink", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AssistantLink_filters(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantLink_filters(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Filters, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model1.AssistantLinkFilter) graphql.Marshaler {
+			return ec.marshalNAssistantLinkFilter2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAssistantLinkFilterᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantLink_filters(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AssistantLink",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AssistantLinkFilter(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AssistantLink_sort(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantLink_sort(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Sort, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantLink_sort(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssistantLink", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AssistantLink_count(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantLink_count(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Count, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int32) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint32(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantLink_count(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssistantLink", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _AssistantLinkFilter_slug(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantLinkFilter) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantLinkFilter_slug(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Slug, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantLinkFilter_slug(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssistantLinkFilter", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AssistantLinkFilter_values(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantLinkFilter) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantLinkFilter_values(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Values, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantLinkFilter_values(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssistantLinkFilter", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AssistantPage_kind(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantPage_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantPage_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssistantPage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AssistantPage_title(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantPage_title(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Title, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantPage_title(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssistantPage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AssistantPoint_title(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantPoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantPoint_title(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Title, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantPoint_title(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssistantPoint", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AssistantPoint_detail(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantPoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantPoint_detail(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Detail, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantPoint_detail(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssistantPoint", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AssistantProductDetail_productId(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantProductDetail) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantProductDetail_productId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProductID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantProductDetail_productId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssistantProductDetail", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _AssistantProductDetail_summary(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantProductDetail) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantProductDetail_summary(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Summary, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantProductDetail_summary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssistantProductDetail", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AssistantProductDetail_highlights(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantProductDetail) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantProductDetail_highlights(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Highlights, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model1.AssistantPoint) graphql.Marshaler {
+			return ec.marshalNAssistantPoint2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAssistantPointᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantProductDetail_highlights(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AssistantProductDetail",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AssistantPoint(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AssistantProductDetail_goodFor(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantProductDetail) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantProductDetail_goodFor(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.GoodFor, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantProductDetail_goodFor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssistantProductDetail", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AssistantProductDetail_keepInMind(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantProductDetail) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantProductDetail_keepInMind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.KeepInMind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantProductDetail_keepInMind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssistantProductDetail", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AssistantReply_reply(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantReply) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantReply_reply(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Reply, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantReply_reply(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssistantReply", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AssistantReply_incomplete(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantReply) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantReply_incomplete(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Incomplete, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantReply_incomplete(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssistantReply", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _AssistantReply_recap(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantReply) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantReply_recap(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Recap, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantReply_recap(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssistantReply", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AssistantReply_followUps(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantReply) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantReply_followUps(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FollowUps, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantReply_followUps(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssistantReply", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AssistantReply_productIds(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantReply) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantReply_productIds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProductIds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNID2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantReply_productIds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssistantReply", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _AssistantReply_detail(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantReply) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantReply_detail(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Detail, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model1.AssistantProductDetail) graphql.Marshaler {
+			return ec.marshalOAssistantProductDetail2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAssistantProductDetail(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantReply_detail(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AssistantReply",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AssistantProductDetail(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AssistantReply_links(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantReply) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantReply_links(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Links, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model1.AssistantLink) graphql.Marshaler {
+			return ec.marshalNAssistantLink2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAssistantLinkᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantReply_links(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AssistantReply",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AssistantLink(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AssistantReply_navigate(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantReply) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantReply_navigate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Navigate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model1.AssistantLink) graphql.Marshaler {
+			return ec.marshalOAssistantLink2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAssistantLink(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantReply_navigate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AssistantReply",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AssistantLink(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AssistantReply_cartId(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantReply) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantReply_cartId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CartID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantReply_cartId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssistantReply", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _AssistantReply_cartChanged(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantReply) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantReply_cartChanged(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CartChanged, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantReply_cartChanged(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssistantReply", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _AssistantReply_checkout(ctx context.Context, field graphql.CollectedField, obj *model1.AssistantReply) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssistantReply_checkout(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Checkout, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssistantReply_checkout(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssistantReply", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _Attribute_id(ctx context.Context, field graphql.CollectedField, obj *model.Attribute) (ret graphql.Marshaler) {
@@ -20067,6 +21472,52 @@ func (ec *executionContext) fieldContext_BrowseProductsResult_facets(_ context.C
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _BrowseProductsResult_byMeaningOnly(ctx context.Context, field graphql.CollectedField, obj *model1.BrowseProductsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BrowseProductsResult_byMeaningOnly(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ByMeaningOnly, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BrowseProductsResult_byMeaningOnly(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BrowseProductsResult", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _BrowseProductsResult_aiOverview(ctx context.Context, field graphql.CollectedField, obj *model1.BrowseProductsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BrowseProductsResult_aiOverview(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AiOverview, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BrowseProductsResult_aiOverview(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BrowseProductsResult", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _BundleMembership_bundle(ctx context.Context, field graphql.CollectedField, obj *model1.BundleMembership) (ret graphql.Marshaler) {
@@ -30577,6 +32028,50 @@ func (ec *executionContext) fieldContext_MenuItem_children(_ context.Context, fi
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_askShopAssistant(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_askShopAssistant(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AskShopAssistant(ctx, fc.Args["messages"].([]*model1.AssistantMessage), fc.Args["cartId"].(*string), fc.Args["page"].(*string), fc.Args["conversationId"].(*string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model1.AssistantReply) graphql.Marshaler {
+			return ec.marshalNAssistantReply2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAssistantReply(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_askShopAssistant(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AssistantReply(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_askShopAssistant_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_openCartOffer(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -40689,6 +42184,73 @@ func (ec *executionContext) fieldContext_PublicStoresResult_totalCount(_ context
 	return graphql.NewScalarFieldContext("PublicStoresResult", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _Query_assistantAvailable(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_assistantAvailable(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().AssistantAvailable(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_assistantAvailable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Query_assistantPage(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_assistantPage(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().AssistantPage(ctx, fc.Args["page"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model1.AssistantPage) graphql.Marshaler {
+			return ec.marshalNAssistantPage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAssistantPage(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_assistantPage(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AssistantPage(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_assistantPage_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_blogPost(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -42748,6 +44310,82 @@ func (ec *executionContext) fieldContext_Query_myReferral(_ context.Context, fie
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_storePromotions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_storePromotions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().StorePromotions(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model1.StorePromotion) graphql.Marshaler {
+			return ec.marshalNStorePromotion2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐStorePromotionᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_storePromotions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_StorePromotion(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_saleProducts(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_saleProducts(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().SaleProducts(ctx, fc.Args["limit"].(*int32))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.Product) graphql.Marshaler {
+			return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐProductᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_saleProducts(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Product(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_saleProducts_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_myDownloads(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -43322,6 +44960,50 @@ func (ec *executionContext) fieldContext_Query_productQuestions(ctx context.Cont
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_productQuestions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_searchOverview(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_searchOverview(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().SearchOverview(ctx, fc.Args["query"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model1.SearchOverview) graphql.Marshaler {
+			return ec.marshalOSearchOverview2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐSearchOverview(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_searchOverview(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SearchOverview(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_searchOverview_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -45657,6 +47339,153 @@ func (ec *executionContext) fieldContext_SavedPaymentMethod_expYear(_ context.Co
 	return graphql.NewScalarFieldContext("SavedPaymentMethod", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _SearchOverview_text(ctx context.Context, field graphql.CollectedField, obj *model1.SearchOverview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SearchOverview_text(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Text, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SearchOverview_text(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SearchOverview", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SearchOverview_products(ctx context.Context, field graphql.CollectedField, obj *model1.SearchOverview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SearchOverview_products(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Products, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model1.SearchOverviewProduct) graphql.Marshaler {
+			return ec.marshalNSearchOverviewProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐSearchOverviewProductᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SearchOverview_products(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SearchOverview",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SearchOverviewProduct(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SearchOverview_recap(ctx context.Context, field graphql.CollectedField, obj *model1.SearchOverview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SearchOverview_recap(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Recap, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SearchOverview_recap(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SearchOverview", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SearchOverviewProduct_id(ctx context.Context, field graphql.CollectedField, obj *model1.SearchOverviewProduct) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SearchOverviewProduct_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SearchOverviewProduct_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SearchOverviewProduct", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _SearchOverviewProduct_name(ctx context.Context, field graphql.CollectedField, obj *model1.SearchOverviewProduct) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SearchOverviewProduct_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SearchOverviewProduct_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SearchOverviewProduct", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SearchOverviewProduct_url(ctx context.Context, field graphql.CollectedField, obj *model1.SearchOverviewProduct) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SearchOverviewProduct_url(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.URL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SearchOverviewProduct_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SearchOverviewProduct", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _ShippingQuote_carrierSlug(ctx context.Context, field graphql.CollectedField, obj *model1.ShippingQuote) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -45954,6 +47783,75 @@ func (ec *executionContext) _StoreFeatures_signals(ctx context.Context, field gr
 }
 func (ec *executionContext) fieldContext_StoreFeatures_signals(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("StoreFeatures", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _StorePromotion_label(ctx context.Context, field graphql.CollectedField, obj *model1.StorePromotion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StorePromotion_label(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Label, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StorePromotion_label(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StorePromotion", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _StorePromotion_terms(ctx context.Context, field graphql.CollectedField, obj *model1.StorePromotion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StorePromotion_terms(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Terms, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StorePromotion_terms(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StorePromotion", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _StorePromotion_endsAt(ctx context.Context, field graphql.CollectedField, obj *model1.StorePromotion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StorePromotion_endsAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EndsAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_StorePromotion_endsAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StorePromotion", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
 func (ec *executionContext) _SubmitWebFormResult_ok(ctx context.Context, field graphql.CollectedField, obj *model1.SubmitWebFormResult) (ret graphql.Marshaler) {
@@ -47712,6 +49610,50 @@ func (ec *executionContext) unmarshalInputAddressInput(ctx context.Context, obj 
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputAssistantMessage(ctx context.Context, obj any) (model1.AssistantMessage, error) {
+	var it model1.AssistantMessage
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"role", "content", "recap"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "role":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("role"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Role = data
+		case "content":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("content"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Content = data
+		case "recap":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("recap"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Recap = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputAttributeFilterInput(ctx context.Context, obj any) (model1.AttributeFilterInput, error) {
 	var it model1.AttributeFilterInput
 	if obj == nil {
@@ -48952,6 +50894,344 @@ func (ec *executionContext) _AppliedPromotionCode(ctx context.Context, sel ast.S
 	return out
 }
 
+var assistantLinkImplementors = []string{"AssistantLink"}
+
+func (ec *executionContext) _AssistantLink(ctx context.Context, sel ast.SelectionSet, obj *model1.AssistantLink) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, assistantLinkImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AssistantLink")
+		case "label":
+			out.Values[i] = ec._AssistantLink_label(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "path":
+			out.Values[i] = ec._AssistantLink_path(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "query":
+			out.Values[i] = ec._AssistantLink_query(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "filters":
+			out.Values[i] = ec._AssistantLink_filters(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sort":
+			out.Values[i] = ec._AssistantLink_sort(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "count":
+			out.Values[i] = ec._AssistantLink_count(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var assistantLinkFilterImplementors = []string{"AssistantLinkFilter"}
+
+func (ec *executionContext) _AssistantLinkFilter(ctx context.Context, sel ast.SelectionSet, obj *model1.AssistantLinkFilter) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, assistantLinkFilterImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AssistantLinkFilter")
+		case "slug":
+			out.Values[i] = ec._AssistantLinkFilter_slug(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "values":
+			out.Values[i] = ec._AssistantLinkFilter_values(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var assistantPageImplementors = []string{"AssistantPage"}
+
+func (ec *executionContext) _AssistantPage(ctx context.Context, sel ast.SelectionSet, obj *model1.AssistantPage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, assistantPageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AssistantPage")
+		case "kind":
+			out.Values[i] = ec._AssistantPage_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "title":
+			out.Values[i] = ec._AssistantPage_title(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var assistantPointImplementors = []string{"AssistantPoint"}
+
+func (ec *executionContext) _AssistantPoint(ctx context.Context, sel ast.SelectionSet, obj *model1.AssistantPoint) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, assistantPointImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AssistantPoint")
+		case "title":
+			out.Values[i] = ec._AssistantPoint_title(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "detail":
+			out.Values[i] = ec._AssistantPoint_detail(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var assistantProductDetailImplementors = []string{"AssistantProductDetail"}
+
+func (ec *executionContext) _AssistantProductDetail(ctx context.Context, sel ast.SelectionSet, obj *model1.AssistantProductDetail) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, assistantProductDetailImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AssistantProductDetail")
+		case "productId":
+			out.Values[i] = ec._AssistantProductDetail_productId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "summary":
+			out.Values[i] = ec._AssistantProductDetail_summary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "highlights":
+			out.Values[i] = ec._AssistantProductDetail_highlights(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "goodFor":
+			out.Values[i] = ec._AssistantProductDetail_goodFor(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "keepInMind":
+			out.Values[i] = ec._AssistantProductDetail_keepInMind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var assistantReplyImplementors = []string{"AssistantReply"}
+
+func (ec *executionContext) _AssistantReply(ctx context.Context, sel ast.SelectionSet, obj *model1.AssistantReply) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, assistantReplyImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AssistantReply")
+		case "reply":
+			out.Values[i] = ec._AssistantReply_reply(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "incomplete":
+			out.Values[i] = ec._AssistantReply_incomplete(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "recap":
+			out.Values[i] = ec._AssistantReply_recap(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "followUps":
+			out.Values[i] = ec._AssistantReply_followUps(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "productIds":
+			out.Values[i] = ec._AssistantReply_productIds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "detail":
+			out.Values[i] = ec._AssistantReply_detail(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "links":
+			out.Values[i] = ec._AssistantReply_links(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "navigate":
+			out.Values[i] = ec._AssistantReply_navigate(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "cartId":
+			out.Values[i] = ec._AssistantReply_cartId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "cartChanged":
+			out.Values[i] = ec._AssistantReply_cartChanged(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "checkout":
+			out.Values[i] = ec._AssistantReply_checkout(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var attributeImplementors = []string{"Attribute"}
 
 func (ec *executionContext) _Attribute(ctx context.Context, sel ast.SelectionSet, obj *model.Attribute) graphql.Marshaler {
@@ -49954,6 +52234,16 @@ func (ec *executionContext) _BrowseProductsResult(ctx context.Context, sel ast.S
 			}
 		case "facets":
 			out.Values[i] = ec._BrowseProductsResult_facets(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "byMeaningOnly":
+			out.Values[i] = ec._BrowseProductsResult_byMeaningOnly(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "aiOverview":
+			out.Values[i] = ec._BrowseProductsResult_aiOverview(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -54506,6 +56796,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Mutation")
+		case "askShopAssistant":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_askShopAssistant(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "openCartOffer":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_openCartOffer(ctx, field)
@@ -59140,6 +61437,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Query")
+		case "assistantAvailable":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_assistantAvailable(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "assistantPage":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_assistantPage(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "blogPost":
 			field := field
 
@@ -60306,6 +62647,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "storePromotions":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_storePromotions(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "saleProducts":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_saleProducts(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "myDownloads":
 			field := field
 
@@ -60603,6 +62988,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				}()
 				res = ec._Query_productQuestions(ctx, field)
 				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "searchOverview":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_searchOverview(ctx, field)
+				if res == graphql.RequiredNull {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
 				return res
@@ -62044,6 +64451,102 @@ func (ec *executionContext) _SavedPaymentMethod(ctx context.Context, sel ast.Sel
 	return out
 }
 
+var searchOverviewImplementors = []string{"SearchOverview"}
+
+func (ec *executionContext) _SearchOverview(ctx context.Context, sel ast.SelectionSet, obj *model1.SearchOverview) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, searchOverviewImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SearchOverview")
+		case "text":
+			out.Values[i] = ec._SearchOverview_text(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "products":
+			out.Values[i] = ec._SearchOverview_products(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "recap":
+			out.Values[i] = ec._SearchOverview_recap(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var searchOverviewProductImplementors = []string{"SearchOverviewProduct"}
+
+func (ec *executionContext) _SearchOverviewProduct(ctx context.Context, sel ast.SelectionSet, obj *model1.SearchOverviewProduct) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, searchOverviewProductImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SearchOverviewProduct")
+		case "id":
+			out.Values[i] = ec._SearchOverviewProduct_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._SearchOverviewProduct_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "url":
+			out.Values[i] = ec._SearchOverviewProduct_url(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var shippingQuoteImplementors = []string{"ShippingQuote"}
 
 func (ec *executionContext) _ShippingQuote(ctx context.Context, sel ast.SelectionSet, obj *model1.ShippingQuote) graphql.Marshaler {
@@ -62218,6 +64721,54 @@ func (ec *executionContext) _StoreFeatures(ctx context.Context, sel ast.Selectio
 		case "signals":
 			out.Values[i] = ec._StoreFeatures_signals(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var storePromotionImplementors = []string{"StorePromotion"}
+
+func (ec *executionContext) _StorePromotion(ctx context.Context, sel ast.SelectionSet, obj *model1.StorePromotion) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, storePromotionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("StorePromotion")
+		case "label":
+			out.Values[i] = ec._StorePromotion_label(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "terms":
+			out.Values[i] = ec._StorePromotion_terms(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "endsAt":
+			out.Values[i] = ec._StorePromotion_endsAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:
@@ -63023,6 +65574,131 @@ func (ec *executionContext) marshalNAppliedPromotionCode2ᚖgithubᚗcomᚋskele
 		return graphql.Null
 	}
 	return ec._AppliedPromotionCode(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAssistantLink2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAssistantLinkᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.AssistantLink) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAssistantLink2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAssistantLink(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAssistantLink2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAssistantLink(ctx context.Context, sel ast.SelectionSet, v *model1.AssistantLink) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AssistantLink(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAssistantLinkFilter2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAssistantLinkFilterᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.AssistantLinkFilter) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAssistantLinkFilter2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAssistantLinkFilter(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAssistantLinkFilter2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAssistantLinkFilter(ctx context.Context, sel ast.SelectionSet, v *model1.AssistantLinkFilter) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AssistantLinkFilter(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNAssistantMessage2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAssistantMessageᚄ(ctx context.Context, v any) ([]*model1.AssistantMessage, error) {
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]*model1.AssistantMessage, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNAssistantMessage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAssistantMessage(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalNAssistantMessage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAssistantMessage(ctx context.Context, v any) (*model1.AssistantMessage, error) {
+	res, err := ec.unmarshalInputAssistantMessage(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNAssistantPage2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAssistantPage(ctx context.Context, sel ast.SelectionSet, v model1.AssistantPage) graphql.Marshaler {
+	return ec._AssistantPage(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNAssistantPage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAssistantPage(ctx context.Context, sel ast.SelectionSet, v *model1.AssistantPage) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AssistantPage(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAssistantPoint2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAssistantPointᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.AssistantPoint) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAssistantPoint2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAssistantPoint(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAssistantPoint2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAssistantPoint(ctx context.Context, sel ast.SelectionSet, v *model1.AssistantPoint) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AssistantPoint(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAssistantReply2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAssistantReply(ctx context.Context, sel ast.SelectionSet, v model1.AssistantReply) graphql.Marshaler {
+	return ec._AssistantReply(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNAssistantReply2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAssistantReply(ctx context.Context, sel ast.SelectionSet, v *model1.AssistantReply) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AssistantReply(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNAttribute2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAttribute(ctx context.Context, sel ast.SelectionSet, v model.Attribute) graphql.Marshaler {
@@ -66044,6 +68720,32 @@ func (ec *executionContext) marshalNSavedPaymentMethod2ᚖgithubᚗcomᚋskeletg
 	return ec._SavedPaymentMethod(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNSearchOverviewProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐSearchOverviewProductᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.SearchOverviewProduct) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNSearchOverviewProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐSearchOverviewProduct(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNSearchOverviewProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐSearchOverviewProduct(ctx context.Context, sel ast.SelectionSet, v *model1.SearchOverviewProduct) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SearchOverviewProduct(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNShippingQuote2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐShippingQuoteᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.ShippingQuote) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -66132,6 +68834,32 @@ func (ec *executionContext) marshalNStoreFeatures2ᚖgithubᚗcomᚋskeletgᚋsk
 		return graphql.Null
 	}
 	return ec._StoreFeatures(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNStorePromotion2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐStorePromotionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.StorePromotion) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNStorePromotion2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐStorePromotion(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNStorePromotion2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐStorePromotion(ctx context.Context, sel ast.SelectionSet, v *model1.StorePromotion) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._StorePromotion(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) (string, error) {
@@ -66504,6 +69232,20 @@ func (ec *executionContext) unmarshalOAddressInput2ᚖgithubᚗcomᚋskeletgᚋs
 	}
 	res, err := ec.unmarshalInputAddressInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOAssistantLink2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAssistantLink(ctx context.Context, sel ast.SelectionSet, v *model1.AssistantLink) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._AssistantLink(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOAssistantProductDetail2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAssistantProductDetail(ctx context.Context, sel ast.SelectionSet, v *model1.AssistantProductDetail) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._AssistantProductDetail(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOAttributeFilterInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAttributeFilterInputᚄ(ctx context.Context, v any) ([]*model1.AttributeFilterInput, error) {
@@ -67050,6 +69792,13 @@ func (ec *executionContext) marshalORouteResolution2ᚖgithubᚗcomᚋskeletgᚋ
 		return graphql.Null
 	}
 	return ec._RouteResolution(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOSearchOverview2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐSearchOverview(ctx context.Context, sel ast.SelectionSet, v *model1.SearchOverview) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._SearchOverview(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOShippingQuote2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐShippingQuote(ctx context.Context, sel ast.SelectionSet, v *model1.ShippingQuote) graphql.Marshaler {

@@ -36,6 +36,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/search"
 	"github.com/skeletg/skelet/apps/backend/core/internal/searchmerch"
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
+	"github.com/skeletg/skelet/apps/backend/core/internal/shoptools"
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
@@ -48,6 +49,7 @@ import (
 
 // Admin-only services (admin.Service, integration, webhook, inventory writes, …) are deliberately absent so a mis-typed front resolver can't reach an admin code path
 type Resolver struct {
+	ShopAssistant        *shoptools.Service
 	CustomerSvc          *customer.Service
 	StoreCreditSvc       *storecredit.Service
 	GiftcardSvc          *giftcard.Service
@@ -80,6 +82,7 @@ type Resolver struct {
 	WishlistSvc          *wishlist.Service
 	MenuSvc              *menu.Service
 	ProductSearch        search.Engine           // the Engine interface, not the OpenSearch indexer - main wires a tier that falls back to Postgres, so the resolver never branches on availability
+	ProductBrowse        *search.Hybrid          // listings with search by meaning blended in - nil lists through ProductSearch alone
 	BlogPostSearch       *search.BlogPostIndexer // the indexer doubles as the read handle; optional - nil means the search resolvers return empty results because the cluster is off or was unavailable at boot
 	AttributeCache       *search.AttributeCache
 	Metadata             *MetadataCache
