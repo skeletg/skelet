@@ -164,15 +164,21 @@ func (s *Service) SetShares(ctx context.Context, channelID uuid.UUID, a Actor, i
 
 // Transfer hands the board to another admin, or with uuid.Nil makes it a shop board everyone on the shop sees and its
 // managers run - which takes boards.manage. Only whoever owns it may: its owner, a superuser (an orphaned board is
-// handed on this way), or a manager on a shop board. Core checks the new owner is an active admin
+// handed on this way), or a manager on a shop board. Core checks the new owner is an active admin. An owner who hands
+// their board to someone else stays on it as an editor, the way a shared document works
 func (s *Service) Transfer(ctx context.Context, channelID uuid.UUID, a Actor, id, to uuid.UUID) error {
-	if _, _, err := s.load(ctx, channelID, a, id, Own); err != nil {
+	b, _, err := s.load(ctx, channelID, a, id, Own)
+	if err != nil {
 		return err
 	}
 	if to == uuid.Nil && !a.CanManage && !a.Superuser {
 		return ErrForbidden
 	}
-	return s.r.setOwner(ctx, channelID, id, to)
+	var keep uuid.UUID
+	if to != uuid.Nil && b.OwnerID == a.AdminID && to != a.AdminID {
+		keep = a.AdminID
+	}
+	return s.r.setOwner(ctx, channelID, id, to, keep)
 }
 
 // RequestAccess asks the board's owner for a level on it. It answers nil whether or not the board exists on the shop,

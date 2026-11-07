@@ -173,7 +173,8 @@ func (r *repo) setShares(ctx context.Context, boardID, by uuid.UUID, shares []Sh
 
 // setOwner hands the board to an admin - whose own share goes, since they own it now - or with uuid.Nil makes it a
 // shop board, whose shares all go since everyone sees it
-func (r *repo) setOwner(ctx context.Context, channelID, boardID, owner uuid.UUID) error {
+// setOwner hands the board on; keep, when set, is the admin who gave it away, left on it as an editor
+func (r *repo) setOwner(ctx context.Context, channelID, boardID, owner, keep uuid.UUID) error {
 	return r.inTx(ctx, func(q *db.Queries) error {
 		if _, err := q.SetBoardOwner(ctx, db.SetBoardOwnerParams{ID: boardID, ChannelID: channelID, OwnerAdminID: nullID(owner)}); err != nil {
 			return err
@@ -181,7 +182,13 @@ func (r *repo) setOwner(ctx context.Context, channelID, boardID, owner uuid.UUID
 		if owner == uuid.Nil {
 			return q.ClearBoardShares(ctx, boardID)
 		}
-		return q.RemoveBoardAdminShare(ctx, db.RemoveBoardAdminShareParams{BoardID: boardID, AdminID: nullID(owner)})
+		if err := q.RemoveBoardAdminShare(ctx, db.RemoveBoardAdminShareParams{BoardID: boardID, AdminID: nullID(owner)}); err != nil {
+			return err
+		}
+		if keep == uuid.Nil {
+			return nil
+		}
+		return q.AddBoardShare(ctx, db.AddBoardShareParams{BoardID: boardID, AdminID: nullID(keep), Level: ShareEdit, CreatedBy: keep})
 	})
 }
 

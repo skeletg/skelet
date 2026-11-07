@@ -238,11 +238,17 @@ func TestTransferringABoard(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := svc.Get(ctx, shop, manager, b.ID)
-	if err != nil || got.OwnerID != manager.AdminID || len(got.Shares) != 0 {
-		t.Fatalf("handed over = owner %s shares %+v, %v - want the manager's, without their old share", got.OwnerID, got.Shares, err)
+	if err != nil || got.OwnerID != manager.AdminID || len(got.Shares) != 1 || got.Shares[0].AdminID != me.AdminID || got.Shares[0].Level != ShareEdit {
+		t.Fatalf("handed over = owner %s shares %+v, %v - want the manager's, without their old share, and the giver as an editor", got.OwnerID, got.Shares, err)
 	}
-	if _, err := svc.Get(ctx, shop, me, b.ID); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("the old owner still opens a private board they gave away: %v", err)
+	if mine, err := svc.Get(ctx, shop, me, b.ID); err != nil || mine.Access != Edit {
+		t.Fatalf("the old owner after handing it over = %+v, %v - want to edit it still", mine.Access, err)
+	}
+	if err := svc.Transfer(ctx, shop, Actor{AdminID: uuid.New(), Superuser: true}, b.ID, me.AdminID); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ = svc.Get(ctx, shop, me, b.ID); len(got.Shares) != 0 {
+		t.Fatalf("a superuser moving a board left a share behind: %+v - only an owner giving it away stays on it", got.Shares)
 	}
 
 	su := Actor{AdminID: uuid.New(), Superuser: true} // how an orphaned board is handed on
