@@ -40275,7 +40275,8 @@ extend type Mutation {
   setBoardShares(channelId: ID!, id: ID!, shares: [BoardShareInput!]!): Board!
   # Hands the board to another active admin with boards.view here, or with no ownerId makes it a shop board everyone on
   # the shop sees and its managers run. For whoever owns it: its owner, a superuser (how an orphaned board is handed
-  # on), or boards.manage on a shop board. Answers no board, since the caller may no longer be able to open it
+  # on), or boards.manage on a shop board. An owner handing it to someone else stays on it as an editor. Answers no
+  # board, since the caller may no longer be able to open it
   transferBoard(channelId: ID!, id: ID!, ownerId: ID): Boolean!
   setBoardFavourite(channelId: ID!, id: ID!, favourite: Boolean!): Boolean!
   # Keeps the caller's unsaved edits between visits; answers when they were kept

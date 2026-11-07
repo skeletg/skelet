@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { SLOW, renderDialog } from '@/test/page-harness'
-import { BoardShareTargetsDocument, SetBoardSharesDocument, type BoardFullFragment } from './Boards.gql'
+import { BoardShareTargetsDocument, SetBoardSharesDocument, TransferBoardDocument, type BoardFullFragment } from './Boards.gql'
 import { ShareDialog, shareWarning } from './ShareDialog'
 
 const board = {
@@ -31,7 +31,7 @@ describe('shareWarning', () => {
 describe('ShareDialog', () => {
   it('shares read-only with a role and sends exactly that', async () => {
     let sent: Record<string, unknown> | null = null
-    renderDialog(<ShareDialog channelId="c1" shop="Main" board={board} onClose={() => {}} />, [
+    renderDialog(<ShareDialog channelId="c1" shop="Main" board={board} canManage={false} onClose={() => {}} />, [
       {
         request: { query: BoardShareTargetsDocument, variables: { channelId: 'c1' } },
         result: { data: { boardShareTargets: [target('admin', 'me', 'Ada'), target('role', 'mkt', 'Marketing', true, false)] } },
@@ -60,7 +60,7 @@ describe('ShareDialog', () => {
   it("starts from the board's shares, so adding someone keeps everyone it's already shared with", async () => {
     let sent: Record<string, unknown> | null = null
     const shared = { ...board, shares: [{ __typename: 'BoardShare', adminId: 'bo', roleId: null, name: 'Bo', level: 'EDIT' as const }] }
-    renderDialog(<ShareDialog channelId="c1" shop="Main" board={shared} onClose={() => {}} />, [
+    renderDialog(<ShareDialog channelId="c1" shop="Main" board={shared} canManage={false} onClose={() => {}} />, [
       {
         request: { query: BoardShareTargetsDocument, variables: { channelId: 'c1' } },
         result: { data: { boardShareTargets: [target('admin', 'bo', 'Bo'), target('role', 'mkt', 'Marketing')] } },
@@ -84,5 +84,38 @@ describe('ShareDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save sharing' }))
     await waitFor(() => expect(sent).not.toBeNull(), SLOW)
     expect(sent).toMatchObject({ shares: [{ adminId: 'bo', roleId: null, level: 'EDIT' }, { adminId: null, roleId: 'mkt', level: 'VIEW' }] })
+  })
+
+  it('makes a board a shop board, for someone who manages boards, and back with an owner picked first', async () => {
+    const sent: Record<string, unknown>[] = []
+    const transferMock = {
+      request: {
+        query: TransferBoardDocument,
+        variables: (v: Record<string, unknown>) => {
+          sent.push(v)
+          return true
+        },
+      },
+      result: { data: { transferBoard: true } },
+      maxUsageCount: 2,
+    }
+    const targets = { request: { query: BoardShareTargetsDocument, variables: { channelId: 'c1' } }, result: { data: { boardShareTargets: [target('admin', 'bo', 'Bo')] } }, maxUsageCount: 2 }
+    const view = renderDialog(<ShareDialog channelId="c1" shop="Main" board={board} canManage onClose={() => {}} />, [targets, transferMock])
+    fireEvent.change(await screen.findByRole('combobox', { name: 'General access' }, SLOW), { target: { value: 'shop' } })
+    expect(screen.queryByRole('combobox', { name: 'Share with' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Save sharing' }))
+    await waitFor(() => expect(sent).toEqual([{ channelId: 'c1', id: 'b1', ownerId: null }]), SLOW)
+    view.unmount()
+
+    const shopBoard = { ...board, owner: null } as unknown as BoardFullFragment
+    renderDialog(<ShareDialog channelId="c1" shop="Main" board={shopBoard} canManage onClose={() => {}} />, [targets, transferMock])
+    fireEvent.change(await screen.findByRole('combobox', { name: 'General access' }, SLOW), { target: { value: 'people' } })
+    expect(screen.getByRole('button', { name: 'Save sharing' })).toHaveProperty('disabled', true) // nobody owns it yet
+    const owner = screen.getByRole('combobox', { name: 'Owner' })
+    await waitFor(() => expect(within(owner).queryByRole('option', { name: 'Bo' })).toBeTruthy())
+    fireEvent.change(owner, { target: { value: 'bo' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save sharing' }))
+    await waitFor(() => expect(sent[1]).toEqual({ channelId: 'c1', id: 'b1', ownerId: 'bo' }), SLOW)
   })
 })
