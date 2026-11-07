@@ -88,6 +88,7 @@ func (e *PostgresEngine) BrowseProducts(ctx context.Context, channelID uuid.UUID
 		PriceMinCents: filter.PriceMinCents,
 		PriceMaxCents: filter.PriceMaxCents,
 		Kinds:         filter.Kinds,
+		ProductIDs:    filter.ProductIDs,
 		AttrValueIDs:  allValues,
 		AttrCount:     int32(len(selected)),
 		Sort:          fallbackSortKey(sortSlug),
@@ -97,11 +98,11 @@ func (e *PostgresEngine) BrowseProducts(ctx context.Context, channelID uuid.UUID
 	if err != nil {
 		return BrowseResult{}, err
 	}
-	return BrowseResult{
-		IDs:    ids,
-		Total:  total,
-		Facets: e.buildFacets(ctx, channelID, locale, query, filter, filterable, selected),
-	}, nil
+	res := BrowseResult{IDs: ids, Total: total}
+	if !filter.NoFacets {
+		res.Facets = e.buildFacets(ctx, channelID, locale, query, filter, filterable, selected)
+	}
+	return res, nil
 }
 
 // The storefront speaks URL slugs ("price-asc") and an operator can rename them in config; the fallback SQL matches its own fixed vocabulary. Passing the slug through untranslated meant NO branch ever matched, so every sort on this tier - the one production runs by default - silently served created_at DESC. Underscores are accepted too, since the SQL's own vocabulary is spelled that way
@@ -186,6 +187,7 @@ func (e *PostgresEngine) buildFacets(
 			CategoryID:    filter.CategoryID,
 			CollectionID:  filter.CollectionID,
 			Kinds:         filter.Kinds,
+			ProductIDs:    filter.ProductIDs,
 			OtherSelected: others,
 		})
 		if err != nil || len(buckets) == 0 {
