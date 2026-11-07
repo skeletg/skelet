@@ -18,8 +18,9 @@ type repo struct {
 	q    *db.Queries
 }
 
-func (r *repo) list(ctx context.Context, channelID uuid.UUID) ([]Summary, error) {
-	rows, err := r.q.ListBoards(ctx, channelID)
+// list is the shop's boards, each with what this admin has on it - access is worked out by the caller, from the shares
+func (r *repo) list(ctx context.Context, channelID, adminID uuid.UUID) ([]Summary, error) {
+	rows, err := r.q.ListBoards(ctx, db.ListBoardsParams{ChannelID: channelID, AdminID: adminID})
 	if err != nil {
 		return nil, err
 	}
@@ -27,7 +28,7 @@ func (r *repo) list(ctx context.Context, channelID uuid.UUID) ([]Summary, error)
 	for _, row := range rows {
 		out = append(out, Summary{
 			ID: row.ID, Name: row.Name, UpdatedAt: row.UpdatedAt, ReportCount: int(row.ReportCount),
-			OwnerID: row.OwnerAdminID.UUID,
+			OwnerID: row.OwnerAdminID.UUID, Favourite: row.Favourite, DraftAt: row.DraftUpdatedAt.Time, RequestCount: int(row.RequestCount),
 		})
 	}
 	return out, nil
@@ -184,16 +185,8 @@ func (r *repo) setOwner(ctx context.Context, channelID, boardID, owner uuid.UUID
 	})
 }
 
-func (r *repo) favourites(ctx context.Context, adminID uuid.UUID) (map[uuid.UUID]bool, error) {
-	ids, err := r.q.AdminFavouriteBoards(ctx, adminID)
-	if err != nil {
-		return nil, err
-	}
-	out := make(map[uuid.UUID]bool, len(ids))
-	for _, id := range ids {
-		out[id] = true
-	}
-	return out, nil
+func (r *repo) isFavourite(ctx context.Context, adminID, boardID uuid.UUID) (bool, error) {
+	return r.q.IsBoardFavourite(ctx, db.IsBoardFavouriteParams{AdminID: adminID, BoardID: boardID})
 }
 
 func (r *repo) setFavourite(ctx context.Context, adminID, boardID uuid.UUID, on bool) error {
@@ -201,18 +194,6 @@ func (r *repo) setFavourite(ctx context.Context, adminID, boardID uuid.UUID, on 
 		return r.q.AddBoardFavourite(ctx, db.AddBoardFavouriteParams{AdminID: adminID, BoardID: boardID})
 	}
 	return r.q.RemoveBoardFavourite(ctx, db.RemoveBoardFavouriteParams{AdminID: adminID, BoardID: boardID})
-}
-
-func (r *repo) draftTimes(ctx context.Context, adminID uuid.UUID) (map[uuid.UUID]time.Time, error) {
-	rows, err := r.q.AdminDraftBoards(ctx, adminID)
-	if err != nil {
-		return nil, err
-	}
-	out := make(map[uuid.UUID]time.Time, len(rows))
-	for _, row := range rows {
-		out[row.BoardID] = row.UpdatedAt
-	}
-	return out, nil
 }
 
 func (r *repo) draft(ctx context.Context, boardID, adminID uuid.UUID) (*Draft, error) {
@@ -255,18 +236,6 @@ func (r *repo) requests(ctx context.Context, boardID uuid.UUID) ([]AccessRequest
 	out := make([]AccessRequest, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, AccessRequest{AdminID: row.AdminID, Level: row.Level, RequestedAt: row.CreatedAt})
-	}
-	return out, nil
-}
-
-func (r *repo) requestCounts(ctx context.Context, channelID uuid.UUID) (map[uuid.UUID]int, error) {
-	rows, err := r.q.ChannelBoardAccessRequestCounts(ctx, channelID)
-	if err != nil {
-		return nil, err
-	}
-	out := make(map[uuid.UUID]int, len(rows))
-	for _, row := range rows {
-		out[row.BoardID] = int(row.N)
 	}
 	return out, nil
 }

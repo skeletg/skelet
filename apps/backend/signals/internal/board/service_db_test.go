@@ -346,6 +346,13 @@ func TestRequestingAccessToABoard(t *testing.T) {
 	if list, _ := svc.List(ctx, shop, me, false); len(list) != 1 || list[0].RequestCount != 1 {
 		t.Fatalf("the owner's list = %+v, want one request on the board", list)
 	}
+	colleague := Actor{AdminID: uuid.New()}
+	if _, err := svc.SetShares(ctx, shop, me, b.ID, []Share{{AdminID: colleague.AdminID, Level: ShareEdit}}); err != nil {
+		t.Fatal(err)
+	}
+	if list, _ := svc.List(ctx, shop, colleague, false); len(list) != 1 || list[0].RequestCount != 0 {
+		t.Fatalf("an editor's list = %+v, want the board without its requests - they're the owner's", list)
+	}
 	got, err := svc.Get(ctx, shop, me, b.ID)
 	if err != nil || len(got.Requests) != 1 || got.Requests[0].AdminID != asker.AdminID || got.Requests[0].Level != ShareEdit {
 		t.Fatalf("requests = %+v, %v - want the asker's, for edit", got.Requests, err)

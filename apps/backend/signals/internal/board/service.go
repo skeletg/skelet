@@ -20,23 +20,11 @@ func NewService(conn *sql.DB) *Service { return &Service{r: &repo{conn: conn, q:
 // List is the shop's boards the actor can open, each with their access to it, their star and their draft. all widens
 // a superuser's list to every board on the shop - without it they see what they'd see as themselves
 func (s *Service) List(ctx context.Context, channelID uuid.UUID, a Actor, all bool) ([]Summary, error) {
-	bs, err := s.r.list(ctx, channelID)
+	bs, err := s.r.list(ctx, channelID, a.AdminID)
 	if err != nil {
 		return nil, err
 	}
 	shares, err := s.r.channelShares(ctx, channelID)
-	if err != nil {
-		return nil, err
-	}
-	favs, err := s.r.favourites(ctx, a.AdminID)
-	if err != nil {
-		return nil, err
-	}
-	drafts, err := s.r.draftTimes(ctx, a.AdminID)
-	if err != nil {
-		return nil, err
-	}
-	requests, err := s.r.requestCounts(ctx, channelID)
 	if err != nil {
 		return nil, err
 	}
@@ -50,9 +38,8 @@ func (s *Service) List(ctx context.Context, channelID uuid.UUID, a Actor, all bo
 			continue
 		}
 		b.Access = access(b.Ownership, shares[b.ID], a)
-		b.Favourite, b.DraftAt = favs[b.ID], drafts[b.ID]
-		if b.Access == Own {
-			b.RequestCount = requests[b.ID]
+		if b.Access != Own {
+			b.RequestCount = 0 // who asked for access is the owner's business
 		}
 		out = append(out, b)
 	}
@@ -72,11 +59,9 @@ func (s *Service) Get(ctx context.Context, channelID uuid.UUID, a Actor, id uuid
 		}
 		b.RequestCount = len(b.Requests)
 	}
-	favs, err := s.r.favourites(ctx, a.AdminID)
-	if err != nil {
+	if b.Favourite, err = s.r.isFavourite(ctx, a.AdminID, id); err != nil {
 		return Board{}, err
 	}
-	b.Favourite = favs[b.ID]
 	if b.Access >= Edit {
 		if b.Draft, err = s.r.draft(ctx, b.ID, a.AdminID); err != nil {
 			return Board{}, err
