@@ -373,12 +373,22 @@ func (s *lensServer) GetSearchAnalytics(ctx context.Context, req *signalsv1.GetS
 	}
 	daily := make([]*signalsv1.LensSearchDay, 0, len(sa.Daily))
 	for _, d := range sa.Daily {
-		daily = append(daily, &signalsv1.LensSearchDay{Date: d.Date, Searches: count32(d.Searches), ZeroResults: count32(d.ZeroResults)})
+		daily = append(daily, &signalsv1.LensSearchDay{Date: d.Date, Searches: count32(d.Searches), ZeroResults: count32(d.ZeroResults), MeaningOnly: count32(d.MeaningOnly)})
+	}
+	gaps := make([]*signalsv1.LensAISearchGap, 0, len(sa.AIGaps))
+	for _, g := range sa.AIGaps {
+		gaps = append(gaps, &signalsv1.LensAISearchGap{Term: g.Term, Assistant: count32(g.Assistant), Agents: count32(g.Agents)})
+	}
+	overviews := make([]*signalsv1.LensOverviewTerm, 0, len(sa.Overviews))
+	for _, o := range sa.Overviews {
+		overviews = append(overviews, &signalsv1.LensOverviewTerm{Term: o.Term, Shown: count32(o.Shown), Clicks: count32(o.Clicks), Chats: count32(o.Chats)})
 	}
 	return &signalsv1.GetSearchAnalyticsResponse{
 		TotalSearches: count32(sa.TotalSearches), DistinctTerms: count32(sa.DistinctTerms),
-		ZeroResultSearches: count32(sa.ZeroResultSearches),
-		Top:                searchTerms(sa.Top), ZeroResult: searchTerms(sa.ZeroResult), Daily: daily,
+		ZeroResultSearches: count32(sa.ZeroResultSearches), MeaningOnlySearches: count32(sa.MeaningOnlySearches),
+		Top: searchTerms(sa.Top), ZeroResult: searchTerms(sa.ZeroResult), MeaningOnly: searchTerms(sa.MeaningOnly), Daily: daily,
+		AiGaps: gaps, OverviewsShown: count32(sa.OverviewsShown), OverviewClicks: count32(sa.OverviewClicks), OverviewChats: count32(sa.OverviewChats),
+		Overviews: overviews,
 	}, nil
 }
 

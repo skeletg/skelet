@@ -13,6 +13,30 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+type AiActivitySeen struct {
+	DedupeKey string    `json:"dedupe_key"`
+	SeenAt    time.Time `json:"seen_at"`
+}
+
+type AiSearchDaily struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	Day       time.Time `json:"day"`
+	Source    string    `json:"source"`
+	Agent     string    `json:"agent"`
+	Term      string    `json:"term"`
+	Searches  int64     `json:"searches"`
+	Empty     int64     `json:"empty"`
+}
+
+type AiToolDaily struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	Day       time.Time `json:"day"`
+	Source    string    `json:"source"`
+	Agent     string    `json:"agent"`
+	Tool      string    `json:"tool"`
+	Calls     int64     `json:"calls"`
+}
+
 type AnalyticsTrafficRollup struct {
 	ChannelID   uuid.UUID `json:"channel_id"`
 	Day         time.Time `json:"day"`
@@ -22,6 +46,52 @@ type AnalyticsTrafficRollup struct {
 	PageKey     string    `json:"page_key"`
 	Hits        int64     `json:"hits"`
 	LastSeen    time.Time `json:"last_seen"`
+}
+
+type AssistantConversation struct {
+	ID         uuid.UUID     `json:"id"`
+	ChannelID  uuid.UUID     `json:"channel_id"`
+	CustomerID uuid.NullUUID `json:"customer_id"`
+	AnonID     string        `json:"anon_id"`
+	LastAt     time.Time     `json:"last_at"`
+}
+
+type AssistantConversationSummary struct {
+	ID            uuid.UUID     `json:"id"`
+	ChannelID     uuid.UUID     `json:"channel_id"`
+	CustomerID    uuid.NullUUID `json:"customer_id"`
+	AnonID        string        `json:"anon_id"`
+	LastAt        time.Time     `json:"last_at"`
+	FirstQuestion string        `json:"first_question"`
+	StartedAt     time.Time     `json:"started_at"`
+	Turns         int32         `json:"turns"`
+	CartChanged   bool          `json:"cart_changed"`
+	Checkout      bool          `json:"checkout"`
+	Incomplete    bool          `json:"incomplete"`
+}
+
+type AssistantTurn struct {
+	ID               uuid.UUID       `json:"id"`
+	ConversationID   uuid.UUID       `json:"conversation_id"`
+	CustomerID       uuid.NullUUID   `json:"customer_id"`
+	Page             string          `json:"page"`
+	Question         string          `json:"question"`
+	Reply            string          `json:"reply"`
+	Recap            string          `json:"recap"`
+	FollowUps        []string        `json:"follow_ups"`
+	Rounds           json.RawMessage `json:"rounds"`
+	Products         int32           `json:"products"`
+	CartChanged      bool            `json:"cart_changed"`
+	Checkout         bool            `json:"checkout"`
+	Incomplete       bool            `json:"incomplete"`
+	FoundNothing     bool            `json:"found_nothing"`
+	Unsure           bool            `json:"unsure"`
+	Model            string          `json:"model"`
+	InputTokens      int64           `json:"input_tokens"`
+	OutputTokens     int64           `json:"output_tokens"`
+	CacheReadTokens  int64           `json:"cache_read_tokens"`
+	CacheWriteTokens int64           `json:"cache_write_tokens"`
+	At               time.Time       `json:"at"`
 }
 
 type Board struct {

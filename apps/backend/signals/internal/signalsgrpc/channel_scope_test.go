@@ -28,9 +28,10 @@ func grantOn(slug string, channelID uuid.UUID) auth.Grant {
 func TestAChannelGrantCannotNameAnotherChannel(t *testing.T) {
 	conn := testConn(t)
 	prism, dest, pulse := signalsv1.NewPrismServiceClient(conn), signalsv1.NewDestinationServiceClient(conn), signalsv1.NewPulseServiceClient(conn)
+	assistant := signalsv1.NewAssistantServiceClient(conn)
 	mine, theirs := uuid.New(), uuid.New()
 	ctx := tokenCtx(t,
-		grantOn("experiments.manage", mine), grantOn("settings.manage", mine), grantOn("emails.view", mine))
+		grantOn("experiments.manage", mine), grantOn("settings.manage", mine), grantOn("emails.view", mine), grantOn("assistant.view", mine))
 	other := theirs.String()
 
 	for name, call := range map[string]func() error{
@@ -60,6 +61,18 @@ func TestAChannelGrantCannotNameAnotherChannel(t *testing.T) {
 		},
 		"GetEngagement": func() error {
 			_, e := pulse.GetEngagement(ctx, &signalsv1.GetEngagementRequest{ChannelId: other})
+			return e
+		},
+		"ListAssistantConversations": func() error {
+			_, e := assistant.ListAssistantConversations(ctx, &signalsv1.ListAssistantConversationsRequest{ChannelId: other})
+			return e
+		},
+		"GetAssistantConversation": func() error {
+			_, e := assistant.GetAssistantConversation(ctx, &signalsv1.GetAssistantConversationRequest{ChannelId: other, ConversationId: uuid.NewString()})
+			return e
+		},
+		"GetAssistantTurnRounds": func() error {
+			_, e := assistant.GetAssistantTurnRounds(ctx, &signalsv1.GetAssistantTurnRoundsRequest{ChannelId: other, TurnId: uuid.NewString()})
 			return e
 		},
 	} {

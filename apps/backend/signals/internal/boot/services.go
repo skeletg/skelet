@@ -14,8 +14,10 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/cache"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/aiactivity"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/archivefile"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/assistantlog"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/behavioralsegment"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/board"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/destination"
@@ -65,6 +67,8 @@ var Services = fx.Module("services",
 		newArchive,
 		newSendLog,
 		newSuppression,
+		newAssistantLog,
+		newAIActivity,
 		newBounces,
 	),
 )
@@ -195,6 +199,22 @@ func newSendLog(q Queries, rq ReadQueries, a Archive) *sendlog.Store {
 }
 
 func newSuppression(q Queries) *suppression.Service { return suppression.New(q.Queries) }
+
+func newAssistantLog(q Queries, rq ReadQueries) *assistantlog.Store {
+	store := assistantlog.New(q.Queries)
+	if rq.Queries != nil {
+		store.SetReadQueries(rq.Queries)
+	}
+	return store
+}
+
+func newAIActivity(q Queries, rq ReadQueries) *aiactivity.Store {
+	store := aiactivity.New(q.Queries)
+	if rq.Queries != nil {
+		store.SetReadQueries(rq.Queries)
+	}
+	return store
+}
 
 func newBounces(list *suppression.Service, settings *config.Service) *suppression.Bounces {
 	return suppression.NewBounces(list, settings)

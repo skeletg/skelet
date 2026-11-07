@@ -132,3 +132,33 @@ func ArchiveAction(ctx context.Context, cfgSvc Settings) (bool, error) {
 }
 
 // archiveSink adapts the BACKUP_* media store to the Recorder's archive seam, verifying every object landed non-empty - the sweep deletes rows on Put's word
+
+type AssistantPruner interface {
+	Prune(ctx context.Context, before time.Time) (conversations, turns int64, err error)
+}
+
+// AssistantPruneJob deletes whatever retention_action says - transcripts are shoppers' own words, which an anonymised archive
+// couldn't keep. They never outlive the event log either, since only shoppers who accepted analytics are kept at all
+func AssistantPruneJob(cfgSvc Settings, store AssistantPruner) func(context.Context) (int64, int64, error) {
+	return func(ctx context.Context) (int64, int64, error) {
+		days, err := cfgSvc.Int(ctx, "signals/assistant/retention_days", nil)
+		if err != nil {
+			return 0, 0, err
+		}
+		spine, err := cfgSvc.Int(ctx, "signals/analytics/spine_retention_days", nil)
+		if err != nil {
+			return 0, 0, err
+		}
+		if spine > 0 && (days <= 0 || spine < days) {
+			days = spine
+		}
+		if days <= 0 {
+			return 0, 0, nil
+		}
+		conversations, turns, err := store.Prune(ctx, time.Now().AddDate(0, 0, -int(days)))
+		if conversations > 0 || turns > 0 {
+			slog.Info("assistant conversation retention", "conversations", conversations, "turns", turns)
+		}
+		return conversations, turns, err
+	}
+}

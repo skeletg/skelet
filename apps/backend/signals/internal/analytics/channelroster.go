@@ -165,6 +165,8 @@ func (c *ChannelRoster) sweepRetired(ctx context.Context) error {
 		{"browse history", c.qs.PruneOrphanedBrowseSeen},
 		{"browse notices", c.qs.PruneOrphanedBrowseNotified},
 		{"trait runs", c.qs.PruneOrphanedTraitRuns},
+		{"ai tool counts", c.qs.PruneOrphanedAITools},
+		{"ai searches", c.qs.PruneOrphanedAISearches},
 	} {
 		if _, err := p.prune(ctx); err != nil {
 			errs = append(errs, fmt.Errorf("prune orphaned %s: %w", p.what, err))

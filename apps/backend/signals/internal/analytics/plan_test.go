@@ -53,6 +53,14 @@ func TestApplyPlanOnNamedEvents(t *testing.T) {
 	if keep, issues := ApplyPlan("$search", map[string]any{"query": "shirt", "results": 3.0}); !keep || len(issues) != 0 {
 		t.Fatalf("a clean $search: keep=%v issues=%v", keep, issues)
 	}
+	meaning := map[string]any{"query": "something warm", "results": 4.0, "byMeaningOnly": true}
+	if keep, issues := ApplyPlan("$search", meaning); !keep || len(issues) != 0 || meaning["byMeaningOnly"] != true {
+		t.Fatalf("a search only meaning answered: keep=%v issues=%v props=%v - want the flag kept for the meaning-only figures", keep, issues, meaning)
+	}
+	shown := map[string]any{"query": "linen", "products": 2.0, "cart": map[string]any{}}
+	if keep, issues := ApplyPlan(EventOverviewShown, shown); !keep || len(issues) != 1 || shown["query"] != "linen" || shown["products"] != 2.0 {
+		t.Fatalf("an AI overview shown: keep=%v issues=%v props=%v", keep, issues, shown)
+	}
 	if _, issues := ApplyPlan("$search", map[string]any{"results": "3"}); len(issues) != 1 || issues[0].Kind != IssueBadType {
 		t.Fatalf("results as a string: %v, want a bad type", issues)
 	}

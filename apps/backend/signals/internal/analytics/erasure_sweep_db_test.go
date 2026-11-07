@@ -2,6 +2,7 @@ package analytics
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"testing"
 	"time"
@@ -74,5 +75,38 @@ func TestAFreshErasureWaitsOutTheGrace(t *testing.T) {
 	}
 	if !slices.Contains(sp.erased, due) || slices.Contains(sp.erased, fresh) {
 		t.Errorf("erased %v - want the old request erased and the fresh one still waiting", sp.erased)
+	}
+}
+
+// The hook sees each due customer while their identities still stand, and a failure keeps the queue for the next sweep
+func TestTheSweepHandsItsCustomersOnBeforeTheirIdentitiesGo(t *testing.T) {
+	conn := testdb.RequireSignals(t)
+	ctx := context.Background()
+	qs := signalsdb.New(conn)
+	due := uuid.New()
+	if err := qs.EnqueueIdentityErasure(ctx, due); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = qs.DeleteIdentityErasures(context.Background(), []uuid.UUID{due}) })
+	if _, err := conn.Exec(`UPDATE gdpr_identity_erasures SET requested_at = now() - interval '1 hour' WHERE customer_id = $1`, due); err != nil {
+		t.Fatal(err)
+	}
+
+	sp := &countingSpine{}
+	rec := NewRecorder(qs, sp)
+	rec.OnIdentityErasure(func(context.Context, []uuid.UUID) error { return errors.New("conversations unreachable") })
+	if err := rec.sweepIdentityErasures(ctx); err == nil || len(sp.erased) != 0 {
+		t.Fatalf("a failed hook = %v with %v erased - the identities must stay until it succeeds", err, sp.erased)
+	}
+	var handed []uuid.UUID
+	rec.OnIdentityErasure(func(_ context.Context, ids []uuid.UUID) error {
+		if len(sp.erased) != 0 {
+			t.Error("the identities went before the hook ran")
+		}
+		handed = append(handed, ids...)
+		return nil
+	})
+	if err := rec.sweepIdentityErasures(ctx); err != nil || !slices.Contains(handed, due) || !slices.Contains(sp.erased, due) {
+		t.Errorf("sweep = %v, handed %v, erased %v", err, handed, sp.erased)
 	}
 }

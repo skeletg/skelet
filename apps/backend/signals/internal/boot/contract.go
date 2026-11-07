@@ -9,7 +9,9 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/aiactivity"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/assistantlog"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/behavioralsegment"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/board"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/campaign"
@@ -48,6 +50,8 @@ type contractDeps struct {
 	Behavioral    *behavioralsegment.Service
 	Destination   *destination.Service
 	SendLog       *sendlog.Store
+	Assistant     *assistantlog.Store
+	AIActivity    *aiactivity.Store
 	Suppression   *suppression.Service
 	Flow          *flow.Service
 	Campaign      *campaign.Service
@@ -80,6 +84,8 @@ func newGRPCServer(d contractDeps) (*grpc.Server, error) {
 		Queue:          d.Stack.Queue,
 		SettingsRepo:   signalsboot.NewSettingsRepository(d.Queries.Queries),
 		SendLog:        d.SendLog,
+		Assistant:      d.Assistant,
+		AIActivity:     d.AIActivity,
 		Suppression:    d.Suppression,
 		Flows:          d.Flow,
 		Campaigns:      d.Campaign,

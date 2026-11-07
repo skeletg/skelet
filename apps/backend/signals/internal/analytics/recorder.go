@@ -32,12 +32,16 @@ const (
 	EventBeginCheckout = "begin_checkout"
 	EventPurchase      = "purchase"
 	// Reserved custom-event names the storefront tracker emits, held to the tracking plan
-	EventSearch     = "$search"
-	EventExperiment = "$experiment"
-	EventJSError    = "$js_error"
-	EventRageClick  = "$rage_click"
-	EventDeadClick  = "$dead_click"
-	EventWebVitals  = "$web_vitals"
+	EventSearch = "$search"
+	// The AI overview above search results - not $ names, since a storefront built before the plan sends them as they are
+	EventOverviewShown = "search_overview_shown"
+	EventOverviewClick = "search_overview_click"
+	EventOverviewChat  = "search_overview_chat"
+	EventExperiment    = "$experiment"
+	EventJSError       = "$js_error"
+	EventRageClick     = "$rage_click"
+	EventDeadClick     = "$dead_click"
+	EventWebVitals     = "$web_vitals"
 )
 
 const (
@@ -60,7 +64,13 @@ type Recorder struct {
 	qs      *signalsdb.Queries // the signals database - segments, rosters, traits, the erasure queue
 	spine   SpineStore         // the ClickHouse spine driver, behind the ingest queue when one is configured - ALL spine access goes through it, ingest and every analytical read alike
 	archive ArchiveSink        // optional retention-archive destination (the BACKUP_* bucket) - nil makes retention_action=archive fail closed
-	aggKey  []byte             // keys an aggregate event's dedupe hash, so the stored key can't be recomputed from an order or line id
+	// Runs on a sweep's customers before their identities go, while those still tie each customer to their visitor ids
+	beforeErasure func(context.Context, []uuid.UUID) error
+	aggKey        []byte // keys an aggregate event's dedupe hash, so the stored key can't be recomputed from an order or line id
+}
+
+func (r *Recorder) OnIdentityErasure(fn func(context.Context, []uuid.UUID) error) {
+	r.beforeErasure = fn
 }
 
 // SetAggregateKey takes a secret neither database holds - boot passes the service secret. Without one, an aggregate

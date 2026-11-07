@@ -3,11 +3,11 @@ package lens
 import (
 	"context"
 	"maps"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/signals/internal/aiactivity"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	signalsdb "github.com/skeletg/skelet/apps/backend/signals/internal/db/sqlc"
 )
@@ -251,8 +251,10 @@ func (s *Service) recordCustom(ctx context.Context, channelID uuid.UUID, anonID 
 			// Reserved UX signals roll into their own dim and bump the recording's counter, but do NOT feed the interactions list - still stored on the spine, whose raw props drive the errors list and vitals percentiles
 			s.recordSignal(ctx, channelID, e)
 		case analytics.EventSearch:
-			// On-site search rolls the normalized term into dim='search', plus 'search_zero' when it returned nothing - kept out of the interactions list, with raw props on the spine for a future search-to-conversion funnel
+			// On-site search rolls the normalized term into dim='search', plus a gap dim when it came up short - kept out of the interactions list, with raw props on the spine for a future search-to-conversion funnel
 			s.recordSearch(ctx, channelID, e)
+		case evOverviewShown, evOverviewClick, evOverviewChat:
+			s.recordOverview(channelID, e)
 		default:
 			if s.rollup != nil {
 				// Named UI interactions stay 'custom' and feed the hub's interactions list
@@ -304,7 +306,40 @@ func (s *Service) recordSignal(ctx context.Context, channelID uuid.UUID, e Event
 	}
 }
 
-// dim='search' keyed by the normalized term, plus dim='search_zero' when the search returned nothing - the merchandising-gap signal
+// The search dims - lens.sql spells them out too
+const (
+	dimSearch        = "search"
+	dimSearchZero    = "search_zero"    // the search returned nothing
+	dimSearchMeaning = "search_meaning" // only search by meaning found anything
+)
+
+// The storefront's AI overview above search results, each keyed by the search it was written for
+const (
+	evOverviewShown = analytics.EventOverviewShown
+	evOverviewClick = analytics.EventOverviewClick
+	evOverviewChat  = analytics.EventOverviewChat
+
+	dimOverviewShown = "overview_shown"
+	dimOverviewClick = "overview_click"
+	dimOverviewChat  = "overview_chat"
+)
+
+func (s *Service) recordOverview(channelID uuid.UUID, e Event) {
+	term := normalizeQuery(propString(e.Props["query"]))
+	if s.rollup == nil || term == "" {
+		return
+	}
+	dim := dimOverviewShown
+	switch e.Name {
+	case evOverviewClick:
+		dim = dimOverviewClick
+	case evOverviewChat:
+		dim = dimOverviewChat
+	}
+	s.rollup.AddSignal(channelID, dim, term, msToTime(e.TS))
+}
+
+// dim='search' keyed by the normalized term, plus one of the gap dims - both merchandising gaps
 func (s *Service) recordSearch(ctx context.Context, channelID uuid.UUID, e Event) {
 	if s.rollup == nil {
 		return
@@ -314,20 +349,16 @@ func (s *Service) recordSearch(ctx context.Context, channelID uuid.UUID, e Event
 		return
 	}
 	at := msToTime(e.TS)
-	s.rollup.AddSignal(channelID, "search", term, at)
+	s.rollup.AddSignal(channelID, dimSearch, term, at)
 	if resultsZero(e.Props["results"]) {
-		s.rollup.AddSignal(channelID, "search_zero", term, at)
+		s.rollup.AddSignal(channelID, dimSearchZero, term, at)
+	} else if e.Props["byMeaningOnly"] == true {
+		s.rollup.AddSignal(channelID, dimSearchMeaning, term, at)
 	}
 }
 
 // Lower-cases, trims, collapses internal whitespace and caps at 80 runes - bounds rollup key cardinality and groups "Red Shoes" with "red  shoes"
-func normalizeQuery(q string) string {
-	q = strings.ToLower(strings.Join(strings.Fields(q), " "))
-	if r := []rune(q); len(r) > 80 {
-		q = string(r[:80])
-	}
-	return q
-}
+func normalizeQuery(q string) string { return aiactivity.NormalizeTerm(q) }
 
 func propString(v any) string {
 	s, _ := v.(string)
