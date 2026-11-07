@@ -33,7 +33,8 @@ type Order struct {
 	TaxAmount         int64
 	ShippingTaxAmount int64 // the part of TaxAmount charged on shipping
 	TotalAmount       int64
-	AnonID            string        // the visitor id it was placed under - a guest order's later events reach the profile its placement did
+	AnonID            string // the visitor id it was placed under - a guest order's later events reach the profile its placement did
+	AssistedBy        string
 	Shopper           *auth.Shopper // the visitor as they placed it, kept in metadata.tracking so an event sent after they change their mind still follows the consent they bought under - nil unless a shop placed it
 	// TRANSIENT and never persisted - set on the placement response for a client-side 3DS step and consumed by the storefront immediately
 	PaymentActionKind   string // "", "redirect" or "challenge" - what the client must do with PaymentActionSecret

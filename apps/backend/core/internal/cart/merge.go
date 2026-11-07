@@ -82,6 +82,9 @@ func (s *Service) MergeGuestCart(ctx context.Context, customerID, guestCartID uu
 		if err := r.CarryHandoffRedemptions(ctx, guest.ID, cc.ID); err != nil {
 			return err
 		}
+		if err := r.CarryCartAssisted(ctx, guest.ID, cc.ID); err != nil {
+			return err
+		}
 		saved, err := r.ListSavedItems(ctx, guest.ID) // saved-for-later comes along too - the adoption path keeps them via the same cart_id, but merging into an existing cart would drop them when the guest cart is tombstoned; the upsert dedupes by (cart_id, sku)
 		if err != nil {
 			return err

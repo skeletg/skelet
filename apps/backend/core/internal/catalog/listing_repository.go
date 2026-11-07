@@ -10,6 +10,7 @@ import (
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
+	"github.com/skeletg/skelet/apps/backend/core/internal/pricing"
 )
 
 func (r *postgresRepository) UpsertProductChannelListing(ctx context.Context, input ProductChannelListingInput) (ProductChannelListing, error) {
@@ -106,6 +107,38 @@ func (r *postgresRepository) ListProductChannelListingsByChannel(ctx context.Con
 	out := make([]ProductChannelListing, len(rows))
 	for i, row := range rows {
 		out[i] = toListing(row)
+	}
+	return out, nil
+}
+
+// SaleCandidate is a product with a strike-through or special price set somewhere, its price inputs folded as the storefront folds them
+type SaleCandidate struct {
+	ProductID uuid.UUID
+	Pricing   pricing.Inputs
+}
+
+func (r *postgresRepository) ListSaleCandidates(ctx context.Context, channelID uuid.UUID, limit int32) ([]SaleCandidate, error) {
+	rows, err := r.queries.ListSaleCandidates(ctx, db.ListSaleCandidatesParams{ChannelID: channelID, Lim: limit})
+	if err != nil {
+		return nil, fmt.Errorf("list sale candidates: %w", err)
+	}
+	out := make([]SaleCandidate, len(rows))
+	for i, row := range rows {
+		product := Product{
+			DefaultPrice:   row.DefaultPrice,
+			CompareAtPrice: sqlnull.Int64Ptr(row.CompareAtPrice),
+			SpecialPrice:   sqlnull.Int64Ptr(row.SpecialPrice),
+			SpecialFrom:    sqlnull.TimePtr(row.SpecialFrom),
+			SpecialTo:      sqlnull.TimePtr(row.SpecialTo),
+		}
+		listing := ProductChannelListing{
+			Price:          sqlnull.Int64Ptr(row.ListingPrice),
+			CompareAtPrice: sqlnull.Int64Ptr(row.ListingCompareAt),
+			SpecialPrice:   sqlnull.Int64Ptr(row.ListingSpecial),
+			SpecialFrom:    sqlnull.TimePtr(row.ListingSpecialFrom),
+			SpecialTo:      sqlnull.TimePtr(row.ListingSpecialTo),
+		}
+		out[i] = SaleCandidate{ProductID: row.ID, Pricing: EffectivePricingInputs(product, &listing)}
 	}
 	return out, nil
 }

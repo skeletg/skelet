@@ -89,6 +89,8 @@ func (f fakeRepo) RecordHandoffRedemption(context.Context, uuid.UUID, uuid.UUID)
 func (f fakeRepo) CarryHandoffRedemptions(context.Context, uuid.UUID, uuid.UUID) error {
 	return nil
 }
+func (f fakeRepo) MarkCartAssisted(context.Context, uuid.UUID, string, string) error { return nil }
+func (f fakeRepo) CarryCartAssisted(context.Context, uuid.UUID, uuid.UUID) error     { return nil }
 func (f fakeRepo) CarryAppliedCodes(context.Context, uuid.UUID, uuid.UUID) error {
 	return nil
 }

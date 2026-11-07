@@ -158,11 +158,15 @@ type Cart struct {
 	Status     string
 	Kind       string // KindShopper or KindOffer
 	Source     string // SourceWeb or SourceAgent
-	Offer      *Offer // set on an offer only
-	Handoff    *Handoff
-	Email      string // a guest offer's recipient
-	Note       string
-	Checkout   Checkout
+	AssistedBy string
+	AssistedAt *time.Time
+	// The AI trace of the assistant turn that last changed the cart - empty when tracing is off or an agent helped
+	AssistTrace string
+	Offer       *Offer // set on an offer only
+	Handoff     *Handoff
+	Email       string // a guest offer's recipient
+	Note        string
+	Checkout    Checkout
 	// Moves on every checkout write, so a step computed from an earlier read can tell the row changed under it
 	CheckoutVersion int64
 	Lines           []CartLine
@@ -460,6 +464,8 @@ type Repository interface {
 	GetCartByHandoffToken(ctx context.Context, token string) (Cart, error)
 	RecordHandoffRedemption(ctx context.Context, agentCartID, cartID uuid.UUID) (bool, error) // false when this cart already had the handoff
 	CarryHandoffRedemptions(ctx context.Context, fromCartID, toCartID uuid.UUID) error
+	MarkCartAssisted(ctx context.Context, cartID uuid.UUID, by, trace string) error
+	CarryCartAssisted(ctx context.Context, fromCartID, toCartID uuid.UUID) error
 	CarryAppliedCodes(ctx context.Context, fromCartID, toCartID uuid.UUID) error // a code the target already has keeps its row
 
 	CreateOfferCart(ctx context.Context, in CreateOfferInput) (Cart, error)
@@ -504,6 +510,7 @@ type AbandonedCart struct { // exactly one of CustomerID / Email identifies the 
 	CustomerID   uuid.UUID // uuid.Nil for guest carts
 	Email        string    // set for guest carts, may be empty for customer carts
 	LastActivity time.Time // when the cart or a line was last touched - the abandonment episode, a cart touched and left again is a new one
+	AssistedBy   string    // who filled it, when the assistant or a shopper's agent did
 }
 
 type CartFilter struct {
@@ -563,4 +570,16 @@ type CustomLineInput struct {
 	UnitPrice int64
 	Quantity  float64
 	TaxClass  string
+}
+
+// AssistedCreditWindow is how long an assistant's or agent's help counts toward the order a cart becomes - long enough for a
+// considered purchase, short enough that a cart left for weeks and filled again by hand isn't the helper's sale
+const AssistedCreditWindow = 30 * 24 * time.Hour
+
+// AssistedCredit is who helped fill the cart, while that help is recent enough to count for its order
+func (c Cart) AssistedCredit(now time.Time) string {
+	if c.AssistedBy == "" || c.AssistedAt == nil || now.Sub(*c.AssistedAt) > AssistedCreditWindow {
+		return ""
+	}
+	return c.AssistedBy
 }

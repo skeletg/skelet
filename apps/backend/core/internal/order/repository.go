@@ -799,6 +799,7 @@ func (r *postgresRepository) CreateOrder(ctx context.Context, o Order) (Order, e
 		ShippingCarrierSlug: sqlnull.String(o.ShippingCarrierSlug),
 		ShippingMethodCode:  sqlnull.String(o.ShippingMethodCode),
 		AnonID:              o.AnonID,
+		AssistedBy:          o.AssistedBy,
 		Metadata:            orderMetadataJSON(o.Shopper),
 	})
 	if err != nil {
@@ -1275,6 +1276,7 @@ func toOrder(row db.Order) Order {
 		ShippingTaxAmount: row.ShippingTaxAmount,
 		TotalAmount:       row.TotalAmount,
 		AnonID:            row.AnonID,
+		AssistedBy:        row.AssistedBy,
 		GiftCardAmount:    row.GiftCardAmount,
 		StoreCreditAmount: row.StoreCreditAmount,
 		CurrencyCode:      row.CurrencyCode,

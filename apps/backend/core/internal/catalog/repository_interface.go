@@ -181,6 +181,7 @@ type ListingRepository interface {
 	DeleteProductChannelListing(ctx context.Context, productID, channelID uuid.UUID) error
 	GetProductChannelListing(ctx context.Context, productID, channelID uuid.UUID) (ProductChannelListing, error)
 	ListProductChannelListingsByChannel(ctx context.Context, channelID uuid.UUID) ([]ProductChannelListing, error)
+	ListSaleCandidates(ctx context.Context, channelID uuid.UUID, limit int32) ([]SaleCandidate, error)
 	CountProductChannelListingsByChannel(ctx context.Context) (map[uuid.UUID]int64, error)
 	ListProductChannelListingsByProduct(ctx context.Context, productID uuid.UUID) ([]ProductChannelListing, error)
 	ListProductChannelListingsByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]ProductChannelListing, error)

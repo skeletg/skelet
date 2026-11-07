@@ -125,7 +125,7 @@ func (r *postgresRepository) ListAbandoned(ctx context.Context, channelID uuid.U
 	}
 	out := make([]AbandonedCart, 0, len(rows))
 	for _, row := range rows {
-		ac := AbandonedCart{ID: row.ID, ChannelID: row.ChannelID, Email: row.Email, LastActivity: row.LastActivity}
+		ac := AbandonedCart{ID: row.ID, ChannelID: row.ChannelID, Email: row.Email, LastActivity: row.LastActivity, AssistedBy: row.AssistedBy}
 		if row.CustomerID.Valid {
 			ac.CustomerID = row.CustomerID.UUID
 		}
@@ -557,6 +557,20 @@ func (r *postgresRepository) CarryHandoffRedemptions(ctx context.Context, fromCa
 	return nil
 }
 
+func (r *postgresRepository) MarkCartAssisted(ctx context.Context, cartID uuid.UUID, by, trace string) error {
+	if err := r.queries.MarkCartAssisted(ctx, db.MarkCartAssistedParams{ID: cartID, AssistedBy: by, AssistTrace: trace, StaleBefore: time.Now().Add(-AssistedCreditWindow)}); err != nil {
+		return fmt.Errorf("mark cart assisted: %w", err)
+	}
+	return nil
+}
+
+func (r *postgresRepository) CarryCartAssisted(ctx context.Context, fromCartID, toCartID uuid.UUID) error {
+	if err := r.queries.CarryCartAssisted(ctx, db.CarryCartAssistedParams{FromCartID: fromCartID, ToCartID: toCartID}); err != nil {
+		return fmt.Errorf("carry cart assisted: %w", err)
+	}
+	return nil
+}
+
 func (r *postgresRepository) CarryAppliedCodes(ctx context.Context, fromCartID, toCartID uuid.UUID) error {
 	if err := r.queries.CarryCartAppliedCodes(ctx, db.CarryCartAppliedCodesParams{FromCartID: fromCartID, ToCartID: toCartID}); err != nil {
 		return fmt.Errorf("carry applied codes: %w", err)
@@ -696,14 +710,17 @@ func toCart(row db.Cart) Cart {
 		customerID = &id
 	}
 	c := Cart{
-		ID:         row.ID,
-		CustomerID: customerID,
-		ChannelID:  row.ChannelID,
-		Status:     row.Status,
-		Kind:       row.Kind,
-		Source:     row.Source,
-		Email:      row.Email,
-		Note:       row.Note,
+		ID:          row.ID,
+		CustomerID:  customerID,
+		ChannelID:   row.ChannelID,
+		Status:      row.Status,
+		Kind:        row.Kind,
+		Source:      row.Source,
+		AssistedBy:  row.AssistedBy,
+		AssistedAt:  sqlnull.TimePtr(row.AssistedAt),
+		AssistTrace: row.AssistTrace,
+		Email:       row.Email,
+		Note:        row.Note,
 		Checkout: Checkout{
 			ShippingAddress:       decodeAddress(row.ShippingAddress),
 			ShippingAddressID:     sqlnull.UUIDPtr(row.ShippingAddressID),

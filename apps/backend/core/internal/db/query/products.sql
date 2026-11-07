@@ -363,6 +363,9 @@ JOIN catalog_product_channel_listings l
 WHERE l.is_published = TRUE
   AND (cardinality(sqlc.arg(kinds)::text[]) = 0
        OR p.kind::text = ANY(sqlc.arg(kinds)::text[]))
+  -- A search by meaning hands over the products it found, and the listing narrows to them
+  AND (COALESCE(cardinality(sqlc.arg(product_ids)::uuid[]), 0) = 0
+       OR p.id = ANY(sqlc.arg(product_ids)::uuid[]))
   -- Same arms SearchProductsFallback uses, so a term typed into a filtered PLP finds what the search box finds - matching SKU alone meant a shopper who typed a product NAME on a category page got an empty grid on this tier Shaped as a UNION of per-table arms for the same reason: each is an index path, where one OR across p and c would force a scan of the whole join The <> '' guard inside each arm matters - without it an unfiltered PLP (the common case) still builds the subquery, and ILIKE '%%' matches every row
   AND (sqlc.arg(search)::text = '' OR p.id IN (
         SELECT mc.product_id
@@ -461,6 +464,8 @@ WITH base AS (
     WHERE l.is_published = TRUE
       AND (cardinality(sqlc.arg(kinds)::text[]) = 0
            OR p.kind::text = ANY(sqlc.arg(kinds)::text[]))
+      AND (COALESCE(cardinality(sqlc.arg(product_ids)::uuid[]), 0) = 0
+           OR p.id = ANY(sqlc.arg(product_ids)::uuid[]))
       -- Character-for-character the predicate BrowseProductsFallback applies - a
       -- facet counted over a wider set than the grid shows is a count that lies
       AND (sqlc.arg(search)::text = '' OR p.id IN (

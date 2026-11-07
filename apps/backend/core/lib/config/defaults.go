@@ -28,6 +28,7 @@ func init() {
 	RegisterGroup(Group{Section: "signals", Slug: "lens", Label: "Web Analytics", SortOrder: 2, Scoping: ScopingChannel})
 	RegisterGroup(Group{Section: "signals", Slug: "synapse", Label: "Customer Analytics", SortOrder: 3, Scoping: ScopingChannel})
 	RegisterGroup(Group{Section: "signals", Slug: "deliverability", Label: "Deliverability", SortOrder: 4})
+	RegisterGroup(Group{Section: "signals", Slug: "assistant", Label: "Shopping Assistant", SortOrder: 5})
 	// Core's own: when the store reaches out to a customer nobody asked it to mail
 	RegisterGroup(Group{Section: "outreach", Slug: "triggers", Label: "Triggers", SortOrder: 1})
 	RegisterGroup(Group{Section: "outreach", Slug: "forms", Label: "Signup Forms", SortOrder: 2})

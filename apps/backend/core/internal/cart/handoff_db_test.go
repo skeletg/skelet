@@ -110,9 +110,15 @@ func TestAHandoffLandsInTheShoppersOwnCart(t *testing.T) {
 	if _, err := r.svc.AddToCart(ctx, mine.ID, nil, "mug", 1); err != nil {
 		t.Fatal(err)
 	}
+	if err := r.svc.MarkAssisted(ctx, mine.ID, AssistedAssistant, "4bf92f3577b34da6a3ce929d0e0e4736"); err != nil {
+		t.Fatal(err)
+	}
 	got := r.redeem(t, r.handOff(t, r.agentCart(t, r.channel, map[string]float64{"tee": 2, "mug": 1})), nil, &mine.ID)
 	if got.ID != mine.ID || lineBySku(t, got, "tee").Quantity != 2 || lineBySku(t, got, "mug").Quantity != 2 {
 		t.Fatalf("redeemed into %+v, want the shopper's cart with 2 tees and 2 mugs", got)
+	}
+	if got.AssistedBy != AssistedAssistant || got.AssistTrace != "4bf92f3577b34da6a3ce929d0e0e4736" {
+		t.Errorf("assisted by %q with trace %q, want the first helper, the assistant, to keep the credit and its turn", got.AssistedBy, got.AssistTrace)
 	}
 
 	customerID := r.customer(t)
@@ -124,6 +130,9 @@ func TestAHandoffLandsInTheShoppersOwnCart(t *testing.T) {
 	got = r.redeem(t, r.handOff(t, r.agentCart(t, r.channel, map[string]float64{"tee": 1})), &customerID, &mine.ID)
 	if got.ID != own.ID || lineBySku(t, got, "tee").Quantity != 1 {
 		t.Fatalf("signed-in redeem landed in %+v, want the customer's cart %s", got, own.ID)
+	}
+	if got.AssistedBy != AssistedAgent || got.AssistTrace != "" {
+		t.Errorf("assisted by %q with trace %q, want the agent and no assistant turn to score", got.AssistedBy, got.AssistTrace)
 	}
 }
 
@@ -238,6 +247,9 @@ func TestReopeningALinkAfterSigningInAddsNothing(t *testing.T) {
 	got := r.redeem(t, token, &customerID, nil)
 	if got.ID != own.ID || lineBySku(t, got, "tee").Quantity != 2 || lineBySku(t, got, "mug").Quantity != 1 {
 		t.Fatalf("reopened after the merge = %+v, want the customer's cart still holding 2 tees and the mug", got.Lines)
+	}
+	if got.AssistedBy != AssistedAgent {
+		t.Errorf("the merge left the agent's credit behind: assisted by %q", got.AssistedBy)
 	}
 }
 

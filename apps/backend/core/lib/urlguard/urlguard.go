@@ -6,7 +6,9 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"slices"
+	"strconv"
 	"syscall"
 	"time"
 )
@@ -55,6 +57,15 @@ func CheckShape(raw string) (*url.URL, error) {
 		return nil, fmt.Errorf("target url must not include credentials")
 	}
 	return u, nil
+}
+
+// AllowPrivateFromEnv is the one policy for outbound calls an operator configures - ALLOW_PRIVATE_WEBHOOK_TARGETS wins, else only development reaches private addresses
+func AllowPrivateFromEnv() bool {
+	if v := os.Getenv("ALLOW_PRIVATE_WEBHOOK_TARGETS"); v != "" {
+		b, err := strconv.ParseBool(v)
+		return err == nil && b
+	}
+	return os.Getenv("APP_ENV") == "development"
 }
 
 // An *http.Transport cloned from the default, whose dialer refuses connections to non-global addresses - checking the resolved IP at connect time closes the DNS-rebinding gap that save-time validation leaves

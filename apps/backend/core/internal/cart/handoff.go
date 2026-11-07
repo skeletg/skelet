@@ -8,12 +8,18 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/skeletg/skelet/apps/backend/core/signalsapi"
 )
 
 // Where a cart came from - an agent cart is built by a shopper's AI agent over the storefront MCP endpoint, and the agent holds its id
 const (
 	SourceWeb   = "web"
 	SourceAgent = "agent"
+)
+
+const (
+	AssistedAssistant = signalsapi.AssistedByAssistant
+	AssistedAgent     = signalsapi.AssistedByAgent
 )
 
 // StatusHandedOff closes an agent cart once its link exists - the agent can't touch it again, and the link copies it out
@@ -153,6 +159,9 @@ func (s *Service) RedeemHandoff(ctx context.Context, token string, channelID uui
 		}
 		fresh, err := r.RecordHandoffRedemption(ctx, agent.ID, target.ID)
 		if err != nil || !fresh {
+			return err
+		}
+		if err := r.MarkCartAssisted(ctx, target.ID, AssistedAgent, ""); err != nil {
 			return err
 		}
 		lines, err := r.ListCartLinesByCart(ctx, agent.ID)

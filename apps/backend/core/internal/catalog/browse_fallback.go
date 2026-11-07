@@ -30,6 +30,7 @@ type BrowseFallbackFilter struct { // the subset of the index's browse contract 
 	PriceMinCents *int64
 	PriceMaxCents *int64
 	Kinds         []string
+	ProductIDs    []uuid.UUID
 	AttrValueIDs  []uuid.UUID // value ids across ALL attributes, flattened
 	AttrCount     int32       // how many distinct attributes they span - a product must match at least one value in every one of them
 	Sort          string      // price_asc | price_desc | sku - anything else falls back to newest
@@ -54,9 +55,13 @@ func (s *productService) BrowseFallback(ctx context.Context, f BrowseFallbackFil
 		Off:          f.Offset,
 		AttrValueIds: f.AttrValueIDs,
 		AttrCount:    f.AttrCount,
+		ProductIds:   f.ProductIDs,
 	}
 	if params.AttrValueIds == nil {
 		params.AttrValueIds = []uuid.UUID{}
+	}
+	if params.ProductIds == nil {
+		params.ProductIds = []uuid.UUID{}
 	}
 	if f.CategoryID != nil {
 		params.FilterCategory, params.CategoryID = true, *f.CategoryID
@@ -139,6 +144,7 @@ type FacetCountFilter struct {
 	CategoryID    *uuid.UUID
 	CollectionID  *uuid.UUID
 	Kinds         []string
+	ProductIDs    []uuid.UUID
 	OtherSelected map[uuid.UUID][]uuid.UUID // attribute id -> selected value ids, EXCLUDING the counted attribute - the CALLER does that exclusion, so the semantics are explicit at the call site and unit-testable
 	MaxValues     int32
 }
@@ -169,9 +175,13 @@ func (s *productService) FacetCounts(ctx context.Context, targetAttributeID uuid
 		Kinds:             f.Kinds,
 		Search:            strings.TrimSpace(f.Query),
 		Locale:            f.Locale,
+		ProductIds:        f.ProductIDs,
 	}
 	if params.Kinds == nil {
 		params.Kinds = []string{}
+	}
+	if params.ProductIds == nil {
+		params.ProductIds = []uuid.UUID{}
 	}
 	if f.CategoryID != nil {
 		params.FilterCategory, params.CategoryID = true, *f.CategoryID

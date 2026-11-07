@@ -30,6 +30,8 @@ func init() {
 	Register(Definition{Path: "signals/deliverability/auto_suppress", Type: TypeBool, Default: "true", Label: "Auto-suppress on bounce / spam complaint", Description: "Stops mailing addresses that hard-bounced or complained. Off costs sender reputation.", Public: false, Store: StoreSignals})
 	Register(Definition{Path: "signals/deliverability/soft_bounce_threshold", Type: TypeInt, Default: "3", Label: "Soft bounces before suppressing an address", Description: "A soft bounce is temporary (full mailbox, server down), so it takes several before the address is dropped.", Public: false, Store: StoreSignals})
 
+	Register(Definition{Path: "signals/assistant/retention_days", Scoping: ScopingGlobal, Type: TypeInt, Default: "90", Label: "Shopping assistant conversation retention (days, 0 = as long as the event log)", Description: "Each message goes once it is this old, and a conversation with it once its last one is - never later than the event log's own retention. They are deleted, never archived, whatever the retention action.", Public: false, Store: StoreSignals})
+
 	// The retention windows the suite's own sweeps read
 	Register(Definition{Path: "signals/analytics/send_log_retention_months", Type: TypeInt, Default: "24", Label: "Email send-log retention (months, 0 = keep forever)", Public: false, Store: StoreSignals})
 	// keep larger than any report window; 0 disables the prune (unbounded growth)
