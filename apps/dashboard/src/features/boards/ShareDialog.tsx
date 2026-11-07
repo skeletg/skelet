@@ -20,28 +20,19 @@ export function shareWarning(t: Target | undefined, shop: string): string | null
 }
 
 // ShareDialog edits who a board is shared with, applied by its own Save - a dialog with an explicit action, so it
-// isn't staged on the page (conventions.md)
-export function ShareDialog({ channelId, shop, board, open, onOpenChange }: { channelId: string; shop: string; board: BoardFullFragment; open: boolean; onOpenChange: (open: boolean) => void }) {
-  const [shares, setShares] = useState<Share[]>([])
+// isn't staged on the page (conventions.md). It's mounted only while open, so it always starts from the board's shares
+export function ShareDialog({ channelId, shop, board, onClose }: { channelId: string; shop: string; board: BoardFullFragment; onClose: () => void }) {
+  const [shares, setShares] = useState<Share[]>(() => board.shares.map((s) => ({ adminId: s.adminId, roleId: s.roleId, name: s.name, level: s.level })))
   const [pick, setPick] = useState('')
   const [pickLevel, setPickLevel] = useState('view')
-  const { data } = useQuery(BoardShareTargetsDocument, { variables: { channelId }, skip: !open })
-  const [save, { loading, error, reset }] = useMutation(SetBoardSharesDocument, { refetchQueries: [BoardsDocument] })
+  const { data } = useQuery(BoardShareTargetsDocument, { variables: { channelId } })
+  const [save, { loading, error }] = useMutation(SetBoardSharesDocument, { refetchQueries: [BoardsDocument] })
   const targets = data?.boardShareTargets ?? []
   const target = (id: string) => targets.find((t) => t.id === id)
   const free = targets.filter((t) => t.id !== board.owner?.id && !shares.some((s) => idOf(s) === t.id))
 
-  const onOpen = (next: boolean) => {
-    if (next) {
-      setShares(board.shares.map((s) => ({ adminId: s.adminId, roleId: s.roleId, name: s.name, level: s.level })))
-      setPick('')
-      reset()
-    }
-    onOpenChange(next)
-  }
-
   return (
-    <Dialog open={open} onOpenChange={onOpen}>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Share {board.name}</DialogTitle>
@@ -113,7 +104,7 @@ export function ShareDialog({ channelId, shop, board, open, onOpenChange }: { ch
         {pick && shareWarning(target(pick), shop) && <p className="text-xs text-warning">{shareWarning(target(pick), shop)}</p>}
         {error && <p className="text-sm text-destructive">{error.message}</p>}
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpen(false)}>
+          <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
           <Button
@@ -122,7 +113,7 @@ export function ShareDialog({ channelId, shop, board, open, onOpenChange }: { ch
               const res = await save({
                 variables: { channelId, id: board.id, shares: shares.map((s) => ({ adminId: s.adminId ?? null, roleId: s.roleId ?? null, level: s.level })) },
               }).catch(() => null)
-              if (res?.data) onOpen(false)
+              if (res?.data) onClose()
             }}
           >
             Save sharing

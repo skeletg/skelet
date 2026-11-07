@@ -31,7 +31,7 @@ describe('shareWarning', () => {
 describe('ShareDialog', () => {
   it('shares read-only with a role and sends exactly that', async () => {
     let sent: Record<string, unknown> | null = null
-    renderDialog(<ShareDialog channelId="c1" shop="Main" board={board} open onOpenChange={() => {}} />, [
+    renderDialog(<ShareDialog channelId="c1" shop="Main" board={board} onClose={() => {}} />, [
       {
         request: { query: BoardShareTargetsDocument, variables: { channelId: 'c1' } },
         result: { data: { boardShareTargets: [target('admin', 'me', 'Ada'), target('role', 'mkt', 'Marketing', true, false)] } },
@@ -56,5 +56,33 @@ describe('ShareDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save sharing' }))
     await waitFor(() => expect(sent).not.toBeNull(), SLOW)
     expect(sent).toMatchObject({ id: 'b1', shares: [{ adminId: null, roleId: 'mkt', level: 'view' }] })
+  })
+  it("starts from the board's shares, so adding someone keeps everyone it's already shared with", async () => {
+    let sent: Record<string, unknown> | null = null
+    const shared = { ...board, shares: [{ __typename: 'BoardShare', adminId: 'bo', roleId: null, name: 'Bo', level: 'edit' }] }
+    renderDialog(<ShareDialog channelId="c1" shop="Main" board={shared} onClose={() => {}} />, [
+      {
+        request: { query: BoardShareTargetsDocument, variables: { channelId: 'c1' } },
+        result: { data: { boardShareTargets: [target('admin', 'bo', 'Bo'), target('role', 'mkt', 'Marketing')] } },
+      },
+      {
+        request: {
+          query: SetBoardSharesDocument,
+          variables: (v: Record<string, unknown>) => {
+            sent = v
+            return true
+          },
+        },
+        result: { data: { setBoardShares: shared } },
+      },
+    ])
+    expect(await screen.findByRole('combobox', { name: 'What Bo can do' }, SLOW)).toBeTruthy()
+    const pick = screen.getByRole('combobox', { name: 'Share with' })
+    await waitFor(() => expect(within(pick).queryByRole('option', { name: 'Marketing' })).toBeTruthy())
+    fireEvent.change(pick, { target: { value: 'mkt' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save sharing' }))
+    await waitFor(() => expect(sent).not.toBeNull(), SLOW)
+    expect(sent).toMatchObject({ shares: [{ adminId: 'bo', roleId: null, level: 'edit' }, { adminId: null, roleId: 'mkt', level: 'view' }] })
   })
 })
