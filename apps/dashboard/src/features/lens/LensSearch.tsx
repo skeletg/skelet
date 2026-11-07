@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@apollo/client/react'
-import { type ColumnDef } from '@/components/data-table/tanstack'
+import { type ColumnDef, type RowData } from '@/components/data-table/tanstack'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { DataTable } from '@/components/data-table/DataTable'
@@ -19,9 +19,71 @@ import { formatNumber } from '@/lib/format'
 import { LoadError } from '@/shared/errors/LoadError'
 
 type TermRow = LensSearchAnalyticsQuery['lensSearchAnalytics']['top'][number]
+type AIGapRow = LensSearchAnalyticsQuery['lensSearchAnalytics']['aiGaps'][number]
+type OverviewRow = LensSearchAnalyticsQuery['lensSearchAnalytics']['overviews'][number]
+
+const share = (part: number, whole: number) => (whole > 0 ? `${Math.round((part / whole) * 100)}%` : '-')
+
+function countColumn<T extends RowData>(id: string, title: string, value: (row: T) => number): ColumnDef<T> {
+  return {
+    id,
+    accessorFn: value,
+    header: ({ column }) => <DataTableColumnHeader column={column} title={title} />,
+    cell: ({ row }) => <span className="tabular-nums">{formatNumber(value(row.original))}</span>,
+  }
+}
+
+const aiGapColumns: ColumnDef<AIGapRow>[] = [
+  {
+    accessorKey: 'term',
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Asked for" />,
+    cell: ({ row }) => <span className="block max-w-[360px] truncate font-medium text-warning">{row.original.term}</span>,
+  },
+  countColumn<AIGapRow>('assistant', 'Shopping assistant', (r) => r.assistant),
+  countColumn<AIGapRow>('agents', 'Shoppers’ agents', (r) => r.agents),
+]
+
+const overviewColumns: ColumnDef<OverviewRow>[] = [
+  {
+    accessorKey: 'term',
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Search" />,
+    cell: ({ row }) => <span className="block max-w-[360px] truncate">{row.original.term}</span>,
+  },
+  countColumn<OverviewRow>('shown', 'Shown', (r) => r.shown),
+  {
+    id: 'clickRate',
+    accessorFn: (r) => (r.shown > 0 ? r.clicks / r.shown : 0),
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Product followed" />,
+    cell: ({ row }) => <span className="tabular-nums">{share(row.original.clicks, row.original.shown)}</span>,
+  },
+  {
+    id: 'chatRate',
+    accessorFn: (r) => (r.shown > 0 ? r.chats / r.shown : 0),
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Carried into chat" />,
+    cell: ({ row }) => <span className="tabular-nums">{share(row.original.chats, row.original.shown)}</span>,
+  },
+]
 
 // LensSearch reports on-site search: headline totals, a daily volume trend, the most-searched terms, and zero-result
 // searches (the merchandising-gap list) Rollup-backed (dim='search' / 'search_zero'), so it scales with traffic
+function gapColumns(tone: string): ColumnDef<TermRow>[] {
+  return [
+    {
+      accessorKey: 'term',
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Search term" />,
+      cell: ({ row }) => <span className={`block max-w-[360px] truncate font-medium ${tone}`}>{row.original.term}</span>,
+    },
+    {
+      accessorKey: 'count',
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Searches" />,
+      cell: ({ row }) => <span className="tabular-nums">{formatNumber(row.original.count)}</span>,
+    },
+  ]
+}
+
+const zeroColumns = gapColumns('text-warning')
+const meaningOnlyColumns = gapColumns('text-info')
+
 export function LensSearch() {
   const { effectiveChannelId, isChannel, selectedChannel } = useConfigScope()
   const channelId = effectiveChannelId ?? ''
@@ -33,7 +95,11 @@ export function LensSearch() {
   const a = data?.lensSearchAnalytics
   const top = a?.top ?? []
   const zero = a?.zeroResult ?? []
+  const meaningOnly = a?.meaningOnly ?? []
   const daily = a?.daily ?? []
+  const aiGaps = a?.aiGaps ?? []
+  const overviews = a?.overviews ?? []
+  const shown = a?.overviewsShown ?? 0
   const zeroRate = a && a.totalSearches > 0 ? Math.round((a.zeroResultSearches / a.totalSearches) * 100) : 0
   const maxTop = Math.max(1, ...top.map((t) => t.count))
 
@@ -56,26 +122,6 @@ export function LensSearch() {
       },
     ],
     [maxTop],
-  )
-
-  const zeroColumns = useMemo<ColumnDef<TermRow>[]>(
-    () => [
-      {
-        accessorKey: 'term',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Search term" />,
-        cell: ({ row }) => (
-          <span className="block max-w-[360px] truncate font-medium text-warning">
-            {row.original.term}
-          </span>
-        ),
-      },
-      {
-        accessorKey: 'count',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Searches" />,
-        cell: ({ row }) => <span className="tabular-nums">{formatNumber(row.original.count)}</span>,
-      },
-    ],
-    [],
   )
 
   if (error && !data) {
@@ -153,6 +199,57 @@ export function LensSearch() {
                 initialSorting={[{ id: 'count', desc: true }]}
                 emptyState={<p className="py-6 text-sm text-muted-foreground">No zero-result searches 🎉</p>}
               />
+            </DetailPageSection>
+
+            <DetailPageSection
+              title="Found only by meaning"
+              description={`${formatNumber(a?.meaningOnlySearches ?? 0)} searches whose words matched no product, so the closest in meaning were listed instead. The shopper saw products, but the catalog doesn't use their words - a synonym or a better product name closes the gap.`}
+            >
+              <DataTable
+                columns={meaningOnlyColumns}
+                data={meaningOnly}
+                loading={loading}
+                getRowId={(t) => t.term}
+                searchPlaceholder="Search terms…"
+                initialSorting={[{ id: 'count', desc: true }]}
+                emptyState={<p className="py-6 text-sm text-muted-foreground">None - every search with results matched on its words.</p>}
+              />
+            </DetailPageSection>
+
+            <DetailPageSection
+              title="Asked of the AI, found nothing"
+              description="What the shopping assistant and shoppers' own AI agents searched the catalog for and came back empty - often more specific than what people type into the search box."
+            >
+              <DataTable
+                columns={aiGapColumns}
+                data={aiGaps}
+                loading={loading}
+                getRowId={(t) => t.term}
+                searchPlaceholder="Search terms…"
+                emptyState={<p className="py-6 text-sm text-muted-foreground">Nothing yet - every search the AI made found something.</p>}
+              />
+            </DetailPageSection>
+
+            <DetailPageSection
+              title="AI overviews"
+              description="The overview written above a search's results: how often it was shown, a product named in it followed, and carried into the chat."
+            >
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Tile label="Overviews shown" value={formatNumber(shown)} sub="last 30 days" />
+                <Tile label="Product followed" value={share(a?.overviewClicks ?? 0, shown)} sub={`${formatNumber(a?.overviewClicks ?? 0)} clicks`} />
+                <Tile label="Carried into chat" value={share(a?.overviewChats ?? 0, shown)} sub={`${formatNumber(a?.overviewChats ?? 0)} chats`} />
+              </div>
+              <div className="mt-4">
+                <DataTable
+                  columns={overviewColumns}
+                  data={overviews}
+                  loading={loading}
+                  getRowId={(t) => t.term}
+                  searchPlaceholder="Search terms…"
+                  initialSorting={[{ id: 'shown', desc: true }]}
+                  emptyState={<p className="py-6 text-sm text-muted-foreground">No overviews shown yet.</p>}
+                />
+              </div>
             </DetailPageSection>
           </>
         )}

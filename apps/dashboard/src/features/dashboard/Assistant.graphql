@@ -1,0 +1,25 @@
+query AssistantReport($channelId: ID!, $days: Int) {
+  assistantReport(channelId: $channelId, days: $days) {
+    days
+    turns
+    failedTurns
+    unansweredTurns
+    cartTurns
+    checkoutTurns
+    usage {
+      inputTokens
+      outputTokens
+      cacheReadTokens
+      cacheWriteTokens
+      estimatedCostUsd
+    }
+    orders {
+      currencyCode
+      orderCount
+      assistantOrders
+      assistantRevenue
+      agentOrders
+      agentRevenue
+    }
+  }
+}

@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react'
 import { AbandonedCartsWidget } from './abandoned-carts'
+import { AssistantWidget } from './assistant'
 import { AccountWidget } from './account'
 import { AuditWidget } from './audit'
 import { EmailWidget } from './email'
@@ -55,6 +56,7 @@ export const HOME_WIDGETS: HomeWidget[] = [
   { id: 'top-products', title: 'Top products', permission: 'reports.view', defaultHidden: true, Component: TopProductsWidget },
   { id: 'abandoned-carts', title: 'Abandoned carts', permission: 'orders.view', defaultHidden: true, Component: AbandonedCartsWidget },
   { id: 'promotions', title: 'Promotions', permission: 'promotions.view', defaultHidden: true, Component: PromotionsWidget },
+  { id: 'assistant', title: 'Shopping assistant', permission: 'reports.view', defaultHidden: true, Component: AssistantWidget },
   { id: 'traffic', title: 'Traffic', permission: 'lens.view', feature: 'signals', defaultHidden: true, Component: TrafficWidget },
   { id: 'email', title: 'Email engagement', permission: 'emails.view', feature: 'signals', defaultHidden: true, Component: EmailWidget },
   { id: 'experiments', title: 'Experiments', permission: 'experiments.view', feature: 'signals', defaultHidden: true, Component: ExperimentsWidget },

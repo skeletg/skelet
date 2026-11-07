@@ -37,6 +37,7 @@ import { Switch } from '@/components/ui/switch'
 import {
   ADDABLE_NODES,
   NODE_LABELS,
+  TRIGGER_HELP,
   TRIGGER_LABELS,
   TRANSACTIONAL_TRIGGERS,
   defaultCondition,
@@ -420,7 +421,7 @@ function ConfigPanel({
               ))}
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground">The customer enters the flow when this event fires.</p>
+          <p className="text-xs text-muted-foreground">{TRIGGER_HELP[triggerType] ?? 'The customer enters the flow when this event fires.'}</p>
         </div>
         <div className="grid gap-2 border-t pt-3">
           <label className="flex items-center gap-2 text-xs font-medium">
