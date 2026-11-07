@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -9,24 +8,21 @@ import { BoardDocument, BoardShareTargetsDocument, BoardsDocument, TransferBoard
 const SHOP = 'shop' // the picker's value for "nobody - a shop board"
 
 // HandOverDialog gives the board to another admin who can open boards here, or - for someone who manages boards -
-// makes it a shop board. An explicit action of its own, so it isn't staged on the page (conventions.md)
-export function HandOverDialog({ channelId, shop, board, canManage, open, onOpenChange }: { channelId: string; shop: string; board: BoardFullFragment; canManage: boolean; open: boolean; onOpenChange: (open: boolean) => void }) {
-  const navigate = useNavigate()
+// makes it a shop board. An explicit action of its own, so it isn't staged on the page (conventions.md). The board is
+// read again after: if the giver can't open it any more, the page says so the way it does for any board they can't
+export function HandOverDialog({ channelId, shop, board, canManage, onClose }: { channelId: string; shop: string; board: BoardFullFragment; canManage: boolean; onClose: () => void }) {
   const [to, setTo] = useState('')
-  const { data } = useQuery(BoardShareTargetsDocument, { variables: { channelId }, skip: !open })
-  const [transfer, { loading, error }] = useMutation(TransferBoardDocument)
+  const { data } = useQuery(BoardShareTargetsDocument, { variables: { channelId } })
+  const [transfer, { loading, error }] = useMutation(TransferBoardDocument, { refetchQueries: [BoardsDocument, BoardDocument], awaitRefetchQueries: true })
   const admins = (data?.boardShareTargets ?? []).filter((t) => t.kind === 'admin' && t.seesBoards && t.id !== board.owner?.id)
 
   async function submit() {
-    // A board given to someone else is theirs now, and may not open for the giver any more; a shop board stays open
-    const shopBoard = to === SHOP
-    await transfer({ variables: { channelId, id: board.id, ownerId: shopBoard ? null : to }, refetchQueries: shopBoard ? [BoardsDocument, BoardDocument] : [BoardsDocument] })
-    onOpenChange(false)
-    if (!shopBoard) navigate('/synapse/boards')
+    await transfer({ variables: { channelId, id: board.id, ownerId: to === SHOP ? null : to } })
+    onClose()
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Hand over {board.name}</DialogTitle>
@@ -54,7 +50,7 @@ export function HandOverDialog({ channelId, shop, board, canManage, open, onOpen
           {to === SHOP && <p className="text-xs text-muted-foreground">Everyone on {shop} with access to boards will see it, anyone who manages boards here runs it, and its shares go.</p>}
           {error && <p className="text-sm text-destructive">{error.message}</p>}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
             <Button type="submit" disabled={!to || loading}>

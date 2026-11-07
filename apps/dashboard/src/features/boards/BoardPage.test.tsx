@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { SLOW, globalScope, meMock, renderPage } from '@/test/page-harness'
 import type { ConfigScopeContextValue } from '@/lib/config-scope'
 import { SynapseInsightsDocument, SynapseOverviewDocument, SynapseStickinessDocument } from '@/features/synapse/Synapse.gql'
-import { BoardDocument, DiscardBoardDraftDocument, RequestBoardAccessDocument, SaveBoardDocument, SaveBoardDraftDocument, SetBoardSharesDocument } from './Boards.gql'
+import { BoardDocument, BoardShareTargetsDocument, DiscardBoardDraftDocument, RequestBoardAccessDocument, TransferBoardDocument, SaveBoardDocument, SaveBoardDraftDocument, SetBoardSharesDocument } from './Boards.gql'
 import { BoardPage } from './BoardPage'
 import { cleanReport } from './report'
 
@@ -312,6 +312,44 @@ describe('BoardPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Let them edit' }))
     await waitFor(() => expect(shared).not.toBeNull(), SLOW)
     expect(shared).toEqual({ channelId: 'c1', id: 'b1', shares: [{ adminId: 'admin-9', level: 'EDIT' }] })
+  })
+
+  it("hands the board to someone else and, unable to open it any more, says so as for any board one can't open", async () => {
+    let handed: Record<string, unknown> | null = null
+    renderPage({
+      path: '/boards/b1',
+      routes: { '/boards/:id': <BoardPage /> },
+      adminId: 'admin-1',
+      scope: channelScope,
+      mocks: [
+        meMock({ superuser: false, permissions: ['boards.view', 'boards.manage'] }),
+        { request: { query: BoardDocument, variables: { channelId: 'c1', id: 'b1' } }, result: { data: { board } } },
+        { request: { query: BoardDocument, variables: { channelId: 'c1', id: 'b1' } }, result: { errors: [new GraphQLError('board not found', { extensions: { code: 'SIGNALS_NOT_FOUND' } })] } },
+        {
+          request: { query: BoardShareTargetsDocument, variables: { channelId: 'c1' } },
+          result: { data: { boardShareTargets: [{ __typename: 'BoardShareTarget', kind: 'admin', id: 'admin-9', name: 'Bo', seesBoards: true, seesData: true }] } },
+        },
+        {
+          request: {
+            query: TransferBoardDocument,
+            variables: (v: Record<string, unknown>) => {
+              handed = v
+              return true
+            },
+          },
+          result: { data: { transferBoard: true } },
+        },
+        ...boardMocks(() => {}).slice(1),
+      ],
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Hand over' }, SLOW))
+    const owner = await screen.findByRole('combobox', { name: 'New owner' }, SLOW)
+    await waitFor(() => expect(within(owner).queryByRole('option', { name: 'Bo' })).toBeTruthy())
+    fireEvent.change(owner, { target: { value: 'admin-9' } })
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Hand over' }))
+    expect(await screen.findByText("You can't open this board", {}, SLOW)).toBeTruthy()
+    expect(screen.queryByRole('region', { name: 'Returning' })).toBeNull() // the board they gave away isn't left on screen
+    expect(handed).toEqual({ channelId: 'c1', id: 'b1', ownerId: 'admin-9' })
   })
 })
 

@@ -381,7 +381,7 @@ export function BoardPage() {
       {board && (
         <>
           {sharing && <ShareDialog channelId={channelId} shop={selectedChannel?.name ?? 'this shop'} board={board} onClose={() => setSharing(false)} />}
-          <HandOverDialog channelId={channelId} shop={selectedChannel?.name ?? 'this shop'} board={board} canManage={canManage} open={handingOver} onOpenChange={setHandingOver} />
+          {handingOver && <HandOverDialog channelId={channelId} shop={selectedChannel?.name ?? 'this shop'} board={board} canManage={canManage} onClose={() => setHandingOver(false)} />}
         </>
       )}
     </DetailPageLayout>
