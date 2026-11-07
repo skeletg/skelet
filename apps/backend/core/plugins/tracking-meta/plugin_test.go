@@ -127,3 +127,10 @@ func TestSearchesWishlistsAndLeadsAreMetasStandardEvents(t *testing.T) {
 		t.Error("add_to_wishlist isn't AddToWishlist")
 	}
 }
+
+func TestAFreePurchaseStillSaysItsValue(t *testing.T) {
+	b, _ := json.Marshal(toEvent("Purchase", sdk.ShopEvent{ID: "p", Name: "purchase", Ecommerce: &sdk.ShopEcommerce{Currency: "EUR", TransactionID: "1001"}}))
+	if !strings.Contains(string(b), `"value":0`) || !strings.Contains(string(b), `"currency":"EUR"`) {
+		t.Errorf("Meta requires value and currency on a Purchase, even a free one: %s", b)
+	}
+}

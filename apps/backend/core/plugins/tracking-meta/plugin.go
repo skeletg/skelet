@@ -118,7 +118,7 @@ type userData struct {
 
 type customData struct {
 	Currency    string    `json:"currency,omitempty"`
-	Value       float64   `json:"value,omitempty"`
+	Value       *float64  `json:"value,omitempty"` // set whenever the event has ecommerce, so a free order still says 0
 	OrderID     string    `json:"order_id,omitempty"`
 	ContentType string    `json:"content_type,omitempty"`
 	ContentIDs  []string  `json:"content_ids,omitempty"`
@@ -155,7 +155,8 @@ func toEvent(name string, ev sdk.ShopEvent) event {
 	}
 	if e := ev.Ecommerce; e != nil {
 		// What was paid, tax and shipping in - Meta's return on ad spend reads value as the order's worth to the shop
-		cd := &customData{Currency: e.Currency, Value: e.Value + e.Tax + e.Shipping, OrderID: e.TransactionID, ContentType: "product"}
+		value := e.Value + e.Tax + e.Shipping
+		cd := &customData{Currency: e.Currency, Value: &value, OrderID: e.TransactionID, ContentType: "product"}
 		for _, it := range e.Items {
 			cd.ContentIDs = append(cd.ContentIDs, it.ItemID)
 			cd.Contents = append(cd.Contents, content{ID: it.ItemID, Quantity: it.Quantity, ItemPrice: it.Price})
