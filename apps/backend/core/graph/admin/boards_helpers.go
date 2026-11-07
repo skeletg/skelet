@@ -2,6 +2,8 @@ package admin
 
 import (
 	"context"
+	"errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -46,18 +48,23 @@ type boardPeople struct {
 	roles  map[uuid.UUID]string
 }
 
-func (r *Resolver) boardPeople(ctx context.Context) (*boardPeople, error) {
+// boardPeople reads the admins - one query, whatever their number - and the roles only when withRoles: a board names
+// roles only on its role shares, and the list never does
+func (r *Resolver) boardPeople(ctx context.Context, withRoles bool) (*boardPeople, error) {
 	admins, err := r.AdminSvc.List(ctx)
 	if err != nil {
 		return nil, err
 	}
+	p := &boardPeople{admins: make(map[uuid.UUID]admin.AdminUser, len(admins)), roles: map[uuid.UUID]string{}}
+	for _, a := range admins {
+		p.admins[a.ID] = a
+	}
+	if !withRoles {
+		return p, nil
+	}
 	roles, err := r.AdminSvc.ListRoles(ctx)
 	if err != nil {
 		return nil, err
-	}
-	p := &boardPeople{admins: make(map[uuid.UUID]admin.AdminUser, len(admins)), roles: make(map[uuid.UUID]string, len(roles))}
-	for _, a := range admins {
-		p.admins[a.ID] = a
 	}
 	for _, ro := range roles {
 		p.roles[ro.ID] = ro.Name
@@ -160,7 +167,7 @@ func reportOut(r *signalsv1.BoardReport) *model.BoardReport {
 }
 
 func (r *Resolver) oneBoard(ctx context.Context, b *signalsv1.Board) (*model.Board, error) {
-	p, err := r.boardPeople(ctx)
+	p, err := r.boardPeople(ctx, slices.ContainsFunc(b.GetShares(), func(s *signalsv1.BoardShare) bool { return s.GetRoleId() != "" }))
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +175,7 @@ func (r *Resolver) oneBoard(ctx context.Context, b *signalsv1.Board) (*model.Boa
 }
 
 func (r *Resolver) manyBoards(ctx context.Context, bs []*signalsv1.BoardSummary) ([]*model.BoardSummary, error) {
-	p, err := r.boardPeople(ctx)
+	p, err := r.boardPeople(ctx, false)
 	if err != nil {
 		return nil, err
 	}
@@ -239,13 +246,12 @@ func (r *Resolver) checkBoardOwner(ctx context.Context, channelID, adminID strin
 	if err != nil {
 		return refuse
 	}
-	p, err := r.boardPeople(ctx)
+	a, err := r.AdminSvc.GetByID(ctx, aid)
+	if errors.Is(err, admin.ErrAdminNotFound) || (err == nil && !a.IsActive) {
+		return refuse
+	}
 	if err != nil {
 		return err
-	}
-	a, ok := p.admins[aid]
-	if !ok || !a.IsActive {
-		return refuse
 	}
 	grants, err := r.AdminSvc.Grants(ctx, aid)
 	if err != nil {
