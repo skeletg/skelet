@@ -82,6 +82,22 @@ Two things that bite:
   providers want `require` or `verify-full` anyway; `ALLOW_INSECURE_DB=1` exists
   for the case where you terminate TLS yourself.
 
+A managed commerce database needs the `pgvector` extension for [embeddings](embeddings.md). The big providers all
+have it; where the app's user may not create extensions, run `CREATE EXTENSION vector;` once as the admin user.
+
+## Moving to the pgvector image
+
+The bundled commerce database runs `pgvector/pgvector`, Postgres 18 with the extension, built on Debian. A volume
+the old `postgres:18-alpine` image made starts on it as it is, but the two sort text differently and Postgres can't
+tell, so indexes on text columns would quietly come out in the wrong order. After the first start on the new image,
+reindex once:
+
+```bash
+docker compose exec db psql -U skelet -d skelet -c 'REINDEX DATABASE skelet'
+```
+
+Take a dump first, as with any change to the database image.
+
 If the frontends move to a platform like Vercel, `CORS_ALLOWED_ORIGINS` stops
 being optional - the browser starts talking to the API origin directly instead of
 being proxied to it by the dashboard's own nginx - and `TRUSTED_PROXIES` has to

@@ -565,6 +565,10 @@ rather keep the key out of the database, and they are read in this order:
 
 All three are OPTIONAL. With no key from any source the assistant stays off.
 
+A key from the environment only ever goes to the provider's own address. Point `ai/llm/base_url` somewhere else and
+the key has to be entered in the settings for that address. The same goes for a key saved in the settings: one
+saved before the address last moved isn't sent to the new one.
+
 ## Storefront links
 
 `STOREFRONT_URL` is where customer email links land, `DASHBOARD_URL` where
@@ -756,7 +760,6 @@ Once it's on, each surface has its own per-minute budget:
 | `TOKEN_RATE_LIMIT_PER_MIN` | 60 | download, unsubscribe, signup confirmation, email open/click |
 | `INGEST_RATE_LIMIT_PER_MIN` | 300 | `/t/*` beacons, per endpoint |
 | `MCP_RATE_LIMIT_PER_MIN` | 120 | MCP tool calls, per integration token or admin ([mcp.md](mcp.md)) |
-| `MCP_FRONT_RATE_LIMIT_PER_MIN` | 600 | storefront MCP tool calls, per client address ([storefront-mcp.md](storefront-mcp.md)) |
 | `SIGNUP_CONFIRM_RATE_LIMIT_PER_HOUR` | 3 | signup-form confirmation emails, per address (an hourly budget, unlike the rest) |
 | `PAYMENT_METHOD_SAVE_RATE_LIMIT_PER_HOUR` | 5 | saved-card attempts per customer, failures included (an hourly budget) - each is a gateway vault call, the card-testing surface |
 
@@ -766,6 +769,11 @@ start refusing traffic.
 
 `MCP_FRONT_MAX_IN_FLIGHT` (32) caps the storefront MCP calls one client address runs at once. Unlike the
 budgets above it's always on, `RATE_LIMIT_ENABLED` or not.
+
+Everything on the storefront that reaches an AI provider is limited per store in the settings instead, on
+whatever `RATE_LIMIT_ENABLED` says, since each call is paid for: `sales/agents/assistant_per_minute`,
+`search/products/meaning_per_minute` and `sales/agents/mcp_per_minute` ([settings.md](settings.md),
+[storefront-mcp.md](storefront-mcp.md)).
 
 The lockout is separate, in case you want brute-force protection without
 per-IP budgets: `LOGIN_LOCKOUT_ENABLED` (defaults to whatever
