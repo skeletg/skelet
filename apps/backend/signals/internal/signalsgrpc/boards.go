@@ -207,10 +207,14 @@ func (s *boardServer) RequestBoardAccess(ctx context.Context, req *signalsv1.Req
 	if err != nil {
 		return nil, err
 	}
-	if err := s.svc.RequestAccess(ctx, cid, a, id, req.GetLevel()); err != nil {
+	b, err := s.svc.RequestAccess(ctx, cid, a, id, req.GetLevel())
+	if err != nil {
 		return nil, boardErr(err)
 	}
-	return &signalsv1.RequestBoardAccessResponse{}, nil
+	if b == nil {
+		return &signalsv1.RequestBoardAccessResponse{}, nil
+	}
+	return &signalsv1.RequestBoardAccessResponse{OwnerId: b.OwnerID.String(), BoardName: b.Name}, nil
 }
 
 func (s *boardServer) DismissBoardAccessRequest(ctx context.Context, req *signalsv1.DismissBoardAccessRequestRequest) (*signalsv1.DismissBoardAccessRequestResponse, error) {

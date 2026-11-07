@@ -340,14 +340,14 @@ func TestRequestingAccessToABoard(t *testing.T) {
 	me, asker := Actor{AdminID: uuid.New(), CanManage: true}, Actor{AdminID: uuid.New()}
 	b := newBoard(t, svc, shop, me, "Weekly", views)
 
-	if err := svc.RequestAccess(ctx, shop, asker, uuid.New(), ShareView); err != nil {
+	if _, err := svc.RequestAccess(ctx, shop, asker, uuid.New(), ShareView); err != nil {
 		t.Fatalf("a request for a board that doesn't exist: %v, want the same answer as for one that does", err)
 	}
-	if err := svc.RequestAccess(ctx, shop, asker, b.ID, "own"); !errors.Is(err, ErrInvalid) {
+	if _, err := svc.RequestAccess(ctx, shop, asker, b.ID, "own"); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("asking to own it: %v, want ErrInvalid", err)
 	}
-	if err := svc.RequestAccess(ctx, shop, asker, b.ID, ShareEdit); err != nil {
-		t.Fatal(err)
+	if kept, err := svc.RequestAccess(ctx, shop, asker, b.ID, ShareEdit); err != nil || kept == nil || kept.OwnerID != me.AdminID {
+		t.Fatalf("a kept request = %+v, %v - want the board back, to tell its owner", kept, err)
 	}
 	if list, _ := svc.List(ctx, shop, me, false); len(list) != 1 || list[0].RequestCount != 1 {
 		t.Fatalf("the owner's list = %+v, want one request on the board", list)
@@ -370,14 +370,14 @@ func TestRequestingAccessToABoard(t *testing.T) {
 	if got, _ = svc.Get(ctx, shop, me, b.ID); len(got.Requests) != 0 {
 		t.Fatalf("sharing the board left the request: %+v", got.Requests)
 	}
-	if err := svc.RequestAccess(ctx, shop, asker, b.ID, ShareView); err != nil {
-		t.Fatal(err)
+	if kept, err := svc.RequestAccess(ctx, shop, asker, b.ID, ShareView); err != nil || kept != nil {
+		t.Fatalf("asking for access they already have = %+v, %v - want nothing to tell the owner", kept, err)
 	}
 	if got, _ = svc.Get(ctx, shop, me, b.ID); len(got.Requests) != 0 {
 		t.Fatalf("asking for access they already have was kept: %+v", got.Requests)
 	}
 
-	if err := svc.RequestAccess(ctx, shop, asker, b.ID, ShareEdit); err != nil {
+	if _, err := svc.RequestAccess(ctx, shop, asker, b.ID, ShareEdit); err != nil {
 		t.Fatal(err)
 	}
 	if err := svc.DismissRequest(ctx, shop, asker, b.ID, asker.AdminID); !errors.Is(err, ErrForbidden) {

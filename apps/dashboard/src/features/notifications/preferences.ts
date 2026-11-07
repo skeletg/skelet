@@ -34,6 +34,7 @@ export const NOTIFICATION_CATEGORIES: { id: string; label: string; hint: string 
   { id: 'review', label: 'Reviews', hint: 'A review is waiting on moderation' },
   { id: 'inventory', label: 'Inventory', hint: 'Stock ran low or ran out' },
   { id: 'form', label: 'Form submissions', hint: 'Someone submitted a web form' },
+  { id: 'board', label: 'Boards', hint: 'Someone asked for access to a board of yours' },
   { id: 'system', label: 'System', hint: 'Failing jobs and other ops trouble' },
 ]
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/admin"
+	"github.com/skeletg/skelet/apps/backend/core/internal/notification"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
@@ -276,4 +277,42 @@ func nilIfZero[T comparable](v T) *T {
 		return nil
 	}
 	return &v
+}
+
+// notifyBoardAccessRequest puts a request for access in the board owner's inbox, theirs alone. Signals names the owner
+// only when it kept the request, so nothing here tells the asker whether the board exists
+func (r *Resolver) notifyBoardAccessRequest(ctx context.Context, channelID, boardID string, level model.BoardShareLevel, res *signalsv1.RequestBoardAccessResponse) error {
+	if res.GetOwnerId() == "" || r.NotificationSvc == nil {
+		return nil
+	}
+	owner, err := uuid.Parse(res.GetOwnerId())
+	if err != nil {
+		return err
+	}
+	cid, err := uuid.Parse(channelID)
+	if err != nil {
+		return err
+	}
+	claims, err := auth.RequireAdmin(ctx)
+	if err != nil {
+		return err
+	}
+	asker, err := r.AdminSvc.GetByID(ctx, claims.AdminID)
+	if err != nil {
+		return err
+	}
+	lvl := strings.ToLower(string(level))
+	return r.NotificationSvc.Create(ctx, notification.Input{
+		Category:           notification.CategoryBoard,
+		Title:              adminName(asker) + " asked to " + lvl + " " + res.GetBoardName(),
+		Body:               "Share the board with them, or dismiss the request, from the board.",
+		RequiredPermission: notification.PermBoards,
+		ChannelID:          &cid,
+		EntityType:         "board",
+		EntityID:           boardID,
+		ActionURL:          "/synapse/boards/" + boardID,
+		// One notice a day per asker and level - asking again before the owner answers adds nothing
+		DedupeKey:        "board_access:" + boardID + ":" + claims.AdminID.String() + ":" + lvl + ":" + time.Now().UTC().Format(time.DateOnly),
+		RecipientAdminID: &owner,
+	})
 }

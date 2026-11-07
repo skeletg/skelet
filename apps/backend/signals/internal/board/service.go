@@ -183,27 +183,31 @@ func (s *Service) Transfer(ctx context.Context, channelID uuid.UUID, a Actor, id
 
 // RequestAccess asks the board's owner for a level on it. It answers nil whether or not the board exists on the shop,
 // or the actor has that access already, so a request says nothing about a board they can't see. A shop board takes no
-// requests: everyone on the shop sees it, and editing it comes with boards.manage
-func (s *Service) RequestAccess(ctx context.Context, channelID uuid.UUID, a Actor, id uuid.UUID, level string) error {
+// requests: everyone on the shop sees it, and editing it comes with boards.manage. The board comes back when a request
+// was kept, for its owner to be told - the caller's to keep from the asker
+func (s *Service) RequestAccess(ctx context.Context, channelID uuid.UUID, a Actor, id uuid.UUID, level string) (*Board, error) {
 	want := map[string]Access{ShareView: View, ShareEdit: Edit}[level]
 	if want == NoAccess {
-		return fmt.Errorf("%w: a request is for view or edit", ErrInvalid)
+		return nil, fmt.Errorf("%w: a request is for view or edit", ErrInvalid)
 	}
 	b, err := s.r.get(ctx, channelID, id)
 	if errors.Is(err, ErrNotFound) {
-		return nil
+		return nil, nil
 	}
 	if err != nil {
-		return err
+		return nil, err
 	}
 	shares, err := s.r.shares(ctx, id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if b.OwnerID == uuid.Nil || access(b.Ownership, shares, a) >= want {
-		return nil
+		return nil, nil
 	}
-	return s.r.putRequest(ctx, id, a.AdminID, level)
+	if err := s.r.putRequest(ctx, id, a.AdminID, level); err != nil {
+		return nil, err
+	}
+	return &b, nil
 }
 
 // DismissRequest turns an access request down - the owner's to do. Granting one is a share, which clears it
