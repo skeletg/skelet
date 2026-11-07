@@ -16,7 +16,7 @@ import {
 
 import { AccountBadge } from "@/app/components/account/AccountBadge";
 import { getAccountCounts } from "@skelet/storefront-next/account/read";
-import { AnalyticsEvent } from "@/app/components/AnalyticsEvent";
+import { StripParam } from "@/app/components/StripParam";
 import {
   AccountCard,
   AccountPageHeader,
@@ -81,13 +81,7 @@ export default async function AccountPage({
 
   return (
     <>
-      {welcome && (
-        <AnalyticsEvent
-          event="sign_up"
-          payload={{ method: "password" }}
-          stripParam="welcome"
-        />
-      )}
+      {welcome && <StripParam name="welcome" />}
 
       <AccountPageHeader
         title={t("greeting", { name: customer.firstName })}

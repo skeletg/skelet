@@ -51,7 +51,7 @@ export async function registerCustomer(
   await form.getByLabel("Password", { exact: true }).fill(PASSWORD);
   await form.getByLabel("Confirm password").fill(PASSWORD);
   await form.getByRole("button", { name: "Create account" }).click();
-  // ?welcome=1 is stripped client-side once the sign-up analytics event fires, so match the page, not the query
+  // ?welcome=1 is stripped client-side on load, so match the page, not the query
   await expect(page).toHaveURL(/\/account(\?|$)/);
   return { email, password: PASSWORD };
 }
