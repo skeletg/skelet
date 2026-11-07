@@ -23,6 +23,7 @@ var humanOnly = map[string]string{
 	"SetMyPreference":            "preferences are kept per admin",
 	"notifScope":                 "the inbox and its read state are kept per admin",
 	"MarkNotificationRead":       "the inbox and its read state are kept per admin",
+	"notifyBoardAccessRequest":   "an access request names the admin who asked - a token has no name to ask in",
 	"chatHistory":                "chat history is kept per admin",
 	"SignalsChat":                "a conversational UI whose cost is capped per admin",
 	"MintBlogPostPreviewToken":   "a draft preview link opened by a person in a browser",
