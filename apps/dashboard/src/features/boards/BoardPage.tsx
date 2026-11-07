@@ -26,6 +26,7 @@ import { useSaveRegistry, useSaveSection } from '@/shared/saving/saveRegistry'
 import {
   BoardDocument,
   BoardsDocument,
+  CreateBoardDocument,
   DeleteBoardDocument,
   SaveBoardDocument,
   SetBoardFavouriteDocument,
@@ -42,6 +43,11 @@ import { EditPanel } from './EditPanel'
 // A tile's width in the board's grid, which is 1 column narrow, 2 from a medium width, 4 wide and 5 very wide - measured
 // on the grid itself, so opening the edit panel narrows it rather than squeezing four tiles into the space left
 const SPAN: Record<ReportSize, string> = { SMALL: 'col-span-1', MEDIUM: 'col-span-1 @2xl:col-span-2', FULL: 'col-span-full' }
+
+// The copy's name, cut to fit the 120 characters a board's name may run to
+export function copyName(name: string): string {
+  return `${Array.from(name).slice(0, 113).join('')} (copy)`
+}
 
 // BoardPage is the board as a canvas: tiles are added, built, resized and reordered in place, the edit panel sits beside
 // the grid while the tile previews each change, and the header Save applies the lot
@@ -99,6 +105,7 @@ export function BoardPage() {
   const [sharing, setSharing] = useState(false)
   const [handingOver, setHandingOver] = useState(false)
   const [deleteBoard] = useMutation(DeleteBoardDocument, { refetchQueries: [BoardsDocument] })
+  const [createBoard, duplicating] = useMutation(CreateBoardDocument, { refetchQueries: [BoardsDocument] })
   const [confirmingSave, setConfirmingSave] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -184,6 +191,14 @@ export function BoardPage() {
     setEditing(null)
   }
 
+  // A copy of the board as saved is the caller's own, private like any new board - its shares and requests stay behind
+  async function duplicateBoard() {
+    if (!board) return
+    const res = await createBoard({ variables: { channelId, name: copyName(board.name), reports: saved } }).catch(() => null)
+    const copy = res?.data?.createBoard.id
+    if (copy) navigate(`/synapse/boards/${copy}`)
+  }
+
   const addMenu = (trigger: React.ReactNode) => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
@@ -240,6 +255,12 @@ export function BoardPage() {
                 Share
               </Button>
             )}
+            {canManage && board && (
+              <Button size="sm" variant="ghost" disabled={duplicating.loading} onClick={() => void duplicateBoard()}>
+                <CopyIcon className="size-4" />
+                Duplicate
+              </Button>
+            )}
             {canOwn && board && (
               <Button size="sm" variant="ghost" onClick={() => setHandingOver(true)}>
                 Hand over
@@ -273,6 +294,12 @@ export function BoardPage() {
           <Alert variant="destructive">
             <AlertTitle>Couldn't load the board</AlertTitle>
             <AlertDescription>{error.message}</AlertDescription>
+          </Alert>
+        )}
+        {duplicating.error && (
+          <Alert variant="destructive">
+            <AlertTitle>Couldn't duplicate the board</AlertTitle>
+            <AlertDescription>{duplicating.error.message}</AlertDescription>
           </Alert>
         )}
         {loading && !board && <p className="py-6 text-sm text-muted-foreground">Loading…</p>}

@@ -270,6 +270,7 @@ type AdminNotification struct {
 	ActionUrl          string        `json:"action_url"`
 	DedupeKey          string        `json:"dedupe_key"`
 	CreatedAt          time.Time     `json:"created_at"`
+	RecipientAdminID   uuid.NullUUID `json:"recipient_admin_id"`
 }
 
 type AdminPreference struct {

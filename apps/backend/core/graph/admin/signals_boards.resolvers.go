@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -137,8 +138,13 @@ func (r *mutationResolver) RequestBoardAccess(ctx context.Context, channelID str
 	if err != nil {
 		return false, err
 	}
-	if _, err := r.SignalsAPI.Boards.RequestBoardAccess(authed, &signalsv1.RequestBoardAccessRequest{ChannelId: channelID, Id: id, Level: strings.ToLower(string(level))}); err != nil {
+	res, err := r.SignalsAPI.Boards.RequestBoardAccess(authed, &signalsv1.RequestBoardAccessRequest{ChannelId: channelID, Id: id, Level: strings.ToLower(string(level))})
+	if err != nil {
 		return false, signalsErr(err)
+	}
+	// The request is kept either way - a lost notice only means the owner finds it on the board instead
+	if err := r.notifyBoardAccessRequest(ctx, channelID, id, level, res); err != nil {
+		slog.WarnContext(ctx, "boards: access request notice failed", "board", id, "err", err)
 	}
 	return true, nil
 }
