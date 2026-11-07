@@ -7,6 +7,7 @@ package ai
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -19,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/aitrace"
 	"github.com/skeletg/skelet/apps/backend/core/internal/webhook"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/otelx"
@@ -52,6 +54,7 @@ type Service struct {
 	cfg        ConfigReader
 	http       *http.Client
 	envEnabled bool // AI_ENABLED hard switch - read once at construction, restart to change
+	trips      breaker
 }
 
 func NewService(cfg ConfigReader) *Service {
@@ -92,6 +95,27 @@ func (s *Service) get(ctx context.Context, path string) string {
 	return strings.TrimSpace(v)
 }
 
+type entryReader interface {
+	Get(ctx context.Context, path string, scope config.Scope) (config.Entry, error)
+}
+
+// secret is the key at keyPath only when it was entered for the address now at addressPath
+func (s *Service) secret(ctx context.Context, keyPath, addressPath string) string {
+	er, ok := s.cfg.(entryReader)
+	if !ok {
+		return s.get(ctx, keyPath)
+	}
+	key, err := er.Get(ctx, keyPath, config.DefaultScope)
+	if err != nil {
+		return ""
+	}
+	address, err := er.Get(ctx, addressPath, config.DefaultScope)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(config.BoundSecret(key, address))
+}
+
 func (s *Service) enabled(ctx context.Context) bool {
 	if !s.envEnabled || s.cfg == nil {
 		return false
@@ -105,24 +129,19 @@ func (s *Service) providerConfig(ctx context.Context) providerCfg {
 	if prov == "" {
 		prov = providerAnthropic
 	}
-	key := s.get(ctx, cfgAPIKey) // key precedence: config → generic AI_API_KEY env → provider-specific env
-	if key == "" {
-		key = strings.TrimSpace(os.Getenv("AI_API_KEY"))
-	}
-	if key == "" {
-		switch prov {
-		case providerOpenAI:
-			key = strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
-		default:
-			key = strings.TrimSpace(os.Getenv("ANTHROPIC_API_KEY"))
-		}
-	}
+	key := s.secret(ctx, cfgAPIKey, cfgBaseURL)
 	rawBase := s.get(ctx, cfgBaseURL)
+	if key == "" && rawBase == "" { // a key from the environment only ever goes to the provider's own address
+		key = cmp.Or(strings.TrimSpace(os.Getenv("AI_API_KEY")), envKey(prov))
+	}
 	base := rawBase
 	if base == "" {
 		base = defaultBaseURL(prov)
 	}
 	model := s.get(ctx, cfgModel)
+	if quick, _ := ctx.Value(quickKey{}).(bool); quick {
+		model = cmp.Or(s.get(ctx, QuickModelPath), model)
+	}
 	if model == "" {
 		model = defaultModel
 	}
@@ -135,6 +154,11 @@ func (s *Service) providerConfig(ctx context.Context) providerCfg {
 		baseConfigured: rawBase != "",
 	}
 }
+
+type quickKey struct{}
+
+// Quick has the calls under ctx use the quick model, where one is set
+func Quick(ctx context.Context) context.Context { return context.WithValue(ctx, quickKey{}, true) }
 
 func defaultBaseURL(provider string) string {
 	if provider == providerOpenAI {
@@ -177,12 +201,22 @@ func (s *Service) complete(ctx context.Context, model, system string, content []
 	if !pc.hasCredentials() {
 		return "", ErrNotConfigured
 	}
-	switch pc.provider {
-	case providerOpenAI:
-		return s.openaiComplete(ctx, pc, model, system, content, maxTokens)
-	default:
-		return s.anthropicComplete(ctx, pc, model, system, content, maxTokens)
-	}
+	ctx, gen := aitrace.Start(ctx, "Completion", aitrace.Generation)
+	defer gen.End()
+	gen.Model(model)
+	var out string
+	used, err := s.failover(ctx, pc, model, func(m string) error {
+		var err error
+		if pc.provider == providerOpenAI {
+			out, err = s.openaiComplete(ctx, pc, m, system, content, maxTokens)
+		} else {
+			out, err = s.anthropicComplete(ctx, pc, m, system, content, maxTokens)
+		}
+		return err
+	})
+	gen.Model(used)
+	gen.Fail(err)
+	return out, err
 }
 
 // Sends a JSON body to url with the given headers and returns the response bytes, wrapping non-2xx as an error with a bounded snippet
@@ -208,7 +242,7 @@ func (s *Service) post(ctx context.Context, url string, headers map[string]strin
 	defer func() { _ = resp.Body.Close() }()
 	data, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("ai: %s HTTP %d: %s", hostOf(url), resp.StatusCode, truncate(strings.TrimSpace(string(data)), maxErrorSnippet))
+		return nil, newProviderError(hostOf(url), resp, truncate(strings.TrimSpace(string(data)), maxErrorSnippet))
 	}
 	return data, nil
 }
@@ -245,7 +279,7 @@ func modelIs(model string, prefixes ...string) bool {
 }
 
 func thinksByDefault(model string) bool {
-	return modelIs(model, "claude-opus-5", "claude-sonnet-5", "claude-fable-5", "claude-mythos-5")
+	return modelIs(model, "claude-opus-5", "claude-sonnet-5", "claude-haiku-5", "claude-fable-5", "claude-mythos-5")
 }
 
 func supportsEffort(model string) bool {
@@ -551,10 +585,26 @@ func (s *Service) Chat(ctx context.Context, system string, messages []ChatMessag
 	if len(messages) == 0 {
 		return "", fmt.Errorf("ai: no messages")
 	}
-	if pc.provider == providerOpenAI {
-		return s.openaiChat(ctx, pc, system, messages, maxTokens)
-	}
-	return s.anthropicChat(ctx, pc, system, messages, maxTokens)
+	ctx, gen := aitrace.Start(ctx, "Model call", aitrace.Generation)
+	defer gen.End()
+	gen.Model(pc.model)
+	gen.Input(traceMessages(system, messages, nil))
+	var out string
+	used, err := s.failover(ctx, pc, pc.model, func(m string) error {
+		p := pc
+		p.model = m
+		var err error
+		if p.provider == providerOpenAI {
+			out, err = s.openaiChat(ctx, p, system, messages, maxTokens)
+		} else {
+			out, err = s.anthropicChat(ctx, p, system, messages, maxTokens)
+		}
+		return err
+	})
+	gen.Model(used)
+	gen.Fail(err)
+	gen.Output(out)
+	return out, err
 }
 
 func (s *Service) anthropicChat(ctx context.Context, pc providerCfg, system string, messages []ChatMessage, maxTokens int) (string, error) {
@@ -740,4 +790,13 @@ func stripFences(s string) string {
 		s = strings.TrimSuffix(strings.TrimSpace(s), "```")
 	}
 	return strings.TrimSpace(s)
+}
+
+func (s *Service) ModelName(ctx context.Context) string { return s.providerConfig(ctx).model }
+
+func envKey(provider string) string {
+	if provider == providerOpenAI {
+		return strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
+	}
+	return strings.TrimSpace(os.Getenv("ANTHROPIC_API_KEY"))
 }

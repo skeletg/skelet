@@ -45,7 +45,46 @@ type ToolResult struct { // fed back to the model as ChatMessage{Role:"tool", To
 type ChatTurn struct { // one of the two - final assistant text with ToolCalls empty, or tool calls the caller must execute
 	Text      string
 	ToolCalls []ToolCall
+	Usage     Usage
+	Thinking  string
+	Model     string          // the model that answered - the fallback's when the main one failed
 	blocks    json.RawMessage // the Anthropic reply's content as sent, thinking blocks included
+}
+
+// Usage is what a call was billed for - Input excludes the cached tokens, which the provider prices apart
+type Usage struct {
+	Input      int64
+	Output     int64
+	CacheRead  int64
+	CacheWrite int64
+}
+
+func (u Usage) Add(o Usage) Usage {
+	return Usage{Input: u.Input + o.Input, Output: u.Output + o.Output, CacheRead: u.CacheRead + o.CacheRead, CacheWrite: u.CacheWrite + o.CacheWrite}
+}
+
+type anthropicUsage struct {
+	InputTokens              int64 `json:"input_tokens"`
+	OutputTokens             int64 `json:"output_tokens"`
+	CacheCreationInputTokens int64 `json:"cache_creation_input_tokens"`
+	CacheReadInputTokens     int64 `json:"cache_read_input_tokens"`
+}
+
+func (u anthropicUsage) usage() Usage {
+	return Usage{Input: u.InputTokens, Output: u.OutputTokens, CacheRead: u.CacheReadInputTokens, CacheWrite: u.CacheCreationInputTokens}
+}
+
+type openaiUsage struct {
+	PromptTokens        int64 `json:"prompt_tokens"`
+	CompletionTokens    int64 `json:"completion_tokens"`
+	PromptTokensDetails struct {
+		CachedTokens int64 `json:"cached_tokens"`
+	} `json:"prompt_tokens_details"`
+}
+
+func (u openaiUsage) usage() Usage {
+	cached := min(u.PromptTokensDetails.CachedTokens, u.PromptTokens)
+	return Usage{Input: u.PromptTokens - cached, Output: u.CompletionTokens, CacheRead: cached}
 }
 
 // The assistant message to append before the tool results. On Anthropic it replays the reply's blocks unchanged - the current models pass their reasoning across the loop in thinking blocks, and those must come back byte for byte
@@ -76,6 +115,10 @@ func (s *Service) AllowCustomerData(ctx context.Context) bool {
 
 // ONE turn - to continue, the caller executes the returned calls and appends turn.AsMessage() followed by a ChatMessage{Role:"tool", ToolResults: ...} before calling again, and tools=nil gives a plain completion that still reads tool history. system and tools must stay identical across a conversation's calls, since changing either invalidates the thinking blocks replayed from earlier turns
 func (s *Service) ChatWithTools(ctx context.Context, system string, messages []ChatMessage, tools []Tool, maxTokens int) (ChatTurn, error) {
+	return s.chatWithTools(ctx, system, messages, tools, maxTokens, false, "")
+}
+
+func (s *Service) chatWithTools(ctx context.Context, system string, messages []ChatMessage, tools []Tool, maxTokens int, thinking bool, effort string) (ChatTurn, error) {
 	if !s.envEnabled {
 		return ChatTurn{}, ErrDisabled
 	}
@@ -89,15 +132,25 @@ func (s *Service) ChatWithTools(ctx context.Context, system string, messages []C
 	if len(messages) == 0 {
 		return ChatTurn{}, fmt.Errorf("ai: no messages")
 	}
-	if pc.provider == providerOpenAI {
-		return s.openaiChatTools(ctx, pc, system, messages, tools, maxTokens)
-	}
-	return s.anthropicChatTools(ctx, pc, system, messages, tools, maxTokens)
+	var turn ChatTurn
+	used, err := s.failover(ctx, pc, pc.model, func(m string) error {
+		p := pc
+		p.model = m
+		var err error
+		if p.provider == providerOpenAI {
+			turn, err = s.openaiChatTools(ctx, p, system, messages, tools, maxTokens)
+		} else {
+			turn, err = s.anthropicChatTools(ctx, p, system, messages, tools, maxTokens, thinking, effort)
+		}
+		return err
+	})
+	turn.Model = used
+	return turn, err
 }
 
 // ---- Anthropic (Messages API, tool_use / tool_result blocks) ----
 
-func (s *Service) anthropicChatTools(ctx context.Context, pc providerCfg, system string, messages []ChatMessage, tools []Tool, maxTokens int) (ChatTurn, error) {
+func (s *Service) anthropicChatTools(ctx context.Context, pc providerCfg, system string, messages []ChatMessage, tools []Tool, maxTokens int, thinking bool, effort string) (ChatTurn, error) {
 	msgs := make([]map[string]any, 0, len(messages))
 	for _, m := range messages {
 		switch {
@@ -139,11 +192,18 @@ func (s *Service) anthropicChatTools(ctx context.Context, pc providerCfg, system
 			msgs = append(msgs, map[string]any{"role": chatRole(m.Role), "content": m.Text})
 		}
 	}
-	payload := map[string]any{"system": system, "messages": msgs}
+	cacheTail(msgs)
+	payload := map[string]any{"messages": msgs}
+	if system != "" { // the marker caches the tools, which render first, along with the prompt
+		payload["system"] = []map[string]any{{"type": "text", "text": system, "cache_control": ephemeral()}}
+	}
 	if len(tools) > 0 {
 		payload["tools"] = anthropicTools(tools)
 	}
-	headers := pc.anthropicRequest(payload, pc.model, maxTokens, "")
+	headers := pc.anthropicRequest(payload, pc.model, maxTokens, effort)
+	if thinking && thinksByDefault(pc.model) { // billed the same as the empty blocks these models return by default
+		payload["thinking"] = map[string]any{"type": "adaptive", "display": "summarized"}
+	}
 	data, err := s.post(ctx, pc.baseURL+"/v1/messages", headers, payload)
 	if err != nil {
 		return ChatTurn{}, err
@@ -154,32 +214,60 @@ func (s *Service) anthropicChatTools(ctx context.Context, pc providerCfg, system
 	var out struct {
 		StopReason string `json:"stop_reason"`
 		Content    []struct {
-			Type  string          `json:"type"`
-			Text  string          `json:"text"`
-			ID    string          `json:"id"`
-			Name  string          `json:"name"`
-			Input json.RawMessage `json:"input"`
+			Type     string          `json:"type"`
+			Text     string          `json:"text"`
+			Thinking string          `json:"thinking"`
+			ID       string          `json:"id"`
+			Name     string          `json:"name"`
+			Input    json.RawMessage `json:"input"`
 		} `json:"content"`
+		Usage anthropicUsage `json:"usage"`
 	}
 	if err := json.Unmarshal(data, &out); err != nil {
 		return ChatTurn{}, fmt.Errorf("ai: decode: %w", err)
 	}
 	if err := anthropicStop(out.StopReason); err != nil {
-		return ChatTurn{}, err
+		return ChatTurn{Usage: out.Usage.usage()}, err
 	}
 	_ = json.Unmarshal(data, &raw)
-	turn := ChatTurn{blocks: raw.Content}
+	turn := ChatTurn{blocks: raw.Content, Usage: out.Usage.usage()}
 	var sb strings.Builder
+	var thoughts []string
 	for _, c := range out.Content {
 		switch c.Type {
 		case "text":
 			sb.WriteString(c.Text)
+		case "thinking":
+			if t := strings.TrimSpace(c.Thinking); t != "" {
+				thoughts = append(thoughts, t)
+			}
 		case "tool_use":
 			turn.ToolCalls = append(turn.ToolCalls, ToolCall{ID: c.ID, Name: c.Name, Input: c.Input})
 		}
 	}
 	turn.Text = strings.TrimSpace(sb.String())
+	turn.Thinking = strings.Join(thoughts, "\n\n")
 	return turn, nil
+}
+
+func ephemeral() map[string]any { return map[string]any{"type": "ephemeral"} }
+
+// cacheTail marks the newest message, so a tool loop's next round reads everything before it from the cache instead of paying for it again
+func cacheTail(msgs []map[string]any) {
+	if len(msgs) == 0 {
+		return
+	}
+	last := msgs[len(msgs)-1]
+	switch content := last["content"].(type) {
+	case string:
+		if strings.TrimSpace(content) != "" {
+			last["content"] = []map[string]any{{"type": "text", "text": content, "cache_control": ephemeral()}}
+		}
+	case []map[string]any:
+		if len(content) > 0 {
+			content[len(content)-1]["cache_control"] = ephemeral()
+		}
+	}
 }
 
 func anthropicTools(tools []Tool) []map[string]any {
@@ -248,8 +336,9 @@ func (s *Service) openaiChatTools(ctx context.Context, pc providerCfg, system st
 		Choices []struct {
 			FinishReason string `json:"finish_reason"`
 			Message      struct {
-				Content   string `json:"content"`
-				ToolCalls []struct {
+				Content          string `json:"content"`
+				ReasoningContent string `json:"reasoning_content"`
+				ToolCalls        []struct {
 					ID       string `json:"id"`
 					Function struct {
 						Name      string `json:"name"`
@@ -258,18 +347,19 @@ func (s *Service) openaiChatTools(ctx context.Context, pc providerCfg, system st
 				} `json:"tool_calls"`
 			} `json:"message"`
 		} `json:"choices"`
+		Usage openaiUsage `json:"usage"`
 	}
 	if err := json.Unmarshal(data, &out); err != nil {
 		return ChatTurn{}, fmt.Errorf("ai: decode: %w", err)
 	}
 	if len(out.Choices) == 0 {
-		return ChatTurn{}, fmt.Errorf("ai: empty response")
+		return ChatTurn{Usage: out.Usage.usage()}, fmt.Errorf("ai: empty response")
 	}
 	if err := openaiStop(out.Choices[0].FinishReason); err != nil {
-		return ChatTurn{}, err
+		return ChatTurn{Usage: out.Usage.usage()}, err
 	}
 	msg := out.Choices[0].Message
-	turn := ChatTurn{Text: strings.TrimSpace(msg.Content)}
+	turn := ChatTurn{Text: strings.TrimSpace(msg.Content), Usage: out.Usage.usage(), Thinking: strings.TrimSpace(msg.ReasoningContent)}
 	for _, tc := range msg.ToolCalls {
 		args := strings.TrimSpace(tc.Function.Arguments)
 		if args == "" {

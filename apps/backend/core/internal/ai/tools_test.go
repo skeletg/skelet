@@ -3,6 +3,7 @@ package ai
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -154,5 +155,132 @@ func TestChatWithToolsOpenAI(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("request 2 missing %q in messages: %s", want, got)
 		}
+	}
+}
+
+func TestToolRequestsCacheWhatTheNextRoundRepeats(t *testing.T) {
+	cap := &captureServer{responses: []string{
+		`{"content":[{"type":"tool_use","id":"tu_1","name":"lookup","input":{}}]}`,
+		`{"content":[{"type":"text","text":"done"}]}`,
+	}}
+	srv := httptest.NewServer(cap.handler(t, "/v1/messages"))
+	defer srv.Close()
+	t.Setenv("APP_ENV", "development")
+	svc := NewService(stubCfg{
+		strs:  map[string]string{cfgProvider: providerAnthropic, cfgAPIKey: "k", cfgModel: "m", cfgBaseURL: srv.URL},
+		bools: map[string]bool{cfgEnabled: true, cfgTools: true},
+	})
+	calls := 0
+	run := func(_ context.Context, tc []ToolCall) []ToolResult {
+		calls++
+		return []ToolResult{{ID: tc[0].ID, Content: "found"}}
+	}
+	reply, _, err := svc.Run(context.Background(), []ChatMessage{{Role: "user", Text: "find it"}}, Loop{System: "sys", Tools: []Tool{{Name: "lookup"}}, Call: run, MaxRounds: 1, MaxTokens: 100})
+	if err != nil || reply != "done" || calls != 1 || len(cap.bodies) != 2 {
+		t.Fatalf("reply %q, %v after %d calls and %d requests - one round of tools, then the answer", reply, err, calls, len(cap.bodies))
+	}
+	if !strings.Contains(mustJSON(cap.bodies[0]["system"]), `"cache_control":{"type":"ephemeral"}`) {
+		t.Errorf("the prompt and tools aren't cached: %s", mustJSON(cap.bodies[0]["system"]))
+	}
+	for i, body := range cap.bodies {
+		msgs := body["messages"].([]any)
+		last := mustJSON(msgs[len(msgs)-1])
+		if !strings.Contains(last, "cache_control") {
+			t.Errorf("request %d leaves its newest message uncached: %s", i, last)
+		}
+		if earlier := mustJSON(msgs[:len(msgs)-1]); strings.Contains(earlier, "cache_control") {
+			t.Errorf("request %d marks more than its newest message: %s", i, earlier)
+		}
+	}
+	if last := mustJSON(cap.bodies[1]["messages"]); !strings.Contains(last, finalRoundNudge) {
+		t.Errorf("the last round didn't ask for an answer: %s", last)
+	}
+	if _, _, err := svc.Run(context.Background(), nil, Loop{System: "sys", Call: run, MaxRounds: 1, MaxTokens: 100}); err == nil {
+		t.Error("an empty conversation reached the provider")
+	}
+}
+
+func TestRunAddsUpEveryRoundsUsage(t *testing.T) {
+	for _, tc := range []struct {
+		provider, path string
+		responses      []string
+	}{
+		{providerAnthropic, "/v1/messages", []string{
+			`{"content":[{"type":"tool_use","id":"tu_1","name":"lookup","input":{}}],"usage":{"input_tokens":100,"output_tokens":20,"cache_creation_input_tokens":900,"cache_read_input_tokens":0}}`,
+			`{"stop_reason":"max_tokens","content":[{"type":"text","text":"cut"}],"usage":{"input_tokens":30,"output_tokens":1024,"cache_creation_input_tokens":40,"cache_read_input_tokens":900}}`,
+		}},
+		{providerOpenAI, "/chat/completions", []string{
+			`{"choices":[{"message":{"tool_calls":[{"id":"c1","function":{"name":"lookup","arguments":"{}"}}]}}],"usage":{"prompt_tokens":1000,"completion_tokens":20,"prompt_tokens_details":{"cached_tokens":0}}}`,
+			`{"choices":[{"finish_reason":"length","message":{"content":"cut"}}],"usage":{"prompt_tokens":970,"completion_tokens":1024,"prompt_tokens_details":{"cached_tokens":900}}}`,
+		}},
+	} {
+		t.Run(tc.provider, func(t *testing.T) {
+			cap := &captureServer{responses: tc.responses}
+			srv := httptest.NewServer(cap.handler(t, tc.path))
+			defer srv.Close()
+			t.Setenv("APP_ENV", "development")
+			svc := NewService(stubCfg{
+				strs:  map[string]string{cfgProvider: tc.provider, cfgAPIKey: "k", cfgModel: "m", cfgBaseURL: srv.URL},
+				bools: map[string]bool{cfgEnabled: true, cfgTools: true},
+			})
+			run := func(_ context.Context, calls []ToolCall) []ToolResult {
+				return []ToolResult{{ID: calls[0].ID, Content: "found"}}
+			}
+			_, used, err := svc.Run(context.Background(), []ChatMessage{{Role: "user", Text: "find it"}}, Loop{System: "sys", Tools: []Tool{{Name: "lookup"}}, Call: run, MaxRounds: 3, MaxTokens: 100})
+			if !errors.Is(err, ErrTruncated) {
+				t.Fatalf("err = %v, want the cut-off reply's error", err)
+			}
+			want := Usage{Input: 130, Output: 1044, CacheRead: 900, CacheWrite: 940}
+			if tc.provider == providerOpenAI {
+				want = Usage{Input: 1070, Output: 1044, CacheRead: 900}
+			}
+			if used != want {
+				t.Fatalf("usage = %+v, want %+v - the failed round was billed too", used, want)
+			}
+		})
+	}
+}
+
+func TestALoopCanAskForTheModelsThinking(t *testing.T) {
+	cap := &captureServer{responses: []string{
+		`{"content":[{"type":"thinking","thinking":"They want a mug, so search first.","signature":"s1"},{"type":"tool_use","id":"tu_1","name":"lookup","input":{"q":"mug"}}]}`,
+		`{"content":[{"type":"thinking","thinking":"","signature":"s2"},{"type":"text","text":"Found one."}]}`,
+	}}
+	srv := httptest.NewServer(cap.handler(t, "/v1/messages"))
+	defer srv.Close()
+	t.Setenv("APP_ENV", "development")
+	svc := NewService(stubCfg{
+		strs:  map[string]string{cfgProvider: providerAnthropic, cfgAPIKey: "k", cfgModel: "claude-opus-5-5", cfgBaseURL: srv.URL},
+		bools: map[string]bool{cfgEnabled: true, cfgTools: true},
+	})
+	var rounds []ChatTurn
+	reply, _, err := svc.Run(context.Background(), []ChatMessage{{Role: "user", Text: "a mug?"}}, Loop{
+		System: "sys", Tools: []Tool{{Name: "lookup"}}, MaxRounds: 3, MaxTokens: 100, Thinking: true,
+		Call: func(_ context.Context, calls []ToolCall) []ToolResult {
+			return []ToolResult{{ID: calls[0].ID, Content: "Big mug"}}
+		},
+		OnRound: func(turn ChatTurn) { rounds = append(rounds, turn) },
+	})
+	if err != nil || reply != "Found one." || len(rounds) != 2 {
+		t.Fatalf("reply %q, %v, %d rounds", reply, err, len(rounds))
+	}
+	if rounds[0].Thinking != "They want a mug, so search first." || rounds[0].ToolCalls[0].Name != "lookup" || rounds[1].Thinking != "" {
+		t.Errorf("rounds = %+v", rounds)
+	}
+	for i, body := range cap.bodies {
+		if got := mustJSON(body["thinking"]); got != `{"display":"summarized","type":"adaptive"}` {
+			t.Errorf("request %d thinking = %s", i, got)
+		}
+	}
+	if !strings.Contains(mustJSON(cap.bodies[1]["messages"]), `"signature":"s1"`) {
+		t.Error("the first round's thinking wasn't replayed as it came")
+	}
+
+	cap.bodies, cap.responses = nil, []string{`{"content":[{"type":"text","text":"ok"}]}`}
+	if _, _, err := svc.Run(context.Background(), []ChatMessage{{Role: "user", Text: "hi"}}, Loop{System: "sys", MaxRounds: 1, MaxTokens: 100}); err != nil {
+		t.Fatal(err)
+	}
+	if _, asked := cap.bodies[0]["thinking"]; asked {
+		t.Error("a loop that didn't ask for thinking got it switched on")
 	}
 }
