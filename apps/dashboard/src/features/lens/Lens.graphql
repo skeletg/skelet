@@ -25,6 +25,12 @@ query LensOverview($channelId: ID!, $sinceDays: Int) {
       label
       views
     }
+    planIssues {
+      kind
+      event
+      prop
+      count
+    }
   }
 }
 

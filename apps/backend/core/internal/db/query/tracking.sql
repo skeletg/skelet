@@ -67,8 +67,14 @@ FROM   claimed c
 JOIN   tracking_events e ON e.id = c.tracking_event_id;
 
 -- name: DeleteTrackingDelivery :exec
--- A sent delivery is done with - the log keeps what is pending or failed, and the event row guards against a replay
-DELETE FROM tracking_deliveries WHERE id = $1;
+-- A sent delivery is done with - the log keeps what is pending or failed, and the event row guards against a replay.
+-- Its destination's last success is stamped at most once a minute, so a busy one isn't rewritten on every send
+WITH sent AS (DELETE FROM tracking_deliveries x WHERE x.id = $1 RETURNING x.destination_id)
+UPDATE tracking_destinations t
+SET    last_sent_at = NOW()
+FROM   sent
+WHERE  t.id = sent.destination_id
+  AND  (t.last_sent_at IS NULL OR t.last_sent_at < NOW() - INTERVAL '1 minute');
 
 -- name: RescheduleTrackingDelivery :exec
 UPDATE tracking_deliveries SET next_attempt_at = $2, last_error = $3, updated_at = NOW() WHERE id = $1;
@@ -76,7 +82,7 @@ UPDATE tracking_deliveries SET next_attempt_at = $2, last_error = $3, updated_at
 -- name: MarkTrackingDeliveryDead :exec
 UPDATE tracking_deliveries SET status = 'dead', last_error = $2, updated_at = NOW() WHERE id = $1;
 
--- name: RetryTrackingDelivery :exec
+-- name: RetryTrackingDelivery :execrows
 -- A dead letter back for a fresh round of attempts
 UPDATE tracking_deliveries
 SET    status = 'pending', attempts = 0, next_attempt_at = NOW(), last_error = '', updated_at = NOW()
@@ -89,8 +95,35 @@ SELECT d.id, d.destination_id, e.event_id, e.event_name, e.payload, d.status, d.
 FROM   tracking_deliveries d
 JOIN   tracking_events e ON e.id = d.tracking_event_id
 WHERE  d.destination_id = sqlc.arg(destination_id)
+  AND  (sqlc.arg(status)::text = '' OR d.status = sqlc.arg(status)::text) -- empty lists every row
 ORDER  BY d.created_at DESC
 LIMIT  sqlc.arg(lim);
+
+-- name: GetTrackingDelivery :one
+-- Same columns as ClaimDueTrackingDeliveries
+SELECT d.id, d.destination_id, e.event_id, e.event_name, e.payload, d.status, d.attempts, d.next_attempt_at,
+       d.last_error, d.created_at, d.updated_at
+FROM   tracking_deliveries d
+JOIN   tracking_events e ON e.id = d.tracking_event_id
+WHERE  d.id = $1;
+
+-- name: ImportTrackingDestination :one
+-- Always disabled and without a secret - the admin re-enters it, since Signals never hands one over. A second import of
+-- the same Signals row returns nothing
+INSERT INTO tracking_destinations (channel_id, kind, name, enabled, events, config, secret, imported_from)
+VALUES (sqlc.arg(channel_id), sqlc.arg(kind), sqlc.arg(name), FALSE, '{}'::text[], sqlc.arg(config), '', sqlc.arg(imported_from))
+ON CONFLICT (imported_from) WHERE imported_from IS NOT NULL DO NOTHING
+RETURNING *;
+
+-- name: TrackingDestinationHealth :many
+-- Each destination of a channel with its last failure and failures in the past day
+SELECT d.id,
+       COALESCE((SELECT x.last_error FROM tracking_deliveries x WHERE x.destination_id = d.id AND x.status = 'dead'
+                 ORDER BY x.created_at DESC LIMIT 1), '')::text AS last_error,
+       (SELECT COUNT(*) FROM tracking_deliveries x WHERE x.destination_id = d.id AND x.status = 'dead'
+          AND x.created_at > NOW() - INTERVAL '24 hours')::int AS dead_24h
+FROM   tracking_destinations d
+WHERE  d.channel_id = $1;
 
 -- name: PruneTrackingDeliveries :execrows
 -- A dead letter is kept for a retry until it is past following up; a pending row is never pruned

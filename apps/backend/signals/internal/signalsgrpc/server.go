@@ -25,6 +25,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics/spinequeue"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/behavioralsegment"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/board"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/campaign"
 	signalsdb "github.com/skeletg/skelet/apps/backend/signals/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/destination"
@@ -42,6 +43,7 @@ import (
 // Deps is what the suite's handlers read - the same services the GraphQL surface is built from
 type Deps struct {
 	Experiment  *experiment.Service
+	Boards      *board.Service
 	Lens        *lens.Service
 	Destination *destination.Service
 	Segment     *segment.Service
@@ -97,6 +99,7 @@ func NewServer(d Deps) *grpc.Server {
 	}
 	srv := grpc.NewServer(opts...)
 	signalsv1.RegisterPrismServiceServer(srv, &prismServer{svc: d.Experiment})
+	signalsv1.RegisterBoardServiceServer(srv, &boardServer{svc: d.Boards})
 	signalsv1.RegisterLensServiceServer(srv, &lensServer{svc: d.Lens})
 	signalsv1.RegisterDestinationServiceServer(srv, &destinationServer{svc: d.Destination})
 	signalsv1.RegisterSegmentServiceServer(srv, &segmentServer{svc: d.Segment})

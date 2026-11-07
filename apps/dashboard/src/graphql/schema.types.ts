@@ -808,6 +808,90 @@ export type BlogTagContent = {
   updatedAt: Scalars['Time']['output'];
 };
 
+export type Board = {
+  __typename?: 'Board';
+  channelId: Scalars['ID']['output'];
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  reports: Array<BoardReport>;
+  updatedAt: Scalars['Time']['output'];
+};
+
+export type BoardReport = {
+  __typename?: 'BoardReport';
+  definition: BoardReportDefinition;
+  size?: Maybe<BoardReportSize>;
+  title: Scalars['String']['output'];
+};
+
+export type BoardReportDefinition = {
+  __typename?: 'BoardReportDefinition';
+  breakdown?: Maybe<Scalars['String']['output']>;
+  depth?: Maybe<Scalars['Int']['output']>;
+  event?: Maybe<Scalars['String']['output']>;
+  filters?: Maybe<Array<BoardReportFilter>>;
+  kind: BoardReportKind;
+  measure?: Maybe<Scalars['String']['output']>;
+  periods?: Maybe<Scalars['Int']['output']>;
+  returnEvent?: Maybe<Scalars['String']['output']>;
+  sinceDays?: Maybe<Scalars['Int']['output']>;
+  startEvent?: Maybe<Scalars['String']['output']>;
+  steps?: Maybe<Array<Scalars['String']['output']>>;
+  unit?: Maybe<Scalars['String']['output']>;
+  windowDays?: Maybe<Scalars['Int']['output']>;
+  windowHours?: Maybe<Scalars['Int']['output']>;
+};
+
+export type BoardReportDefinitionInput = {
+  breakdown?: InputMaybe<Scalars['String']['input']>;
+  depth?: InputMaybe<Scalars['Int']['input']>;
+  event?: InputMaybe<Scalars['String']['input']>;
+  filters?: InputMaybe<Array<SynapseFunnelFilterInput>>;
+  kind: BoardReportKind;
+  measure?: InputMaybe<Scalars['String']['input']>;
+  periods?: InputMaybe<Scalars['Int']['input']>;
+  returnEvent?: InputMaybe<Scalars['String']['input']>;
+  sinceDays?: InputMaybe<Scalars['Int']['input']>;
+  startEvent?: InputMaybe<Scalars['String']['input']>;
+  steps?: InputMaybe<Array<Scalars['String']['input']>>;
+  unit?: InputMaybe<Scalars['String']['input']>;
+  windowDays?: InputMaybe<Scalars['Int']['input']>;
+  windowHours?: InputMaybe<Scalars['Int']['input']>;
+};
+
+export type BoardReportFilter = {
+  __typename?: 'BoardReportFilter';
+  key: Scalars['String']['output'];
+  step: Scalars['Int']['output'];
+  value: Scalars['String']['output'];
+};
+
+export type BoardReportInput = {
+  definition: BoardReportDefinitionInput;
+  size?: InputMaybe<BoardReportSize>;
+  title: Scalars['String']['input'];
+};
+
+export type BoardReportKind =
+  | 'FLOW'
+  | 'FUNNEL'
+  | 'INSIGHTS'
+  | 'RETENTION'
+  | 'STICKINESS';
+
+export type BoardReportSize =
+  | 'FULL'
+  | 'MEDIUM'
+  | 'SMALL';
+
+export type BoardSummary = {
+  __typename?: 'BoardSummary';
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  reportCount: Scalars['Int']['output'];
+  updatedAt: Scalars['Time']['output'];
+};
+
 export type BotAgent = {
   __typename?: 'BotAgent';
   category: Scalars['String']['output'];
@@ -3342,6 +3426,7 @@ export type LensOverview = {
   daily: Array<LensTimePoint>;
   devices: Array<LensLabelCount>;
   interactions: Array<LensLabelCount>;
+  planIssues: Array<LensPlanIssue>;
   referrers: Array<LensLabelCount>;
   topPages: Array<LensPageStat>;
   views: Scalars['Int']['output'];
@@ -3384,6 +3469,20 @@ export type LensPageVitals = {
   samples: Scalars['Int']['output'];
   ttfb?: Maybe<Scalars['Float']['output']>;
 };
+
+export type LensPlanIssue = {
+  __typename?: 'LensPlanIssue';
+  count: Scalars['Int']['output'];
+  event: Scalars['String']['output'];
+  kind: LensPlanIssueKind;
+  prop: Scalars['String']['output'];
+};
+
+export type LensPlanIssueKind =
+  | 'BAD_TYPE'
+  | 'SERVER_PROP'
+  | 'UNKNOWN_EVENT'
+  | 'UNKNOWN_PROP';
 
 export type LensRageElement = {
   __typename?: 'LensRageElement';
@@ -3850,6 +3949,7 @@ export type Mutation = {
   createBlogCategory: BlogCategory;
   createBlogPost: BlogPost;
   createBlogTag: BlogTag;
+  createBoard: Board;
   createCMSAttribute: CmsAttribute;
   createCMSAttributeGroup: CmsAttributeGroup;
   createCMSBlockType: CmsBlockType;
@@ -3890,7 +3990,9 @@ export type Mutation = {
   createShippingMethod: ShippingMethod;
   createShippingZone: ShippingZone;
   createSignupForm: SignupForm;
+  createStarterBoards: Array<BoardSummary>;
   createTaxRule: TaxRule;
+  createTrackingDestination: TrackingDestination;
   createUrlRewrite: UrlRewrite;
   createUrlRewriteRedirect: UrlRewrite;
   createWebForm: WebForm;
@@ -3910,6 +4012,7 @@ export type Mutation = {
   deleteBlogPostContent: Scalars['Boolean']['output'];
   deleteBlogTag: Scalars['Boolean']['output'];
   deleteBlogTagContent: Scalars['Boolean']['output'];
+  deleteBoard: Scalars['Boolean']['output'];
   deleteBundleOption: Product;
   deleteBundleOptionContent: Product;
   deleteBundleSelection: Product;
@@ -3980,6 +4083,7 @@ export type Mutation = {
   deleteShippingZone: Scalars['Boolean']['output'];
   deleteSignupForm: Scalars['Boolean']['output'];
   deleteTaxRule: Scalars['Boolean']['output'];
+  deleteTrackingDestination: Scalars['Boolean']['output'];
   deleteUrlRewrite: Scalars['Boolean']['output'];
   deleteUrlRewritesForEntity: Scalars['Int']['output'];
   deleteWebForm: Scalars['Boolean']['output'];
@@ -4000,6 +4104,7 @@ export type Mutation = {
   generatePromotionCodes: Array<PromotionCode>;
   generateShippingLabel: ShippingLabel;
   holdOrder: Order;
+  importSignalsDestinations: Array<TrackingDestination>;
   issueCreditMemo: CreditMemo;
   issueGiftCard: GiftCard;
   issueReturnRefund: OrderReturn;
@@ -4023,6 +4128,7 @@ export type Mutation = {
   receiveReturn: OrderReturn;
   recheckReviewModeration: Review;
   recordOfflinePayment: Order;
+  redeliverTrackingDelivery: TrackingDelivery;
   redeliverWebhookDelivery: WebhookQueueItem;
   refreshSegment: Scalars['Int']['output'];
   refreshToken: AdminAuthPayload;
@@ -4072,6 +4178,7 @@ export type Mutation = {
   runAdminAction: AdminActionResult;
   runChatAction: ChatActionResult;
   runScheduledJobNow: ScheduledJob;
+  saveBoard: Board;
   saveChatConversation: Scalars['ID']['output'];
   saveDeliveryPoints: Array<DeliveryPointAdmin>;
   saveEmailBlock: EmailBlockSnippet;
@@ -4081,6 +4188,7 @@ export type Mutation = {
   scheduleEmailCampaign: EmailCampaign;
   seedPulseStarterContent: PulseStarterContent;
   sendCampaignTest: Scalars['Boolean']['output'];
+  sendTrackingTest: TrackingTestResult;
   setAttributeDescription: AttributeContent;
   setAttributeIndexable: CascadeAttributeIndexableResult;
   setAttributeValueChannelSlug: AttributeValueChannelSlug;
@@ -4147,6 +4255,7 @@ export type Mutation = {
   setShippingCarrierEnabled: ShippingCarrierAdmin;
   setShippingCarrierWeekendDelivery: ShippingCarrierAdmin;
   setSubscriptionTerms: Product;
+  setTrackingDestinationEnabled: TrackingDestination;
   setWebhookActive: Webhook;
   signalsChat: SignalsChatReply;
   /** Queues an export - poll the returned job, then download it from /api/admin/data/jobs/{id}/download */
@@ -4229,6 +4338,7 @@ export type Mutation = {
   updateShippingZone: ShippingZone;
   updateSignupForm: SignupForm;
   updateTaxRule: TaxRule;
+  updateTrackingDestination: TrackingDestination;
   updateUrlRewrite: UrlRewrite;
   updateWebForm: WebForm;
   updateWebhook: Webhook;
@@ -4749,6 +4859,13 @@ export type MutationCreateBlogTagArgs = {
 };
 
 
+export type MutationCreateBoardArgs = {
+  channelId: Scalars['ID']['input'];
+  name: Scalars['String']['input'];
+  reports?: InputMaybe<Array<BoardReportInput>>;
+};
+
+
 export type MutationCreateCmsAttributeArgs = {
   input: CreateCmsAttributeInput;
 };
@@ -4952,8 +5069,20 @@ export type MutationCreateSignupFormArgs = {
 };
 
 
+export type MutationCreateStarterBoardsArgs = {
+  channelId: Scalars['ID']['input'];
+};
+
+
 export type MutationCreateTaxRuleArgs = {
   input: CreateTaxRuleInput;
+};
+
+
+export type MutationCreateTrackingDestinationArgs = {
+  channelId: Scalars['ID']['input'];
+  input: TrackingDestinationInput;
+  kind: Scalars['String']['input'];
 };
 
 
@@ -5056,6 +5185,12 @@ export type MutationDeleteBlogTagArgs = {
 export type MutationDeleteBlogTagContentArgs = {
   locale: Scalars['String']['input'];
   tagId: Scalars['ID']['input'];
+};
+
+
+export type MutationDeleteBoardArgs = {
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
 };
 
 
@@ -5430,6 +5565,11 @@ export type MutationDeleteTaxRuleArgs = {
 };
 
 
+export type MutationDeleteTrackingDestinationArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
 export type MutationDeleteUrlRewriteArgs = {
   id: Scalars['ID']['input'];
 };
@@ -5540,6 +5680,12 @@ export type MutationGenerateShippingLabelArgs = {
 export type MutationHoldOrderArgs = {
   id: Scalars['ID']['input'];
   reason?: InputMaybe<Scalars['String']['input']>;
+};
+
+
+export type MutationImportSignalsDestinationsArgs = {
+  channelId: Scalars['ID']['input'];
+  legacyIds: Array<Scalars['ID']['input']>;
 };
 
 
@@ -5661,6 +5807,11 @@ export type MutationRecheckReviewModerationArgs = {
 
 export type MutationRecordOfflinePaymentArgs = {
   input: RecordOfflinePaymentInput;
+};
+
+
+export type MutationRedeliverTrackingDeliveryArgs = {
+  id: Scalars['ID']['input'];
 };
 
 
@@ -5932,6 +6083,15 @@ export type MutationRunScheduledJobNowArgs = {
 };
 
 
+export type MutationSaveBoardArgs = {
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
+  name: Scalars['String']['input'];
+  readAt: Scalars['Time']['input'];
+  reports: Array<BoardReportInput>;
+};
+
+
 export type MutationSaveChatConversationArgs = {
   id?: InputMaybe<Scalars['ID']['input']>;
   messages: Array<SignalsChatMessage>;
@@ -5981,6 +6141,11 @@ export type MutationSeedPulseStarterContentArgs = {
 export type MutationSendCampaignTestArgs = {
   id: Scalars['ID']['input'];
   to: Scalars['String']['input'];
+};
+
+
+export type MutationSendTrackingTestArgs = {
+  id: Scalars['ID']['input'];
 };
 
 
@@ -6394,6 +6559,12 @@ export type MutationSetShippingCarrierWeekendDeliveryArgs = {
 
 export type MutationSetSubscriptionTermsArgs = {
   input: SetSubscriptionTermsInput;
+};
+
+
+export type MutationSetTrackingDestinationEnabledArgs = {
+  enabled: Scalars['Boolean']['input'];
+  id: Scalars['ID']['input'];
 };
 
 
@@ -6839,6 +7010,12 @@ export type MutationUpdateSignupFormArgs = {
 
 export type MutationUpdateTaxRuleArgs = {
   input: UpdateTaxRuleInput;
+};
+
+
+export type MutationUpdateTrackingDestinationArgs = {
+  id: Scalars['ID']['input'];
+  input: TrackingDestinationInput;
 };
 
 
@@ -7971,6 +8148,8 @@ export type Query = {
   blogPosts: BlogPostList;
   blogTag?: Maybe<BlogTag>;
   blogTags: Array<BlogTag>;
+  board: Board;
+  boards: Array<BoardSummary>;
   botTraffic: BotTraffic;
   cacheRevalidations: Array<CacheRevalidation>;
   cacheSurfaces: Array<CacheSurface>;
@@ -8156,6 +8335,7 @@ export type Query = {
   shippingCarriers: Array<ShippingCarrierAdmin>;
   shippingZone?: Maybe<ShippingZone>;
   shippingZones: Array<ShippingZone>;
+  signalsImportCandidates: Array<SignalsImportCandidate>;
   signalsInsights: Array<SignalsInsight>;
   signupForm?: Maybe<SignupForm>;
   signupFormSubmissions: Array<SignupFormSubmission>;
@@ -8181,6 +8361,10 @@ export type Query = {
   taxEffectTypes: Array<TaxTypeDescriptor>;
   taxRule?: Maybe<TaxRule>;
   taxRules: Array<TaxRule>;
+  trackingDeliveries: Array<TrackingDelivery>;
+  trackingDestination?: Maybe<TrackingDestination>;
+  trackingDestinations: Array<TrackingDestination>;
+  trackingPlatforms: Array<TrackingPlatform>;
   transactionalSlots: Array<TransactionalSlot>;
   urlRewrite?: Maybe<UrlRewrite>;
   urlRewrites: UrlRewritePage;
@@ -8280,6 +8464,17 @@ export type QueryBlogPostsArgs = {
 export type QueryBlogTagArgs = {
   id?: InputMaybe<Scalars['ID']['input']>;
   slug?: InputMaybe<Scalars['String']['input']>;
+};
+
+
+export type QueryBoardArgs = {
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryBoardsArgs = {
+  channelId: Scalars['ID']['input'];
 };
 
 
@@ -9156,6 +9351,11 @@ export type QueryShippingZonesArgs = {
 };
 
 
+export type QuerySignalsImportCandidatesArgs = {
+  channelId: Scalars['ID']['input'];
+};
+
+
 export type QuerySignalsInsightsArgs = {
   channelId: Scalars['ID']['input'];
   sinceDays?: InputMaybe<Scalars['Int']['input']>;
@@ -9222,9 +9422,12 @@ export type QuerySynapseFlowArgs = {
 
 
 export type QuerySynapseFunnelArgs = {
+  breakdown?: InputMaybe<Scalars['String']['input']>;
   channelId: Scalars['ID']['input'];
+  filters?: InputMaybe<Array<SynapseFunnelFilterInput>>;
   sinceDays?: InputMaybe<Scalars['Int']['input']>;
   steps: Array<Scalars['String']['input']>;
+  windowHours?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
@@ -9293,6 +9496,28 @@ export type QueryTaxRuleArgs = {
 
 export type QueryTaxRulesArgs = {
   channelId?: InputMaybe<Scalars['ID']['input']>;
+};
+
+
+export type QueryTrackingDeliveriesArgs = {
+  destinationId: Scalars['ID']['input'];
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  status?: InputMaybe<TrackingDeliveryStatus>;
+};
+
+
+export type QueryTrackingDestinationArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryTrackingDestinationsArgs = {
+  channelId: Scalars['ID']['input'];
+};
+
+
+export type QueryTrackingPlatformsArgs = {
+  channelId: Scalars['ID']['input'];
 };
 
 
@@ -10346,6 +10571,19 @@ export type SignalsChatReply = {
   reply: Scalars['String']['output'];
 };
 
+export type SignalsImportCandidate = {
+  __typename?: 'SignalsImportCandidate';
+  config: Array<TrackingConfigValue>;
+  droppedFilters: Array<Scalars['String']['output']>;
+  importedAs?: Maybe<Scalars['ID']['output']>;
+  legacyId: Scalars['ID']['output'];
+  legacyKind: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  problem?: Maybe<Scalars['String']['output']>;
+  signalsActive: Scalars['Boolean']['output'];
+  targetKind?: Maybe<Scalars['String']['output']>;
+};
+
 export type SignalsInsight = {
   __typename?: 'SignalsInsight';
   detail: Scalars['String']['output'];
@@ -10533,7 +10771,20 @@ export type SynapseFlowPath = {
 
 export type SynapseFunnel = {
   __typename?: 'SynapseFunnel';
+  breakdown: Array<SynapseFunnelBreakdown>;
   steps: Array<SynapseFunnelStep>;
+};
+
+export type SynapseFunnelBreakdown = {
+  __typename?: 'SynapseFunnelBreakdown';
+  counts: Array<Scalars['Int']['output']>;
+  value: Scalars['String']['output'];
+};
+
+export type SynapseFunnelFilterInput = {
+  key: Scalars['String']['input'];
+  step: Scalars['Int']['input'];
+  value: Scalars['String']['input'];
 };
 
 export type SynapseFunnelStep = {
@@ -10752,6 +11003,95 @@ export type TopProduct = {
   revenue: Scalars['Int64']['output'];
   sku: Scalars['String']['output'];
   unitsSold: Scalars['Int64']['output'];
+};
+
+export type TrackingConfigValue = {
+  __typename?: 'TrackingConfigValue';
+  key: Scalars['String']['output'];
+  value: Scalars['String']['output'];
+};
+
+export type TrackingConfigValueInput = {
+  key: Scalars['String']['input'];
+  value: Scalars['String']['input'];
+};
+
+export type TrackingDelivery = {
+  __typename?: 'TrackingDelivery';
+  attempts: Scalars['Int']['output'];
+  createdAt: Scalars['Time']['output'];
+  eventId: Scalars['String']['output'];
+  eventName: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  lastError: Scalars['String']['output'];
+  nextAttemptAt: Scalars['Time']['output'];
+  status: TrackingDeliveryStatus;
+};
+
+export type TrackingDeliveryStatus =
+  | 'DEAD'
+  | 'PENDING';
+
+export type TrackingDestination = {
+  __typename?: 'TrackingDestination';
+  channelId: Scalars['ID']['output'];
+  config: Array<TrackingConfigValue>;
+  createdAt: Scalars['Time']['output'];
+  effectiveEvents: Array<Scalars['String']['output']>;
+  enabled: Scalars['Boolean']['output'];
+  events: Array<Scalars['String']['output']>;
+  health: TrackingHealth;
+  id: Scalars['ID']['output'];
+  importedFrom?: Maybe<Scalars['ID']['output']>;
+  inTestMode: Scalars['Boolean']['output'];
+  kind: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  needsSecret: Scalars['Boolean']['output'];
+  secretSet: Scalars['Boolean']['output'];
+  updatedAt: Scalars['Time']['output'];
+};
+
+export type TrackingDestinationInput = {
+  config: Array<TrackingConfigValueInput>;
+  enabled?: InputMaybe<Scalars['Boolean']['input']>;
+  events?: InputMaybe<Array<Scalars['String']['input']>>;
+  name: Scalars['String']['input'];
+};
+
+export type TrackingField = {
+  __typename?: 'TrackingField';
+  help: Scalars['String']['output'];
+  key: Scalars['String']['output'];
+  label: Scalars['String']['output'];
+  required: Scalars['Boolean']['output'];
+  secret: Scalars['Boolean']['output'];
+  testMode: Scalars['Boolean']['output'];
+};
+
+export type TrackingHealth = {
+  __typename?: 'TrackingHealth';
+  dead24h: Scalars['Int']['output'];
+  lastError: Scalars['String']['output'];
+  lastSentAt?: Maybe<Scalars['Time']['output']>;
+};
+
+export type TrackingPlatform = {
+  __typename?: 'TrackingPlatform';
+  availableOnChannel: Scalars['Boolean']['output'];
+  defaultEvents: Array<Scalars['String']['output']>;
+  fields: Array<TrackingField>;
+  installed: Scalars['Boolean']['output'];
+  kind: Scalars['String']['output'];
+  label: Scalars['String']['output'];
+  necessarySetting?: Maybe<Scalars['String']['output']>;
+  pluginSlug: Scalars['String']['output'];
+  purposes: Array<Scalars['String']['output']>;
+};
+
+export type TrackingTestResult = {
+  __typename?: 'TrackingTestResult';
+  message: Scalars['String']['output'];
+  ok: Scalars['Boolean']['output'];
 };
 
 export type TransactionalSlot = {

@@ -2750,16 +2750,18 @@ type TrackingDelivery struct {
 }
 
 type TrackingDestination struct {
-	ID        uuid.UUID       `json:"id"`
-	ChannelID uuid.UUID       `json:"channel_id"`
-	Kind      string          `json:"kind"`
-	Name      string          `json:"name"`
-	Enabled   bool            `json:"enabled"`
-	Events    []string        `json:"events"`
-	Config    json.RawMessage `json:"config"`
-	Secret    string          `json:"secret"`
-	CreatedAt time.Time       `json:"created_at"`
-	UpdatedAt time.Time       `json:"updated_at"`
+	ID           uuid.UUID       `json:"id"`
+	ChannelID    uuid.UUID       `json:"channel_id"`
+	Kind         string          `json:"kind"`
+	Name         string          `json:"name"`
+	Enabled      bool            `json:"enabled"`
+	Events       []string        `json:"events"`
+	Config       json.RawMessage `json:"config"`
+	Secret       string          `json:"secret"`
+	CreatedAt    time.Time       `json:"created_at"`
+	UpdatedAt    time.Time       `json:"updated_at"`
+	ImportedFrom uuid.NullUUID   `json:"imported_from"`
+	LastSentAt   sql.NullTime    `json:"last_sent_at"`
 }
 
 type TrackingEvent struct {

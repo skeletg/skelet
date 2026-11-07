@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
@@ -81,7 +82,9 @@ func (s *Store) archiveBySource(ctx context.Context, source string, before time.
 
 // Streams one occurred_at day through the archive file - FINAL so unmerged duplicates collapse in the export exactly as reads see them
 func (s *Store) archiveSlice(ctx context.Context, source string, day time.Time, open analytics.ArchiveOpen) (int64, error) {
-	rows, err := s.conn.Query(ctx,
+	// A whole day streamed into an upload outlasts the per-query time limit on a big shop, and it holds one row at a time
+	unbounded := clickhouse.Context(ctx, clickhouse.WithSettings(clickhouse.Settings{"max_execution_time": 0}))
+	rows, err := s.conn.Query(unbounded,
 		`SELECT id, event_name, occurred_at, received_at, channel_id, source, send_id, properties
 		 FROM analytics_events FINAL
 		 WHERE occurred_at >= ? AND occurred_at < ? AND (? = '' OR source = ?)`,

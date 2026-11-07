@@ -44,6 +44,7 @@ type Client struct {
 
 	Ingest       signalsv1.IngestServiceClient
 	Prism        signalsv1.PrismServiceClient
+	Boards       signalsv1.BoardServiceClient
 	Lens         signalsv1.LensServiceClient
 	Synapse      signalsv1.SynapseServiceClient
 	Segments     signalsv1.SegmentServiceClient
@@ -84,6 +85,7 @@ func New(addr string, tr Transport, keys auth.ServiceKeys, ttl time.Duration, gr
 		segments:     newSegmentGuard(),
 		Ingest:       signalsv1.NewIngestServiceClient(conn),
 		Prism:        signalsv1.NewPrismServiceClient(conn),
+		Boards:       signalsv1.NewBoardServiceClient(conn),
 		Lens:         signalsv1.NewLensServiceClient(conn),
 		Synapse:      signalsv1.NewSynapseServiceClient(conn),
 		Segments:     signalsv1.NewSegmentServiceClient(conn),

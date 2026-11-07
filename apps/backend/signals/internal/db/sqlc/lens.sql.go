@@ -465,6 +465,51 @@ func (q *Queries) LensLatestSnapshot(ctx context.Context, arg LensLatestSnapshot
 	return i, err
 }
 
+const lensPlanIssues = `-- name: LensPlanIssues :many
+SELECT dim AS kind, key, SUM(views)::bigint AS count
+FROM lens_traffic_daily
+WHERE channel_id = $1 AND day >= $2::date AND dim LIKE 'plan\_%'
+GROUP BY dim, key
+ORDER BY count DESC
+LIMIT $3
+`
+
+type LensPlanIssuesParams struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	Since     time.Time `json:"since"`
+	Lim       int32     `json:"lim"`
+}
+
+type LensPlanIssuesRow struct {
+	Kind  string `json:"kind"`
+	Key   string `json:"key"`
+	Count int64  `json:"count"`
+}
+
+// What ingest stripped against the tracking plan (dim plan_*, key event or event.prop), for Data health. Rollup-backed.
+func (q *Queries) LensPlanIssues(ctx context.Context, arg LensPlanIssuesParams) ([]LensPlanIssuesRow, error) {
+	rows, err := q.db.QueryContext(ctx, lensPlanIssues, arg.ChannelID, arg.Since, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LensPlanIssuesRow{}
+	for rows.Next() {
+		var i LensPlanIssuesRow
+		if err := rows.Scan(&i.Kind, &i.Key, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lensPruneSessions = `-- name: LensPruneSessions :execrows
 DELETE FROM lens_sessions WHERE last_event_at < $1
 `

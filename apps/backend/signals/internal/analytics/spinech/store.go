@@ -38,7 +38,17 @@ type bufEvent struct {
 
 type pendingIdentity struct {
 	customerID, channelID uuid.UUID
-	lastSeen              time.Time
+	firstSeen, lastSeen   time.Time
+}
+
+// absorb folds a later identify into the one it follows: first wins on customer and first sighting, so someone signing in
+// on a shared device later can't take the earlier customer's anonymous history - the later stamp, and any channel it has, win
+func (earlier pendingIdentity) absorb(later pendingIdentity) pendingIdentity {
+	if later.channelID != uuid.Nil {
+		earlier.channelID = later.channelID
+	}
+	earlier.lastSeen = later.lastSeen
+	return earlier
 }
 
 type Store struct { // ingest is batched by a background flusher, and Close drains it
@@ -62,6 +72,13 @@ type Store struct { // ingest is batched by a background flusher, and Close drai
 }
 
 var _ analytics.SpineStore = (*Store)(nil)
+
+// Per-query limits, the defaults for any SIGNALS_CH_URL leaves unset - a report past them fails with ClickHouse's error
+// instead of starving every other query on the server
+var queryLimits = clickhouse.Settings{
+	"max_execution_time": 60,      // seconds
+	"max_memory_usage":   4 << 30, // bytes
+}
 
 var errBufferFull = errors.New("spinech: ingest buffer full, event dropped") // shedding is data loss, not deduplication - callers get an error so it can't read as "already recorded"
 
@@ -99,6 +116,12 @@ func open(ctx context.Context, dsn string) (driver.Conn, *clickhouse.Options, er
 		opts.Settings = clickhouse.Settings{}
 	}
 	opts.Settings["do_not_merge_across_partitions_select_final"] = 1 // every read runs FINAL to collapse not-yet-merged duplicates - this keeps that affordable, and it's sound because ReplacingMergeTree only dedups within a partition
+	// One runaway report must not take the server down for every shop on it - a DSN setting of the same name overrides these
+	for k, v := range queryLimits {
+		if _, set := opts.Settings[k]; !set {
+			opts.Settings[k] = v
+		}
+	}
 	conn, err := clickhouse.Open(opts)
 	if err != nil {
 		return nil, nil, err
@@ -417,7 +440,7 @@ func (s *Store) deleteSourceBefore(ctx context.Context, source string, before ti
 }
 
 // Buffered like events - identify fires on every logged-in page view
-// Repeats within a flush collapse to the newest, and a zero channel never replaces a real one; the flusher carries first_seen and channel forward from the stored row
+// Repeats within a flush fold together through absorb, and the flusher folds them into the stored row the same way
 func (s *Store) UpsertIdentity(_ context.Context, anonID string, customerID, channelID uuid.UUID) error {
 	s.idMu.Lock()
 	prev, had := s.ids[anonID]
@@ -425,10 +448,12 @@ func (s *Store) UpsertIdentity(_ context.Context, anonID string, customerID, cha
 		s.idMu.Unlock()
 		return errBufferFull
 	}
-	if channelID == uuid.Nil {
-		channelID = prev.channelID
+	now := time.Now().UTC()
+	p := pendingIdentity{customerID: customerID, channelID: channelID, firstSeen: now, lastSeen: now}
+	if had {
+		p = prev.absorb(p)
 	}
-	s.ids[anonID] = pendingIdentity{customerID: customerID, channelID: channelID, lastSeen: time.Now().UTC()}
+	s.ids[anonID] = p
 	full := len(s.ids) >= chFlushBatch
 	s.idMu.Unlock()
 	if full {
@@ -456,12 +481,8 @@ func (s *Store) flushIdentities(ctx context.Context) error {
 			if p.lastSeen.Before(stale) { // the next page view re-sends it, and an erasure waits out this window
 				continue
 			}
-			if cur, newer := s.ids[anon]; newer { // a newer identify wins but keeps a channel it lacks
-				if cur.channelID == uuid.Nil {
-					cur.channelID = p.channelID
-					s.ids[anon] = cur
-				}
-				continue
+			if cur, newer := s.ids[anon]; newer { // the re-buffered one came first
+				p = p.absorb(cur)
 			}
 			s.ids[anon] = p
 		}
@@ -476,20 +497,16 @@ func (s *Store) writeIdentities(ctx context.Context, pending map[string]pendingI
 	for anon := range pending {
 		anons = append(anons, anon)
 	}
-	type stored struct {
-		first   time.Time
-		channel uuid.UUID
-	}
-	prior := make(map[string]stored, len(anons))
+	prior := make(map[string]pendingIdentity, len(anons))
 	for start := 0; start < len(anons); start += 1000 {
-		rows, err := s.conn.Query(ctx, "SELECT anon_id, first_seen, channel_id FROM analytics_identities FINAL WHERE anon_id IN ?", anons[start:min(start+1000, len(anons))])
+		rows, err := s.conn.Query(ctx, "SELECT anon_id, first_seen, channel_id, customer_id FROM analytics_identities FINAL WHERE anon_id IN ?", anons[start:min(start+1000, len(anons))])
 		if err != nil {
 			return err
 		}
 		for rows.Next() {
 			var anon string
-			var st stored
-			if err := rows.Scan(&anon, &st.first, &st.channel); err != nil {
+			var st pendingIdentity
+			if err := rows.Scan(&anon, &st.firstSeen, &st.channelID, &st.customerID); err != nil {
 				rows.Close()
 				return err
 			}
@@ -506,14 +523,10 @@ func (s *Store) writeIdentities(ctx context.Context, pending map[string]pendingI
 		return err
 	}
 	for anon, p := range pending {
-		first, channel := p.lastSeen, p.channelID
 		if st, ok := prior[anon]; ok {
-			first = st.first
-			if channel == uuid.Nil {
-				channel = st.channel
-			}
+			p = st.absorb(p)
 		}
-		if err := b.Append(anon, p.customerID, channel, first, now); err != nil {
+		if err := b.Append(anon, p.customerID, p.channelID, p.firstSeen, now); err != nil {
 			_ = b.Abort()
 			return err
 		}
@@ -582,6 +595,31 @@ func (s *Store) PruneIdentities(ctx context.Context, before time.Time) (int64, e
 	if err := s.conn.Exec(ctx, "DELETE FROM analytics_identities WHERE last_seen < ?", before); err != nil {
 		return 0, err
 	}
+	return int64(n), nil
+}
+
+// PurgeSeed drops what the demo seed wrote on the given channels (none = every channel) - events by their dedupe-key
+// prefix, stitches by their visitor-id prefix - and reports the events removed
+func (s *Store) PurgeSeed(ctx context.Context, keyPrefix, anonPrefix string, channels []uuid.UUID) (int64, error) {
+	if err := s.flush(ctx); err != nil { // nothing buffered may land after the delete
+		return 0, err
+	}
+	scope, args := "", []any{}
+	if len(channels) > 0 {
+		scope, args = " AND channel_id IN ?", []any{channels}
+	}
+	var n uint64
+	if err := s.conn.QueryRow(ctx, "SELECT count() FROM analytics_events WHERE startsWith(dedupe_key, ?)"+scope, append([]any{keyPrefix}, args...)...).Scan(&n); err != nil {
+		return 0, err
+	}
+	sync := clickhouse.Context(ctx, clickhouse.WithSettings(clickhouse.Settings{"mutations_sync": 1}))
+	if err := s.conn.Exec(sync, "DELETE FROM analytics_events WHERE startsWith(dedupe_key, ?)"+scope, append([]any{keyPrefix}, args...)...); err != nil {
+		return 0, err
+	}
+	if err := s.conn.Exec(sync, "DELETE FROM analytics_identities WHERE startsWith(anon_id, ?)"+scope, append([]any{anonPrefix}, args...)...); err != nil {
+		return 0, err
+	}
+	s.RefreshIdentities(ctx)
 	return int64(n), nil
 }
 

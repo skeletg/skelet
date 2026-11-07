@@ -30,7 +30,7 @@ func init() {
 			{Key: "measurement_id", Label: "Measurement ID", Help: "G-XXXXXXXXXX, from the web data stream", Required: true},
 			{Key: "api_secret", Label: "Measurement Protocol API secret", Help: "Admin > Data streams > the stream > Measurement Protocol API secrets", Required: true, Secret: true},
 			{Key: "endpoint", Label: "Endpoint", Help: "Empty for Google. https://region1.google-analytics.com keeps collection in the EU; a server-side GTM container's URL sends through it"},
-			{Key: "validate", Label: "Validate only", Help: "true sends to Google's validation server instead, which checks each event and records nothing - for setting up"},
+			{Key: "validate", Label: "Validate only", Help: "true sends to Google's validation server instead, which checks each event and records nothing - for setting up", TestMode: true},
 		},
 		Send: Send,
 	})

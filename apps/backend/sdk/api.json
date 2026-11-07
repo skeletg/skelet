@@ -125,6 +125,7 @@
       "field DestinationField.Label string",
       "field DestinationField.Required bool",
       "field DestinationField.Secret bool",
+      "field DestinationField.TestMode bool",
       "field DraftOrderLine.Quantity float64",
       "field DraftOrderLine.SKU string",
       "field DraftOrderLine.UnitPriceCents *int64",

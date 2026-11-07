@@ -718,6 +718,73 @@ type BlogTagContent struct {
 	UpdatedAt       time.Time `json:"updatedAt"`
 }
 
+type Board struct {
+	ID        string         `json:"id"`
+	ChannelID string         `json:"channelId"`
+	Name      string         `json:"name"`
+	UpdatedAt time.Time      `json:"updatedAt"`
+	Reports   []*BoardReport `json:"reports"`
+}
+
+type BoardReport struct {
+	Title      string                 `json:"title"`
+	Size       *BoardReportSize       `json:"size,omitempty"`
+	Definition *BoardReportDefinition `json:"definition"`
+}
+
+type BoardReportDefinition struct {
+	Kind        BoardReportKind      `json:"kind"`
+	SinceDays   *int32               `json:"sinceDays,omitempty"`
+	Event       *string              `json:"event,omitempty"`
+	Measure     *string              `json:"measure,omitempty"`
+	Unit        *string              `json:"unit,omitempty"`
+	Breakdown   *string              `json:"breakdown,omitempty"`
+	Steps       []string             `json:"steps,omitempty"`
+	Filters     []*BoardReportFilter `json:"filters,omitempty"`
+	WindowHours *int32               `json:"windowHours,omitempty"`
+	StartEvent  *string              `json:"startEvent,omitempty"`
+	ReturnEvent *string              `json:"returnEvent,omitempty"`
+	Periods     *int32               `json:"periods,omitempty"`
+	Depth       *int32               `json:"depth,omitempty"`
+	WindowDays  *int32               `json:"windowDays,omitempty"`
+}
+
+type BoardReportDefinitionInput struct {
+	Kind        BoardReportKind             `json:"kind"`
+	SinceDays   *int32                      `json:"sinceDays,omitempty"`
+	Event       *string                     `json:"event,omitempty"`
+	Measure     *string                     `json:"measure,omitempty"`
+	Unit        *string                     `json:"unit,omitempty"`
+	Breakdown   *string                     `json:"breakdown,omitempty"`
+	Steps       []string                    `json:"steps,omitempty"`
+	Filters     []*SynapseFunnelFilterInput `json:"filters,omitempty"`
+	WindowHours *int32                      `json:"windowHours,omitempty"`
+	StartEvent  *string                     `json:"startEvent,omitempty"`
+	ReturnEvent *string                     `json:"returnEvent,omitempty"`
+	Periods     *int32                      `json:"periods,omitempty"`
+	Depth       *int32                      `json:"depth,omitempty"`
+	WindowDays  *int32                      `json:"windowDays,omitempty"`
+}
+
+type BoardReportFilter struct {
+	Step  int32  `json:"step"`
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type BoardReportInput struct {
+	Title      string                      `json:"title"`
+	Size       *BoardReportSize            `json:"size,omitempty"`
+	Definition *BoardReportDefinitionInput `json:"definition"`
+}
+
+type BoardSummary struct {
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+	ReportCount int32     `json:"reportCount"`
+}
+
 type BotAgent struct {
 	Name     string    `json:"name"`
 	Category string    `json:"category"`
@@ -2941,6 +3008,7 @@ type LensOverview struct {
 	Devices      []*LensLabelCount `json:"devices"`
 	Referrers    []*LensLabelCount `json:"referrers"`
 	Interactions []*LensLabelCount `json:"interactions"`
+	PlanIssues   []*LensPlanIssue  `json:"planIssues"`
 }
 
 type LensPage struct {
@@ -2974,6 +3042,13 @@ type LensPageVitals struct {
 	Inp     *float64 `json:"inp,omitempty"`
 	Ttfb    *float64 `json:"ttfb,omitempty"`
 	Samples int32    `json:"samples"`
+}
+
+type LensPlanIssue struct {
+	Kind  LensPlanIssueKind `json:"kind"`
+	Event string            `json:"event"`
+	Prop  string            `json:"prop"`
+	Count int32             `json:"count"`
 }
 
 type LensRageElement struct {
@@ -4884,6 +4959,18 @@ type SignalsChatReply struct {
 	Reply string `json:"reply"`
 }
 
+type SignalsImportCandidate struct {
+	LegacyID       string                 `json:"legacyId"`
+	Name           string                 `json:"name"`
+	LegacyKind     string                 `json:"legacyKind"`
+	TargetKind     *string                `json:"targetKind,omitempty"`
+	Config         []*TrackingConfigValue `json:"config"`
+	SignalsActive  bool                   `json:"signalsActive"`
+	ImportedAs     *string                `json:"importedAs,omitempty"`
+	DroppedFilters []string               `json:"droppedFilters"`
+	Problem        *string                `json:"problem,omitempty"`
+}
+
 type SignalsInsight struct {
 	Level  string `json:"level"`
 	Title  string `json:"title"`
@@ -5031,7 +5118,19 @@ type SynapseFlowPath struct {
 }
 
 type SynapseFunnel struct {
-	Steps []*SynapseFunnelStep `json:"steps"`
+	Steps     []*SynapseFunnelStep      `json:"steps"`
+	Breakdown []*SynapseFunnelBreakdown `json:"breakdown"`
+}
+
+type SynapseFunnelBreakdown struct {
+	Value  string  `json:"value"`
+	Counts []int32 `json:"counts"`
+}
+
+type SynapseFunnelFilterInput struct {
+	Step  int32  `json:"step"`
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
 type SynapseFunnelStep struct {
@@ -5230,6 +5329,84 @@ type TopProduct struct {
 	Cost       int    `json:"cost"`
 	Margin     int    `json:"margin"`
 	OrderCount int32  `json:"orderCount"`
+}
+
+type TrackingConfigValue struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type TrackingConfigValueInput struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type TrackingDelivery struct {
+	ID            string                 `json:"id"`
+	EventName     string                 `json:"eventName"`
+	EventID       string                 `json:"eventId"`
+	Status        TrackingDeliveryStatus `json:"status"`
+	Attempts      int32                  `json:"attempts"`
+	LastError     string                 `json:"lastError"`
+	NextAttemptAt time.Time              `json:"nextAttemptAt"`
+	CreatedAt     time.Time              `json:"createdAt"`
+}
+
+type TrackingDestination struct {
+	ID              string                 `json:"id"`
+	ChannelID       string                 `json:"channelId"`
+	Kind            string                 `json:"kind"`
+	Name            string                 `json:"name"`
+	Enabled         bool                   `json:"enabled"`
+	Events          []string               `json:"events"`
+	EffectiveEvents []string               `json:"effectiveEvents"`
+	Config          []*TrackingConfigValue `json:"config"`
+	SecretSet       bool                   `json:"secretSet"`
+	NeedsSecret     bool                   `json:"needsSecret"`
+	InTestMode      bool                   `json:"inTestMode"`
+	ImportedFrom    *string                `json:"importedFrom,omitempty"`
+	Health          *TrackingHealth        `json:"health"`
+	CreatedAt       time.Time              `json:"createdAt"`
+	UpdatedAt       time.Time              `json:"updatedAt"`
+}
+
+type TrackingDestinationInput struct {
+	Name    string                      `json:"name"`
+	Enabled *bool                       `json:"enabled,omitempty"`
+	Events  []string                    `json:"events,omitempty"`
+	Config  []*TrackingConfigValueInput `json:"config"`
+}
+
+type TrackingField struct {
+	Key      string `json:"key"`
+	Label    string `json:"label"`
+	Help     string `json:"help"`
+	Required bool   `json:"required"`
+	Secret   bool   `json:"secret"`
+	TestMode bool   `json:"testMode"`
+}
+
+type TrackingHealth struct {
+	LastSentAt *time.Time `json:"lastSentAt,omitempty"`
+	LastError  string     `json:"lastError"`
+	Dead24h    int32      `json:"dead24h"`
+}
+
+type TrackingPlatform struct {
+	Kind               string           `json:"kind"`
+	Label              string           `json:"label"`
+	PluginSlug         string           `json:"pluginSlug"`
+	Installed          bool             `json:"installed"`
+	AvailableOnChannel bool             `json:"availableOnChannel"`
+	Purposes           []string         `json:"purposes"`
+	DefaultEvents      []string         `json:"defaultEvents"`
+	Fields             []*TrackingField `json:"fields"`
+	NecessarySetting   *string          `json:"necessarySetting,omitempty"`
+}
+
+type TrackingTestResult struct {
+	Ok      bool   `json:"ok"`
+	Message string `json:"message"`
 }
 
 type TransactionalSlot struct {
@@ -6448,6 +6625,124 @@ func (e BlogPostStatus) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+type BoardReportKind string
+
+const (
+	BoardReportKindInsights   BoardReportKind = "INSIGHTS"
+	BoardReportKindFunnel     BoardReportKind = "FUNNEL"
+	BoardReportKindRetention  BoardReportKind = "RETENTION"
+	BoardReportKindStickiness BoardReportKind = "STICKINESS"
+	BoardReportKindFlow       BoardReportKind = "FLOW"
+)
+
+var AllBoardReportKind = []BoardReportKind{
+	BoardReportKindInsights,
+	BoardReportKindFunnel,
+	BoardReportKindRetention,
+	BoardReportKindStickiness,
+	BoardReportKindFlow,
+}
+
+func (e BoardReportKind) IsValid() bool {
+	switch e {
+	case BoardReportKindInsights, BoardReportKindFunnel, BoardReportKindRetention, BoardReportKindStickiness, BoardReportKindFlow:
+		return true
+	}
+	return false
+}
+
+func (e BoardReportKind) String() string {
+	return string(e)
+}
+
+func (e *BoardReportKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = BoardReportKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid BoardReportKind", str)
+	}
+	return nil
+}
+
+func (e BoardReportKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *BoardReportKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e BoardReportKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type BoardReportSize string
+
+const (
+	BoardReportSizeSmall  BoardReportSize = "SMALL"
+	BoardReportSizeMedium BoardReportSize = "MEDIUM"
+	BoardReportSizeFull   BoardReportSize = "FULL"
+)
+
+var AllBoardReportSize = []BoardReportSize{
+	BoardReportSizeSmall,
+	BoardReportSizeMedium,
+	BoardReportSizeFull,
+}
+
+func (e BoardReportSize) IsValid() bool {
+	switch e {
+	case BoardReportSizeSmall, BoardReportSizeMedium, BoardReportSizeFull:
+		return true
+	}
+	return false
+}
+
+func (e BoardReportSize) String() string {
+	return string(e)
+}
+
+func (e *BoardReportSize) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = BoardReportSize(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid BoardReportSize", str)
+	}
+	return nil
+}
+
+func (e BoardReportSize) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *BoardReportSize) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e BoardReportSize) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 type BundleInputType string
 
 const (
@@ -7606,6 +7901,65 @@ func (e *InventoryMode) UnmarshalJSON(b []byte) error {
 }
 
 func (e InventoryMode) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type LensPlanIssueKind string
+
+const (
+	LensPlanIssueKindUnknownEvent LensPlanIssueKind = "UNKNOWN_EVENT"
+	LensPlanIssueKindUnknownProp  LensPlanIssueKind = "UNKNOWN_PROP"
+	LensPlanIssueKindBadType      LensPlanIssueKind = "BAD_TYPE"
+	LensPlanIssueKindServerProp   LensPlanIssueKind = "SERVER_PROP"
+)
+
+var AllLensPlanIssueKind = []LensPlanIssueKind{
+	LensPlanIssueKindUnknownEvent,
+	LensPlanIssueKindUnknownProp,
+	LensPlanIssueKindBadType,
+	LensPlanIssueKindServerProp,
+}
+
+func (e LensPlanIssueKind) IsValid() bool {
+	switch e {
+	case LensPlanIssueKindUnknownEvent, LensPlanIssueKindUnknownProp, LensPlanIssueKindBadType, LensPlanIssueKindServerProp:
+		return true
+	}
+	return false
+}
+
+func (e LensPlanIssueKind) String() string {
+	return string(e)
+}
+
+func (e *LensPlanIssueKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = LensPlanIssueKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid LensPlanIssueKind", str)
+	}
+	return nil
+}
+
+func (e LensPlanIssueKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *LensPlanIssueKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e LensPlanIssueKind) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
@@ -9558,6 +9912,61 @@ func (e *SubscriptionStatus) UnmarshalJSON(b []byte) error {
 }
 
 func (e SubscriptionStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type TrackingDeliveryStatus string
+
+const (
+	TrackingDeliveryStatusPending TrackingDeliveryStatus = "PENDING"
+	TrackingDeliveryStatusDead    TrackingDeliveryStatus = "DEAD"
+)
+
+var AllTrackingDeliveryStatus = []TrackingDeliveryStatus{
+	TrackingDeliveryStatusPending,
+	TrackingDeliveryStatusDead,
+}
+
+func (e TrackingDeliveryStatus) IsValid() bool {
+	switch e {
+	case TrackingDeliveryStatusPending, TrackingDeliveryStatusDead:
+		return true
+	}
+	return false
+}
+
+func (e TrackingDeliveryStatus) String() string {
+	return string(e)
+}
+
+func (e *TrackingDeliveryStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = TrackingDeliveryStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid TrackingDeliveryStatus", str)
+	}
+	return nil
+}
+
+func (e TrackingDeliveryStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *TrackingDeliveryStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e TrackingDeliveryStatus) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

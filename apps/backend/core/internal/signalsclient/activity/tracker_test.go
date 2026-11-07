@@ -61,6 +61,37 @@ func newTracker(o order.Order) (*Tracker, *fakeRecorder) {
 	return NewTracker(fr, &fakeOrders{o: o}, countsNobody(true)), fr
 }
 
+func TestASignInCarriesTheVisitorOnlyWithAnalyticsConsent(t *testing.T) {
+	cid, ch := uuid.New(), uuid.New()
+	consented := &auth.Shopper{Consent: auth.Consent{Analytics: true}, AnonID: "anon-1"}
+	refused := &auth.Shopper{Consent: auth.Consent{}} // ShopperFromContext leaves the visitor id out without consent
+	for name, tc := range map[string]struct {
+		invoke func(*Tracker)
+		want   string
+	}{
+		"login, consented": {func(tr *Tracker) {
+			_ = tr.onLogin(context.Background(), &auth.LoginSucceeded{Subject: auth.SubjectCustomer, SubjectID: cid, ChannelID: ch, Shopper: consented})
+		}, "anon-1"},
+		"login, refused": {func(tr *Tracker) {
+			_ = tr.onLogin(context.Background(), &auth.LoginSucceeded{Subject: auth.SubjectCustomer, SubjectID: cid, ChannelID: ch, Shopper: refused})
+		}, ""},
+		"login, no banner": {func(tr *Tracker) {
+			_ = tr.onLogin(context.Background(), &auth.LoginSucceeded{Subject: auth.SubjectCustomer, SubjectID: cid, ChannelID: ch})
+		}, ""},
+		"register, consented": {func(tr *Tracker) {
+			_ = tr.onRegistered(context.Background(), &customer.CustomerRegistered{CustomerID: cid, ChannelID: ch, Shopper: consented})
+		}, "anon-1"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			tr, fr := newTracker(order.Order{})
+			tc.invoke(tr)
+			if len(fr.calls) != 1 || fr.calls[0].AnonID != tc.want || fr.calls[0].CustomerID == nil {
+				t.Fatalf("calls = %+v, want one with visitor %q", fr.calls, tc.want)
+			}
+		})
+	}
+}
+
 func TestTracker_MapsEvents(t *testing.T) {
 	cid := uuid.New()
 	ch := uuid.New()

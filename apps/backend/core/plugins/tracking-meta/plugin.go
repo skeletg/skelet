@@ -58,7 +58,7 @@ func init() {
 		Fields: []sdk.DestinationField{
 			{Key: "pixel_id", Label: "Pixel ID", Help: "The dataset (pixel) the events belong to", Required: true},
 			{Key: "access_token", Label: "Access token", Help: "Events Manager > the dataset > Settings > Conversions API > Generate access token", Required: true, Secret: true},
-			{Key: "test_event_code", Label: "Test event code", Help: "From Events Manager > Test events, while setting up - leave empty in production"},
+			{Key: "test_event_code", Label: "Test event code", Help: "From Events Manager > Test events, while setting up - leave empty in production", TestMode: true},
 		},
 		Send: Send,
 	})

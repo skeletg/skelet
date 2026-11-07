@@ -108,13 +108,16 @@ type ShopConsent struct {
 }
 
 // DestinationField is one setting on the admin form for a configured destination. A Secret field is stored encrypted,
-// never shown back, and arrives in DestinationConfig.Secret - a destination has at most one
+// never shown back, and arrives in DestinationConfig.Secret - a destination has at most one. A TestMode field keeps
+// sends out of the platform's live reports while it holds a value other than "false" - the dashboard warns before a
+// test send without it, and clears it when the destination goes live. A destination has at most one
 type DestinationField struct {
 	Key      string
 	Label    string
 	Help     string
 	Required bool
 	Secret   bool
+	TestMode bool
 }
 
 // DestinationConfig is one configured account: what the admin entered, with the secret decrypted

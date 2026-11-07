@@ -139,6 +139,25 @@ func TestMalformedIdsAreInvalidArgument(t *testing.T) {
 	}
 }
 
+// The suite is the only place a funnel request is checked - core relays it as the admin sent it
+func TestAMalformedFunnelIsInvalidArgument(t *testing.T) {
+	c := signalsv1.NewSynapseServiceClient(testConn(t))
+	ctx := tokenCtx(t)
+	two := []string{"page_view", "cart_add"}
+	for name, req := range map[string]*signalsv1.GetFunnelRequest{
+		"one step":            {Steps: two[:1]},
+		"an empty step":       {Steps: []string{"page_view", "", "cart_add"}},
+		"a filter past steps": {Steps: two, Filters: []*signalsv1.FunnelFilter{{Step: 2, Key: "device"}}},
+		"a negative step":     {Steps: two, Filters: []*signalsv1.FunnelFilter{{Step: -1, Key: "device"}}},
+		"a blank filter key":  {Steps: two, Filters: []*signalsv1.FunnelFilter{{Step: 0, Key: "  "}}},
+	} {
+		req.ChannelId = uuid.New().String()
+		if got := status.Code(mustErr(c.GetFunnel(ctx, req))); got != codes.InvalidArgument {
+			t.Errorf("%s answered %s, want InvalidArgument", name, got)
+		}
+	}
+}
+
 func TestWindowDaysClampsRatherThanRefuses(t *testing.T) {
 	for _, tc := range []struct{ in, want int32 }{{0, 30}, {-5, 30}, {7, 7}, {365, 365}, {10_000, 365}} {
 		if got := windowDays(tc.in, 30); got != tc.want {

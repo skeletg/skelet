@@ -355,6 +355,10 @@ is missing.
 The spine and its migrations share one URL, `SIGNALS_CH_URL` - dbmate reads the
 same `clickhouse://user:password@host:port/db` the app does.
 
+Every query runs under `max_execution_time` 60 seconds and `max_memory_usage` 4 GiB
+unless the URL sets them, for example `?max_execution_time=120`, so one runaway
+report can't starve the others. The archive export is exempt from the time limit.
+
 Set `CLICKHOUSE_PASSWORD` in the root `.env`; the server credentials and
 the ClickHouse URL derive from it. Backing the spine up is
 `BACKUP DATABASE` on a schedule of your own, see [backups.md](backups.md).

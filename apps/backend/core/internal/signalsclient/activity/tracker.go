@@ -170,6 +170,16 @@ func orderActor(o order.Order) actor {
 	return actor{cust: o.CustomerID, anon: guestVisitor(o.CustomerID, o.AnonID, o.Email)}
 }
 
+// signInActor is the customer signing in or up, with the visitor id they arrived on when analytics allows - the suite
+// stitches the two on a login or registered event. ShopperFromContext only reads the visitor id with that consent
+func signInActor(s *auth.Shopper, cust uuid.UUID) actor {
+	a := actor{cust: ref(cust)}
+	if s != nil {
+		a.anon = s.AnonID
+	}
+	return a
+}
+
 // emit is an account action, which is always the customer's own
 func (t *Tracker) emit(ctx context.Context, source, name string, channel uuid.UUID, cust *uuid.UUID, dedupe string, props map[string]any) error {
 	return t.emitAs(ctx, source, name, channel, actor{cust: cust}, dedupe, props)
@@ -568,7 +578,7 @@ func (t *Tracker) onRegistered(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	return t.emit(ctx, sourceAccount, "registered", ev.ChannelID, ref(ev.CustomerID),
+	return t.emitAs(ctx, sourceAccount, "registered", ev.ChannelID, signInActor(ev.Shopper, ev.CustomerID),
 		"act:registered:"+ev.CustomerID.String(),
 		map[string]any{"source": ev.Source})
 }
@@ -637,7 +647,7 @@ func (t *Tracker) onLogin(ctx context.Context, e events.Event) error {
 	if ip := anonymizeIP(ev.IP); ip != "" {
 		props = map[string]any{"ip": ip}
 	}
-	return t.emit(ctx, sourceAccount, "login", ev.ChannelID, ref(ev.SubjectID),
+	return t.emitAs(ctx, sourceAccount, "login", ev.ChannelID, signInActor(ev.Shopper, ev.SubjectID),
 		"act:login:"+ev.SubjectID.String()+":"+itoa(secBucket(ctx)), props)
 }
 

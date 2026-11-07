@@ -47,7 +47,7 @@ func init() {
 		Fields: []sdk.DestinationField{
 			{Key: "pixel_id", Label: "Pixel ID", Help: "Ads Manager > Conversions", Required: true},
 			{Key: "api_key", Label: "API key", Help: "Ads Manager > Conversions", Required: true, Secret: true},
-			{Key: "validate_only", Label: "Validate only", Help: "true checks each event and saves nothing - for setting up"},
+			{Key: "validate_only", Label: "Validate only", Help: "true checks each event and saves nothing - for setting up", TestMode: true},
 		},
 		Send: Send,
 	})

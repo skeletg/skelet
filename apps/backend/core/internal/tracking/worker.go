@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -148,6 +149,7 @@ func (w *Worker) dead(ctx context.Context, item Delivery, d Destination, reason 
 func redact(s string, d *Destination) string {
 	if d.Secret != "" {
 		s = strings.ReplaceAll(s, d.Secret, "[redacted]")
+		s = strings.ReplaceAll(s, url.QueryEscape(d.Secret), "[redacted]") // as it appears inside a request URL
 	}
 	if len(s) > 1000 {
 		s = strings.ToValidUTF8(s[:1000], "") // a cut through a multi-byte rune is invalid text, which Postgres refuses

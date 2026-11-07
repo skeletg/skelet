@@ -17,6 +17,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/archivefile"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/behavioralsegment"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/board"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/destination"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/experiment"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/geo"
@@ -54,6 +55,7 @@ var Services = fx.Module("services",
 		newTraits,
 		newLens,
 		newExperiment,
+		newBoards,
 		newSegment,
 		newDestination,
 		newChannelRoster,
@@ -166,6 +168,8 @@ func newDestination(cfg Config, q Queries, rec *analytics.Recorder, allow AllowP
 }
 
 // The beacon surface's copy of core's active channels, which core's push job keeps current
+func newBoards(p SignalsPool) *board.Service { return board.NewService(p.DB) }
+
 func newChannelRoster(p SignalsPool) *analytics.ChannelRoster {
 	return analytics.NewChannelRoster(p.DB)
 }
