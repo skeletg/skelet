@@ -23,6 +23,7 @@ const (
 	CategoryOrder     = "order"
 	CategorySystem    = "system"
 	CategoryForm      = "form"
+	CategoryBoard     = "board"
 )
 
 // Permission slugs gating visibility - producers stamp one onto each notification, and the read API checks which the acting admin holds - A bounded set, so it's a few HasPermission checks
@@ -32,9 +33,10 @@ const (
 	PermInventory = "inventory.view"
 	PermSystem    = "scheduler.view"
 	PermForms     = "webforms.submissions_view"
+	PermBoards    = "boards.view"
 )
 
-var CategoryPermissions = []string{PermOrders, PermReviews, PermInventory, PermSystem, PermForms}
+var CategoryPermissions = []string{PermOrders, PermReviews, PermInventory, PermSystem, PermForms, PermBoards}
 
 // Per-admin preference key holding a JSON array of muted categories - a personal choice, so it is applied on top of the permission scope rather than being part of it, and it applies to superusers too. Deliberately plain strings: category is free text in the DB with no enum, so an unknown value simply matches nothing
 const MutedCategoriesPref = "notif:mutedCategories"
@@ -50,6 +52,7 @@ type Input struct {
 	EntityID           string
 	ActionURL          string
 	DedupeKey          string
+	RecipientAdminID   *uuid.UUID // set: this admin's alone, nil: everyone the scope lets see it
 }
 
 type Notification struct {
@@ -65,7 +68,8 @@ type Notification struct {
 	CreatedAt  time.Time
 	Read       bool
 	// Populated on the live-push path only, so subscription fan-out can apply Scope.CanSee without a DB round trip - the List read model leaves it empty, since its SQL already filters
-	RequiredPermission string `json:",omitempty"`
+	RequiredPermission string     `json:",omitempty"`
+	RecipientAdminID   *uuid.UUID `json:",omitempty"`
 }
 
 // The acting admin's visibility filter, resolved once per request from their permissions and permitted channels - Bypass short-circuits both filters, so superusers and all-channel admins see everything
@@ -94,6 +98,9 @@ func (sc Scope) CanSee(n Notification) bool {
 	// and the badge is counted in SQL with the same predicate, or a mute would leave it lying
 	if slices.Contains(sc.Muted, n.Category) {
 		return false
+	}
+	if n.RecipientAdminID != nil && *n.RecipientAdminID != sc.AdminID {
+		return false // someone else's, whoever is asking
 	}
 	if sc.Bypass {
 		return true
