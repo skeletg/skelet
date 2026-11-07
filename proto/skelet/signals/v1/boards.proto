@@ -237,7 +237,11 @@ message RequestBoardAccessRequest {
   string level = 3;
 }
 
-message RequestBoardAccessResponse {}
+// Set when a request was kept, so core can tell the owner - never shown to the asker, who learns nothing of the board
+message RequestBoardAccessResponse {
+  string owner_id = 1;
+  string board_name = 2;
+}
 
 message DismissBoardAccessRequestRequest {
   string channel_id = 1;

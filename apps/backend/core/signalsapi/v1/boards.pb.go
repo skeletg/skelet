@@ -1894,8 +1894,11 @@ func (x *RequestBoardAccessRequest) GetLevel() string {
 	return ""
 }
 
+// Set when a request was kept, so core can tell the owner - never shown to the asker, who learns nothing of the board
 type RequestBoardAccessResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	OwnerId       string                 `protobuf:"bytes,1,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	BoardName     string                 `protobuf:"bytes,2,opt,name=board_name,json=boardName,proto3" json:"board_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1928,6 +1931,20 @@ func (x *RequestBoardAccessResponse) ProtoReflect() protoreflect.Message {
 // Deprecated: Use RequestBoardAccessResponse.ProtoReflect.Descriptor instead.
 func (*RequestBoardAccessResponse) Descriptor() ([]byte, []int) {
 	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *RequestBoardAccessResponse) GetOwnerId() string {
+	if x != nil {
+		return x.OwnerId
+	}
+	return ""
+}
+
+func (x *RequestBoardAccessResponse) GetBoardName() string {
+	if x != nil {
+		return x.BoardName
+	}
+	return ""
 }
 
 type DismissBoardAccessRequestRequest struct {
@@ -2179,8 +2196,11 @@ const file_skelet_signals_v1_boards_proto_rawDesc = "" +
 	"\n" +
 	"channel_id\x18\x01 \x01(\tR\tchannelId\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x12\x14\n" +
-	"\x05level\x18\x03 \x01(\tR\x05level\"\x1c\n" +
-	"\x1aRequestBoardAccessResponse\"l\n" +
+	"\x05level\x18\x03 \x01(\tR\x05level\"V\n" +
+	"\x1aRequestBoardAccessResponse\x12\x19\n" +
+	"\bowner_id\x18\x01 \x01(\tR\aownerId\x12\x1d\n" +
+	"\n" +
+	"board_name\x18\x02 \x01(\tR\tboardName\"l\n" +
 	" DismissBoardAccessRequestRequest\x12\x1d\n" +
 	"\n" +
 	"channel_id\x18\x01 \x01(\tR\tchannelId\x12\x0e\n" +
