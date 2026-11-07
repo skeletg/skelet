@@ -65,10 +65,28 @@ type BoardShare {
   level:   BoardShareLevel!
 }
 
+# The caller's unsaved edits: the board as they staged it. Held to its shape only - a draft can hold work in progress,
+# such as a one-step funnel, that saveBoard would refuse
 type BoardDraft {
-  payload:       JSON!   # the dashboard's own: the board as staged
+  name:          String!
+  reports:       [BoardDraftReport!]!
   baseUpdatedAt: Time!   # the board's updatedAt when the edits began - save with it as readAt
   updatedAt:     Time!
+}
+
+type BoardDraftReport {
+  report: BoardReport!
+  from:   Int            # the position of the saved report this one is; null for one added in the draft
+}
+
+input BoardDraftInput {
+  name:    String!
+  reports: [BoardDraftReportInput!]!
+}
+
+input BoardDraftReportInput {
+  report: BoardReportInput!
+  from:   Int
 }
 
 # Someone a board can be shared with, and whether they'd see anything: boards.view, and customers.view for the numbers
@@ -179,7 +197,7 @@ extend type Mutation {
   transferBoard(channelId: ID!, id: ID!, ownerId: ID): Boolean!
   setBoardFavourite(channelId: ID!, id: ID!, favourite: Boolean!): Boolean!
   # Keeps the caller's unsaved edits between visits; answers when they were kept
-  saveBoardDraft(channelId: ID!, id: ID!, payload: JSON!, baseUpdatedAt: Time!): Time!
+  saveBoardDraft(channelId: ID!, id: ID!, draft: BoardDraftInput!, baseUpdatedAt: Time!): Time!
   discardBoardDraft(channelId: ID!, id: ID!): Boolean!
   # Asks a board's owner for view or edit access. Answers true whether or not the board exists or the caller has the
   # access already, so it says nothing about a board they can't see

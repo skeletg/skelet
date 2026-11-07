@@ -163,7 +163,7 @@ describe('BoardPage', () => {
     fireEvent.change(await screen.findByRole('textbox', { name: 'Board name' }, SLOW), { target: { value: 'Weekly review' } })
     expect(kept).toEqual([]) // nothing is written mid-typing
     await waitFor(() => expect(kept).toHaveLength(1), { timeout: 3000 })
-    expect(kept[0]).toMatchObject({ channelId: 'c1', id: 'b1', baseUpdatedAt: board.updatedAt, payload: { name: 'Weekly review' } })
+    expect(kept[0]).toMatchObject({ channelId: 'c1', id: 'b1', baseUpdatedAt: board.updatedAt, draft: { name: 'Weekly review' } })
   })
 
   it('opens on the unsaved edits kept from last time, and saves them against the board they started from', async () => {
@@ -173,7 +173,8 @@ describe('BoardPage', () => {
       updatedAt: '2026-11-05T09:00:00Z',
       draft: {
         __typename: 'BoardDraft',
-        payload: { name: 'Weekly, kept', reports: [{ ...cleanReport(board.reports[1]), key: 's1', from: 1 }] },
+        name: 'Weekly, kept',
+        reports: [{ __typename: 'BoardDraftReport', from: 1, report: board.reports[1] }],
         baseUpdatedAt: '2026-11-04T10:00:00.123456Z',
         updatedAt: '2026-11-04T18:00:00Z',
       },
@@ -195,23 +196,6 @@ describe('BoardPage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /^Apply/ }))
     await waitFor(() => expect(saved).not.toBeNull(), SLOW)
     expect(saved).toMatchObject({ name: 'Weekly, kept', readAt: '2026-11-04T10:00:00.123456Z' }) // a newer save in between is refused, not overwritten
-  })
-
-  it('opens the saved board when the kept draft is in a shape this build no longer writes', async () => {
-    const oldDraft = {
-      ...board,
-      draft: { __typename: 'BoardDraft', payload: { name: 'Old shape', reports: [{ ...board.reports[1], key: 's1' }] }, baseUpdatedAt: board.updatedAt, updatedAt: board.updatedAt },
-    }
-    renderPage({
-      path: '/boards/b1',
-      routes: { '/boards/:id': <BoardPage /> },
-      adminId: 'admin-1',
-      scope: channelScope,
-      mocks: [meMock({ superuser: true }), ...boardMocks(() => {}, oldDraft)],
-    })
-    expect(await screen.findByRole('region', { name: 'Returning' }, SLOW)).toBeTruthy()
-    expect((screen.getByRole('textbox', { name: 'Board name' }) as HTMLInputElement).value).toBe(board.name)
-    expect(screen.queryByText(/These are your unsaved changes from/)).toBeNull()
   })
 
   it('shows someone with view access the board without anything to change', async () => {
@@ -239,13 +223,12 @@ describe('BoardPage', () => {
   })
 
   it('opens unsaved edits kept against an older board - one with a report since removed - without failing', async () => {
-    const [first, second] = board.reports.map(cleanReport)
     // kept when the board had three reports: the third moved to the front. Someone has since saved it down to two
-    const kept = [{ ...second, title: 'Moved up', key: 's2', from: 2 }, { ...first, key: 's0', from: 0 }]
-    const stale = {
-      ...board,
-      draft: { __typename: 'BoardDraft', payload: { name: board.name, reports: kept }, baseUpdatedAt: '2026-11-01T10:00:00Z', updatedAt: '2026-11-01T11:00:00Z' },
-    }
+    const kept = [
+      { __typename: 'BoardDraftReport', from: 2, report: { ...board.reports[1], title: 'Moved up' } },
+      { __typename: 'BoardDraftReport', from: 0, report: board.reports[0] },
+    ]
+    const stale = { ...board, draft: { __typename: 'BoardDraft', name: board.name, reports: kept, baseUpdatedAt: '2026-11-01T10:00:00Z', updatedAt: '2026-11-01T11:00:00Z' } }
     renderPage({
       path: '/boards/b1',
       routes: { '/boards/:id': <BoardPage /> },

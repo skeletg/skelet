@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -132,7 +133,7 @@ func TestSharingWithARoleToViewOnly(t *testing.T) {
 	if _, err := svc.Save(ctx, shop, member, b.ID, "Mine now", nil, got.UpdatedAt); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("a viewer saved: %v, want ErrForbidden", err)
 	}
-	if _, err := svc.SaveDraft(ctx, shop, member, b.ID, []byte(`{}`), got.UpdatedAt); !errors.Is(err, ErrForbidden) {
+	if _, err := svc.SaveDraft(ctx, shop, member, b.ID, Draft{}, got.UpdatedAt); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("a viewer kept a draft: %v, want ErrForbidden", err)
 	}
 	if err := svc.SetFavourite(ctx, shop, member, b.ID, true); err != nil {
@@ -163,12 +164,18 @@ func TestAnEditorsDraftIsKeptUntilTheySave(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := svc.SaveDraft(ctx, shop, editor, b.ID, []byte(`{"name":"Product X v2"}`), b.UpdatedAt); err != nil {
+	// work in progress Save would refuse - a one-step funnel, with no title yet - is still kept
+	unfinished := Report{Definition: Definition{Kind: "funnel", Steps: []string{"page_view"}}}
+	kept := Draft{Name: "Product X v2", Reports: []DraftReport{{Report: views, From: new(0)}, {Report: unfinished}}}
+	if _, err := svc.SaveDraft(ctx, shop, editor, b.ID, kept, b.UpdatedAt); err != nil {
 		t.Fatal(err)
 	}
 	got, err := svc.Get(ctx, shop, editor, b.ID)
-	if err != nil || got.Draft == nil || string(got.Draft.Payload) != `{"name": "Product X v2"}` || !got.Draft.BaseUpdatedAt.Equal(b.UpdatedAt) {
+	if err != nil || got.Draft == nil || got.Draft.Name != "Product X v2" || !got.Draft.BaseUpdatedAt.Equal(b.UpdatedAt) {
 		t.Fatalf("the editor's draft = %+v, %v", got.Draft, err)
+	}
+	if r := got.Draft.Reports; len(r) != 2 || r[0].From == nil || *r[0].From != 0 || r[0].Title != "Views" || r[1].From != nil || len(r[1].Definition.Steps) != 1 {
+		t.Fatalf("the draft's reports = %+v, want both back as staged, with where each came from", r)
 	}
 	if mine, _ := svc.Get(ctx, shop, me, b.ID); mine.Draft != nil {
 		t.Fatal("the owner sees the editor's draft - a draft is its admin's alone")
@@ -182,8 +189,8 @@ func TestAnEditorsDraftIsKeptUntilTheySave(t *testing.T) {
 	if after, _ := svc.Get(ctx, shop, editor, b.ID); after.Draft != nil {
 		t.Fatal("the draft outlived the save that applied it")
 	}
-	if _, err := svc.SaveDraft(ctx, shop, editor, b.ID, []byte(`not json`), b.UpdatedAt); !errors.Is(err, ErrInvalid) {
-		t.Fatalf("a junk draft: %v", err)
+	if _, err := svc.SaveDraft(ctx, shop, editor, b.ID, Draft{Name: strings.Repeat("x", maxDraft)}, b.UpdatedAt); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("an oversized draft: %v", err)
 	}
 }
 
@@ -192,7 +199,7 @@ func TestDraftsNobodyCameBackToAreSwept(t *testing.T) {
 	ctx := context.Background()
 	me := Actor{AdminID: uuid.New(), CanManage: true}
 	b := newBoard(t, svc, shop, me, "Old", views)
-	if _, err := svc.SaveDraft(ctx, shop, me, b.ID, []byte(`{}`), b.UpdatedAt); err != nil {
+	if _, err := svc.SaveDraft(ctx, shop, me, b.ID, Draft{}, b.UpdatedAt); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := conn.Exec(`UPDATE board_drafts SET updated_at = now() - interval '31 days' WHERE board_id = $1`, b.ID); err != nil {
@@ -368,5 +375,22 @@ func TestRequestingAccessToABoard(t *testing.T) {
 	}
 	if got, _ = svc.Get(ctx, shop, me, b.ID); len(got.Requests) != 0 {
 		t.Fatalf("a dismissed request stayed: %+v", got.Requests)
+	}
+}
+
+// A draft kept by an older build in a shape this one can't read opens as no draft, rather than failing the board
+func TestADraftInAnOlderShapeReadsAsNone(t *testing.T) {
+	conn, svc, shop := newShop(t)
+	ctx := context.Background()
+	me := Actor{AdminID: uuid.New(), CanManage: true}
+	b := newBoard(t, svc, shop, me, "Old", views)
+	if _, err := svc.SaveDraft(ctx, shop, me, b.ID, Draft{}, b.UpdatedAt); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.Exec(`UPDATE board_drafts SET payload = '["not", "a", "draft"]' WHERE board_id = $1`, b.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := svc.Get(ctx, shop, me, b.ID); err != nil || got.Draft != nil {
+		t.Fatalf("board = draft %+v, %v - want the board, with no draft", got.Draft, err)
 	}
 }

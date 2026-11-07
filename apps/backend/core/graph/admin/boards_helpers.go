@@ -2,8 +2,6 @@ package admin
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 
@@ -21,20 +19,24 @@ import (
 func boardReportsIn(in []*model.BoardReportInput) []*signalsv1.BoardReport {
 	out := make([]*signalsv1.BoardReport, 0, len(in))
 	for _, r := range in {
-		d := r.Definition
-		filters := make([]*signalsv1.FunnelFilter, 0, len(d.Filters))
-		for _, f := range d.Filters {
-			filters = append(filters, &signalsv1.FunnelFilter{Step: f.Step, Key: f.Key, Value: f.Value})
-		}
-		out = append(out, &signalsv1.BoardReport{Title: r.Title, Size: strings.ToLower(string(ptrOr(r.Size, ""))), Definition: &signalsv1.BoardReportDefinition{
-			Kind: strings.ToLower(string(d.Kind)), SinceDays: ptrOr(d.SinceDays, 0), Event: ptrOr(d.Event, ""),
-			Measure: ptrOr(d.Measure, ""), Unit: ptrOr(d.Unit, ""), Breakdown: ptrOr(d.Breakdown, ""), Steps: d.Steps,
-			Filters: filters, WindowHours: ptrOr(d.WindowHours, 0), StartEvent: ptrOr(d.StartEvent, ""),
-			ReturnEvent: ptrOr(d.ReturnEvent, ""), Periods: ptrOr(d.Periods, 0), Depth: ptrOr(d.Depth, 0),
-			WindowDays: ptrOr(d.WindowDays, 0),
-		}})
+		out = append(out, reportIn(r))
 	}
 	return out
+}
+
+func reportIn(r *model.BoardReportInput) *signalsv1.BoardReport {
+	d := r.Definition
+	filters := make([]*signalsv1.FunnelFilter, 0, len(d.Filters))
+	for _, f := range d.Filters {
+		filters = append(filters, &signalsv1.FunnelFilter{Step: f.Step, Key: f.Key, Value: f.Value})
+	}
+	return &signalsv1.BoardReport{Title: r.Title, Size: strings.ToLower(string(ptrOr(r.Size, ""))), Definition: &signalsv1.BoardReportDefinition{
+		Kind: strings.ToLower(string(d.Kind)), SinceDays: ptrOr(d.SinceDays, 0), Event: ptrOr(d.Event, ""),
+		Measure: ptrOr(d.Measure, ""), Unit: ptrOr(d.Unit, ""), Breakdown: ptrOr(d.Breakdown, ""), Steps: d.Steps,
+		Filters: filters, WindowHours: ptrOr(d.WindowHours, 0), StartEvent: ptrOr(d.StartEvent, ""),
+		ReturnEvent: ptrOr(d.ReturnEvent, ""), Periods: ptrOr(d.Periods, 0), Depth: ptrOr(d.Depth, 0),
+		WindowDays: ptrOr(d.WindowDays, 0),
+	}}
 }
 
 // boardPeople names the admins and roles on boards. Signals keeps only their ids, and an owner core no longer has
@@ -103,7 +105,7 @@ func timeOrNil(t *timestamppb.Timestamp) *time.Time {
 	return &at
 }
 
-func (p *boardPeople) boardOut(b *signalsv1.Board) (*model.Board, error) {
+func (p *boardPeople) boardOut(b *signalsv1.Board) *model.Board {
 	out := &model.Board{
 		ID: b.GetId(), ChannelID: b.GetChannelId(), Name: b.GetName(), UpdatedAt: b.GetUpdatedAt().AsTime(),
 		Reports: []*model.BoardReport{}, Shares: []*model.BoardShare{}, AccessRequests: []*model.BoardAccessRequest{},
@@ -111,18 +113,7 @@ func (p *boardPeople) boardOut(b *signalsv1.Board) (*model.Board, error) {
 		DraftUpdatedAt: timeOrNil(b.GetDraftUpdatedAt()),
 	}
 	for _, r := range b.GetReports() {
-		d := r.GetDefinition()
-		var filters []*model.BoardReportFilter
-		for _, f := range d.GetFilters() {
-			filters = append(filters, &model.BoardReportFilter{Step: f.GetStep(), Key: f.GetKey(), Value: f.GetValue()})
-		}
-		out.Reports = append(out.Reports, &model.BoardReport{Title: r.GetTitle(), Size: nilIfZero(model.BoardReportSize(strings.ToUpper(r.GetSize()))), Definition: &model.BoardReportDefinition{
-			Kind: model.BoardReportKind(strings.ToUpper(d.GetKind())), SinceDays: nilIfZero(d.GetSinceDays()), Event: nilIfZero(d.GetEvent()),
-			Measure: nilIfZero(d.GetMeasure()), Unit: nilIfZero(d.GetUnit()), Breakdown: nilIfZero(d.GetBreakdown()), Steps: d.GetSteps(),
-			Filters: filters, WindowHours: nilIfZero(d.GetWindowHours()), StartEvent: nilIfZero(d.GetStartEvent()),
-			ReturnEvent: nilIfZero(d.GetReturnEvent()), Periods: nilIfZero(d.GetPeriods()), Depth: nilIfZero(d.GetDepth()),
-			WindowDays: nilIfZero(d.GetWindowDays()),
-		}})
+		out.Reports = append(out.Reports, reportOut(r))
 	}
 	for _, sh := range b.GetShares() {
 		s := &model.BoardShare{Level: model.BoardShareLevel(strings.ToUpper(sh.GetLevel()))}
@@ -141,13 +132,31 @@ func (p *boardPeople) boardOut(b *signalsv1.Board) (*model.Board, error) {
 		out.AccessRequests = append(out.AccessRequests, &model.BoardAccessRequest{AdminID: rq.GetAdminId(), Name: p.owner(rq.GetAdminId()).Name, Level: model.BoardShareLevel(strings.ToUpper(rq.GetLevel())), RequestedAt: rq.GetRequestedAt().AsTime()})
 	}
 	if d := b.GetDraft(); d != nil {
-		var payload any
-		if err := json.Unmarshal([]byte(d.GetPayloadJson()), &payload); err != nil {
-			return nil, fmt.Errorf("board draft: %w", err)
+		out.Draft = &model.BoardDraft{Name: d.GetName(), Reports: []*model.BoardDraftReport{}, BaseUpdatedAt: d.GetBaseUpdatedAt().AsTime(), UpdatedAt: d.GetUpdatedAt().AsTime()}
+		for _, r := range d.GetReports() {
+			dr := &model.BoardDraftReport{Report: reportOut(r.GetReport())}
+			if r.From != nil {
+				dr.From = new(r.GetFrom())
+			}
+			out.Draft.Reports = append(out.Draft.Reports, dr)
 		}
-		out.Draft = &model.BoardDraft{Payload: payload, BaseUpdatedAt: d.GetBaseUpdatedAt().AsTime(), UpdatedAt: d.GetUpdatedAt().AsTime()}
 	}
-	return out, nil
+	return out
+}
+
+func reportOut(r *signalsv1.BoardReport) *model.BoardReport {
+	d := r.GetDefinition()
+	var filters []*model.BoardReportFilter
+	for _, f := range d.GetFilters() {
+		filters = append(filters, &model.BoardReportFilter{Step: f.GetStep(), Key: f.GetKey(), Value: f.GetValue()})
+	}
+	return &model.BoardReport{Title: r.GetTitle(), Size: nilIfZero(model.BoardReportSize(strings.ToUpper(r.GetSize()))), Definition: &model.BoardReportDefinition{
+		Kind: model.BoardReportKind(strings.ToUpper(d.GetKind())), SinceDays: nilIfZero(d.GetSinceDays()), Event: nilIfZero(d.GetEvent()),
+		Measure: nilIfZero(d.GetMeasure()), Unit: nilIfZero(d.GetUnit()), Breakdown: nilIfZero(d.GetBreakdown()), Steps: d.GetSteps(),
+		Filters: filters, WindowHours: nilIfZero(d.GetWindowHours()), StartEvent: nilIfZero(d.GetStartEvent()),
+		ReturnEvent: nilIfZero(d.GetReturnEvent()), Periods: nilIfZero(d.GetPeriods()), Depth: nilIfZero(d.GetDepth()),
+		WindowDays: nilIfZero(d.GetWindowDays()),
+	}}
 }
 
 func (r *Resolver) oneBoard(ctx context.Context, b *signalsv1.Board) (*model.Board, error) {
@@ -155,7 +164,7 @@ func (r *Resolver) oneBoard(ctx context.Context, b *signalsv1.Board) (*model.Boa
 	if err != nil {
 		return nil, err
 	}
-	return p.boardOut(b)
+	return p.boardOut(b), nil
 }
 
 func (r *Resolver) manyBoards(ctx context.Context, bs []*signalsv1.BoardSummary) ([]*model.BoardSummary, error) {

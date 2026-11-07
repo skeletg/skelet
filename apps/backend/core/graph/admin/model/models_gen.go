@@ -741,9 +741,25 @@ type BoardAccessRequest struct {
 }
 
 type BoardDraft struct {
-	Payload       any       `json:"payload"`
-	BaseUpdatedAt time.Time `json:"baseUpdatedAt"`
-	UpdatedAt     time.Time `json:"updatedAt"`
+	Name          string              `json:"name"`
+	Reports       []*BoardDraftReport `json:"reports"`
+	BaseUpdatedAt time.Time           `json:"baseUpdatedAt"`
+	UpdatedAt     time.Time           `json:"updatedAt"`
+}
+
+type BoardDraftInput struct {
+	Name    string                   `json:"name"`
+	Reports []*BoardDraftReportInput `json:"reports"`
+}
+
+type BoardDraftReport struct {
+	Report *BoardReport `json:"report"`
+	From   *int32       `json:"from,omitempty"`
+}
+
+type BoardDraftReportInput struct {
+	Report *BoardReportInput `json:"report"`
+	From   *int32            `json:"from,omitempty"`
 }
 
 type BoardOwner struct {

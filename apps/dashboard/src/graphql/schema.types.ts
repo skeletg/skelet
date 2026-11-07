@@ -840,8 +840,25 @@ export type BoardAccessRequest = {
 export type BoardDraft = {
   __typename?: 'BoardDraft';
   baseUpdatedAt: Scalars['Time']['output'];
-  payload: Scalars['JSON']['output'];
+  name: Scalars['String']['output'];
+  reports: Array<BoardDraftReport>;
   updatedAt: Scalars['Time']['output'];
+};
+
+export type BoardDraftInput = {
+  name: Scalars['String']['input'];
+  reports: Array<BoardDraftReportInput>;
+};
+
+export type BoardDraftReport = {
+  __typename?: 'BoardDraftReport';
+  from?: Maybe<Scalars['Int']['output']>;
+  report: BoardReport;
+};
+
+export type BoardDraftReportInput = {
+  from?: InputMaybe<Scalars['Int']['input']>;
+  report: BoardReportInput;
 };
 
 export type BoardOwner = {
@@ -6188,8 +6205,8 @@ export type MutationSaveBoardArgs = {
 export type MutationSaveBoardDraftArgs = {
   baseUpdatedAt: Scalars['Time']['input'];
   channelId: Scalars['ID']['input'];
+  draft: BoardDraftInput;
   id: Scalars['ID']['input'];
-  payload: Scalars['JSON']['input'];
 };
 
 

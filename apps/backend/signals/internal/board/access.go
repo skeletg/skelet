@@ -56,11 +56,19 @@ type AccessRequest struct {
 	RequestedAt time.Time
 }
 
-// Draft is an admin's unsaved edits to a board, as the dashboard staged them
+// Draft is an admin's unsaved edits to a board, as the dashboard staged them. It's held to its shape, not to Save's
+// rules - work in progress, such as a one-step funnel, has to be keepable
 type Draft struct {
-	Payload       []byte
-	BaseUpdatedAt time.Time
-	UpdatedAt     time.Time
+	Name          string
+	Reports       []DraftReport
+	BaseUpdatedAt time.Time `json:"-"`
+	UpdatedAt     time.Time `json:"-"`
+}
+
+// DraftReport is a report as staged, and the position of the saved report it is - nil for one added in the draft
+type DraftReport struct {
+	Report
+	From *int
 }
 
 // access is the one answer to "what may this admin do with this board" - every check in the service goes through it

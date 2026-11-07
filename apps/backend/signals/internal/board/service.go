@@ -230,14 +230,18 @@ func (s *Service) SetFavourite(ctx context.Context, channelID uuid.UUID, a Actor
 	return s.r.setFavourite(ctx, a.AdminID, id, on)
 }
 
-// SaveDraft keeps the actor's staged edits between visits. The payload is the dashboard's own - it comes back on the
-// next read and goes through Save, which checks it, so here it's only held to a size
-func (s *Service) SaveDraft(ctx context.Context, channelID uuid.UUID, a Actor, id uuid.UUID, payload []byte, base time.Time) (time.Time, error) {
+// SaveDraft keeps the actor's staged edits between visits. It comes back on the next read and goes through Save, which
+// checks it, so here it's only held to a size
+func (s *Service) SaveDraft(ctx context.Context, channelID uuid.UUID, a Actor, id uuid.UUID, d Draft, base time.Time) (time.Time, error) {
 	if _, _, err := s.load(ctx, channelID, a, id, Edit); err != nil {
 		return time.Time{}, err
 	}
-	if len(payload) > maxDraft || !json.Valid(payload) {
-		return time.Time{}, fmt.Errorf("%w: a draft is a JSON document of %d bytes at most", ErrInvalid, maxDraft)
+	payload, err := json.Marshal(d)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if len(payload) > maxDraft {
+		return time.Time{}, fmt.Errorf("%w: a draft is %d bytes at most", ErrInvalid, maxDraft)
 	}
 	return s.r.putDraft(ctx, id, a.AdminID, payload, base)
 }

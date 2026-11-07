@@ -565,8 +565,14 @@ type ComplexityRoot struct {
 
 	BoardDraft struct {
 		BaseUpdatedAt func(childComplexity int) int
-		Payload       func(childComplexity int) int
+		Name          func(childComplexity int) int
+		Reports       func(childComplexity int) int
 		UpdatedAt     func(childComplexity int) int
+	}
+
+	BoardDraftReport struct {
+		From   func(childComplexity int) int
+		Report func(childComplexity int) int
 	}
 
 	BoardOwner struct {
@@ -2788,7 +2794,7 @@ type ComplexityRoot struct {
 		RunChatAction                     func(childComplexity int, action string, argsJSON string) int
 		RunScheduledJobNow                func(childComplexity int, id string) int
 		SaveBoard                         func(childComplexity int, channelID string, id string, name string, reports []*model.BoardReportInput, readAt time.Time) int
-		SaveBoardDraft                    func(childComplexity int, channelID string, id string, payload interface{}, baseUpdatedAt time.Time) int
+		SaveBoardDraft                    func(childComplexity int, channelID string, id string, draft model.BoardDraftInput, baseUpdatedAt time.Time) int
 		SaveChatConversation              func(childComplexity int, id *string, title *string, messages []*model.SignalsChatMessage) int
 		SaveDeliveryPoints                func(childComplexity int, channelID string, points []*model.DeliveryPointInput) int
 		SaveEmailBlock                    func(childComplexity int, input model.SaveEmailBlockInput) int
@@ -5504,7 +5510,7 @@ type MutationResolver interface {
 	SetBoardShares(ctx context.Context, channelID string, id string, shares []*model.BoardShareInput) (*model.Board, error)
 	TransferBoard(ctx context.Context, channelID string, id string, ownerID *string) (bool, error)
 	SetBoardFavourite(ctx context.Context, channelID string, id string, favourite bool) (bool, error)
-	SaveBoardDraft(ctx context.Context, channelID string, id string, payload interface{}, baseUpdatedAt time.Time) (*time.Time, error)
+	SaveBoardDraft(ctx context.Context, channelID string, id string, draft model.BoardDraftInput, baseUpdatedAt time.Time) (*time.Time, error)
 	DiscardBoardDraft(ctx context.Context, channelID string, id string) (bool, error)
 	RequestBoardAccess(ctx context.Context, channelID string, id string, level model.BoardShareLevel) (bool, error)
 	DismissBoardAccessRequest(ctx context.Context, channelID string, id string, adminID string) (bool, error)
@@ -8044,18 +8050,37 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.BoardDraft.BaseUpdatedAt(childComplexity), true
-	case "BoardDraft.payload":
-		if e.ComplexityRoot.BoardDraft.Payload == nil {
+	case "BoardDraft.name":
+		if e.ComplexityRoot.BoardDraft.Name == nil {
 			break
 		}
 
-		return e.ComplexityRoot.BoardDraft.Payload(childComplexity), true
+		return e.ComplexityRoot.BoardDraft.Name(childComplexity), true
+	case "BoardDraft.reports":
+		if e.ComplexityRoot.BoardDraft.Reports == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardDraft.Reports(childComplexity), true
 	case "BoardDraft.updatedAt":
 		if e.ComplexityRoot.BoardDraft.UpdatedAt == nil {
 			break
 		}
 
 		return e.ComplexityRoot.BoardDraft.UpdatedAt(childComplexity), true
+
+	case "BoardDraftReport.from":
+		if e.ComplexityRoot.BoardDraftReport.From == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardDraftReport.From(childComplexity), true
+	case "BoardDraftReport.report":
+		if e.ComplexityRoot.BoardDraftReport.Report == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardDraftReport.Report(childComplexity), true
 
 	case "BoardOwner.id":
 		if e.ComplexityRoot.BoardOwner.ID == nil {
@@ -19689,7 +19714,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.SaveBoardDraft(childComplexity, args["channelId"].(string), args["id"].(string), args["payload"].(interface{}), args["baseUpdatedAt"].(time.Time)), true
+		return e.ComplexityRoot.Mutation.SaveBoardDraft(childComplexity, args["channelId"].(string), args["id"].(string), args["draft"].(model.BoardDraftInput), args["baseUpdatedAt"].(time.Time)), true
 	case "Mutation.saveChatConversation":
 		if e.ComplexityRoot.Mutation.SaveChatConversation == nil {
 			break
@@ -31769,6 +31794,8 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputAttributeReferenceRefInput,
 		ec.unmarshalInputAttributeValueInput,
 		ec.unmarshalInputBlogPostFilter,
+		ec.unmarshalInputBoardDraftInput,
+		ec.unmarshalInputBoardDraftReportInput,
 		ec.unmarshalInputBoardReportDefinitionInput,
 		ec.unmarshalInputBoardReportInput,
 		ec.unmarshalInputBoardShareInput,
@@ -40120,10 +40147,28 @@ type BoardShare {
   level:   BoardShareLevel!
 }
 
+# The caller's unsaved edits: the board as they staged it. Held to its shape only - a draft can hold work in progress,
+# such as a one-step funnel, that saveBoard would refuse
 type BoardDraft {
-  payload:       JSON!   # the dashboard's own: the board as staged
+  name:          String!
+  reports:       [BoardDraftReport!]!
   baseUpdatedAt: Time!   # the board's updatedAt when the edits began - save with it as readAt
   updatedAt:     Time!
+}
+
+type BoardDraftReport {
+  report: BoardReport!
+  from:   Int            # the position of the saved report this one is; null for one added in the draft
+}
+
+input BoardDraftInput {
+  name:    String!
+  reports: [BoardDraftReportInput!]!
+}
+
+input BoardDraftReportInput {
+  report: BoardReportInput!
+  from:   Int
 }
 
 # Someone a board can be shared with, and whether they'd see anything: boards.view, and customers.view for the numbers
@@ -40234,7 +40279,7 @@ extend type Mutation {
   transferBoard(channelId: ID!, id: ID!, ownerId: ID): Boolean!
   setBoardFavourite(channelId: ID!, id: ID!, favourite: Boolean!): Boolean!
   # Keeps the caller's unsaved edits between visits; answers when they were kept
-  saveBoardDraft(channelId: ID!, id: ID!, payload: JSON!, baseUpdatedAt: Time!): Time!
+  saveBoardDraft(channelId: ID!, id: ID!, draft: BoardDraftInput!, baseUpdatedAt: Time!): Time!
   discardBoardDraft(channelId: ID!, id: ID!): Boolean!
   # Asks a board's owner for view or edit access. Answers true whether or not the board exists or the caller has the
   # access already, so it says nothing about a board they can't see
@@ -42736,14 +42781,26 @@ func (ec *executionContext) childFields_BoardAccessRequest(ctx context.Context, 
 
 func (ec *executionContext) childFields_BoardDraft(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
-	case "payload":
-		return ec.fieldContext_BoardDraft_payload(ctx, field)
+	case "name":
+		return ec.fieldContext_BoardDraft_name(ctx, field)
+	case "reports":
+		return ec.fieldContext_BoardDraft_reports(ctx, field)
 	case "baseUpdatedAt":
 		return ec.fieldContext_BoardDraft_baseUpdatedAt(ctx, field)
 	case "updatedAt":
 		return ec.fieldContext_BoardDraft_updatedAt(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type BoardDraft", field.Name)
+}
+
+func (ec *executionContext) childFields_BoardDraftReport(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "report":
+		return ec.fieldContext_BoardDraftReport_report(ctx, field)
+	case "from":
+		return ec.fieldContext_BoardDraftReport_from(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type BoardDraftReport", field.Name)
 }
 
 func (ec *executionContext) childFields_BoardOwner(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -55795,14 +55852,14 @@ func (ec *executionContext) field_Mutation_saveBoardDraft_args(ctx context.Conte
 		return nil, err
 	}
 	args["id"] = arg1
-	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "payload",
-		func(ctx context.Context, v any) (any, error) {
-			return ec.unmarshalNJSON2interface(ctx, v)
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "draft",
+		func(ctx context.Context, v any) (model.BoardDraftInput, error) {
+			return ec.unmarshalNBoardDraftInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardDraftInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["payload"] = arg2
+	args["draft"] = arg2
 	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "baseUpdatedAt",
 		func(ctx context.Context, v any) (time.Time, error) {
 			return ec.unmarshalNTime2timeᚐTime(ctx, v)
@@ -72990,27 +73047,59 @@ func (ec *executionContext) fieldContext_BoardAccessRequest_requestedAt(_ contex
 	return graphql.NewScalarFieldContext("BoardAccessRequest", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
-func (ec *executionContext) _BoardDraft_payload(ctx context.Context, field graphql.CollectedField, obj *model.BoardDraft) (ret graphql.Marshaler) {
+func (ec *executionContext) _BoardDraft_name(ctx context.Context, field graphql.CollectedField, obj *model.BoardDraft) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_BoardDraft_payload(ctx, field)
+			return ec.fieldContext_BoardDraft_name(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.Payload, nil
+			return obj.Name, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v any) graphql.Marshaler {
-			return ec.marshalNJSON2interface(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_BoardDraft_payload(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("BoardDraft", field, false, false, errors.New("field of type JSON does not have child fields"))
+func (ec *executionContext) fieldContext_BoardDraft_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardDraft", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _BoardDraft_reports(ctx context.Context, field graphql.CollectedField, obj *model.BoardDraft) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardDraft_reports(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Reports, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.BoardDraftReport) graphql.Marshaler {
+			return ec.marshalNBoardDraftReport2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardDraftReportᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BoardDraft_reports(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BoardDraft",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BoardDraftReport(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _BoardDraft_baseUpdatedAt(ctx context.Context, field graphql.CollectedField, obj *model.BoardDraft) (ret graphql.Marshaler) {
@@ -73057,6 +73146,61 @@ func (ec *executionContext) _BoardDraft_updatedAt(ctx context.Context, field gra
 }
 func (ec *executionContext) fieldContext_BoardDraft_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("BoardDraft", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _BoardDraftReport_report(ctx context.Context, field graphql.CollectedField, obj *model.BoardDraftReport) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardDraftReport_report(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Report, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.BoardReport) graphql.Marshaler {
+			return ec.marshalNBoardReport2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardReport(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BoardDraftReport_report(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BoardDraftReport",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BoardReport(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BoardDraftReport_from(ctx context.Context, field graphql.CollectedField, obj *model.BoardDraftReport) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardDraftReport_from(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.From, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int32) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint32(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_BoardDraftReport_from(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardDraftReport", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _BoardOwner_id(ctx context.Context, field graphql.CollectedField, obj *model.BoardOwner) (ret graphql.Marshaler) {
@@ -125437,13 +125581,7 @@ func (ec *executionContext) _Mutation_saveBoardDraft(ctx context.Context, field 
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().SaveBoardDraft(ctx, fc.Args["channelId"].(string), fc.Args["id"].(string),
-				func() any {
-					if fc.Args["payload"] == nil {
-						return nil
-					}
-					return fc.Args["payload"].(any)
-				}(), fc.Args["baseUpdatedAt"].(time.Time))
+			return ec.Resolvers.Mutation().SaveBoardDraft(ctx, fc.Args["channelId"].(string), fc.Args["id"].(string), fc.Args["draft"].(model.BoardDraftInput), fc.Args["baseUpdatedAt"].(time.Time))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
@@ -169942,6 +170080,80 @@ func (ec *executionContext) unmarshalInputBlogPostFilter(ctx context.Context, ob
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputBoardDraftInput(ctx context.Context, obj any) (model.BoardDraftInput, error) {
+	var it model.BoardDraftInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"name", "reports"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "reports":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("reports"))
+			data, err := ec.unmarshalNBoardDraftReportInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardDraftReportInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Reports = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputBoardDraftReportInput(ctx context.Context, obj any) (model.BoardDraftReportInput, error) {
+	var it model.BoardDraftReportInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"report", "from"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "report":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("report"))
+			data, err := ec.unmarshalNBoardReportInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardReportInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Report = data
+		case "from":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("from"))
+			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.From = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputBoardReportDefinitionInput(ctx context.Context, obj any) (model.BoardReportDefinitionInput, error) {
 	var it model.BoardReportDefinitionInput
 	if obj == nil {
@@ -187033,8 +187245,13 @@ func (ec *executionContext) _BoardDraft(ctx context.Context, sel ast.SelectionSe
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("BoardDraft")
-		case "payload":
-			out.Values[i] = ec._BoardDraft_payload(ctx, field, obj)
+		case "name":
+			out.Values[i] = ec._BoardDraft_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reports":
+			out.Values[i] = ec._BoardDraft_reports(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -187046,6 +187263,49 @@ func (ec *executionContext) _BoardDraft(ctx context.Context, sel ast.SelectionSe
 		case "updatedAt":
 			out.Values[i] = ec._BoardDraft_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var boardDraftReportImplementors = []string{"BoardDraftReport"}
+
+func (ec *executionContext) _BoardDraftReport(ctx context.Context, sel ast.SelectionSet, obj *model.BoardDraftReport) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, boardDraftReportImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("BoardDraftReport")
+		case "report":
+			out.Values[i] = ec._BoardDraftReport_report(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "from":
+			out.Values[i] = ec._BoardDraftReport_from(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:
@@ -224657,6 +224917,56 @@ func (ec *executionContext) marshalNBoardAccessRequest2ᚖgithubᚗcomᚋskeletg
 		return graphql.Null
 	}
 	return ec._BoardAccessRequest(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNBoardDraftInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardDraftInput(ctx context.Context, v any) (model.BoardDraftInput, error) {
+	res, err := ec.unmarshalInputBoardDraftInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNBoardDraftReport2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardDraftReportᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BoardDraftReport) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNBoardDraftReport2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardDraftReport(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNBoardDraftReport2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardDraftReport(ctx context.Context, sel ast.SelectionSet, v *model.BoardDraftReport) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._BoardDraftReport(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNBoardDraftReportInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardDraftReportInputᚄ(ctx context.Context, v any) ([]*model.BoardDraftReportInput, error) {
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]*model.BoardDraftReportInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNBoardDraftReportInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardDraftReportInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalNBoardDraftReportInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardDraftReportInput(ctx context.Context, v any) (*model.BoardDraftReportInput, error) {
+	res, err := ec.unmarshalInputBoardDraftReportInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNBoardReport2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardReportᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BoardReport) graphql.Marshaler {

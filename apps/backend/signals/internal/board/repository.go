@@ -223,7 +223,12 @@ func (r *repo) draft(ctx context.Context, boardID, adminID uuid.UUID) (*Draft, e
 	if err != nil {
 		return nil, err
 	}
-	return &Draft{Payload: row.Payload, BaseUpdatedAt: row.BaseUpdatedAt, UpdatedAt: row.UpdatedAt}, nil
+	var d Draft
+	if err := json.Unmarshal(row.Payload, &d); err != nil {
+		return nil, nil // kept in a shape this build no longer writes - as if there were none
+	}
+	d.BaseUpdatedAt, d.UpdatedAt = row.BaseUpdatedAt, row.UpdatedAt
+	return &d, nil
 }
 
 func (r *repo) putDraft(ctx context.Context, boardID, adminID uuid.UUID, payload []byte, base time.Time) (time.Time, error) {

@@ -86,10 +86,19 @@ message BoardShare {
   string level = 3;
 }
 
+// An admin's unsaved edits: the board as they staged it. It's held to its shape only - a draft can hold work in
+// progress, such as a one-step funnel, that Save would refuse
 message BoardDraft {
-  string payload_json = 1;
-  google.protobuf.Timestamp base_updated_at = 2;
-  google.protobuf.Timestamp updated_at = 3;
+  string name = 1;
+  repeated BoardDraftReport reports = 2;
+  google.protobuf.Timestamp base_updated_at = 3;
+  google.protobuf.Timestamp updated_at = 4;
+}
+
+message BoardDraftReport {
+  BoardReport report = 1;
+  // The position of the saved report this one is, unset for one added in the draft
+  optional int32 from = 2;
 }
 
 message BoardReport {
@@ -204,9 +213,10 @@ message SetBoardFavouriteResponse {}
 message SaveBoardDraftRequest {
   string channel_id = 1;
   string id = 2;
-  string payload_json = 3;
+  string name = 3;
   // The board's updated_at when the edits began, so a save over a newer one is still refused
   google.protobuf.Timestamp base_updated_at = 4;
+  repeated BoardDraftReport reports = 5;
 }
 
 message SaveBoardDraftResponse {

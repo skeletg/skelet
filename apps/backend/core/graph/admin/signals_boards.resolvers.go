@@ -2,8 +2,6 @@ package admin
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 
@@ -106,18 +104,16 @@ func (r *mutationResolver) SetBoardFavourite(ctx context.Context, channelID stri
 	return true, nil
 }
 
-func (r *mutationResolver) SaveBoardDraft(ctx context.Context, channelID string, id string, payload interface{}, baseUpdatedAt time.Time) (*time.Time, error) {
+func (r *mutationResolver) SaveBoardDraft(ctx context.Context, channelID string, id string, draft model.BoardDraftInput, baseUpdatedAt time.Time) (*time.Time, error) {
 	authed, err := r.signalsChannel(ctx, "boards.view", channelID) // edit access - Signals checks
 	if err != nil {
 		return nil, err
 	}
-	raw, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("board draft: %w", err)
+	req := &signalsv1.SaveBoardDraftRequest{ChannelId: channelID, Id: id, Name: draft.Name, BaseUpdatedAt: timestamppb.New(baseUpdatedAt)}
+	for _, r := range draft.Reports {
+		req.Reports = append(req.Reports, &signalsv1.BoardDraftReport{Report: reportIn(r.Report), From: r.From})
 	}
-	res, err := r.SignalsAPI.Boards.SaveBoardDraft(authed, &signalsv1.SaveBoardDraftRequest{
-		ChannelId: channelID, Id: id, PayloadJson: string(raw), BaseUpdatedAt: timestamppb.New(baseUpdatedAt),
-	})
+	res, err := r.SignalsAPI.Boards.SaveBoardDraft(authed, req)
 	if err != nil {
 		return nil, signalsErr(err)
 	}

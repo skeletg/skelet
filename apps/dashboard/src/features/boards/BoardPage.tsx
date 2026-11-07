@@ -27,9 +27,7 @@ import {
   BoardDocument,
   BoardsDocument,
   DeleteBoardDocument,
-  DiscardBoardDraftDocument,
   SaveBoardDocument,
-  SaveBoardDraftDocument,
   SetBoardFavouriteDocument,
   type BoardFullFragment,
 } from './Boards.gql'
@@ -37,6 +35,7 @@ import { ACCESS_LABEL, can, verb } from './access'
 import { AccessRequestList, RequestAccess, notOpenable } from './AccessRequests'
 import { HandOverDialog } from './HandOverDialog'
 import { ShareDialog } from './ShareDialog'
+import { useKeptDraft } from './useKeptDraft'
 import { boardDiff, fresh, keyed, unkeyed, type AddToBoardState, type DraftReport } from './boardDiff'
 import { EditPanel } from './EditPanel'
 
@@ -69,19 +68,20 @@ export function BoardPage() {
   const [editing, setEditing] = useState<string | null>(null) // the key of the tile the panel edits
   const [focused, setFocused] = useState(false) // the edited tile on its own, full width
   const [arriving] = useState(() => (location.state as AddToBoardState | null)?.add) // what Add to board sent, read once
-  const [base, setBase] = useState('') // the board's updatedAt the staged edits started from - Save sends it as readAt
-  const [restoredAt, setRestoredAt] = useState<string | null>(null) // when the kept draft this page opened with was written
-  // Adopt the board on its identity only, so a refetch never wipes edits mid-way. Unsaved edits kept from an earlier
-  // visit come back as they were staged, against the board they started from
+  const changes = board && loadedId === board.id ? boardDiff(board.name, saved, draftName, draft) : []
+  const kept = useKeptDraft({
+    channelId,
+    board,
+    active: !!board && loadedId === board.id && canEdit,
+    staged: { name: draftName, reports: draft },
+    dirty: changes.length > 0,
+    changesKey: JSON.stringify(changes),
+  })
+  // Adopt the board on its identity only, so a refetch never wipes edits mid-way
   if (board && loadedId !== board.id) {
     setLoadedId(board.id)
-    const kept = canEdit ? readDraft(board.draft?.payload) : null
-    setDraftName(kept?.name ?? board.name)
-    setBase(kept ? board.draft!.baseUpdatedAt : board.updatedAt)
-    setRestoredAt(kept ? board.draft!.updatedAt : null)
-    // A kept draft's positions are the board as it was then - one past the end of the board as it is now reads as added,
-    // and Save refuses the draft as stale anyway
-    const reports = kept ? kept.reports.map((r) => (r.from !== null && r.from >= saved.length ? { ...r, from: null } : r)) : keyed(saved)
+    const { name, reports } = kept.open(board, saved, canEdit)
+    setDraftName(name)
     if (arriving) {
       const added = fresh(arriving)
       setDraft([...reports, added])
@@ -95,8 +95,6 @@ export function BoardPage() {
 
   const registry = useSaveRegistry(board ? `Board · ${board.name}` : 'Board')
   const [saveBoard] = useMutation(SaveBoardDocument, { refetchQueries: [BoardsDocument] })
-  const [keepDraft] = useMutation(SaveBoardDraftDocument)
-  const [dropDraft] = useMutation(DiscardBoardDraftDocument, { refetchQueries: [BoardsDocument] })
   const [star] = useMutation(SetBoardFavouriteDocument, { refetchQueries: [BoardsDocument, BoardDocument] })
   const [sharing, setSharing] = useState(false)
   const [handingOver, setHandingOver] = useState(false)
@@ -106,19 +104,6 @@ export function BoardPage() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  const changes = board && loadedId === board.id ? boardDiff(board.name, saved, draftName, draft) : []
-  // Unsaved edits are kept on the server about a second after the last one, so a reload or another device picks them
-  // up - they change nothing anyone else sees, which is why this is the one write that doesn't wait for Save
-  const changesKey = JSON.stringify(changes)
-  useEffect(() => {
-    if (!board || loadedId !== board.id || !canEdit || !base) return
-    const t = setTimeout(() => {
-      if (changes.length > 0) void keepDraft({ variables: { channelId, id: board.id, payload: { name: draftName, reports: draft }, baseUpdatedAt: base } }).catch(() => {})
-      else if (restoredAt || board.draft) void dropDraft({ variables: { channelId, id: board.id } }).catch(() => {})
-    }, DRAFT_DELAY_MS)
-    return () => clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [changesKey, loadedId, canEdit])
 
   useSaveSection(
     {
@@ -128,14 +113,13 @@ export function BoardPage() {
       save: async () => {
         if (!board) return
         const res = await saveBoard({
-          variables: { channelId, id: board.id, name: draftName.trim(), reports: unkeyed(draft).map((r) => ({ ...r, title: r.title.trim() })), readAt: base },
+          variables: { channelId, id: board.id, name: draftName.trim(), reports: unkeyed(draft).map((r) => ({ ...r, title: r.title.trim() })), readAt: kept.base },
         })
         const next = res.data?.saveBoard
         if (next) {
           setDraft(keyed(next.reports.map(cleanReport)))
           setDraftName(next.name)
-          setBase(next.updatedAt)
-          setRestoredAt(null)
+          kept.saved(next.updatedAt)
           setEditing(null)
         }
       },
@@ -194,11 +178,9 @@ export function BoardPage() {
 
   async function discardKept() {
     if (!board) return
-    await dropDraft({ variables: { channelId, id: board.id } })
-    setDraftName(board.name)
-    setDraft(keyed(saved))
-    setBase(board.updatedAt)
-    setRestoredAt(null)
+    const { name, reports } = await kept.discard(board, saved)
+    setDraftName(name)
+    setDraft(reports)
     setEditing(null)
   }
 
@@ -295,10 +277,10 @@ export function BoardPage() {
         )}
         {loading && !board && <p className="py-6 text-sm text-muted-foreground">Loading…</p>}
         {board && canOwn && <AccessRequestList channelId={channelId} board={board} />}
-        {restoredAt && (
+        {kept.restoredAt && (
           <div className="mx-6 mt-4 flex flex-wrap items-center gap-3 rounded-md border border-info/40 bg-info-soft px-3 py-2 text-sm">
             <span className="flex-1">
-              These are your unsaved changes from {new Date(restoredAt).toLocaleString()} - Save to keep them. Unsaved changes are kept for 30 days.
+              These are your unsaved changes from {new Date(kept.restoredAt).toLocaleString()} - Save to keep them. Unsaved changes are kept for 30 days.
             </span>
             <Button size="sm" variant="outline" onClick={() => void discardKept()}>
               Discard them
@@ -386,17 +368,6 @@ export function BoardPage() {
       )}
     </DetailPageLayout>
   )
-}
-
-const DRAFT_DELAY_MS = 1000
-
-// The kept draft is the page's own staging, as it was written - anything else, such as one kept by an older build,
-// reads as no draft
-function readDraft(payload: unknown): { name: string; reports: DraftReport[] } | null {
-  const p = payload as { name?: unknown; reports?: unknown } | null | undefined
-  if (!p || typeof p.name !== 'string' || !Array.isArray(p.reports)) return null
-  const current = (r: unknown) => typeof r === 'object' && r !== null && 'from' in r && 'size' in r && 'definition' in r
-  return p.reports.every(current) ? { name: p.name, reports: p.reports as DraftReport[] } : null
 }
 
 // Who sees the board, in one line under its name

@@ -175,7 +175,16 @@ func (s *boardServer) SaveBoardDraft(ctx context.Context, req *signalsv1.SaveBoa
 	if req.GetBaseUpdatedAt() == nil {
 		return nil, invalidArgument("base_updated_at is required - the board's updated_at when the edits began")
 	}
-	at, err := s.svc.SaveDraft(ctx, cid, a, id, []byte(req.GetPayloadJson()), req.GetBaseUpdatedAt().AsTime())
+	d := board.Draft{Name: req.GetName()}
+	for _, r := range req.GetReports() {
+		dr := board.DraftReport{Report: reportsFrom([]*signalsv1.BoardReport{r.GetReport()})[0]}
+		if r.From != nil {
+			from := int(r.GetFrom())
+			dr.From = &from
+		}
+		d.Reports = append(d.Reports, dr)
+	}
+	at, err := s.svc.SaveDraft(ctx, cid, a, id, d, req.GetBaseUpdatedAt().AsTime())
 	if err != nil {
 		return nil, boardErr(err)
 	}
@@ -283,22 +292,33 @@ func boardProto(b board.Board) *signalsv1.Board {
 		out.AccessRequests = append(out.AccessRequests, &signalsv1.BoardAccessRequest{AdminId: rq.AdminID.String(), Level: rq.Level, RequestedAt: timestamppb.New(rq.RequestedAt)})
 	}
 	if d := b.Draft; d != nil {
-		out.Draft = &signalsv1.BoardDraft{PayloadJson: string(d.Payload), BaseUpdatedAt: timestamppb.New(d.BaseUpdatedAt), UpdatedAt: timestamppb.New(d.UpdatedAt)}
+		out.Draft = &signalsv1.BoardDraft{Name: d.Name, BaseUpdatedAt: timestamppb.New(d.BaseUpdatedAt), UpdatedAt: timestamppb.New(d.UpdatedAt)}
+		for _, r := range d.Reports {
+			p := &signalsv1.BoardDraftReport{Report: reportProto(r.Report)}
+			if r.From != nil {
+				p.From = new(count32(*r.From))
+			}
+			out.Draft.Reports = append(out.Draft.Reports, p)
+		}
 	}
 	for _, r := range b.Reports {
-		d := r.Definition
-		filters := make([]*signalsv1.FunnelFilter, 0, len(d.Filters))
-		for _, f := range d.Filters {
-			filters = append(filters, &signalsv1.FunnelFilter{Step: count32(f.Step), Key: f.Key, Value: f.Value})
-		}
-		out.Reports = append(out.Reports, &signalsv1.BoardReport{Title: r.Title, Size: r.Size, Definition: &signalsv1.BoardReportDefinition{
-			Kind: d.Kind, SinceDays: count32(d.SinceDays), Event: d.Event, Measure: d.Measure, Unit: d.Unit,
-			Breakdown: d.Breakdown, Steps: d.Steps, Filters: filters, WindowHours: count32(d.WindowHours),
-			StartEvent: d.StartEvent, ReturnEvent: d.ReturnEvent, Periods: count32(d.Periods), Depth: count32(d.Depth),
-			WindowDays: count32(d.WindowDays),
-		}})
+		out.Reports = append(out.Reports, reportProto(r))
 	}
 	return out
+}
+
+func reportProto(r board.Report) *signalsv1.BoardReport {
+	d := r.Definition
+	filters := make([]*signalsv1.FunnelFilter, 0, len(d.Filters))
+	for _, f := range d.Filters {
+		filters = append(filters, &signalsv1.FunnelFilter{Step: count32(f.Step), Key: f.Key, Value: f.Value})
+	}
+	return &signalsv1.BoardReport{Title: r.Title, Size: r.Size, Definition: &signalsv1.BoardReportDefinition{
+		Kind: d.Kind, SinceDays: count32(d.SinceDays), Event: d.Event, Measure: d.Measure, Unit: d.Unit,
+		Breakdown: d.Breakdown, Steps: d.Steps, Filters: filters, WindowHours: count32(d.WindowHours),
+		StartEvent: d.StartEvent, ReturnEvent: d.ReturnEvent, Periods: count32(d.Periods), Depth: count32(d.Depth),
+		WindowDays: count32(d.WindowDays),
+	}}
 }
 
 func boardErr(err error) error {

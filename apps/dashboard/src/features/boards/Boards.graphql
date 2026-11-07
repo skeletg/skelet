@@ -68,7 +68,13 @@ fragment BoardFull on Board {
     level
   }
   draft {
-    payload
+    name
+    reports {
+      from
+      report {
+        ...BoardReportFields
+      }
+    }
     baseUpdatedAt
     updatedAt
   }
@@ -126,8 +132,8 @@ mutation SetBoardFavourite($channelId: ID!, $id: ID!, $favourite: Boolean!) {
   setBoardFavourite(channelId: $channelId, id: $id, favourite: $favourite)
 }
 
-mutation SaveBoardDraft($channelId: ID!, $id: ID!, $payload: JSON!, $baseUpdatedAt: Time!) {
-  saveBoardDraft(channelId: $channelId, id: $id, payload: $payload, baseUpdatedAt: $baseUpdatedAt)
+mutation SaveBoardDraft($channelId: ID!, $id: ID!, $draft: BoardDraftInput!, $baseUpdatedAt: Time!) {
+  saveBoardDraft(channelId: $channelId, id: $id, draft: $draft, baseUpdatedAt: $baseUpdatedAt)
 }
 
 mutation DiscardBoardDraft($channelId: ID!, $id: ID!) {
