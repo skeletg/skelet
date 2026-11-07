@@ -14,7 +14,7 @@ import {
 import { absUrl } from "@skelet/storefront-next/sitemap/read";
 import { displayName } from "@skelet/storefront-core/display";
 import { getChannel } from "@skelet/storefront-next/channel/read";
-import { priceCurrency, toMajor } from "@skelet/storefront-core/format";
+import { priceCurrency } from "@skelet/storefront-core/format";
 import { categoryHref, productHref } from "@skelet/storefront-core/entity-href";
 import { getSignalsEnabled, getVariantOwnUrl } from "@skelet/storefront-next/config/read";
 import { productJsonLd, breadcrumbJsonLd } from "@skelet/storefront-core/json-ld";
@@ -23,6 +23,7 @@ import { Link } from "@/app/components/LocaleLink";
 import { RecordView, RecentlyViewedRail } from "@/app/components/RecentlyViewed";
 import { ProductCard } from "@/app/components/ProductCard";
 import { AnalyticsEvent } from "@/app/components/AnalyticsEvent";
+import { ga4Item } from "@skelet/storefront-core/track/items";
 import { Breadcrumbs } from "@/app/components/Breadcrumbs";
 import { JsonLd } from "@/app/components/JsonLd";
 import { lexicalSummary } from "@skelet/storefront-core/lexical";
@@ -132,7 +133,8 @@ export default async function ProductPage(
   // locale prefix - never the typed /products/<id> route this page also serves
   const [canonical, base, channel] = await Promise.all([canonicalPathMapper(), getSiteUrl(), getChannel()]);
   const money = priceCurrency(product.defaultCurrencyCode, channel?.currency);
-  const shownPrice = product.price ?? product.defaultPrice; // the channel's sell price, specials in
+  // The SKU everywhere, as the server's cart and purchase events have it, at the channel's sell price, specials in
+  const item = { ...ga4Item(product), item_name: heading };
   const href = canonical(productHref(product));
   const breadcrumbItems = productBreadcrumbs(product, heading, tc("home"));
   const breadcrumbJsonLdItems = breadcrumbItems.map((it) => ({
@@ -160,19 +162,7 @@ export default async function ProductPage(
       <JsonLd data={breadcrumbJsonLd(breadcrumbJsonLdItems, base)} />
       <AnalyticsEvent
         event="view_item"
-        payload={{
-          ecommerce: {
-            currency: product.defaultCurrencyCode,
-            value: toMajor(shownPrice, money),
-            items: [
-              {
-                item_id: product.sku, // the SKU everywhere, as the server's cart and purchase events have it
-                item_name: heading,
-                price: toMajor(shownPrice, money),
-              },
-            ],
-          },
-        }}
+        payload={{ ecommerce: { currency: product.defaultCurrencyCode, value: item.price, items: [item] } }}
       />
       {/* The promotions shown on the page - GA4's view_promotion, one per rule. Their banners link nowhere, so there's no select_promotion */}
       {product.promotionalDisplays.map((d) => (
@@ -185,7 +175,7 @@ export default async function ProductPage(
               promotion_id: d.ruleId,
               promotion_name: d.publicLabel || d.ruleSlug,
               creative_slot: d.bannerMedia ? "product_banner" : "product_pill",
-              items: [{ item_id: product.sku, item_name: heading, price: toMajor(shownPrice, money) }],
+              items: [item],
             },
           }}
         />

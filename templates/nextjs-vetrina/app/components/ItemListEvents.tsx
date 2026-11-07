@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 import { track } from "@skelet/storefront-core/track/events";
 import type { ItemList, ga4Item } from "@skelet/storefront-core/track/items";
-import { readClientConsent } from "@skelet/storefront-react/consent/client";
+import { trackingAllowed } from "@skelet/storefront-react/consent/client";
 
 import { AnalyticsEvent } from "./AnalyticsEvent";
 
@@ -16,9 +16,8 @@ export function ItemListEvents({ list, currency, items, children }: { list: Item
   const onClick = (e: React.MouseEvent) => {
     const el = (e.target as Element).closest?.("a[href]")?.closest("[data-item-index]");
     const item = el ? items[Number(el.getAttribute("data-item-index"))] : undefined;
-    const c = readClientConsent();
-    if (!item || !(c.analytics || c.ads || c.personalization)) return;
-    track("select_item", crypto.randomUUID(), { currency, item_list_id: list.id, item_list_name: list.name, items: [item] });
+    if (!item || !trackingAllowed()) return;
+    track("select_item", crypto.randomUUID(), { ecommerce: { currency, item_list_id: list.id, item_list_name: list.name, items: [item] } });
   };
   return (
     <div onClickCapture={onClick}>

@@ -1,4 +1,6 @@
-import { toMajor } from "../format";
+import type { CartLine } from "../cart/types";
+import { displayName } from "../display";
+import { toMajor, type CurrencyInfo } from "../format";
 
 // A product as a GA4 item - the SKU as its id, as the server's cart and purchase events have it, at the price shown
 export type ItemSource = {
@@ -19,5 +21,19 @@ export function ga4Item(p: ItemSource, index?: number, list?: ItemList) {
     index,
     item_list_id: list?.id,
     item_list_name: list?.name,
+  };
+}
+
+// A cart's lines as GA4's ecommerce block - view_cart and begin_checkout, valued at what the page shows
+export function ga4CartEcommerce(lines: CartLine[], valueMinor: number, currency: string | CurrencyInfo) {
+  return {
+    currency: typeof currency === "string" ? currency : currency.code,
+    value: toMajor(valueMinor, currency),
+    items: lines.map((line) => ({
+      item_id: line.sku,
+      item_name: displayName(line.name, line.sku),
+      quantity: line.quantity,
+      price: toMajor(line.unitPrice, currency),
+    })),
   };
 }

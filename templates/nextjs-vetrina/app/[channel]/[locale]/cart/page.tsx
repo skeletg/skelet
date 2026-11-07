@@ -8,8 +8,7 @@ import { ProductCard } from "@/app/components/ProductCard";
 import { CartView } from "./CartView";
 import { AnalyticsEvent } from "@/app/components/AnalyticsEvent";
 import { getChannel } from "@skelet/storefront-next/channel/read";
-import { displayName } from "@skelet/storefront-core/display";
-import { toMajor } from "@skelet/storefront-core/format";
+import { ga4CartEcommerce } from "@skelet/storefront-core/track/items";
 
 export async function generateMetadata({
   params,
@@ -57,18 +56,7 @@ export default async function CartPage({
       {cart && cart.lines.length > 0 && (
         <AnalyticsEvent
           event="view_cart"
-          payload={{
-            ecommerce: {
-              currency: typeof currency === "string" ? currency : currency.code,
-              value: toMajor(cart.subtotal, currency),
-              items: cart.lines.map((line) => ({
-                item_id: line.sku,
-                item_name: displayName(line.name, line.sku),
-                quantity: line.quantity,
-                price: toMajor(line.unitPrice, currency),
-              })),
-            },
-          }}
+          payload={{ ecommerce: ga4CartEcommerce(cart.lines, cart.subtotal, currency) }}
         />
       )}
       <CartView
