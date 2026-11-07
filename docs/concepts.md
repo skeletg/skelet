@@ -119,7 +119,7 @@ there's no shared subsystem behind them beyond the event spine:
 | **Synapse** | `/synapse` | Customer analytics - profiles, segments, funnels, retention, lifecycle flows |
 | **Pulse** | `/pulse` | Email and marketing engagement - opens, clicks, attributed revenue, top links |
 | **Prism** | `/prism` | Storefront A/B experiments - assignment, variants, results |
-| **Boards** | `/synapse/boards` | A shop's shared dashboards, inside Synapse: saved Synapse reports side by side on a canvas where each is built, sized and reordered in place, then kept through the page's one Save. "Add to board" on Insights, Funnel, Retention and Flow puts the report on one. `boards.view` / `boards.manage`, and each report still needs `customers.view` to show its data |
+| **Boards** | `/synapse/boards` | Dashboards of saved Synapse reports, inside Synapse, built, sized and reordered on the board itself and applied with the page's one Save. "Add to board" on Insights, Funnel, Retention and Flow puts a report on one. A board belongs to the admin who made it and is private until they share it with admins or roles, to view or to edit; a **shop board** has no owner and everyone on the shop sees it (the starter boards are shop boards). Unsaved edits are kept for 30 days. `boards.view` to open them, `boards.manage` to create them and run shop boards, and each report still needs `customers.view` to show its data |
 
 ### The spine
 

@@ -20,6 +20,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics/spinequeue"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/behavioralsegment"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/board"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/destination"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/lens"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/segment"
@@ -40,6 +41,7 @@ type maintenanceServer struct {
 	sends       sendLogMaintainer // nil in a test server without a log
 	flows       flowEngine        // nil in a test server without Pulse
 	campaigns   campaignPipeline
+	boards      *board.Service // nil in a test server without boards
 }
 
 // The engine ticks core's scheduler drives - one advance of the runnable runs, one pass over the due campaigns
@@ -101,6 +103,12 @@ func (s *maintenanceServer) PruneSendLog(ctx context.Context, _ *signalsv1.Prune
 	}
 	if err := signalsboot.SendLogRetentionJob(s.settings, s.sends)(ctx); err != nil {
 		return nil, err
+	}
+	// Unsaved board edits nobody came back to go in the same nightly sweep, whatever the send-history window
+	if s.boards != nil {
+		if _, err := s.boards.SweepDrafts(ctx, time.Now()); err != nil {
+			return nil, fmt.Errorf("sweep board drafts: %w", err)
+		}
 	}
 	// The marketing history behind those sends ages out on the same window
 	cutoff, ok, err := signalsboot.SendHistoryCutoff(ctx, s.settings)

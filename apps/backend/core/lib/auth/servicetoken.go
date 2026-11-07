@@ -27,6 +27,7 @@ type serviceJWTClaims struct {
 	Grants      []wireGrant `json:"grants,omitempty"`
 	System      bool        `json:"sys,omitempty"`
 	CustomerID  uuid.UUID   `json:"cust,omitempty"`
+	RoleIDs     []uuid.UUID `json:"roles,omitempty"`
 	Type        string      `json:"type"`
 	jwt.RegisteredClaims
 }
@@ -44,11 +45,13 @@ type ServiceClaims struct {
 	// CustomerID names the one shopper a storefront request is asking about - it authorizes reads
 	// about that customer and nobody else, which is all a cart or a gated CMS block needs
 	CustomerID uuid.UUID
+	// RoleIDs are the admin's roles, so the receiving service can honour something shared with a role
+	RoleIDs []uuid.UUID
 }
 
 // Admin returns the identity half, the shape the request guards already work in
 func (c *ServiceClaims) Admin() *Claims {
-	return &Claims{AdminID: c.AdminID, SessionID: c.SessionID, Email: c.Email, IsSuperuser: c.IsSuperuser}
+	return &Claims{AdminID: c.AdminID, SessionID: c.SessionID, Email: c.Email, IsSuperuser: c.IsSuperuser, RoleIDs: c.RoleIDs}
 }
 
 // Checker answers the permission interfaces from the carried grants
@@ -95,6 +98,7 @@ func GenerateServiceToken(c ServiceClaims, audience string, keys ServiceKeys, tt
 		Grants:     wire,
 		System:     c.System,
 		CustomerID: c.CustomerID,
+		RoleIDs:    c.RoleIDs,
 		Type:       "service",
 		Subject:    c.AdminID.String(),
 		Audience:   jwt.ClaimStrings{audience},
@@ -136,6 +140,6 @@ func ValidateServiceToken(tokenStr, audience string, keys ServiceKeys) (*Service
 	}
 	return &ServiceClaims{
 		AdminID: c.AdminID, SessionID: c.SessionID, Email: c.Email, IsSuperuser: c.IsSuperuser,
-		Grants: grants, System: c.System, CustomerID: c.CustomerID,
+		Grants: grants, System: c.System, CustomerID: c.CustomerID, RoleIDs: c.RoleIDs,
 	}, nil
 }

@@ -1,4 +1,5 @@
-// Package board holds Boards: a shop's shared dashboards of saved reports. A board stores each report's definition and
+// Package board holds Boards: dashboards of saved reports, owned by an admin and private until shared, or shop boards
+// everyone on the shop sees. A board stores each report's definition and
 // the dashboard runs it through the same Synapse queries the report pages use, so there is one engine path per report
 package board
 
@@ -29,6 +30,10 @@ type Board struct {
 	Name      string
 	UpdatedAt time.Time
 	Reports   []Report
+	Ownership
+	Shares   []Share         // for an admin who owns it
+	Draft    *Draft          // the asking admin's unsaved edits
+	Requests []AccessRequest // for an admin who owns it: who asked for access
 }
 
 // Summary is one board in the list, without its reports
@@ -37,6 +42,17 @@ type Summary struct {
 	Name        string
 	UpdatedAt   time.Time
 	ReportCount int
+	Ownership
+}
+
+// Ownership is who a board belongs to, and what that means for the admin asking - a list and a single read both carry it
+type Ownership struct {
+	OwnerID uuid.UUID // uuid.Nil: a shop board
+	// For the admin asking: what they may do, whether they starred it, and when their unsaved edits were last kept
+	Access       Access
+	Favourite    bool
+	DraftAt      time.Time
+	RequestCount int // open requests for access, for an admin who owns it
 }
 
 type Report struct {

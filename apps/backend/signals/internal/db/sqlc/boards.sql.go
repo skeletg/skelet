@@ -7,11 +7,26 @@ package signalsdb
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+const addBoardFavourite = `-- name: AddBoardFavourite :exec
+INSERT INTO board_favourites (admin_id, board_id) VALUES ($1, $2) ON CONFLICT DO NOTHING
+`
+
+type AddBoardFavouriteParams struct {
+	AdminID uuid.UUID `json:"admin_id"`
+	BoardID uuid.UUID `json:"board_id"`
+}
+
+func (q *Queries) AddBoardFavourite(ctx context.Context, arg AddBoardFavouriteParams) error {
+	_, err := q.db.ExecContext(ctx, addBoardFavourite, arg.AdminID, arg.BoardID)
+	return err
+}
 
 const addBoardReport = `-- name: AddBoardReport :exec
 INSERT INTO board_reports (board_id, position, title, size, definition)
@@ -35,6 +50,63 @@ func (q *Queries) AddBoardReport(ctx context.Context, arg AddBoardReportParams) 
 		arg.Definition,
 	)
 	return err
+}
+
+const addBoardShare = `-- name: AddBoardShare :exec
+INSERT INTO board_shares (board_id, admin_id, role_id, level, created_by)
+VALUES ($1, $2, $3, $4, $5)
+`
+
+type AddBoardShareParams struct {
+	BoardID   uuid.UUID     `json:"board_id"`
+	AdminID   uuid.NullUUID `json:"admin_id"`
+	RoleID    uuid.NullUUID `json:"role_id"`
+	Level     string        `json:"level"`
+	CreatedBy uuid.UUID     `json:"created_by"`
+}
+
+func (q *Queries) AddBoardShare(ctx context.Context, arg AddBoardShareParams) error {
+	_, err := q.db.ExecContext(ctx, addBoardShare,
+		arg.BoardID,
+		arg.AdminID,
+		arg.RoleID,
+		arg.Level,
+		arg.CreatedBy,
+	)
+	return err
+}
+
+const boardAccessRequests = `-- name: BoardAccessRequests :many
+SELECT admin_id, level, created_at FROM board_access_requests WHERE board_id = $1 ORDER BY created_at, admin_id
+`
+
+type BoardAccessRequestsRow struct {
+	AdminID   uuid.UUID `json:"admin_id"`
+	Level     string    `json:"level"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (q *Queries) BoardAccessRequests(ctx context.Context, boardID uuid.UUID) ([]BoardAccessRequestsRow, error) {
+	rows, err := q.db.QueryContext(ctx, boardAccessRequests, boardID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []BoardAccessRequestsRow{}
+	for rows.Next() {
+		var i BoardAccessRequestsRow
+		if err := rows.Scan(&i.AdminID, &i.Level, &i.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const boardReports = `-- name: BoardReports :many
@@ -70,12 +142,95 @@ func (q *Queries) BoardReports(ctx context.Context, boardID uuid.UUID) ([]BoardR
 	return items, nil
 }
 
+const boardShares = `-- name: BoardShares :many
+SELECT admin_id, role_id, level FROM board_shares WHERE board_id = $1 ORDER BY created_at, admin_id, role_id
+`
+
+type BoardSharesRow struct {
+	AdminID uuid.NullUUID `json:"admin_id"`
+	RoleID  uuid.NullUUID `json:"role_id"`
+	Level   string        `json:"level"`
+}
+
+func (q *Queries) BoardShares(ctx context.Context, boardID uuid.UUID) ([]BoardSharesRow, error) {
+	rows, err := q.db.QueryContext(ctx, boardShares, boardID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []BoardSharesRow{}
+	for rows.Next() {
+		var i BoardSharesRow
+		if err := rows.Scan(&i.AdminID, &i.RoleID, &i.Level); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const channelBoardShares = `-- name: ChannelBoardShares :many
+SELECT s.board_id, s.admin_id, s.role_id, s.level FROM board_shares s JOIN boards b ON b.id = s.board_id
+WHERE b.channel_id = $1
+`
+
+type ChannelBoardSharesRow struct {
+	BoardID uuid.UUID     `json:"board_id"`
+	AdminID uuid.NullUUID `json:"admin_id"`
+	RoleID  uuid.NullUUID `json:"role_id"`
+	Level   string        `json:"level"`
+}
+
+// Every share on a shop's boards, so a list works out each board's access in one read
+func (q *Queries) ChannelBoardShares(ctx context.Context, channelID uuid.UUID) ([]ChannelBoardSharesRow, error) {
+	rows, err := q.db.QueryContext(ctx, channelBoardShares, channelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ChannelBoardSharesRow{}
+	for rows.Next() {
+		var i ChannelBoardSharesRow
+		if err := rows.Scan(
+			&i.BoardID,
+			&i.AdminID,
+			&i.RoleID,
+			&i.Level,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const clearBoardReports = `-- name: ClearBoardReports :exec
 DELETE FROM board_reports WHERE board_id = $1
 `
 
 func (q *Queries) ClearBoardReports(ctx context.Context, boardID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, clearBoardReports, boardID)
+	return err
+}
+
+const clearBoardShares = `-- name: ClearBoardShares :exec
+DELETE FROM board_shares WHERE board_id = $1
+`
+
+func (q *Queries) ClearBoardShares(ctx context.Context, boardID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, clearBoardShares, boardID)
 	return err
 }
 
@@ -91,12 +246,14 @@ func (q *Queries) CountBoards(ctx context.Context, channelID uuid.UUID) (int32, 
 }
 
 const createBoard = `-- name: CreateBoard :one
-INSERT INTO boards (channel_id, name) VALUES ($1, $2) RETURNING id, updated_at
+INSERT INTO boards (channel_id, name, owner_admin_id)
+VALUES ($1, $2, $3) RETURNING id, updated_at
 `
 
 type CreateBoardParams struct {
-	ChannelID uuid.UUID `json:"channel_id"`
-	Name      string    `json:"name"`
+	ChannelID    uuid.UUID     `json:"channel_id"`
+	Name         string        `json:"name"`
+	OwnerAdminID uuid.NullUUID `json:"owner_admin_id"`
 }
 
 type CreateBoardRow struct {
@@ -105,7 +262,7 @@ type CreateBoardRow struct {
 }
 
 func (q *Queries) CreateBoard(ctx context.Context, arg CreateBoardParams) (CreateBoardRow, error) {
-	row := q.db.QueryRowContext(ctx, createBoard, arg.ChannelID, arg.Name)
+	row := q.db.QueryRowContext(ctx, createBoard, arg.ChannelID, arg.Name, arg.OwnerAdminID)
 	var i CreateBoardRow
 	err := row.Scan(&i.ID, &i.UpdatedAt)
 	return i, err
@@ -128,8 +285,36 @@ func (q *Queries) DeleteBoard(ctx context.Context, arg DeleteBoardParams) (int64
 	return result.RowsAffected()
 }
 
+const deleteBoardAccessRequest = `-- name: DeleteBoardAccessRequest :exec
+DELETE FROM board_access_requests WHERE board_id = $1 AND admin_id = $2
+`
+
+type DeleteBoardAccessRequestParams struct {
+	BoardID uuid.UUID `json:"board_id"`
+	AdminID uuid.UUID `json:"admin_id"`
+}
+
+func (q *Queries) DeleteBoardAccessRequest(ctx context.Context, arg DeleteBoardAccessRequestParams) error {
+	_, err := q.db.ExecContext(ctx, deleteBoardAccessRequest, arg.BoardID, arg.AdminID)
+	return err
+}
+
+const deleteBoardDraft = `-- name: DeleteBoardDraft :exec
+DELETE FROM board_drafts WHERE board_id = $1 AND admin_id = $2
+`
+
+type DeleteBoardDraftParams struct {
+	BoardID uuid.UUID `json:"board_id"`
+	AdminID uuid.UUID `json:"admin_id"`
+}
+
+func (q *Queries) DeleteBoardDraft(ctx context.Context, arg DeleteBoardDraftParams) error {
+	_, err := q.db.ExecContext(ctx, deleteBoardDraft, arg.BoardID, arg.AdminID)
+	return err
+}
+
 const getBoard = `-- name: GetBoard :one
-SELECT id, name, updated_at FROM boards WHERE id = $1 AND channel_id = $2
+SELECT id, name, updated_at, owner_admin_id FROM boards WHERE id = $1 AND channel_id = $2
 `
 
 type GetBoardParams struct {
@@ -138,35 +323,97 @@ type GetBoardParams struct {
 }
 
 type GetBoardRow struct {
-	ID        uuid.UUID `json:"id"`
-	Name      string    `json:"name"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID           uuid.UUID     `json:"id"`
+	Name         string        `json:"name"`
+	UpdatedAt    time.Time     `json:"updated_at"`
+	OwnerAdminID uuid.NullUUID `json:"owner_admin_id"`
 }
 
 func (q *Queries) GetBoard(ctx context.Context, arg GetBoardParams) (GetBoardRow, error) {
 	row := q.db.QueryRowContext(ctx, getBoard, arg.ID, arg.ChannelID)
 	var i GetBoardRow
-	err := row.Scan(&i.ID, &i.Name, &i.UpdatedAt)
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.UpdatedAt,
+		&i.OwnerAdminID,
+	)
 	return i, err
+}
+
+const getBoardDraft = `-- name: GetBoardDraft :one
+SELECT payload, base_updated_at, updated_at FROM board_drafts WHERE board_id = $1 AND admin_id = $2
+`
+
+type GetBoardDraftParams struct {
+	BoardID uuid.UUID `json:"board_id"`
+	AdminID uuid.UUID `json:"admin_id"`
+}
+
+type GetBoardDraftRow struct {
+	Payload       json.RawMessage `json:"payload"`
+	BaseUpdatedAt time.Time       `json:"base_updated_at"`
+	UpdatedAt     time.Time       `json:"updated_at"`
+}
+
+func (q *Queries) GetBoardDraft(ctx context.Context, arg GetBoardDraftParams) (GetBoardDraftRow, error) {
+	row := q.db.QueryRowContext(ctx, getBoardDraft, arg.BoardID, arg.AdminID)
+	var i GetBoardDraftRow
+	err := row.Scan(&i.Payload, &i.BaseUpdatedAt, &i.UpdatedAt)
+	return i, err
+}
+
+const isBoardFavourite = `-- name: IsBoardFavourite :one
+SELECT EXISTS (SELECT 1 FROM board_favourites WHERE admin_id = $1 AND board_id = $2)::bool
+`
+
+type IsBoardFavouriteParams struct {
+	AdminID uuid.UUID `json:"admin_id"`
+	BoardID uuid.UUID `json:"board_id"`
+}
+
+func (q *Queries) IsBoardFavourite(ctx context.Context, arg IsBoardFavouriteParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, isBoardFavourite, arg.AdminID, arg.BoardID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const listBoards = `-- name: ListBoards :many
 
-SELECT b.id, b.name, b.updated_at, (SELECT count(*) FROM board_reports r WHERE r.board_id = b.id)::int AS report_count
-FROM boards b WHERE b.channel_id = $1 ORDER BY b.name, b.id
+SELECT b.id, b.name, b.updated_at, b.owner_admin_id,
+       (SELECT count(*) FROM board_reports r WHERE r.board_id = b.id)::int AS report_count,
+       (f.admin_id IS NOT NULL)::bool AS favourite,
+       d.updated_at AS draft_updated_at,
+       (SELECT count(*) FROM board_access_requests q WHERE q.board_id = b.id)::int AS request_count
+FROM boards b
+LEFT JOIN board_favourites f ON f.board_id = b.id AND f.admin_id = $1
+LEFT JOIN board_drafts d ON d.board_id = b.id AND d.admin_id = $1
+WHERE b.channel_id = $2 ORDER BY b.name, b.id
 `
 
-type ListBoardsRow struct {
-	ID          uuid.UUID `json:"id"`
-	Name        string    `json:"name"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	ReportCount int32     `json:"report_count"`
+type ListBoardsParams struct {
+	AdminID   uuid.UUID `json:"admin_id"`
+	ChannelID uuid.UUID `json:"channel_id"`
 }
 
-// Boards: shared dashboards of saved reports, per shop. Every read and write names the board's shop, so an id alone
-// reaches nothing in another
-func (q *Queries) ListBoards(ctx context.Context, channelID uuid.UUID) ([]ListBoardsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listBoards, channelID)
+type ListBoardsRow struct {
+	ID             uuid.UUID     `json:"id"`
+	Name           string        `json:"name"`
+	UpdatedAt      time.Time     `json:"updated_at"`
+	OwnerAdminID   uuid.NullUUID `json:"owner_admin_id"`
+	ReportCount    int32         `json:"report_count"`
+	Favourite      bool          `json:"favourite"`
+	DraftUpdatedAt sql.NullTime  `json:"draft_updated_at"`
+	RequestCount   int32         `json:"request_count"`
+}
+
+// Boards: dashboards of saved reports, per shop - owned and private, shared with admins or roles, or shop boards. Every
+// read and write of a board names its shop, so an id alone reaches nothing in another
+// The shop's boards, each with what the asking admin has on it: their star, when their unsaved edits were last kept,
+// and how many people asked for access
+func (q *Queries) ListBoards(ctx context.Context, arg ListBoardsParams) ([]ListBoardsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listBoards, arg.AdminID, arg.ChannelID)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +425,11 @@ func (q *Queries) ListBoards(ctx context.Context, channelID uuid.UUID) ([]ListBo
 			&i.ID,
 			&i.Name,
 			&i.UpdatedAt,
+			&i.OwnerAdminID,
 			&i.ReportCount,
+			&i.Favourite,
+			&i.DraftUpdatedAt,
+			&i.RequestCount,
 		); err != nil {
 			return nil, err
 		}
@@ -209,6 +460,108 @@ DELETE FROM boards b WHERE NOT EXISTS (SELECT 1 FROM channel_roster c WHERE c.ch
 
 func (q *Queries) PruneOrphanedBoards(ctx context.Context) (int64, error) {
 	result, err := q.db.ExecContext(ctx, pruneOrphanedBoards)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const putBoardAccessRequest = `-- name: PutBoardAccessRequest :exec
+INSERT INTO board_access_requests (board_id, admin_id, level) VALUES ($1, $2, $3)
+ON CONFLICT (board_id, admin_id) DO UPDATE SET level = EXCLUDED.level, created_at = now()
+`
+
+type PutBoardAccessRequestParams struct {
+	BoardID uuid.UUID `json:"board_id"`
+	AdminID uuid.UUID `json:"admin_id"`
+	Level   string    `json:"level"`
+}
+
+func (q *Queries) PutBoardAccessRequest(ctx context.Context, arg PutBoardAccessRequestParams) error {
+	_, err := q.db.ExecContext(ctx, putBoardAccessRequest, arg.BoardID, arg.AdminID, arg.Level)
+	return err
+}
+
+const putBoardDraft = `-- name: PutBoardDraft :one
+INSERT INTO board_drafts (board_id, admin_id, payload, base_updated_at) VALUES ($1, $2, $3, $4)
+ON CONFLICT (board_id, admin_id) DO UPDATE SET payload = EXCLUDED.payload, base_updated_at = EXCLUDED.base_updated_at, updated_at = now()
+RETURNING updated_at
+`
+
+type PutBoardDraftParams struct {
+	BoardID       uuid.UUID       `json:"board_id"`
+	AdminID       uuid.UUID       `json:"admin_id"`
+	Payload       json.RawMessage `json:"payload"`
+	BaseUpdatedAt time.Time       `json:"base_updated_at"`
+}
+
+func (q *Queries) PutBoardDraft(ctx context.Context, arg PutBoardDraftParams) (time.Time, error) {
+	row := q.db.QueryRowContext(ctx, putBoardDraft,
+		arg.BoardID,
+		arg.AdminID,
+		arg.Payload,
+		arg.BaseUpdatedAt,
+	)
+	var updated_at time.Time
+	err := row.Scan(&updated_at)
+	return updated_at, err
+}
+
+const removeBoardAdminShare = `-- name: RemoveBoardAdminShare :exec
+DELETE FROM board_shares WHERE board_id = $1 AND admin_id = $2
+`
+
+type RemoveBoardAdminShareParams struct {
+	BoardID uuid.UUID     `json:"board_id"`
+	AdminID uuid.NullUUID `json:"admin_id"`
+}
+
+// The new owner of a board owns it - a share of their own would only shadow that
+func (q *Queries) RemoveBoardAdminShare(ctx context.Context, arg RemoveBoardAdminShareParams) error {
+	_, err := q.db.ExecContext(ctx, removeBoardAdminShare, arg.BoardID, arg.AdminID)
+	return err
+}
+
+const removeBoardFavourite = `-- name: RemoveBoardFavourite :exec
+DELETE FROM board_favourites WHERE admin_id = $1 AND board_id = $2
+`
+
+type RemoveBoardFavouriteParams struct {
+	AdminID uuid.UUID `json:"admin_id"`
+	BoardID uuid.UUID `json:"board_id"`
+}
+
+func (q *Queries) RemoveBoardFavourite(ctx context.Context, arg RemoveBoardFavouriteParams) error {
+	_, err := q.db.ExecContext(ctx, removeBoardFavourite, arg.AdminID, arg.BoardID)
+	return err
+}
+
+const setBoardOwner = `-- name: SetBoardOwner :execrows
+UPDATE boards SET owner_admin_id = $1, updated_at = now() WHERE id = $2 AND channel_id = $3
+`
+
+type SetBoardOwnerParams struct {
+	OwnerAdminID uuid.NullUUID `json:"owner_admin_id"`
+	ID           uuid.UUID     `json:"id"`
+	ChannelID    uuid.UUID     `json:"channel_id"`
+}
+
+// NULL makes it a shop board
+func (q *Queries) SetBoardOwner(ctx context.Context, arg SetBoardOwnerParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setBoardOwner, arg.OwnerAdminID, arg.ID, arg.ChannelID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const sweepBoardDrafts = `-- name: SweepBoardDrafts :execrows
+DELETE FROM board_drafts WHERE updated_at < $1
+`
+
+// Unsaved edits nobody came back to - the board itself stays
+func (q *Queries) SweepBoardDrafts(ctx context.Context, before time.Time) (int64, error) {
+	result, err := q.db.ExecContext(ctx, sweepBoardDrafts, before)
 	if err != nil {
 		return 0, err
 	}

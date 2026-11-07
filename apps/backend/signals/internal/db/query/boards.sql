@@ -1,18 +1,28 @@
--- Boards: shared dashboards of saved reports, per shop. Every read and write names the board's shop, so an id alone
--- reaches nothing in another
+-- Boards: dashboards of saved reports, per shop - owned and private, shared with admins or roles, or shop boards. Every
+-- read and write of a board names its shop, so an id alone reaches nothing in another
 
 -- name: ListBoards :many
-SELECT b.id, b.name, b.updated_at, (SELECT count(*) FROM board_reports r WHERE r.board_id = b.id)::int AS report_count
-FROM boards b WHERE b.channel_id = sqlc.arg(channel_id) ORDER BY b.name, b.id;
+-- The shop's boards, each with what the asking admin has on it: their star, when their unsaved edits were last kept,
+-- and how many people asked for access
+SELECT b.id, b.name, b.updated_at, b.owner_admin_id,
+       (SELECT count(*) FROM board_reports r WHERE r.board_id = b.id)::int AS report_count,
+       (f.admin_id IS NOT NULL)::bool AS favourite,
+       d.updated_at AS draft_updated_at,
+       (SELECT count(*) FROM board_access_requests q WHERE q.board_id = b.id)::int AS request_count
+FROM boards b
+LEFT JOIN board_favourites f ON f.board_id = b.id AND f.admin_id = sqlc.arg(admin_id)
+LEFT JOIN board_drafts d ON d.board_id = b.id AND d.admin_id = sqlc.arg(admin_id)
+WHERE b.channel_id = sqlc.arg(channel_id) ORDER BY b.name, b.id;
 
 -- name: GetBoard :one
-SELECT id, name, updated_at FROM boards WHERE id = sqlc.arg(id) AND channel_id = sqlc.arg(channel_id);
+SELECT id, name, updated_at, owner_admin_id FROM boards WHERE id = sqlc.arg(id) AND channel_id = sqlc.arg(channel_id);
 
 -- name: BoardReports :many
 SELECT title, size, definition FROM board_reports WHERE board_id = sqlc.arg(board_id) ORDER BY position;
 
 -- name: CreateBoard :one
-INSERT INTO boards (channel_id, name) VALUES (sqlc.arg(channel_id), sqlc.arg(name)) RETURNING id, updated_at;
+INSERT INTO boards (channel_id, name, owner_admin_id)
+VALUES (sqlc.arg(channel_id), sqlc.arg(name), sqlc.narg(owner_admin_id)) RETURNING id, updated_at;
 
 -- name: TouchBoard :execrows
 -- Only when nobody saved it since the caller read it - a stale save would silently drop the other admin's reports
@@ -38,3 +48,60 @@ SELECT pg_advisory_xact_lock(hashtextextended('boards-starters:' || sqlc.arg(cha
 
 -- name: CountBoards :one
 SELECT count(*)::int FROM boards WHERE channel_id = sqlc.arg(channel_id);
+
+-- name: SetBoardOwner :execrows
+-- NULL makes it a shop board
+UPDATE boards SET owner_admin_id = sqlc.narg(owner_admin_id), updated_at = now() WHERE id = sqlc.arg(id) AND channel_id = sqlc.arg(channel_id);
+
+-- name: BoardShares :many
+SELECT admin_id, role_id, level FROM board_shares WHERE board_id = sqlc.arg(board_id) ORDER BY created_at, admin_id, role_id;
+
+-- name: ChannelBoardShares :many
+-- Every share on a shop's boards, so a list works out each board's access in one read
+SELECT s.board_id, s.admin_id, s.role_id, s.level FROM board_shares s JOIN boards b ON b.id = s.board_id
+WHERE b.channel_id = sqlc.arg(channel_id);
+
+-- name: RemoveBoardAdminShare :exec
+-- The new owner of a board owns it - a share of their own would only shadow that
+DELETE FROM board_shares WHERE board_id = sqlc.arg(board_id) AND admin_id = sqlc.arg(admin_id);
+
+-- name: ClearBoardShares :exec
+DELETE FROM board_shares WHERE board_id = sqlc.arg(board_id);
+
+-- name: AddBoardShare :exec
+INSERT INTO board_shares (board_id, admin_id, role_id, level, created_by)
+VALUES (sqlc.arg(board_id), sqlc.narg(admin_id), sqlc.narg(role_id), sqlc.arg(level), sqlc.arg(created_by));
+
+-- name: IsBoardFavourite :one
+SELECT EXISTS (SELECT 1 FROM board_favourites WHERE admin_id = sqlc.arg(admin_id) AND board_id = sqlc.arg(board_id))::bool;
+
+-- name: AddBoardFavourite :exec
+INSERT INTO board_favourites (admin_id, board_id) VALUES (sqlc.arg(admin_id), sqlc.arg(board_id)) ON CONFLICT DO NOTHING;
+
+-- name: RemoveBoardFavourite :exec
+DELETE FROM board_favourites WHERE admin_id = sqlc.arg(admin_id) AND board_id = sqlc.arg(board_id);
+
+-- name: GetBoardDraft :one
+SELECT payload, base_updated_at, updated_at FROM board_drafts WHERE board_id = sqlc.arg(board_id) AND admin_id = sqlc.arg(admin_id);
+
+-- name: PutBoardDraft :one
+INSERT INTO board_drafts (board_id, admin_id, payload, base_updated_at) VALUES (sqlc.arg(board_id), sqlc.arg(admin_id), sqlc.arg(payload), sqlc.arg(base_updated_at))
+ON CONFLICT (board_id, admin_id) DO UPDATE SET payload = EXCLUDED.payload, base_updated_at = EXCLUDED.base_updated_at, updated_at = now()
+RETURNING updated_at;
+
+-- name: DeleteBoardDraft :exec
+DELETE FROM board_drafts WHERE board_id = sqlc.arg(board_id) AND admin_id = sqlc.arg(admin_id);
+
+-- name: SweepBoardDrafts :execrows
+-- Unsaved edits nobody came back to - the board itself stays
+DELETE FROM board_drafts WHERE updated_at < sqlc.arg(before);
+
+-- name: PutBoardAccessRequest :exec
+INSERT INTO board_access_requests (board_id, admin_id, level) VALUES (sqlc.arg(board_id), sqlc.arg(admin_id), sqlc.arg(level))
+ON CONFLICT (board_id, admin_id) DO UPDATE SET level = EXCLUDED.level, created_at = now();
+
+-- name: BoardAccessRequests :many
+SELECT admin_id, level, created_at FROM board_access_requests WHERE board_id = sqlc.arg(board_id) ORDER BY created_at, admin_id;
+
+-- name: DeleteBoardAccessRequest :exec
+DELETE FROM board_access_requests WHERE board_id = sqlc.arg(board_id) AND admin_id = sqlc.arg(admin_id);

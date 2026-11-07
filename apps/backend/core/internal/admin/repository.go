@@ -319,6 +319,14 @@ func (r *postgresRepository) ListPermissionGroups(ctx context.Context) ([]Permis
 
 // --- role assignments ---
 
+func (r *postgresRepository) RoleIDs(ctx context.Context, adminID uuid.UUID) ([]uuid.UUID, error) {
+	ids, err := r.queries.ListAdminRoleIDs(ctx, adminID)
+	if err != nil {
+		return nil, fmt.Errorf("list admin role ids: %w", err)
+	}
+	return ids, nil
+}
+
 func (r *postgresRepository) GetRoles(ctx context.Context, adminID uuid.UUID) ([]Role, error) {
 	rows, err := r.queries.GetAdminUserRoles(ctx, adminID)
 	if err != nil {

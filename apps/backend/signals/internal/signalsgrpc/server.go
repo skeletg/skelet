@@ -114,7 +114,7 @@ func NewServer(d Deps) *grpc.Server {
 	signalsv1.RegisterSettingsServiceServer(srv, &settingsServer{repo: d.SettingsRepo})
 	maint := &maintenanceServer{
 		rec: d.Analytics, roster: d.CustomerRoster, traits: d.Traits, lens: d.Lens, destination: d.Destination, settings: d.Settings,
-		segments: d.Segment, behavioral: d.Behavioral, queue: queueOrNil(d.Queue), sends: sendLogOrNil(d.SendLog),
+		segments: d.Segment, behavioral: d.Behavioral, queue: queueOrNil(d.Queue), sends: sendLogOrNil(d.SendLog), boards: d.Boards,
 	}
 	if d.Flows != nil {
 		maint.flows = d.Flows

@@ -23,9 +23,10 @@ import (
 // ErrUnavailable is a caller not reaching the service at all, as against the service answering "no"
 var ErrUnavailable = errors.New("the Signals service is unavailable")
 
-// Grants resolves a caller's Signals permissions, satisfied by *admin.Service
+// Grants resolves a caller's Signals permissions and roles, satisfied by *admin.Service
 type Grants interface {
 	Grants(ctx context.Context, adminID uuid.UUID) ([]auth.Grant, error)
+	RoleIDs(ctx context.Context, adminID uuid.UUID) ([]uuid.UUID, error)
 }
 
 type adminStanding interface {
@@ -186,6 +187,14 @@ func (c *Client) Authed(ctx context.Context) (context.Context, error) {
 		}
 		sc.Grants = auth.FilterGrants(grants, signalsapi.Slugs)
 	}
+	// Roles go for a superuser too: what's shared with a role they hold shows as shared with them
+	if c.grants != nil {
+		roles, err := c.grants.RoleIDs(ctx, claims.AdminID)
+		if err != nil {
+			return nil, err
+		}
+		sc.RoleIDs = roles
+	}
 	token, err := auth.GenerateServiceToken(sc, signalsapi.Audience, c.keys, c.ttl)
 	if err != nil {
 		return nil, err
@@ -245,6 +254,14 @@ func (c *Client) AsAdmin(ctx context.Context, adminID uuid.UUID) (context.Contex
 			return nil, err
 		}
 		sc.Grants = auth.FilterGrants(grants, signalsapi.Slugs)
+	}
+	// Roles go for a superuser too: what's shared with a role they hold shows as shared with them
+	if c.grants != nil {
+		roles, err := c.grants.RoleIDs(ctx, adminID)
+		if err != nil {
+			return nil, err
+		}
+		sc.RoleIDs = roles
 	}
 	token, err := auth.GenerateServiceToken(sc, signalsapi.Audience, c.keys, c.ttl)
 	if err != nil {

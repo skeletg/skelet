@@ -100,3 +100,7 @@ FROM admin_user_roles aur
 JOIN admin_role_permission_scopes arps ON arps.role_id = aur.role_id
 JOIN permissions p ON p.id = arps.permission_id
 WHERE aur.admin_user_id = $1;
+
+-- name: ListAdminRoleIDs :many
+-- Just the ids, for the service token a Signals call carries - the role rows and their scopes aren't needed there
+SELECT role_id FROM admin_user_roles WHERE admin_user_id = $1 ORDER BY role_id;

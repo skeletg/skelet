@@ -309,6 +309,34 @@ func (q *Queries) InsertRolePermissionScope(ctx context.Context, arg InsertRoleP
 	return err
 }
 
+const listAdminRoleIDs = `-- name: ListAdminRoleIDs :many
+SELECT role_id FROM admin_user_roles WHERE admin_user_id = $1 ORDER BY role_id
+`
+
+// Just the ids, for the service token a Signals call carries - the role rows and their scopes aren't needed there
+func (q *Queries) ListAdminRoleIDs(ctx context.Context, adminUserID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, listAdminRoleIDs, adminUserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var role_id uuid.UUID
+		if err := rows.Scan(&role_id); err != nil {
+			return nil, err
+		}
+		items = append(items, role_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAdminRolesWithMemberCount = `-- name: ListAdminRolesWithMemberCount :many
 SELECT r.id, r.name, r.slug, r.description, r.created_at,
        COALESCE(c.member_count, 0)::bigint AS member_count

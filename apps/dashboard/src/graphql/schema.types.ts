@@ -810,11 +810,62 @@ export type BlogTagContent = {
 
 export type Board = {
   __typename?: 'Board';
+  access: BoardAccess;
+  accessRequests: Array<BoardAccessRequest>;
   channelId: Scalars['ID']['output'];
+  draft?: Maybe<BoardDraft>;
+  draftUpdatedAt?: Maybe<Scalars['Time']['output']>;
+  favourite: Scalars['Boolean']['output'];
   id: Scalars['ID']['output'];
   name: Scalars['String']['output'];
+  owner?: Maybe<BoardOwner>;
   reports: Array<BoardReport>;
+  shares: Array<BoardShare>;
   updatedAt: Scalars['Time']['output'];
+};
+
+export type BoardAccess =
+  | 'EDIT'
+  | 'OWN'
+  | 'VIEW';
+
+export type BoardAccessRequest = {
+  __typename?: 'BoardAccessRequest';
+  adminId: Scalars['ID']['output'];
+  level: BoardShareLevel;
+  name: Scalars['String']['output'];
+  requestedAt: Scalars['Time']['output'];
+};
+
+export type BoardDraft = {
+  __typename?: 'BoardDraft';
+  baseUpdatedAt: Scalars['Time']['output'];
+  name: Scalars['String']['output'];
+  reports: Array<BoardDraftReport>;
+  updatedAt: Scalars['Time']['output'];
+};
+
+export type BoardDraftInput = {
+  name: Scalars['String']['input'];
+  reports: Array<BoardDraftReportInput>;
+};
+
+export type BoardDraftReport = {
+  __typename?: 'BoardDraftReport';
+  from?: Maybe<Scalars['Int']['output']>;
+  report: BoardReport;
+};
+
+export type BoardDraftReportInput = {
+  from?: InputMaybe<Scalars['Int']['input']>;
+  report: BoardReportInput;
+};
+
+export type BoardOwner = {
+  __typename?: 'BoardOwner';
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  removed: Scalars['Boolean']['output'];
 };
 
 export type BoardReport = {
@@ -884,10 +935,42 @@ export type BoardReportSize =
   | 'MEDIUM'
   | 'SMALL';
 
+export type BoardShare = {
+  __typename?: 'BoardShare';
+  adminId?: Maybe<Scalars['ID']['output']>;
+  level: BoardShareLevel;
+  name: Scalars['String']['output'];
+  roleId?: Maybe<Scalars['ID']['output']>;
+};
+
+export type BoardShareInput = {
+  adminId?: InputMaybe<Scalars['ID']['input']>;
+  level: BoardShareLevel;
+  roleId?: InputMaybe<Scalars['ID']['input']>;
+};
+
+export type BoardShareLevel =
+  | 'EDIT'
+  | 'VIEW';
+
+export type BoardShareTarget = {
+  __typename?: 'BoardShareTarget';
+  id: Scalars['ID']['output'];
+  kind: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  seesBoards: Scalars['Boolean']['output'];
+  seesData: Scalars['Boolean']['output'];
+};
+
 export type BoardSummary = {
   __typename?: 'BoardSummary';
+  access: BoardAccess;
+  accessRequestCount: Scalars['Int']['output'];
+  draftUpdatedAt?: Maybe<Scalars['Time']['output']>;
+  favourite: Scalars['Boolean']['output'];
   id: Scalars['ID']['output'];
   name: Scalars['String']['output'];
+  owner?: Maybe<BoardOwner>;
   reportCount: Scalars['Int']['output'];
   updatedAt: Scalars['Time']['output'];
 };
@@ -4091,6 +4174,8 @@ export type Mutation = {
   detachOptionTemplate: Product;
   devImpersonate: AdminAuthPayload;
   disableGiftCard: GiftCard;
+  discardBoardDraft: Scalars['Boolean']['output'];
+  dismissBoardAccessRequest: Scalars['Boolean']['output'];
   draftReviewReply: Scalars['String']['output'];
   duplicateProductOption: ProductOptionOwner;
   editOrder: Order;
@@ -4156,6 +4241,7 @@ export type Mutation = {
   reorderPromotionRules: Scalars['Boolean']['output'];
   replyToReview: Review;
   requestAdminPasswordReset: Scalars['Boolean']['output'];
+  requestBoardAccess: Scalars['Boolean']['output'];
   requestCategoryCoverUpload: RequestCoverUploadPayload;
   requestCollectionCoverUpload: RequestCoverUploadPayload;
   requestMediaAssetUpload: RequestMediaAssetUploadPayload;
@@ -4179,6 +4265,7 @@ export type Mutation = {
   runChatAction: ChatActionResult;
   runScheduledJobNow: ScheduledJob;
   saveBoard: Board;
+  saveBoardDraft: Scalars['Time']['output'];
   saveChatConversation: Scalars['ID']['output'];
   saveDeliveryPoints: Array<DeliveryPointAdmin>;
   saveEmailBlock: EmailBlockSnippet;
@@ -4197,6 +4284,8 @@ export type Mutation = {
   setBlogPostCategories: BlogPost;
   setBlogPostChannelListing: BlogPost;
   setBlogPostTags: BlogPost;
+  setBoardFavourite: Scalars['Boolean']['output'];
+  setBoardShares: Board;
   setBundlePricing: Product;
   setBundleStructure: Product;
   setCMSPageChannelListing: CmsPage;
@@ -4271,6 +4360,7 @@ export type Mutation = {
   syncCanonicalUrlRewrite: UrlRewrite;
   syncProductInventory: InventoryItem;
   syncProductInventoryBatch: SyncProductInventoryBatchResult;
+  transferBoard: Scalars['Boolean']['output'];
   translateCMSPage: CmsPage;
   unassignAttribute: ProductType;
   unassignCMSAttribute: CmsPageType;
@@ -5607,6 +5697,19 @@ export type MutationDisableGiftCardArgs = {
 };
 
 
+export type MutationDiscardBoardDraftArgs = {
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
+};
+
+
+export type MutationDismissBoardAccessRequestArgs = {
+  adminId: Scalars['ID']['input'];
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
+};
+
+
 export type MutationDraftReviewReplyArgs = {
   id: Scalars['ID']['input'];
 };
@@ -5965,6 +6068,13 @@ export type MutationRequestAdminPasswordResetArgs = {
 };
 
 
+export type MutationRequestBoardAccessArgs = {
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
+  level: BoardShareLevel;
+};
+
+
 export type MutationRequestCategoryCoverUploadArgs = {
   input: RequestCategoryCoverUploadInput;
 };
@@ -6092,6 +6202,14 @@ export type MutationSaveBoardArgs = {
 };
 
 
+export type MutationSaveBoardDraftArgs = {
+  baseUpdatedAt: Scalars['Time']['input'];
+  channelId: Scalars['ID']['input'];
+  draft: BoardDraftInput;
+  id: Scalars['ID']['input'];
+};
+
+
 export type MutationSaveChatConversationArgs = {
   id?: InputMaybe<Scalars['ID']['input']>;
   messages: Array<SignalsChatMessage>;
@@ -6198,6 +6316,20 @@ export type MutationSetBlogPostChannelListingArgs = {
 export type MutationSetBlogPostTagsArgs = {
   postId: Scalars['ID']['input'];
   tagIds: Array<Scalars['ID']['input']>;
+};
+
+
+export type MutationSetBoardFavouriteArgs = {
+  channelId: Scalars['ID']['input'];
+  favourite: Scalars['Boolean']['input'];
+  id: Scalars['ID']['input'];
+};
+
+
+export type MutationSetBoardSharesArgs = {
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
+  shares: Array<BoardShareInput>;
 };
 
 
@@ -6649,6 +6781,13 @@ export type MutationSyncProductInventoryArgs = {
 
 export type MutationSyncProductInventoryBatchArgs = {
   items: Array<SyncProductInventoryInput>;
+};
+
+
+export type MutationTransferBoardArgs = {
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
+  ownerId?: InputMaybe<Scalars['ID']['input']>;
 };
 
 
@@ -8149,6 +8288,7 @@ export type Query = {
   blogTag?: Maybe<BlogTag>;
   blogTags: Array<BlogTag>;
   board: Board;
+  boardShareTargets: Array<BoardShareTarget>;
   boards: Array<BoardSummary>;
   botTraffic: BotTraffic;
   cacheRevalidations: Array<CacheRevalidation>;
@@ -8473,7 +8613,13 @@ export type QueryBoardArgs = {
 };
 
 
+export type QueryBoardShareTargetsArgs = {
+  channelId: Scalars['ID']['input'];
+};
+
+
 export type QueryBoardsArgs = {
+  all?: InputMaybe<Scalars['Boolean']['input']>;
   channelId: Scalars['ID']['input'];
 };
 

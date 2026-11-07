@@ -27,13 +27,22 @@ const (
 
 // One board in the list, without its reports
 type BoardSummary struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	ReportCount   int32                  `protobuf:"varint,4,opt,name=report_count,json=reportCount,proto3" json:"report_count,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Id          string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name        string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	UpdatedAt   *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	ReportCount int32                  `protobuf:"varint,4,opt,name=report_count,json=reportCount,proto3" json:"report_count,omitempty"`
+	// Empty for a shop board, which everyone on the shop sees
+	OwnerAdminId string `protobuf:"bytes,5,opt,name=owner_admin_id,json=ownerAdminId,proto3" json:"owner_admin_id,omitempty"`
+	// For the caller: view | edit | own
+	Access    string `protobuf:"bytes,6,opt,name=access,proto3" json:"access,omitempty"`
+	Favourite bool   `protobuf:"varint,7,opt,name=favourite,proto3" json:"favourite,omitempty"`
+	// When the caller's unsaved edits were last kept, unset when there are none
+	DraftUpdatedAt *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=draft_updated_at,json=draftUpdatedAt,proto3" json:"draft_updated_at,omitempty"`
+	// Open requests for access, for a caller who owns the board
+	AccessRequestCount int32 `protobuf:"varint,9,opt,name=access_request_count,json=accessRequestCount,proto3" json:"access_request_count,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *BoardSummary) Reset() {
@@ -94,16 +103,64 @@ func (x *BoardSummary) GetReportCount() int32 {
 	return 0
 }
 
+func (x *BoardSummary) GetOwnerAdminId() string {
+	if x != nil {
+		return x.OwnerAdminId
+	}
+	return ""
+}
+
+func (x *BoardSummary) GetAccess() string {
+	if x != nil {
+		return x.Access
+	}
+	return ""
+}
+
+func (x *BoardSummary) GetFavourite() bool {
+	if x != nil {
+		return x.Favourite
+	}
+	return false
+}
+
+func (x *BoardSummary) GetDraftUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.DraftUpdatedAt
+	}
+	return nil
+}
+
+func (x *BoardSummary) GetAccessRequestCount() int32 {
+	if x != nil {
+		return x.AccessRequestCount
+	}
+	return 0
+}
+
 type Board struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	Id        string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	ChannelId string                 `protobuf:"bytes,2,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
 	Name      string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
 	// What a save sends back as read_at
-	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	Reports       []*BoardReport         `protobuf:"bytes,5,rep,name=reports,proto3" json:"reports,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	UpdatedAt *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	Reports   []*BoardReport         `protobuf:"bytes,5,rep,name=reports,proto3" json:"reports,omitempty"`
+	// Empty for a shop board, which everyone on the shop sees
+	OwnerAdminId string `protobuf:"bytes,6,opt,name=owner_admin_id,json=ownerAdminId,proto3" json:"owner_admin_id,omitempty"`
+	// For the caller: view | edit | own
+	Access    string `protobuf:"bytes,7,opt,name=access,proto3" json:"access,omitempty"`
+	Favourite bool   `protobuf:"varint,8,opt,name=favourite,proto3" json:"favourite,omitempty"`
+	// When the caller's unsaved edits were last kept, unset when there are none
+	DraftUpdatedAt *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=draft_updated_at,json=draftUpdatedAt,proto3" json:"draft_updated_at,omitempty"`
+	// For a caller who owns the board
+	Shares []*BoardShare `protobuf:"bytes,10,rep,name=shares,proto3" json:"shares,omitempty"`
+	// The caller's unsaved edits
+	Draft *BoardDraft `protobuf:"bytes,11,opt,name=draft,proto3" json:"draft,omitempty"`
+	// For a caller who owns the board: who asked for access
+	AccessRequests []*BoardAccessRequest `protobuf:"bytes,12,rep,name=access_requests,json=accessRequests,proto3" json:"access_requests,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Board) Reset() {
@@ -171,6 +228,301 @@ func (x *Board) GetReports() []*BoardReport {
 	return nil
 }
 
+func (x *Board) GetOwnerAdminId() string {
+	if x != nil {
+		return x.OwnerAdminId
+	}
+	return ""
+}
+
+func (x *Board) GetAccess() string {
+	if x != nil {
+		return x.Access
+	}
+	return ""
+}
+
+func (x *Board) GetFavourite() bool {
+	if x != nil {
+		return x.Favourite
+	}
+	return false
+}
+
+func (x *Board) GetDraftUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.DraftUpdatedAt
+	}
+	return nil
+}
+
+func (x *Board) GetShares() []*BoardShare {
+	if x != nil {
+		return x.Shares
+	}
+	return nil
+}
+
+func (x *Board) GetDraft() *BoardDraft {
+	if x != nil {
+		return x.Draft
+	}
+	return nil
+}
+
+func (x *Board) GetAccessRequests() []*BoardAccessRequest {
+	if x != nil {
+		return x.AccessRequests
+	}
+	return nil
+}
+
+type BoardAccessRequest struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	AdminId string                 `protobuf:"bytes,1,opt,name=admin_id,json=adminId,proto3" json:"admin_id,omitempty"`
+	// view | edit
+	Level         string                 `protobuf:"bytes,2,opt,name=level,proto3" json:"level,omitempty"`
+	RequestedAt   *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=requested_at,json=requestedAt,proto3" json:"requested_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BoardAccessRequest) Reset() {
+	*x = BoardAccessRequest{}
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BoardAccessRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BoardAccessRequest) ProtoMessage() {}
+
+func (x *BoardAccessRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BoardAccessRequest.ProtoReflect.Descriptor instead.
+func (*BoardAccessRequest) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *BoardAccessRequest) GetAdminId() string {
+	if x != nil {
+		return x.AdminId
+	}
+	return ""
+}
+
+func (x *BoardAccessRequest) GetLevel() string {
+	if x != nil {
+		return x.Level
+	}
+	return ""
+}
+
+func (x *BoardAccessRequest) GetRequestedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.RequestedAt
+	}
+	return nil
+}
+
+// Exactly one of admin_id and role_id is set
+type BoardShare struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	AdminId string                 `protobuf:"bytes,1,opt,name=admin_id,json=adminId,proto3" json:"admin_id,omitempty"`
+	RoleId  string                 `protobuf:"bytes,2,opt,name=role_id,json=roleId,proto3" json:"role_id,omitempty"`
+	// view | edit
+	Level         string `protobuf:"bytes,3,opt,name=level,proto3" json:"level,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BoardShare) Reset() {
+	*x = BoardShare{}
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BoardShare) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BoardShare) ProtoMessage() {}
+
+func (x *BoardShare) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BoardShare.ProtoReflect.Descriptor instead.
+func (*BoardShare) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *BoardShare) GetAdminId() string {
+	if x != nil {
+		return x.AdminId
+	}
+	return ""
+}
+
+func (x *BoardShare) GetRoleId() string {
+	if x != nil {
+		return x.RoleId
+	}
+	return ""
+}
+
+func (x *BoardShare) GetLevel() string {
+	if x != nil {
+		return x.Level
+	}
+	return ""
+}
+
+// An admin's unsaved edits: the board as they staged it. It's held to its shape only - a draft can hold work in
+// progress, such as a one-step funnel, that Save would refuse
+type BoardDraft struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Reports       []*BoardDraftReport    `protobuf:"bytes,2,rep,name=reports,proto3" json:"reports,omitempty"`
+	BaseUpdatedAt *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=base_updated_at,json=baseUpdatedAt,proto3" json:"base_updated_at,omitempty"`
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BoardDraft) Reset() {
+	*x = BoardDraft{}
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BoardDraft) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BoardDraft) ProtoMessage() {}
+
+func (x *BoardDraft) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BoardDraft.ProtoReflect.Descriptor instead.
+func (*BoardDraft) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *BoardDraft) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *BoardDraft) GetReports() []*BoardDraftReport {
+	if x != nil {
+		return x.Reports
+	}
+	return nil
+}
+
+func (x *BoardDraft) GetBaseUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.BaseUpdatedAt
+	}
+	return nil
+}
+
+func (x *BoardDraft) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+type BoardDraftReport struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Report *BoardReport           `protobuf:"bytes,1,opt,name=report,proto3" json:"report,omitempty"`
+	// The position of the saved report this one is, unset for one added in the draft
+	From          *int32 `protobuf:"varint,2,opt,name=from,proto3,oneof" json:"from,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BoardDraftReport) Reset() {
+	*x = BoardDraftReport{}
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BoardDraftReport) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BoardDraftReport) ProtoMessage() {}
+
+func (x *BoardDraftReport) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BoardDraftReport.ProtoReflect.Descriptor instead.
+func (*BoardDraftReport) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *BoardDraftReport) GetReport() *BoardReport {
+	if x != nil {
+		return x.Report
+	}
+	return nil
+}
+
+func (x *BoardDraftReport) GetFrom() int32 {
+	if x != nil && x.From != nil {
+		return *x.From
+	}
+	return 0
+}
+
 type BoardReport struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Title         string                 `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
@@ -182,7 +534,7 @@ type BoardReport struct {
 
 func (x *BoardReport) Reset() {
 	*x = BoardReport{}
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[2]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -194,7 +546,7 @@ func (x *BoardReport) String() string {
 func (*BoardReport) ProtoMessage() {}
 
 func (x *BoardReport) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[2]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -207,7 +559,7 @@ func (x *BoardReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BoardReport.ProtoReflect.Descriptor instead.
 func (*BoardReport) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{2}
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *BoardReport) GetTitle() string {
@@ -255,7 +607,7 @@ type BoardReportDefinition struct {
 
 func (x *BoardReportDefinition) Reset() {
 	*x = BoardReportDefinition{}
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[3]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -267,7 +619,7 @@ func (x *BoardReportDefinition) String() string {
 func (*BoardReportDefinition) ProtoMessage() {}
 
 func (x *BoardReportDefinition) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[3]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -280,7 +632,7 @@ func (x *BoardReportDefinition) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BoardReportDefinition.ProtoReflect.Descriptor instead.
 func (*BoardReportDefinition) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{3}
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *BoardReportDefinition) GetKind() string {
@@ -382,15 +734,17 @@ func (x *BoardReportDefinition) GetWindowDays() int32 {
 }
 
 type ListBoardsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ChannelId     string                 `protobuf:"bytes,1,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	ChannelId string                 `protobuf:"bytes,1,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
+	// A superuser's every board on the shop, not only what they'd see as themselves
+	All           bool `protobuf:"varint,2,opt,name=all,proto3" json:"all,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ListBoardsRequest) Reset() {
 	*x = ListBoardsRequest{}
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[4]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -402,7 +756,7 @@ func (x *ListBoardsRequest) String() string {
 func (*ListBoardsRequest) ProtoMessage() {}
 
 func (x *ListBoardsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[4]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -415,7 +769,7 @@ func (x *ListBoardsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListBoardsRequest.ProtoReflect.Descriptor instead.
 func (*ListBoardsRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{4}
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ListBoardsRequest) GetChannelId() string {
@@ -423,6 +777,13 @@ func (x *ListBoardsRequest) GetChannelId() string {
 		return x.ChannelId
 	}
 	return ""
+}
+
+func (x *ListBoardsRequest) GetAll() bool {
+	if x != nil {
+		return x.All
+	}
+	return false
 }
 
 type ListBoardsResponse struct {
@@ -434,7 +795,7 @@ type ListBoardsResponse struct {
 
 func (x *ListBoardsResponse) Reset() {
 	*x = ListBoardsResponse{}
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[5]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -446,7 +807,7 @@ func (x *ListBoardsResponse) String() string {
 func (*ListBoardsResponse) ProtoMessage() {}
 
 func (x *ListBoardsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[5]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -459,7 +820,7 @@ func (x *ListBoardsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListBoardsResponse.ProtoReflect.Descriptor instead.
 func (*ListBoardsResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{5}
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ListBoardsResponse) GetBoards() []*BoardSummary {
@@ -479,7 +840,7 @@ type GetBoardRequest struct {
 
 func (x *GetBoardRequest) Reset() {
 	*x = GetBoardRequest{}
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[6]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -491,7 +852,7 @@ func (x *GetBoardRequest) String() string {
 func (*GetBoardRequest) ProtoMessage() {}
 
 func (x *GetBoardRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[6]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -504,7 +865,7 @@ func (x *GetBoardRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBoardRequest.ProtoReflect.Descriptor instead.
 func (*GetBoardRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{6}
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *GetBoardRequest) GetChannelId() string {
@@ -530,7 +891,7 @@ type GetBoardResponse struct {
 
 func (x *GetBoardResponse) Reset() {
 	*x = GetBoardResponse{}
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[7]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -542,7 +903,7 @@ func (x *GetBoardResponse) String() string {
 func (*GetBoardResponse) ProtoMessage() {}
 
 func (x *GetBoardResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[7]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -555,7 +916,7 @@ func (x *GetBoardResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBoardResponse.ProtoReflect.Descriptor instead.
 func (*GetBoardResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{7}
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *GetBoardResponse) GetBoard() *Board {
@@ -576,7 +937,7 @@ type CreateBoardRequest struct {
 
 func (x *CreateBoardRequest) Reset() {
 	*x = CreateBoardRequest{}
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[8]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -588,7 +949,7 @@ func (x *CreateBoardRequest) String() string {
 func (*CreateBoardRequest) ProtoMessage() {}
 
 func (x *CreateBoardRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[8]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -601,7 +962,7 @@ func (x *CreateBoardRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateBoardRequest.ProtoReflect.Descriptor instead.
 func (*CreateBoardRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{8}
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *CreateBoardRequest) GetChannelId() string {
@@ -634,7 +995,7 @@ type CreateBoardResponse struct {
 
 func (x *CreateBoardResponse) Reset() {
 	*x = CreateBoardResponse{}
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[9]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -646,7 +1007,7 @@ func (x *CreateBoardResponse) String() string {
 func (*CreateBoardResponse) ProtoMessage() {}
 
 func (x *CreateBoardResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[9]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -659,7 +1020,7 @@ func (x *CreateBoardResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateBoardResponse.ProtoReflect.Descriptor instead.
 func (*CreateBoardResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{9}
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *CreateBoardResponse) GetBoard() *Board {
@@ -682,7 +1043,7 @@ type SaveBoardRequest struct {
 
 func (x *SaveBoardRequest) Reset() {
 	*x = SaveBoardRequest{}
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[10]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -694,7 +1055,7 @@ func (x *SaveBoardRequest) String() string {
 func (*SaveBoardRequest) ProtoMessage() {}
 
 func (x *SaveBoardRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[10]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -707,7 +1068,7 @@ func (x *SaveBoardRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveBoardRequest.ProtoReflect.Descriptor instead.
 func (*SaveBoardRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{10}
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *SaveBoardRequest) GetChannelId() string {
@@ -754,7 +1115,7 @@ type SaveBoardResponse struct {
 
 func (x *SaveBoardResponse) Reset() {
 	*x = SaveBoardResponse{}
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[11]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -766,7 +1127,7 @@ func (x *SaveBoardResponse) String() string {
 func (*SaveBoardResponse) ProtoMessage() {}
 
 func (x *SaveBoardResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[11]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -779,7 +1140,7 @@ func (x *SaveBoardResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveBoardResponse.ProtoReflect.Descriptor instead.
 func (*SaveBoardResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{11}
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *SaveBoardResponse) GetBoard() *Board {
@@ -799,7 +1160,7 @@ type DeleteBoardRequest struct {
 
 func (x *DeleteBoardRequest) Reset() {
 	*x = DeleteBoardRequest{}
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[12]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -811,7 +1172,7 @@ func (x *DeleteBoardRequest) String() string {
 func (*DeleteBoardRequest) ProtoMessage() {}
 
 func (x *DeleteBoardRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[12]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -824,7 +1185,7 @@ func (x *DeleteBoardRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteBoardRequest.ProtoReflect.Descriptor instead.
 func (*DeleteBoardRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{12}
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *DeleteBoardRequest) GetChannelId() string {
@@ -849,7 +1210,7 @@ type DeleteBoardResponse struct {
 
 func (x *DeleteBoardResponse) Reset() {
 	*x = DeleteBoardResponse{}
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[13]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -861,7 +1222,7 @@ func (x *DeleteBoardResponse) String() string {
 func (*DeleteBoardResponse) ProtoMessage() {}
 
 func (x *DeleteBoardResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[13]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -874,7 +1235,7 @@ func (x *DeleteBoardResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteBoardResponse.ProtoReflect.Descriptor instead.
 func (*DeleteBoardResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{13}
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{17}
 }
 
 type CreateStarterBoardsRequest struct {
@@ -886,7 +1247,7 @@ type CreateStarterBoardsRequest struct {
 
 func (x *CreateStarterBoardsRequest) Reset() {
 	*x = CreateStarterBoardsRequest{}
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[14]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -898,7 +1259,7 @@ func (x *CreateStarterBoardsRequest) String() string {
 func (*CreateStarterBoardsRequest) ProtoMessage() {}
 
 func (x *CreateStarterBoardsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[14]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -911,7 +1272,7 @@ func (x *CreateStarterBoardsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateStarterBoardsRequest.ProtoReflect.Descriptor instead.
 func (*CreateStarterBoardsRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{14}
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *CreateStarterBoardsRequest) GetChannelId() string {
@@ -930,7 +1291,7 @@ type CreateStarterBoardsResponse struct {
 
 func (x *CreateStarterBoardsResponse) Reset() {
 	*x = CreateStarterBoardsResponse{}
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[15]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -942,7 +1303,7 @@ func (x *CreateStarterBoardsResponse) String() string {
 func (*CreateStarterBoardsResponse) ProtoMessage() {}
 
 func (x *CreateStarterBoardsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_boards_proto_msgTypes[15]
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -955,7 +1316,7 @@ func (x *CreateStarterBoardsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateStarterBoardsResponse.ProtoReflect.Descriptor instead.
 func (*CreateStarterBoardsResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{15}
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *CreateStarterBoardsResponse) GetBoards() []*BoardSummary {
@@ -965,17 +1326,722 @@ func (x *CreateStarterBoardsResponse) GetBoards() []*BoardSummary {
 	return nil
 }
 
+type SetBoardSharesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ChannelId     string                 `protobuf:"bytes,1,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
+	Id            string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	Shares        []*BoardShare          `protobuf:"bytes,3,rep,name=shares,proto3" json:"shares,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetBoardSharesRequest) Reset() {
+	*x = SetBoardSharesRequest{}
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetBoardSharesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetBoardSharesRequest) ProtoMessage() {}
+
+func (x *SetBoardSharesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetBoardSharesRequest.ProtoReflect.Descriptor instead.
+func (*SetBoardSharesRequest) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *SetBoardSharesRequest) GetChannelId() string {
+	if x != nil {
+		return x.ChannelId
+	}
+	return ""
+}
+
+func (x *SetBoardSharesRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *SetBoardSharesRequest) GetShares() []*BoardShare {
+	if x != nil {
+		return x.Shares
+	}
+	return nil
+}
+
+type SetBoardSharesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Board         *Board                 `protobuf:"bytes,1,opt,name=board,proto3" json:"board,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetBoardSharesResponse) Reset() {
+	*x = SetBoardSharesResponse{}
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetBoardSharesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetBoardSharesResponse) ProtoMessage() {}
+
+func (x *SetBoardSharesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetBoardSharesResponse.ProtoReflect.Descriptor instead.
+func (*SetBoardSharesResponse) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *SetBoardSharesResponse) GetBoard() *Board {
+	if x != nil {
+		return x.Board
+	}
+	return nil
+}
+
+type TransferBoardRequest struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	ChannelId string                 `protobuf:"bytes,1,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
+	Id        string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	// Empty makes it a shop board
+	OwnerAdminId  string `protobuf:"bytes,3,opt,name=owner_admin_id,json=ownerAdminId,proto3" json:"owner_admin_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TransferBoardRequest) Reset() {
+	*x = TransferBoardRequest{}
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TransferBoardRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TransferBoardRequest) ProtoMessage() {}
+
+func (x *TransferBoardRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TransferBoardRequest.ProtoReflect.Descriptor instead.
+func (*TransferBoardRequest) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *TransferBoardRequest) GetChannelId() string {
+	if x != nil {
+		return x.ChannelId
+	}
+	return ""
+}
+
+func (x *TransferBoardRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *TransferBoardRequest) GetOwnerAdminId() string {
+	if x != nil {
+		return x.OwnerAdminId
+	}
+	return ""
+}
+
+// No board: handing it to someone else can leave the caller unable to open it
+type TransferBoardResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TransferBoardResponse) Reset() {
+	*x = TransferBoardResponse{}
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TransferBoardResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TransferBoardResponse) ProtoMessage() {}
+
+func (x *TransferBoardResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TransferBoardResponse.ProtoReflect.Descriptor instead.
+func (*TransferBoardResponse) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{23}
+}
+
+type SetBoardFavouriteRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ChannelId     string                 `protobuf:"bytes,1,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
+	Id            string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	Favourite     bool                   `protobuf:"varint,3,opt,name=favourite,proto3" json:"favourite,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetBoardFavouriteRequest) Reset() {
+	*x = SetBoardFavouriteRequest{}
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetBoardFavouriteRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetBoardFavouriteRequest) ProtoMessage() {}
+
+func (x *SetBoardFavouriteRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetBoardFavouriteRequest.ProtoReflect.Descriptor instead.
+func (*SetBoardFavouriteRequest) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *SetBoardFavouriteRequest) GetChannelId() string {
+	if x != nil {
+		return x.ChannelId
+	}
+	return ""
+}
+
+func (x *SetBoardFavouriteRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *SetBoardFavouriteRequest) GetFavourite() bool {
+	if x != nil {
+		return x.Favourite
+	}
+	return false
+}
+
+type SetBoardFavouriteResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetBoardFavouriteResponse) Reset() {
+	*x = SetBoardFavouriteResponse{}
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetBoardFavouriteResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetBoardFavouriteResponse) ProtoMessage() {}
+
+func (x *SetBoardFavouriteResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetBoardFavouriteResponse.ProtoReflect.Descriptor instead.
+func (*SetBoardFavouriteResponse) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{25}
+}
+
+type SaveBoardDraftRequest struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	ChannelId string                 `protobuf:"bytes,1,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
+	Id        string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	Name      string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	// The board's updated_at when the edits began, so a save over a newer one is still refused
+	BaseUpdatedAt *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=base_updated_at,json=baseUpdatedAt,proto3" json:"base_updated_at,omitempty"`
+	Reports       []*BoardDraftReport    `protobuf:"bytes,5,rep,name=reports,proto3" json:"reports,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SaveBoardDraftRequest) Reset() {
+	*x = SaveBoardDraftRequest{}
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SaveBoardDraftRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SaveBoardDraftRequest) ProtoMessage() {}
+
+func (x *SaveBoardDraftRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SaveBoardDraftRequest.ProtoReflect.Descriptor instead.
+func (*SaveBoardDraftRequest) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *SaveBoardDraftRequest) GetChannelId() string {
+	if x != nil {
+		return x.ChannelId
+	}
+	return ""
+}
+
+func (x *SaveBoardDraftRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *SaveBoardDraftRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *SaveBoardDraftRequest) GetBaseUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.BaseUpdatedAt
+	}
+	return nil
+}
+
+func (x *SaveBoardDraftRequest) GetReports() []*BoardDraftReport {
+	if x != nil {
+		return x.Reports
+	}
+	return nil
+}
+
+type SaveBoardDraftResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SaveBoardDraftResponse) Reset() {
+	*x = SaveBoardDraftResponse{}
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SaveBoardDraftResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SaveBoardDraftResponse) ProtoMessage() {}
+
+func (x *SaveBoardDraftResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SaveBoardDraftResponse.ProtoReflect.Descriptor instead.
+func (*SaveBoardDraftResponse) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *SaveBoardDraftResponse) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+type DiscardBoardDraftRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ChannelId     string                 `protobuf:"bytes,1,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
+	Id            string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DiscardBoardDraftRequest) Reset() {
+	*x = DiscardBoardDraftRequest{}
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DiscardBoardDraftRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DiscardBoardDraftRequest) ProtoMessage() {}
+
+func (x *DiscardBoardDraftRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DiscardBoardDraftRequest.ProtoReflect.Descriptor instead.
+func (*DiscardBoardDraftRequest) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *DiscardBoardDraftRequest) GetChannelId() string {
+	if x != nil {
+		return x.ChannelId
+	}
+	return ""
+}
+
+func (x *DiscardBoardDraftRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type DiscardBoardDraftResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DiscardBoardDraftResponse) Reset() {
+	*x = DiscardBoardDraftResponse{}
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DiscardBoardDraftResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DiscardBoardDraftResponse) ProtoMessage() {}
+
+func (x *DiscardBoardDraftResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DiscardBoardDraftResponse.ProtoReflect.Descriptor instead.
+func (*DiscardBoardDraftResponse) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{29}
+}
+
+type RequestBoardAccessRequest struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	ChannelId string                 `protobuf:"bytes,1,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
+	Id        string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	// view | edit
+	Level         string `protobuf:"bytes,3,opt,name=level,proto3" json:"level,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequestBoardAccessRequest) Reset() {
+	*x = RequestBoardAccessRequest{}
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequestBoardAccessRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequestBoardAccessRequest) ProtoMessage() {}
+
+func (x *RequestBoardAccessRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequestBoardAccessRequest.ProtoReflect.Descriptor instead.
+func (*RequestBoardAccessRequest) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *RequestBoardAccessRequest) GetChannelId() string {
+	if x != nil {
+		return x.ChannelId
+	}
+	return ""
+}
+
+func (x *RequestBoardAccessRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *RequestBoardAccessRequest) GetLevel() string {
+	if x != nil {
+		return x.Level
+	}
+	return ""
+}
+
+type RequestBoardAccessResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequestBoardAccessResponse) Reset() {
+	*x = RequestBoardAccessResponse{}
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequestBoardAccessResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequestBoardAccessResponse) ProtoMessage() {}
+
+func (x *RequestBoardAccessResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequestBoardAccessResponse.ProtoReflect.Descriptor instead.
+func (*RequestBoardAccessResponse) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{31}
+}
+
+type DismissBoardAccessRequestRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ChannelId     string                 `protobuf:"bytes,1,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
+	Id            string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	AdminId       string                 `protobuf:"bytes,3,opt,name=admin_id,json=adminId,proto3" json:"admin_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DismissBoardAccessRequestRequest) Reset() {
+	*x = DismissBoardAccessRequestRequest{}
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DismissBoardAccessRequestRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DismissBoardAccessRequestRequest) ProtoMessage() {}
+
+func (x *DismissBoardAccessRequestRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DismissBoardAccessRequestRequest.ProtoReflect.Descriptor instead.
+func (*DismissBoardAccessRequestRequest) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *DismissBoardAccessRequestRequest) GetChannelId() string {
+	if x != nil {
+		return x.ChannelId
+	}
+	return ""
+}
+
+func (x *DismissBoardAccessRequestRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *DismissBoardAccessRequestRequest) GetAdminId() string {
+	if x != nil {
+		return x.AdminId
+	}
+	return ""
+}
+
+type DismissBoardAccessRequestResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DismissBoardAccessRequestResponse) Reset() {
+	*x = DismissBoardAccessRequestResponse{}
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DismissBoardAccessRequestResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DismissBoardAccessRequestResponse) ProtoMessage() {}
+
+func (x *DismissBoardAccessRequestResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_boards_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DismissBoardAccessRequestResponse.ProtoReflect.Descriptor instead.
+func (*DismissBoardAccessRequestResponse) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_boards_proto_rawDescGZIP(), []int{33}
+}
+
 var File_skelet_signals_v1_boards_proto protoreflect.FileDescriptor
 
 const file_skelet_signals_v1_boards_proto_rawDesc = "" +
 	"\n" +
-	"\x1eskelet/signals/v1/boards.proto\x12\x11skelet.signals.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1fskelet/signals/v1/synapse.proto\"\x90\x01\n" +
+	"\x1eskelet/signals/v1/boards.proto\x12\x11skelet.signals.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1fskelet/signals/v1/synapse.proto\"\xe4\x02\n" +
 	"\fBoardSummary\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x129\n" +
 	"\n" +
 	"updated_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12!\n" +
-	"\freport_count\x18\x04 \x01(\x05R\vreportCount\"\xbf\x01\n" +
+	"\freport_count\x18\x04 \x01(\x05R\vreportCount\x12$\n" +
+	"\x0eowner_admin_id\x18\x05 \x01(\tR\fownerAdminId\x12\x16\n" +
+	"\x06access\x18\x06 \x01(\tR\x06access\x12\x1c\n" +
+	"\tfavourite\x18\a \x01(\bR\tfavourite\x12D\n" +
+	"\x10draft_updated_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\x0edraftUpdatedAt\x120\n" +
+	"\x14access_request_count\x18\t \x01(\x05R\x12accessRequestCount\"\x9d\x04\n" +
 	"\x05Board\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -983,7 +2049,35 @@ const file_skelet_signals_v1_boards_proto_rawDesc = "" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x129\n" +
 	"\n" +
 	"updated_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x128\n" +
-	"\areports\x18\x05 \x03(\v2\x1e.skelet.signals.v1.BoardReportR\areports\"\x81\x01\n" +
+	"\areports\x18\x05 \x03(\v2\x1e.skelet.signals.v1.BoardReportR\areports\x12$\n" +
+	"\x0eowner_admin_id\x18\x06 \x01(\tR\fownerAdminId\x12\x16\n" +
+	"\x06access\x18\a \x01(\tR\x06access\x12\x1c\n" +
+	"\tfavourite\x18\b \x01(\bR\tfavourite\x12D\n" +
+	"\x10draft_updated_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\x0edraftUpdatedAt\x125\n" +
+	"\x06shares\x18\n" +
+	" \x03(\v2\x1d.skelet.signals.v1.BoardShareR\x06shares\x123\n" +
+	"\x05draft\x18\v \x01(\v2\x1d.skelet.signals.v1.BoardDraftR\x05draft\x12N\n" +
+	"\x0faccess_requests\x18\f \x03(\v2%.skelet.signals.v1.BoardAccessRequestR\x0eaccessRequests\"\x84\x01\n" +
+	"\x12BoardAccessRequest\x12\x19\n" +
+	"\badmin_id\x18\x01 \x01(\tR\aadminId\x12\x14\n" +
+	"\x05level\x18\x02 \x01(\tR\x05level\x12=\n" +
+	"\frequested_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\vrequestedAt\"V\n" +
+	"\n" +
+	"BoardShare\x12\x19\n" +
+	"\badmin_id\x18\x01 \x01(\tR\aadminId\x12\x17\n" +
+	"\arole_id\x18\x02 \x01(\tR\x06roleId\x12\x14\n" +
+	"\x05level\x18\x03 \x01(\tR\x05level\"\xde\x01\n" +
+	"\n" +
+	"BoardDraft\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12=\n" +
+	"\areports\x18\x02 \x03(\v2#.skelet.signals.v1.BoardDraftReportR\areports\x12B\n" +
+	"\x0fbase_updated_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\rbaseUpdatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"l\n" +
+	"\x10BoardDraftReport\x126\n" +
+	"\x06report\x18\x01 \x01(\v2\x1e.skelet.signals.v1.BoardReportR\x06report\x12\x17\n" +
+	"\x04from\x18\x02 \x01(\x05H\x00R\x04from\x88\x01\x01B\a\n" +
+	"\x05_from\"\x81\x01\n" +
 	"\vBoardReport\x12\x14\n" +
 	"\x05title\x18\x01 \x01(\tR\x05title\x12H\n" +
 	"\n" +
@@ -1008,10 +2102,11 @@ const file_skelet_signals_v1_boards_proto_rawDesc = "" +
 	"\aperiods\x18\f \x01(\x05R\aperiods\x12\x14\n" +
 	"\x05depth\x18\r \x01(\x05R\x05depth\x12\x1f\n" +
 	"\vwindow_days\x18\x0e \x01(\x05R\n" +
-	"windowDays\"2\n" +
+	"windowDays\"D\n" +
 	"\x11ListBoardsRequest\x12\x1d\n" +
 	"\n" +
-	"channel_id\x18\x01 \x01(\tR\tchannelId\"M\n" +
+	"channel_id\x18\x01 \x01(\tR\tchannelId\x12\x10\n" +
+	"\x03all\x18\x02 \x01(\bR\x03all\"M\n" +
 	"\x12ListBoardsResponse\x127\n" +
 	"\x06boards\x18\x01 \x03(\v2\x1f.skelet.signals.v1.BoardSummaryR\x06boards\"@\n" +
 	"\x0fGetBoardRequest\x12\x1d\n" +
@@ -1045,7 +2140,54 @@ const file_skelet_signals_v1_boards_proto_rawDesc = "" +
 	"\n" +
 	"channel_id\x18\x01 \x01(\tR\tchannelId\"V\n" +
 	"\x1bCreateStarterBoardsResponse\x127\n" +
-	"\x06boards\x18\x01 \x03(\v2\x1f.skelet.signals.v1.BoardSummaryR\x06boards2\xc8\x04\n" +
+	"\x06boards\x18\x01 \x03(\v2\x1f.skelet.signals.v1.BoardSummaryR\x06boards\"}\n" +
+	"\x15SetBoardSharesRequest\x12\x1d\n" +
+	"\n" +
+	"channel_id\x18\x01 \x01(\tR\tchannelId\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\x125\n" +
+	"\x06shares\x18\x03 \x03(\v2\x1d.skelet.signals.v1.BoardShareR\x06shares\"H\n" +
+	"\x16SetBoardSharesResponse\x12.\n" +
+	"\x05board\x18\x01 \x01(\v2\x18.skelet.signals.v1.BoardR\x05board\"k\n" +
+	"\x14TransferBoardRequest\x12\x1d\n" +
+	"\n" +
+	"channel_id\x18\x01 \x01(\tR\tchannelId\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\x12$\n" +
+	"\x0eowner_admin_id\x18\x03 \x01(\tR\fownerAdminId\"\x17\n" +
+	"\x15TransferBoardResponse\"g\n" +
+	"\x18SetBoardFavouriteRequest\x12\x1d\n" +
+	"\n" +
+	"channel_id\x18\x01 \x01(\tR\tchannelId\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\x12\x1c\n" +
+	"\tfavourite\x18\x03 \x01(\bR\tfavourite\"\x1b\n" +
+	"\x19SetBoardFavouriteResponse\"\xdd\x01\n" +
+	"\x15SaveBoardDraftRequest\x12\x1d\n" +
+	"\n" +
+	"channel_id\x18\x01 \x01(\tR\tchannelId\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12B\n" +
+	"\x0fbase_updated_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\rbaseUpdatedAt\x12=\n" +
+	"\areports\x18\x05 \x03(\v2#.skelet.signals.v1.BoardDraftReportR\areports\"S\n" +
+	"\x16SaveBoardDraftResponse\x129\n" +
+	"\n" +
+	"updated_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"I\n" +
+	"\x18DiscardBoardDraftRequest\x12\x1d\n" +
+	"\n" +
+	"channel_id\x18\x01 \x01(\tR\tchannelId\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\"\x1b\n" +
+	"\x19DiscardBoardDraftResponse\"`\n" +
+	"\x19RequestBoardAccessRequest\x12\x1d\n" +
+	"\n" +
+	"channel_id\x18\x01 \x01(\tR\tchannelId\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\x12\x14\n" +
+	"\x05level\x18\x03 \x01(\tR\x05level\"\x1c\n" +
+	"\x1aRequestBoardAccessResponse\"l\n" +
+	" DismissBoardAccessRequestRequest\x12\x1d\n" +
+	"\n" +
+	"channel_id\x18\x01 \x01(\tR\tchannelId\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\x12\x19\n" +
+	"\badmin_id\x18\x03 \x01(\tR\aadminId\"#\n" +
+	"!DismissBoardAccessRequestResponse2\xd6\n" +
+	"\n" +
 	"\fBoardService\x12Y\n" +
 	"\n" +
 	"ListBoards\x12$.skelet.signals.v1.ListBoardsRequest\x1a%.skelet.signals.v1.ListBoardsResponse\x12S\n" +
@@ -1053,7 +2195,14 @@ const file_skelet_signals_v1_boards_proto_rawDesc = "" +
 	"\vCreateBoard\x12%.skelet.signals.v1.CreateBoardRequest\x1a&.skelet.signals.v1.CreateBoardResponse\x12V\n" +
 	"\tSaveBoard\x12#.skelet.signals.v1.SaveBoardRequest\x1a$.skelet.signals.v1.SaveBoardResponse\x12\\\n" +
 	"\vDeleteBoard\x12%.skelet.signals.v1.DeleteBoardRequest\x1a&.skelet.signals.v1.DeleteBoardResponse\x12t\n" +
-	"\x13CreateStarterBoards\x12-.skelet.signals.v1.CreateStarterBoardsRequest\x1a..skelet.signals.v1.CreateStarterBoardsResponseB\xcf\x01\n" +
+	"\x13CreateStarterBoards\x12-.skelet.signals.v1.CreateStarterBoardsRequest\x1a..skelet.signals.v1.CreateStarterBoardsResponse\x12e\n" +
+	"\x0eSetBoardShares\x12(.skelet.signals.v1.SetBoardSharesRequest\x1a).skelet.signals.v1.SetBoardSharesResponse\x12b\n" +
+	"\rTransferBoard\x12'.skelet.signals.v1.TransferBoardRequest\x1a(.skelet.signals.v1.TransferBoardResponse\x12n\n" +
+	"\x11SetBoardFavourite\x12+.skelet.signals.v1.SetBoardFavouriteRequest\x1a,.skelet.signals.v1.SetBoardFavouriteResponse\x12e\n" +
+	"\x0eSaveBoardDraft\x12(.skelet.signals.v1.SaveBoardDraftRequest\x1a).skelet.signals.v1.SaveBoardDraftResponse\x12n\n" +
+	"\x11DiscardBoardDraft\x12+.skelet.signals.v1.DiscardBoardDraftRequest\x1a,.skelet.signals.v1.DiscardBoardDraftResponse\x12q\n" +
+	"\x12RequestBoardAccess\x12,.skelet.signals.v1.RequestBoardAccessRequest\x1a-.skelet.signals.v1.RequestBoardAccessResponse\x12\x86\x01\n" +
+	"\x19DismissBoardAccessRequest\x123.skelet.signals.v1.DismissBoardAccessRequestRequest\x1a4.skelet.signals.v1.DismissBoardAccessRequestResponseB\xcf\x01\n" +
 	"\x15com.skelet.signals.v1B\vBoardsProtoP\x01ZCgithub.com/skeletg/skelet/apps/backend/core/signalsapi/v1;signalsv1\xa2\x02\x03SSX\xaa\x02\x11Skelet.Signals.V1\xca\x02\x11Skelet\\Signals\\V1\xe2\x02\x1dSkelet\\Signals\\V1\\GPBMetadata\xea\x02\x13Skelet::Signals::V1b\x06proto3"
 
 var (
@@ -1068,58 +2217,105 @@ func file_skelet_signals_v1_boards_proto_rawDescGZIP() []byte {
 	return file_skelet_signals_v1_boards_proto_rawDescData
 }
 
-var file_skelet_signals_v1_boards_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_skelet_signals_v1_boards_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
 var file_skelet_signals_v1_boards_proto_goTypes = []any{
-	(*BoardSummary)(nil),                // 0: skelet.signals.v1.BoardSummary
-	(*Board)(nil),                       // 1: skelet.signals.v1.Board
-	(*BoardReport)(nil),                 // 2: skelet.signals.v1.BoardReport
-	(*BoardReportDefinition)(nil),       // 3: skelet.signals.v1.BoardReportDefinition
-	(*ListBoardsRequest)(nil),           // 4: skelet.signals.v1.ListBoardsRequest
-	(*ListBoardsResponse)(nil),          // 5: skelet.signals.v1.ListBoardsResponse
-	(*GetBoardRequest)(nil),             // 6: skelet.signals.v1.GetBoardRequest
-	(*GetBoardResponse)(nil),            // 7: skelet.signals.v1.GetBoardResponse
-	(*CreateBoardRequest)(nil),          // 8: skelet.signals.v1.CreateBoardRequest
-	(*CreateBoardResponse)(nil),         // 9: skelet.signals.v1.CreateBoardResponse
-	(*SaveBoardRequest)(nil),            // 10: skelet.signals.v1.SaveBoardRequest
-	(*SaveBoardResponse)(nil),           // 11: skelet.signals.v1.SaveBoardResponse
-	(*DeleteBoardRequest)(nil),          // 12: skelet.signals.v1.DeleteBoardRequest
-	(*DeleteBoardResponse)(nil),         // 13: skelet.signals.v1.DeleteBoardResponse
-	(*CreateStarterBoardsRequest)(nil),  // 14: skelet.signals.v1.CreateStarterBoardsRequest
-	(*CreateStarterBoardsResponse)(nil), // 15: skelet.signals.v1.CreateStarterBoardsResponse
-	(*timestamppb.Timestamp)(nil),       // 16: google.protobuf.Timestamp
-	(*FunnelFilter)(nil),                // 17: skelet.signals.v1.FunnelFilter
+	(*BoardSummary)(nil),                      // 0: skelet.signals.v1.BoardSummary
+	(*Board)(nil),                             // 1: skelet.signals.v1.Board
+	(*BoardAccessRequest)(nil),                // 2: skelet.signals.v1.BoardAccessRequest
+	(*BoardShare)(nil),                        // 3: skelet.signals.v1.BoardShare
+	(*BoardDraft)(nil),                        // 4: skelet.signals.v1.BoardDraft
+	(*BoardDraftReport)(nil),                  // 5: skelet.signals.v1.BoardDraftReport
+	(*BoardReport)(nil),                       // 6: skelet.signals.v1.BoardReport
+	(*BoardReportDefinition)(nil),             // 7: skelet.signals.v1.BoardReportDefinition
+	(*ListBoardsRequest)(nil),                 // 8: skelet.signals.v1.ListBoardsRequest
+	(*ListBoardsResponse)(nil),                // 9: skelet.signals.v1.ListBoardsResponse
+	(*GetBoardRequest)(nil),                   // 10: skelet.signals.v1.GetBoardRequest
+	(*GetBoardResponse)(nil),                  // 11: skelet.signals.v1.GetBoardResponse
+	(*CreateBoardRequest)(nil),                // 12: skelet.signals.v1.CreateBoardRequest
+	(*CreateBoardResponse)(nil),               // 13: skelet.signals.v1.CreateBoardResponse
+	(*SaveBoardRequest)(nil),                  // 14: skelet.signals.v1.SaveBoardRequest
+	(*SaveBoardResponse)(nil),                 // 15: skelet.signals.v1.SaveBoardResponse
+	(*DeleteBoardRequest)(nil),                // 16: skelet.signals.v1.DeleteBoardRequest
+	(*DeleteBoardResponse)(nil),               // 17: skelet.signals.v1.DeleteBoardResponse
+	(*CreateStarterBoardsRequest)(nil),        // 18: skelet.signals.v1.CreateStarterBoardsRequest
+	(*CreateStarterBoardsResponse)(nil),       // 19: skelet.signals.v1.CreateStarterBoardsResponse
+	(*SetBoardSharesRequest)(nil),             // 20: skelet.signals.v1.SetBoardSharesRequest
+	(*SetBoardSharesResponse)(nil),            // 21: skelet.signals.v1.SetBoardSharesResponse
+	(*TransferBoardRequest)(nil),              // 22: skelet.signals.v1.TransferBoardRequest
+	(*TransferBoardResponse)(nil),             // 23: skelet.signals.v1.TransferBoardResponse
+	(*SetBoardFavouriteRequest)(nil),          // 24: skelet.signals.v1.SetBoardFavouriteRequest
+	(*SetBoardFavouriteResponse)(nil),         // 25: skelet.signals.v1.SetBoardFavouriteResponse
+	(*SaveBoardDraftRequest)(nil),             // 26: skelet.signals.v1.SaveBoardDraftRequest
+	(*SaveBoardDraftResponse)(nil),            // 27: skelet.signals.v1.SaveBoardDraftResponse
+	(*DiscardBoardDraftRequest)(nil),          // 28: skelet.signals.v1.DiscardBoardDraftRequest
+	(*DiscardBoardDraftResponse)(nil),         // 29: skelet.signals.v1.DiscardBoardDraftResponse
+	(*RequestBoardAccessRequest)(nil),         // 30: skelet.signals.v1.RequestBoardAccessRequest
+	(*RequestBoardAccessResponse)(nil),        // 31: skelet.signals.v1.RequestBoardAccessResponse
+	(*DismissBoardAccessRequestRequest)(nil),  // 32: skelet.signals.v1.DismissBoardAccessRequestRequest
+	(*DismissBoardAccessRequestResponse)(nil), // 33: skelet.signals.v1.DismissBoardAccessRequestResponse
+	(*timestamppb.Timestamp)(nil),             // 34: google.protobuf.Timestamp
+	(*FunnelFilter)(nil),                      // 35: skelet.signals.v1.FunnelFilter
 }
 var file_skelet_signals_v1_boards_proto_depIdxs = []int32{
-	16, // 0: skelet.signals.v1.BoardSummary.updated_at:type_name -> google.protobuf.Timestamp
-	16, // 1: skelet.signals.v1.Board.updated_at:type_name -> google.protobuf.Timestamp
-	2,  // 2: skelet.signals.v1.Board.reports:type_name -> skelet.signals.v1.BoardReport
-	3,  // 3: skelet.signals.v1.BoardReport.definition:type_name -> skelet.signals.v1.BoardReportDefinition
-	17, // 4: skelet.signals.v1.BoardReportDefinition.filters:type_name -> skelet.signals.v1.FunnelFilter
-	0,  // 5: skelet.signals.v1.ListBoardsResponse.boards:type_name -> skelet.signals.v1.BoardSummary
-	1,  // 6: skelet.signals.v1.GetBoardResponse.board:type_name -> skelet.signals.v1.Board
-	2,  // 7: skelet.signals.v1.CreateBoardRequest.reports:type_name -> skelet.signals.v1.BoardReport
-	1,  // 8: skelet.signals.v1.CreateBoardResponse.board:type_name -> skelet.signals.v1.Board
-	2,  // 9: skelet.signals.v1.SaveBoardRequest.reports:type_name -> skelet.signals.v1.BoardReport
-	16, // 10: skelet.signals.v1.SaveBoardRequest.read_at:type_name -> google.protobuf.Timestamp
-	1,  // 11: skelet.signals.v1.SaveBoardResponse.board:type_name -> skelet.signals.v1.Board
-	0,  // 12: skelet.signals.v1.CreateStarterBoardsResponse.boards:type_name -> skelet.signals.v1.BoardSummary
-	4,  // 13: skelet.signals.v1.BoardService.ListBoards:input_type -> skelet.signals.v1.ListBoardsRequest
-	6,  // 14: skelet.signals.v1.BoardService.GetBoard:input_type -> skelet.signals.v1.GetBoardRequest
-	8,  // 15: skelet.signals.v1.BoardService.CreateBoard:input_type -> skelet.signals.v1.CreateBoardRequest
-	10, // 16: skelet.signals.v1.BoardService.SaveBoard:input_type -> skelet.signals.v1.SaveBoardRequest
-	12, // 17: skelet.signals.v1.BoardService.DeleteBoard:input_type -> skelet.signals.v1.DeleteBoardRequest
-	14, // 18: skelet.signals.v1.BoardService.CreateStarterBoards:input_type -> skelet.signals.v1.CreateStarterBoardsRequest
-	5,  // 19: skelet.signals.v1.BoardService.ListBoards:output_type -> skelet.signals.v1.ListBoardsResponse
-	7,  // 20: skelet.signals.v1.BoardService.GetBoard:output_type -> skelet.signals.v1.GetBoardResponse
-	9,  // 21: skelet.signals.v1.BoardService.CreateBoard:output_type -> skelet.signals.v1.CreateBoardResponse
-	11, // 22: skelet.signals.v1.BoardService.SaveBoard:output_type -> skelet.signals.v1.SaveBoardResponse
-	13, // 23: skelet.signals.v1.BoardService.DeleteBoard:output_type -> skelet.signals.v1.DeleteBoardResponse
-	15, // 24: skelet.signals.v1.BoardService.CreateStarterBoards:output_type -> skelet.signals.v1.CreateStarterBoardsResponse
-	19, // [19:25] is the sub-list for method output_type
-	13, // [13:19] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	34, // 0: skelet.signals.v1.BoardSummary.updated_at:type_name -> google.protobuf.Timestamp
+	34, // 1: skelet.signals.v1.BoardSummary.draft_updated_at:type_name -> google.protobuf.Timestamp
+	34, // 2: skelet.signals.v1.Board.updated_at:type_name -> google.protobuf.Timestamp
+	6,  // 3: skelet.signals.v1.Board.reports:type_name -> skelet.signals.v1.BoardReport
+	34, // 4: skelet.signals.v1.Board.draft_updated_at:type_name -> google.protobuf.Timestamp
+	3,  // 5: skelet.signals.v1.Board.shares:type_name -> skelet.signals.v1.BoardShare
+	4,  // 6: skelet.signals.v1.Board.draft:type_name -> skelet.signals.v1.BoardDraft
+	2,  // 7: skelet.signals.v1.Board.access_requests:type_name -> skelet.signals.v1.BoardAccessRequest
+	34, // 8: skelet.signals.v1.BoardAccessRequest.requested_at:type_name -> google.protobuf.Timestamp
+	5,  // 9: skelet.signals.v1.BoardDraft.reports:type_name -> skelet.signals.v1.BoardDraftReport
+	34, // 10: skelet.signals.v1.BoardDraft.base_updated_at:type_name -> google.protobuf.Timestamp
+	34, // 11: skelet.signals.v1.BoardDraft.updated_at:type_name -> google.protobuf.Timestamp
+	6,  // 12: skelet.signals.v1.BoardDraftReport.report:type_name -> skelet.signals.v1.BoardReport
+	7,  // 13: skelet.signals.v1.BoardReport.definition:type_name -> skelet.signals.v1.BoardReportDefinition
+	35, // 14: skelet.signals.v1.BoardReportDefinition.filters:type_name -> skelet.signals.v1.FunnelFilter
+	0,  // 15: skelet.signals.v1.ListBoardsResponse.boards:type_name -> skelet.signals.v1.BoardSummary
+	1,  // 16: skelet.signals.v1.GetBoardResponse.board:type_name -> skelet.signals.v1.Board
+	6,  // 17: skelet.signals.v1.CreateBoardRequest.reports:type_name -> skelet.signals.v1.BoardReport
+	1,  // 18: skelet.signals.v1.CreateBoardResponse.board:type_name -> skelet.signals.v1.Board
+	6,  // 19: skelet.signals.v1.SaveBoardRequest.reports:type_name -> skelet.signals.v1.BoardReport
+	34, // 20: skelet.signals.v1.SaveBoardRequest.read_at:type_name -> google.protobuf.Timestamp
+	1,  // 21: skelet.signals.v1.SaveBoardResponse.board:type_name -> skelet.signals.v1.Board
+	0,  // 22: skelet.signals.v1.CreateStarterBoardsResponse.boards:type_name -> skelet.signals.v1.BoardSummary
+	3,  // 23: skelet.signals.v1.SetBoardSharesRequest.shares:type_name -> skelet.signals.v1.BoardShare
+	1,  // 24: skelet.signals.v1.SetBoardSharesResponse.board:type_name -> skelet.signals.v1.Board
+	34, // 25: skelet.signals.v1.SaveBoardDraftRequest.base_updated_at:type_name -> google.protobuf.Timestamp
+	5,  // 26: skelet.signals.v1.SaveBoardDraftRequest.reports:type_name -> skelet.signals.v1.BoardDraftReport
+	34, // 27: skelet.signals.v1.SaveBoardDraftResponse.updated_at:type_name -> google.protobuf.Timestamp
+	8,  // 28: skelet.signals.v1.BoardService.ListBoards:input_type -> skelet.signals.v1.ListBoardsRequest
+	10, // 29: skelet.signals.v1.BoardService.GetBoard:input_type -> skelet.signals.v1.GetBoardRequest
+	12, // 30: skelet.signals.v1.BoardService.CreateBoard:input_type -> skelet.signals.v1.CreateBoardRequest
+	14, // 31: skelet.signals.v1.BoardService.SaveBoard:input_type -> skelet.signals.v1.SaveBoardRequest
+	16, // 32: skelet.signals.v1.BoardService.DeleteBoard:input_type -> skelet.signals.v1.DeleteBoardRequest
+	18, // 33: skelet.signals.v1.BoardService.CreateStarterBoards:input_type -> skelet.signals.v1.CreateStarterBoardsRequest
+	20, // 34: skelet.signals.v1.BoardService.SetBoardShares:input_type -> skelet.signals.v1.SetBoardSharesRequest
+	22, // 35: skelet.signals.v1.BoardService.TransferBoard:input_type -> skelet.signals.v1.TransferBoardRequest
+	24, // 36: skelet.signals.v1.BoardService.SetBoardFavourite:input_type -> skelet.signals.v1.SetBoardFavouriteRequest
+	26, // 37: skelet.signals.v1.BoardService.SaveBoardDraft:input_type -> skelet.signals.v1.SaveBoardDraftRequest
+	28, // 38: skelet.signals.v1.BoardService.DiscardBoardDraft:input_type -> skelet.signals.v1.DiscardBoardDraftRequest
+	30, // 39: skelet.signals.v1.BoardService.RequestBoardAccess:input_type -> skelet.signals.v1.RequestBoardAccessRequest
+	32, // 40: skelet.signals.v1.BoardService.DismissBoardAccessRequest:input_type -> skelet.signals.v1.DismissBoardAccessRequestRequest
+	9,  // 41: skelet.signals.v1.BoardService.ListBoards:output_type -> skelet.signals.v1.ListBoardsResponse
+	11, // 42: skelet.signals.v1.BoardService.GetBoard:output_type -> skelet.signals.v1.GetBoardResponse
+	13, // 43: skelet.signals.v1.BoardService.CreateBoard:output_type -> skelet.signals.v1.CreateBoardResponse
+	15, // 44: skelet.signals.v1.BoardService.SaveBoard:output_type -> skelet.signals.v1.SaveBoardResponse
+	17, // 45: skelet.signals.v1.BoardService.DeleteBoard:output_type -> skelet.signals.v1.DeleteBoardResponse
+	19, // 46: skelet.signals.v1.BoardService.CreateStarterBoards:output_type -> skelet.signals.v1.CreateStarterBoardsResponse
+	21, // 47: skelet.signals.v1.BoardService.SetBoardShares:output_type -> skelet.signals.v1.SetBoardSharesResponse
+	23, // 48: skelet.signals.v1.BoardService.TransferBoard:output_type -> skelet.signals.v1.TransferBoardResponse
+	25, // 49: skelet.signals.v1.BoardService.SetBoardFavourite:output_type -> skelet.signals.v1.SetBoardFavouriteResponse
+	27, // 50: skelet.signals.v1.BoardService.SaveBoardDraft:output_type -> skelet.signals.v1.SaveBoardDraftResponse
+	29, // 51: skelet.signals.v1.BoardService.DiscardBoardDraft:output_type -> skelet.signals.v1.DiscardBoardDraftResponse
+	31, // 52: skelet.signals.v1.BoardService.RequestBoardAccess:output_type -> skelet.signals.v1.RequestBoardAccessResponse
+	33, // 53: skelet.signals.v1.BoardService.DismissBoardAccessRequest:output_type -> skelet.signals.v1.DismissBoardAccessRequestResponse
+	41, // [41:54] is the sub-list for method output_type
+	28, // [28:41] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_skelet_signals_v1_boards_proto_init() }
@@ -1128,13 +2324,14 @@ func file_skelet_signals_v1_boards_proto_init() {
 		return
 	}
 	file_skelet_signals_v1_synapse_proto_init()
+	file_skelet_signals_v1_boards_proto_msgTypes[5].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_skelet_signals_v1_boards_proto_rawDesc), len(file_skelet_signals_v1_boards_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   16,
+			NumMessages:   34,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

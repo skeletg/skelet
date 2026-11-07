@@ -22,12 +22,19 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	BoardService_ListBoards_FullMethodName          = "/skelet.signals.v1.BoardService/ListBoards"
-	BoardService_GetBoard_FullMethodName            = "/skelet.signals.v1.BoardService/GetBoard"
-	BoardService_CreateBoard_FullMethodName         = "/skelet.signals.v1.BoardService/CreateBoard"
-	BoardService_SaveBoard_FullMethodName           = "/skelet.signals.v1.BoardService/SaveBoard"
-	BoardService_DeleteBoard_FullMethodName         = "/skelet.signals.v1.BoardService/DeleteBoard"
-	BoardService_CreateStarterBoards_FullMethodName = "/skelet.signals.v1.BoardService/CreateStarterBoards"
+	BoardService_ListBoards_FullMethodName                = "/skelet.signals.v1.BoardService/ListBoards"
+	BoardService_GetBoard_FullMethodName                  = "/skelet.signals.v1.BoardService/GetBoard"
+	BoardService_CreateBoard_FullMethodName               = "/skelet.signals.v1.BoardService/CreateBoard"
+	BoardService_SaveBoard_FullMethodName                 = "/skelet.signals.v1.BoardService/SaveBoard"
+	BoardService_DeleteBoard_FullMethodName               = "/skelet.signals.v1.BoardService/DeleteBoard"
+	BoardService_CreateStarterBoards_FullMethodName       = "/skelet.signals.v1.BoardService/CreateStarterBoards"
+	BoardService_SetBoardShares_FullMethodName            = "/skelet.signals.v1.BoardService/SetBoardShares"
+	BoardService_TransferBoard_FullMethodName             = "/skelet.signals.v1.BoardService/TransferBoard"
+	BoardService_SetBoardFavourite_FullMethodName         = "/skelet.signals.v1.BoardService/SetBoardFavourite"
+	BoardService_SaveBoardDraft_FullMethodName            = "/skelet.signals.v1.BoardService/SaveBoardDraft"
+	BoardService_DiscardBoardDraft_FullMethodName         = "/skelet.signals.v1.BoardService/DiscardBoardDraft"
+	BoardService_RequestBoardAccess_FullMethodName        = "/skelet.signals.v1.BoardService/RequestBoardAccess"
+	BoardService_DismissBoardAccessRequest_FullMethodName = "/skelet.signals.v1.BoardService/DismissBoardAccessRequest"
 )
 
 // BoardServiceClient is the client API for BoardService service.
@@ -42,6 +49,20 @@ type BoardServiceClient interface {
 	DeleteBoard(ctx context.Context, in *DeleteBoardRequest, opts ...grpc.CallOption) (*DeleteBoardResponse, error)
 	// Adds the starter boards to a shop that has none, and leaves one that has any alone
 	CreateStarterBoards(ctx context.Context, in *CreateStarterBoardsRequest, opts ...grpc.CallOption) (*CreateStarterBoardsResponse, error)
+	// Replaces who the board is shared with - its owner's to change, and only once it's saved
+	SetBoardShares(ctx context.Context, in *SetBoardSharesRequest, opts ...grpc.CallOption) (*SetBoardSharesResponse, error)
+	// Hands the board to another admin, or with no admin makes it a shop board - for whoever owns it: its owner, a
+	// superuser, or boards.manage on a shop board. Core checks the new owner is an active admin before calling
+	TransferBoard(ctx context.Context, in *TransferBoardRequest, opts ...grpc.CallOption) (*TransferBoardResponse, error)
+	SetBoardFavourite(ctx context.Context, in *SetBoardFavouriteRequest, opts ...grpc.CallOption) (*SetBoardFavouriteResponse, error)
+	// Keeps the caller's unsaved edits between visits, until they save or discard them
+	SaveBoardDraft(ctx context.Context, in *SaveBoardDraftRequest, opts ...grpc.CallOption) (*SaveBoardDraftResponse, error)
+	DiscardBoardDraft(ctx context.Context, in *DiscardBoardDraftRequest, opts ...grpc.CallOption) (*DiscardBoardDraftResponse, error)
+	// Asks a board's owner for access. Answers the same whether or not the board exists or the caller has the access
+	// already, so it tells them nothing about a board they can't see
+	RequestBoardAccess(ctx context.Context, in *RequestBoardAccessRequest, opts ...grpc.CallOption) (*RequestBoardAccessResponse, error)
+	// The owner turning a request down - granting one is a share, which clears it
+	DismissBoardAccessRequest(ctx context.Context, in *DismissBoardAccessRequestRequest, opts ...grpc.CallOption) (*DismissBoardAccessRequestResponse, error)
 }
 
 type boardServiceClient struct {
@@ -112,6 +133,76 @@ func (c *boardServiceClient) CreateStarterBoards(ctx context.Context, in *Create
 	return out, nil
 }
 
+func (c *boardServiceClient) SetBoardShares(ctx context.Context, in *SetBoardSharesRequest, opts ...grpc.CallOption) (*SetBoardSharesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetBoardSharesResponse)
+	err := c.cc.Invoke(ctx, BoardService_SetBoardShares_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *boardServiceClient) TransferBoard(ctx context.Context, in *TransferBoardRequest, opts ...grpc.CallOption) (*TransferBoardResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TransferBoardResponse)
+	err := c.cc.Invoke(ctx, BoardService_TransferBoard_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *boardServiceClient) SetBoardFavourite(ctx context.Context, in *SetBoardFavouriteRequest, opts ...grpc.CallOption) (*SetBoardFavouriteResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetBoardFavouriteResponse)
+	err := c.cc.Invoke(ctx, BoardService_SetBoardFavourite_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *boardServiceClient) SaveBoardDraft(ctx context.Context, in *SaveBoardDraftRequest, opts ...grpc.CallOption) (*SaveBoardDraftResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SaveBoardDraftResponse)
+	err := c.cc.Invoke(ctx, BoardService_SaveBoardDraft_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *boardServiceClient) DiscardBoardDraft(ctx context.Context, in *DiscardBoardDraftRequest, opts ...grpc.CallOption) (*DiscardBoardDraftResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DiscardBoardDraftResponse)
+	err := c.cc.Invoke(ctx, BoardService_DiscardBoardDraft_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *boardServiceClient) RequestBoardAccess(ctx context.Context, in *RequestBoardAccessRequest, opts ...grpc.CallOption) (*RequestBoardAccessResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequestBoardAccessResponse)
+	err := c.cc.Invoke(ctx, BoardService_RequestBoardAccess_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *boardServiceClient) DismissBoardAccessRequest(ctx context.Context, in *DismissBoardAccessRequestRequest, opts ...grpc.CallOption) (*DismissBoardAccessRequestResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DismissBoardAccessRequestResponse)
+	err := c.cc.Invoke(ctx, BoardService_DismissBoardAccessRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BoardServiceServer is the server API for BoardService service.
 // All implementations must embed UnimplementedBoardServiceServer
 // for forward compatibility.
@@ -124,6 +215,20 @@ type BoardServiceServer interface {
 	DeleteBoard(context.Context, *DeleteBoardRequest) (*DeleteBoardResponse, error)
 	// Adds the starter boards to a shop that has none, and leaves one that has any alone
 	CreateStarterBoards(context.Context, *CreateStarterBoardsRequest) (*CreateStarterBoardsResponse, error)
+	// Replaces who the board is shared with - its owner's to change, and only once it's saved
+	SetBoardShares(context.Context, *SetBoardSharesRequest) (*SetBoardSharesResponse, error)
+	// Hands the board to another admin, or with no admin makes it a shop board - for whoever owns it: its owner, a
+	// superuser, or boards.manage on a shop board. Core checks the new owner is an active admin before calling
+	TransferBoard(context.Context, *TransferBoardRequest) (*TransferBoardResponse, error)
+	SetBoardFavourite(context.Context, *SetBoardFavouriteRequest) (*SetBoardFavouriteResponse, error)
+	// Keeps the caller's unsaved edits between visits, until they save or discard them
+	SaveBoardDraft(context.Context, *SaveBoardDraftRequest) (*SaveBoardDraftResponse, error)
+	DiscardBoardDraft(context.Context, *DiscardBoardDraftRequest) (*DiscardBoardDraftResponse, error)
+	// Asks a board's owner for access. Answers the same whether or not the board exists or the caller has the access
+	// already, so it tells them nothing about a board they can't see
+	RequestBoardAccess(context.Context, *RequestBoardAccessRequest) (*RequestBoardAccessResponse, error)
+	// The owner turning a request down - granting one is a share, which clears it
+	DismissBoardAccessRequest(context.Context, *DismissBoardAccessRequestRequest) (*DismissBoardAccessRequestResponse, error)
 	mustEmbedUnimplementedBoardServiceServer()
 }
 
@@ -151,6 +256,27 @@ func (UnimplementedBoardServiceServer) DeleteBoard(context.Context, *DeleteBoard
 }
 func (UnimplementedBoardServiceServer) CreateStarterBoards(context.Context, *CreateStarterBoardsRequest) (*CreateStarterBoardsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateStarterBoards not implemented")
+}
+func (UnimplementedBoardServiceServer) SetBoardShares(context.Context, *SetBoardSharesRequest) (*SetBoardSharesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetBoardShares not implemented")
+}
+func (UnimplementedBoardServiceServer) TransferBoard(context.Context, *TransferBoardRequest) (*TransferBoardResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method TransferBoard not implemented")
+}
+func (UnimplementedBoardServiceServer) SetBoardFavourite(context.Context, *SetBoardFavouriteRequest) (*SetBoardFavouriteResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetBoardFavourite not implemented")
+}
+func (UnimplementedBoardServiceServer) SaveBoardDraft(context.Context, *SaveBoardDraftRequest) (*SaveBoardDraftResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SaveBoardDraft not implemented")
+}
+func (UnimplementedBoardServiceServer) DiscardBoardDraft(context.Context, *DiscardBoardDraftRequest) (*DiscardBoardDraftResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DiscardBoardDraft not implemented")
+}
+func (UnimplementedBoardServiceServer) RequestBoardAccess(context.Context, *RequestBoardAccessRequest) (*RequestBoardAccessResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequestBoardAccess not implemented")
+}
+func (UnimplementedBoardServiceServer) DismissBoardAccessRequest(context.Context, *DismissBoardAccessRequestRequest) (*DismissBoardAccessRequestResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DismissBoardAccessRequest not implemented")
 }
 func (UnimplementedBoardServiceServer) mustEmbedUnimplementedBoardServiceServer() {}
 func (UnimplementedBoardServiceServer) testEmbeddedByValue()                      {}
@@ -281,6 +407,132 @@ func _BoardService_CreateStarterBoards_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BoardService_SetBoardShares_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetBoardSharesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BoardServiceServer).SetBoardShares(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BoardService_SetBoardShares_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BoardServiceServer).SetBoardShares(ctx, req.(*SetBoardSharesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BoardService_TransferBoard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TransferBoardRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BoardServiceServer).TransferBoard(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BoardService_TransferBoard_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BoardServiceServer).TransferBoard(ctx, req.(*TransferBoardRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BoardService_SetBoardFavourite_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetBoardFavouriteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BoardServiceServer).SetBoardFavourite(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BoardService_SetBoardFavourite_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BoardServiceServer).SetBoardFavourite(ctx, req.(*SetBoardFavouriteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BoardService_SaveBoardDraft_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveBoardDraftRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BoardServiceServer).SaveBoardDraft(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BoardService_SaveBoardDraft_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BoardServiceServer).SaveBoardDraft(ctx, req.(*SaveBoardDraftRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BoardService_DiscardBoardDraft_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DiscardBoardDraftRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BoardServiceServer).DiscardBoardDraft(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BoardService_DiscardBoardDraft_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BoardServiceServer).DiscardBoardDraft(ctx, req.(*DiscardBoardDraftRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BoardService_RequestBoardAccess_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequestBoardAccessRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BoardServiceServer).RequestBoardAccess(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BoardService_RequestBoardAccess_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BoardServiceServer).RequestBoardAccess(ctx, req.(*RequestBoardAccessRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BoardService_DismissBoardAccessRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DismissBoardAccessRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BoardServiceServer).DismissBoardAccessRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BoardService_DismissBoardAccessRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BoardServiceServer).DismissBoardAccessRequest(ctx, req.(*DismissBoardAccessRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BoardService_ServiceDesc is the grpc.ServiceDesc for BoardService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -311,6 +563,34 @@ var BoardService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateStarterBoards",
 			Handler:    _BoardService_CreateStarterBoards_Handler,
+		},
+		{
+			MethodName: "SetBoardShares",
+			Handler:    _BoardService_SetBoardShares_Handler,
+		},
+		{
+			MethodName: "TransferBoard",
+			Handler:    _BoardService_TransferBoard_Handler,
+		},
+		{
+			MethodName: "SetBoardFavourite",
+			Handler:    _BoardService_SetBoardFavourite_Handler,
+		},
+		{
+			MethodName: "SaveBoardDraft",
+			Handler:    _BoardService_SaveBoardDraft_Handler,
+		},
+		{
+			MethodName: "DiscardBoardDraft",
+			Handler:    _BoardService_DiscardBoardDraft_Handler,
+		},
+		{
+			MethodName: "RequestBoardAccess",
+			Handler:    _BoardService_RequestBoardAccess_Handler,
+		},
+		{
+			MethodName: "DismissBoardAccessRequest",
+			Handler:    _BoardService_DismissBoardAccessRequest_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

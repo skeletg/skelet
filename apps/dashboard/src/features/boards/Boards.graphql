@@ -23,23 +23,76 @@ fragment BoardReportFields on BoardReport {
   }
 }
 
-query Boards($channelId: ID!) {
-  boards(channelId: $channelId) {
+query Boards($channelId: ID!, $all: Boolean) {
+  boards(channelId: $channelId, all: $all) {
     id
     name
     updatedAt
     reportCount
+    access
+    accessRequestCount
+    favourite
+    draftUpdatedAt
+    owner {
+      id
+      name
+      removed
+    }
   }
 }
 
 query Board($channelId: ID!, $id: ID!) {
   board(channelId: $channelId, id: $id) {
+    ...BoardFull
+  }
+}
+
+fragment BoardFull on Board {
+  id
+  name
+  updatedAt
+  access
+  favourite
+  owner {
     id
     name
-    updatedAt
+    removed
+  }
+  reports {
+    ...BoardReportFields
+  }
+  shares {
+    adminId
+    roleId
+    name
+    level
+  }
+  draft {
+    name
     reports {
-      ...BoardReportFields
+      from
+      report {
+        ...BoardReportFields
+      }
     }
+    baseUpdatedAt
+    updatedAt
+  }
+  accessRequests {
+    adminId
+    name
+    level
+    requestedAt
+  }
+}
+
+query BoardShareTargets($channelId: ID!) {
+  boardShareTargets(channelId: $channelId) {
+    kind
+    id
+    name
+    seesBoards
+    seesData
   }
 }
 
@@ -51,12 +104,7 @@ mutation CreateBoard($channelId: ID!, $name: String!, $reports: [BoardReportInpu
 
 mutation SaveBoard($channelId: ID!, $id: ID!, $name: String!, $reports: [BoardReportInput!]!, $readAt: Time!) {
   saveBoard(channelId: $channelId, id: $id, name: $name, reports: $reports, readAt: $readAt) {
-    id
-    name
-    updatedAt
-    reports {
-      ...BoardReportFields
-    }
+    ...BoardFull
   }
 }
 
@@ -68,4 +116,34 @@ mutation CreateStarterBoards($channelId: ID!) {
   createStarterBoards(channelId: $channelId) {
     id
   }
+}
+
+mutation SetBoardShares($channelId: ID!, $id: ID!, $shares: [BoardShareInput!]!) {
+  setBoardShares(channelId: $channelId, id: $id, shares: $shares) {
+    ...BoardFull
+  }
+}
+
+mutation TransferBoard($channelId: ID!, $id: ID!, $ownerId: ID) {
+  transferBoard(channelId: $channelId, id: $id, ownerId: $ownerId)
+}
+
+mutation SetBoardFavourite($channelId: ID!, $id: ID!, $favourite: Boolean!) {
+  setBoardFavourite(channelId: $channelId, id: $id, favourite: $favourite)
+}
+
+mutation SaveBoardDraft($channelId: ID!, $id: ID!, $draft: BoardDraftInput!, $baseUpdatedAt: Time!) {
+  saveBoardDraft(channelId: $channelId, id: $id, draft: $draft, baseUpdatedAt: $baseUpdatedAt)
+}
+
+mutation DiscardBoardDraft($channelId: ID!, $id: ID!) {
+  discardBoardDraft(channelId: $channelId, id: $id)
+}
+
+mutation RequestBoardAccess($channelId: ID!, $id: ID!, $level: BoardShareLevel!) {
+  requestBoardAccess(channelId: $channelId, id: $id, level: $level)
+}
+
+mutation DismissBoardAccessRequest($channelId: ID!, $id: ID!, $adminId: ID!) {
+  dismissBoardAccessRequest(channelId: $channelId, id: $id, adminId: $adminId)
 }
