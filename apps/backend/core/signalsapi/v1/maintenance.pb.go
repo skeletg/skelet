@@ -170,6 +170,96 @@ func (*PruneLensResponse) Descriptor() ([]byte, []int) {
 	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{3}
 }
 
+type PruneAssistantConversationsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PruneAssistantConversationsRequest) Reset() {
+	*x = PruneAssistantConversationsRequest{}
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PruneAssistantConversationsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PruneAssistantConversationsRequest) ProtoMessage() {}
+
+func (x *PruneAssistantConversationsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PruneAssistantConversationsRequest.ProtoReflect.Descriptor instead.
+func (*PruneAssistantConversationsRequest) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{4}
+}
+
+type PruneAssistantConversationsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// whole conversations gone quiet
+	Pruned int64 `protobuf:"varint,1,opt,name=pruned,proto3" json:"pruned,omitempty"`
+	// old turns inside conversations still going
+	Turns         int64 `protobuf:"varint,2,opt,name=turns,proto3" json:"turns,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PruneAssistantConversationsResponse) Reset() {
+	*x = PruneAssistantConversationsResponse{}
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PruneAssistantConversationsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PruneAssistantConversationsResponse) ProtoMessage() {}
+
+func (x *PruneAssistantConversationsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PruneAssistantConversationsResponse.ProtoReflect.Descriptor instead.
+func (*PruneAssistantConversationsResponse) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *PruneAssistantConversationsResponse) GetPruned() int64 {
+	if x != nil {
+		return x.Pruned
+	}
+	return 0
+}
+
+func (x *PruneAssistantConversationsResponse) GetTurns() int64 {
+	if x != nil {
+		return x.Turns
+	}
+	return 0
+}
+
 type PruneSendLogRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -178,7 +268,7 @@ type PruneSendLogRequest struct {
 
 func (x *PruneSendLogRequest) Reset() {
 	*x = PruneSendLogRequest{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[4]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -190,7 +280,7 @@ func (x *PruneSendLogRequest) String() string {
 func (*PruneSendLogRequest) ProtoMessage() {}
 
 func (x *PruneSendLogRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[4]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -203,7 +293,7 @@ func (x *PruneSendLogRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PruneSendLogRequest.ProtoReflect.Descriptor instead.
 func (*PruneSendLogRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{4}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{6}
 }
 
 type PruneSendLogResponse struct {
@@ -214,7 +304,7 @@ type PruneSendLogResponse struct {
 
 func (x *PruneSendLogResponse) Reset() {
 	*x = PruneSendLogResponse{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[5]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -226,7 +316,7 @@ func (x *PruneSendLogResponse) String() string {
 func (*PruneSendLogResponse) ProtoMessage() {}
 
 func (x *PruneSendLogResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[5]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -239,7 +329,7 @@ func (x *PruneSendLogResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PruneSendLogResponse.ProtoReflect.Descriptor instead.
 func (*PruneSendLogResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{5}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{7}
 }
 
 type ComputeTraitsRequest struct {
@@ -250,7 +340,7 @@ type ComputeTraitsRequest struct {
 
 func (x *ComputeTraitsRequest) Reset() {
 	*x = ComputeTraitsRequest{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[6]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -262,7 +352,7 @@ func (x *ComputeTraitsRequest) String() string {
 func (*ComputeTraitsRequest) ProtoMessage() {}
 
 func (x *ComputeTraitsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[6]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -275,7 +365,7 @@ func (x *ComputeTraitsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ComputeTraitsRequest.ProtoReflect.Descriptor instead.
 func (*ComputeTraitsRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{6}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{8}
 }
 
 type ComputeTraitsResponse struct {
@@ -286,7 +376,7 @@ type ComputeTraitsResponse struct {
 
 func (x *ComputeTraitsResponse) Reset() {
 	*x = ComputeTraitsResponse{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[7]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -298,7 +388,7 @@ func (x *ComputeTraitsResponse) String() string {
 func (*ComputeTraitsResponse) ProtoMessage() {}
 
 func (x *ComputeTraitsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[7]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -311,7 +401,7 @@ func (x *ComputeTraitsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ComputeTraitsResponse.ProtoReflect.Descriptor instead.
 func (*ComputeTraitsResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{7}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{9}
 }
 
 type ForwardDestinationsRequest struct {
@@ -322,7 +412,7 @@ type ForwardDestinationsRequest struct {
 
 func (x *ForwardDestinationsRequest) Reset() {
 	*x = ForwardDestinationsRequest{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[8]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -334,7 +424,7 @@ func (x *ForwardDestinationsRequest) String() string {
 func (*ForwardDestinationsRequest) ProtoMessage() {}
 
 func (x *ForwardDestinationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[8]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -347,7 +437,7 @@ func (x *ForwardDestinationsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForwardDestinationsRequest.ProtoReflect.Descriptor instead.
 func (*ForwardDestinationsRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{8}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{10}
 }
 
 type ForwardDestinationsResponse struct {
@@ -358,7 +448,7 @@ type ForwardDestinationsResponse struct {
 
 func (x *ForwardDestinationsResponse) Reset() {
 	*x = ForwardDestinationsResponse{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[9]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -370,7 +460,7 @@ func (x *ForwardDestinationsResponse) String() string {
 func (*ForwardDestinationsResponse) ProtoMessage() {}
 
 func (x *ForwardDestinationsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[9]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -383,7 +473,7 @@ func (x *ForwardDestinationsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForwardDestinationsResponse.ProtoReflect.Descriptor instead.
 func (*ForwardDestinationsResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{9}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{11}
 }
 
 type GetRetentionActionRequest struct {
@@ -394,7 +484,7 @@ type GetRetentionActionRequest struct {
 
 func (x *GetRetentionActionRequest) Reset() {
 	*x = GetRetentionActionRequest{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[10]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -406,7 +496,7 @@ func (x *GetRetentionActionRequest) String() string {
 func (*GetRetentionActionRequest) ProtoMessage() {}
 
 func (x *GetRetentionActionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[10]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -419,7 +509,7 @@ func (x *GetRetentionActionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRetentionActionRequest.ProtoReflect.Descriptor instead.
 func (*GetRetentionActionRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{10}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{12}
 }
 
 type GetRetentionActionResponse struct {
@@ -431,7 +521,7 @@ type GetRetentionActionResponse struct {
 
 func (x *GetRetentionActionResponse) Reset() {
 	*x = GetRetentionActionResponse{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[11]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -443,7 +533,7 @@ func (x *GetRetentionActionResponse) String() string {
 func (*GetRetentionActionResponse) ProtoMessage() {}
 
 func (x *GetRetentionActionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[11]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -456,7 +546,7 @@ func (x *GetRetentionActionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRetentionActionResponse.ProtoReflect.Descriptor instead.
 func (*GetRetentionActionResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{11}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *GetRetentionActionResponse) GetArchive() bool {
@@ -474,7 +564,7 @@ type GetHealthRequest struct {
 
 func (x *GetHealthRequest) Reset() {
 	*x = GetHealthRequest{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[12]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -486,7 +576,7 @@ func (x *GetHealthRequest) String() string {
 func (*GetHealthRequest) ProtoMessage() {}
 
 func (x *GetHealthRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[12]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -499,7 +589,7 @@ func (x *GetHealthRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetHealthRequest.ProtoReflect.Descriptor instead.
 func (*GetHealthRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{12}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{14}
 }
 
 // Each probe carries its own failure text, so the page can say what broke rather than that something did
@@ -525,7 +615,7 @@ type GetHealthResponse struct {
 
 func (x *GetHealthResponse) Reset() {
 	*x = GetHealthResponse{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[13]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -537,7 +627,7 @@ func (x *GetHealthResponse) String() string {
 func (*GetHealthResponse) ProtoMessage() {}
 
 func (x *GetHealthResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[13]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -550,7 +640,7 @@ func (x *GetHealthResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetHealthResponse.ProtoReflect.Descriptor instead.
 func (*GetHealthResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{13}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{15}
 }
 
 // Deprecated: Marked as deprecated in skelet/signals/v1/maintenance.proto.
@@ -639,7 +729,7 @@ type QueueHealth struct {
 
 func (x *QueueHealth) Reset() {
 	*x = QueueHealth{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[14]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -651,7 +741,7 @@ func (x *QueueHealth) String() string {
 func (*QueueHealth) ProtoMessage() {}
 
 func (x *QueueHealth) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[14]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -664,7 +754,7 @@ func (x *QueueHealth) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueueHealth.ProtoReflect.Descriptor instead.
 func (*QueueHealth) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{14}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *QueueHealth) GetConfigured() bool {
@@ -720,7 +810,7 @@ type DestinationHealth struct {
 
 func (x *DestinationHealth) Reset() {
 	*x = DestinationHealth{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[15]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -732,7 +822,7 @@ func (x *DestinationHealth) String() string {
 func (*DestinationHealth) ProtoMessage() {}
 
 func (x *DestinationHealth) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[15]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -745,7 +835,7 @@ func (x *DestinationHealth) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DestinationHealth.ProtoReflect.Descriptor instead.
 func (*DestinationHealth) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{15}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *DestinationHealth) GetName() string {
@@ -783,7 +873,7 @@ type ListBrowseAbandonersRequest struct {
 
 func (x *ListBrowseAbandonersRequest) Reset() {
 	*x = ListBrowseAbandonersRequest{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[16]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -795,7 +885,7 @@ func (x *ListBrowseAbandonersRequest) String() string {
 func (*ListBrowseAbandonersRequest) ProtoMessage() {}
 
 func (x *ListBrowseAbandonersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[16]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -808,7 +898,7 @@ func (x *ListBrowseAbandonersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListBrowseAbandonersRequest.ProtoReflect.Descriptor instead.
 func (*ListBrowseAbandonersRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{16}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ListBrowseAbandonersRequest) GetIdleSince() *timestamppb.Timestamp {
@@ -854,7 +944,7 @@ type BrowseAbandoner struct {
 
 func (x *BrowseAbandoner) Reset() {
 	*x = BrowseAbandoner{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[17]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -866,7 +956,7 @@ func (x *BrowseAbandoner) String() string {
 func (*BrowseAbandoner) ProtoMessage() {}
 
 func (x *BrowseAbandoner) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[17]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -879,7 +969,7 @@ func (x *BrowseAbandoner) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BrowseAbandoner.ProtoReflect.Descriptor instead.
 func (*BrowseAbandoner) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{17}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *BrowseAbandoner) GetCustomerId() string {
@@ -940,7 +1030,7 @@ type ListBrowseAbandonersResponse struct {
 
 func (x *ListBrowseAbandonersResponse) Reset() {
 	*x = ListBrowseAbandonersResponse{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[18]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -952,7 +1042,7 @@ func (x *ListBrowseAbandonersResponse) String() string {
 func (*ListBrowseAbandonersResponse) ProtoMessage() {}
 
 func (x *ListBrowseAbandonersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[18]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -965,7 +1055,7 @@ func (x *ListBrowseAbandonersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListBrowseAbandonersResponse.ProtoReflect.Descriptor instead.
 func (*ListBrowseAbandonersResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{18}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ListBrowseAbandonersResponse) GetAbandoners() []*BrowseAbandoner {
@@ -986,7 +1076,7 @@ type MarkBrowseNotifiedRequest struct {
 
 func (x *MarkBrowseNotifiedRequest) Reset() {
 	*x = MarkBrowseNotifiedRequest{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[19]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -998,7 +1088,7 @@ func (x *MarkBrowseNotifiedRequest) String() string {
 func (*MarkBrowseNotifiedRequest) ProtoMessage() {}
 
 func (x *MarkBrowseNotifiedRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[19]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1011,7 +1101,7 @@ func (x *MarkBrowseNotifiedRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MarkBrowseNotifiedRequest.ProtoReflect.Descriptor instead.
 func (*MarkBrowseNotifiedRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{19}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *MarkBrowseNotifiedRequest) GetChannelId() string {
@@ -1043,7 +1133,7 @@ type MarkBrowseNotifiedResponse struct {
 
 func (x *MarkBrowseNotifiedResponse) Reset() {
 	*x = MarkBrowseNotifiedResponse{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[20]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1055,7 +1145,7 @@ func (x *MarkBrowseNotifiedResponse) String() string {
 func (*MarkBrowseNotifiedResponse) ProtoMessage() {}
 
 func (x *MarkBrowseNotifiedResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[20]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1068,7 +1158,7 @@ func (x *MarkBrowseNotifiedResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MarkBrowseNotifiedResponse.ProtoReflect.Descriptor instead.
 func (*MarkBrowseNotifiedResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{20}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{22}
 }
 
 type RefreshDynamicSegmentsRequest struct {
@@ -1079,7 +1169,7 @@ type RefreshDynamicSegmentsRequest struct {
 
 func (x *RefreshDynamicSegmentsRequest) Reset() {
 	*x = RefreshDynamicSegmentsRequest{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[21]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1091,7 +1181,7 @@ func (x *RefreshDynamicSegmentsRequest) String() string {
 func (*RefreshDynamicSegmentsRequest) ProtoMessage() {}
 
 func (x *RefreshDynamicSegmentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[21]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1104,7 +1194,7 @@ func (x *RefreshDynamicSegmentsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RefreshDynamicSegmentsRequest.ProtoReflect.Descriptor instead.
 func (*RefreshDynamicSegmentsRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{21}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{23}
 }
 
 type RefreshDynamicSegmentsResponse struct {
@@ -1119,7 +1209,7 @@ type RefreshDynamicSegmentsResponse struct {
 
 func (x *RefreshDynamicSegmentsResponse) Reset() {
 	*x = RefreshDynamicSegmentsResponse{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[22]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1131,7 +1221,7 @@ func (x *RefreshDynamicSegmentsResponse) String() string {
 func (*RefreshDynamicSegmentsResponse) ProtoMessage() {}
 
 func (x *RefreshDynamicSegmentsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[22]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1144,7 +1234,7 @@ func (x *RefreshDynamicSegmentsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RefreshDynamicSegmentsResponse.ProtoReflect.Descriptor instead.
 func (*RefreshDynamicSegmentsResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{22}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *RefreshDynamicSegmentsResponse) GetSegments() int32 {
@@ -1178,7 +1268,7 @@ type RefreshBehavioralSegmentsRequest struct {
 
 func (x *RefreshBehavioralSegmentsRequest) Reset() {
 	*x = RefreshBehavioralSegmentsRequest{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[23]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1190,7 +1280,7 @@ func (x *RefreshBehavioralSegmentsRequest) String() string {
 func (*RefreshBehavioralSegmentsRequest) ProtoMessage() {}
 
 func (x *RefreshBehavioralSegmentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[23]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1203,7 +1293,7 @@ func (x *RefreshBehavioralSegmentsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RefreshBehavioralSegmentsRequest.ProtoReflect.Descriptor instead.
 func (*RefreshBehavioralSegmentsRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{23}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *RefreshBehavioralSegmentsRequest) GetAutoSegmentAttributes() []*AffinityAttribute {
@@ -1224,7 +1314,7 @@ type SegmentEntry struct {
 
 func (x *SegmentEntry) Reset() {
 	*x = SegmentEntry{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[24]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1236,7 +1326,7 @@ func (x *SegmentEntry) String() string {
 func (*SegmentEntry) ProtoMessage() {}
 
 func (x *SegmentEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[24]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1249,7 +1339,7 @@ func (x *SegmentEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SegmentEntry.ProtoReflect.Descriptor instead.
 func (*SegmentEntry) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{24}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *SegmentEntry) GetChannelId() string {
@@ -1286,7 +1376,7 @@ type RefreshBehavioralSegmentsResponse struct {
 
 func (x *RefreshBehavioralSegmentsResponse) Reset() {
 	*x = RefreshBehavioralSegmentsResponse{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[25]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1298,7 +1388,7 @@ func (x *RefreshBehavioralSegmentsResponse) String() string {
 func (*RefreshBehavioralSegmentsResponse) ProtoMessage() {}
 
 func (x *RefreshBehavioralSegmentsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[25]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1311,7 +1401,7 @@ func (x *RefreshBehavioralSegmentsResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use RefreshBehavioralSegmentsResponse.ProtoReflect.Descriptor instead.
 func (*RefreshBehavioralSegmentsResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{25}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *RefreshBehavioralSegmentsResponse) GetRefreshed() int32 {
@@ -1340,7 +1430,7 @@ type GetCustomerTraitsRequest struct {
 
 func (x *GetCustomerTraitsRequest) Reset() {
 	*x = GetCustomerTraitsRequest{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[26]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1352,7 +1442,7 @@ func (x *GetCustomerTraitsRequest) String() string {
 func (*GetCustomerTraitsRequest) ProtoMessage() {}
 
 func (x *GetCustomerTraitsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[26]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1365,7 +1455,7 @@ func (x *GetCustomerTraitsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCustomerTraitsRequest.ProtoReflect.Descriptor instead.
 func (*GetCustomerTraitsRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{26}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *GetCustomerTraitsRequest) GetCustomerId() string {
@@ -1402,7 +1492,7 @@ type GetCustomerTraitsResponse struct {
 
 func (x *GetCustomerTraitsResponse) Reset() {
 	*x = GetCustomerTraitsResponse{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[27]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1414,7 +1504,7 @@ func (x *GetCustomerTraitsResponse) String() string {
 func (*GetCustomerTraitsResponse) ProtoMessage() {}
 
 func (x *GetCustomerTraitsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[27]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1427,7 +1517,7 @@ func (x *GetCustomerTraitsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCustomerTraitsResponse.ProtoReflect.Descriptor instead.
 func (*GetCustomerTraitsResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{27}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *GetCustomerTraitsResponse) GetComputed() bool {
@@ -1503,7 +1593,7 @@ type AdvanceFlowRunsRequest struct {
 
 func (x *AdvanceFlowRunsRequest) Reset() {
 	*x = AdvanceFlowRunsRequest{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[28]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1515,7 +1605,7 @@ func (x *AdvanceFlowRunsRequest) String() string {
 func (*AdvanceFlowRunsRequest) ProtoMessage() {}
 
 func (x *AdvanceFlowRunsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[28]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1528,7 +1618,7 @@ func (x *AdvanceFlowRunsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdvanceFlowRunsRequest.ProtoReflect.Descriptor instead.
 func (*AdvanceFlowRunsRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{28}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *AdvanceFlowRunsRequest) GetBudget() *durationpb.Duration {
@@ -1547,7 +1637,7 @@ type AdvanceFlowRunsResponse struct {
 
 func (x *AdvanceFlowRunsResponse) Reset() {
 	*x = AdvanceFlowRunsResponse{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[29]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1559,7 +1649,7 @@ func (x *AdvanceFlowRunsResponse) String() string {
 func (*AdvanceFlowRunsResponse) ProtoMessage() {}
 
 func (x *AdvanceFlowRunsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[29]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1572,7 +1662,7 @@ func (x *AdvanceFlowRunsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdvanceFlowRunsResponse.ProtoReflect.Descriptor instead.
 func (*AdvanceFlowRunsResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{29}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *AdvanceFlowRunsResponse) GetRunsAdvanced() int32 {
@@ -1592,7 +1682,7 @@ type ProcessDueCampaignsRequest struct {
 
 func (x *ProcessDueCampaignsRequest) Reset() {
 	*x = ProcessDueCampaignsRequest{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[30]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1604,7 +1694,7 @@ func (x *ProcessDueCampaignsRequest) String() string {
 func (*ProcessDueCampaignsRequest) ProtoMessage() {}
 
 func (x *ProcessDueCampaignsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[30]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1617,7 +1707,7 @@ func (x *ProcessDueCampaignsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProcessDueCampaignsRequest.ProtoReflect.Descriptor instead.
 func (*ProcessDueCampaignsRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{30}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *ProcessDueCampaignsRequest) GetBudget() *durationpb.Duration {
@@ -1637,7 +1727,7 @@ type ProcessDueCampaignsResponse struct {
 
 func (x *ProcessDueCampaignsResponse) Reset() {
 	*x = ProcessDueCampaignsResponse{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[31]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1649,7 +1739,7 @@ func (x *ProcessDueCampaignsResponse) String() string {
 func (*ProcessDueCampaignsResponse) ProtoMessage() {}
 
 func (x *ProcessDueCampaignsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[31]
+	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1662,7 +1752,7 @@ func (x *ProcessDueCampaignsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProcessDueCampaignsResponse.ProtoReflect.Descriptor instead.
 func (*ProcessDueCampaignsResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{31}
+	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *ProcessDueCampaignsResponse) GetRecipientsProcessed() int32 {
@@ -1680,7 +1770,11 @@ const file_skelet_signals_v1_maintenance_proto_rawDesc = "" +
 	"\x11PruneSpineRequest\"\x14\n" +
 	"\x12PruneSpineResponse\"\x12\n" +
 	"\x10PruneLensRequest\"\x13\n" +
-	"\x11PruneLensResponse\"\x15\n" +
+	"\x11PruneLensResponse\"$\n" +
+	"\"PruneAssistantConversationsRequest\"S\n" +
+	"#PruneAssistantConversationsResponse\x12\x16\n" +
+	"\x06pruned\x18\x01 \x01(\x03R\x06pruned\x12\x14\n" +
+	"\x05turns\x18\x02 \x01(\x03R\x05turns\"\x15\n" +
 	"\x13PruneSendLogRequest\"\x16\n" +
 	"\x14PruneSendLogResponse\"\x16\n" +
 	"\x14ComputeTraitsRequest\"\x17\n" +
@@ -1792,12 +1886,13 @@ const file_skelet_signals_v1_maintenance_proto_rawDesc = "" +
 	"\x1aProcessDueCampaignsRequest\x121\n" +
 	"\x06budget\x18\x01 \x01(\v2\x19.google.protobuf.DurationR\x06budget\"P\n" +
 	"\x1bProcessDueCampaignsResponse\x121\n" +
-	"\x14recipients_processed\x18\x01 \x01(\x05R\x13recipientsProcessed2\x91\f\n" +
+	"\x14recipients_processed\x18\x01 \x01(\x05R\x13recipientsProcessed2\xa0\r\n" +
 	"\x12MaintenanceService\x12Y\n" +
 	"\n" +
 	"PruneSpine\x12$.skelet.signals.v1.PruneSpineRequest\x1a%.skelet.signals.v1.PruneSpineResponse\x12V\n" +
 	"\tPruneLens\x12#.skelet.signals.v1.PruneLensRequest\x1a$.skelet.signals.v1.PruneLensResponse\x12_\n" +
-	"\fPruneSendLog\x12&.skelet.signals.v1.PruneSendLogRequest\x1a'.skelet.signals.v1.PruneSendLogResponse\x12b\n" +
+	"\fPruneSendLog\x12&.skelet.signals.v1.PruneSendLogRequest\x1a'.skelet.signals.v1.PruneSendLogResponse\x12\x8c\x01\n" +
+	"\x1bPruneAssistantConversations\x125.skelet.signals.v1.PruneAssistantConversationsRequest\x1a6.skelet.signals.v1.PruneAssistantConversationsResponse\x12b\n" +
 	"\rComputeTraits\x12'.skelet.signals.v1.ComputeTraitsRequest\x1a(.skelet.signals.v1.ComputeTraitsResponse\x12t\n" +
 	"\x13ForwardDestinations\x12-.skelet.signals.v1.ForwardDestinationsRequest\x1a..skelet.signals.v1.ForwardDestinationsResponse\x12q\n" +
 	"\x12GetRetentionAction\x12,.skelet.signals.v1.GetRetentionActionRequest\x1a-.skelet.signals.v1.GetRetentionActionResponse\x12V\n" +
@@ -1823,91 +1918,95 @@ func file_skelet_signals_v1_maintenance_proto_rawDescGZIP() []byte {
 	return file_skelet_signals_v1_maintenance_proto_rawDescData
 }
 
-var file_skelet_signals_v1_maintenance_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
+var file_skelet_signals_v1_maintenance_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
 var file_skelet_signals_v1_maintenance_proto_goTypes = []any{
-	(*PruneSpineRequest)(nil),                 // 0: skelet.signals.v1.PruneSpineRequest
-	(*PruneSpineResponse)(nil),                // 1: skelet.signals.v1.PruneSpineResponse
-	(*PruneLensRequest)(nil),                  // 2: skelet.signals.v1.PruneLensRequest
-	(*PruneLensResponse)(nil),                 // 3: skelet.signals.v1.PruneLensResponse
-	(*PruneSendLogRequest)(nil),               // 4: skelet.signals.v1.PruneSendLogRequest
-	(*PruneSendLogResponse)(nil),              // 5: skelet.signals.v1.PruneSendLogResponse
-	(*ComputeTraitsRequest)(nil),              // 6: skelet.signals.v1.ComputeTraitsRequest
-	(*ComputeTraitsResponse)(nil),             // 7: skelet.signals.v1.ComputeTraitsResponse
-	(*ForwardDestinationsRequest)(nil),        // 8: skelet.signals.v1.ForwardDestinationsRequest
-	(*ForwardDestinationsResponse)(nil),       // 9: skelet.signals.v1.ForwardDestinationsResponse
-	(*GetRetentionActionRequest)(nil),         // 10: skelet.signals.v1.GetRetentionActionRequest
-	(*GetRetentionActionResponse)(nil),        // 11: skelet.signals.v1.GetRetentionActionResponse
-	(*GetHealthRequest)(nil),                  // 12: skelet.signals.v1.GetHealthRequest
-	(*GetHealthResponse)(nil),                 // 13: skelet.signals.v1.GetHealthResponse
-	(*QueueHealth)(nil),                       // 14: skelet.signals.v1.QueueHealth
-	(*DestinationHealth)(nil),                 // 15: skelet.signals.v1.DestinationHealth
-	(*ListBrowseAbandonersRequest)(nil),       // 16: skelet.signals.v1.ListBrowseAbandonersRequest
-	(*BrowseAbandoner)(nil),                   // 17: skelet.signals.v1.BrowseAbandoner
-	(*ListBrowseAbandonersResponse)(nil),      // 18: skelet.signals.v1.ListBrowseAbandonersResponse
-	(*MarkBrowseNotifiedRequest)(nil),         // 19: skelet.signals.v1.MarkBrowseNotifiedRequest
-	(*MarkBrowseNotifiedResponse)(nil),        // 20: skelet.signals.v1.MarkBrowseNotifiedResponse
-	(*RefreshDynamicSegmentsRequest)(nil),     // 21: skelet.signals.v1.RefreshDynamicSegmentsRequest
-	(*RefreshDynamicSegmentsResponse)(nil),    // 22: skelet.signals.v1.RefreshDynamicSegmentsResponse
-	(*RefreshBehavioralSegmentsRequest)(nil),  // 23: skelet.signals.v1.RefreshBehavioralSegmentsRequest
-	(*SegmentEntry)(nil),                      // 24: skelet.signals.v1.SegmentEntry
-	(*RefreshBehavioralSegmentsResponse)(nil), // 25: skelet.signals.v1.RefreshBehavioralSegmentsResponse
-	(*GetCustomerTraitsRequest)(nil),          // 26: skelet.signals.v1.GetCustomerTraitsRequest
-	(*GetCustomerTraitsResponse)(nil),         // 27: skelet.signals.v1.GetCustomerTraitsResponse
-	(*AdvanceFlowRunsRequest)(nil),            // 28: skelet.signals.v1.AdvanceFlowRunsRequest
-	(*AdvanceFlowRunsResponse)(nil),           // 29: skelet.signals.v1.AdvanceFlowRunsResponse
-	(*ProcessDueCampaignsRequest)(nil),        // 30: skelet.signals.v1.ProcessDueCampaignsRequest
-	(*ProcessDueCampaignsResponse)(nil),       // 31: skelet.signals.v1.ProcessDueCampaignsResponse
-	nil,                                       // 32: skelet.signals.v1.GetCustomerTraitsResponse.AffinitiesEntry
-	(*timestamppb.Timestamp)(nil),             // 33: google.protobuf.Timestamp
-	(*AffinityAttribute)(nil),                 // 34: skelet.signals.v1.AffinityAttribute
-	(*durationpb.Duration)(nil),               // 35: google.protobuf.Duration
+	(*PruneSpineRequest)(nil),                   // 0: skelet.signals.v1.PruneSpineRequest
+	(*PruneSpineResponse)(nil),                  // 1: skelet.signals.v1.PruneSpineResponse
+	(*PruneLensRequest)(nil),                    // 2: skelet.signals.v1.PruneLensRequest
+	(*PruneLensResponse)(nil),                   // 3: skelet.signals.v1.PruneLensResponse
+	(*PruneAssistantConversationsRequest)(nil),  // 4: skelet.signals.v1.PruneAssistantConversationsRequest
+	(*PruneAssistantConversationsResponse)(nil), // 5: skelet.signals.v1.PruneAssistantConversationsResponse
+	(*PruneSendLogRequest)(nil),                 // 6: skelet.signals.v1.PruneSendLogRequest
+	(*PruneSendLogResponse)(nil),                // 7: skelet.signals.v1.PruneSendLogResponse
+	(*ComputeTraitsRequest)(nil),                // 8: skelet.signals.v1.ComputeTraitsRequest
+	(*ComputeTraitsResponse)(nil),               // 9: skelet.signals.v1.ComputeTraitsResponse
+	(*ForwardDestinationsRequest)(nil),          // 10: skelet.signals.v1.ForwardDestinationsRequest
+	(*ForwardDestinationsResponse)(nil),         // 11: skelet.signals.v1.ForwardDestinationsResponse
+	(*GetRetentionActionRequest)(nil),           // 12: skelet.signals.v1.GetRetentionActionRequest
+	(*GetRetentionActionResponse)(nil),          // 13: skelet.signals.v1.GetRetentionActionResponse
+	(*GetHealthRequest)(nil),                    // 14: skelet.signals.v1.GetHealthRequest
+	(*GetHealthResponse)(nil),                   // 15: skelet.signals.v1.GetHealthResponse
+	(*QueueHealth)(nil),                         // 16: skelet.signals.v1.QueueHealth
+	(*DestinationHealth)(nil),                   // 17: skelet.signals.v1.DestinationHealth
+	(*ListBrowseAbandonersRequest)(nil),         // 18: skelet.signals.v1.ListBrowseAbandonersRequest
+	(*BrowseAbandoner)(nil),                     // 19: skelet.signals.v1.BrowseAbandoner
+	(*ListBrowseAbandonersResponse)(nil),        // 20: skelet.signals.v1.ListBrowseAbandonersResponse
+	(*MarkBrowseNotifiedRequest)(nil),           // 21: skelet.signals.v1.MarkBrowseNotifiedRequest
+	(*MarkBrowseNotifiedResponse)(nil),          // 22: skelet.signals.v1.MarkBrowseNotifiedResponse
+	(*RefreshDynamicSegmentsRequest)(nil),       // 23: skelet.signals.v1.RefreshDynamicSegmentsRequest
+	(*RefreshDynamicSegmentsResponse)(nil),      // 24: skelet.signals.v1.RefreshDynamicSegmentsResponse
+	(*RefreshBehavioralSegmentsRequest)(nil),    // 25: skelet.signals.v1.RefreshBehavioralSegmentsRequest
+	(*SegmentEntry)(nil),                        // 26: skelet.signals.v1.SegmentEntry
+	(*RefreshBehavioralSegmentsResponse)(nil),   // 27: skelet.signals.v1.RefreshBehavioralSegmentsResponse
+	(*GetCustomerTraitsRequest)(nil),            // 28: skelet.signals.v1.GetCustomerTraitsRequest
+	(*GetCustomerTraitsResponse)(nil),           // 29: skelet.signals.v1.GetCustomerTraitsResponse
+	(*AdvanceFlowRunsRequest)(nil),              // 30: skelet.signals.v1.AdvanceFlowRunsRequest
+	(*AdvanceFlowRunsResponse)(nil),             // 31: skelet.signals.v1.AdvanceFlowRunsResponse
+	(*ProcessDueCampaignsRequest)(nil),          // 32: skelet.signals.v1.ProcessDueCampaignsRequest
+	(*ProcessDueCampaignsResponse)(nil),         // 33: skelet.signals.v1.ProcessDueCampaignsResponse
+	nil,                                         // 34: skelet.signals.v1.GetCustomerTraitsResponse.AffinitiesEntry
+	(*timestamppb.Timestamp)(nil),               // 35: google.protobuf.Timestamp
+	(*AffinityAttribute)(nil),                   // 36: skelet.signals.v1.AffinityAttribute
+	(*durationpb.Duration)(nil),                 // 37: google.protobuf.Duration
 }
 var file_skelet_signals_v1_maintenance_proto_depIdxs = []int32{
-	33, // 0: skelet.signals.v1.GetHealthResponse.spine_oldest:type_name -> google.protobuf.Timestamp
-	33, // 1: skelet.signals.v1.GetHealthResponse.spine_newest:type_name -> google.protobuf.Timestamp
-	14, // 2: skelet.signals.v1.GetHealthResponse.queue:type_name -> skelet.signals.v1.QueueHealth
-	15, // 3: skelet.signals.v1.GetHealthResponse.destinations:type_name -> skelet.signals.v1.DestinationHealth
-	33, // 4: skelet.signals.v1.DestinationHealth.last_forwarded_at:type_name -> google.protobuf.Timestamp
-	33, // 5: skelet.signals.v1.ListBrowseAbandonersRequest.idle_since:type_name -> google.protobuf.Timestamp
-	33, // 6: skelet.signals.v1.ListBrowseAbandonersRequest.max_age:type_name -> google.protobuf.Timestamp
-	33, // 7: skelet.signals.v1.BrowseAbandoner.last_browse_at:type_name -> google.protobuf.Timestamp
-	17, // 8: skelet.signals.v1.ListBrowseAbandonersResponse.abandoners:type_name -> skelet.signals.v1.BrowseAbandoner
-	33, // 9: skelet.signals.v1.MarkBrowseNotifiedRequest.last_browse_at:type_name -> google.protobuf.Timestamp
-	34, // 10: skelet.signals.v1.RefreshBehavioralSegmentsRequest.auto_segment_attributes:type_name -> skelet.signals.v1.AffinityAttribute
-	24, // 11: skelet.signals.v1.RefreshBehavioralSegmentsResponse.entered:type_name -> skelet.signals.v1.SegmentEntry
-	32, // 12: skelet.signals.v1.GetCustomerTraitsResponse.affinities:type_name -> skelet.signals.v1.GetCustomerTraitsResponse.AffinitiesEntry
-	35, // 13: skelet.signals.v1.AdvanceFlowRunsRequest.budget:type_name -> google.protobuf.Duration
-	35, // 14: skelet.signals.v1.ProcessDueCampaignsRequest.budget:type_name -> google.protobuf.Duration
+	35, // 0: skelet.signals.v1.GetHealthResponse.spine_oldest:type_name -> google.protobuf.Timestamp
+	35, // 1: skelet.signals.v1.GetHealthResponse.spine_newest:type_name -> google.protobuf.Timestamp
+	16, // 2: skelet.signals.v1.GetHealthResponse.queue:type_name -> skelet.signals.v1.QueueHealth
+	17, // 3: skelet.signals.v1.GetHealthResponse.destinations:type_name -> skelet.signals.v1.DestinationHealth
+	35, // 4: skelet.signals.v1.DestinationHealth.last_forwarded_at:type_name -> google.protobuf.Timestamp
+	35, // 5: skelet.signals.v1.ListBrowseAbandonersRequest.idle_since:type_name -> google.protobuf.Timestamp
+	35, // 6: skelet.signals.v1.ListBrowseAbandonersRequest.max_age:type_name -> google.protobuf.Timestamp
+	35, // 7: skelet.signals.v1.BrowseAbandoner.last_browse_at:type_name -> google.protobuf.Timestamp
+	19, // 8: skelet.signals.v1.ListBrowseAbandonersResponse.abandoners:type_name -> skelet.signals.v1.BrowseAbandoner
+	35, // 9: skelet.signals.v1.MarkBrowseNotifiedRequest.last_browse_at:type_name -> google.protobuf.Timestamp
+	36, // 10: skelet.signals.v1.RefreshBehavioralSegmentsRequest.auto_segment_attributes:type_name -> skelet.signals.v1.AffinityAttribute
+	26, // 11: skelet.signals.v1.RefreshBehavioralSegmentsResponse.entered:type_name -> skelet.signals.v1.SegmentEntry
+	34, // 12: skelet.signals.v1.GetCustomerTraitsResponse.affinities:type_name -> skelet.signals.v1.GetCustomerTraitsResponse.AffinitiesEntry
+	37, // 13: skelet.signals.v1.AdvanceFlowRunsRequest.budget:type_name -> google.protobuf.Duration
+	37, // 14: skelet.signals.v1.ProcessDueCampaignsRequest.budget:type_name -> google.protobuf.Duration
 	0,  // 15: skelet.signals.v1.MaintenanceService.PruneSpine:input_type -> skelet.signals.v1.PruneSpineRequest
 	2,  // 16: skelet.signals.v1.MaintenanceService.PruneLens:input_type -> skelet.signals.v1.PruneLensRequest
-	4,  // 17: skelet.signals.v1.MaintenanceService.PruneSendLog:input_type -> skelet.signals.v1.PruneSendLogRequest
-	6,  // 18: skelet.signals.v1.MaintenanceService.ComputeTraits:input_type -> skelet.signals.v1.ComputeTraitsRequest
-	8,  // 19: skelet.signals.v1.MaintenanceService.ForwardDestinations:input_type -> skelet.signals.v1.ForwardDestinationsRequest
-	10, // 20: skelet.signals.v1.MaintenanceService.GetRetentionAction:input_type -> skelet.signals.v1.GetRetentionActionRequest
-	12, // 21: skelet.signals.v1.MaintenanceService.GetHealth:input_type -> skelet.signals.v1.GetHealthRequest
-	16, // 22: skelet.signals.v1.MaintenanceService.ListBrowseAbandoners:input_type -> skelet.signals.v1.ListBrowseAbandonersRequest
-	19, // 23: skelet.signals.v1.MaintenanceService.MarkBrowseNotified:input_type -> skelet.signals.v1.MarkBrowseNotifiedRequest
-	21, // 24: skelet.signals.v1.MaintenanceService.RefreshDynamicSegments:input_type -> skelet.signals.v1.RefreshDynamicSegmentsRequest
-	23, // 25: skelet.signals.v1.MaintenanceService.RefreshBehavioralSegments:input_type -> skelet.signals.v1.RefreshBehavioralSegmentsRequest
-	26, // 26: skelet.signals.v1.MaintenanceService.GetCustomerTraits:input_type -> skelet.signals.v1.GetCustomerTraitsRequest
-	28, // 27: skelet.signals.v1.MaintenanceService.AdvanceFlowRuns:input_type -> skelet.signals.v1.AdvanceFlowRunsRequest
-	30, // 28: skelet.signals.v1.MaintenanceService.ProcessDueCampaigns:input_type -> skelet.signals.v1.ProcessDueCampaignsRequest
-	1,  // 29: skelet.signals.v1.MaintenanceService.PruneSpine:output_type -> skelet.signals.v1.PruneSpineResponse
-	3,  // 30: skelet.signals.v1.MaintenanceService.PruneLens:output_type -> skelet.signals.v1.PruneLensResponse
-	5,  // 31: skelet.signals.v1.MaintenanceService.PruneSendLog:output_type -> skelet.signals.v1.PruneSendLogResponse
-	7,  // 32: skelet.signals.v1.MaintenanceService.ComputeTraits:output_type -> skelet.signals.v1.ComputeTraitsResponse
-	9,  // 33: skelet.signals.v1.MaintenanceService.ForwardDestinations:output_type -> skelet.signals.v1.ForwardDestinationsResponse
-	11, // 34: skelet.signals.v1.MaintenanceService.GetRetentionAction:output_type -> skelet.signals.v1.GetRetentionActionResponse
-	13, // 35: skelet.signals.v1.MaintenanceService.GetHealth:output_type -> skelet.signals.v1.GetHealthResponse
-	18, // 36: skelet.signals.v1.MaintenanceService.ListBrowseAbandoners:output_type -> skelet.signals.v1.ListBrowseAbandonersResponse
-	20, // 37: skelet.signals.v1.MaintenanceService.MarkBrowseNotified:output_type -> skelet.signals.v1.MarkBrowseNotifiedResponse
-	22, // 38: skelet.signals.v1.MaintenanceService.RefreshDynamicSegments:output_type -> skelet.signals.v1.RefreshDynamicSegmentsResponse
-	25, // 39: skelet.signals.v1.MaintenanceService.RefreshBehavioralSegments:output_type -> skelet.signals.v1.RefreshBehavioralSegmentsResponse
-	27, // 40: skelet.signals.v1.MaintenanceService.GetCustomerTraits:output_type -> skelet.signals.v1.GetCustomerTraitsResponse
-	29, // 41: skelet.signals.v1.MaintenanceService.AdvanceFlowRuns:output_type -> skelet.signals.v1.AdvanceFlowRunsResponse
-	31, // 42: skelet.signals.v1.MaintenanceService.ProcessDueCampaigns:output_type -> skelet.signals.v1.ProcessDueCampaignsResponse
-	29, // [29:43] is the sub-list for method output_type
-	15, // [15:29] is the sub-list for method input_type
+	6,  // 17: skelet.signals.v1.MaintenanceService.PruneSendLog:input_type -> skelet.signals.v1.PruneSendLogRequest
+	4,  // 18: skelet.signals.v1.MaintenanceService.PruneAssistantConversations:input_type -> skelet.signals.v1.PruneAssistantConversationsRequest
+	8,  // 19: skelet.signals.v1.MaintenanceService.ComputeTraits:input_type -> skelet.signals.v1.ComputeTraitsRequest
+	10, // 20: skelet.signals.v1.MaintenanceService.ForwardDestinations:input_type -> skelet.signals.v1.ForwardDestinationsRequest
+	12, // 21: skelet.signals.v1.MaintenanceService.GetRetentionAction:input_type -> skelet.signals.v1.GetRetentionActionRequest
+	14, // 22: skelet.signals.v1.MaintenanceService.GetHealth:input_type -> skelet.signals.v1.GetHealthRequest
+	18, // 23: skelet.signals.v1.MaintenanceService.ListBrowseAbandoners:input_type -> skelet.signals.v1.ListBrowseAbandonersRequest
+	21, // 24: skelet.signals.v1.MaintenanceService.MarkBrowseNotified:input_type -> skelet.signals.v1.MarkBrowseNotifiedRequest
+	23, // 25: skelet.signals.v1.MaintenanceService.RefreshDynamicSegments:input_type -> skelet.signals.v1.RefreshDynamicSegmentsRequest
+	25, // 26: skelet.signals.v1.MaintenanceService.RefreshBehavioralSegments:input_type -> skelet.signals.v1.RefreshBehavioralSegmentsRequest
+	28, // 27: skelet.signals.v1.MaintenanceService.GetCustomerTraits:input_type -> skelet.signals.v1.GetCustomerTraitsRequest
+	30, // 28: skelet.signals.v1.MaintenanceService.AdvanceFlowRuns:input_type -> skelet.signals.v1.AdvanceFlowRunsRequest
+	32, // 29: skelet.signals.v1.MaintenanceService.ProcessDueCampaigns:input_type -> skelet.signals.v1.ProcessDueCampaignsRequest
+	1,  // 30: skelet.signals.v1.MaintenanceService.PruneSpine:output_type -> skelet.signals.v1.PruneSpineResponse
+	3,  // 31: skelet.signals.v1.MaintenanceService.PruneLens:output_type -> skelet.signals.v1.PruneLensResponse
+	7,  // 32: skelet.signals.v1.MaintenanceService.PruneSendLog:output_type -> skelet.signals.v1.PruneSendLogResponse
+	5,  // 33: skelet.signals.v1.MaintenanceService.PruneAssistantConversations:output_type -> skelet.signals.v1.PruneAssistantConversationsResponse
+	9,  // 34: skelet.signals.v1.MaintenanceService.ComputeTraits:output_type -> skelet.signals.v1.ComputeTraitsResponse
+	11, // 35: skelet.signals.v1.MaintenanceService.ForwardDestinations:output_type -> skelet.signals.v1.ForwardDestinationsResponse
+	13, // 36: skelet.signals.v1.MaintenanceService.GetRetentionAction:output_type -> skelet.signals.v1.GetRetentionActionResponse
+	15, // 37: skelet.signals.v1.MaintenanceService.GetHealth:output_type -> skelet.signals.v1.GetHealthResponse
+	20, // 38: skelet.signals.v1.MaintenanceService.ListBrowseAbandoners:output_type -> skelet.signals.v1.ListBrowseAbandonersResponse
+	22, // 39: skelet.signals.v1.MaintenanceService.MarkBrowseNotified:output_type -> skelet.signals.v1.MarkBrowseNotifiedResponse
+	24, // 40: skelet.signals.v1.MaintenanceService.RefreshDynamicSegments:output_type -> skelet.signals.v1.RefreshDynamicSegmentsResponse
+	27, // 41: skelet.signals.v1.MaintenanceService.RefreshBehavioralSegments:output_type -> skelet.signals.v1.RefreshBehavioralSegmentsResponse
+	29, // 42: skelet.signals.v1.MaintenanceService.GetCustomerTraits:output_type -> skelet.signals.v1.GetCustomerTraitsResponse
+	31, // 43: skelet.signals.v1.MaintenanceService.AdvanceFlowRuns:output_type -> skelet.signals.v1.AdvanceFlowRunsResponse
+	33, // 44: skelet.signals.v1.MaintenanceService.ProcessDueCampaigns:output_type -> skelet.signals.v1.ProcessDueCampaignsResponse
+	30, // [30:45] is the sub-list for method output_type
+	15, // [15:30] is the sub-list for method input_type
 	15, // [15:15] is the sub-list for extension type_name
 	15, // [15:15] is the sub-list for extension extendee
 	0,  // [0:15] is the sub-list for field type_name
@@ -1919,15 +2018,15 @@ func file_skelet_signals_v1_maintenance_proto_init() {
 		return
 	}
 	file_skelet_signals_v1_synapse_proto_init()
-	file_skelet_signals_v1_maintenance_proto_msgTypes[13].OneofWrappers = []any{}
 	file_skelet_signals_v1_maintenance_proto_msgTypes[15].OneofWrappers = []any{}
+	file_skelet_signals_v1_maintenance_proto_msgTypes[17].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_skelet_signals_v1_maintenance_proto_rawDesc), len(file_skelet_signals_v1_maintenance_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   33,
+			NumMessages:   35,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

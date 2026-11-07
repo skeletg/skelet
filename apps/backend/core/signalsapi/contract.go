@@ -16,6 +16,7 @@ var Slugs = []string{
 	"experiments.view",
 	"experiments.manage",
 	"lens.view",
+	"assistant.view",
 	"settings.manage", // the event-destination screens
 	"promotions.view",
 	"promotions.manage", // segments are administered under promotions

@@ -22,20 +22,21 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	MaintenanceService_PruneSpine_FullMethodName                = "/skelet.signals.v1.MaintenanceService/PruneSpine"
-	MaintenanceService_PruneLens_FullMethodName                 = "/skelet.signals.v1.MaintenanceService/PruneLens"
-	MaintenanceService_PruneSendLog_FullMethodName              = "/skelet.signals.v1.MaintenanceService/PruneSendLog"
-	MaintenanceService_ComputeTraits_FullMethodName             = "/skelet.signals.v1.MaintenanceService/ComputeTraits"
-	MaintenanceService_ForwardDestinations_FullMethodName       = "/skelet.signals.v1.MaintenanceService/ForwardDestinations"
-	MaintenanceService_GetRetentionAction_FullMethodName        = "/skelet.signals.v1.MaintenanceService/GetRetentionAction"
-	MaintenanceService_GetHealth_FullMethodName                 = "/skelet.signals.v1.MaintenanceService/GetHealth"
-	MaintenanceService_ListBrowseAbandoners_FullMethodName      = "/skelet.signals.v1.MaintenanceService/ListBrowseAbandoners"
-	MaintenanceService_MarkBrowseNotified_FullMethodName        = "/skelet.signals.v1.MaintenanceService/MarkBrowseNotified"
-	MaintenanceService_RefreshDynamicSegments_FullMethodName    = "/skelet.signals.v1.MaintenanceService/RefreshDynamicSegments"
-	MaintenanceService_RefreshBehavioralSegments_FullMethodName = "/skelet.signals.v1.MaintenanceService/RefreshBehavioralSegments"
-	MaintenanceService_GetCustomerTraits_FullMethodName         = "/skelet.signals.v1.MaintenanceService/GetCustomerTraits"
-	MaintenanceService_AdvanceFlowRuns_FullMethodName           = "/skelet.signals.v1.MaintenanceService/AdvanceFlowRuns"
-	MaintenanceService_ProcessDueCampaigns_FullMethodName       = "/skelet.signals.v1.MaintenanceService/ProcessDueCampaigns"
+	MaintenanceService_PruneSpine_FullMethodName                  = "/skelet.signals.v1.MaintenanceService/PruneSpine"
+	MaintenanceService_PruneLens_FullMethodName                   = "/skelet.signals.v1.MaintenanceService/PruneLens"
+	MaintenanceService_PruneSendLog_FullMethodName                = "/skelet.signals.v1.MaintenanceService/PruneSendLog"
+	MaintenanceService_PruneAssistantConversations_FullMethodName = "/skelet.signals.v1.MaintenanceService/PruneAssistantConversations"
+	MaintenanceService_ComputeTraits_FullMethodName               = "/skelet.signals.v1.MaintenanceService/ComputeTraits"
+	MaintenanceService_ForwardDestinations_FullMethodName         = "/skelet.signals.v1.MaintenanceService/ForwardDestinations"
+	MaintenanceService_GetRetentionAction_FullMethodName          = "/skelet.signals.v1.MaintenanceService/GetRetentionAction"
+	MaintenanceService_GetHealth_FullMethodName                   = "/skelet.signals.v1.MaintenanceService/GetHealth"
+	MaintenanceService_ListBrowseAbandoners_FullMethodName        = "/skelet.signals.v1.MaintenanceService/ListBrowseAbandoners"
+	MaintenanceService_MarkBrowseNotified_FullMethodName          = "/skelet.signals.v1.MaintenanceService/MarkBrowseNotified"
+	MaintenanceService_RefreshDynamicSegments_FullMethodName      = "/skelet.signals.v1.MaintenanceService/RefreshDynamicSegments"
+	MaintenanceService_RefreshBehavioralSegments_FullMethodName   = "/skelet.signals.v1.MaintenanceService/RefreshBehavioralSegments"
+	MaintenanceService_GetCustomerTraits_FullMethodName           = "/skelet.signals.v1.MaintenanceService/GetCustomerTraits"
+	MaintenanceService_AdvanceFlowRuns_FullMethodName             = "/skelet.signals.v1.MaintenanceService/AdvanceFlowRuns"
+	MaintenanceService_ProcessDueCampaigns_FullMethodName         = "/skelet.signals.v1.MaintenanceService/ProcessDueCampaigns"
 )
 
 // MaintenanceServiceClient is the client API for MaintenanceService service.
@@ -49,6 +50,9 @@ type MaintenanceServiceClient interface {
 	// The send log: pre-creates the upcoming month partitions, then drops whole months past
 	// send_log_retention_months - archived first under retention_action=archive
 	PruneSendLog(ctx context.Context, in *PruneSendLogRequest, opts ...grpc.CallOption) (*PruneSendLogResponse, error)
+	// Assistant conversations whose last turn is past signals/assistant/retention_days - held to the spine's retention when
+	// that's shorter - and the turns that old inside conversations still going
+	PruneAssistantConversations(ctx context.Context, in *PruneAssistantConversationsRequest, opts ...grpc.CallOption) (*PruneAssistantConversationsResponse, error)
 	// Per-customer RFM, lifecycle and engagement, across every channel the roster covers
 	ComputeTraits(ctx context.Context, in *ComputeTraitsRequest, opts ...grpc.CallOption) (*ComputeTraitsResponse, error)
 	// Drains the spine to the configured external destinations, resuming from durable cursors
@@ -109,6 +113,16 @@ func (c *maintenanceServiceClient) PruneSendLog(ctx context.Context, in *PruneSe
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(PruneSendLogResponse)
 	err := c.cc.Invoke(ctx, MaintenanceService_PruneSendLog_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *maintenanceServiceClient) PruneAssistantConversations(ctx context.Context, in *PruneAssistantConversationsRequest, opts ...grpc.CallOption) (*PruneAssistantConversationsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PruneAssistantConversationsResponse)
+	err := c.cc.Invoke(ctx, MaintenanceService_PruneAssistantConversations_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -236,6 +250,9 @@ type MaintenanceServiceServer interface {
 	// The send log: pre-creates the upcoming month partitions, then drops whole months past
 	// send_log_retention_months - archived first under retention_action=archive
 	PruneSendLog(context.Context, *PruneSendLogRequest) (*PruneSendLogResponse, error)
+	// Assistant conversations whose last turn is past signals/assistant/retention_days - held to the spine's retention when
+	// that's shorter - and the turns that old inside conversations still going
+	PruneAssistantConversations(context.Context, *PruneAssistantConversationsRequest) (*PruneAssistantConversationsResponse, error)
 	// Per-customer RFM, lifecycle and engagement, across every channel the roster covers
 	ComputeTraits(context.Context, *ComputeTraitsRequest) (*ComputeTraitsResponse, error)
 	// Drains the spine to the configured external destinations, resuming from durable cursors
@@ -280,6 +297,9 @@ func (UnimplementedMaintenanceServiceServer) PruneLens(context.Context, *PruneLe
 }
 func (UnimplementedMaintenanceServiceServer) PruneSendLog(context.Context, *PruneSendLogRequest) (*PruneSendLogResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method PruneSendLog not implemented")
+}
+func (UnimplementedMaintenanceServiceServer) PruneAssistantConversations(context.Context, *PruneAssistantConversationsRequest) (*PruneAssistantConversationsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PruneAssistantConversations not implemented")
 }
 func (UnimplementedMaintenanceServiceServer) ComputeTraits(context.Context, *ComputeTraitsRequest) (*ComputeTraitsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ComputeTraits not implemented")
@@ -385,6 +405,24 @@ func _MaintenanceService_PruneSendLog_Handler(srv interface{}, ctx context.Conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(MaintenanceServiceServer).PruneSendLog(ctx, req.(*PruneSendLogRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MaintenanceService_PruneAssistantConversations_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PruneAssistantConversationsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MaintenanceServiceServer).PruneAssistantConversations(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MaintenanceService_PruneAssistantConversations_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MaintenanceServiceServer).PruneAssistantConversations(ctx, req.(*PruneAssistantConversationsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -605,6 +643,10 @@ var MaintenanceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PruneSendLog",
 			Handler:    _MaintenanceService_PruneSendLog_Handler,
+		},
+		{
+			MethodName: "PruneAssistantConversations",
+			Handler:    _MaintenanceService_PruneAssistantConversations_Handler,
 		},
 		{
 			MethodName: "ComputeTraits",
