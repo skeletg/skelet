@@ -289,8 +289,7 @@ func TestCheckoutChoicesAreShippingAndPaymentInfo(t *testing.T) {
 	svc.Subscribe(bus, Readers{Orders: noOrders{}, Channels: oneChannel{"EUR"}})
 	lines := []cart.CartLine{{ProductSku: "SKU-1", ProductName: "Mug", UnitPrice: 1500, Quantity: 2}, {ProductSku: "SKU-2", UnitPrice: 990, Quantity: 1}}
 	ctx := events.WithEmittedAt(context.Background(), time.Unix(1700000000, 0))
-	_ = bus.DispatchAsyncNow(ctx, &cart.CheckoutChosen{ChannelID: ch, CartID: uuid.New(), Step: cart.StepShipping, Choice: "dhl:express", Lines: lines})
-	_ = bus.DispatchAsyncNow(ctx, &cart.CheckoutChosen{ChannelID: ch, CartID: uuid.New(), Step: cart.StepPayment, Choice: "cod", Lines: lines})
+	_ = bus.DispatchAsyncNow(ctx, &cart.CheckoutChosen{ChannelID: ch, CartID: uuid.New(), Shipping: "dhl:express", Payment: "cod", Lines: lines})
 	got := map[string]*Ecommerce{}
 	for _, ev := range fs.events {
 		got[ev.Name] = ev.Ecommerce

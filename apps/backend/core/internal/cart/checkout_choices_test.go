@@ -32,8 +32,8 @@ func TestACheckoutChoiceIsReportedOnlyWhenItChanges(t *testing.T) {
 
 	select {
 	case e := <-got:
-		if e.Step != StepShipping || e.Choice != after.shipping {
-			t.Errorf("got %+v, want the new shipping choice", e)
+		if e.Shipping != after.shipping || e.Payment != "" {
+			t.Errorf("got %+v, want only the new shipping choice", e)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("no shipping choice reported")

@@ -676,7 +676,7 @@ func TestRefundsWishlistsCheckoutChoicesAndLeadsLand(t *testing.T) {
 	_ = tr.onWishlistAdd(ctx, &wishlist.ItemAdded{CustomerID: cid, ProductID: uuid.New(), ChannelID: ch, Shopper: consented})
 	_ = tr.onWishlistRemove(ctx, &wishlist.ItemRemoved{CustomerID: cid, ProductID: uuid.New(), ChannelID: ch, Shopper: refused})
 	_ = tr.onWishlistAdd(ctx, &wishlist.ItemAdded{CustomerID: cid, ProductID: uuid.New()}) // not through a shop
-	_ = tr.onCheckoutChosen(ctx, &cart.CheckoutChosen{CartID: cartID, ChannelID: ch, Step: cart.StepPayment, Choice: "cod", Shopper: consented})
+	_ = tr.onCheckoutChosen(ctx, &cart.CheckoutChosen{CartID: cartID, ChannelID: ch, AnonID: "visitor-1", Payment: "cod", Shopper: consented})
 	_ = tr.onLead(ctx, &signupform.Submitted{ChannelID: ch, FormID: form, LeadKey: "k1", Shopper: consented})
 
 	if len(fr.calls) != 5 {

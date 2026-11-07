@@ -442,16 +442,23 @@ func (t *Tracker) onCartRemove(ctx context.Context, e events.Event) error {
 		map[string]any{"line_id": ev.LineID.String()})
 }
 
-// checkout_shipping or checkout_payment, with what was chosen
+// checkout_shipping and checkout_payment, each with what was chosen when it changed
 func (t *Tracker) onCheckoutChosen(ctx context.Context, e events.Event) error {
 	ev, ok := e.(*cart.CheckoutChosen)
 	if !ok {
 		return nil
 	}
-	name := "checkout_" + ev.Step
-	return t.emitAs(ctx, sourceCommerce, name, ev.ChannelID, shopperActor(ev.Shopper, ev.CustomerID, visitorOf(ev.Shopper)),
-		"act:"+name+":"+ev.CartID.String()+":"+itoa(secBucket(ctx)),
-		map[string]any{"choice": ev.Choice})
+	who := shopperActor(ev.Shopper, ev.CustomerID, ev.AnonID)
+	for name, choice := range map[string]string{"checkout_shipping": ev.Shipping, "checkout_payment": ev.Payment} {
+		if choice == "" {
+			continue
+		}
+		if err := t.emitAs(ctx, sourceCommerce, name, ev.ChannelID, who,
+			"act:"+name+":"+ev.CartID.String()+":"+itoa(secBucket(ctx)), map[string]any{"choice": choice}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (t *Tracker) onWishlistAdd(ctx context.Context, e events.Event) error {

@@ -54,17 +54,13 @@ const ( // subscribe by these, e.g. bus.SubscribeSync(cart.EventLineAdding, 100,
 	EventCheckoutChosen = "cart.checkout.chosen"
 )
 
-const (
-	StepShipping = "shipping"
-	StepPayment  = "payment"
-)
-
-type CheckoutChosen struct { // fires AFTER the step is saved, async
+type CheckoutChosen struct { // fires AFTER the step is saved, async - at least one of Shipping and Payment is set
 	CartID     uuid.UUID
 	ChannelID  uuid.UUID
 	CustomerID *uuid.UUID
-	Step       string // StepShipping or StepPayment
-	Choice     string // the shipping methods, comma-joined per delivery group, or the payment provider's slug
+	AnonID     string
+	Shipping   string // the shipping methods it changed to, comma-joined per delivery group - empty when unchanged
+	Payment    string // the payment provider's slug it changed to - empty when unchanged
 	Lines      []CartLine
 	Shopper    *auth.Shopper // the visitor as their consent stood, nil for a caller with no banner
 }

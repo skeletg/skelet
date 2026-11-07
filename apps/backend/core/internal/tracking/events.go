@@ -364,22 +364,13 @@ func (h handlers) onLineRemoved(ctx context.Context, e events.Event) error {
 
 // shortcut: cart events ride the bus and can be lost in a crash, move cart.* to the outbox if ad platforms flag gaps
 func (h handlers) cartEvent(ctx context.Context, name string, channelID uuid.UUID, cust *uuid.UUID, s *auth.Shopper, lineID uuid.UUID, sku string, unit int64, qty float64) error {
-	ch, err := h.Channels.GetByID(ctx, channelID)
+	ch, err := h.channel(ctx, channelID)
 	if err != nil {
-		return fmt.Errorf("load channel %s: %w", channelID, err)
+		return err
 	}
-	at := eventTime(ctx)
-	ev := Event{
-		// The line and the moment, so a replay of this add collapses while a later add to the same line is its own event
-		ID: name + ":" + lineID.String() + ":" + strconv.FormatInt(at.UnixMilli(), 10), Name: name,
-		OccurredAt: at, ChannelID: channelID, Source: "server", User: User{CustomerID: cust},
-		Ecommerce: &Ecommerce{
-			Currency: ch.CurrencyCode,
-			Value:    Decimal(int64(math.Round(float64(unit)*qty)), ch.CurrencyCode),
-			Items:    []Item{{ItemID: sku, Price: Decimal(unit, ch.CurrencyCode), Quantity: qty}},
-		},
-	}
-	WithShopper(&ev, s)
+	// The line and the moment, so a replay of this add collapses while a later add to the same line is its own event
+	ev := serverEvent(ctx, name, momentKey(ctx, lineID.String()), channelID, User{CustomerID: cust}, s)
+	ev.Ecommerce = cartEcommerce(ch.CurrencyCode, []cart.CartLine{{ProductSku: sku, UnitPrice: unit, Quantity: qty}})
 	return h.svc.Track(ctx, ev)
 }
 
@@ -389,31 +380,29 @@ func (h handlers) onCheckoutChosen(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	ch, err := h.Channels.GetByID(ctx, ev.ChannelID)
+	ch, err := h.channel(ctx, ev.ChannelID)
 	if err != nil {
-		return fmt.Errorf("load channel %s: %w", ev.ChannelID, err)
+		return err
 	}
-	cur := ch.CurrencyCode
-	ec := &Ecommerce{Currency: cur}
-	var total int64
-	for _, l := range ev.Lines {
-		total += int64(math.Round(float64(l.UnitPrice) * l.Quantity))
-		ec.Items = append(ec.Items, Item{ItemID: l.ProductSku, ItemName: l.ProductName, Price: Decimal(l.UnitPrice, cur), Quantity: l.Quantity})
+	// The cart and the moment, so a replay collapses while switching back and forth is each its own event
+	step := func(name string) Event {
+		out := serverEvent(ctx, name, momentKey(ctx, ev.CartID.String()), ev.ChannelID, User{CustomerID: ev.CustomerID}, ev.Shopper)
+		out.Ecommerce = cartEcommerce(ch.CurrencyCode, ev.Lines)
+		return out
 	}
-	ec.Value = Decimal(total, cur)
-	name := AddShippingInfo
-	if ev.Step == cart.StepPayment {
-		name, ec.PaymentType = AddPaymentInfo, ev.Choice
-	} else {
-		ec.ShippingTier = ev.Choice
+	if ev.Shipping != "" {
+		out := step(AddShippingInfo)
+		out.Ecommerce.ShippingTier = ev.Shipping
+		if err := h.svc.Track(ctx, out); err != nil {
+			return err
+		}
 	}
-	out := Event{
-		// The cart and the moment, so a replay collapses while switching back and forth is each its own event
-		ID: name + ":" + ev.CartID.String() + ":" + strconv.FormatInt(eventTime(ctx).UnixMilli(), 10), Name: name,
-		OccurredAt: eventTime(ctx), ChannelID: ev.ChannelID, Source: "server", User: User{CustomerID: ev.CustomerID}, Ecommerce: ec,
+	if ev.Payment != "" {
+		out := step(AddPaymentInfo)
+		out.Ecommerce.PaymentType = ev.Payment
+		return h.svc.Track(ctx, out)
 	}
-	WithShopper(&out, ev.Shopper)
-	return h.svc.Track(ctx, out)
+	return nil
 }
 
 // shortcut: no value or price, since a product's price is per channel listing and per variant - add them if a platform's
@@ -423,9 +412,9 @@ func (h handlers) onWishlistAdded(ctx context.Context, e events.Event) error {
 	if !ok || ev.ChannelID == uuid.Nil || h.Products == nil {
 		return nil
 	}
-	ch, err := h.Channels.GetByID(ctx, ev.ChannelID)
+	ch, err := h.channel(ctx, ev.ChannelID)
 	if err != nil {
-		return fmt.Errorf("load channel %s: %w", ev.ChannelID, err)
+		return err
 	}
 	p, err := h.Products.GetProduct(ctx, ev.ProductID, ch.DefaultLocale)
 	if apperr.IsNotFound(err) {
@@ -438,14 +427,42 @@ func (h handlers) onWishlistAdded(ctx context.Context, e events.Event) error {
 	if p.Content != nil {
 		item.ItemName = p.Content.Name
 	}
-	cust, at := ev.CustomerID, eventTime(ctx)
-	out := Event{
-		ID: AddToWishlist + ":" + cust.String() + ":" + ev.ProductID.String() + ":" + strconv.FormatInt(at.UnixMilli(), 10), Name: AddToWishlist,
-		OccurredAt: at, ChannelID: ev.ChannelID, Source: "server", User: User{CustomerID: &cust},
-		Ecommerce: &Ecommerce{Currency: ch.CurrencyCode, Items: []Item{item}},
-	}
-	WithShopper(&out, ev.Shopper)
+	cust := ev.CustomerID
+	out := serverEvent(ctx, AddToWishlist, momentKey(ctx, cust.String()+":"+ev.ProductID.String()), ev.ChannelID, User{CustomerID: &cust}, ev.Shopper)
+	out.Ecommerce = &Ecommerce{Currency: ch.CurrencyCode, Items: []Item{item}}
 	return h.svc.Track(ctx, out)
+}
+
+// serverEvent is one the server saw happen, as the visitor's consent stood - its id is the name and key
+func serverEvent(ctx context.Context, name, key string, channelID uuid.UUID, user User, s *auth.Shopper) Event {
+	ev := Event{ID: name + ":" + key, Name: name, OccurredAt: eventTime(ctx), ChannelID: channelID, Source: "server", User: user}
+	WithShopper(&ev, s)
+	return ev
+}
+
+// momentKey is a key that also names the moment, for an event the same shopper can repeat
+func momentKey(ctx context.Context, key string) string {
+	return key + ":" + strconv.FormatInt(eventTime(ctx).UnixMilli(), 10)
+}
+
+func (h handlers) channel(ctx context.Context, id uuid.UUID) (channel.Channel, error) {
+	ch, err := h.Channels.GetByID(ctx, id)
+	if err != nil {
+		return channel.Channel{}, fmt.Errorf("load channel %s: %w", id, err)
+	}
+	return ch, nil
+}
+
+// cartEcommerce is cart lines as GA4 items, valued at what they cost together
+func cartEcommerce(currency string, lines []cart.CartLine) *Ecommerce {
+	ec := &Ecommerce{Currency: currency}
+	var total int64
+	for _, l := range lines {
+		total += int64(math.Round(float64(l.UnitPrice) * l.Quantity))
+		ec.Items = append(ec.Items, Item{ItemID: l.ProductSku, ItemName: l.ProductName, Price: Decimal(l.UnitPrice, currency), Quantity: l.Quantity})
+	}
+	ec.Value = Decimal(total, currency)
+	return ec
 }
 
 func (h handlers) onRegistered(ctx context.Context, e events.Event) error {
@@ -454,12 +471,7 @@ func (h handlers) onRegistered(ctx context.Context, e events.Event) error {
 		return nil
 	}
 	cid := ev.CustomerID
-	out := Event{
-		ID: "sign_up:" + cid.String(), Name: SignUp, OccurredAt: eventTime(ctx), ChannelID: ev.ChannelID,
-		Source: "server", User: User{CustomerID: &cid, Email: ev.Email},
-	}
-	WithShopper(&out, ev.Shopper)
-	return h.track(ctx, out)
+	return h.track(ctx, serverEvent(ctx, SignUp, cid.String(), ev.ChannelID, User{CustomerID: &cid, Email: ev.Email}, ev.Shopper))
 }
 
 // A customer signed in on the shop - an admin's sign-in is not a shop event
@@ -468,13 +480,8 @@ func (h handlers) onLogin(ctx context.Context, e events.Event) error {
 	if !ok || ev.Subject != auth.SubjectCustomer || ev.ChannelID == uuid.Nil {
 		return nil
 	}
-	cid, at := ev.SubjectID, eventTime(ctx)
-	out := Event{
-		ID: Login + ":" + cid.String() + ":" + strconv.FormatInt(at.UnixMilli(), 10), Name: Login, OccurredAt: at,
-		ChannelID: ev.ChannelID, Source: "server", User: User{CustomerID: &cid, Email: ev.Email},
-	}
-	WithShopper(&out, ev.Shopper)
-	return h.track(ctx, out)
+	cid := ev.SubjectID
+	return h.track(ctx, serverEvent(ctx, Login, momentKey(ctx, cid.String()), ev.ChannelID, User{CustomerID: &cid, Email: ev.Email}, ev.Shopper))
 }
 
 // A signup form sent from the shop is a lead - with no address, which isn't confirmed yet
@@ -483,11 +490,7 @@ func (h handlers) onLead(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	out := Event{
-		ID: GenerateLead + ":" + ev.LeadKey, Name: GenerateLead, OccurredAt: eventTime(ctx), ChannelID: ev.ChannelID, Source: "server",
-	}
-	WithShopper(&out, ev.Shopper)
-	return h.svc.Track(ctx, out)
+	return h.svc.Track(ctx, serverEvent(ctx, GenerateLead, ev.LeadKey, ev.ChannelID, User{}, ev.Shopper))
 }
 
 // An account turned email marketing off. Sent as is - the marketing lookup would only confirm the no

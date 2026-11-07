@@ -155,23 +155,14 @@ var errCheckoutMoved = errors.New("checkout moved")
 // apply runs on the cart as loaded, with its lines, and outside any transaction: its quotes, payment eligibility and address checks may wait on a third party and read through the shared pool, so holding the row lock and a pooled connection across them would let a burst of saves exhaust the pool. The commit is a short transaction that re-checks access, writes only when checkout_version hasn't moved since the load, and otherwise recomputes the step
 // On an offer, a step that moves a locked part - or the recipient's email - is refused whole
 func (s *Service) UpdateCheckout(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, apply func(c *Cart) error) error {
-	var was, now checkoutChoices
-	var saved Cart
-	err := s.updateCheckout(ctx, cartID, func(c Cart) error { return CheckCartAccess(ctx, c, callerID) }, true, func(c *Cart) error {
-		was = choicesOf(c.Checkout) // the last attempt's, should a lost race run the step again
-		if err := apply(c); err != nil {
-			return err
-		}
-		now, saved = choicesOf(c.Checkout), *c
-		return nil
-	}, nil)
+	before, after, err := s.updateCheckout(ctx, cartID, func(c Cart) error { return CheckCartAccess(ctx, c, callerID) }, true, apply, nil)
 	if err == nil {
-		s.publishChoices(ctx, saved, was, now)
+		s.publishChoices(ctx, after, choicesOf(before.Checkout), choicesOf(after.Checkout))
 	}
 	return err
 }
 
-// checkoutChoices is what a checkout has chosen to ship and pay with, as analytics names them
+// checkoutChoices is what a checkout has chosen to ship and pay with
 type checkoutChoices struct{ shipping, payment string }
 
 func choicesOf(co Checkout) checkoutChoices {
@@ -191,73 +182,78 @@ func choicesOf(co Checkout) checkoutChoices {
 	return checkoutChoices{shipping: strings.Join(ship, ","), payment: co.PaymentProviderSlug}
 }
 
-// A choice is reported when it changes to something, so saving the same step again says nothing
-func (s *Service) publishChoices(ctx context.Context, c Cart, was, now checkoutChoices) {
-	if s.bus == nil {
-		return
+// changedTo is now's value when it moved to something, else empty - saving the same step again says nothing
+func changedTo(was, now string) string {
+	if now == was {
+		return ""
 	}
-	for _, step := range []struct{ name, was, now string }{{StepShipping, was.shipping, now.shipping}, {StepPayment, was.payment, now.payment}} {
-		if step.now == "" || step.now == step.was {
-			continue
-		}
-		s.bus.Publish(ctx, &CheckoutChosen{
-			CartID: c.ID, ChannelID: c.ChannelID, CustomerID: c.CustomerID, Step: step.name, Choice: step.now,
-			Lines: c.Lines, Shopper: auth.ShopperFromContext(ctx),
-		})
+	return now
+}
+
+func (s *Service) publishChoices(ctx context.Context, c Cart, was, now checkoutChoices) {
+	ev := &CheckoutChosen{
+		CartID: c.ID, ChannelID: c.ChannelID, CustomerID: c.CustomerID, AnonID: auth.AnonID(ctx),
+		Shipping: changedTo(was.shipping, now.shipping), Payment: changedTo(was.payment, now.payment),
+		Lines: c.Lines, Shopper: auth.ShopperFromContext(ctx),
+	}
+	if s.bus != nil && (ev.Shipping != "" || ev.Payment != "") {
+		s.bus.Publish(ctx, ev)
 	}
 }
 
 // AdminUpdateCheckout is UpdateCheckout for the console - it fills in an offer's checkout up front, so it neither asks who owns the cart nor stops at the locks the admin is setting up
 func (s *Service) AdminUpdateCheckout(ctx context.Context, cartID uuid.UUID, apply func(c *Cart) error) error {
-	return s.updateCheckout(ctx, cartID, func(c Cart) error {
+	_, _, err := s.updateCheckout(ctx, cartID, func(c Cart) error {
 		if c.Status != "active" {
 			return ErrCartNotActive
 		}
 		return nil
 	}, false, apply, nil)
+	return err
 }
 
-func (s *Service) updateCheckout(ctx context.Context, cartID uuid.UUID, authorize func(Cart) error, enforceLocks bool, apply func(c *Cart) error, offer *OfferSettings) error {
+// updateCheckout returns the cart the saved attempt loaded and the cart it wrote
+func (s *Service) updateCheckout(ctx context.Context, cartID uuid.UUID, authorize func(Cart) error, enforceLocks bool, apply func(c *Cart) error, offer *OfferSettings) (before, after Cart, err error) {
 	for range checkoutSaveAttempts {
-		err := s.updateCheckoutOnce(ctx, cartID, authorize, enforceLocks, apply, offer)
+		before, after, err = s.updateCheckoutOnce(ctx, cartID, authorize, enforceLocks, apply, offer)
 		if !errors.Is(err, errCheckoutMoved) {
-			return err
+			return before, after, err
 		}
 	}
-	return ErrCheckoutConflict
+	return Cart{}, Cart{}, ErrCheckoutConflict
 }
 
-func (s *Service) updateCheckoutOnce(ctx context.Context, cartID uuid.UUID, authorize func(Cart) error, enforceLocks bool, apply func(c *Cart) error, offer *OfferSettings) error {
+func (s *Service) updateCheckoutOnce(ctx context.Context, cartID uuid.UUID, authorize func(Cart) error, enforceLocks bool, apply func(c *Cart) error, offer *OfferSettings) (Cart, Cart, error) {
 	// Prepare - no transaction and no lock
 	cart, err := s.repo.GetCartByID(ctx, cartID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return ErrCartForbidden
+			return Cart{}, Cart{}, ErrCartForbidden
 		}
-		return fmt.Errorf("load cart: %w", err)
+		return Cart{}, Cart{}, fmt.Errorf("load cart: %w", err)
 	}
 	if err := authorize(cart); err != nil {
-		return err
+		return Cart{}, Cart{}, err
 	}
 	if cart.Lines, err = s.repo.ListCartLinesByCart(ctx, cart.ID); err != nil {
-		return fmt.Errorf("load cart lines: %w", err)
+		return Cart{}, Cart{}, fmt.Errorf("load cart lines: %w", err)
 	}
 	next := cart
 	next.Checkout.GiftCardCodes = slices.Clone(cart.Checkout.GiftCardCodes)
 	next.Checkout.BusinessIDs = maps.Clone(cart.Checkout.BusinessIDs)
 	next.Checkout.Deliveries = maps.Clone(cart.Checkout.Deliveries) // a step writes the map in place, and the lock diff needs the before
 	if err := apply(&next); err != nil {
-		return err
+		return Cart{}, Cart{}, err
 	}
 	emailChanged := strings.TrimSpace(next.Email) != cart.Email
 	if emailChanged {
 		if next.Email, err = normalizeCartEmail(next.Email); err != nil {
-			return err
+			return Cart{}, Cart{}, err
 		}
 	}
 
 	// Commit - re-read under the lock and write, nothing slower
-	return s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
+	err = s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
 		r := s.repo.WithTx(sqlTx)
 		locked, err := r.LockCart(ctx, cartID)
 		if err != nil {
@@ -293,6 +289,10 @@ func (s *Service) updateCheckoutOnce(ctx context.Context, cartID uuid.UUID, auth
 		}
 		return r.SetCheckout(ctx, cart.ID, next.Checkout)
 	})
+	if err != nil {
+		return Cart{}, Cart{}, err
+	}
+	return cart, next, nil
 }
 
 func (s *Service) PruneStale(ctx context.Context, olderThan time.Duration) (int64, error) { // retention reaper - a converted cart's durable record lives on its order, so dropping the stale row loses nothing
