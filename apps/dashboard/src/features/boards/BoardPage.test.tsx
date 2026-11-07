@@ -4,8 +4,8 @@ import { describe, expect, it } from 'vitest'
 import { SLOW, globalScope, meMock, renderPage } from '@/test/page-harness'
 import type { ConfigScopeContextValue } from '@/lib/config-scope'
 import { SynapseInsightsDocument, SynapseOverviewDocument, SynapseStickinessDocument } from '@/features/synapse/Synapse.gql'
-import { BoardDocument, BoardShareTargetsDocument, DiscardBoardDraftDocument, RequestBoardAccessDocument, TransferBoardDocument, SaveBoardDocument, SaveBoardDraftDocument, SetBoardSharesDocument } from './Boards.gql'
-import { BoardPage } from './BoardPage'
+import { BoardDocument, BoardShareTargetsDocument, CreateBoardDocument, DiscardBoardDraftDocument, RequestBoardAccessDocument, TransferBoardDocument, SaveBoardDocument, SaveBoardDraftDocument, SetBoardSharesDocument } from './Boards.gql'
+import { BoardPage, copyName } from './BoardPage'
 import { cleanReport } from './report'
 
 const channelScope = {
@@ -55,6 +55,34 @@ const board = {
 }
 
 describe('BoardPage', () => {
+  it('duplicates the board as saved into a new one of the caller\'s, and opens it', async () => {
+    let created: Record<string, unknown> | null = null
+    renderPage({
+      path: '/synapse/boards/b1',
+      routes: { '/synapse/boards/:id': <BoardPage /> },
+      adminId: 'admin-1',
+      scope: channelScope,
+      mocks: [
+        meMock({ superuser: true }),
+        ...boardMocks(() => {}),
+        {
+          request: {
+            query: CreateBoardDocument,
+            variables: (v: Record<string, unknown>) => {
+              created = v
+              return true
+            },
+          },
+          result: { data: { createBoard: { __typename: 'Board', id: 'b2' } } },
+        },
+      ],
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Duplicate' }, SLOW))
+    await waitFor(() => expect(created).not.toBeNull(), SLOW)
+    expect(created).toEqual({ channelId: 'c1', name: 'Weekly (copy)', reports: board.reports.map(cleanReport) })
+    expect(Array.from(copyName('é'.repeat(120)))).toHaveLength(120) // still a name the board takes
+  })
+
   it('stages a rename and a removed report, and saves them with the board as read', async () => {
     let saved: Record<string, unknown> | null = null
     renderPage({
