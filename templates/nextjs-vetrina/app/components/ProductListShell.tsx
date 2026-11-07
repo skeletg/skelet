@@ -88,6 +88,8 @@ function parseAttributeFilters(
 type Props = {
   header?: ReactNode;
   prefix?: ReactNode;
+  // shown only when the backend says this listing gets an AI overview
+  overview?: ReactNode;
   // Rendered full-width below the sidebar+grid row - the SEO copy block on category/collection pages
   suffix?: ReactNode;
   filter?: BrowseProductsQueryVariables["filter"];
@@ -110,6 +112,7 @@ type Props = {
 export async function ProductListShell({
   header,
   prefix,
+  overview,
   suffix,
   filter,
   query,
@@ -252,11 +255,14 @@ export async function ProductListShell({
       {term && (
         <>
           <AnalyticsEvent key={`ga4-search:${term.toLowerCase()}`} event="search" payload={{ searchTerm: term }} />
-          <LensTrack key={`search:${term.toLowerCase()}`} event="$search" props={{ query: term, results: data.totalCount }} />
+          <LensTrack key={`search:${term.toLowerCase()}`} event="$search" props={{ query: term, results: data.totalCount, ...(data.byMeaningOnly && { byMeaningOnly: true }) }} />
         </>
       )}
-      {header}
-      {prefix}
+      <div className="listing-top">
+        {header}
+        {prefix}
+        {data.aiOverview && overview}
+      </div>
 
       {/* minmax(0, ...) stops intrinsic content pushing a column wider than its track
           The sidebar column only exists when there are facets to put in it: FacetSidebar renders
@@ -297,6 +303,9 @@ export async function ProductListShell({
               </p>
             </div>
           </div>
+          {query && data.byMeaningOnly && data.items.length > 0 && (
+            <p className="mt-3 text-sm text-muted-foreground">{t("byMeaningOnly", { query: query.trim() })}</p>
+          )}
           {data.items.length === 0 ? (
             <p className="mt-3 text-sm text-muted-foreground">{emptyText ?? t("empty")}</p>
           ) : (

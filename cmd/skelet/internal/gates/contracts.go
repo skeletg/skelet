@@ -38,6 +38,8 @@ const (
 	// The storefront logic every template shares - checked once, here, rather than per storefront
 	storefrontPkg = "packages/storefront-core"
 	publicOps     = storefrontPkg + "/public-ops.ts"
+	assistantPage = storefrontPkg + "/assistant/page.ts"
+	assistantGo   = "apps/backend/core/internal/shoptools/assistant.go"
 	reactPkg      = "packages/storefront-react"
 	pkgOptVis     = storefrontPkg + "/optionVisibility.ts"
 	goConsent     = "apps/backend/core/lib/auth/consent.go"
@@ -59,6 +61,7 @@ func contractCheck(root string, out io.Writer) int {
 	c.syncPaths()
 	c.blockTypes()
 	c.cacheableOps()
+	c.privatePages()
 	c.lexicalNodes()
 	c.evaluators()
 	c.consentFormat()
@@ -301,6 +304,43 @@ func (c contracts) cacheableOps() {
 		c.r.bad("storefront-core PUBLIC_OPS != frontCacheableOps")
 		c.sides(ops, sf)
 	}
+}
+
+var (
+	privateGo  = regexp.MustCompile(`var privatePages = \[\]string\{(.*)\}`)
+	privateTS  = regexp.MustCompile(`const PRIVATE_PAGES = new Set\(\[(.*)\]\)`)
+	quotedPage = regexp.MustCompile(`"([a-z-]+)"`)
+)
+
+// privatePages - the storefront keeps these pages from the assistant and the backend cuts them again, so one the other
+// side doesn't know reaches a transcript whole
+func (c contracts) privatePages() {
+	c.r.section("the pages the assistant keeps private agree")
+	goSide := set(lineMatch(c.read(assistantGo), privateGo), quotedPage)
+	if len(goSide) == 0 {
+		c.r.bad("privatePages extraction came back empty - %s changed shape", assistantGo)
+		return
+	}
+	if !c.inPackage(assistantPage) {
+		return
+	}
+	sf := set(lineMatch(c.read(assistantPage), privateTS), quotedPage)
+	switch {
+	case len(sf) == 0:
+		c.r.bad("PRIVATE_PAGES extraction came back empty - %s changed shape", assistantPage)
+	case slices.Equal(goSide, sf):
+		c.r.pass("storefront-core PRIVATE_PAGES == privatePages (%d pages)", len(sf))
+	default:
+		c.r.bad("storefront-core PRIVATE_PAGES != privatePages")
+		c.sides(goSide, sf)
+	}
+}
+
+func lineMatch(text string, re *regexp.Regexp) []string {
+	if m := re.FindStringSubmatch(text); m != nil {
+		return []string{m[1]}
+	}
+	return nil
 }
 
 // inPackage says the storefront package holds f. A checkout without the package - a backend-only sparse clone - has

@@ -47,7 +47,7 @@ export function CookieConsentBanner() {
   return (
     <div
       // Positioning: fixed bottom so the banner doesn't push page content
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 px-4 py-4 shadow-lg backdrop-blur"
+      className="assistant-follow fixed inset-x-0 bottom-0 z-40 md:right-[var(--assistant-inset,0px)] md:bottom-[var(--page-gutter,0px)] md:left-[var(--page-gutter,0px)] border-t border-border bg-card/95 px-4 py-4 shadow-lg backdrop-blur"
       role="region"
       aria-label={t("label")}
     >

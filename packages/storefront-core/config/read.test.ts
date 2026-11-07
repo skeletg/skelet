@@ -6,7 +6,7 @@ vi.mock("../locale/read", () => ({
   getCurrentChannelId: async () => "ch-1",
   getCurrentLocale: async () => "en",
 }));
-const { surfaceCacheOpts } = await import("./read");
+const { getAssistantEnabled, getAssistantName, surfaceCacheOpts } = await import("./read");
 
 const settings = (rows: Record<string, string>) => ({
   data: { publicConfig: Object.entries(rows).map(([path, value]) => ({ path, value })) },
@@ -52,4 +52,24 @@ it("never caches in development or for a signed-in visitor", async () => {
   vi.stubEnv("NODE_ENV", "production");
   expect(await surfaceCacheOpts("product", { tags: ["product:1"], token: "jwt" })).toEqual({});
   expect(gqlFetch).not.toHaveBeenCalled();
+});
+
+it("reads the assistant's name trimmed and capped, and none when the backend can't be reached", async () => {
+  gqlFetch.mockResolvedValue({ data: { publicConfig: [{ path: "sales/assistant/name", value: "  Ava  " }], assistantAvailable: true } });
+  expect(await getAssistantName()).toBe("Ava");
+  gqlFetch.mockResolvedValue({ data: { publicConfig: [{ path: "sales/assistant/name", value: "x".repeat(60) }], assistantAvailable: true } });
+  expect(await getAssistantName()).toHaveLength(40);
+  gqlFetch.mockResolvedValue({ data: { publicConfig: [], assistantAvailable: true } });
+  expect(await getAssistantName()).toBe("");
+  gqlFetch.mockRejectedValue(new Error("backend down"));
+  expect(await getAssistantName()).toBe("");
+});
+
+it("shows the assistant only when the backend says it can answer, whatever the switch says", async () => {
+  gqlFetch.mockResolvedValue({ data: { publicConfig: [{ path: "sales/agents/assistant_enabled", value: "true" }], assistantAvailable: false } });
+  expect(await getAssistantEnabled()).toBe(false);
+  gqlFetch.mockResolvedValue({ data: { publicConfig: [], assistantAvailable: true } });
+  expect(await getAssistantEnabled()).toBe(true);
+  gqlFetch.mockRejectedValue(new Error("backend down"));
+  expect(await getAssistantEnabled()).toBe(false);
 });

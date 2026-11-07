@@ -104,7 +104,35 @@ export type FetchOptions = {
   // Channel + locale (and anything else) folded into the cache key
   cacheKeyExtra?: string[];
   surface?: string;
+  // Cancels the backend call with the caller's request, so a turn nobody waits for stops costing anything
+  signal?: AbortSignal;
 };
+
+export async function backendHeaders(options: { shared?: boolean; locale?: string } = {}): Promise<Record<string, string>> {
+  const [locale, channelId] = await Promise.all([getCurrentLocale(), getCurrentChannelId()]);
+  const accessToken = options.shared ? null : await getAccessToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Locale: options.locale ?? locale,
+  };
+  // A request no channel claims still names one, so the backend answers "no store" rather than for its default channel
+  headers["X-Channel-Id"] = channelId || "unresolved";
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+  Object.assign(headers, await shopperHeaders());
+  // An offer cart answers to its link, not its id - the link's token goes with every private call
+  if (!options.shared) {
+    try {
+      const offerToken = decodeOfferSession((await request().cookies()).get(OFFER_COOKIE)?.value)?.token;
+      if (offerToken) headers[OFFER_HEADER] = offerToken;
+    } catch (err) {
+      rethrowControlFlow(err);
+      // not in a request scope - nothing to forward
+    }
+  }
+  return headers;
+}
 
 // The `variables` argument is required when the document declares any - the generated TypedDocumentNode<TData,
 // TVariables> binds both sides so passing the wrong shape (or omitting required vars) fails tsc
@@ -117,30 +145,8 @@ export async function gqlFetch<TData, TVariables>(
   const variables = args[0];
   const options = (args[1] as FetchOptions | undefined) ?? {};
   const opName = extractOpName(document); // resolved first so a public op never touches the auth cookie - reading one forces the route dynamic
-  const [locale, channelId] = await Promise.all([getCurrentLocale(), getCurrentChannelId()]);
-  const shared = options.public === true || isPublicOp(opName);
-  const accessToken = shared ? null : await getAccessToken();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Locale: options.locale ?? locale,
-  };
-  // A request no channel claims still names one, so the backend answers "no store" rather than for its default channel
-  headers["X-Channel-Id"] = channelId || "unresolved";
+  const headers = await backendHeaders({ shared: options.public === true || isPublicOp(opName), locale: options.locale });
   if (options.surface) headers["X-Skelet-Cache-Surface"] = options.surface;
-  if (accessToken) {
-    headers.Authorization = `Bearer ${accessToken}`;
-  }
-  Object.assign(headers, await shopperHeaders());
-  // An offer cart answers to its link, not its id - the link's token goes with every private call
-  if (!shared) {
-    try {
-      const offerToken = decodeOfferSession((await request().cookies()).get(OFFER_COOKIE)?.value)?.token;
-      if (offerToken) headers[OFFER_HEADER] = offerToken;
-    } catch (err) {
-      rethrowControlFlow(err);
-      // not in a request scope - nothing to forward
-    }
-  }
   if (options.extraHeaders) {
     for (const [k, v] of Object.entries(options.extraHeaders)) {
       if (v) headers[k] = v;
@@ -156,6 +162,7 @@ export async function gqlFetch<TData, TVariables>(
       {
         method: "POST",
         headers,
+        signal: options.signal,
         body: JSON.stringify({
           query: print(document as DocumentNode),
           variables,
@@ -168,6 +175,7 @@ export async function gqlFetch<TData, TVariables>(
     );
   } catch (err) {
     rethrowControlFlow(err);
+    if (options.signal?.aborted) throw err;
     const detail = `GraphQL transport failure calling ${FRONT_API_URL} (${opName || "op"}): ${err instanceof Error ? err.message : String(err)}`;
     console.error(detail);
     throw new BackendUnavailableError(detail);

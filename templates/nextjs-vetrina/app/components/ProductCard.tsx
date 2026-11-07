@@ -9,6 +9,7 @@ import { mediaSrcSet, mediaThumb } from "@skelet/storefront-core/media-thumb";
 import { displayName } from "@skelet/storefront-core/display";
 import { productHref } from "@skelet/storefront-core/entity-href";
 import { formatPrice } from "@skelet/storefront-core/format";
+import { priceView } from "@/app/lib/product-price";
 import { productImageTransitionName } from "@/app/lib/view-transition";
 import { AddToCartForm } from "./AddToCartForm";
 import { RatingStars } from "./RatingStars";
@@ -34,26 +35,11 @@ export function ProductCard({
   const name = displayName(product.name, product.sku);
   const compact = variant === "compact";
   const isSimple = product.kind === "SIMPLE";
-  // Effective price (channel listing + active specials); defaultPrice is the fallback
-  // for slim payloads that predate the price field
-  const sellPrice = product.price ?? product.defaultPrice;
-  // A dynamically priced bundle carries no price of its own - the cart and the PDP both total its
-  // picked selections instead. The card has no selections to total, so it said "$0.00" for a bundle
-  // that costs $40, and quoting a price the shopper can never pay is worse than not quoting one
-  const pricedBySelection = sellPrice <= 0 && !isSimple;
+  const { pricedBySelection, sellPrice, compareAt: compareAtPrice, savePct } = priceView(product);
   const priceText = pricedBySelection
     ? t("seeOptions")
     : formatPrice(sellPrice, product.defaultCurrencyCode);
-  const compareAt =
-    !pricedBySelection && product.compareAtPrice && product.compareAtPrice > sellPrice
-      ? formatPrice(product.compareAtPrice, product.defaultCurrencyCode)
-      : null;
-  // Savings badge - percentage off the compare-at price, shown from 5% up so rounding
-  // noise doesn't produce a "Save 1%" sticker
-  const savePct =
-    !pricedBySelection && product.compareAtPrice && product.compareAtPrice > sellPrice
-      ? Math.round((1 - sellPrice / product.compareAtPrice) * 100)
-      : 0;
+  const compareAt = compareAtPrice ? formatPrice(compareAtPrice, product.defaultCurrencyCode) : null;
   const rating =
     product.reviewAggregates &&
     product.reviewAggregates.count > 0 &&
@@ -75,11 +61,11 @@ export function ProductCard({
       {t("soldOut")}
     </span>
   ) : savePct >= 5 ? (
-    <span className="inline-flex items-center rounded-sm bg-signal px-2 py-0.5 font-mono text-[0.65rem] font-bold uppercase tracking-wider text-white">
+    <span className="inline-flex items-center rounded-sm bg-signal-fill px-2 py-0.5 font-mono text-[0.65rem] font-bold uppercase tracking-wider text-white">
       {t("save", { percent: savePct })}
     </span>
   ) : product.onSale ? (
-    <span className="inline-flex items-center rounded-sm bg-signal px-2 py-0.5 font-mono text-[0.65rem] font-bold uppercase tracking-wider text-white">
+    <span className="inline-flex items-center rounded-sm bg-signal-fill px-2 py-0.5 font-mono text-[0.65rem] font-bold uppercase tracking-wider text-white">
       {t("sale")}
     </span>
   ) : null;

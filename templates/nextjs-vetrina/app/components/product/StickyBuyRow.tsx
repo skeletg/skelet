@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
+import { PHONE_QUERY } from "@/app/lib/use-phone";
+
 // How long the leave animation runs before the bar unmounts - must match
 // buy-bar-out's duration in globals.css
 const LEAVE_MS = 180;
@@ -30,7 +32,7 @@ export function StickyBuyRow({
   useEffect(() => {
     const holder = holderRef.current;
     if (!holder) return;
-    const mobile = window.matchMedia("(max-width: 767px)");
+    const mobile = window.matchMedia(PHONE_QUERY);
     const io = new IntersectionObserver(
       ([entry]) => {
         // Desktop only shows the bar once the row is scrolled ABOVE the viewport - at
@@ -68,7 +70,7 @@ export function StickyBuyRow({
       {phase !== "hidden" && (
         <div
           data-stuck-buy=""
-          className={`fixed bottom-3 left-1/2 z-30 w-[calc(100%-1.5rem)] max-w-xl -translate-x-1/2 rounded-full border border-border bg-background p-2 shadow-2xl shadow-black/25 ${
+          className={`assistant-follow fixed bottom-3 left-1/2 z-30 md:left-[calc((100%-var(--assistant-inset,0px))/2)] w-[calc(100%-1.5rem)] max-w-xl -translate-x-1/2 rounded-full border border-border bg-background p-2 shadow-2xl shadow-black/25 ${
             phase === "leaving"
               ? "motion-safe:animate-[buy-bar-out_0.18s_ease-in_forwards]"
               : "motion-safe:animate-[buy-bar-in_0.25s_ease-out]"

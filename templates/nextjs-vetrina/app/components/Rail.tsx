@@ -135,9 +135,12 @@ export function RailProvider({ children }: { children: ReactNode }) {
 export function Rail({
   children,
   label,
+  wheel = true,
 }: {
   children: ReactNode;
   label?: string;
+  // false leaves the wheel to the page, for a rail inside something that scrolls up and down itself
+  wheel?: boolean;
 }) {
   const { trackRef, measure, overflows } = useRail();
 
@@ -164,7 +167,7 @@ export function Rail({
       el.scrollLeft = Math.min(max, Math.max(0, el.scrollLeft + e.deltaY));
     };
     // Non-passive because preventDefault is the whole point - React's own onWheel is passive
-    el.addEventListener("wheel", onWheel, { passive: false });
+    if (wheel) el.addEventListener("wheel", onWheel, { passive: false });
 
     // Grab-and-drag, the thing a touch swipe does for free. Mouse only - touch and pen already
     // scroll natively, and taking that over would cost them the momentum
@@ -228,7 +231,7 @@ export function Rail({
       el.removeEventListener("pointercancel", endDrag);
       el.removeEventListener("dragstart", onDragStart);
     };
-  }, [trackRef, measure]);
+  }, [trackRef, measure, wheel]);
 
   return (
     <div
