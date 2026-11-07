@@ -443,8 +443,9 @@ services:
   db:
     profiles: ["bundled"]
     # A major bump is NOT just a tag change - dump/restore or pg_upgrade the
-    # volume first, or postgres refuses to start
-    image: postgres:18-alpine
+    # volume first, or postgres refuses to start. pgvector is for the store's embeddings, and the image is
+    # Debian-based: a volume made by the old Alpine image needs a one-time REINDEX DATABASE after the switch
+    image: pgvector/pgvector:0.8.6-pg18-trixie
     environment:
       POSTGRES_USER: skelet
       POSTGRES_PASSWORD: ${DB_PASSWORD:-}

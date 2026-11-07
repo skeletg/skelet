@@ -26,7 +26,8 @@ func pinTree(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
 	put(t, root, map[string]string{
-		"docker-compose.yml":       "services:\n  db:\n    image: postgres:18-alpine\n  ch:\n    image: clickhouse/clickhouse-server:26.7.5\n  mig:\n    image: amacneil/dbmate/v2@v2.36.0\n",
+		"docker-compose.yml": "services:\n  db:\n    image: postgres:18-alpine\n  ch:\n    image: clickhouse/clickhouse-server:26.7.5\n  mig:\n    image: amacneil/dbmate/v2@v2.36.0\n" +
+			"  vec:\n    image: pgvector/pgvector:0.8.6-pg18-trixie\n",
 		"docker-compose.small.yml": "services:\n  db:\n    image: postgres:18\n",
 		"docker-compose.prod.yml":  "services:\n  caddy:\n    image: caddy:2\n",
 		".github/workflows/ci.yml": "jobs:\n  x:\n    services:\n      postgres:\n        image: postgres:18\n    steps:\n" +
@@ -51,6 +52,7 @@ func TestPinsHealthy(t *testing.T) {
 	var out bytes.Buffer
 	want := `==> version pins agree across files
   ok    postgres         18
+  ok    pgvector         0.8.6
   ok    clickhouse       26.7.5
   ok    dbmate           2.36.0
   ok    golangci         2.14.0
@@ -81,8 +83,10 @@ func TestPinsBroken(t *testing.T) {
 	want := `==> version pins agree across files
   FAIL  postgres         17 18
           docker-compose.yml:3:    image: postgres:18-alpine
+          docker-compose.yml:9:    image: pgvector/pgvector:0.8.6-pg18-trixie
           docker-compose.small.yml:3:    image: postgres:17
           .github/workflows/ci.yml:5:        image: postgres:18
+  ok    pgvector         0.8.6
   ok    clickhouse       26.7.5
   ok    dbmate           2.36.0
   ok    golangci         2.14.0
@@ -108,7 +112,8 @@ func TestPinsBroken(t *testing.T) {
 
 func TestNormalize(t *testing.T) {
 	for in, want := range map[string]string{
-		"postgres:18-alpine": "18", "golangci-lint@v2.14.0": "2.14.0", "node-version:   24": "24",
+		"postgres:18-alpine": "18", "pgvector/pgvector:0.8.6-pg18": "18", "pgvector/pgvector:0.8.6": "0.8.6",
+		"golangci-lint@v2.14.0": "2.14.0", "node-version:   24": "24",
 		"alpine3.24": "3.24", "alpine:3.24": "3.24", "go 1.27.3": "1.27.3", "pnpm@12.6.0": "12.6.0",
 	} {
 		if got := normalize(in); got != want {

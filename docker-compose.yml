@@ -383,8 +383,10 @@ services:
     logging: *logging
 
   # Datastores publish on 127.0.0.1 only - dev credentials are trivial (skelet/ skelet) and valkey/opensearch/clickhouse run unauthenticated, so binding them to every interface put a live database on whatever network you were on - WSL2 still forwards localhost, so Windows-side tools keep working
+  # Postgres with pgvector, for the store's embeddings - Debian-based, so a volume made by the old Alpine image needs a
+  # one-time REINDEX DATABASE, since the two sort text differently and Postgres can't tell
   db:
-    image: postgres:18-alpine
+    image: pgvector/pgvector:0.8.6-pg18-trixie
     env_file:
       - env/db.env
     ports:
