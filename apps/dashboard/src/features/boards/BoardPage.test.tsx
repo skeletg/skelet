@@ -297,8 +297,10 @@ describe('BoardPage', () => {
     expect(shared).toEqual({ channelId: 'c1', id: 'b1', shares: [{ adminId: 'admin-9', level: 'EDIT' }] })
   })
 
-  it("hands the board to someone else and, unable to open it any more, says so as for any board one can't open", async () => {
+  it('hands the board over from Share, keeping the giver on it as an editor', async () => {
+    let shared: Record<string, unknown> | null = null
     let handed: Record<string, unknown> | null = null
+    const given = { ...board, access: 'EDIT', owner: { __typename: 'BoardOwner', id: 'admin-9', name: 'Bo', removed: false } }
     renderPage({
       path: '/boards/b1',
       routes: { '/boards/:id': <BoardPage /> },
@@ -307,10 +309,20 @@ describe('BoardPage', () => {
       mocks: [
         meMock({ superuser: false, permissions: ['boards.view', 'boards.manage'] }),
         { request: { query: BoardDocument, variables: { channelId: 'c1', id: 'b1' } }, result: { data: { board } } },
-        { request: { query: BoardDocument, variables: { channelId: 'c1', id: 'b1' } }, result: { errors: [new GraphQLError('board not found', { extensions: { code: 'SIGNALS_NOT_FOUND' } })] } },
+        { request: { query: BoardDocument, variables: { channelId: 'c1', id: 'b1' } }, result: { data: { board: given } } },
         {
           request: { query: BoardShareTargetsDocument, variables: { channelId: 'c1' } },
           result: { data: { boardShareTargets: [{ __typename: 'BoardShareTarget', kind: 'admin', id: 'admin-9', name: 'Bo', seesBoards: true, seesData: true }] } },
+        },
+        {
+          request: {
+            query: SetBoardSharesDocument,
+            variables: (v: Record<string, unknown>) => {
+              shared = v
+              return true
+            },
+          },
+          result: { data: { setBoardShares: board } },
         },
         {
           request: {
@@ -325,14 +337,18 @@ describe('BoardPage', () => {
         ...boardMocks(() => {}).slice(1),
       ],
     })
-    fireEvent.click(await screen.findByRole('button', { name: 'Hand over' }, SLOW))
-    const owner = await screen.findByRole('combobox', { name: 'New owner' }, SLOW)
-    await waitFor(() => expect(within(owner).queryByRole('option', { name: 'Bo' })).toBeTruthy())
-    fireEvent.change(owner, { target: { value: 'admin-9' } })
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Hand over' }))
-    expect(await screen.findByText("You can't open this board", {}, SLOW)).toBeTruthy()
-    expect(screen.queryByRole('region', { name: 'Returning' })).toBeNull() // the board they gave away isn't left on screen
-    expect(handed).toEqual({ channelId: 'c1', id: 'b1', ownerId: 'admin-9' })
+    expect(screen.queryByRole('button', { name: 'Hand over' })).toBeNull()
+    fireEvent.click(await screen.findByRole('button', { name: 'Share' }, SLOW))
+    const pick = await screen.findByRole('combobox', { name: 'Share with' }, SLOW)
+    await waitFor(() => expect(within(pick).queryByRole('option', { name: 'Bo' })).toBeTruthy())
+    fireEvent.change(pick, { target: { value: 'admin-9' } })
+    fireEvent.change(screen.getByRole('combobox', { name: 'What they can do' }), { target: { value: 'OWN' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    expect(screen.getByText(/Becomes the owner when you save, and Ada can still edit it/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Save sharing' }))
+    await waitFor(() => expect(handed).toEqual({ channelId: 'c1', id: 'b1', ownerId: 'admin-9' }), SLOW)
+    expect(shared).toEqual({ channelId: 'c1', id: 'b1', shares: [] }) // the new owner isn't also a share
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Share' })).toBeNull(), SLOW) // an editor now, not the owner
   })
 })
 

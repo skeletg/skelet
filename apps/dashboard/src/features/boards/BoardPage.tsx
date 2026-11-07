@@ -33,7 +33,6 @@ import {
 } from './Boards.gql'
 import { ACCESS_LABEL, can, verb } from './access'
 import { AccessRequestList, RequestAccess, notOpenable } from './AccessRequests'
-import { HandOverDialog } from './HandOverDialog'
 import { ShareDialog } from './ShareDialog'
 import { useKeptDraft } from './useKeptDraft'
 import { boardDiff, fresh, keyed, unkeyed, type AddToBoardState, type DraftReport } from './boardDiff'
@@ -97,7 +96,6 @@ export function BoardPage() {
   const [saveBoard] = useMutation(SaveBoardDocument, { refetchQueries: [BoardsDocument] })
   const [star] = useMutation(SetBoardFavouriteDocument, { refetchQueries: [BoardsDocument, BoardDocument] })
   const [sharing, setSharing] = useState(false)
-  const [handingOver, setHandingOver] = useState(false)
   const [deleteBoard] = useMutation(DeleteBoardDocument, { refetchQueries: [BoardsDocument] })
   const [confirmingSave, setConfirmingSave] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -234,15 +232,10 @@ export function BoardPage() {
                 <StarIcon className={board.favourite ? 'size-4 fill-current' : 'size-4'} />
               </Button>
             )}
-            {canOwn && board?.owner && (
+            {canOwn && board && (
               <Button size="sm" variant="outline" onClick={() => setSharing(true)}>
                 <Share2Icon className="size-4" />
                 Share
-              </Button>
-            )}
-            {canOwn && board && (
-              <Button size="sm" variant="ghost" onClick={() => setHandingOver(true)}>
-                Hand over
               </Button>
             )}
             {canEdit && board && (
@@ -360,12 +353,7 @@ export function BoardPage() {
           navigate('/synapse/boards')
         }}
       />
-      {board && (
-        <>
-          {sharing && <ShareDialog channelId={channelId} shop={selectedChannel?.name ?? 'this shop'} board={board} onClose={() => setSharing(false)} />}
-          {handingOver && <HandOverDialog channelId={channelId} shop={selectedChannel?.name ?? 'this shop'} board={board} canManage={canManage} onClose={() => setHandingOver(false)} />}
-        </>
-      )}
+      {board && sharing && <ShareDialog channelId={channelId} shop={selectedChannel?.name ?? 'this shop'} board={board} canManage={canManage} onClose={() => setSharing(false)} />}
     </DetailPageLayout>
   )
 }
