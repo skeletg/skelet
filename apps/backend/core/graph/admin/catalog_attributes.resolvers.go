@@ -70,6 +70,8 @@ func (r *mutationResolver) CreateAttribute(ctx context.Context, input model.Crea
 		H1Position:         h1PositionFromGQLPtr(input.H1Position),
 		SynapseTrack:       boolOrFalse(input.SynapseTrack),
 		AutoSegment:        boolOrFalse(input.AutoSegment),
+		Embedded:           input.Embedded,
+		SimilarMatch:       input.SimilarMatch,
 		SortOrder:          int32Or(input.SortOrder, 0),
 		Values:             values,
 		Metadata:           metadataFromInput(input.Metadata),
@@ -102,6 +104,8 @@ func (r *mutationResolver) UpdateAttribute(ctx context.Context, input model.Upda
 		IsIndexable:    input.IsIndexable,
 		SynapseTrack:   input.SynapseTrack,
 		AutoSegment:    input.AutoSegment,
+		Embedded:       input.Embedded,
+		SimilarMatch:   input.SimilarMatch,
 		SortOrder:      input.SortOrder,
 	}
 	if input.H1Position != nil {

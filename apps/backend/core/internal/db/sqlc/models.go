@@ -333,6 +333,21 @@ type AdminUserRole struct {
 	AssignedAt  time.Time `json:"assigned_at"`
 }
 
+type AssistantUsageDaily struct {
+	ChannelID        uuid.UUID `json:"channel_id"`
+	Day              time.Time `json:"day"`
+	Turns            int32     `json:"turns"`
+	FailedTurns      int32     `json:"failed_turns"`
+	CartTurns        int32     `json:"cart_turns"`
+	CheckoutTurns    int32     `json:"checkout_turns"`
+	InputTokens      int64     `json:"input_tokens"`
+	OutputTokens     int64     `json:"output_tokens"`
+	CacheReadTokens  int64     `json:"cache_read_tokens"`
+	CacheWriteTokens int64     `json:"cache_write_tokens"`
+	UnansweredTurns  int32     `json:"unanswered_turns"`
+	Overviews        int32     `json:"overviews"`
+}
+
 type Attribute struct {
 	ID                 uuid.UUID             `json:"id"`
 	Slug               string                `json:"slug"`
@@ -355,6 +370,8 @@ type Attribute struct {
 	SynapseTrack       bool                  `json:"synapse_track"`
 	AutoSegment        bool                  `json:"auto_segment"`
 	RelationshipTarget sql.NullString        `json:"relationship_target"`
+	Embedded           bool                  `json:"embedded"`
+	SimilarMatch       bool                  `json:"similar_match"`
 }
 
 type AttributeGroup struct {
@@ -374,6 +391,7 @@ type AttributeValue struct {
 	SortOrder   int32     `json:"sort_order"`
 	CreatedAt   time.Time `json:"created_at"`
 	IsIndexable bool      `json:"is_indexable"`
+	MatchesAny  bool      `json:"matches_any"`
 }
 
 type AuditLog struct {
@@ -607,6 +625,9 @@ type Cart struct {
 	Source                 string                `json:"source"`
 	HandoffToken           string                `json:"handoff_token"`
 	HandoffExpiresAt       sql.NullTime          `json:"handoff_expires_at"`
+	AssistedBy             string                `json:"assisted_by"`
+	AssistedAt             sql.NullTime          `json:"assisted_at"`
+	AssistTrace            string                `json:"assist_trace"`
 }
 
 type CartAppliedCode struct {
@@ -1513,6 +1534,25 @@ type EmailOptIn struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type Embedding struct {
+	Source      string      `json:"source"`
+	SourceID    uuid.UUID   `json:"source_id"`
+	Locale      string      `json:"locale"`
+	Model       string      `json:"model"`
+	Chunk       int16       `json:"chunk"`
+	Content     string      `json:"content"`
+	ContentHash []byte      `json:"content_hash"`
+	Embedding   interface{} `json:"embedding"`
+	UpdatedAt   time.Time   `json:"updated_at"`
+}
+
+type EmbeddingQueue struct {
+	Source   string    `json:"source"`
+	SourceID uuid.UUID `json:"source_id"`
+	QueuedAt time.Time `json:"queued_at"`
+	Attempts int32     `json:"attempts"`
+}
+
 type EventOutbox struct {
 	ID            uuid.UUID       `json:"id"`
 	EventType     string          `json:"event_type"`
@@ -1792,6 +1832,7 @@ type Order struct {
 	AnonID              string          `json:"anon_id"`
 	BusinessIds         json.RawMessage `json:"business_ids"`
 	FulfillmentNeed     string          `json:"fulfillment_need"`
+	AssistedBy          string          `json:"assisted_by"`
 }
 
 type OrderEmailLog struct {

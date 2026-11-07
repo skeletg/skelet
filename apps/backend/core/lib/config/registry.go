@@ -64,6 +64,7 @@ type Definition struct {
 	Description string
 	Public      bool // true → returned by the unauthenticated publicConfig query
 	Options     []Option
+	MaxLen      int     // the most characters a string or textarea value takes, 0 for no cap
 	Source      string  // name of a registered SourceProvider
 	Scoping     Scoping // unset inherits the Group, then the Section, then global
 	// Which settings store holds the value - unset is core's, and a Signals path is written and read

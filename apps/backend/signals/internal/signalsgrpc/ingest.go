@@ -19,7 +19,9 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/aiactivity"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/assistantlog"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/engagement"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/sendlog"
 )
@@ -27,10 +29,12 @@ import (
 type ingestServer struct {
 	roster *analytics.Roster
 	signalsv1.UnimplementedIngestServiceServer
-	rec      *analytics.Recorder
-	channels *analytics.ChannelRoster
-	sends    *sendlog.Store // nil in a test server without a log, and then the ref is taken as sent
-	track    *engagement.Tracker
+	rec       *analytics.Recorder
+	channels  *analytics.ChannelRoster
+	sends     *sendlog.Store // nil in a test server without a log, and then the ref is taken as sent
+	track     *engagement.Tracker
+	assistant *assistantlog.Store
+	ai        *aiactivity.Store
 }
 
 func (s *ingestServer) RecordActivity(ctx context.Context, req *signalsv1.RecordActivityRequest) (*signalsv1.RecordActivityResponse, error) {
@@ -406,5 +410,40 @@ func (s *ingestServer) EraseCustomerIdentities(ctx context.Context, req *signals
 	if err := s.roster.EraseCustomer(ctx, id, req.GetEmail(), erasedAt); err != nil {
 		return nil, err
 	}
+	// After the customer is marked erased, so a turn arriving now is refused rather than slipping in behind the delete. The
+	// identities are only queued, so they still tie a guest's chats to the customer here - and the queued sweep erases
+	// again once identifies buffered elsewhere have landed
+	if s.assistant != nil {
+		if err := EraseConversations(ctx, s.rec, s.assistant, []uuid.UUID{id}); err != nil {
+			return nil, err
+		}
+	}
 	return &signalsv1.EraseCustomerIdentitiesResponse{}, nil
+}
+
+func (s *ingestServer) RecordAIActivity(ctx context.Context, req *signalsv1.RecordAIActivityRequest) (*signalsv1.RecordAIActivityResponse, error) {
+	if err := requireSystem(ctx); err != nil {
+		return nil, err
+	}
+	if s.ai == nil {
+		return nil, status.Error(codes.Unavailable, "this Signals service counts no AI activity")
+	}
+	a := aiactivity.Activity{
+		ChannelID: uuidOrNil(req.GetChannelId()), Source: req.GetSource(), Agent: req.GetAgent(),
+		Tools: req.GetTools(), DedupeKey: req.GetDedupeKey(),
+	}
+	if req.GetAt().IsValid() {
+		a.At = req.GetAt().AsTime()
+	}
+	for _, sr := range req.GetSearches() {
+		a.Searches = append(a.Searches, aiactivity.Search{Term: sr.GetTerm(), Results: int(sr.GetResults())})
+	}
+	ok, err := s.ai.Record(ctx, a)
+	if errors.Is(err, aiactivity.ErrInvalid) {
+		return nil, invalidArgument("an AI activity needs a store, a source of assistant or agent, and a dedupe key")
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &signalsv1.RecordAIActivityResponse{Recorded: ok}, nil
 }

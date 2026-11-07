@@ -14,6 +14,45 @@ type ProductOptionOwner interface {
 	IsProductOptionOwner()
 }
 
+type AIAgentActivity struct {
+	Agent         string         `json:"agent"`
+	Calls         int32          `json:"calls"`
+	Searches      int32          `json:"searches"`
+	EmptySearches int32          `json:"emptySearches"`
+	Tools         []*AIToolCount `json:"tools"`
+}
+
+type AICohort struct {
+	People         int32 `json:"people"`
+	Buyers         int32 `json:"buyers"`
+	Orders         int32 `json:"orders"`
+	Revenue        int   `json:"revenue"`
+	RevenueOrders  int32 `json:"revenueOrders"`
+	ReturnedOrders int32 `json:"returnedOrders"`
+}
+
+type AIInsights struct {
+	Days            int32                   `json:"days"`
+	CartWindowDays  int32                   `json:"cartWindowDays"`
+	OrderWindowDays int32                   `json:"orderWindowDays"`
+	CurrencyCode    string                  `json:"currencyCode"`
+	Chatted         *AICohort               `json:"chatted"`
+	DidNotChat      *AICohort               `json:"didNotChat"`
+	Products        []*AIRecommendedProduct `json:"products"`
+	Agents          []*AIAgentActivity      `json:"agents"`
+	AgentOrders     int32                   `json:"agentOrders"`
+	AgentRevenue    int                     `json:"agentRevenue"`
+}
+
+type AIRecommendedProduct struct {
+	ProductID string  `json:"productId"`
+	Name      *string `json:"name,omitempty"`
+	Shown     int32   `json:"shown"`
+	People    int32   `json:"people"`
+	Carted    int32   `json:"carted"`
+	Ordered   int32   `json:"ordered"`
+}
+
 type AISeoSuggestion struct {
 	MetaTitle       string `json:"metaTitle"`
 	MetaDescription string `json:"metaDescription"`
@@ -21,6 +60,11 @@ type AISeoSuggestion struct {
 
 type AIStatus struct {
 	Enabled bool `json:"enabled"`
+}
+
+type AIToolCount struct {
+	Tool  string `json:"tool"`
+	Calls int32  `json:"calls"`
 }
 
 type ActionArgument struct {
@@ -371,6 +415,12 @@ type AdminLoginInput struct {
 	TotpCode *string `json:"totpCode,omitempty"`
 }
 
+type AdminMcp struct {
+	Available bool       `json:"available"`
+	Path      string     `json:"path"`
+	Tools     []*McpTool `json:"tools"`
+}
+
 type AdminNotification struct {
 	ID         string    `json:"id"`
 	Category   string    `json:"category"`
@@ -459,6 +509,14 @@ type AdminUser struct {
 	CreatedAt   time.Time       `json:"createdAt"`
 }
 
+type AgenticStatus struct {
+	Key          string       `json:"key"`
+	Label        string       `json:"label"`
+	State        AgenticState `json:"state"`
+	Detail       string       `json:"detail"`
+	SettingsPath string       `json:"settingsPath"`
+}
+
 type AppliedPromotion struct {
 	ID        string    `json:"id"`
 	RuleID    *string   `json:"ruleId,omitempty"`
@@ -485,6 +543,135 @@ type AssignReviewQuestionInput struct {
 	SortOrder     int32  `json:"sortOrder"`
 }
 
+type AssistantConversation struct {
+	ID               string        `json:"id"`
+	CustomerID       *string       `json:"customerId,omitempty"`
+	AnonID           string        `json:"anonId"`
+	FirstQuestion    string        `json:"firstQuestion"`
+	Turns            int32         `json:"turns"`
+	CartChanged      bool          `json:"cartChanged"`
+	Checkout         bool          `json:"checkout"`
+	Incomplete       bool          `json:"incomplete"`
+	StartedAt        time.Time     `json:"startedAt"`
+	LastAt           time.Time     `json:"lastAt"`
+	Unanswered       int32         `json:"unanswered"`
+	LatestUnanswered *AssistantGap `json:"latestUnanswered,omitempty"`
+}
+
+type AssistantConversationDetail struct {
+	Conversation *AssistantConversation     `json:"conversation"`
+	Turns        []*AssistantTranscriptTurn `json:"turns"`
+}
+
+type AssistantConversationPage struct {
+	Items      []*AssistantConversation `json:"items"`
+	Counts     *AssistantGapCounts      `json:"counts"`
+	NextCursor *string                  `json:"nextCursor,omitempty"`
+}
+
+type AssistantDay struct {
+	Day             string `json:"day"`
+	Turns           int32  `json:"turns"`
+	FailedTurns     int32  `json:"failedTurns"`
+	UnansweredTurns int32  `json:"unansweredTurns"`
+	CartTurns       int32  `json:"cartTurns"`
+	CheckoutTurns   int32  `json:"checkoutTurns"`
+	AssistantOrders int32  `json:"assistantOrders"`
+	AgentOrders     int32  `json:"agentOrders"`
+}
+
+type AssistantGap struct {
+	TurnID   string               `json:"turnId"`
+	Question string               `json:"question"`
+	Reasons  []AssistantGapReason `json:"reasons"`
+}
+
+type AssistantGapCounts struct {
+	Any          int32 `json:"any"`
+	NoAnswer     int32 `json:"noAnswer"`
+	CutShort     int32 `json:"cutShort"`
+	FoundNothing int32 `json:"foundNothing"`
+	Unsure       int32 `json:"unsure"`
+}
+
+type AssistantReport struct {
+	Days            int32             `json:"days"`
+	Turns           int32             `json:"turns"`
+	FailedTurns     int32             `json:"failedTurns"`
+	UnansweredTurns int32             `json:"unansweredTurns"`
+	CartTurns       int32             `json:"cartTurns"`
+	CheckoutTurns   int32             `json:"checkoutTurns"`
+	SearchOverviews int32             `json:"searchOverviews"`
+	Usage           *AssistantUsage   `json:"usage"`
+	Orders          []*AssistedOrders `json:"orders"`
+	Daily           []*AssistantDay   `json:"daily"`
+}
+
+type AssistantRound struct {
+	Thinking string               `json:"thinking"`
+	Text     string               `json:"text"`
+	Calls    []*AssistantToolCall `json:"calls"`
+	Shown    bool                 `json:"shown"`
+}
+
+type AssistantShownItem struct {
+	Kind      AssistantShownKind `json:"kind"`
+	ProductID *string            `json:"productId,omitempty"`
+	Name      *string            `json:"name,omitempty"`
+	Label     *string            `json:"label,omitempty"`
+	Path      *string            `json:"path,omitempty"`
+	Text      *string            `json:"text,omitempty"`
+}
+
+type AssistantToolCall struct {
+	Tool    string `json:"tool"`
+	Input   string `json:"input"`
+	Output  string `json:"output"`
+	IsError bool   `json:"isError"`
+	Skipped bool   `json:"skipped"`
+}
+
+type AssistantTranscriptTurn struct {
+	ID               string                `json:"id"`
+	Page             string                `json:"page"`
+	Question         string                `json:"question"`
+	Reply            string                `json:"reply"`
+	Recap            string                `json:"recap"`
+	Showed           []*AssistantShownItem `json:"showed"`
+	FollowUps        []string              `json:"followUps"`
+	Steps            int32                 `json:"steps"`
+	ToolCalls        int32                 `json:"toolCalls"`
+	Refused          bool                  `json:"refused"`
+	Thought          bool                  `json:"thought"`
+	Products         int32                 `json:"products"`
+	CartChanged      bool                  `json:"cartChanged"`
+	Checkout         bool                  `json:"checkout"`
+	Incomplete       bool                  `json:"incomplete"`
+	Model            string                `json:"model"`
+	InputTokens      int                   `json:"inputTokens"`
+	OutputTokens     int                   `json:"outputTokens"`
+	CacheReadTokens  int                   `json:"cacheReadTokens"`
+	CacheWriteTokens int                   `json:"cacheWriteTokens"`
+	At               time.Time             `json:"at"`
+}
+
+type AssistantUsage struct {
+	InputTokens      int      `json:"inputTokens"`
+	OutputTokens     int      `json:"outputTokens"`
+	CacheReadTokens  int      `json:"cacheReadTokens"`
+	CacheWriteTokens int      `json:"cacheWriteTokens"`
+	EstimatedCostUsd *float64 `json:"estimatedCostUsd,omitempty"`
+}
+
+type AssistedOrders struct {
+	CurrencyCode     string `json:"currencyCode"`
+	OrderCount       int32  `json:"orderCount"`
+	AssistantOrders  int32  `json:"assistantOrders"`
+	AssistantRevenue int    `json:"assistantRevenue"`
+	AgentOrders      int32  `json:"agentOrders"`
+	AgentRevenue     int    `json:"agentRevenue"`
+}
+
 type Attribute struct {
 	ID                 string                    `json:"id"`
 	Slug               string                    `json:"slug"`
@@ -501,6 +688,8 @@ type Attribute struct {
 	H1Position         AttributeH1Position       `json:"h1Position"`
 	SynapseTrack       bool                      `json:"synapseTrack"`
 	AutoSegment        bool                      `json:"autoSegment"`
+	Embedded           bool                      `json:"embedded"`
+	SimilarMatch       bool                      `json:"similarMatch"`
 	SortOrder          int32                     `json:"sortOrder"`
 	Values             []*AttributeValue         `json:"values"`
 	Descriptions       []*AttributeContent       `json:"descriptions"`
@@ -543,6 +732,7 @@ type AttributeValue struct {
 	Value        string                   `json:"value"`
 	SortOrder    int32                    `json:"sortOrder"`
 	IsIndexable  bool                     `json:"isIndexable"`
+	MatchesAny   bool                     `json:"matchesAny"`
 	Descriptions []*AttributeValueContent `json:"descriptions"`
 }
 
@@ -567,6 +757,7 @@ type AttributeValueInput struct {
 	Value       *string `json:"value,omitempty"`
 	SortOrder   *int32  `json:"sortOrder,omitempty"`
 	IsIndexable *bool   `json:"isIndexable,omitempty"`
+	MatchesAny  *bool   `json:"matchesAny,omitempty"`
 }
 
 type AttributedRevenue struct {
@@ -1495,6 +1686,7 @@ type ConfigValue struct {
 	IsSet       bool            `json:"isSet"`
 	Scope       *ConfigScope    `json:"scope"`
 	Options     []*ConfigOption `json:"options,omitempty"`
+	MaxLength   *int32          `json:"maxLength,omitempty"`
 	UpdatedAt   *time.Time      `json:"updatedAt,omitempty"`
 }
 
@@ -1614,6 +1806,8 @@ type CreateAttributeInput struct {
 	H1Position         *AttributeH1Position      `json:"h1Position,omitempty"`
 	SynapseTrack       *bool                     `json:"synapseTrack,omitempty"`
 	AutoSegment        *bool                     `json:"autoSegment,omitempty"`
+	Embedded           *bool                     `json:"embedded,omitempty"`
+	SimilarMatch       *bool                     `json:"similarMatch,omitempty"`
 	SortOrder          *int32                    `json:"sortOrder,omitempty"`
 	Values             []*AttributeValueInput    `json:"values,omitempty"`
 	Metadata           []*MetadataInput          `json:"metadata,omitempty"`
@@ -2688,6 +2882,16 @@ type EmailWarning struct {
 	Message  string `json:"message"`
 }
 
+type EmbeddingCoverage struct {
+	Model            string `json:"model"`
+	Products         int32  `json:"products"`
+	EmbeddedProducts int32  `json:"embeddedProducts"`
+	Pages            int32  `json:"pages"`
+	EmbeddedPages    int32  `json:"embeddedPages"`
+	Queued           int32  `json:"queued"`
+	Failed           string `json:"failed"`
+}
+
 type EventDestination struct {
 	ID              string     `json:"id"`
 	ChannelID       string     `json:"channelId"`
@@ -3025,6 +3229,12 @@ type KitComponent struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
+type LensAISearchGap struct {
+	Term      string `json:"term"`
+	Assistant int32  `json:"assistant"`
+	Agents    int32  `json:"agents"`
+}
+
 type LensCell struct {
 	X     int32 `json:"x"`
 	Y     int32 `json:"y"`
@@ -3079,6 +3289,13 @@ type LensOverview struct {
 	PlanIssues   []*LensPlanIssue  `json:"planIssues"`
 }
 
+type LensOverviewTerm struct {
+	Term   string `json:"term"`
+	Shown  int32  `json:"shown"`
+	Clicks int32  `json:"clicks"`
+	Chats  int32  `json:"chats"`
+}
+
 type LensPage struct {
 	PageKey string `json:"pageKey"`
 	Views   int32  `json:"views"`
@@ -3126,18 +3343,26 @@ type LensRageElement struct {
 }
 
 type LensSearchAnalytics struct {
-	TotalSearches      int32             `json:"totalSearches"`
-	DistinctTerms      int32             `json:"distinctTerms"`
-	ZeroResultSearches int32             `json:"zeroResultSearches"`
-	Top                []*LensSearchTerm `json:"top"`
-	ZeroResult         []*LensSearchTerm `json:"zeroResult"`
-	Daily              []*LensSearchDay  `json:"daily"`
+	TotalSearches       int32               `json:"totalSearches"`
+	DistinctTerms       int32               `json:"distinctTerms"`
+	ZeroResultSearches  int32               `json:"zeroResultSearches"`
+	Top                 []*LensSearchTerm   `json:"top"`
+	ZeroResult          []*LensSearchTerm   `json:"zeroResult"`
+	MeaningOnlySearches int32               `json:"meaningOnlySearches"`
+	MeaningOnly         []*LensSearchTerm   `json:"meaningOnly"`
+	Daily               []*LensSearchDay    `json:"daily"`
+	AiGaps              []*LensAISearchGap  `json:"aiGaps"`
+	OverviewsShown      int32               `json:"overviewsShown"`
+	OverviewClicks      int32               `json:"overviewClicks"`
+	OverviewChats       int32               `json:"overviewChats"`
+	Overviews           []*LensOverviewTerm `json:"overviews"`
 }
 
 type LensSearchDay struct {
 	Date        string `json:"date"`
 	Searches    int32  `json:"searches"`
 	ZeroResults int32  `json:"zeroResults"`
+	MeaningOnly int32  `json:"meaningOnly"`
 }
 
 type LensSearchTerm struct {
@@ -3329,6 +3554,16 @@ type MasqueradeSession struct {
 	StorefrontPath   string `json:"storefrontPath"`
 	StorefrontURL    string `json:"storefrontUrl"`
 	ExpiresInSeconds int32  `json:"expiresInSeconds"`
+}
+
+type McpOverview struct {
+	Storefront *StorefrontMcp `json:"storefront"`
+	Admin      *AdminMcp      `json:"admin"`
+}
+
+type McpTool struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
 }
 
 type MediaAsset struct {
@@ -4705,11 +4940,71 @@ type SearchMerchandising struct {
 	Redirects []*SearchRedirect `json:"redirects"`
 }
 
+type SearchOverviewPreview struct {
+	Status   SearchOverviewStatus            `json:"status"`
+	Text     string                          `json:"text"`
+	Products []*SearchOverviewPreviewProduct `json:"products"`
+}
+
+type SearchOverviewPreviewProduct struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
 type SearchPin struct {
 	ID        string `json:"id"`
 	Query     string `json:"query"`
 	ProductID string `json:"productId"`
 	Position  int32  `json:"position"`
+}
+
+type SearchPreview struct {
+	Locales       []string                `json:"locales"`
+	WordsTotal    int32                   `json:"wordsTotal"`
+	ByWords       []*SearchPreviewProduct `json:"byWords"`
+	ByMeaning     []*SearchPreviewNear    `json:"byMeaning"`
+	Shown         []*SearchPreviewShown   `json:"shown"`
+	ProductsText  string                  `json:"productsText"`
+	PagesByWords  []*SearchPreviewPage    `json:"pagesByWords"`
+	Passages      []*SearchPreviewPassage `json:"passages"`
+	PagesText     string                  `json:"pagesText"`
+	MeaningFailed string                  `json:"meaningFailed"`
+}
+
+type SearchPreviewNear struct {
+	Product  *SearchPreviewProduct `json:"product"`
+	Distance float64               `json:"distance"`
+	Counted  bool                  `json:"counted"`
+}
+
+type SearchPreviewPage struct {
+	Title string `json:"title"`
+	URL   string `json:"url"`
+}
+
+type SearchPreviewPassage struct {
+	Title    string  `json:"title"`
+	URL      string  `json:"url"`
+	Text     string  `json:"text"`
+	Distance float64 `json:"distance"`
+	Counted  bool    `json:"counted"`
+}
+
+type SearchPreviewProduct struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Sku          string `json:"sku"`
+	URL          string `json:"url"`
+	Price        int    `json:"price"`
+	CurrencyCode string `json:"currencyCode"`
+	InStock      bool   `json:"inStock"`
+}
+
+type SearchPreviewShown struct {
+	Product   *SearchPreviewProduct `json:"product"`
+	ByWords   bool                  `json:"byWords"`
+	ByMeaning bool                  `json:"byMeaning"`
 }
 
 type SearchRedirect struct {
@@ -5130,6 +5425,25 @@ type StoreCreditSummary struct {
 	Entries      []*StoreCreditEntry `json:"entries"`
 }
 
+type StorefrontMcp struct {
+	Available bool       `json:"available"`
+	Enabled   bool       `json:"enabled"`
+	URL       *string    `json:"url,omitempty"`
+	Tools     []*McpTool `json:"tools"`
+}
+
+type StorefrontSearchPreview struct {
+	Reads         StorefrontSearchReading `json:"reads"`
+	AnsweredBy    StorefrontSearchAnswer  `json:"answeredBy"`
+	Margin        float64                 `json:"margin"`
+	Total         int32                   `json:"total"`
+	Listed        []*SearchPreviewShown   `json:"listed"`
+	WordsTotal    int32                   `json:"wordsTotal"`
+	ByWords       []*SearchPreviewProduct `json:"byWords"`
+	ByMeaning     []*SearchPreviewNear    `json:"byMeaning"`
+	MeaningFailed string                  `json:"meaningFailed"`
+}
+
 type Subscription struct {
 }
 
@@ -5513,6 +5827,8 @@ type UpdateAttributeInput struct {
 	H1Position      *AttributeH1Position `json:"h1Position,omitempty"`
 	SynapseTrack    *bool                `json:"synapseTrack,omitempty"`
 	AutoSegment     *bool                `json:"autoSegment,omitempty"`
+	Embedded        *bool                `json:"embedded,omitempty"`
+	SimilarMatch    *bool                `json:"similarMatch,omitempty"`
 	SortOrder       *int32               `json:"sortOrder,omitempty"`
 	Metadata        []*MetadataInput     `json:"metadata,omitempty"`
 	PrivateMetadata []*MetadataInput     `json:"privateMetadata,omitempty"`
@@ -6334,6 +6650,246 @@ func (e *ActionArgumentType) UnmarshalJSON(b []byte) error {
 }
 
 func (e ActionArgumentType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type AgenticState string
+
+const (
+	AgenticStateOn        AgenticState = "ON"
+	AgenticStateOff       AgenticState = "OFF"
+	AgenticStateAttention AgenticState = "ATTENTION"
+)
+
+var AllAgenticState = []AgenticState{
+	AgenticStateOn,
+	AgenticStateOff,
+	AgenticStateAttention,
+}
+
+func (e AgenticState) IsValid() bool {
+	switch e {
+	case AgenticStateOn, AgenticStateOff, AgenticStateAttention:
+		return true
+	}
+	return false
+}
+
+func (e AgenticState) String() string {
+	return string(e)
+}
+
+func (e *AgenticState) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = AgenticState(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid AgenticState", str)
+	}
+	return nil
+}
+
+func (e AgenticState) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AgenticState) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AgenticState) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type AssistantGapReason string
+
+const (
+	AssistantGapReasonNoAnswer     AssistantGapReason = "NO_ANSWER"
+	AssistantGapReasonCutShort     AssistantGapReason = "CUT_SHORT"
+	AssistantGapReasonFoundNothing AssistantGapReason = "FOUND_NOTHING"
+	AssistantGapReasonUnsure       AssistantGapReason = "UNSURE"
+)
+
+var AllAssistantGapReason = []AssistantGapReason{
+	AssistantGapReasonNoAnswer,
+	AssistantGapReasonCutShort,
+	AssistantGapReasonFoundNothing,
+	AssistantGapReasonUnsure,
+}
+
+func (e AssistantGapReason) IsValid() bool {
+	switch e {
+	case AssistantGapReasonNoAnswer, AssistantGapReasonCutShort, AssistantGapReasonFoundNothing, AssistantGapReasonUnsure:
+		return true
+	}
+	return false
+}
+
+func (e AssistantGapReason) String() string {
+	return string(e)
+}
+
+func (e *AssistantGapReason) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = AssistantGapReason(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid AssistantGapReason", str)
+	}
+	return nil
+}
+
+func (e AssistantGapReason) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AssistantGapReason) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AssistantGapReason) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type AssistantShownKind string
+
+const (
+	AssistantShownKindCard   AssistantShownKind = "CARD"
+	AssistantShownKindPanel  AssistantShownKind = "PANEL"
+	AssistantShownKindButton AssistantShownKind = "BUTTON"
+	AssistantShownKindMoved  AssistantShownKind = "MOVED"
+	AssistantShownKindCart   AssistantShownKind = "CART"
+	AssistantShownKindText   AssistantShownKind = "TEXT"
+)
+
+var AllAssistantShownKind = []AssistantShownKind{
+	AssistantShownKindCard,
+	AssistantShownKindPanel,
+	AssistantShownKindButton,
+	AssistantShownKindMoved,
+	AssistantShownKindCart,
+	AssistantShownKindText,
+}
+
+func (e AssistantShownKind) IsValid() bool {
+	switch e {
+	case AssistantShownKindCard, AssistantShownKindPanel, AssistantShownKindButton, AssistantShownKindMoved, AssistantShownKindCart, AssistantShownKindText:
+		return true
+	}
+	return false
+}
+
+func (e AssistantShownKind) String() string {
+	return string(e)
+}
+
+func (e *AssistantShownKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = AssistantShownKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid AssistantShownKind", str)
+	}
+	return nil
+}
+
+func (e AssistantShownKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AssistantShownKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AssistantShownKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type AssistantUnansweredFilter string
+
+const (
+	AssistantUnansweredFilterAny          AssistantUnansweredFilter = "ANY"
+	AssistantUnansweredFilterNoAnswer     AssistantUnansweredFilter = "NO_ANSWER"
+	AssistantUnansweredFilterCutShort     AssistantUnansweredFilter = "CUT_SHORT"
+	AssistantUnansweredFilterFoundNothing AssistantUnansweredFilter = "FOUND_NOTHING"
+	AssistantUnansweredFilterUnsure       AssistantUnansweredFilter = "UNSURE"
+)
+
+var AllAssistantUnansweredFilter = []AssistantUnansweredFilter{
+	AssistantUnansweredFilterAny,
+	AssistantUnansweredFilterNoAnswer,
+	AssistantUnansweredFilterCutShort,
+	AssistantUnansweredFilterFoundNothing,
+	AssistantUnansweredFilterUnsure,
+}
+
+func (e AssistantUnansweredFilter) IsValid() bool {
+	switch e {
+	case AssistantUnansweredFilterAny, AssistantUnansweredFilterNoAnswer, AssistantUnansweredFilterCutShort, AssistantUnansweredFilterFoundNothing, AssistantUnansweredFilterUnsure:
+		return true
+	}
+	return false
+}
+
+func (e AssistantUnansweredFilter) String() string {
+	return string(e)
+}
+
+func (e *AssistantUnansweredFilter) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = AssistantUnansweredFilter(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid AssistantUnansweredFilter", str)
+	}
+	return nil
+}
+
+func (e AssistantUnansweredFilter) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AssistantUnansweredFilter) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AssistantUnansweredFilter) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
@@ -9599,6 +10155,179 @@ func (e ReviewStatus) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+type SearchByMeaningMode string
+
+const (
+	SearchByMeaningModeNatural SearchByMeaningMode = "NATURAL"
+	SearchByMeaningModeAlways  SearchByMeaningMode = "ALWAYS"
+	SearchByMeaningModeOff     SearchByMeaningMode = "OFF"
+)
+
+var AllSearchByMeaningMode = []SearchByMeaningMode{
+	SearchByMeaningModeNatural,
+	SearchByMeaningModeAlways,
+	SearchByMeaningModeOff,
+}
+
+func (e SearchByMeaningMode) IsValid() bool {
+	switch e {
+	case SearchByMeaningModeNatural, SearchByMeaningModeAlways, SearchByMeaningModeOff:
+		return true
+	}
+	return false
+}
+
+func (e SearchByMeaningMode) String() string {
+	return string(e)
+}
+
+func (e *SearchByMeaningMode) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SearchByMeaningMode(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SearchByMeaningMode", str)
+	}
+	return nil
+}
+
+func (e SearchByMeaningMode) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SearchByMeaningMode) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SearchByMeaningMode) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type SearchByMeaningStrictness string
+
+const (
+	SearchByMeaningStrictnessStrict   SearchByMeaningStrictness = "STRICT"
+	SearchByMeaningStrictnessBalanced SearchByMeaningStrictness = "BALANCED"
+	SearchByMeaningStrictnessBroad    SearchByMeaningStrictness = "BROAD"
+)
+
+var AllSearchByMeaningStrictness = []SearchByMeaningStrictness{
+	SearchByMeaningStrictnessStrict,
+	SearchByMeaningStrictnessBalanced,
+	SearchByMeaningStrictnessBroad,
+}
+
+func (e SearchByMeaningStrictness) IsValid() bool {
+	switch e {
+	case SearchByMeaningStrictnessStrict, SearchByMeaningStrictnessBalanced, SearchByMeaningStrictnessBroad:
+		return true
+	}
+	return false
+}
+
+func (e SearchByMeaningStrictness) String() string {
+	return string(e)
+}
+
+func (e *SearchByMeaningStrictness) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SearchByMeaningStrictness(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SearchByMeaningStrictness", str)
+	}
+	return nil
+}
+
+func (e SearchByMeaningStrictness) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SearchByMeaningStrictness) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SearchByMeaningStrictness) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type SearchOverviewStatus string
+
+const (
+	SearchOverviewStatusWritten     SearchOverviewStatus = "WRITTEN"
+	SearchOverviewStatusKeywords    SearchOverviewStatus = "KEYWORDS"
+	SearchOverviewStatusUnavailable SearchOverviewStatus = "UNAVAILABLE"
+	SearchOverviewStatusNothing     SearchOverviewStatus = "NOTHING"
+)
+
+var AllSearchOverviewStatus = []SearchOverviewStatus{
+	SearchOverviewStatusWritten,
+	SearchOverviewStatusKeywords,
+	SearchOverviewStatusUnavailable,
+	SearchOverviewStatusNothing,
+}
+
+func (e SearchOverviewStatus) IsValid() bool {
+	switch e {
+	case SearchOverviewStatusWritten, SearchOverviewStatusKeywords, SearchOverviewStatusUnavailable, SearchOverviewStatusNothing:
+		return true
+	}
+	return false
+}
+
+func (e SearchOverviewStatus) String() string {
+	return string(e)
+}
+
+func (e *SearchOverviewStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SearchOverviewStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SearchOverviewStatus", str)
+	}
+	return nil
+}
+
+func (e SearchOverviewStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SearchOverviewStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SearchOverviewStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 type SegmentBoolOp string
 
 const (
@@ -9917,6 +10646,122 @@ func (e *SiteCrawlStatus) UnmarshalJSON(b []byte) error {
 }
 
 func (e SiteCrawlStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type StorefrontSearchAnswer string
+
+const (
+	StorefrontSearchAnswerWords   StorefrontSearchAnswer = "WORDS"
+	StorefrontSearchAnswerMeaning StorefrontSearchAnswer = "MEANING"
+	StorefrontSearchAnswerBlended StorefrontSearchAnswer = "BLENDED"
+)
+
+var AllStorefrontSearchAnswer = []StorefrontSearchAnswer{
+	StorefrontSearchAnswerWords,
+	StorefrontSearchAnswerMeaning,
+	StorefrontSearchAnswerBlended,
+}
+
+func (e StorefrontSearchAnswer) IsValid() bool {
+	switch e {
+	case StorefrontSearchAnswerWords, StorefrontSearchAnswerMeaning, StorefrontSearchAnswerBlended:
+		return true
+	}
+	return false
+}
+
+func (e StorefrontSearchAnswer) String() string {
+	return string(e)
+}
+
+func (e *StorefrontSearchAnswer) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = StorefrontSearchAnswer(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid StorefrontSearchAnswer", str)
+	}
+	return nil
+}
+
+func (e StorefrontSearchAnswer) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *StorefrontSearchAnswer) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e StorefrontSearchAnswer) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type StorefrontSearchReading string
+
+const (
+	StorefrontSearchReadingWords    StorefrontSearchReading = "WORDS"
+	StorefrontSearchReadingKeywords StorefrontSearchReading = "KEYWORDS"
+	StorefrontSearchReadingSentence StorefrontSearchReading = "SENTENCE"
+	StorefrontSearchReadingBlended  StorefrontSearchReading = "BLENDED"
+)
+
+var AllStorefrontSearchReading = []StorefrontSearchReading{
+	StorefrontSearchReadingWords,
+	StorefrontSearchReadingKeywords,
+	StorefrontSearchReadingSentence,
+	StorefrontSearchReadingBlended,
+}
+
+func (e StorefrontSearchReading) IsValid() bool {
+	switch e {
+	case StorefrontSearchReadingWords, StorefrontSearchReadingKeywords, StorefrontSearchReadingSentence, StorefrontSearchReadingBlended:
+		return true
+	}
+	return false
+}
+
+func (e StorefrontSearchReading) String() string {
+	return string(e)
+}
+
+func (e *StorefrontSearchReading) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = StorefrontSearchReading(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid StorefrontSearchReading", str)
+	}
+	return nil
+}
+
+func (e StorefrontSearchReading) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *StorefrontSearchReading) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e StorefrontSearchReading) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

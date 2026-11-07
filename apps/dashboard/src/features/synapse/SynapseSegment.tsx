@@ -24,7 +24,7 @@ import {
 } from './Synapse.gql'
 import { customerLabel, useCustomerNames } from '@/shared/signals/useCustomerNames'
 import { SegmentTreeBuilder } from './SegmentTreeBuilder'
-import { definitionToTree, nodeComplete, nodeToInput, summarizeNode, type SegNode, type SummaryNode } from './segment-tree'
+import { definitionToTree, nodeComplete, nodeToInput, segmentEvents, summarizeNode, type SegNode, type SummaryNode } from './segment-tree'
 import { Tile } from '@/components/layout/panels'
 import { formatCents, formatDate, formatShortDay } from '@/lib/format'
 
@@ -61,7 +61,7 @@ export function SynapseSegment() {
   // the segment's own channel so a save can't accidentally re-scope it
   const channelId = seg?.channelId ?? ''
   const { data: ov, error: ovError } = useQuery(SynapseOverviewDocument, { variables: { channelId, sinceDays: 30 }, skip: !channelId, fetchPolicy: 'cache-first' })
-  const events = (ov?.synapseOverview.topEvents ?? []).map((e) => e.name)
+  const events = segmentEvents((ov?.synapseOverview.topEvents ?? []).map((e) => e.name))
   const { data: attrData, error: attrError } = useQuery(SynapseTrackedAttributesDocument, { variables: { channelId }, skip: !channelId, fetchPolicy: 'cache-first' })
   const attributes = attrData?.synapseTrackedAttributes ?? []
   const error = segError ?? ovError ?? attrError

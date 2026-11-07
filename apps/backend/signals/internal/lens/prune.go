@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/skeletg/skelet/apps/backend/signals/internal/aiactivity"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 )
 
@@ -33,6 +34,9 @@ func (s *Service) Prune(ctx context.Context, before time.Time, archive bool) (in
 		s.q.PruneLensVisitors,
 		s.q.PruneBrowseSeen,
 		s.q.PruneBrowseNotified,
+		func(ctx context.Context, _ time.Time) (int64, error) { // only has to outlast a replay, whatever the window
+			return s.q.PruneAIActivitySeen(ctx, time.Now().Add(-aiactivity.SeenRetention))
+		},
 	} {
 		n, err := del(ctx, before)
 		if err != nil {
@@ -49,6 +53,8 @@ func (s *Service) PruneRollups(ctx context.Context, before time.Time) (int64, er
 	for _, del := range []func(context.Context, time.Time) (int64, error){
 		s.q.PruneTrafficRollup,
 		s.q.PruneLensDaily,
+		s.q.PruneAIToolDaily,
+		s.q.PruneAISearchDaily,
 	} {
 		n, err := del(ctx, before)
 		if err != nil {

@@ -373,6 +373,10 @@ func TestTheIngestMethodsRefuseAnAdminToken(t *testing.T) {
 			_, e := c.RecordEmailClick(ctx, &signalsv1.RecordEmailClickRequest{Send: &signalsv1.EmailSendRef{SendId: id}})
 			return e
 		},
+		"RecordAssistantTurn": func(ctx context.Context) error {
+			_, e := c.RecordAssistantTurn(ctx, &signalsv1.RecordAssistantTurnRequest{Turn: &signalsv1.AssistantTurnRecord{Id: id, ConversationId: id, ChannelId: id, AnonId: "a"}})
+			return e
+		},
 	} {
 		if got := status.Code(call(admin)); got != codes.PermissionDenied {
 			t.Errorf("%s answered a superuser admin token with %s, want PermissionDenied", name, got)
@@ -593,6 +597,10 @@ func TestAnAdminTokenCannotDriveMaintenance(t *testing.T) {
 		},
 		"GetCustomerTraits": func() error {
 			_, e := c.GetCustomerTraits(adm, &signalsv1.GetCustomerTraitsRequest{CustomerId: uuid.NewString()})
+			return e
+		},
+		"PruneAssistantConversations": func() error {
+			_, e := c.PruneAssistantConversations(adm, &signalsv1.PruneAssistantConversationsRequest{})
 			return e
 		},
 	} {

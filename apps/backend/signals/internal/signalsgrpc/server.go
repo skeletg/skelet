@@ -22,8 +22,10 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/otelx"
 	"github.com/skeletg/skelet/apps/backend/core/signalsapi"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/aiactivity"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics/spinequeue"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/assistantlog"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/behavioralsegment"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/board"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/campaign"
@@ -61,6 +63,8 @@ type Deps struct {
 	// The send log and the suppression list - the engines here and core's transactional sends write and read them
 	SendLog     *sendlog.Store
 	Suppression *suppression.Service
+	Assistant   *assistantlog.Store
+	AIActivity  *aiactivity.Store
 	// Pulse: the flow engine, the campaign pipeline and the email builder they render from - nil in a
 	// test server without them, and the services then go unregistered
 	Flows     *flow.Service
@@ -109,12 +113,14 @@ func NewServer(d Deps) *grpc.Server {
 	}
 	signalsv1.RegisterPulseServiceServer(srv, pulse)
 	signalsv1.RegisterIngestServiceServer(srv, &ingestServer{
-		rec: d.Analytics, roster: d.CustomerRoster, channels: d.Channels, sends: d.SendLog, track: engagement.New(d.Analytics, d.SendLog),
+		rec: d.Analytics, roster: d.CustomerRoster, channels: d.Channels, sends: d.SendLog, track: engagement.New(d.Analytics, d.SendLog), assistant: d.Assistant,
+		ai: d.AIActivity,
 	})
+	signalsv1.RegisterAssistantServiceServer(srv, &assistantServer{log: d.Assistant, rec: d.Analytics, ai: d.AIActivity})
 	signalsv1.RegisterSettingsServiceServer(srv, &settingsServer{repo: d.SettingsRepo})
 	maint := &maintenanceServer{
 		rec: d.Analytics, roster: d.CustomerRoster, traits: d.Traits, lens: d.Lens, destination: d.Destination, settings: d.Settings,
-		segments: d.Segment, behavioral: d.Behavioral, queue: queueOrNil(d.Queue), sends: sendLogOrNil(d.SendLog), boards: d.Boards,
+		segments: d.Segment, behavioral: d.Behavioral, queue: queueOrNil(d.Queue), sends: sendLogOrNil(d.SendLog), assistant: d.Assistant, boards: d.Boards,
 	}
 	if d.Flows != nil {
 		maint.flows = d.Flows
@@ -229,8 +235,8 @@ func windowDays(requested, fallback int32) int32 {
 	if requested <= 0 {
 		return fallback
 	}
-	if requested > 365 {
-		return 365
+	if requested > signalsapi.MaxReportDays {
+		return signalsapi.MaxReportDays
 	}
 	return requested
 }

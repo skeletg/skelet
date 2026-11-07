@@ -90,6 +90,26 @@ func GetOrCreateCustomerCart(ctx context.Context, repo Repository, customerID, c
 	return cart, nil
 }
 
+// FindCustomerCart is GetOrCreateCart for a caller that only reads - false when the customer has no cart on the store yet
+func (s *Service) FindCustomerCart(ctx context.Context, customerID, channelID uuid.UUID) (Cart, bool, error) {
+	cart, err := s.repo.GetCartByCustomerAndChannel(ctx, customerID, channelID)
+	if IsSQLNoRows(err) {
+		return Cart{}, false, nil
+	}
+	if err != nil {
+		return Cart{}, false, fmt.Errorf("get cart: %w", err)
+	}
+	if cart.Lines, err = s.repo.ListCartLinesByCart(ctx, cart.ID); err != nil {
+		return Cart{}, false, fmt.Errorf("load cart lines: %w", err)
+	}
+	return cart, true, nil
+}
+
+// MarkAssisted credits the helper, and for the assistant remembers the turn's trace so the order can score it
+func (s *Service) MarkAssisted(ctx context.Context, cartID uuid.UUID, by, trace string) error {
+	return s.repo.MarkCartAssisted(ctx, cartID, by, trace)
+}
+
 func (s *Service) CreateGuestCart(ctx context.Context, channelID uuid.UUID) (Cart, error) { // ownerless - the UUID is the capability, and whoever holds it can operate the cart until it's merged or converted
 	cart, err := s.repo.CreateCart(ctx, nil, channelID)
 	if err != nil {

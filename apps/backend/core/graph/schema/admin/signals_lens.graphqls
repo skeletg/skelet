@@ -217,6 +217,7 @@ type LensSearchDay {
   date:        String!  # YYYY-MM-DD
   searches:    Int!
   zeroResults: Int!
+  meaningOnly: Int!
 }
 type LensSearchAnalytics {
   totalSearches:      Int!
@@ -224,7 +225,25 @@ type LensSearchAnalytics {
   zeroResultSearches: Int!
   top:                [LensSearchTerm!]!   # most-searched terms
   zeroResult:         [LensSearchTerm!]!   # searches that returned nothing (merchandising gaps)
+  meaningOnlySearches: Int!
+  meaningOnly:        [LensSearchTerm!]!   # searches whose words matched nothing, answered by meaning alone
   daily:              [LensSearchDay!]!    # daily search + zero-result volume
+  aiGaps:             [LensAISearchGap!]!  # what shoppers asked the assistant or their own AI agents for that came back empty
+  overviewsShown:     Int!
+  overviewClicks:     Int!                 # a product named in an overview followed
+  overviewChats:      Int!                 # an overview carried into the chat
+  overviews:          [LensOverviewTerm!]! # the same, per search
+}
+type LensAISearchGap {
+  term:      String!
+  assistant: Int!
+  agents:    Int!
+}
+type LensOverviewTerm {
+  term:   String!
+  shown:  Int!
+  clicks: Int!
+  chats:  Int!
 }
 
 # p75 web vitals per page (nullable when a page has no sample for that metric).

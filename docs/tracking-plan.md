@@ -25,7 +25,10 @@ To change the plan, edit `TrackingPlan` in `apps/backend/signals/internal/analyt
 |---|---|---|
 | `page_view` | A page was shown. Product pages describe the product they show. | `entity` string, `entity_image` string, `entity_name` string, `entity_price` string, `search_query` string, `sku` string, `utm_campaign` string, `utm_medium` string, `utm_source` string, `attr:<slug>` string |
 | `product_filter` | A shopper narrowed a product list. | `filters` string, `attr:<slug>` string |
-| `$search` | An on-site search and how many results it found. | `query` string, `results` number |
+| `$search` | An on-site search, how many results it found, and whether only search by meaning found them. | `byMeaningOnly` bool, `query` string, `results` number |
+| `search_overview_shown` | The AI overview above a search's results was shown, and how many products it named. | `products` number, `query` string |
+| `search_overview_click` | A product named in the AI overview was followed, by its place in the overview. | `position` number, `query` string |
+| `search_overview_chat` | The AI overview was carried into the shopping assistant's chat. | `query` string |
 | `$experiment` | The variation of an experiment a shopper saw. | `experiment` string, `variation` string |
 | `$js_error` | A script error on the page. | `line` number, `message` string, `sessionId` string, `source` string |
 | `$rage_click` | Three or more clicks in one spot within a second. | `selector` string, `sessionId` string, `text` string, `x` number, `y` number |

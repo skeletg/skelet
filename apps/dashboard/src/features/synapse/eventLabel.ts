@@ -26,6 +26,9 @@ const EVENT_LABELS: Record<string, string> = {
   return_received: 'Return received',
   subscription_invoiced: 'Subscription invoiced',
   download_accessed: 'Download accessed',
+  // AI
+  assistant_turn: 'Chatted with the shopping assistant',
+  assisted_order: 'Ordered with AI help',
   // Account
   registered: 'Registered',
   email_verified: 'Email verified',

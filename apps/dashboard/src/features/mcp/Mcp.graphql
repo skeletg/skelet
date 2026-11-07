@@ -1,0 +1,21 @@
+query McpOverview($channelId: ID!) {
+  mcpOverview(channelId: $channelId) {
+    storefront {
+      available
+      enabled
+      url
+      tools {
+        name
+        description
+      }
+    }
+    admin {
+      available
+      path
+      tools {
+        name
+        description
+      }
+    }
+  }
+}

@@ -1,6 +1,6 @@
 // Storefront catalog queries + the trimmed TS shapes for the fields we actually render
 
-import { perRequest } from "../request";
+import { perRequest, rethrowControlFlow } from "../request";
 import type { ProductOptionRule } from "../optionRules";
 
 import {
@@ -21,6 +21,7 @@ import {
   type ProductConfiguratorPicturesFragment,
   ProductSortOptionsDocument,
   type ProductSortOptionsQuery,
+  ProductsByIdsDocument,
   SynapseAttributesDocument,
   CartRecommendationsDocument,
 } from "./operations.gql";
@@ -560,7 +561,7 @@ const browseProductsByKey = perRequest(
       // Browse degrades to an empty result on backend / OpenSearch failure so the
       // storefront keeps rendering categories without hard-erroring on a search outage
       return {
-        data: { totalCount: 0, items: [], facets: [] },
+        data: { totalCount: 0, byMeaningOnly: false, aiOverview: false, items: [], facets: [] },
       };
     }
   },
@@ -642,6 +643,18 @@ export const getRecommendations = perRequest(async (productId: string): Promise<
     return [];
   }
 });
+
+export async function productCards(ids: string[]): Promise<ProductSummary[]> {
+  if (ids.length === 0) return [];
+  try {
+    const res = await gqlFetch(ProductsByIdsDocument, { ids });
+    const byId = new Map((res.data.productsByIds as unknown as ProductSummary[]).map((p) => [p.id, p]));
+    return ids.flatMap((id) => byId.get(id) ?? []);
+  } catch (err) {
+    rethrowControlFlow(err);
+    return [];
+  }
+}
 
 export type KitContents = NonNullable<ProductKitContentsQuery["product"]>["kitComponents"];
 

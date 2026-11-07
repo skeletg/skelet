@@ -1,0 +1,92 @@
+query AssistantConversations($channelId: ID!, $search: String, $unanswered: AssistantUnansweredFilter, $after: String, $limit: Int) {
+  assistantConversations(channelId: $channelId, search: $search, unanswered: $unanswered, after: $after, limit: $limit) {
+    items {
+      id
+      customerId
+      anonId
+      firstQuestion
+      turns
+      cartChanged
+      checkout
+      incomplete
+      startedAt
+      lastAt
+      unanswered
+      latestUnanswered {
+        turnId
+        question
+        reasons
+      }
+    }
+    counts {
+      any
+      noAnswer
+      cutShort
+      foundNothing
+      unsure
+    }
+    nextCursor
+  }
+}
+
+query AssistantConversation($channelId: ID!, $id: ID!) {
+  assistantConversation(channelId: $channelId, id: $id) {
+    conversation {
+      id
+      customerId
+      anonId
+      firstQuestion
+      turns
+      cartChanged
+      checkout
+      incomplete
+      startedAt
+      lastAt
+    }
+    turns {
+      id
+      page
+      question
+      reply
+      recap
+      showed {
+        kind
+        productId
+        name
+        label
+        path
+        text
+      }
+      products
+      cartChanged
+      checkout
+      incomplete
+      model
+      inputTokens
+      outputTokens
+      cacheReadTokens
+      cacheWriteTokens
+      at
+      followUps
+      steps
+      toolCalls
+      refused
+      thought
+    }
+  }
+}
+
+query AssistantTurnRounds($channelId: ID!, $turnId: ID!) {
+  assistantTurnRounds(channelId: $channelId, turnId: $turnId) {
+    thinking
+    text
+    shown
+    calls {
+      tool
+      input
+      output
+      isError
+      skipped
+    }
+  }
+}

@@ -11,6 +11,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -591,6 +592,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			ShippingCarrierSlug: ptr.NonZero(shipSel.CarrierSlug),
 			ShippingMethodCode:  ptr.NonZero(shipSel.MethodCode),
 			AnonID:              visitor,
+			AssistedBy:          cartObj.AssistedCredit(time.Now()),
 			Shopper:             shopper,
 		})
 		if err != nil {
@@ -680,6 +682,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		}
 		placedEvent = &OrderPlaced{
 			OrderID: order.ID, OrderNumber: order.Number, CustomerID: in.CustomerID, Email: in.Email, AnonID: visitor,
+			AssistedBy: order.AssistedBy, AssistTrace: assistTrace(order.AssistedBy, cartObj),
 			ChannelID: store.ID, TotalCents: order.TotalAmount, Currency: order.CurrencyCode, Tags: placing.Tags,
 			MarketingOptIn: in.MarketingOptIn,
 		}
@@ -1107,6 +1110,14 @@ func normalizeOrderAddress(rules phone.Rules, a OrderAddress, slot string) (Orde
 		return OrderAddress{}, fmt.Errorf("%s address: %w", slot, err)
 	}
 	return a, nil
+}
+
+// Only the assistant's credit has a turn to score - an agent's handoff or a stale credit leaves nothing to send
+func assistTrace(credit string, c cart.Cart) string {
+	if credit != cart.AssistedAssistant {
+		return ""
+	}
+	return c.AssistTrace
 }
 
 // placedBy is who placed an order, read once: the shop's visitor and their id only as far as their consent allows -

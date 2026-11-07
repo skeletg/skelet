@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/netip"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -160,4 +161,14 @@ func VerifiedStorefrontCustomer(r *http.Request, v CustomerVerifier, channelID u
 		return uuid.Nil
 	}
 	return cc.CustomerID
+}
+
+// AddressKey is the address a per-shopper limit counts against - a whole /64 for IPv6, which hands each subscriber that many
+func AddressKey(ip string) string {
+	if addr, err := netip.ParseAddr(ip); err == nil && addr.Is6() && !addr.Is4In6() {
+		if p, err := addr.Prefix(64); err == nil {
+			return p.String()
+		}
+	}
+	return ip
 }

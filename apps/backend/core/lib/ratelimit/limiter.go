@@ -12,6 +12,19 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// ErrLimited is a caller past its limit - the work goes on without what was limited, or is refused
+var ErrLimited = errors.New("rate limited")
+
+type countedKey struct{}
+
+// Counted marks work a limit of its own already counted, so a narrower per-shopper limit further in leaves it be
+func Counted(ctx context.Context) context.Context { return context.WithValue(ctx, countedKey{}, true) }
+
+func IsCounted(ctx context.Context) bool {
+	v, _ := ctx.Value(countedKey{}).(bool)
+	return v
+}
+
 type Limiter interface {
 	Allow(ctx context.Context, key string) bool
 }

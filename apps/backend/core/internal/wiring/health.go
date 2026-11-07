@@ -10,6 +10,7 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/embedding"
 	"github.com/skeletg/skelet/apps/backend/core/internal/health"
 	pluginhost "github.com/skeletg/skelet/apps/backend/core/internal/plugin"
 	"github.com/skeletg/skelet/apps/backend/core/internal/scheduler"
@@ -34,6 +35,7 @@ type healthDeps struct {
 	SignalsClient *signalsclient.Client
 	SignalsOn     SignalsEnabled
 	Config        *config.Service
+	Embeddings    *embedding.Indexer
 }
 
 func newHealthRegistry(d healthDeps) *health.Registry {
@@ -134,6 +136,8 @@ func registerSearchChecks(r *health.Registry, d healthDeps) {
 			}
 			return health.OK("reachable")
 		}})
+
+	r.Register(health.Check{Group: "search", Key: "embeddings", Label: "Embeddings", Order: 3, Run: d.Embeddings.Health})
 }
 
 func registerBackgroundChecks(r *health.Registry, d healthDeps) {

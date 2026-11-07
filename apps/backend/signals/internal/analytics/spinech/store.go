@@ -652,19 +652,32 @@ func (s *Store) CustomersForAnonIDs(ctx context.Context, anonIDs []string) (map[
 	return out, rows.Err()
 }
 
-func (s *Store) AnonIDsForCustomer(ctx context.Context, customerID uuid.UUID) ([]string, error) { // the anon ids stitched to a customer - FINAL collapses the ReplacingMergeTree duplicates to the latest row per anon_id
-	rows, err := s.conn.Query(ctx, "SELECT anon_id FROM analytics_identities FINAL WHERE customer_id = ?", customerID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+func (s *Store) AnonIDsForCustomer(ctx context.Context, customerID uuid.UUID) ([]string, error) {
+	return s.AnonIDsForCustomers(ctx, []uuid.UUID{customerID})
+}
+
+// FINAL keeps the latest stitch per anon_id, so a visitor who later signed in as someone else is theirs
+func (s *Store) AnonIDsForCustomers(ctx context.Context, customerIDs []uuid.UUID) ([]string, error) {
 	var out []string
-	for rows.Next() {
-		var a string
-		if err := rows.Scan(&a); err != nil {
+	for start := 0; start < len(customerIDs); start += erasureChunk {
+		chunk := customerIDs[start:min(start+erasureChunk, len(customerIDs))]
+		rows, err := s.conn.Query(ctx, "SELECT anon_id FROM analytics_identities FINAL WHERE customer_id IN ?", chunk)
+		if err != nil {
 			return nil, err
 		}
-		out = append(out, a)
+		for rows.Next() {
+			var a string
+			if err := rows.Scan(&a); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			out = append(out, a)
+		}
+		err = rows.Err()
+		rows.Close()
+		if err != nil {
+			return nil, err
+		}
 	}
-	return out, rows.Err()
+	return out, nil
 }

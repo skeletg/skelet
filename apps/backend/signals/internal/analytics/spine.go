@@ -27,6 +27,7 @@ type SpineStore interface {
 	// Stitches an anonymous visitor to a customer, first-write-wins - the driver keeps the stored customer when another identifies on the same visitor id
 	UpsertIdentity(ctx context.Context, anonID string, customerID, channelID uuid.UUID) error
 	AnonIDsForCustomer(ctx context.Context, customerID uuid.UUID) ([]string, error)
+	AnonIDsForCustomers(ctx context.Context, customerIDs []uuid.UUID) ([]string, error)
 	// GDPR erasure - a leftover mapping would keep re-linking web events to the scrubbed customer, so it dies on whichever engine holds it - batched because a ClickHouse delete is a mutation and erasures arrive in bursts
 	DeleteCustomerIdentities(ctx context.Context, customerIDs []uuid.UUID) error
 	// Retention twin for the mapping table - a stitch shouldn't outlive its last confirmation by more than the events it stitched
@@ -77,6 +78,11 @@ type SpineStore interface {
 	LensPageGridFromEvents(ctx context.Context, channelID uuid.UUID, pageKey string, since time.Time) (LensGridTotals, error)
 	// Every page's grid totals in one scan, for the hub's page list
 	LensPagesGridFromEvents(ctx context.Context, channelID uuid.UUID, since time.Time) (map[string]LensGridTotals, error)
+
+	// The shopping assistant as a seller: people who chatted against those who didn't, with the shoppers' agents' orders,
+	// and the products its turns showed with what came of each
+	AIImpact(ctx context.Context, channelID uuid.UUID, since time.Time, currency string) (AIImpact, error)
+	AIProducts(ctx context.Context, channelID uuid.UUID, since time.Time, limit int) ([]AIProductStat, error)
 
 	// Frontend A/B: pickable goal-event names, and per-variation exposed/converted/revenue for one experiment
 	ExperimentGoalEvents(ctx context.Context, channelID uuid.UUID, since time.Time) ([]string, error)
@@ -197,7 +203,33 @@ type SpineStats struct { // arrival-time bounds of the spine - deliberately no r
 	Newest *time.Time
 }
 
+// People seen on the storefront over a window, on one side of whether they chatted with the assistant - revenue only in the
+// currency asked for, RevenueOrders the orders it adds up
+type AICohort struct {
+	People, Buyers, Orders, RevenueCents, RevenueOrders, ReturnedOrders int64
+}
+
+type AIImpact struct {
+	Chatted, DidNotChat AICohort
+	// Orders from a cart a shopper's own agent filled, in the currency asked for
+	AgentOrders, AgentRevenueCents int64
+}
+
+// What came of a product the assistant showed: people who added it to their cart or ordered it within the contract's windows
+type AIProductStat struct {
+	ProductID                      string
+	Shown, People, Carted, Ordered int64
+}
+
 // --- Recorder delegates to the spine engine - the read bodies live on the driver, these keep the Recorder's public API stable for resolvers ---
+
+func (r *Recorder) AIImpact(ctx context.Context, channelID uuid.UUID, since time.Time, currency string) (AIImpact, error) {
+	return r.spine.AIImpact(ctx, channelID, since, currency)
+}
+
+func (r *Recorder) AIProducts(ctx context.Context, channelID uuid.UUID, since time.Time, limit int) ([]AIProductStat, error) {
+	return r.spine.AIProducts(ctx, channelID, since, limit)
+}
 
 func (r *Recorder) Funnel(ctx context.Context, channelID uuid.UUID, q FunnelQuery, since time.Time) (FunnelResult, error) {
 	return r.spine.Funnel(ctx, channelID, q, since)
@@ -357,6 +389,11 @@ func (r *Recorder) sweepIdentityErasures(ctx context.Context) error {
 		if len(ids) == 0 {
 			break
 		}
+		if r.beforeErasure != nil {
+			if err := r.beforeErasure(ctx, ids); err != nil {
+				return err
+			}
+		}
 		if err := r.spine.DeleteCustomerIdentities(ctx, ids); errors.Is(err, ErrErasureInFlight) {
 			log.Printf("[analytics] identity erasure: the last sweep's detach is still running, %d stay queued for the next", len(ids))
 			break
@@ -393,6 +430,10 @@ func refreshSpineIdentities(ctx context.Context, s SpineStore) { // walks decora
 
 func (r *Recorder) AnonIDsForCustomer(ctx context.Context, customerID uuid.UUID) ([]string, error) {
 	return r.spine.AnonIDsForCustomer(ctx, customerID)
+}
+
+func (r *Recorder) AnonIDsForCustomers(ctx context.Context, customerIDs []uuid.UUID) ([]string, error) {
+	return r.spine.AnonIDsForCustomers(ctx, customerIDs)
 }
 
 func (r *Recorder) PruneEventsBySource(ctx context.Context, source string, before time.Time) (int64, error) {

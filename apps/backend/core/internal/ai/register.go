@@ -7,6 +7,8 @@ func init() {
 	apperr.RegisterSentinel(ErrDisabled, "AI_DISABLED", apperr.ClassUnavailable)
 	apperr.RegisterSentinel(ErrTruncated, "AI_REPLY_TRUNCATED", apperr.ClassUnavailable)
 	apperr.RegisterSentinel(ErrRefused, "AI_REFUSED", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrEmbeddingSize, "AI_EMBEDDING_SIZE", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrEmbeddingRefused, "AI_EMBEDDING_REFUSED", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrConversationNotFound, "CHAT_CONVERSATION_NOT_FOUND", apperr.ClassNotFound)
 	apperr.RegisterSentinel(ErrMessageTooLong, "CHAT_MESSAGE_TOO_LONG", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrInvalidRole, "CHAT_INVALID_ROLE", apperr.ClassValidation)

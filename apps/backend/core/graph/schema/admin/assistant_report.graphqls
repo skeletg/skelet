@@ -1,0 +1,50 @@
+type AssistantUsage {
+  inputTokens:      Int64!
+  outputTokens:     Int64!
+  cacheReadTokens:  Int64!
+  cacheWriteTokens: Int64!
+  # USD at the prices under Settings, AI, Usage pricing - null until those are set
+  estimatedCostUsd: Float
+}
+
+type AssistedOrders {
+  currencyCode:     String!
+  orderCount:       Int!
+  assistantOrders:  Int!
+  assistantRevenue: Int64!
+  agentOrders:      Int!
+  agentRevenue:     Int64!
+}
+
+# One UTC day of the report's window - a quiet one is all zeroes
+type AssistantDay {
+  day:             String!
+  turns:           Int!
+  failedTurns:     Int!
+  unansweredTurns: Int!
+  cartTurns:       Int!
+  checkoutTurns:   Int!
+  assistantOrders: Int!
+  agentOrders:     Int!
+}
+
+type AssistantReport {
+  days:          Int!
+  turns:         Int!
+  failedTurns:   Int!
+  # Nothing said and shown, cut short, every search empty, or the assistant said the store's information didn't cover it
+  unansweredTurns: Int!
+  cartTurns:     Int!
+  checkoutTurns: Int!
+  # AI overviews written above search results - their tokens are in usage with the turns', and they aren't turns
+  searchOverviews: Int!
+  usage:         AssistantUsage!
+  orders:        [AssistedOrders!]!
+  # Every day of the window, oldest first
+  daily:         [AssistantDay!]!
+}
+
+extend type Query {
+  # What the storefront assistant cost and sold on one store over the last `days` UTC days, today included - reports.view on the channel
+  assistantReport(channelId: ID!, days: Int = 30): AssistantReport!
+}

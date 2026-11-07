@@ -158,6 +158,7 @@ message LensSearchDay {
   string date = 1;
   int32 searches = 2;
   int32 zero_results = 3;
+  int32 meaning_only = 4;
 }
 
 message GetOverviewRequest {
@@ -395,4 +396,27 @@ message GetSearchAnalyticsResponse {
   // Searches that returned nothing, which is where the merchandising gaps are
   repeated LensSearchTerm zero_result = 5;
   repeated LensSearchDay daily = 6;
+  // Searches whose words matched nothing, answered by meaning alone - the shopper's wording the catalog doesn't use
+  int32 meaning_only_searches = 7;
+  repeated LensSearchTerm meaning_only = 8;
+  // What shoppers asked the shopping assistant or their own AI agents for that came back empty
+  repeated LensAISearchGap ai_gaps = 9;
+  // The AI overview above search results: shown, a product in it followed, carried into the chat
+  int32 overviews_shown = 10;
+  int32 overview_clicks = 11;
+  int32 overview_chats = 12;
+  repeated LensOverviewTerm overviews = 13;
+}
+
+message LensAISearchGap {
+  string term = 1;
+  int32 assistant = 2;
+  int32 agents = 3;
+}
+
+message LensOverviewTerm {
+  string term = 1;
+  int32 shown = 2;
+  int32 clicks = 3;
+  int32 chats = 4;
 }

@@ -1,0 +1,61 @@
+# People seen on the storefront over the window, on one side of whether they chatted with the shopping assistant
+type AICohort {
+  people:  Int!
+  # Of them, placed an order in the window - a chatter's count only after their first chat
+  buyers:  Int!
+  orders:  Int!
+  # In the store's currency - revenueOrders are the orders it adds up
+  revenue:       Int64!
+  revenueOrders: Int!
+  # Orders a return was asked for on
+  returnedOrders: Int!
+}
+
+type AIRecommendedProduct {
+  productId: ID!
+  # Null when the product is gone
+  name:      String
+  # Assistant turns that showed it, and the people they showed it to
+  shown:     Int!
+  people:    Int!
+  # Of those people, added it to their cart within cartWindowDays, and ordered it within orderWindowDays
+  carted:    Int!
+  ordered:   Int!
+}
+
+type AIToolCount {
+  tool:  String!
+  calls: Int!
+}
+
+type AIAgentActivity {
+  # The agent's name for itself, from the MCP handshake
+  agent:         String!
+  calls:         Int!
+  searches:      Int!
+  emptySearches: Int!
+  tools:         [AIToolCount!]!
+}
+
+type AIInsights {
+  days:         Int!
+  # How long after a showing a cart or an order still counts toward a product
+  cartWindowDays:  Int!
+  orderWindowDays: Int!
+  currencyCode: String!
+  chatted:      AICohort!
+  didNotChat:   AICohort!
+  # Most shown first
+  products:     [AIRecommendedProduct!]!
+  # Busiest first
+  agents:       [AIAgentActivity!]!
+  # Orders placed from a cart a shopper's own agent filled, in the store's currency
+  agentOrders:  Int!
+  agentRevenue: Int64!
+}
+
+extend type Query {
+  # How the AI does as a seller, from Signals: shoppers who chatted with the assistant against those who didn't, the
+  # products it shows and what came of them, and the shoppers' own AI agents - assistant.view on the channel
+  aiInsights(channelId: ID!, days: Int = 30): AIInsights!
+}

@@ -32,6 +32,15 @@ func (c *Client) PruneLens(ctx context.Context) error {
 	return err
 }
 
+func (c *Client) PruneAssistantConversations(ctx context.Context) error {
+	sys, err := c.System(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = c.Maintenance.PruneAssistantConversations(sys, &signalsv1.PruneAssistantConversationsRequest{})
+	return err
+}
+
 func (c *Client) ComputeTraits(ctx context.Context) error {
 	sys, err := c.System(ctx)
 	if err != nil {

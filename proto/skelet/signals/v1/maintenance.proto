@@ -16,6 +16,9 @@ service MaintenanceService {
   // The send log: pre-creates the upcoming month partitions, then drops whole months past
   // send_log_retention_months - archived first under retention_action=archive
   rpc PruneSendLog(PruneSendLogRequest) returns (PruneSendLogResponse);
+  // Assistant conversations whose last turn is past signals/assistant/retention_days - held to the spine's retention when
+  // that's shorter - and the turns that old inside conversations still going
+  rpc PruneAssistantConversations(PruneAssistantConversationsRequest) returns (PruneAssistantConversationsResponse);
   // Per-customer RFM, lifecycle and engagement, across every channel the roster covers
   rpc ComputeTraits(ComputeTraitsRequest) returns (ComputeTraitsResponse);
   // Drains the spine to the configured external destinations, resuming from durable cursors
@@ -51,6 +54,15 @@ message PruneSpineResponse {}
 message PruneLensRequest {}
 
 message PruneLensResponse {}
+
+message PruneAssistantConversationsRequest {}
+
+message PruneAssistantConversationsResponse {
+  // whole conversations gone quiet
+  int64 pruned = 1;
+  // old turns inside conversations still going
+  int64 turns = 2;
+}
 
 message PruneSendLogRequest {}
 

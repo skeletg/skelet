@@ -105,6 +105,10 @@ func TestAnAgentBuildsACartAndHandsItToTheShopper(t *testing.T) {
 	if got["guestCart"] != true || len(lines) != 1 || lines[0].(map[string]any)["quantity"] != 2.0 {
 		t.Fatalf("guest redeem = %v", got)
 	}
+	placed, err := h.TryPlace(t, f.Channel, uuid.MustParse(got["cart"].(map[string]any)["id"].(string)))
+	if err != nil || placed.AssistedBy != cart.AssistedAgent {
+		t.Fatalf("the order from a handed-off cart = %q, %v - want it credited to the agent", placed.AssistedBy, err)
+	}
 
 	data, errs = h.gqlPostAs(t, ts, chID, token, redeem)
 	if len(errs) > 0 {

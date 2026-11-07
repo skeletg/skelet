@@ -11,6 +11,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/mcpserver"
+	"github.com/skeletg/skelet/apps/backend/core/internal/search"
 	"github.com/skeletg/skelet/apps/backend/core/internal/shoptools"
 	authpkg "github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
@@ -29,7 +30,8 @@ func (g frontGraphQL) Do(ctx context.Context, query string, vars map[string]any,
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "/graphql", bytes.NewReader(body))
+	// The tools blend meaning into their own searches, so the listings they read stay on the words
+	req, err := http.NewRequestWithContext(search.WordsOnly(ctx), http.MethodPost, "/graphql", bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -75,8 +77,8 @@ func anonymousRequest(next http.Handler) http.Handler {
 }
 
 // A channel's switch that can't be read keeps agents out rather than letting them in
-func storefrontTools(shop *shoptools.Service) func(context.Context, channel.Channel) (mcpserver.ToolSet, *mcpserver.Refusal) {
-	return func(ctx context.Context, ch channel.Channel) (mcpserver.ToolSet, *mcpserver.Refusal) {
+func storefrontTools(shop *shoptools.Service) func(context.Context, channel.Channel, string) (mcpserver.ToolSet, *mcpserver.Refusal) {
+	return func(ctx context.Context, ch channel.Channel, agent string) (mcpserver.ToolSet, *mcpserver.Refusal) {
 		open, err := shop.Open(ctx, ch)
 		switch {
 		case err != nil:
@@ -85,6 +87,6 @@ func storefrontTools(shop *shoptools.Service) func(context.Context, channel.Chan
 		case !open:
 			return nil, &mcpserver.Refusal{Status: http.StatusNotFound, Message: "this store doesn't take AI shopping agents"}
 		}
-		return shop.ToolSet(ch), nil
+		return shop.AgentToolSet(ch, agent), nil
 	}
 }

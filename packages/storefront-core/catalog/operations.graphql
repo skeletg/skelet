@@ -406,6 +406,8 @@ query BrowseProducts(
 ) {
   browseProducts(query: $query, filter: $filter, sort: $sort, limit: $limit, offset: $offset) {
     totalCount
+    byMeaningOnly
+    aiOverview
     items {
       ...ProductSummaryFields
     }

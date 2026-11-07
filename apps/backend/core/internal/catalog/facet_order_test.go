@@ -101,3 +101,63 @@ func TestFacetCountsKeepsTheBiggestBuckets(t *testing.T) {
 		}
 	}
 }
+
+// the grid and every facet count narrow to the products given, and none given lists everything as before
+func TestTheFallbackListingNarrowsToTheProductsItIsGiven(t *testing.T) {
+	conn := testdb.Require(t)
+	ctx := context.Background()
+	var channelID uuid.UUID
+	if err := conn.QueryRow(`SELECT id FROM channels ORDER BY created_at LIMIT 1`).Scan(&channelID); err != nil {
+		t.Skipf("no channel: %v", err)
+	}
+	txn, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = txn.Rollback() }()
+
+	var typeID, attrID, valueID uuid.UUID
+	if err := txn.QueryRow(`INSERT INTO catalog_product_types (slug, name) VALUES ('narrow-test', 'Narrow Test') RETURNING id`).Scan(&typeID); err != nil {
+		t.Fatal(err)
+	}
+	if err := txn.QueryRow(`INSERT INTO catalog_attributes (slug, name, input_type, filterable) VALUES ('narrow-test', 'Narrow Test', 'dropdown', true) RETURNING id`).Scan(&attrID); err != nil {
+		t.Fatal(err)
+	}
+	if err := txn.QueryRow(`INSERT INTO catalog_attribute_values (attribute_id, slug, name, value) VALUES ($1, 'navy', 'Navy', 'Navy') RETURNING id`, attrID).Scan(&valueID); err != nil {
+		t.Fatal(err)
+	}
+	products := make([]uuid.UUID, 3)
+	for i := range products {
+		if err := txn.QueryRow(`INSERT INTO catalog_products (product_type_id, sku, url, kind) VALUES ($1, 'NARROW-' || $2::text, 'narrow-' || $2::text, 'simple') RETURNING id`, typeID, strconv.Itoa(i)).Scan(&products[i]); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := txn.Exec(`INSERT INTO catalog_product_channel_listings (product_id, channel_id, is_published) VALUES ($1, $2, true)`, products[i], channelID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := txn.Exec(`INSERT INTO catalog_product_attribute_values (product_id, attribute_id, attribute_value_id) VALUES ($1, $2, $3)`, products[i], attrID, valueID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	q := db.New(txn)
+	given := products[:2]
+	grid, err := q.BrowseProductsFallback(ctx, db.BrowseProductsFallbackParams{ChannelID: channelID, Kinds: []string{}, AttrValueIds: []uuid.UUID{}, ProductIds: given, Lim: 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(grid) != 2 || grid[0].TotalCount != 2 {
+		t.Fatalf("narrowed grid has %d rows - want the two products given", len(grid))
+	}
+	for _, ids := range [][]uuid.UUID{given, nil} {
+		buckets, err := q.BrowseFacetCountsFallback(ctx, db.BrowseFacetCountsFallbackParams{TargetAttributeID: attrID, ChannelID: channelID, Kinds: []string{}, OtherValueIds: []uuid.UUID{}, ProductIds: ids, MaxValues: 10})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := int64(2)
+		if ids == nil {
+			want = 3
+		}
+		if len(buckets) != 1 || buckets[0].ProductCount != want {
+			t.Errorf("given %d products, the facet counted %+v - want %d", len(ids), buckets, want)
+		}
+	}
+}

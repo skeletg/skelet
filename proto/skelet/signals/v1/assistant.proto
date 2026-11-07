@@ -1,0 +1,202 @@
+syntax = "proto3";
+
+// The storefront shopping assistant's conversations, kept so the store can read them back - core records each turn, the dashboard reads them through core
+package skelet.signals.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service AssistantService {
+  rpc ListAssistantConversations(ListAssistantConversationsRequest) returns (ListAssistantConversationsResponse);
+  rpc GetAssistantConversation(GetAssistantConversationRequest) returns (GetAssistantConversationResponse);
+  // One turn's steps, read when someone opens them - a conversation's turns come without, so a long one still fits a message
+  rpc GetAssistantTurnRounds(GetAssistantTurnRoundsRequest) returns (GetAssistantTurnRoundsResponse);
+  // How the AI does as a seller: shoppers who chatted against those who didn't, the products it shows and what came of
+  // them, and the shoppers' own agents
+  rpc GetAIInsights(GetAIInsightsRequest) returns (GetAIInsightsResponse);
+}
+
+message GetAIInsightsRequest {
+  string channel_id = 1;
+  int32 since_days = 2;
+  // Revenue counts orders in this currency only - the store's own
+  string currency = 3;
+}
+
+// People seen on the storefront in the window, on one side of whether they chatted with the assistant
+message AICohort {
+  int64 people = 1;
+  // Of them, placed an order in the window - a chatter's counts only after their first chat
+  int64 buyers = 2;
+  int64 orders = 3;
+  int64 revenue_cents = 4;
+  // Orders in the currency asked for, the ones revenue_cents adds up
+  int64 revenue_orders = 5;
+  // Orders a return was asked for on
+  int64 returned_orders = 6;
+}
+
+message AIProduct {
+  string product_id = 1;
+  // Turns that showed it
+  int64 shown = 2;
+  // People it was shown to
+  int64 people = 3;
+  // Of them, added it to their cart within 7 days after
+  int64 carted = 4;
+  // Of them, ordered it within 14 days after
+  int64 ordered = 5;
+}
+
+message AIToolCount {
+  string tool = 1;
+  int64 calls = 2;
+}
+
+message AIAgent {
+  string agent = 1;
+  int64 calls = 2;
+  int64 searches = 3;
+  int64 empty_searches = 4;
+  repeated AIToolCount tools = 5;
+}
+
+message GetAIInsightsResponse {
+  AICohort chatted = 1;
+  AICohort did_not_chat = 2;
+  // Most shown first
+  repeated AIProduct products = 3;
+  // Busiest first
+  repeated AIAgent agents = 4;
+  // Orders placed from a cart a shopper's agent filled, in the currency asked for
+  int64 agent_orders = 5;
+  int64 agent_revenue_cents = 6;
+}
+
+message AssistantToolCall {
+  string tool = 1;
+  string input_json = 2;
+  string output = 3;
+  bool is_error = 4;
+  // Asked for in the last round the turn allowed, so it never ran
+  bool skipped = 5;
+}
+
+message AssistantRound {
+  string thinking = 1;
+  string text = 2;
+  repeated AssistantToolCall calls = 3;
+  // Whether these words reached the shopper - only the last round's do, unless it said nothing
+  bool shown = 4;
+}
+
+message AssistantTurnRecord {
+  string id = 1;
+  string conversation_id = 2;
+  string channel_id = 3;
+  optional string customer_id = 4;
+  string anon_id = 5;
+  string page = 6;
+  string question = 7;
+  string reply = 8;
+  string recap = 9;
+  repeated AssistantRound rounds = 10;
+  int32 products = 11;
+  bool cart_changed = 12;
+  bool checkout = 13;
+  bool incomplete = 14;
+  string model = 15;
+  int64 input_tokens = 16;
+  int64 output_tokens = 17;
+  int64 cache_read_tokens = 18;
+  int64 cache_write_tokens = 19;
+  google.protobuf.Timestamp at = 20;
+  repeated string follow_ups = 21;
+  // What the rounds hold, for a turn read without them
+  int32 steps = 22;
+  int32 tool_calls = 23;
+  bool refused = 24;
+  bool thought = 25;
+  // Every search in the turn came back empty
+  bool found_nothing = 26;
+  // The model marked the reply as one the store's information didn't answer
+  bool unsure = 27;
+}
+
+// A message the store couldn't answer, and why - more than one reason can hold
+message AssistantGapTurn {
+  string id = 1;
+  string question = 2;
+  // Nothing said and nothing shown
+  bool no_answer = 3;
+  bool cut_short = 4;
+  bool found_nothing = 5;
+  bool unsure = 6;
+}
+
+message AssistantConversationSummary {
+  string id = 1;
+  optional string customer_id = 2;
+  string anon_id = 3;
+  string first_question = 4;
+  int32 turns = 5;
+  bool cart_changed = 6;
+  bool checkout = 7;
+  bool incomplete = 8;
+  google.protobuf.Timestamp started_at = 9;
+  google.protobuf.Timestamp last_at = 10;
+  // How many of its messages the store couldn't answer - of the asked-for kind, when the list was filtered to one
+  int32 unanswered = 11;
+  // The latest of them, unset when there's none
+  AssistantGapTurn latest_unanswered = 12;
+}
+
+// Newest first - before_at and before_id are the last row of the previous page, unset for the first. unanswered keeps
+// only conversations with a message the store couldn't answer: "any", or one of no_answer, cut_short, found_nothing, unsure
+message ListAssistantConversationsRequest {
+  string channel_id = 1;
+  int32 limit = 2;
+  google.protobuf.Timestamp before_at = 3;
+  string before_id = 4;
+  string search = 5;
+  optional string customer_id = 6;
+  string unanswered = 7;
+  // Also count the conversations with each kind of unanswered message, whatever the filter and search
+  bool with_counts = 8;
+}
+
+// Conversations, not messages - one with three messages it couldn't answer counts once
+message AssistantGapCounts {
+  int32 any = 1;
+  int32 no_answer = 2;
+  int32 cut_short = 3;
+  int32 found_nothing = 4;
+  int32 unsure = 5;
+}
+
+message ListAssistantConversationsResponse {
+  repeated AssistantConversationSummary conversations = 1;
+  bool more = 2;
+  // Only when asked for
+  AssistantGapCounts counts = 3;
+}
+
+message GetAssistantConversationRequest {
+  string channel_id = 1;
+  string conversation_id = 2;
+}
+
+// Empty when the store holds no such conversation. Turns come without their rounds, and a very long conversation sends only its latest turns
+message GetAssistantConversationResponse {
+  repeated AssistantTurnRecord turns = 1;
+  AssistantConversationSummary conversation = 2;
+}
+
+message GetAssistantTurnRoundsRequest {
+  string channel_id = 1;
+  string turn_id = 2;
+}
+
+// Empty when the store holds no such turn
+message GetAssistantTurnRoundsResponse {
+  repeated AssistantRound rounds = 1;
+}

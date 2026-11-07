@@ -17,6 +17,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
+	"github.com/skeletg/skelet/apps/backend/core/internal/embedding"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
@@ -34,6 +35,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/revalidate"
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
 	"github.com/skeletg/skelet/apps/backend/core/internal/scheduler"
+	"github.com/skeletg/skelet/apps/backend/core/internal/shoptools"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/activity"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/enroll"
@@ -83,6 +85,7 @@ type subscriberDeps struct {
 	QnA                 *qna.Service
 	Promotion           *promotion.Service
 	Tx                  *txrunner.Manager
+	Embeddings          *embedding.Indexer
 
 	Inventory    *inventory.Service // the order reactors - each subscribes itself, this only decides that they all do and in what order
 	Giftcard     *giftcard.Service
@@ -95,6 +98,7 @@ type subscriberDeps struct {
 
 func RegisterDomainSubscribers(d subscriberDeps) {
 	bus := d.Bus
+	registerEmbeddingSubscribers(bus, d.Embeddings)
 	cart.RegisterOutboxTypes(d.Outbox)
 	d.Cart.SetOutbox(d.Outbox)
 	order.RegisterOutboxTypes(d.Outbox) // decoders first - the relay can't replay a type it can't materialize
@@ -103,6 +107,7 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 	consent.RegisterOutboxTypes(d.Outbox)
 	catalog.RegisterOutboxTypes(d.Outbox)
 	qna.RegisterOutboxTypes(d.Outbox)
+	shoptools.RegisterOutboxTypes(d.Outbox)
 	d.Payment.SetOutbox(d.Outbox)  // gateway webhook events become durable - a 204 to Stripe means "will be applied", not "was published"
 	d.Customer.SetOutbox(d.Outbox) // the roster pushes and the welcome flow hang off these, and a suite that is down when they fire has to get them on the relay's next pass
 	d.Consent.SetOutbox(d.Outbox, d.Tx)
@@ -140,6 +145,7 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 	d.OrderMail.Register(bus)
 	notification.NewNotifier(d.Notification).Register(bus) // admin inbox - domain events become store-ops notifications, live-pushed to dashboards over Valkey pub/sub
 	review.RegisterSubscribers(bus, d.Review, d.AI.Enabled())
+	shoptools.SubscribeToOrders(bus) // the order a turn's cart became scores that turn's trace
 	webform.RegisterSubmitEmails(bus, d.TransactionalSender)
 
 	if !d.Signals {
@@ -151,8 +157,8 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 	}
 	roster.Register(bus, d.Queries, d.SignalsClient, resync) // keeps the suite's copy current between the 6-hourly sweeps
 	activity.RegisterConversionAttribution(bus, d.SignalsClient)
-	activity.NewTracker(d.SignalsClient, d.Order, d.Config).Subscribe(bus) // every customer-facing action onto the analytics spine, so the profile timeline reflects the whole journey
-	d.BackInStock.Register(bus)                                            // on restock, resolved customers enrol into the back_in_stock flow and guests get a direct mail
+	activity.NewTracker(d.SignalsClient, d.Order, d.Config, d.Queries).Subscribe(bus) // every customer-facing action onto the analytics spine, so the profile timeline reflects the whole journey
+	d.BackInStock.Register(bus)                                                       // on restock, resolved customers enrol into the back_in_stock flow and guests get a direct mail
 }
 
 // Everything reacting to an order's lifecycle - all outbox-durable, so every handler here has to tolerate a replay

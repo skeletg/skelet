@@ -10,6 +10,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/agenttools"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
+	"github.com/skeletg/skelet/apps/backend/core/internal/aitrace"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
@@ -67,38 +68,28 @@ func (r *mutationResolver) SignalsChat(ctx context.Context, channelID string, si
 		return nil, fmt.Errorf("no message provided")
 	}
 
+	// The admin chat's tools read customer data, so its trace gets the timing and tokens, never what was asked or answered
+	ctx, trace := aitrace.Start(ctx, "Admin chat", aitrace.Agent)
+	defer trace.End()
+	trace.Trace("Admin chat", "", "", "admin")
+	trace.Meta("tools", useTools)
+
 	if !useTools { // no tool calling: one completion grounded in the digest - 4k tokens fits chart-heavy answers
-		reply, err := r.AISvc.Chat(ctx, system, msgs, 4096)
+		reply, err := r.AISvc.Chat(ctx, system, msgs, adminChatMaxTokens)
 		if err != nil {
 			return nil, aiProviderError(ctx, err)
 		}
 		return &model.SignalsChatReply{Reply: reply}, nil
 	}
 
-	// agentic loop: execute each tool call (re-gated + channel pinned) and feed results back until a final text answer - bounded by maxRounds, the last round demands a direct answer
-	tools := toolset.Tools()
-	const maxRounds = 6
-	for round := 0; round <= maxRounds; round++ {
-		last := round == maxRounds
-		if last && msgs[len(msgs)-1].Role == "tool" { // rides on the pending tool results, never the system prompt - editing that mid-loop invalidates the thinking blocks replayed from earlier rounds
-			msgs[len(msgs)-1].Text = "You have gathered enough data. Answer the user's question now using the " +
-				"information above - do not request any more tools."
-		}
-		turn, err := r.AISvc.ChatWithTools(ctx, system, msgs, tools, 4096)
-		if err != nil {
-			return nil, aiProviderError(ctx, err)
-		}
-		if len(turn.ToolCalls) == 0 || last {
-			reply := strings.TrimSpace(turn.Text)
-			if reply == "" {
-				reply = "I gathered the data but couldn't compose a final answer - please ask again, more specifically."
-			}
-			return &model.SignalsChatReply{Reply: reply}, nil
-		}
-		msgs = append(msgs, turn.AsMessage())
-		msgs = append(msgs, ai.ChatMessage{Role: "tool", ToolResults: toolset.CallAll(ctx, turn.ToolCalls)})
+	reply, _, err := r.AISvc.Run(ctx, msgs, ai.Loop{System: system, Tools: toolset.Tools(), Call: toolset.CallAll, MaxRounds: adminChatRounds, MaxTokens: adminChatMaxTokens})
+	if err != nil {
+		return nil, aiProviderError(ctx, err)
 	}
-	return &model.SignalsChatReply{Reply: ""}, nil // unreachable: last round always returns
+	if reply == "" {
+		reply = "I gathered the data but couldn't compose a final answer - please ask again, more specifically."
+	}
+	return &model.SignalsChatReply{Reply: reply}, nil
 }
 
 // RunChatAction runs an operator-confirmed action chat proposed - the dispatcher whitelists actions and each re-checks its own permission

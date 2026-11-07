@@ -101,6 +101,64 @@ export type AppliedPromotionCode = {
   subtotalDiscount: Scalars['Int']['output'];
 };
 
+export type AssistantLink = {
+  __typename?: 'AssistantLink';
+  count?: Maybe<Scalars['Int']['output']>;
+  filters: Array<AssistantLinkFilter>;
+  label: Scalars['String']['output'];
+  path: Scalars['String']['output'];
+  query: Scalars['String']['output'];
+  sort: Scalars['String']['output'];
+};
+
+export type AssistantLinkFilter = {
+  __typename?: 'AssistantLinkFilter';
+  slug: Scalars['String']['output'];
+  values: Array<Scalars['String']['output']>;
+};
+
+export type AssistantMessage = {
+  content: Scalars['String']['input'];
+  recap?: InputMaybe<Scalars['String']['input']>;
+  role: Scalars['String']['input'];
+};
+
+export type AssistantPage = {
+  __typename?: 'AssistantPage';
+  kind: Scalars['String']['output'];
+  title: Scalars['String']['output'];
+};
+
+export type AssistantPoint = {
+  __typename?: 'AssistantPoint';
+  detail: Scalars['String']['output'];
+  title: Scalars['String']['output'];
+};
+
+export type AssistantProductDetail = {
+  __typename?: 'AssistantProductDetail';
+  goodFor: Array<Scalars['String']['output']>;
+  highlights: Array<AssistantPoint>;
+  keepInMind: Array<Scalars['String']['output']>;
+  productId: Scalars['ID']['output'];
+  summary: Scalars['String']['output'];
+};
+
+export type AssistantReply = {
+  __typename?: 'AssistantReply';
+  cartChanged: Scalars['Boolean']['output'];
+  cartId?: Maybe<Scalars['ID']['output']>;
+  checkout: Scalars['Boolean']['output'];
+  detail?: Maybe<AssistantProductDetail>;
+  followUps: Array<Scalars['String']['output']>;
+  incomplete: Scalars['Boolean']['output'];
+  links: Array<AssistantLink>;
+  navigate?: Maybe<AssistantLink>;
+  productIds: Array<Scalars['ID']['output']>;
+  recap: Scalars['String']['output'];
+  reply: Scalars['String']['output'];
+};
+
 export type Attribute = {
   __typename?: 'Attribute';
   filterable: Scalars['Boolean']['output'];
@@ -299,6 +357,8 @@ export type BrowseProductsFilter = {
 
 export type BrowseProductsResult = {
   __typename?: 'BrowseProductsResult';
+  aiOverview: Scalars['Boolean']['output'];
+  byMeaningOnly: Scalars['Boolean']['output'];
   facets: Array<BrowseFacet>;
   items: Array<Product>;
   totalCount: Scalars['Int']['output'];
@@ -1104,6 +1164,7 @@ export type Mutation = {
   addToWishlist: Scalars['Boolean']['output'];
   applyCoupon: Cart;
   applyGiftCard: Cart;
+  askShopAssistant: AssistantReply;
   cancelSubscription: CustomerSubscription;
   changeCustomerPassword: Scalars['Boolean']['output'];
   clearCart: Cart;
@@ -1201,6 +1262,14 @@ export type MutationApplyCouponArgs = {
 export type MutationApplyGiftCardArgs = {
   cartId: Scalars['ID']['input'];
   code: Scalars['String']['input'];
+};
+
+
+export type MutationAskShopAssistantArgs = {
+  cartId?: InputMaybe<Scalars['ID']['input']>;
+  conversationId?: InputMaybe<Scalars['ID']['input']>;
+  messages: Array<AssistantMessage>;
+  page?: InputMaybe<Scalars['String']['input']>;
 };
 
 
@@ -2069,6 +2138,8 @@ export type PurchaseType =
 
 export type Query = {
   __typename?: 'Query';
+  assistantAvailable: Scalars['Boolean']['output'];
+  assistantPage: AssistantPage;
   attribute: Attribute;
   attributes: Array<Attribute>;
   blogAuthor?: Maybe<BlogAuthor>;
@@ -2136,15 +2207,23 @@ export type Query = {
   regions: Array<Region>;
   rootCategories: Array<Category>;
   route?: Maybe<RouteResolution>;
+  saleProducts: Array<Product>;
   searchBlogPosts: BlogPostSearchResult;
+  searchOverview?: Maybe<SearchOverview>;
   searchProducts: ProductSearchResult;
   sharedWishlist: Array<Product>;
   shippingQuotes: Array<ShippingQuote>;
   sitemapCounts: SitemapCounts;
   sitemapEntries: Array<SitemapEntry>;
+  storePromotions: Array<StorePromotion>;
   trackOrder?: Maybe<TrackOrderResult>;
   validateAddress: AddressValidationResult;
   wishlistProductIds: Array<Scalars['ID']['output']>;
+};
+
+
+export type QueryAssistantPageArgs = {
+  page: Scalars['String']['input'];
 };
 
 
@@ -2364,9 +2443,19 @@ export type QueryRouteArgs = {
 };
 
 
+export type QuerySaleProductsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
 export type QuerySearchBlogPostsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
+  query: Scalars['String']['input'];
+};
+
+
+export type QuerySearchOverviewArgs = {
   query: Scalars['String']['input'];
 };
 
@@ -2621,6 +2710,20 @@ export type SavedPaymentMethod = {
   providerSlug: Scalars['String']['output'];
 };
 
+export type SearchOverview = {
+  __typename?: 'SearchOverview';
+  products: Array<SearchOverviewProduct>;
+  recap: Scalars['String']['output'];
+  text: Scalars['String']['output'];
+};
+
+export type SearchOverviewProduct = {
+  __typename?: 'SearchOverviewProduct';
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  url: Scalars['String']['output'];
+};
+
 export type ShippingQuote = {
   __typename?: 'ShippingQuote';
   carrierName: Scalars['String']['output'];
@@ -2653,6 +2756,13 @@ export type SitemapEntry = {
 export type StoreFeatures = {
   __typename?: 'StoreFeatures';
   signals: Scalars['Boolean']['output'];
+};
+
+export type StorePromotion = {
+  __typename?: 'StorePromotion';
+  endsAt?: Maybe<Scalars['Time']['output']>;
+  label: Scalars['String']['output'];
+  terms: Scalars['String']['output'];
 };
 
 export type StoreStockStatus =

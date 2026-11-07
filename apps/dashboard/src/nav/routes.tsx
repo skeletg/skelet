@@ -20,6 +20,7 @@ import {
   ActivityIcon,
   WarehouseIcon,
   ArrowUpDownIcon,
+  BotIcon,
 } from 'lucide-react'
 import {
   registerDetailRoute,
@@ -286,6 +287,60 @@ registerNavNode({
   ],
 })
 
+// Agentic commerce - how AI agents meet the store: the MCP endpoints (core, always there) and what shoppers asked the
+// storefront assistant (kept in Signals, so that page follows the suite's switch)
+registerNavNode({
+  id: 'agentic-commerce',
+  title: 'Agentic Commerce',
+  icon: <BotIcon />,
+  children: [
+    {
+      title: 'Overview',
+      subtitle: 'How AI shopping is doing on this store',
+      path: '/agentic',
+      element: lazyPage(() => import('@/features/agentic/AgenticOverview'), 'AgenticOverview'),
+      permission: 'reports.view',
+    },
+    {
+      title: 'Assistant voice',
+      subtitle: 'Its name, tone and instructions',
+      path: '/agentic/voice',
+      element: lazyPage(() => import('@/features/agentic/AssistantVoice'), 'AssistantVoice'),
+      permission: 'config.view',
+    },
+    {
+      title: 'Hybrid search',
+      subtitle: 'Words and meaning, on the search page and in the assistant',
+      path: '/agentic/hybrid-search',
+      element: lazyPage(() => import('@/features/agentic/HybridSearch'), 'HybridSearch'),
+      permission: 'catalog.view',
+    },
+    {
+      title: 'MCP',
+      subtitle: "Connect shoppers' and your team's agents",
+      path: '/mcp',
+      element: lazyPage(() => import('@/features/mcp/McpPage'), 'McpPage'),
+      permission: 'config.view',
+    },
+    {
+      title: 'Conversations',
+      subtitle: 'Shopping assistant chats & reasoning',
+      path: '/conversations',
+      feature: 'signals',
+      element: lazyPage(() => import('@/features/conversations/ConversationsList'), 'ConversationsList'),
+      permission: 'assistant.view',
+    },
+    {
+      title: 'AI insights',
+      subtitle: 'Chatters against the rest, what it shows, shoppers’ agents',
+      path: '/ai-insights',
+      feature: 'signals',
+      element: lazyPage(() => import('@/features/agentic/AIInsights'), 'AIInsights'),
+      permission: 'assistant.view',
+    },
+  ],
+})
+
 registerNavNode({
   id: 'developer',
   title: 'Developer',
@@ -526,6 +581,7 @@ const detailLeaves = [
   { title: 'Edit promotion', path: '/promotions/:id', element: lazyPage(() => import('@/features/promotions/PromotionPage'), 'PromotionPage'), permission: 'promotions.manage' },
   { title: 'New page', path: '/cms/pages/new', element: lazyPage(() => import('@/features/cms/CmsPageCreate'), 'CmsPageCreate') },
   { title: 'CMS page detail', path: '/cms/pages/:id', element: lazyPage(() => import('@/features/cms/CmsPageDetail'), 'CmsPageDetail') },
+  { title: 'Search preview redirect', path: '/agentic/search', element: <Navigate to="/agentic/hybrid-search?tab=assistant" replace />, permission: 'catalog.view' },
   {
     title: 'Reusable blocks redirect',
     path: '/settings/email/blocks',
@@ -554,6 +610,7 @@ const detailLeaves = [
   { title: 'New signup form', path: '/forms/new', element: lazyPage(() => import('@/features/forms/FormBuilder'), 'FormBuilder'), permission: 'forms.manage' },
   { title: 'Edit form', path: '/forms/:id', element: lazyPage(() => import('@/features/forms/FormBuilder'), 'FormBuilder'), permission: 'forms.view' },
   { title: 'Suppression list', path: '/emails/suppressions', element: lazyPage(() => import('@/features/deliverability/SuppressionList'), 'SuppressionList'), permission: 'emails.view', feature: 'signals' },
+  { title: 'Conversation', path: '/conversations/:id', element: lazyPage(() => import('@/features/conversations/ConversationDetail'), 'ConversationDetail'), permission: 'assistant.view', feature: 'signals' },
   // Lens heatmap viewer - reached from the /lens overview's top-pages list
   // (page + viewport carried in the query string, since page keys contain '/')
   { title: 'Heatmap', path: '/lens/heatmap', element: lazyPage(() => import('@/features/lens/LensPageDetail'), 'LensPageDetail'), permission: 'lens.view', feature: 'signals' },

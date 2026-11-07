@@ -19,6 +19,7 @@ import (
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics/spinequeue"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/assistantlog"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/behavioralsegment"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/board"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/destination"
@@ -41,7 +42,8 @@ type maintenanceServer struct {
 	sends       sendLogMaintainer // nil in a test server without a log
 	flows       flowEngine        // nil in a test server without Pulse
 	campaigns   campaignPipeline
-	boards      *board.Service // nil in a test server without boards
+	assistant   *assistantlog.Store // nil in a test server without one
+	boards      *board.Service      // nil in a test server without boards
 }
 
 // The engine ticks core's scheduler drives - one advance of the runnable runs, one pass over the due campaigns

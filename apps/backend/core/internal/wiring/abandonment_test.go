@@ -44,11 +44,20 @@ func (c *channelCarts) MarkAbandonedNotified(_ context.Context, ids []uuid.UUID)
 	return nil
 }
 
-type enrolled struct{ perChannel map[uuid.UUID]int }
+type enrolled struct {
+	perChannel map[uuid.UUID]int
+	assisted   []uuid.UUID
+	takesAI    bool // a flow on the assistant's carts exists
+}
 
 func (e *enrolled) OnCartAbandoned(_ context.Context, ch, _ uuid.UUID, _ string, _ uuid.UUID, _ time.Time) error {
 	e.perChannel[ch]++
 	return nil
+}
+
+func (e *enrolled) OnAssistedCartAbandoned(_ context.Context, _, _ uuid.UUID, _ string, id uuid.UUID, _ time.Time) (bool, error) {
+	e.assisted = append(e.assisted, id)
+	return e.takesAI, nil
 }
 
 func (e *enrolled) OnBrowseAbandoned(_ context.Context, ch, _ uuid.UUID, _, _, _, _ string, _ time.Time) error {
@@ -188,5 +197,25 @@ func TestOneChannelsFailureDoesNotStarveTheNext(t *testing.T) {
 	err = runBrowseAbandonment(context.Background(), []uuid.UUID{bad, good}, perChannelInts{}, feed, noExclusions{}, flows, now)
 	if err == nil || !strings.Contains(err.Error(), bad.String()) || flows.perChannel[good] != 1 {
 		t.Fatalf("browse: err %v, enrolled %v, want the failure reported and the next channel still served", err, flows.perChannel)
+	}
+}
+
+func TestACartTheAssistantFilledGoesToItsOwnFlowOrTheUsualOne(t *testing.T) {
+	ch := uuid.New()
+	ai, plain := uuid.New(), uuid.New()
+	list := []cart.AbandonedCart{{ID: ai, ChannelID: ch, Email: "a@b.test", AssistedBy: cart.AssistedAssistant}, {ID: plain, ChannelID: ch, Email: "p@b.test"}}
+	for _, takes := range []bool{true, false} {
+		carts := &channelCarts{byChannel: map[uuid.UUID][]cart.AbandonedCart{ch: list}, asked: map[uuid.UUID]time.Time{}}
+		got := &enrolled{perChannel: map[uuid.UUID]int{}, takesAI: takes}
+		if err := runCartAbandonment(context.Background(), []uuid.UUID{ch}, perChannelInts{}, carts, got, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		want := 2
+		if takes {
+			want = 1
+		}
+		if len(got.assisted) != 1 || got.assisted[0] != ai || got.perChannel[ch] != want || len(carts.marked) != 2 {
+			t.Errorf("a flow takes it %v: assisted %v, usual %d, marked %d - want the assistant's cart offered to its flow first, the usual recovery only when none took it", takes, got.assisted, got.perChannel[ch], len(carts.marked))
+		}
 	}
 }

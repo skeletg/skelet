@@ -55,7 +55,7 @@ func lensTools() []tool {
 		{
 			def: ai.Tool{
 				Name:        "get_site_search",
-				Description: "On-site search analytics: total searches, distinct terms, top terms, and zero-result terms for the channel over a window.",
+				Description: "On-site search analytics: total searches, distinct terms, top terms, zero-result terms, and terms only search by meaning found anything for, for the channel over a window.",
 				Schema:      windowSchema(nil),
 			},
 			perm: func(p Perms) bool { return p.Lens },
@@ -176,8 +176,8 @@ func toolSiteSearch(ctx context.Context, deps *Deps, cid uuid.UUID, days int) st
 		return "No on-site searches in this window."
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "%d searches, %d distinct terms, %d returned zero results.\n",
-		sa.GetTotalSearches(), sa.GetDistinctTerms(), sa.GetZeroResultSearches())
+	fmt.Fprintf(&b, "%d searches, %d distinct terms, %d returned zero results, %d found only by meaning.\n",
+		sa.GetTotalSearches(), sa.GetDistinctTerms(), sa.GetZeroResultSearches(), sa.GetMeaningOnlySearches())
 	terms := func(label string, list []*signalsv1.LensSearchTerm) {
 		if len(list) == 0 {
 			return
@@ -190,6 +190,7 @@ func toolSiteSearch(ctx context.Context, deps *Deps, cid uuid.UUID, days int) st
 	}
 	terms("Top terms", sa.GetTop())
 	terms("Zero-result terms", sa.GetZeroResult())
+	terms("Terms only meaning found anything for", sa.GetMeaningOnly())
 	return b.String()
 }
 

@@ -28,6 +28,8 @@ type fakeRepo struct {
 	invalidated map[uuid.UUID]string
 	// cartEmails keys by cart id - backs the restricted_to_email gate
 	cartEmails map[uuid.UUID]string
+	// contents keys localized labels by rule id - backs the storefront's promotions list
+	contents map[uuid.UUID]promotion.RuleContent
 	// lineAttrs keys by sku - the catalog facts EvaluateCart enriches cart lines with
 	lineAttrs map[string]promotion.LineProductAttrs
 	// the shopper's past redemptions, for per-customer limits
@@ -47,7 +49,7 @@ func (f *fakeRepo) WithTx(_ *sql.Tx) promotion.Repository { return f }
 
 func (f *fakeRepo) ListActiveRulesForChannel(_ context.Context, _ *uuid.UUID) ([]promotion.Rule, error) {
 	// Return copies - the engine mutates rule.Conditions and rule.Actions, so handing back the underlying slice would accumulate state across Evaluate calls Mirrors the real query's is_active + validity-window + max_uses filter so disabled, expired and used-up rules drop out of candidacy here too
-	now := time.Now()
+	now := promotion.NowFunc()
 	out := make([]promotion.Rule, 0, len(f.rules))
 	for _, r := range f.rules {
 		if !r.IsActive {
@@ -138,7 +140,7 @@ func (f *fakeRepo) GetRuleContent(context.Context, uuid.UUID, string) (promotion
 	return promotion.RuleContent{}, nil
 }
 func (f *fakeRepo) GetRuleContentsByIDs(context.Context, []uuid.UUID, string) (map[uuid.UUID]promotion.RuleContent, error) {
-	return nil, nil
+	return f.contents, nil
 }
 func (f *fakeRepo) AnalyticsByRule(context.Context, time.Time, time.Time, promotion.AnalyticsScope) ([]promotion.RuleAnalytics, error) {
 	return nil, nil

@@ -283,6 +283,8 @@ func (r *postgresRepository) CreateAttribute(ctx context.Context, input CreateAt
 			SynapseTrack:       input.SynapseTrack,
 			AutoSegment:        input.AutoSegment,
 			RelationshipTarget: nullStringFromRefTarget(input.RelationshipTarget),
+			Embedded:           input.Embedded == nil || *input.Embedded,
+			SimilarMatch:       input.SimilarMatch != nil && *input.SimilarMatch,
 		})
 		if err != nil {
 			if isUniqueViolation(err) {
@@ -302,6 +304,7 @@ func (r *postgresRepository) CreateAttribute(ctx context.Context, input CreateAt
 					Value:       v.Value,
 					SortOrder:   v.SortOrder,
 					IsIndexable: v.IsIndexable,
+					MatchesAny:  v.MatchesAny != nil && *v.MatchesAny,
 				})
 				if err != nil {
 					if isUniqueViolation(err) {
@@ -454,6 +457,14 @@ func (r *postgresRepository) UpdateAttribute(ctx context.Context, input UpdateAt
 	if input.AutoSegment != nil {
 		autoSegment = *input.AutoSegment
 	}
+	embedded := current.Embedded
+	if input.Embedded != nil {
+		embedded = *input.Embedded
+	}
+	similarMatch := current.SimilarMatch
+	if input.SimilarMatch != nil {
+		similarMatch = *input.SimilarMatch
+	}
 
 	row, err := r.queries.UpdateAttribute(ctx, db.UpdateAttributeParams{
 		ID:              input.ID,
@@ -472,6 +483,8 @@ func (r *postgresRepository) UpdateAttribute(ctx context.Context, input UpdateAt
 		DefaultValue:    defaultValue,
 		SynapseTrack:    synapseTrack,
 		AutoSegment:     autoSegment,
+		Embedded:        embedded,
+		SimilarMatch:    similarMatch,
 		// Immutable after create (like input_type) - preserve unchanged
 		RelationshipTarget: current.RelationshipTarget,
 	})
@@ -585,6 +598,7 @@ func (r *postgresRepository) AddAttributeValue(ctx context.Context, attributeID 
 		Value:       v.Value,
 		SortOrder:   v.SortOrder,
 		IsIndexable: v.IsIndexable,
+		MatchesAny:  v.MatchesAny != nil && *v.MatchesAny,
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -614,6 +628,7 @@ func (r *postgresRepository) UpdateAttributeValue(ctx context.Context, id uuid.U
 		Value:       v.Value,
 		SortOrder:   v.SortOrder,
 		IsIndexable: v.IsIndexable,
+		MatchesAny:  sqlnull.Bool(v.MatchesAny),
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -1289,6 +1304,8 @@ func toAttribute(row db.Attribute) Attribute {
 		H1Position:      H1Position(row.H1Position),
 		SynapseTrack:    row.SynapseTrack,
 		AutoSegment:     row.AutoSegment,
+		Embedded:        row.Embedded,
+		SimilarMatch:    row.SimilarMatch,
 		SortOrder:       row.SortOrder,
 		Metadata:        metadataFromJSON(row.Metadata),
 		PrivateMetadata: metadataFromJSON(row.PrivateMetadata),
@@ -1317,6 +1334,7 @@ func toAttributeValue(row db.AttributeValue) AttributeValue {
 		Value:       row.Value,
 		SortOrder:   row.SortOrder,
 		IsIndexable: row.IsIndexable,
+		MatchesAny:  row.MatchesAny,
 		CreatedAt:   row.CreatedAt,
 	}
 }

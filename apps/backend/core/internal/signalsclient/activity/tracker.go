@@ -15,25 +15,37 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
+	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
+	"github.com/skeletg/skelet/apps/backend/core/internal/shoptools"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/core/internal/wishlist"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
+	"github.com/skeletg/skelet/apps/backend/core/signalsapi"
+	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 )
 
 // Satisfied by *signalsclient.Client - an interface so the tracker tests without a service
 type activityRecorder interface {
 	RecordActivity(ctx context.Context, a signalsclient.ActivitySpec) error
+	RecordAssistantTurn(ctx context.Context, t *signalsv1.AssistantTurnRecord) error
+	RecordAIActivity(ctx context.Context, a signalsclient.AIActivitySpec) error
+}
+
+// Each SKU's product and the products it's sold through, so a cart or an order names what the assistant showed
+type productRefs interface {
+	ProductRefsBySKU(ctx context.Context, skus []string) ([]db.ProductRefsBySKURow, error)
 }
 
 // The spine's source column for what this package emits - core writes only these two
@@ -61,12 +73,13 @@ type Tracker struct {
 	rec      activityRecorder
 	orders   orderLookup
 	settings Settings
+	products productRefs
 }
 
 // NewTracker needs the shop's settings: whether a visitor who declined analytics is counted at all is the shop's call,
 // and every path here - the live events, a backfill, a counted page view - has to follow it
-func NewTracker(rec activityRecorder, orders orderLookup, settings Settings) *Tracker {
-	return &Tracker{rec: rec, orders: orders, settings: settings}
+func NewTracker(rec activityRecorder, orders orderLookup, settings Settings, products productRefs) *Tracker {
+	return &Tracker{rec: rec, orders: orders, settings: settings, products: products}
 }
 
 // countsNobody is the shop's aggregate_counts switch - a setting that won't read keeps its default, on
@@ -88,9 +101,9 @@ func (t *Tracker) BackfillOrder(ctx context.Context, o order.Order, placedAt tim
 	if orderActor(o).nobody {
 		return nil
 	}
-	held := &Tracker{rec: t.rec, orders: heldOrder(o), settings: t.settings} // the gift-card follow-up reads the order the caller already has
+	held := &Tracker{rec: t.rec, orders: heldOrder(o), settings: t.settings, products: t.products} // the gift-card follow-up reads the order the caller already has
 	return held.onOrderPlaced(events.WithEmittedAt(ctx, placedAt), &order.OrderPlaced{
-		OrderID: o.ID, OrderNumber: o.Number, CustomerID: o.CustomerID, Email: o.Email, AnonID: o.AnonID,
+		OrderID: o.ID, OrderNumber: o.Number, CustomerID: o.CustomerID, Email: o.Email, AnonID: o.AnonID, AssistedBy: o.AssistedBy,
 		ChannelID: o.ChannelID, TotalCents: o.TotalAmount, Currency: o.CurrencyCode,
 	})
 }
@@ -127,6 +140,8 @@ func (t *Tracker) Subscribe(bus *events.Bus) {
 	bus.Subscribe(wishlist.EventItemRemoved, t.onWishlistRemove)
 	bus.Subscribe(signupform.EventSubmitted, t.onLead)
 	bus.Subscribe(review.EventSubmitted, t.onReviewSubmitted)
+	bus.Subscribe(shoptools.EventAssistantTurn, t.onAssistantTurn)
+	bus.Subscribe(shoptools.EventAgentCall, t.onAgentCall)
 	bus.Subscribe(subscription.EventCreated, t.onSubLifecycle)
 	bus.Subscribe(subscription.EventCanceled, t.onSubLifecycle)
 	bus.Subscribe(subscription.EventPaused, t.onSubLifecycle)
@@ -270,7 +285,7 @@ func (t *Tracker) onOrderPlaced(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	// Loaded first for the consent snapshot and the gift-card tender - a failed load replays from the outbox
+	// Loaded first for the consent snapshot, the products it names and the gift-card tender - a failed load replays from the outbox
 	o, err := t.orders.GetByID(ctx, ev.OrderID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
@@ -279,9 +294,25 @@ func (t *Tracker) onOrderPlaced(ctx context.Context, e events.Event) error {
 		return fmt.Errorf("load order %s: %w", ev.OrderID, err)
 	}
 	placed := orderRef{who: orderActor(o), number: ev.OrderNumber, channel: ev.ChannelID}
-	if err := t.emitAs(ctx, sourceCommerce, "order_placed", placed.channel, placed.who, "act:order_placed:"+ev.OrderID.String(),
-		map[string]any{"order_id": ev.OrderID.String(), "order_number": ev.OrderNumber, "total_cents": ev.TotalCents, "currency": ev.Currency}); err != nil {
+	props := map[string]any{"order_id": ev.OrderID.String(), "order_number": ev.OrderNumber, "total_cents": ev.TotalCents, "currency": ev.Currency}
+	if ev.AssistedBy != "" {
+		props["assisted_by"] = ev.AssistedBy
+	}
+	skus := make([]string, 0, len(o.Lines))
+	for _, l := range o.Lines {
+		skus = append(skus, l.ProductSku)
+	}
+	if ids := t.productIDs(ctx, skus...); len(ids) > 0 {
+		props["product_ids"] = ids
+	}
+	if err := t.emitAs(ctx, sourceCommerce, signalsapi.EventOrderPlaced, placed.channel, placed.who, "act:order_placed:"+ev.OrderID.String(), props); err != nil {
 		return err
+	}
+	if ev.AssistedBy != "" {
+		if err := t.emitAs(ctx, sourceCommerce, signalsapi.EventAssistedOrder, placed.channel, placed.who, "act:assisted_order:"+ev.OrderID.String(),
+			map[string]any{"order_id": ev.OrderID.String(), "assisted_by": ev.AssistedBy, "total_cents": ev.TotalCents, "currency": ev.Currency}); err != nil {
+			return err
+		}
 	}
 	if o.GiftCardAmount > 0 {
 		return t.emitAs(ctx, sourceCommerce, "giftcard_redeemed", placed.channel, placed.who, "act:gc:"+ev.OrderID.String(),
@@ -371,7 +402,7 @@ func (t *Tracker) recordReturn(ctx context.Context, name string, orderID, return
 	}
 	return t.emitAs(ctx, sourceCommerce, name, o.channel, o.who,
 		"act:"+name+":"+returnID.String(),
-		map[string]any{"order_number": o.number, "return_id": returnID.String()})
+		map[string]any{"order_id": orderID.String(), "order_number": o.number, "return_id": returnID.String()})
 }
 
 func (t *Tracker) onOrderRefunded(ctx context.Context, e events.Event) error {
@@ -409,7 +440,7 @@ func (t *Tracker) onCartAdd(ctx context.Context, e events.Event) error {
 	}
 	return t.emitAs(ctx, sourceCommerce, "cart_add", ev.ChannelID, shopperActor(ev.Shopper, ev.CustomerID, ev.AnonID),
 		"act:cart_add:"+ev.LineID.String(),
-		map[string]any{"sku": ev.ProductSku, "qty": ev.Quantity, "unit_price": ev.UnitPrice})
+		t.withProducts(ctx, ev.ProductSku, map[string]any{"sku": ev.ProductSku, "qty": ev.Quantity, "unit_price": ev.UnitPrice}))
 }
 
 func (t *Tracker) onCartBundleAdd(ctx context.Context, e events.Event) error {
@@ -419,7 +450,42 @@ func (t *Tracker) onCartBundleAdd(ctx context.Context, e events.Event) error {
 	}
 	return t.emitAs(ctx, sourceCommerce, "cart_add", ev.ChannelID, shopperActor(ev.Shopper, ev.CustomerID, ev.AnonID),
 		"act:cart_add:"+ev.LineID.String(),
-		map[string]any{"sku": ev.ProductSku, "qty": ev.Quantity, "unit_price": ev.UnitPrice, "bundle": true})
+		t.withProducts(ctx, ev.ProductSku, map[string]any{"sku": ev.ProductSku, "qty": ev.Quantity, "unit_price": ev.UnitPrice, "bundle": true}))
+}
+
+func (t *Tracker) withProducts(ctx context.Context, sku string, props map[string]any) map[string]any {
+	if ids := t.productIDs(ctx, sku); len(ids) > 0 {
+		props["product_ids"] = ids
+	}
+	return props
+}
+
+// productIDs is every product the SKUs are and are sold through, so the analytics can tell an order of a variant from
+// the product the assistant showed - a failed lookup leaves them off rather than hold the event back
+func (t *Tracker) productIDs(ctx context.Context, skus ...string) []string {
+	if t.products == nil || len(skus) == 0 {
+		return nil
+	}
+	rows, err := t.products.ProductRefsBySKU(ctx, skus)
+	if err != nil {
+		slog.WarnContext(ctx, "activity: reading the products behind SKUs failed", "err", err)
+		return nil
+	}
+	seen := map[uuid.UUID]bool{}
+	var out []string
+	add := func(id uuid.UUID) {
+		if !seen[id] {
+			seen[id] = true
+			out = append(out, id.String())
+		}
+	}
+	for _, r := range rows {
+		add(r.ID)
+		if r.ParentID.Valid {
+			add(r.ParentID.UUID)
+		}
+	}
+	return out
 }
 
 func (t *Tracker) onCartUpdate(ctx context.Context, e events.Event) error {
@@ -518,6 +584,103 @@ func (t *Tracker) onCartMerged(ctx context.Context, e events.Event) error {
 	return t.emit(ctx, sourceCommerce, "cart_merged", ev.ChannelID, ref(ev.CustomerID),
 		"act:cart_merged:"+ev.CustomerCartID.String()+":"+ev.GuestCartID.String(),
 		map[string]any{"guest_cart_id": ev.GuestCartID.String()})
+}
+
+func (t *Tracker) onAssistantTurn(ctx context.Context, e events.Event) error {
+	ev, ok := e.(*shoptools.AssistantTurn)
+	if !ok {
+		return nil
+	}
+	props := map[string]any{"products": ev.Products, "cart_changed": ev.CartChanged, "checkout": ev.Checkout, "incomplete": ev.Incomplete}
+	if len(ev.ShownProducts) > 0 {
+		ids := make([]string, len(ev.ShownProducts))
+		for i, id := range ev.ShownProducts {
+			ids[i] = id.String()
+		}
+		props["product_ids"] = ids
+	}
+	if err := t.emitAs(ctx, sourceCommerce, signalsapi.EventAssistantTurn, ev.ChannelID, shopperActor(ev.Shopper, ev.CustomerID, ev.AnonID), "act:assistant:"+ev.ID.String(), props); err != nil {
+		return err
+	}
+	if err := t.aiActivity(ctx, signalsclient.AIActivitySpec{ChannelID: ev.ChannelID, Source: signalsapi.AISourceAssistant,
+		Tools: ev.Tools, Searches: aiSearches(ev.Searches), DedupeKey: "ai:assistant:" + ev.ID.String()}); err != nil {
+		return err
+	}
+	if ev.Transcript == nil || (ev.CustomerID == nil && ev.AnonID == "") {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, signalsWriteTimeout)
+	defer cancel()
+	err := t.rec.RecordAssistantTurn(ctx, transcriptRecord(ctx, ev))
+	if signalsclient.Unreachable(err) {
+		return fmt.Errorf("record assistant transcript: %w", err)
+	}
+	if err != nil {
+		slog.Warn("signals refused an assistant transcript (dropped)", "err", err)
+	}
+	return nil
+}
+
+// A shopper's own agent's call - a bus event, so a suite that's down misses it rather than hold anything up
+func (t *Tracker) onAgentCall(ctx context.Context, e events.Event) error {
+	ev, ok := e.(*shoptools.AgentCall)
+	if !ok {
+		return nil
+	}
+	err := t.aiActivity(ctx, signalsclient.AIActivitySpec{ChannelID: ev.ChannelID, Source: signalsapi.AISourceAgent, Agent: ev.Agent,
+		Tools: []string{ev.Tool}, Searches: aiSearches(ev.Searches), DedupeKey: "ai:agent:" + ev.ID.String()})
+	if err != nil {
+		slog.WarnContext(ctx, "activity: an agent's call didn't reach Signals", "err", err)
+	}
+	return nil
+}
+
+func (t *Tracker) aiActivity(ctx context.Context, a signalsclient.AIActivitySpec) error {
+	if len(a.Tools) == 0 && len(a.Searches) == 0 {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, signalsWriteTimeout)
+	defer cancel()
+	a.At = eventTime(ctx)
+	err := t.rec.RecordAIActivity(ctx, a)
+	if signalsclient.Unreachable(err) {
+		return fmt.Errorf("record AI activity: %w", err)
+	}
+	if err != nil {
+		slog.Warn("signals refused AI activity (dropped)", "source", a.Source, "err", err)
+	}
+	return nil
+}
+
+func aiSearches(in []shoptools.Search) []signalsclient.AISearch {
+	out := make([]signalsclient.AISearch, len(in))
+	for i, s := range in {
+		out[i] = signalsclient.AISearch{Term: s.Term, Results: s.Results}
+	}
+	return out
+}
+
+func transcriptRecord(ctx context.Context, ev *shoptools.AssistantTurn) *signalsv1.AssistantTurnRecord {
+	tr := ev.Transcript
+	rec := &signalsv1.AssistantTurnRecord{
+		Id: ev.ID.String(), ConversationId: tr.Conversation.String(), ChannelId: ev.ChannelID.String(), AnonId: ev.AnonID,
+		Page: tr.Page, Question: tr.Question, Reply: tr.Reply, Recap: tr.Recap, FollowUps: tr.FollowUps, Products: int32(ev.Products),
+		CartChanged: ev.CartChanged, Checkout: ev.Checkout, Incomplete: ev.Incomplete, FoundNothing: ev.FoundNothing, Unsure: ev.Unsure, Model: tr.Model,
+		InputTokens: tr.Usage.Input, OutputTokens: tr.Usage.Output, CacheReadTokens: tr.Usage.CacheRead, CacheWriteTokens: tr.Usage.CacheWrite,
+		At: timestamppb.New(eventTime(ctx)), Rounds: make([]*signalsv1.AssistantRound, len(tr.Rounds)),
+	}
+	if ev.CustomerID != nil {
+		id := ev.CustomerID.String()
+		rec.CustomerId = &id
+	}
+	for i, r := range tr.Rounds {
+		rec.Rounds[i] = &signalsv1.AssistantRound{Thinking: r.Thinking, Text: r.Text, Shown: r.Shown, Calls: make([]*signalsv1.AssistantToolCall, len(r.Calls))}
+		for j, c := range r.Calls {
+			rec.Rounds[i].Calls[j] = &signalsv1.AssistantToolCall{Tool: c.Tool, InputJson: string(c.Input), Output: c.Output, IsError: c.IsError, Skipped: c.Skipped}
+		}
+	}
+	signalsapi.FitAssistantTurn(rec)
+	return rec
 }
 
 func (t *Tracker) onReviewSubmitted(ctx context.Context, e events.Event) error {
