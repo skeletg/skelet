@@ -31,8 +31,9 @@ type Board struct {
 	UpdatedAt time.Time
 	Reports   []Report
 	Ownership
-	Shares []Share // for an admin who owns it
-	Draft  *Draft  // the asking admin's unsaved edits
+	Shares   []Share         // for an admin who owns it
+	Draft    *Draft          // the asking admin's unsaved edits
+	Requests []AccessRequest // for an admin who owns it: who asked for access
 }
 
 // Summary is one board in the list, without its reports
@@ -48,9 +49,10 @@ type Summary struct {
 type Ownership struct {
 	OwnerID uuid.UUID // uuid.Nil: a shop board
 	// For the admin asking: what they may do, whether they starred it, and when their unsaved edits were last kept
-	Access    Access
-	Favourite bool
-	DraftAt   time.Time
+	Access       Access
+	Favourite    bool
+	DraftAt      time.Time
+	RequestCount int // open requests for access, for an admin who owns it
 }
 
 type Report struct {

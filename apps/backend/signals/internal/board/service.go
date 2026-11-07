@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -35,6 +36,10 @@ func (s *Service) List(ctx context.Context, channelID uuid.UUID, a Actor, all bo
 	if err != nil {
 		return nil, err
 	}
+	requests, err := s.r.requestCounts(ctx, channelID)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]Summary, 0, len(bs))
 	for _, b := range bs {
 		listedAs := a.asSelf()
@@ -46,6 +51,9 @@ func (s *Service) List(ctx context.Context, channelID uuid.UUID, a Actor, all bo
 		}
 		b.Access = access(b.Ownership, shares[b.ID], a)
 		b.Favourite, b.DraftAt = favs[b.ID], drafts[b.ID]
+		if b.Access == Own {
+			b.RequestCount = requests[b.ID]
+		}
 		out = append(out, b)
 	}
 	return out, nil
@@ -59,6 +67,10 @@ func (s *Service) Get(ctx context.Context, channelID uuid.UUID, a Actor, id uuid
 	}
 	if b.Access == Own {
 		b.Shares = shares
+		if b.Requests, err = s.r.requests(ctx, id); err != nil {
+			return Board{}, err
+		}
+		b.RequestCount = len(b.Requests)
 	}
 	favs, err := s.r.favourites(ctx, a.AdminID)
 	if err != nil {
@@ -176,6 +188,39 @@ func (s *Service) Transfer(ctx context.Context, channelID uuid.UUID, a Actor, id
 		return ErrForbidden
 	}
 	return s.r.setOwner(ctx, channelID, id, to)
+}
+
+// RequestAccess asks the board's owner for a level on it. It answers nil whether or not the board exists on the shop,
+// or the actor has that access already, so a request says nothing about a board they can't see. A shop board takes no
+// requests: everyone on the shop sees it, and editing it comes with boards.manage
+func (s *Service) RequestAccess(ctx context.Context, channelID uuid.UUID, a Actor, id uuid.UUID, level string) error {
+	want := map[string]Access{ShareView: View, ShareEdit: Edit}[level]
+	if want == NoAccess {
+		return fmt.Errorf("%w: a request is for view or edit", ErrInvalid)
+	}
+	b, err := s.r.get(ctx, channelID, id)
+	if errors.Is(err, ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	shares, err := s.r.shares(ctx, id)
+	if err != nil {
+		return err
+	}
+	if b.OwnerID == uuid.Nil || access(b.Ownership, shares, a) >= want {
+		return nil
+	}
+	return s.r.putRequest(ctx, id, a.AdminID, level)
+}
+
+// DismissRequest turns an access request down - the owner's to do. Granting one is a share, which clears it
+func (s *Service) DismissRequest(ctx context.Context, channelID uuid.UUID, a Actor, id, adminID uuid.UUID) error {
+	if _, _, err := s.load(ctx, channelID, a, id, Own); err != nil {
+		return err
+	}
+	return s.r.deleteRequest(ctx, id, adminID)
 }
 
 func (s *Service) SetFavourite(ctx context.Context, channelID uuid.UUID, a Actor, id uuid.UUID, on bool) error {

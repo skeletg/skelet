@@ -102,6 +102,11 @@ export function BoardsPage() {
               {row.original.name}
             </Link>
             {row.original.draftUpdatedAt && <Badge variant="outline">Unsaved changes</Badge>}
+            {row.original.accessRequestCount > 0 && (
+              <Badge variant="outline">
+                {row.original.accessRequestCount} asked for access
+              </Badge>
+            )}
           </span>
         ),
       },

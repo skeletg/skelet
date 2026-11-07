@@ -1,10 +1,10 @@
-import type { DocumentNode } from 'graphql'
+import { GraphQLError, type DocumentNode } from 'graphql'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { SLOW, globalScope, meMock, renderPage } from '@/test/page-harness'
 import type { ConfigScopeContextValue } from '@/lib/config-scope'
 import { SynapseInsightsDocument, SynapseOverviewDocument, SynapseStickinessDocument } from '@/features/synapse/Synapse.gql'
-import { BoardDocument, DiscardBoardDraftDocument, SaveBoardDocument, SaveBoardDraftDocument } from './Boards.gql'
+import { BoardDocument, DiscardBoardDraftDocument, RequestBoardAccessDocument, SaveBoardDocument, SaveBoardDraftDocument, SetBoardSharesDocument } from './Boards.gql'
 import { BoardPage } from './BoardPage'
 import { cleanReport } from './report'
 
@@ -46,12 +46,12 @@ const board = {
   name: 'Weekly',
   updatedAt: '2026-11-04T10:00:00.123456Z',
   reports: [report('Returning', 'page_view'), report('Buyers', 'order_placed')],
-  status: 'published',
   access: 'own',
   favourite: false,
   owner: { __typename: 'BoardOwner', id: 'admin-1', name: 'Ada', removed: false },
   shares: [],
   draft: null,
+  accessRequests: [],
 }
 
 describe('BoardPage', () => {
@@ -256,6 +256,62 @@ describe('BoardPage', () => {
     expect(await screen.findByText(/These are your unsaved changes from/, {}, SLOW)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(within(await screen.findByRole('alertdialog', {}, SLOW)).getByText('Report · Moved up')).toBeTruthy()
+  })
+
+  it("offers someone who can't open the board a way to ask its owner", async () => {
+    let asked: Record<string, unknown> | null = null
+    renderPage({
+      path: '/boards/b1',
+      routes: { '/boards/:id': <BoardPage /> },
+      adminId: 'admin-2',
+      scope: channelScope,
+      mocks: [
+        meMock({ superuser: false, permissions: ['boards.view'] }),
+        { request: { query: BoardDocument, variables: { channelId: 'c1', id: 'b1' } }, result: { errors: [new GraphQLError('board not found', { extensions: { code: 'SIGNALS_NOT_FOUND' } })] } },
+        {
+          request: {
+            query: RequestBoardAccessDocument,
+            variables: (v: Record<string, unknown>) => {
+              asked = v
+              return true
+            },
+          },
+          result: { data: { requestBoardAccess: true } },
+        },
+      ],
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Ask to edit it' }, SLOW))
+    expect(await screen.findByText(/Asked\./, {}, SLOW)).toBeTruthy()
+    expect(asked).toEqual({ channelId: 'c1', id: 'b1', level: 'edit' })
+  })
+
+  it('shows the owner who asked for access, and grants it as a share at the level asked for', async () => {
+    let shared: Record<string, unknown> | null = null
+    const asked = { ...board, accessRequests: [{ __typename: 'BoardAccessRequest', adminId: 'admin-9', name: 'Bo', level: 'edit', requestedAt: '2026-11-05T09:00:00Z' }] }
+    renderPage({
+      path: '/boards/b1',
+      routes: { '/boards/:id': <BoardPage /> },
+      adminId: 'admin-1',
+      scope: channelScope,
+      mocks: [
+        meMock({ superuser: true }),
+        ...boardMocks(() => {}, asked),
+        {
+          request: {
+            query: SetBoardSharesDocument,
+            variables: (v: Record<string, unknown>) => {
+              shared = v
+              return true
+            },
+          },
+          result: { data: { setBoardShares: board } },
+        },
+      ],
+    })
+    expect(await screen.findByText(/Bo wants to edit it/, {}, SLOW)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Let them edit' }))
+    await waitFor(() => expect(shared).not.toBeNull(), SLOW)
+    expect(shared).toEqual({ channelId: 'c1', id: 'b1', shares: [{ adminId: 'admin-9', level: 'edit' }] })
   })
 })
 

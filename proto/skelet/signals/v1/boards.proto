@@ -25,6 +25,11 @@ service BoardService {
   // Keeps the caller's unsaved edits between visits, until they save or discard them
   rpc SaveBoardDraft(SaveBoardDraftRequest) returns (SaveBoardDraftResponse);
   rpc DiscardBoardDraft(DiscardBoardDraftRequest) returns (DiscardBoardDraftResponse);
+  // Asks a board's owner for access. Answers the same whether or not the board exists or the caller has the access
+  // already, so it tells them nothing about a board they can't see
+  rpc RequestBoardAccess(RequestBoardAccessRequest) returns (RequestBoardAccessResponse);
+  // The owner turning a request down - granting one is a share, which clears it
+  rpc DismissBoardAccessRequest(DismissBoardAccessRequestRequest) returns (DismissBoardAccessRequestResponse);
 }
 
 // One board in the list, without its reports
@@ -40,6 +45,8 @@ message BoardSummary {
   bool favourite = 7;
   // When the caller's unsaved edits were last kept, unset when there are none
   google.protobuf.Timestamp draft_updated_at = 8;
+  // Open requests for access, for a caller who owns the board
+  int32 access_request_count = 9;
 }
 
 message Board {
@@ -60,6 +67,15 @@ message Board {
   repeated BoardShare shares = 10;
   // The caller's unsaved edits
   BoardDraft draft = 11;
+  // For a caller who owns the board: who asked for access
+  repeated BoardAccessRequest access_requests = 12;
+}
+
+message BoardAccessRequest {
+  string admin_id = 1;
+  // view | edit
+  string level = 2;
+  google.protobuf.Timestamp requested_at = 3;
 }
 
 // Exactly one of admin_id and role_id is set
@@ -203,3 +219,20 @@ message DiscardBoardDraftRequest {
 }
 
 message DiscardBoardDraftResponse {}
+
+message RequestBoardAccessRequest {
+  string channel_id = 1;
+  string id = 2;
+  // view | edit
+  string level = 3;
+}
+
+message RequestBoardAccessResponse {}
+
+message DismissBoardAccessRequestRequest {
+  string channel_id = 1;
+  string id = 2;
+  string admin_id = 3;
+}
+
+message DismissBoardAccessRequestResponse {}

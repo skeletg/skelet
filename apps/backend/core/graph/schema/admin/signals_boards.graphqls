@@ -13,6 +13,7 @@ type BoardSummary {
   favourite:   Boolean!     # the caller's star
   owner:       BoardOwner   # null on a shop board
   draftUpdatedAt: Time      # when the caller's unsaved edits were last kept
+  accessRequestCount: Int!  # open requests for access, for a caller who owns it
 }
 
 type Board {
@@ -27,6 +28,14 @@ type Board {
   draftUpdatedAt: Time    # when the caller's unsaved edits were last kept
   shares:    [BoardShare!]!   # for a caller who owns it
   draft:     BoardDraft       # the caller's unsaved edits
+  accessRequests: [BoardAccessRequest!]!   # for a caller who owns it: who asked for access
+}
+
+type BoardAccessRequest {
+  adminId:     ID!
+  name:        String!
+  level:       String!   # view | edit
+  requestedAt: Time!
 }
 
 type BoardOwner {
@@ -158,4 +167,9 @@ extend type Mutation {
   # Keeps the caller's unsaved edits between visits; answers when they were kept
   saveBoardDraft(channelId: ID!, id: ID!, payload: JSON!, baseUpdatedAt: Time!): Time!
   discardBoardDraft(channelId: ID!, id: ID!): Boolean!
+  # Asks a board's owner for view or edit access. Answers true whether or not the board exists or the caller has the
+  # access already, so it says nothing about a board they can't see
+  requestBoardAccess(channelId: ID!, id: ID!, level: String!): Boolean!
+  # The owner turning a request down - granting one is setBoardShares, which clears it
+  dismissBoardAccessRequest(channelId: ID!, id: ID!, adminId: ID!): Boolean!
 }

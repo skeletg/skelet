@@ -719,17 +719,25 @@ type BlogTagContent struct {
 }
 
 type Board struct {
-	ID             string         `json:"id"`
-	ChannelID      string         `json:"channelId"`
-	Name           string         `json:"name"`
-	UpdatedAt      time.Time      `json:"updatedAt"`
-	Reports        []*BoardReport `json:"reports"`
-	Access         string         `json:"access"`
-	Favourite      bool           `json:"favourite"`
-	Owner          *BoardOwner    `json:"owner,omitempty"`
-	DraftUpdatedAt *time.Time     `json:"draftUpdatedAt,omitempty"`
-	Shares         []*BoardShare  `json:"shares"`
-	Draft          *BoardDraft    `json:"draft,omitempty"`
+	ID             string                `json:"id"`
+	ChannelID      string                `json:"channelId"`
+	Name           string                `json:"name"`
+	UpdatedAt      time.Time             `json:"updatedAt"`
+	Reports        []*BoardReport        `json:"reports"`
+	Access         string                `json:"access"`
+	Favourite      bool                  `json:"favourite"`
+	Owner          *BoardOwner           `json:"owner,omitempty"`
+	DraftUpdatedAt *time.Time            `json:"draftUpdatedAt,omitempty"`
+	Shares         []*BoardShare         `json:"shares"`
+	Draft          *BoardDraft           `json:"draft,omitempty"`
+	AccessRequests []*BoardAccessRequest `json:"accessRequests"`
+}
+
+type BoardAccessRequest struct {
+	AdminID     string    `json:"adminId"`
+	Name        string    `json:"name"`
+	Level       string    `json:"level"`
+	RequestedAt time.Time `json:"requestedAt"`
 }
 
 type BoardDraft struct {
@@ -818,14 +826,15 @@ type BoardShareTarget struct {
 }
 
 type BoardSummary struct {
-	ID             string      `json:"id"`
-	Name           string      `json:"name"`
-	UpdatedAt      time.Time   `json:"updatedAt"`
-	ReportCount    int32       `json:"reportCount"`
-	Access         string      `json:"access"`
-	Favourite      bool        `json:"favourite"`
-	Owner          *BoardOwner `json:"owner,omitempty"`
-	DraftUpdatedAt *time.Time  `json:"draftUpdatedAt,omitempty"`
+	ID                 string      `json:"id"`
+	Name               string      `json:"name"`
+	UpdatedAt          time.Time   `json:"updatedAt"`
+	ReportCount        int32       `json:"reportCount"`
+	Access             string      `json:"access"`
+	Favourite          bool        `json:"favourite"`
+	Owner              *BoardOwner `json:"owner,omitempty"`
+	DraftUpdatedAt     *time.Time  `json:"draftUpdatedAt,omitempty"`
+	AccessRequestCount int32       `json:"accessRequestCount"`
 }
 
 type BotAgent struct {

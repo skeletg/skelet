@@ -15,6 +15,7 @@ const board = {
   reports: [],
   shares: [],
   draft: null,
+  accessRequests: [],
 } as unknown as BoardFullFragment
 
 const target = (kind: string, id: string, name: string, seesBoards = true, seesData = true) => ({ __typename: 'BoardShareTarget', kind, id, name, seesBoards, seesData })

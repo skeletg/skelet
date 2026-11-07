@@ -160,6 +160,11 @@ func (r *repo) setShares(ctx context.Context, boardID, by uuid.UUID, shares []Sh
 			if err := q.AddBoardShare(ctx, db.AddBoardShareParams{BoardID: boardID, AdminID: nullID(s.AdminID), RoleID: nullID(s.RoleID), Level: s.Level, CreatedBy: by}); err != nil {
 				return err
 			}
+			if s.AdminID != uuid.Nil { // a share answers that admin's request
+				if err := q.DeleteBoardAccessRequest(ctx, db.DeleteBoardAccessRequestParams{BoardID: boardID, AdminID: s.AdminID}); err != nil {
+					return err
+				}
+			}
 		}
 		return nil
 	})
@@ -231,6 +236,38 @@ func (r *repo) discardDraft(ctx context.Context, boardID, adminID uuid.UUID) err
 
 func (r *repo) sweepDrafts(ctx context.Context, before time.Time) (int64, error) {
 	return r.q.SweepBoardDrafts(ctx, before)
+}
+
+func (r *repo) putRequest(ctx context.Context, boardID, adminID uuid.UUID, level string) error {
+	return r.q.PutBoardAccessRequest(ctx, db.PutBoardAccessRequestParams{BoardID: boardID, AdminID: adminID, Level: level})
+}
+
+func (r *repo) requests(ctx context.Context, boardID uuid.UUID) ([]AccessRequest, error) {
+	rows, err := r.q.BoardAccessRequests(ctx, boardID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]AccessRequest, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, AccessRequest{AdminID: row.AdminID, Level: row.Level, RequestedAt: row.CreatedAt})
+	}
+	return out, nil
+}
+
+func (r *repo) requestCounts(ctx context.Context, channelID uuid.UUID) (map[uuid.UUID]int, error) {
+	rows, err := r.q.ChannelBoardAccessRequestCounts(ctx, channelID)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[uuid.UUID]int, len(rows))
+	for _, row := range rows {
+		out[row.BoardID] = int(row.N)
+	}
+	return out, nil
+}
+
+func (r *repo) deleteRequest(ctx context.Context, boardID, adminID uuid.UUID) error {
+	return r.q.DeleteBoardAccessRequest(ctx, db.DeleteBoardAccessRequestParams{BoardID: boardID, AdminID: adminID})
 }
 
 func nullID(id uuid.UUID) uuid.NullUUID { return uuid.NullUUID{UUID: id, Valid: id != uuid.Nil} }

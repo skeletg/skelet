@@ -318,3 +318,55 @@ func TestARetiredShopsBoardsGo(t *testing.T) {
 		t.Fatalf("%d boards outlived their shop", len(bs))
 	}
 }
+
+// Someone who can't open a board asks its owner for access; the owner sees it, and sharing answers it. A request says
+// nothing back about a board the asker can't see, and is dropped when they could already do what they ask
+func TestRequestingAccessToABoard(t *testing.T) {
+	_, svc, shop := newShop(t)
+	ctx := context.Background()
+	me, asker := Actor{AdminID: uuid.New(), CanManage: true}, Actor{AdminID: uuid.New()}
+	b := newBoard(t, svc, shop, me, "Weekly", views)
+
+	if err := svc.RequestAccess(ctx, shop, asker, uuid.New(), ShareView); err != nil {
+		t.Fatalf("a request for a board that doesn't exist: %v, want the same answer as for one that does", err)
+	}
+	if err := svc.RequestAccess(ctx, shop, asker, b.ID, "own"); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("asking to own it: %v, want ErrInvalid", err)
+	}
+	if err := svc.RequestAccess(ctx, shop, asker, b.ID, ShareEdit); err != nil {
+		t.Fatal(err)
+	}
+	if list, _ := svc.List(ctx, shop, me, false); len(list) != 1 || list[0].RequestCount != 1 {
+		t.Fatalf("the owner's list = %+v, want one request on the board", list)
+	}
+	got, err := svc.Get(ctx, shop, me, b.ID)
+	if err != nil || len(got.Requests) != 1 || got.Requests[0].AdminID != asker.AdminID || got.Requests[0].Level != ShareEdit {
+		t.Fatalf("requests = %+v, %v - want the asker's, for edit", got.Requests, err)
+	}
+
+	if _, err := svc.SetShares(ctx, shop, me, b.ID, []Share{{AdminID: asker.AdminID, Level: ShareView}}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ = svc.Get(ctx, shop, me, b.ID); len(got.Requests) != 0 {
+		t.Fatalf("sharing the board left the request: %+v", got.Requests)
+	}
+	if err := svc.RequestAccess(ctx, shop, asker, b.ID, ShareView); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ = svc.Get(ctx, shop, me, b.ID); len(got.Requests) != 0 {
+		t.Fatalf("asking for access they already have was kept: %+v", got.Requests)
+	}
+
+	if err := svc.RequestAccess(ctx, shop, asker, b.ID, ShareEdit); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.DismissRequest(ctx, shop, asker, b.ID, asker.AdminID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("the asker dismissed it themselves: %v, want ErrForbidden", err)
+	}
+	if err := svc.DismissRequest(ctx, shop, me, b.ID, asker.AdminID); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ = svc.Get(ctx, shop, me, b.ID); len(got.Requests) != 0 {
+		t.Fatalf("a dismissed request stayed: %+v", got.Requests)
+	}
+}

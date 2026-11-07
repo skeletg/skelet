@@ -2,6 +2,9 @@
   it. **Share** gives admins or whole roles view or edit access, and warns about anyone who'd see
   the board without its numbers (no customer analytics on the shop). An edit share is enough to
   change a board, without `boards.manage`.
+- **Ask for access.** Opening a board that isn't shared with you offers to ask its owner to let you
+  view or edit it, without saying whether the board exists. The owner sees who asked on the board,
+  with a count on the boards list, and lets them in or dismisses the request.
 - **Shop boards** have no owner and everyone on the shop sees them, as all boards did before -
   existing boards and the starter boards are shop boards.
 - **Hand over** gives a board to another admin who can open boards on the shop, or makes it a shop

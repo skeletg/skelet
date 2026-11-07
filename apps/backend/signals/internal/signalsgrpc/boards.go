@@ -193,6 +193,32 @@ func (s *boardServer) DiscardBoardDraft(ctx context.Context, req *signalsv1.Disc
 	return &signalsv1.DiscardBoardDraftResponse{}, nil
 }
 
+func (s *boardServer) RequestBoardAccess(ctx context.Context, req *signalsv1.RequestBoardAccessRequest) (*signalsv1.RequestBoardAccessResponse, error) {
+	cid, a, id, err := boardRef(ctx, "boards.view", req.GetChannelId(), req.GetId())
+	if err != nil {
+		return nil, err
+	}
+	if err := s.svc.RequestAccess(ctx, cid, a, id, req.GetLevel()); err != nil {
+		return nil, boardErr(err)
+	}
+	return &signalsv1.RequestBoardAccessResponse{}, nil
+}
+
+func (s *boardServer) DismissBoardAccessRequest(ctx context.Context, req *signalsv1.DismissBoardAccessRequestRequest) (*signalsv1.DismissBoardAccessRequestResponse, error) {
+	cid, a, id, err := boardRef(ctx, "boards.view", req.GetChannelId(), req.GetId())
+	if err != nil {
+		return nil, err
+	}
+	who, err := parseID("admin_id", req.GetAdminId())
+	if err != nil {
+		return nil, err
+	}
+	if err := s.svc.DismissRequest(ctx, cid, a, id, who); err != nil {
+		return nil, boardErr(err)
+	}
+	return &signalsv1.DismissBoardAccessRequestResponse{}, nil
+}
+
 func reportsFrom(in []*signalsv1.BoardReport) []board.Report {
 	out := make([]board.Report, 0, len(in))
 	for _, r := range in {
@@ -216,7 +242,7 @@ func summariesProto(bs []board.Summary) []*signalsv1.BoardSummary {
 	for _, b := range bs {
 		p := &signalsv1.BoardSummary{
 			Id: b.ID.String(), Name: b.Name, UpdatedAt: timestamppb.New(b.UpdatedAt), ReportCount: count32(b.ReportCount),
-			Access: b.Access.String(), Favourite: b.Favourite,
+			Access: b.Access.String(), Favourite: b.Favourite, AccessRequestCount: count32(b.RequestCount),
 		}
 		p.OwnerAdminId, p.DraftUpdatedAt = ownerProto(b.Ownership), draftAtProto(b.Ownership)
 		out = append(out, p)
@@ -252,6 +278,9 @@ func boardProto(b board.Board) *signalsv1.Board {
 			p.RoleId = sh.RoleID.String()
 		}
 		out.Shares = append(out.Shares, p)
+	}
+	for _, rq := range b.Requests {
+		out.AccessRequests = append(out.AccessRequests, &signalsv1.BoardAccessRequest{AdminId: rq.AdminID.String(), Level: rq.Level, RequestedAt: timestamppb.New(rq.RequestedAt)})
 	}
 	if d := b.Draft; d != nil {
 		out.Draft = &signalsv1.BoardDraft{PayloadJson: string(d.Payload), BaseUpdatedAt: timestamppb.New(d.BaseUpdatedAt), UpdatedAt: timestamppb.New(d.UpdatedAt)}

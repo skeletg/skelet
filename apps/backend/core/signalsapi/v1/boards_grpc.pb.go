@@ -22,17 +22,19 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	BoardService_ListBoards_FullMethodName          = "/skelet.signals.v1.BoardService/ListBoards"
-	BoardService_GetBoard_FullMethodName            = "/skelet.signals.v1.BoardService/GetBoard"
-	BoardService_CreateBoard_FullMethodName         = "/skelet.signals.v1.BoardService/CreateBoard"
-	BoardService_SaveBoard_FullMethodName           = "/skelet.signals.v1.BoardService/SaveBoard"
-	BoardService_DeleteBoard_FullMethodName         = "/skelet.signals.v1.BoardService/DeleteBoard"
-	BoardService_CreateStarterBoards_FullMethodName = "/skelet.signals.v1.BoardService/CreateStarterBoards"
-	BoardService_SetBoardShares_FullMethodName      = "/skelet.signals.v1.BoardService/SetBoardShares"
-	BoardService_TransferBoard_FullMethodName       = "/skelet.signals.v1.BoardService/TransferBoard"
-	BoardService_SetBoardFavourite_FullMethodName   = "/skelet.signals.v1.BoardService/SetBoardFavourite"
-	BoardService_SaveBoardDraft_FullMethodName      = "/skelet.signals.v1.BoardService/SaveBoardDraft"
-	BoardService_DiscardBoardDraft_FullMethodName   = "/skelet.signals.v1.BoardService/DiscardBoardDraft"
+	BoardService_ListBoards_FullMethodName                = "/skelet.signals.v1.BoardService/ListBoards"
+	BoardService_GetBoard_FullMethodName                  = "/skelet.signals.v1.BoardService/GetBoard"
+	BoardService_CreateBoard_FullMethodName               = "/skelet.signals.v1.BoardService/CreateBoard"
+	BoardService_SaveBoard_FullMethodName                 = "/skelet.signals.v1.BoardService/SaveBoard"
+	BoardService_DeleteBoard_FullMethodName               = "/skelet.signals.v1.BoardService/DeleteBoard"
+	BoardService_CreateStarterBoards_FullMethodName       = "/skelet.signals.v1.BoardService/CreateStarterBoards"
+	BoardService_SetBoardShares_FullMethodName            = "/skelet.signals.v1.BoardService/SetBoardShares"
+	BoardService_TransferBoard_FullMethodName             = "/skelet.signals.v1.BoardService/TransferBoard"
+	BoardService_SetBoardFavourite_FullMethodName         = "/skelet.signals.v1.BoardService/SetBoardFavourite"
+	BoardService_SaveBoardDraft_FullMethodName            = "/skelet.signals.v1.BoardService/SaveBoardDraft"
+	BoardService_DiscardBoardDraft_FullMethodName         = "/skelet.signals.v1.BoardService/DiscardBoardDraft"
+	BoardService_RequestBoardAccess_FullMethodName        = "/skelet.signals.v1.BoardService/RequestBoardAccess"
+	BoardService_DismissBoardAccessRequest_FullMethodName = "/skelet.signals.v1.BoardService/DismissBoardAccessRequest"
 )
 
 // BoardServiceClient is the client API for BoardService service.
@@ -56,6 +58,11 @@ type BoardServiceClient interface {
 	// Keeps the caller's unsaved edits between visits, until they save or discard them
 	SaveBoardDraft(ctx context.Context, in *SaveBoardDraftRequest, opts ...grpc.CallOption) (*SaveBoardDraftResponse, error)
 	DiscardBoardDraft(ctx context.Context, in *DiscardBoardDraftRequest, opts ...grpc.CallOption) (*DiscardBoardDraftResponse, error)
+	// Asks a board's owner for access. Answers the same whether or not the board exists or the caller has the access
+	// already, so it tells them nothing about a board they can't see
+	RequestBoardAccess(ctx context.Context, in *RequestBoardAccessRequest, opts ...grpc.CallOption) (*RequestBoardAccessResponse, error)
+	// The owner turning a request down - granting one is a share, which clears it
+	DismissBoardAccessRequest(ctx context.Context, in *DismissBoardAccessRequestRequest, opts ...grpc.CallOption) (*DismissBoardAccessRequestResponse, error)
 }
 
 type boardServiceClient struct {
@@ -176,6 +183,26 @@ func (c *boardServiceClient) DiscardBoardDraft(ctx context.Context, in *DiscardB
 	return out, nil
 }
 
+func (c *boardServiceClient) RequestBoardAccess(ctx context.Context, in *RequestBoardAccessRequest, opts ...grpc.CallOption) (*RequestBoardAccessResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequestBoardAccessResponse)
+	err := c.cc.Invoke(ctx, BoardService_RequestBoardAccess_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *boardServiceClient) DismissBoardAccessRequest(ctx context.Context, in *DismissBoardAccessRequestRequest, opts ...grpc.CallOption) (*DismissBoardAccessRequestResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DismissBoardAccessRequestResponse)
+	err := c.cc.Invoke(ctx, BoardService_DismissBoardAccessRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BoardServiceServer is the server API for BoardService service.
 // All implementations must embed UnimplementedBoardServiceServer
 // for forward compatibility.
@@ -197,6 +224,11 @@ type BoardServiceServer interface {
 	// Keeps the caller's unsaved edits between visits, until they save or discard them
 	SaveBoardDraft(context.Context, *SaveBoardDraftRequest) (*SaveBoardDraftResponse, error)
 	DiscardBoardDraft(context.Context, *DiscardBoardDraftRequest) (*DiscardBoardDraftResponse, error)
+	// Asks a board's owner for access. Answers the same whether or not the board exists or the caller has the access
+	// already, so it tells them nothing about a board they can't see
+	RequestBoardAccess(context.Context, *RequestBoardAccessRequest) (*RequestBoardAccessResponse, error)
+	// The owner turning a request down - granting one is a share, which clears it
+	DismissBoardAccessRequest(context.Context, *DismissBoardAccessRequestRequest) (*DismissBoardAccessRequestResponse, error)
 	mustEmbedUnimplementedBoardServiceServer()
 }
 
@@ -239,6 +271,12 @@ func (UnimplementedBoardServiceServer) SaveBoardDraft(context.Context, *SaveBoar
 }
 func (UnimplementedBoardServiceServer) DiscardBoardDraft(context.Context, *DiscardBoardDraftRequest) (*DiscardBoardDraftResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DiscardBoardDraft not implemented")
+}
+func (UnimplementedBoardServiceServer) RequestBoardAccess(context.Context, *RequestBoardAccessRequest) (*RequestBoardAccessResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequestBoardAccess not implemented")
+}
+func (UnimplementedBoardServiceServer) DismissBoardAccessRequest(context.Context, *DismissBoardAccessRequestRequest) (*DismissBoardAccessRequestResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DismissBoardAccessRequest not implemented")
 }
 func (UnimplementedBoardServiceServer) mustEmbedUnimplementedBoardServiceServer() {}
 func (UnimplementedBoardServiceServer) testEmbeddedByValue()                      {}
@@ -459,6 +497,42 @@ func _BoardService_DiscardBoardDraft_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BoardService_RequestBoardAccess_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequestBoardAccessRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BoardServiceServer).RequestBoardAccess(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BoardService_RequestBoardAccess_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BoardServiceServer).RequestBoardAccess(ctx, req.(*RequestBoardAccessRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BoardService_DismissBoardAccessRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DismissBoardAccessRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BoardServiceServer).DismissBoardAccessRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BoardService_DismissBoardAccessRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BoardServiceServer).DismissBoardAccessRequest(ctx, req.(*DismissBoardAccessRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BoardService_ServiceDesc is the grpc.ServiceDesc for BoardService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -509,6 +583,14 @@ var BoardService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DiscardBoardDraft",
 			Handler:    _BoardService_DiscardBoardDraft_Handler,
+		},
+		{
+			MethodName: "RequestBoardAccess",
+			Handler:    _BoardService_RequestBoardAccess_Handler,
+		},
+		{
+			MethodName: "DismissBoardAccessRequest",
+			Handler:    _BoardService_DismissBoardAccessRequest_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

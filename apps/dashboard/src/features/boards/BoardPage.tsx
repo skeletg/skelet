@@ -33,6 +33,7 @@ import {
   SetBoardFavouriteDocument,
   type BoardFullFragment,
 } from './Boards.gql'
+import { AccessRequestList, RequestAccess, notOpenable } from './AccessRequests'
 import { HandOverDialog } from './HandOverDialog'
 import { ShareDialog } from './ShareDialog'
 import { boardDiff, fresh, keyed, unkeyed, type AddToBoardState, type DraftReport } from './boardDiff'
@@ -284,13 +285,15 @@ export function BoardPage() {
         }
       />
       <DetailPageBody>
-        {error && (
+        {notOpenable(error) && <RequestAccess channelId={channelId} id={id} />}
+        {error && !notOpenable(error) && (
           <Alert variant="destructive">
             <AlertTitle>Couldn't load the board</AlertTitle>
             <AlertDescription>{error.message}</AlertDescription>
           </Alert>
         )}
         {loading && !board && <p className="py-6 text-sm text-muted-foreground">Loading…</p>}
+        {board && canOwn && <AccessRequestList channelId={channelId} board={board} />}
         {restoredAt && (
           <div className="mx-6 mt-4 flex flex-wrap items-center gap-3 rounded-md border border-info/40 bg-info-soft px-3 py-2 text-sm">
             <span className="flex-1">

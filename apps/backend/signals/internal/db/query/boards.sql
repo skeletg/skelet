@@ -89,3 +89,18 @@ DELETE FROM board_drafts WHERE board_id = sqlc.arg(board_id) AND admin_id = sqlc
 -- name: SweepBoardDrafts :execrows
 -- Unsaved edits nobody came back to - a draft board itself stays, only its owner sees it
 DELETE FROM board_drafts WHERE updated_at < sqlc.arg(before);
+
+-- name: PutBoardAccessRequest :exec
+INSERT INTO board_access_requests (board_id, admin_id, level) VALUES (sqlc.arg(board_id), sqlc.arg(admin_id), sqlc.arg(level))
+ON CONFLICT (board_id, admin_id) DO UPDATE SET level = EXCLUDED.level, created_at = now();
+
+-- name: BoardAccessRequests :many
+SELECT admin_id, level, created_at FROM board_access_requests WHERE board_id = sqlc.arg(board_id) ORDER BY created_at, admin_id;
+
+-- name: ChannelBoardAccessRequestCounts :many
+-- How many open requests each of a shop's boards has, for the owners' list
+SELECT r.board_id, count(*)::int AS n FROM board_access_requests r JOIN boards b ON b.id = r.board_id
+WHERE b.channel_id = sqlc.arg(channel_id) GROUP BY r.board_id;
+
+-- name: DeleteBoardAccessRequest :exec
+DELETE FROM board_access_requests WHERE board_id = sqlc.arg(board_id) AND admin_id = sqlc.arg(admin_id);

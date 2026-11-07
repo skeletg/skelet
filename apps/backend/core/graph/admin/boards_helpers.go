@@ -88,7 +88,7 @@ func (p *boardPeople) summariesOut(in []*signalsv1.BoardSummary) []*model.BoardS
 		out = append(out, &model.BoardSummary{
 			ID: b.GetId(), Name: b.GetName(), UpdatedAt: b.GetUpdatedAt().AsTime(), ReportCount: b.GetReportCount(),
 			Access: b.GetAccess(), Favourite: b.GetFavourite(), Owner: p.owner(b.GetOwnerAdminId()),
-			DraftUpdatedAt: timeOrNil(b.GetDraftUpdatedAt()),
+			DraftUpdatedAt: timeOrNil(b.GetDraftUpdatedAt()), AccessRequestCount: b.GetAccessRequestCount(),
 		})
 	}
 	return out
@@ -106,7 +106,7 @@ func timeOrNil(t *timestamppb.Timestamp) *time.Time {
 func (p *boardPeople) boardOut(b *signalsv1.Board) (*model.Board, error) {
 	out := &model.Board{
 		ID: b.GetId(), ChannelID: b.GetChannelId(), Name: b.GetName(), UpdatedAt: b.GetUpdatedAt().AsTime(),
-		Reports: []*model.BoardReport{}, Shares: []*model.BoardShare{},
+		Reports: []*model.BoardReport{}, Shares: []*model.BoardShare{}, AccessRequests: []*model.BoardAccessRequest{},
 		Access: b.GetAccess(), Favourite: b.GetFavourite(), Owner: p.owner(b.GetOwnerAdminId()),
 		DraftUpdatedAt: timeOrNil(b.GetDraftUpdatedAt()),
 	}
@@ -136,6 +136,9 @@ func (p *boardPeople) boardOut(b *signalsv1.Board) (*model.Board, error) {
 			}
 		}
 		out.Shares = append(out.Shares, s)
+	}
+	for _, rq := range b.GetAccessRequests() {
+		out.AccessRequests = append(out.AccessRequests, &model.BoardAccessRequest{AdminID: rq.GetAdminId(), Name: p.owner(rq.GetAdminId()).Name, Level: rq.GetLevel(), RequestedAt: rq.GetRequestedAt().AsTime()})
 	}
 	if d := b.GetDraft(); d != nil {
 		var payload any

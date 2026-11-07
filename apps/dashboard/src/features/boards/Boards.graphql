@@ -30,6 +30,7 @@ query Boards($channelId: ID!, $all: Boolean) {
     updatedAt
     reportCount
     access
+    accessRequestCount
     favourite
     draftUpdatedAt
     owner {
@@ -70,6 +71,12 @@ fragment BoardFull on Board {
     payload
     baseUpdatedAt
     updatedAt
+  }
+  accessRequests {
+    adminId
+    name
+    level
+    requestedAt
   }
 }
 
@@ -125,4 +132,12 @@ mutation SaveBoardDraft($channelId: ID!, $id: ID!, $payload: JSON!, $baseUpdated
 
 mutation DiscardBoardDraft($channelId: ID!, $id: ID!) {
   discardBoardDraft(channelId: $channelId, id: $id)
+}
+
+mutation RequestBoardAccess($channelId: ID!, $id: ID!, $level: String!) {
+  requestBoardAccess(channelId: $channelId, id: $id, level: $level)
+}
+
+mutation DismissBoardAccessRequest($channelId: ID!, $id: ID!, $adminId: ID!) {
+  dismissBoardAccessRequest(channelId: $channelId, id: $id, adminId: $adminId)
 }

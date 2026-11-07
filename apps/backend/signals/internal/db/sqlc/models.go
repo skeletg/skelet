@@ -33,6 +33,13 @@ type Board struct {
 	OwnerAdminID uuid.NullUUID `json:"owner_admin_id"`
 }
 
+type BoardAccessRequest struct {
+	BoardID   uuid.UUID `json:"board_id"`
+	AdminID   uuid.UUID `json:"admin_id"`
+	Level     string    `json:"level"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type BoardDraft struct {
 	BoardID       uuid.UUID       `json:"board_id"`
 	AdminID       uuid.UUID       `json:"admin_id"`

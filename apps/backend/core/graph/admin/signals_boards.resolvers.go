@@ -135,6 +135,28 @@ func (r *mutationResolver) DiscardBoardDraft(ctx context.Context, channelID stri
 	return true, nil
 }
 
+func (r *mutationResolver) RequestBoardAccess(ctx context.Context, channelID string, id string, level string) (bool, error) {
+	authed, err := r.signalsChannel(ctx, "boards.view", channelID)
+	if err != nil {
+		return false, err
+	}
+	if _, err := r.SignalsAPI.Boards.RequestBoardAccess(authed, &signalsv1.RequestBoardAccessRequest{ChannelId: channelID, Id: id, Level: level}); err != nil {
+		return false, signalsErr(err)
+	}
+	return true, nil
+}
+
+func (r *mutationResolver) DismissBoardAccessRequest(ctx context.Context, channelID string, id string, adminID string) (bool, error) {
+	authed, err := r.signalsChannel(ctx, "boards.view", channelID) // the owner's to do - Signals checks
+	if err != nil {
+		return false, err
+	}
+	if _, err := r.SignalsAPI.Boards.DismissBoardAccessRequest(authed, &signalsv1.DismissBoardAccessRequestRequest{ChannelId: channelID, Id: id, AdminId: adminID}); err != nil {
+		return false, signalsErr(err)
+	}
+	return true, nil
+}
+
 func (r *queryResolver) Boards(ctx context.Context, channelID string, all *bool) ([]*model.BoardSummary, error) {
 	authed, err := r.signalsChannel(ctx, "boards.view", channelID)
 	if err != nil {

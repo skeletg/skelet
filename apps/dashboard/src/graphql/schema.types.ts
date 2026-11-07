@@ -811,6 +811,7 @@ export type BlogTagContent = {
 export type Board = {
   __typename?: 'Board';
   access: Scalars['String']['output'];
+  accessRequests: Array<BoardAccessRequest>;
   channelId: Scalars['ID']['output'];
   draft?: Maybe<BoardDraft>;
   draftUpdatedAt?: Maybe<Scalars['Time']['output']>;
@@ -821,6 +822,14 @@ export type Board = {
   reports: Array<BoardReport>;
   shares: Array<BoardShare>;
   updatedAt: Scalars['Time']['output'];
+};
+
+export type BoardAccessRequest = {
+  __typename?: 'BoardAccessRequest';
+  adminId: Scalars['ID']['output'];
+  level: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  requestedAt: Scalars['Time']['output'];
 };
 
 export type BoardDraft = {
@@ -930,6 +939,7 @@ export type BoardShareTarget = {
 export type BoardSummary = {
   __typename?: 'BoardSummary';
   access: Scalars['String']['output'];
+  accessRequestCount: Scalars['Int']['output'];
   draftUpdatedAt?: Maybe<Scalars['Time']['output']>;
   favourite: Scalars['Boolean']['output'];
   id: Scalars['ID']['output'];
@@ -4139,6 +4149,7 @@ export type Mutation = {
   devImpersonate: AdminAuthPayload;
   disableGiftCard: GiftCard;
   discardBoardDraft: Scalars['Boolean']['output'];
+  dismissBoardAccessRequest: Scalars['Boolean']['output'];
   draftReviewReply: Scalars['String']['output'];
   duplicateProductOption: ProductOptionOwner;
   editOrder: Order;
@@ -4204,6 +4215,7 @@ export type Mutation = {
   reorderPromotionRules: Scalars['Boolean']['output'];
   replyToReview: Review;
   requestAdminPasswordReset: Scalars['Boolean']['output'];
+  requestBoardAccess: Scalars['Boolean']['output'];
   requestCategoryCoverUpload: RequestCoverUploadPayload;
   requestCollectionCoverUpload: RequestCoverUploadPayload;
   requestMediaAssetUpload: RequestMediaAssetUploadPayload;
@@ -5665,6 +5677,13 @@ export type MutationDiscardBoardDraftArgs = {
 };
 
 
+export type MutationDismissBoardAccessRequestArgs = {
+  adminId: Scalars['ID']['input'];
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
+};
+
+
 export type MutationDraftReviewReplyArgs = {
   id: Scalars['ID']['input'];
 };
@@ -6020,6 +6039,13 @@ export type MutationReplyToReviewArgs = {
 
 export type MutationRequestAdminPasswordResetArgs = {
   email: Scalars['String']['input'];
+};
+
+
+export type MutationRequestBoardAccessArgs = {
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
+  level: Scalars['String']['input'];
 };
 
 

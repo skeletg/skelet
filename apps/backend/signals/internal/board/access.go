@@ -49,6 +49,13 @@ type Share struct {
 	Level   string
 }
 
+// AccessRequest is an admin who opened a board they can't see asking its owner for a level on it
+type AccessRequest struct {
+	AdminID     uuid.UUID
+	Level       string
+	RequestedAt time.Time
+}
+
 // Draft is an admin's unsaved edits to a board, as the dashboard staged them
 type Draft struct {
 	Payload       []byte

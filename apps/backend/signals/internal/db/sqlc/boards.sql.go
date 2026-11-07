@@ -134,6 +134,39 @@ func (q *Queries) AdminFavouriteBoards(ctx context.Context, adminID uuid.UUID) (
 	return items, nil
 }
 
+const boardAccessRequests = `-- name: BoardAccessRequests :many
+SELECT admin_id, level, created_at FROM board_access_requests WHERE board_id = $1 ORDER BY created_at, admin_id
+`
+
+type BoardAccessRequestsRow struct {
+	AdminID   uuid.UUID `json:"admin_id"`
+	Level     string    `json:"level"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (q *Queries) BoardAccessRequests(ctx context.Context, boardID uuid.UUID) ([]BoardAccessRequestsRow, error) {
+	rows, err := q.db.QueryContext(ctx, boardAccessRequests, boardID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []BoardAccessRequestsRow{}
+	for rows.Next() {
+		var i BoardAccessRequestsRow
+		if err := rows.Scan(&i.AdminID, &i.Level, &i.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const boardReports = `-- name: BoardReports :many
 SELECT title, size, definition FROM board_reports WHERE board_id = $1 ORDER BY position
 `
@@ -187,6 +220,40 @@ func (q *Queries) BoardShares(ctx context.Context, boardID uuid.UUID) ([]BoardSh
 	for rows.Next() {
 		var i BoardSharesRow
 		if err := rows.Scan(&i.AdminID, &i.RoleID, &i.Level); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const channelBoardAccessRequestCounts = `-- name: ChannelBoardAccessRequestCounts :many
+SELECT r.board_id, count(*)::int AS n FROM board_access_requests r JOIN boards b ON b.id = r.board_id
+WHERE b.channel_id = $1 GROUP BY r.board_id
+`
+
+type ChannelBoardAccessRequestCountsRow struct {
+	BoardID uuid.UUID `json:"board_id"`
+	N       int32     `json:"n"`
+}
+
+// How many open requests each of a shop's boards has, for the owners' list
+func (q *Queries) ChannelBoardAccessRequestCounts(ctx context.Context, channelID uuid.UUID) ([]ChannelBoardAccessRequestCountsRow, error) {
+	rows, err := q.db.QueryContext(ctx, channelBoardAccessRequestCounts, channelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ChannelBoardAccessRequestCountsRow{}
+	for rows.Next() {
+		var i ChannelBoardAccessRequestCountsRow
+		if err := rows.Scan(&i.BoardID, &i.N); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -308,6 +375,20 @@ func (q *Queries) DeleteBoard(ctx context.Context, arg DeleteBoardParams) (int64
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const deleteBoardAccessRequest = `-- name: DeleteBoardAccessRequest :exec
+DELETE FROM board_access_requests WHERE board_id = $1 AND admin_id = $2
+`
+
+type DeleteBoardAccessRequestParams struct {
+	BoardID uuid.UUID `json:"board_id"`
+	AdminID uuid.UUID `json:"admin_id"`
+}
+
+func (q *Queries) DeleteBoardAccessRequest(ctx context.Context, arg DeleteBoardAccessRequestParams) error {
+	_, err := q.db.ExecContext(ctx, deleteBoardAccessRequest, arg.BoardID, arg.AdminID)
+	return err
 }
 
 const deleteBoardDraft = `-- name: DeleteBoardDraft :exec
@@ -439,6 +520,22 @@ func (q *Queries) PruneOrphanedBoards(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const putBoardAccessRequest = `-- name: PutBoardAccessRequest :exec
+INSERT INTO board_access_requests (board_id, admin_id, level) VALUES ($1, $2, $3)
+ON CONFLICT (board_id, admin_id) DO UPDATE SET level = EXCLUDED.level, created_at = now()
+`
+
+type PutBoardAccessRequestParams struct {
+	BoardID uuid.UUID `json:"board_id"`
+	AdminID uuid.UUID `json:"admin_id"`
+	Level   string    `json:"level"`
+}
+
+func (q *Queries) PutBoardAccessRequest(ctx context.Context, arg PutBoardAccessRequestParams) error {
+	_, err := q.db.ExecContext(ctx, putBoardAccessRequest, arg.BoardID, arg.AdminID, arg.Level)
+	return err
 }
 
 const putBoardDraft = `-- name: PutBoardDraft :one
