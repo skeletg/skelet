@@ -24,7 +24,9 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
+	"github.com/skeletg/skelet/apps/backend/core/internal/wishlist"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
@@ -113,12 +115,17 @@ func (t *Tracker) Subscribe(bus *events.Bus) {
 	bus.Subscribe(order.EventReturnApproved, t.onReturnApproved)
 	bus.Subscribe(order.EventReturnRejected, t.onReturnRejected)
 	bus.Subscribe(order.EventEdited, t.onOrderEdited)
+	bus.Subscribe(order.EventRefunded, t.onOrderRefunded)
 	bus.Subscribe(cart.EventLineAdded, t.onCartAdd)
 	bus.Subscribe(cart.EventBundleAdded, t.onCartBundleAdd)
 	bus.Subscribe(cart.EventLineUpdated, t.onCartUpdate)
 	bus.Subscribe(cart.EventLineRemoved, t.onCartRemove)
 	bus.Subscribe(cart.EventCleared, t.onCartCleared)
 	bus.Subscribe(cart.EventMerged, t.onCartMerged)
+	bus.Subscribe(cart.EventCheckoutChosen, t.onCheckoutChosen)
+	bus.Subscribe(wishlist.EventItemAdded, t.onWishlistAdd)
+	bus.Subscribe(wishlist.EventItemRemoved, t.onWishlistRemove)
+	bus.Subscribe(signupform.EventSubmitted, t.onLead)
 	bus.Subscribe(review.EventSubmitted, t.onReviewSubmitted)
 	bus.Subscribe(subscription.EventCreated, t.onSubLifecycle)
 	bus.Subscribe(subscription.EventCanceled, t.onSubLifecycle)
@@ -367,6 +374,20 @@ func (t *Tracker) recordReturn(ctx context.Context, name string, orderID, return
 		map[string]any{"order_number": o.number, "return_id": returnID.String()})
 }
 
+func (t *Tracker) onOrderRefunded(ctx context.Context, e events.Event) error {
+	ev, ok := e.(*order.OrderRefunded)
+	if !ok {
+		return nil
+	}
+	o, err := t.resolveOrder(ctx, ev.OrderID)
+	if err != nil {
+		return err
+	}
+	return t.emitAs(ctx, sourceCommerce, "order_refunded", o.channel, o.who,
+		"act:order_refunded:"+ev.CreditMemoID.String(),
+		map[string]any{"order_number": o.number, "credit_memo_id": ev.CreditMemoID.String(), "fully_refunded": ev.FullyRefunded})
+}
+
 func (t *Tracker) onOrderEdited(ctx context.Context, e events.Event) error {
 	ev, ok := e.(*order.OrderEdited)
 	if !ok {
@@ -419,6 +440,65 @@ func (t *Tracker) onCartRemove(ctx context.Context, e events.Event) error {
 	return t.emitAs(ctx, sourceCommerce, "cart_remove", ev.ChannelID, shopperActor(ev.Shopper, ev.CustomerID, ev.AnonID),
 		"act:cart_rm:"+ev.LineID.String()+":"+itoa(minuteBucket(ctx)),
 		map[string]any{"line_id": ev.LineID.String()})
+}
+
+// checkout_shipping and checkout_payment, each with what was chosen when it changed
+func (t *Tracker) onCheckoutChosen(ctx context.Context, e events.Event) error {
+	ev, ok := e.(*cart.CheckoutChosen)
+	if !ok {
+		return nil
+	}
+	who := shopperActor(ev.Shopper, ev.CustomerID, ev.AnonID)
+	for name, choice := range map[string]string{"checkout_shipping": ev.Shipping, "checkout_payment": ev.Payment} {
+		if choice == "" {
+			continue
+		}
+		if err := t.emitAs(ctx, sourceCommerce, name, ev.ChannelID, who,
+			"act:"+name+":"+ev.CartID.String()+":"+itoa(secBucket(ctx)), map[string]any{"choice": choice}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (t *Tracker) onWishlistAdd(ctx context.Context, e events.Event) error {
+	ev, ok := e.(*wishlist.ItemAdded)
+	if !ok || ev.ChannelID == uuid.Nil {
+		return nil
+	}
+	return t.wishlist(ctx, "wishlist_add", ev.ChannelID, ev.CustomerID, ev.ProductID, ev.Shopper)
+}
+
+func (t *Tracker) onWishlistRemove(ctx context.Context, e events.Event) error {
+	ev, ok := e.(*wishlist.ItemRemoved)
+	if !ok || ev.ChannelID == uuid.Nil {
+		return nil
+	}
+	return t.wishlist(ctx, "wishlist_remove", ev.ChannelID, ev.CustomerID, ev.ProductID, ev.Shopper)
+}
+
+func (t *Tracker) wishlist(ctx context.Context, name string, channel, cust, product uuid.UUID, s *auth.Shopper) error {
+	return t.emitAs(ctx, sourceCommerce, name, channel, shopperActor(s, &cust, visitorOf(s)),
+		"act:"+name+":"+cust.String()+":"+product.String()+":"+itoa(secBucket(ctx)),
+		map[string]any{"product_id": product.String()})
+}
+
+// A signup form sent - the visitor's, with no address, which isn't confirmed yet
+func (t *Tracker) onLead(ctx context.Context, e events.Event) error {
+	ev, ok := e.(*signupform.Submitted)
+	if !ok {
+		return nil
+	}
+	return t.emitAs(ctx, sourceCommerce, "lead", ev.ChannelID, shopperActor(ev.Shopper, nil, visitorOf(ev.Shopper)),
+		"act:lead:"+ev.LeadKey, map[string]any{"form_id": ev.FormID.String()})
+}
+
+// visitorOf is the visitor id a shopper carries - only there with analytics consent
+func visitorOf(s *auth.Shopper) string {
+	if s == nil {
+		return ""
+	}
+	return s.AnonID
 }
 
 func (t *Tracker) onCartCleared(ctx context.Context, e events.Event) error {
@@ -487,8 +567,8 @@ func (t *Tracker) onDownloadAccessed(ctx context.Context, e events.Event) error 
 		}
 	}
 	// A grant issued without an order names no channel, so the storefront request that downloaded supplies it - and one with neither stays off the spine, where no per-channel report could show it
-	if ch, ok := channel.FromContext(ctx); o.channel == uuid.Nil && ok && ch != nil {
-		o.channel = ch.ID
+	if o.channel == uuid.Nil {
+		o.channel = channel.IDFromContext(ctx)
 	}
 	if o.channel == uuid.Nil {
 		return nil
@@ -584,11 +664,7 @@ func (t *Tracker) onLogout(ctx context.Context, e events.Event) error {
 		return nil
 	}
 	// The event names no channel, so the storefront request that logged out supplies it
-	chID := uuid.Nil
-	if ch, ok := channel.FromContext(ctx); ok && ch != nil {
-		chID = ch.ID
-	}
-	return t.emit(ctx, sourceAccount, "logout", chID, ref(ev.SubjectID),
+	return t.emit(ctx, sourceAccount, "logout", channel.IDFromContext(ctx), ref(ev.SubjectID),
 		"act:logout:"+ev.SubjectID.String()+":"+itoa(secBucket(ctx)), nil) // always one session - revoke-all is a side effect of a password or account change, which records its own event
 }
 

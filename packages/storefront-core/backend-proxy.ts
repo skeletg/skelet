@@ -1,4 +1,5 @@
 import { BACKEND_INTERNAL_URL } from "./backend-url";
+import { shopperHeaders } from "./shopper-headers";
 
 // The backend's same-origin links: thumbnails, downloads, unsubscribe and signup confirmation, email pixels and clicks, and the /t beacons
 export const PROXIED_PREFIXES = ["/media/t/", "/download/", "/unsubscribe/", "/subscribe/", "/e/", "/t/"] as const;
@@ -15,12 +16,16 @@ const HOP_BY_HOP = [
   "content-length",
 ];
 
+// Who the request is for is the storefront's word, read from its own cookies - never what the browser put in these
+const SHOPPER = ["x-consent", "x-anon-id", "x-session-id", "x-click-ids"];
+
 export async function proxyToBackend(req: Request, backend: string = BACKEND_INTERNAL_URL): Promise<Response> {
   const src = new URL(req.url);
   // As parsed - /t/%2e%2e/api/admin matches the /t/ route, then resolves outside it
   if (!PROXIED_PREFIXES.some((p) => src.pathname.startsWith(p))) return new Response("Not found", { status: 404 });
   const headers = new Headers(req.headers);
-  for (const h of HOP_BY_HOP) headers.delete(h);
+  for (const h of [...HOP_BY_HOP, ...SHOPPER]) headers.delete(h);
+  for (const [k, v] of Object.entries(await shopperHeaders())) headers.set(k, v);
   headers.set("accept-encoding", "identity");
   const hasBody = req.method !== "GET" && req.method !== "HEAD";
   let res: Response;

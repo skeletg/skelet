@@ -50,7 +50,23 @@ const ( // subscribe by these, e.g. bus.SubscribeSync(cart.EventLineAdding, 100,
 	EventOfferSent    = "cart.offer.sent"
 	EventOfferOpened  = "cart.offer.opened"
 	EventOfferExpired = "cart.offer.expired"
+	// A shopper's checkout step picked a different delivery or payment method
+	EventCheckoutChosen = "cart.checkout.chosen"
 )
+
+type CheckoutChosen struct { // fires AFTER the step is saved, async - at least one of Shipping and Payment is set
+	CartID     uuid.UUID
+	ChannelID  uuid.UUID
+	CustomerID *uuid.UUID
+	AnonID     string
+	Shipping   string // the shipping methods it changed to, comma-joined per delivery group - empty when unchanged
+	Payment    string // the payment provider's slug it changed to - empty when unchanged
+	Lines      []CartLine
+	Shopper    *auth.Shopper // the visitor as their consent stood, nil for a caller with no banner
+}
+
+func (*CheckoutChosen) Type() string                { return EventCheckoutChosen }
+func (e *CheckoutChosen) EventChannelID() uuid.UUID { return e.ChannelID }
 
 type OfferSent struct { // fires AFTER an admin emails an offer, async
 	CartID     uuid.UUID
@@ -205,13 +221,16 @@ func (e *LineUpdating) ApplyWebhookResponse(body []byte) (bool, string, error) {
 }
 
 type LineUpdated struct { // fires AFTER the quantity is written, async
-	CartID     uuid.UUID
-	ChannelID  uuid.UUID
-	CustomerID *uuid.UUID
-	AnonID     string
-	LineID     uuid.UUID
-	Quantity   float64
-	Shopper    *auth.Shopper // the visitor as their consent stood, nil for a caller with no banner
+	CartID       uuid.UUID
+	ChannelID    uuid.UUID
+	CustomerID   *uuid.UUID
+	AnonID       string
+	LineID       uuid.UUID
+	ProductSku   string
+	UnitPrice    int64 // after the edit, which may have crossed a price tier
+	Quantity     float64
+	PrevQuantity float64
+	Shopper      *auth.Shopper // the visitor as their consent stood, nil for a caller with no banner
 }
 
 func (*LineUpdated) Type() string                { return EventLineUpdated }

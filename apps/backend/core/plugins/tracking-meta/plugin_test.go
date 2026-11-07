@@ -113,3 +113,24 @@ func TestWhatIsNotSentAndWhatIsNotRetried(t *testing.T) {
 		t.Error("the access token leaked into the error the delivery log keeps")
 	}
 }
+
+func TestSearchesWishlistsAndLeadsAreMetasStandardEvents(t *testing.T) {
+	s := toEvent(eventNames["search"], sdk.ShopEvent{ID: "s", Name: "search", SearchTerm: "blue mug"})
+	if s.EventName != "Search" || s.CustomData == nil || s.CustomData.Search != "blue mug" {
+		t.Errorf("search: %+v %+v", s, s.CustomData)
+	}
+	b, _ := json.Marshal(toEvent(eventNames["generate_lead"], sdk.ShopEvent{ID: "l", Name: "generate_lead"}))
+	if !strings.Contains(string(b), `"event_name":"Lead"`) || strings.Contains(string(b), "custom_data") {
+		t.Errorf("a lead with no value must carry no custom data: %s", b)
+	}
+	if eventNames["add_to_wishlist"] != "AddToWishlist" {
+		t.Error("add_to_wishlist isn't AddToWishlist")
+	}
+}
+
+func TestAFreePurchaseStillSaysItsValue(t *testing.T) {
+	b, _ := json.Marshal(toEvent("Purchase", sdk.ShopEvent{ID: "p", Name: "purchase", Ecommerce: &sdk.ShopEcommerce{Currency: "EUR", TransactionID: "1001"}}))
+	if !strings.Contains(string(b), `"value":0`) || !strings.Contains(string(b), `"currency":"EUR"`) {
+		t.Errorf("Meta requires value and currency on a Purchase, even a free one: %s", b)
+	}
+}

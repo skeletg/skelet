@@ -23,7 +23,9 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
+	"github.com/skeletg/skelet/apps/backend/core/internal/wishlist"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
@@ -659,5 +661,44 @@ func TestABackfillLeavesOrdersPlacedWithoutConsentAlone(t *testing.T) {
 	}
 	if len(fr.calls) != 0 {
 		t.Errorf("recorded %+v, want nothing - a second copy under a new key", fr.calls)
+	}
+}
+
+// The ecommerce moments Signals didn't see before, under its own names - and a refused visitor counted as nobody
+func TestRefundsWishlistsCheckoutChoicesAndLeadsLand(t *testing.T) {
+	cid, ch, oid := uuid.New(), uuid.New(), uuid.New()
+	memo, cartID, form := uuid.New(), uuid.New(), uuid.New()
+	consented := &auth.Shopper{Consent: auth.Consent{Analytics: true}, AnonID: "visitor-1"}
+	refused := &auth.Shopper{}
+	tr, fr := newTracker(order.Order{CustomerID: &cid, Number: "1001", ChannelID: ch})
+	ctx := context.Background()
+	_ = tr.onOrderRefunded(ctx, &order.OrderRefunded{OrderID: oid, ChannelID: ch, CreditMemoID: memo, FullyRefunded: true})
+	_ = tr.onWishlistAdd(ctx, &wishlist.ItemAdded{CustomerID: cid, ProductID: uuid.New(), ChannelID: ch, Shopper: consented})
+	_ = tr.onWishlistRemove(ctx, &wishlist.ItemRemoved{CustomerID: cid, ProductID: uuid.New(), ChannelID: ch, Shopper: refused})
+	_ = tr.onWishlistAdd(ctx, &wishlist.ItemAdded{CustomerID: cid, ProductID: uuid.New()}) // not through a shop
+	_ = tr.onCheckoutChosen(ctx, &cart.CheckoutChosen{CartID: cartID, ChannelID: ch, AnonID: "visitor-1", Payment: "cod", Shopper: consented})
+	_ = tr.onLead(ctx, &signupform.Submitted{ChannelID: ch, FormID: form, LeadKey: "k1", Shopper: consented})
+
+	if len(fr.calls) != 5 {
+		t.Fatalf("recorded %d events, want 5: %+v", len(fr.calls), fr.calls)
+	}
+	want := []struct {
+		name, source, anon string
+		cust               bool
+	}{
+		{"order_refunded", sourceCommerce, "", true},
+		{"wishlist_add", sourceCommerce, "visitor-1", true},
+		{"wishlist_remove", sourceAggregate, "", false},
+		{"checkout_payment", sourceCommerce, "visitor-1", false},
+		{"lead", sourceCommerce, "visitor-1", false},
+	}
+	for i, w := range want {
+		c := fr.calls[i]
+		if c.EventName != w.name || c.Source != w.source || c.AnonID != w.anon || (c.CustomerID != nil) != w.cust || c.ChannelID != ch {
+			t.Errorf("%s: got %+v", w.name, c)
+		}
+	}
+	if fr.calls[3].Props["choice"] != "cod" || fr.calls[0].Props["fully_refunded"] != true {
+		t.Errorf("props: %v %v", fr.calls[3].Props, fr.calls[0].Props)
 	}
 }

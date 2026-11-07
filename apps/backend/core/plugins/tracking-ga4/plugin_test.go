@@ -116,3 +116,24 @@ func TestTheValidationServerRefusalIsFinal(t *testing.T) {
 		t.Errorf("a clean validation must pass: %v", err)
 	}
 }
+
+// GA4's list, promotion, checkout-choice and search parameters reach the event, and an empty one is left out
+func TestEventParametersBeyondThePurchase(t *testing.T) {
+	idx := 2
+	ev := sdk.ShopEvent{ID: "e-1", Name: "select_promotion", SearchTerm: "", Ecommerce: &sdk.ShopEcommerce{
+		Currency: "EUR", PromotionID: "rule-1", PromotionName: "summer", CreativeSlot: "hero", ItemListName: "Mugs",
+		Items: []sdk.ShopItem{{ItemID: "SKU-1", Index: &idx}},
+	}}
+	params := toPayload(ev).Events[0].Params
+	if params["promotion_id"] != "rule-1" || params["promotion_name"] != "summer" || params["creative_slot"] != "hero" || params["item_list_name"] != "Mugs" {
+		t.Errorf("params %v", params)
+	}
+	for _, k := range []string{"creative_name", "payment_type", "shipping_tier", "item_list_id", "search_term"} {
+		if _, ok := params[k]; ok {
+			t.Errorf("an empty %s was sent", k)
+		}
+	}
+	if p := toPayload(sdk.ShopEvent{ID: "e-2", Name: "search", SearchTerm: "blue mug"}).Events[0].Params; p["search_term"] != "blue mug" {
+		t.Errorf("search params %v", p)
+	}
+}
