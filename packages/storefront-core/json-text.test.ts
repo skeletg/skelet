@@ -20,11 +20,24 @@ describe("renderJsonText", () => {
     expect(renderJsonText({ text: "Only text" })).toBe("Only text");
   });
 
-  it("walks a rich-text tree and joins its string leaves", () => {
+  it("reads a Lexical document as its text, leaving out the node bookkeeping", () => {
+    const text = (t: string) => ({ type: "text", text: t, format: 0, mode: "normal", style: "" });
     const doc = {
-      root: { children: [{ children: [{ text: "First" }] }, { children: [{ text: "Second" }] }] },
+      root: {
+        type: "root",
+        direction: "ltr",
+        children: [
+          { type: "paragraph", direction: "ltr", children: [text("First")] },
+          { type: "heading", tag: "h4", children: [text("Care")] },
+          { type: "list", listType: "bullet", tag: "ul", children: [{ type: "listitem", children: [text("Wash cold")] }] },
+        ],
+      },
     };
-    expect(renderJsonText(doc)).toBe("First Second");
+    expect(renderJsonText(doc)).toBe("First Care Wash cold");
+  });
+
+  it("walks any other tree and joins its string leaves", () => {
+    expect(renderJsonText({ body: [{ caption: "First" }, { caption: "Second" }] })).toBe("First Second");
   });
 
   it("drops adjacent duplicate leaves", () => {
