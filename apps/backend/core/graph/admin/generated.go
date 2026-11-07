@@ -2764,7 +2764,7 @@ type ComplexityRoot struct {
 		ReorderPromotionRules             func(childComplexity int, ruleIds []string) int
 		ReplyToReview                     func(childComplexity int, id string, body string) int
 		RequestAdminPasswordReset         func(childComplexity int, email string) int
-		RequestBoardAccess                func(childComplexity int, channelID string, id string, level string) int
+		RequestBoardAccess                func(childComplexity int, channelID string, id string, level model.BoardShareLevel) int
 		RequestCategoryCoverUpload        func(childComplexity int, input model.RequestCategoryCoverUploadInput) int
 		RequestCollectionCoverUpload      func(childComplexity int, input model.RequestCollectionCoverUploadInput) int
 		RequestMediaAssetUpload           func(childComplexity int, input model.RequestMediaAssetUploadInput) int
@@ -5506,7 +5506,7 @@ type MutationResolver interface {
 	SetBoardFavourite(ctx context.Context, channelID string, id string, favourite bool) (bool, error)
 	SaveBoardDraft(ctx context.Context, channelID string, id string, payload interface{}, baseUpdatedAt time.Time) (*time.Time, error)
 	DiscardBoardDraft(ctx context.Context, channelID string, id string) (bool, error)
-	RequestBoardAccess(ctx context.Context, channelID string, id string, level string) (bool, error)
+	RequestBoardAccess(ctx context.Context, channelID string, id string, level model.BoardShareLevel) (bool, error)
 	DismissBoardAccessRequest(ctx context.Context, channelID string, id string, adminID string) (bool, error)
 	CreateCustomerSegment(ctx context.Context, input model.CreateCustomerSegmentInput) (*model.CustomerSegment, error)
 	UpdateCustomerSegment(ctx context.Context, input model.UpdateCustomerSegmentInput) (*model.CustomerSegment, error)
@@ -19425,7 +19425,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.RequestBoardAccess(childComplexity, args["channelId"].(string), args["id"].(string), args["level"].(string)), true
+		return e.ComplexityRoot.Mutation.RequestBoardAccess(childComplexity, args["channelId"].(string), args["id"].(string), args["level"].(model.BoardShareLevel)), true
 	case "Mutation.requestCategoryCoverUpload":
 		if e.ComplexityRoot.Mutation.RequestCategoryCoverUpload == nil {
 			break
@@ -40058,13 +40058,27 @@ extend type Mutation {
 # one, and to run shop boards); Signals decides each admin's access to each board. Each report still runs through the
 # Synapse query of its kind, under that query's own grant - so a board never shows anyone data they couldn't query
 
+# What the caller may do with a board, each including the ones before it: open it; change its name and reports; share,
+# hand over and delete it
+enum BoardAccess {
+  VIEW
+  EDIT
+  OWN
+}
+
+# What a share or a request for access gives someone
+enum BoardShareLevel {
+  VIEW
+  EDIT
+}
+
 # One board in the list, without its reports
 type BoardSummary {
   id:          ID!
   name:        String!
   updatedAt:   Time!
   reportCount: Int!
-  access:      String!      # the caller's: view | edit | own
+  access:      BoardAccess!  # the caller's
   favourite:   Boolean!     # the caller's star
   owner:       BoardOwner   # null on a shop board
   draftUpdatedAt: Time      # when the caller's unsaved edits were last kept
@@ -40077,7 +40091,7 @@ type Board {
   name:      String!
   updatedAt: Time!        # send back as saveBoard's readAt
   reports:   [BoardReport!]!
-  access:    String!      # the caller's: view | edit | own
+  access:    BoardAccess!   # the caller's
   favourite: Boolean!     # the caller's star
   owner:     BoardOwner   # null on a shop board
   draftUpdatedAt: Time    # when the caller's unsaved edits were last kept
@@ -40089,7 +40103,7 @@ type Board {
 type BoardAccessRequest {
   adminId:     ID!
   name:        String!
-  level:       String!   # view | edit
+  level:       BoardShareLevel!
   requestedAt: Time!
 }
 
@@ -40103,7 +40117,7 @@ type BoardShare {
   adminId: ID
   roleId:  ID
   name:    String!
-  level:   String!    # view | edit
+  level:   BoardShareLevel!
 }
 
 type BoardDraft {
@@ -40193,7 +40207,7 @@ input BoardReportInput {
 input BoardShareInput {
   adminId: ID
   roleId:  ID
-  level:   String!
+  level:   BoardShareLevel!
 }
 
 extend type Query {
@@ -40224,7 +40238,7 @@ extend type Mutation {
   discardBoardDraft(channelId: ID!, id: ID!): Boolean!
   # Asks a board's owner for view or edit access. Answers true whether or not the board exists or the caller has the
   # access already, so it says nothing about a board they can't see
-  requestBoardAccess(channelId: ID!, id: ID!, level: String!): Boolean!
+  requestBoardAccess(channelId: ID!, id: ID!, level: BoardShareLevel!): Boolean!
   # The owner turning a request down - granting one is setBoardShares, which clears it
   dismissBoardAccessRequest(channelId: ID!, id: ID!, adminId: ID!): Boolean!
 }
@@ -55380,8 +55394,8 @@ func (ec *executionContext) field_Mutation_requestBoardAccess_args(ctx context.C
 	}
 	args["id"] = arg1
 	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "level",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNString2string(ctx, v)
+		func(ctx context.Context, v any) (model.BoardShareLevel, error) {
+			return ec.unmarshalNBoardShareLevel2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardShareLevel(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -72699,15 +72713,15 @@ func (ec *executionContext) _Board_access(ctx context.Context, field graphql.Col
 			return obj.Access, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v model.BoardAccess) graphql.Marshaler {
+			return ec.marshalNBoardAccess2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardAccess(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
 func (ec *executionContext) fieldContext_Board_access(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("Board", field, false, false, errors.New("field of type String does not have child fields"))
+	return graphql.NewScalarFieldContext("Board", field, false, false, errors.New("field of type BoardAccess does not have child fields"))
 }
 
 func (ec *executionContext) _Board_favourite(ctx context.Context, field graphql.CollectedField, obj *model.Board) (ret graphql.Marshaler) {
@@ -72942,15 +72956,15 @@ func (ec *executionContext) _BoardAccessRequest_level(ctx context.Context, field
 			return obj.Level, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v model.BoardShareLevel) graphql.Marshaler {
+			return ec.marshalNBoardShareLevel2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardShareLevel(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
 func (ec *executionContext) fieldContext_BoardAccessRequest_level(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("BoardAccessRequest", field, false, false, errors.New("field of type String does not have child fields"))
+	return graphql.NewScalarFieldContext("BoardAccessRequest", field, false, false, errors.New("field of type BoardShareLevel does not have child fields"))
 }
 
 func (ec *executionContext) _BoardAccessRequest_requestedAt(ctx context.Context, field graphql.CollectedField, obj *model.BoardAccessRequest) (ret graphql.Marshaler) {
@@ -73673,15 +73687,15 @@ func (ec *executionContext) _BoardShare_level(ctx context.Context, field graphql
 			return obj.Level, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v model.BoardShareLevel) graphql.Marshaler {
+			return ec.marshalNBoardShareLevel2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardShareLevel(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
 func (ec *executionContext) fieldContext_BoardShare_level(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("BoardShare", field, false, false, errors.New("field of type String does not have child fields"))
+	return graphql.NewScalarFieldContext("BoardShare", field, false, false, errors.New("field of type BoardShareLevel does not have child fields"))
 }
 
 func (ec *executionContext) _BoardShareTarget_kind(ctx context.Context, field graphql.CollectedField, obj *model.BoardShareTarget) (ret graphql.Marshaler) {
@@ -73903,15 +73917,15 @@ func (ec *executionContext) _BoardSummary_access(ctx context.Context, field grap
 			return obj.Access, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v model.BoardAccess) graphql.Marshaler {
+			return ec.marshalNBoardAccess2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardAccess(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
 func (ec *executionContext) fieldContext_BoardSummary_access(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("BoardSummary", field, false, false, errors.New("field of type String does not have child fields"))
+	return graphql.NewScalarFieldContext("BoardSummary", field, false, false, errors.New("field of type BoardAccess does not have child fields"))
 }
 
 func (ec *executionContext) _BoardSummary_favourite(ctx context.Context, field graphql.CollectedField, obj *model.BoardSummary) (ret graphql.Marshaler) {
@@ -125517,7 +125531,7 @@ func (ec *executionContext) _Mutation_requestBoardAccess(ctx context.Context, fi
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().RequestBoardAccess(ctx, fc.Args["channelId"].(string), fc.Args["id"].(string), fc.Args["level"].(string))
+			return ec.Resolvers.Mutation().RequestBoardAccess(ctx, fc.Args["channelId"].(string), fc.Args["id"].(string), fc.Args["level"].(model.BoardShareLevel))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
@@ -170127,7 +170141,7 @@ func (ec *executionContext) unmarshalInputBoardShareInput(ctx context.Context, o
 			it.RoleID = data
 		case "level":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("level"))
-			data, err := ec.unmarshalNString2string(ctx, v)
+			data, err := ec.unmarshalNBoardShareLevel2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardShareLevel(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -224609,6 +224623,16 @@ func (ec *executionContext) marshalNBoard2ᚖgithubᚗcomᚋskeletgᚋskeletᚋa
 	return ec._Board(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNBoardAccess2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardAccess(ctx context.Context, v any) (model.BoardAccess, error) {
+	var res model.BoardAccess
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNBoardAccess2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardAccess(ctx context.Context, sel ast.SelectionSet, v model.BoardAccess) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) marshalNBoardAccessRequest2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardAccessRequestᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BoardAccessRequest) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -224758,6 +224782,16 @@ func (ec *executionContext) unmarshalNBoardShareInput2ᚕᚖgithubᚗcomᚋskele
 func (ec *executionContext) unmarshalNBoardShareInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardShareInput(ctx context.Context, v any) (*model.BoardShareInput, error) {
 	res, err := ec.unmarshalInputBoardShareInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNBoardShareLevel2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardShareLevel(ctx context.Context, v any) (model.BoardShareLevel, error) {
+	var res model.BoardShareLevel
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNBoardShareLevel2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardShareLevel(ctx context.Context, sel ast.SelectionSet, v model.BoardShareLevel) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) marshalNBoardShareTarget2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardShareTargetᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BoardShareTarget) graphql.Marshaler {

@@ -724,7 +724,7 @@ type Board struct {
 	Name           string                `json:"name"`
 	UpdatedAt      time.Time             `json:"updatedAt"`
 	Reports        []*BoardReport        `json:"reports"`
-	Access         string                `json:"access"`
+	Access         BoardAccess           `json:"access"`
 	Favourite      bool                  `json:"favourite"`
 	Owner          *BoardOwner           `json:"owner,omitempty"`
 	DraftUpdatedAt *time.Time            `json:"draftUpdatedAt,omitempty"`
@@ -734,10 +734,10 @@ type Board struct {
 }
 
 type BoardAccessRequest struct {
-	AdminID     string    `json:"adminId"`
-	Name        string    `json:"name"`
-	Level       string    `json:"level"`
-	RequestedAt time.Time `json:"requestedAt"`
+	AdminID     string          `json:"adminId"`
+	Name        string          `json:"name"`
+	Level       BoardShareLevel `json:"level"`
+	RequestedAt time.Time       `json:"requestedAt"`
 }
 
 type BoardDraft struct {
@@ -805,16 +805,16 @@ type BoardReportInput struct {
 }
 
 type BoardShare struct {
-	AdminID *string `json:"adminId,omitempty"`
-	RoleID  *string `json:"roleId,omitempty"`
-	Name    string  `json:"name"`
-	Level   string  `json:"level"`
+	AdminID *string         `json:"adminId,omitempty"`
+	RoleID  *string         `json:"roleId,omitempty"`
+	Name    string          `json:"name"`
+	Level   BoardShareLevel `json:"level"`
 }
 
 type BoardShareInput struct {
-	AdminID *string `json:"adminId,omitempty"`
-	RoleID  *string `json:"roleId,omitempty"`
-	Level   string  `json:"level"`
+	AdminID *string         `json:"adminId,omitempty"`
+	RoleID  *string         `json:"roleId,omitempty"`
+	Level   BoardShareLevel `json:"level"`
 }
 
 type BoardShareTarget struct {
@@ -830,7 +830,7 @@ type BoardSummary struct {
 	Name               string      `json:"name"`
 	UpdatedAt          time.Time   `json:"updatedAt"`
 	ReportCount        int32       `json:"reportCount"`
-	Access             string      `json:"access"`
+	Access             BoardAccess `json:"access"`
 	Favourite          bool        `json:"favourite"`
 	Owner              *BoardOwner `json:"owner,omitempty"`
 	DraftUpdatedAt     *time.Time  `json:"draftUpdatedAt,omitempty"`
@@ -6677,6 +6677,63 @@ func (e BlogPostStatus) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+type BoardAccess string
+
+const (
+	BoardAccessView BoardAccess = "VIEW"
+	BoardAccessEdit BoardAccess = "EDIT"
+	BoardAccessOwn  BoardAccess = "OWN"
+)
+
+var AllBoardAccess = []BoardAccess{
+	BoardAccessView,
+	BoardAccessEdit,
+	BoardAccessOwn,
+}
+
+func (e BoardAccess) IsValid() bool {
+	switch e {
+	case BoardAccessView, BoardAccessEdit, BoardAccessOwn:
+		return true
+	}
+	return false
+}
+
+func (e BoardAccess) String() string {
+	return string(e)
+}
+
+func (e *BoardAccess) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = BoardAccess(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid BoardAccess", str)
+	}
+	return nil
+}
+
+func (e BoardAccess) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *BoardAccess) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e BoardAccess) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 type BoardReportKind string
 
 const (
@@ -6790,6 +6847,61 @@ func (e *BoardReportSize) UnmarshalJSON(b []byte) error {
 }
 
 func (e BoardReportSize) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type BoardShareLevel string
+
+const (
+	BoardShareLevelView BoardShareLevel = "VIEW"
+	BoardShareLevelEdit BoardShareLevel = "EDIT"
+)
+
+var AllBoardShareLevel = []BoardShareLevel{
+	BoardShareLevelView,
+	BoardShareLevelEdit,
+}
+
+func (e BoardShareLevel) IsValid() bool {
+	switch e {
+	case BoardShareLevelView, BoardShareLevelEdit:
+		return true
+	}
+	return false
+}
+
+func (e BoardShareLevel) String() string {
+	return string(e)
+}
+
+func (e *BoardShareLevel) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = BoardShareLevel(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid BoardShareLevel", str)
+	}
+	return nil
+}
+
+func (e BoardShareLevel) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *BoardShareLevel) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e BoardShareLevel) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

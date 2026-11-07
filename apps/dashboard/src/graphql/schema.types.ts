@@ -810,7 +810,7 @@ export type BlogTagContent = {
 
 export type Board = {
   __typename?: 'Board';
-  access: Scalars['String']['output'];
+  access: BoardAccess;
   accessRequests: Array<BoardAccessRequest>;
   channelId: Scalars['ID']['output'];
   draft?: Maybe<BoardDraft>;
@@ -824,10 +824,15 @@ export type Board = {
   updatedAt: Scalars['Time']['output'];
 };
 
+export type BoardAccess =
+  | 'EDIT'
+  | 'OWN'
+  | 'VIEW';
+
 export type BoardAccessRequest = {
   __typename?: 'BoardAccessRequest';
   adminId: Scalars['ID']['output'];
-  level: Scalars['String']['output'];
+  level: BoardShareLevel;
   name: Scalars['String']['output'];
   requestedAt: Scalars['Time']['output'];
 };
@@ -916,16 +921,20 @@ export type BoardReportSize =
 export type BoardShare = {
   __typename?: 'BoardShare';
   adminId?: Maybe<Scalars['ID']['output']>;
-  level: Scalars['String']['output'];
+  level: BoardShareLevel;
   name: Scalars['String']['output'];
   roleId?: Maybe<Scalars['ID']['output']>;
 };
 
 export type BoardShareInput = {
   adminId?: InputMaybe<Scalars['ID']['input']>;
-  level: Scalars['String']['input'];
+  level: BoardShareLevel;
   roleId?: InputMaybe<Scalars['ID']['input']>;
 };
+
+export type BoardShareLevel =
+  | 'EDIT'
+  | 'VIEW';
 
 export type BoardShareTarget = {
   __typename?: 'BoardShareTarget';
@@ -938,7 +947,7 @@ export type BoardShareTarget = {
 
 export type BoardSummary = {
   __typename?: 'BoardSummary';
-  access: Scalars['String']['output'];
+  access: BoardAccess;
   accessRequestCount: Scalars['Int']['output'];
   draftUpdatedAt?: Maybe<Scalars['Time']['output']>;
   favourite: Scalars['Boolean']['output'];
@@ -6045,7 +6054,7 @@ export type MutationRequestAdminPasswordResetArgs = {
 export type MutationRequestBoardAccessArgs = {
   channelId: Scalars['ID']['input'];
   id: Scalars['ID']['input'];
-  level: Scalars['String']['input'];
+  level: BoardShareLevel;
 };
 
 

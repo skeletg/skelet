@@ -46,7 +46,7 @@ const board = {
   name: 'Weekly',
   updatedAt: '2026-11-04T10:00:00.123456Z',
   reports: [report('Returning', 'page_view'), report('Buyers', 'order_placed')],
-  access: 'own',
+  access: 'OWN',
   favourite: false,
   owner: { __typename: 'BoardOwner', id: 'admin-1', name: 'Ada', removed: false },
   shares: [],
@@ -220,7 +220,7 @@ describe('BoardPage', () => {
       routes: { '/boards/:id': <BoardPage /> },
       adminId: 'admin-2',
       scope: channelScope,
-      mocks: [meMock({ superuser: true }), ...boardMocks(() => {}, { ...board, access: 'view' })],
+      mocks: [meMock({ superuser: true }), ...boardMocks(() => {}, { ...board, access: 'VIEW' })],
     })
     expect(await screen.findByRole('region', { name: 'Returning' }, SLOW)).toBeTruthy()
     expect(screen.getByText("Ada's board. You can view it.")).toBeTruthy()
@@ -233,7 +233,7 @@ describe('BoardPage', () => {
       routes: { '/boards/:id': <BoardPage /> },
       adminId: 'admin-2',
       scope: channelScope,
-      mocks: [meMock({ superuser: false, permissions: ['boards.view'] }), ...boardMocks(() => {}, { ...board, access: 'view' })],
+      mocks: [meMock({ superuser: false, permissions: ['boards.view'] }), ...boardMocks(() => {}, { ...board, access: 'VIEW' })],
     })
     expect(await screen.findAllByText("You need customer analytics on Main to see this report's numbers.", {}, SLOW)).toHaveLength(2)
   })
@@ -282,12 +282,12 @@ describe('BoardPage', () => {
     })
     fireEvent.click(await screen.findByRole('button', { name: 'Ask to edit it' }, SLOW))
     expect(await screen.findByText(/Asked\./, {}, SLOW)).toBeTruthy()
-    expect(asked).toEqual({ channelId: 'c1', id: 'b1', level: 'edit' })
+    expect(asked).toEqual({ channelId: 'c1', id: 'b1', level: 'EDIT' })
   })
 
   it('shows the owner who asked for access, and grants it as a share at the level asked for', async () => {
     let shared: Record<string, unknown> | null = null
-    const asked = { ...board, accessRequests: [{ __typename: 'BoardAccessRequest', adminId: 'admin-9', name: 'Bo', level: 'edit', requestedAt: '2026-11-05T09:00:00Z' }] }
+    const asked = { ...board, accessRequests: [{ __typename: 'BoardAccessRequest', adminId: 'admin-9', name: 'Bo', level: 'EDIT', requestedAt: '2026-11-05T09:00:00Z' }] }
     renderPage({
       path: '/boards/b1',
       routes: { '/boards/:id': <BoardPage /> },
@@ -311,7 +311,7 @@ describe('BoardPage', () => {
     expect(await screen.findByText(/Bo wants to edit it/, {}, SLOW)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Let them edit' }))
     await waitFor(() => expect(shared).not.toBeNull(), SLOW)
-    expect(shared).toEqual({ channelId: 'c1', id: 'b1', shares: [{ adminId: 'admin-9', level: 'edit' }] })
+    expect(shared).toEqual({ channelId: 'c1', id: 'b1', shares: [{ adminId: 'admin-9', level: 'EDIT' }] })
   })
 })
 

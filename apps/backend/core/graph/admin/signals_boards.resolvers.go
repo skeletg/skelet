@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -68,7 +69,7 @@ func (r *mutationResolver) SetBoardShares(ctx context.Context, channelID string,
 	}
 	in := make([]*signalsv1.BoardShare, 0, len(shares))
 	for _, sh := range shares {
-		in = append(in, &signalsv1.BoardShare{AdminId: deref(sh.AdminID), RoleId: deref(sh.RoleID), Level: sh.Level})
+		in = append(in, &signalsv1.BoardShare{AdminId: deref(sh.AdminID), RoleId: deref(sh.RoleID), Level: strings.ToLower(string(sh.Level))})
 	}
 	res, err := r.SignalsAPI.Boards.SetBoardShares(authed, &signalsv1.SetBoardSharesRequest{ChannelId: channelID, Id: id, Shares: in})
 	if err != nil {
@@ -135,12 +136,12 @@ func (r *mutationResolver) DiscardBoardDraft(ctx context.Context, channelID stri
 	return true, nil
 }
 
-func (r *mutationResolver) RequestBoardAccess(ctx context.Context, channelID string, id string, level string) (bool, error) {
+func (r *mutationResolver) RequestBoardAccess(ctx context.Context, channelID string, id string, level model.BoardShareLevel) (bool, error) {
 	authed, err := r.signalsChannel(ctx, "boards.view", channelID)
 	if err != nil {
 		return false, err
 	}
-	if _, err := r.SignalsAPI.Boards.RequestBoardAccess(authed, &signalsv1.RequestBoardAccessRequest{ChannelId: channelID, Id: id, Level: level}); err != nil {
+	if _, err := r.SignalsAPI.Boards.RequestBoardAccess(authed, &signalsv1.RequestBoardAccessRequest{ChannelId: channelID, Id: id, Level: strings.ToLower(string(level))}); err != nil {
 		return false, signalsErr(err)
 	}
 	return true, nil

@@ -87,7 +87,7 @@ func (p *boardPeople) summariesOut(in []*signalsv1.BoardSummary) []*model.BoardS
 	for _, b := range in {
 		out = append(out, &model.BoardSummary{
 			ID: b.GetId(), Name: b.GetName(), UpdatedAt: b.GetUpdatedAt().AsTime(), ReportCount: b.GetReportCount(),
-			Access: b.GetAccess(), Favourite: b.GetFavourite(), Owner: p.owner(b.GetOwnerAdminId()),
+			Access: model.BoardAccess(strings.ToUpper(b.GetAccess())), Favourite: b.GetFavourite(), Owner: p.owner(b.GetOwnerAdminId()),
 			DraftUpdatedAt: timeOrNil(b.GetDraftUpdatedAt()), AccessRequestCount: b.GetAccessRequestCount(),
 		})
 	}
@@ -107,7 +107,7 @@ func (p *boardPeople) boardOut(b *signalsv1.Board) (*model.Board, error) {
 	out := &model.Board{
 		ID: b.GetId(), ChannelID: b.GetChannelId(), Name: b.GetName(), UpdatedAt: b.GetUpdatedAt().AsTime(),
 		Reports: []*model.BoardReport{}, Shares: []*model.BoardShare{}, AccessRequests: []*model.BoardAccessRequest{},
-		Access: b.GetAccess(), Favourite: b.GetFavourite(), Owner: p.owner(b.GetOwnerAdminId()),
+		Access: model.BoardAccess(strings.ToUpper(b.GetAccess())), Favourite: b.GetFavourite(), Owner: p.owner(b.GetOwnerAdminId()),
 		DraftUpdatedAt: timeOrNil(b.GetDraftUpdatedAt()),
 	}
 	for _, r := range b.GetReports() {
@@ -125,7 +125,7 @@ func (p *boardPeople) boardOut(b *signalsv1.Board) (*model.Board, error) {
 		}})
 	}
 	for _, sh := range b.GetShares() {
-		s := &model.BoardShare{Level: sh.GetLevel()}
+		s := &model.BoardShare{Level: model.BoardShareLevel(strings.ToUpper(sh.GetLevel()))}
 		if id := sh.GetAdminId(); id != "" {
 			s.AdminID, s.Name = &id, p.owner(id).Name
 		} else {
@@ -138,7 +138,7 @@ func (p *boardPeople) boardOut(b *signalsv1.Board) (*model.Board, error) {
 		out.Shares = append(out.Shares, s)
 	}
 	for _, rq := range b.GetAccessRequests() {
-		out.AccessRequests = append(out.AccessRequests, &model.BoardAccessRequest{AdminID: rq.GetAdminId(), Name: p.owner(rq.GetAdminId()).Name, Level: rq.GetLevel(), RequestedAt: rq.GetRequestedAt().AsTime()})
+		out.AccessRequests = append(out.AccessRequests, &model.BoardAccessRequest{AdminID: rq.GetAdminId(), Name: p.owner(rq.GetAdminId()).Name, Level: model.BoardShareLevel(strings.ToUpper(rq.GetLevel())), RequestedAt: rq.GetRequestedAt().AsTime()})
 	}
 	if d := b.GetDraft(); d != nil {
 		var payload any

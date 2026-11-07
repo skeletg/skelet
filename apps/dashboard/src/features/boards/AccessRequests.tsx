@@ -1,6 +1,8 @@
 import { useMutation } from '@apollo/client/react'
 import { CombinedGraphQLErrors } from '@apollo/client/errors'
 import { Button } from '@/components/ui/button'
+import type { BoardShareLevel } from '@/graphql/schema.types'
+import { LEVELS, verb } from './access'
 import { BoardDocument, BoardsDocument, DismissBoardAccessRequestDocument, RequestBoardAccessDocument, SetBoardSharesDocument, type BoardFullFragment } from './Boards.gql'
 
 // Signals answers not-found alike for a board that isn't there and one the admin can't open, so an id says nothing
@@ -19,12 +21,11 @@ export function RequestAccess({ channelId, id }: { channelId: string; id: string
         <p className="text-success">Asked. If the board is there, its owner sees your request on it.</p>
       ) : (
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" disabled={loading} onClick={() => void ask({ variables: { channelId, id, level: 'view' } }).catch(() => {})}>
-            Ask to view it
-          </Button>
-          <Button size="sm" variant="outline" disabled={loading} onClick={() => void ask({ variables: { channelId, id, level: 'edit' } }).catch(() => {})}>
-            Ask to edit it
-          </Button>
+          {LEVELS.map((level) => (
+            <Button key={level} size="sm" variant="outline" disabled={loading} onClick={() => void ask({ variables: { channelId, id, level } }).catch(() => {})}>
+              Ask to {verb(level)} it
+            </Button>
+          ))}
         </div>
       )}
       {error && <p className="text-destructive">{error.message}</p>}
@@ -40,7 +41,7 @@ export function AccessRequestList({ channelId, board }: { channelId: string; boa
   const [dismiss, dismissing] = useMutation(DismissBoardAccessRequestDocument, { refetchQueries })
   if (board.accessRequests.length === 0) return null
   const busy = sharing.loading || dismissing.loading
-  const grant = (adminId: string, level: string) => {
+  const grant = (adminId: string, level: BoardShareLevel) => {
     const shares = board.shares.map(({ adminId, roleId, level }) => ({ adminId, roleId, level }))
     return share({ variables: { channelId, id: board.id, shares: [...shares.filter((s) => s.adminId !== adminId), { adminId, level }] } })
   }
@@ -51,10 +52,10 @@ export function AccessRequestList({ channelId, board }: { channelId: string; boa
         {board.accessRequests.map((r) => (
           <li key={r.adminId} className="flex flex-wrap items-center gap-3 px-3 py-2">
             <span className="flex-1">
-              {r.name} wants to {r.level === 'edit' ? 'edit' : 'view'} it <span className="text-xs text-muted-foreground">· {new Date(r.requestedAt).toLocaleString()}</span>
+              {r.name} wants to {verb(r.level)} it <span className="text-xs text-muted-foreground">· {new Date(r.requestedAt).toLocaleString()}</span>
             </span>
             <Button size="sm" variant="outline" disabled={busy} onClick={() => void grant(r.adminId, r.level).catch(() => {})}>
-              Let them {r.level === 'edit' ? 'edit' : 'view'}
+              Let them {verb(r.level)}
             </Button>
             <Button size="sm" variant="ghost" disabled={busy} onClick={() => void dismiss({ variables: { channelId, id: board.id, adminId: r.adminId } }).catch(() => {})}>
               Dismiss

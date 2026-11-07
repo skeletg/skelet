@@ -3,13 +3,27 @@
 # one, and to run shop boards); Signals decides each admin's access to each board. Each report still runs through the
 # Synapse query of its kind, under that query's own grant - so a board never shows anyone data they couldn't query
 
+# What the caller may do with a board, each including the ones before it: open it; change its name and reports; share,
+# hand over and delete it
+enum BoardAccess {
+  VIEW
+  EDIT
+  OWN
+}
+
+# What a share or a request for access gives someone
+enum BoardShareLevel {
+  VIEW
+  EDIT
+}
+
 # One board in the list, without its reports
 type BoardSummary {
   id:          ID!
   name:        String!
   updatedAt:   Time!
   reportCount: Int!
-  access:      String!      # the caller's: view | edit | own
+  access:      BoardAccess!  # the caller's
   favourite:   Boolean!     # the caller's star
   owner:       BoardOwner   # null on a shop board
   draftUpdatedAt: Time      # when the caller's unsaved edits were last kept
@@ -22,7 +36,7 @@ type Board {
   name:      String!
   updatedAt: Time!        # send back as saveBoard's readAt
   reports:   [BoardReport!]!
-  access:    String!      # the caller's: view | edit | own
+  access:    BoardAccess!   # the caller's
   favourite: Boolean!     # the caller's star
   owner:     BoardOwner   # null on a shop board
   draftUpdatedAt: Time    # when the caller's unsaved edits were last kept
@@ -34,7 +48,7 @@ type Board {
 type BoardAccessRequest {
   adminId:     ID!
   name:        String!
-  level:       String!   # view | edit
+  level:       BoardShareLevel!
   requestedAt: Time!
 }
 
@@ -48,7 +62,7 @@ type BoardShare {
   adminId: ID
   roleId:  ID
   name:    String!
-  level:   String!    # view | edit
+  level:   BoardShareLevel!
 }
 
 type BoardDraft {
@@ -138,7 +152,7 @@ input BoardReportInput {
 input BoardShareInput {
   adminId: ID
   roleId:  ID
-  level:   String!
+  level:   BoardShareLevel!
 }
 
 extend type Query {
@@ -169,7 +183,7 @@ extend type Mutation {
   discardBoardDraft(channelId: ID!, id: ID!): Boolean!
   # Asks a board's owner for view or edit access. Answers true whether or not the board exists or the caller has the
   # access already, so it says nothing about a board they can't see
-  requestBoardAccess(channelId: ID!, id: ID!, level: String!): Boolean!
+  requestBoardAccess(channelId: ID!, id: ID!, level: BoardShareLevel!): Boolean!
   # The owner turning a request down - granting one is setBoardShares, which clears it
   dismissBoardAccessRequest(channelId: ID!, id: ID!, adminId: ID!): Boolean!
 }

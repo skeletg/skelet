@@ -33,6 +33,7 @@ import {
   SetBoardFavouriteDocument,
   type BoardFullFragment,
 } from './Boards.gql'
+import { ACCESS_LABEL, can, verb } from './access'
 import { AccessRequestList, RequestAccess, notOpenable } from './AccessRequests'
 import { HandOverDialog } from './HandOverDialog'
 import { ShareDialog } from './ShareDialog'
@@ -58,8 +59,8 @@ export function BoardPage() {
   const { data, loading, error } = useQuery(BoardDocument, { variables: { channelId, id }, skip: !isChannel || !id })
   const board = data?.board
   const saved = useMemo(() => (board?.reports ?? []).map(cleanReport), [board])
-  const canEdit = board?.access === 'edit' || board?.access === 'own'
-  const canOwn = board?.access === 'own'
+  const canEdit = can(board?.access, 'EDIT')
+  const canOwn = can(board?.access, 'OWN')
 
   const [draftName, setDraftName] = useState('')
   const [draft, setDraft] = useState<DraftReport[]>([])
@@ -401,11 +402,10 @@ function readDraft(payload: unknown): { name: string; reports: DraftReport[] } |
 // Who sees the board, in one line under its name
 export function sharingSummary(b: BoardFullFragment, shop: string): string {
   if (!b.owner) return `A shop board: everyone on ${shop} with access to boards sees it.`
-  const owner = b.owner.removed ? 'Its owner was removed - a superuser can hand it to someone.' : b.access === 'own' ? '' : `${b.owner.name}'s board. `
-  if (b.owner.removed) return owner
-  if (b.access === 'own' && b.shares.length === 0) return 'Private - only you can see it.'
-  if (b.access === 'own') return `Shared with ${b.shares.map((s) => `${s.name} (${s.level === 'edit' ? 'can edit' : 'can view'})`).join(', ')}.`
-  return `${owner}You can ${b.access === 'edit' ? 'edit' : 'view'} it.`
+  if (b.owner.removed) return 'Its owner was removed - a superuser can hand it to someone.'
+  if (b.access !== 'OWN') return `${b.owner.name}'s board. You can ${verb(b.access)} it.`
+  if (b.shares.length === 0) return 'Private - only you can see it.'
+  return `Shared with ${b.shares.map((s) => `${s.name} (${ACCESS_LABEL[s.level].toLowerCase()})`).join(', ')}.`
 }
 
 type TileProps = {

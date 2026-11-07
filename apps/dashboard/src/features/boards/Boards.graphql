@@ -134,7 +134,7 @@ mutation DiscardBoardDraft($channelId: ID!, $id: ID!) {
   discardBoardDraft(channelId: $channelId, id: $id)
 }
 
-mutation RequestBoardAccess($channelId: ID!, $id: ID!, $level: String!) {
+mutation RequestBoardAccess($channelId: ID!, $id: ID!, $level: BoardShareLevel!) {
   requestBoardAccess(channelId: $channelId, id: $id, level: $level)
 }
 

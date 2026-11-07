@@ -9,7 +9,7 @@ const board = {
   id: 'b1',
   name: 'Product X',
   updatedAt: '2026-11-04T10:00:00Z',
-  access: 'own',
+  access: 'OWN',
   favourite: false,
   owner: { __typename: 'BoardOwner', id: 'me', name: 'Ada', removed: false },
   reports: [],
@@ -55,11 +55,11 @@ describe('ShareDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save sharing' }))
     await waitFor(() => expect(sent).not.toBeNull(), SLOW)
-    expect(sent).toMatchObject({ id: 'b1', shares: [{ adminId: null, roleId: 'mkt', level: 'view' }] })
+    expect(sent).toMatchObject({ id: 'b1', shares: [{ adminId: null, roleId: 'mkt', level: 'VIEW' }] })
   })
   it("starts from the board's shares, so adding someone keeps everyone it's already shared with", async () => {
     let sent: Record<string, unknown> | null = null
-    const shared = { ...board, shares: [{ __typename: 'BoardShare', adminId: 'bo', roleId: null, name: 'Bo', level: 'edit' }] }
+    const shared = { ...board, shares: [{ __typename: 'BoardShare', adminId: 'bo', roleId: null, name: 'Bo', level: 'EDIT' as const }] }
     renderDialog(<ShareDialog channelId="c1" shop="Main" board={shared} onClose={() => {}} />, [
       {
         request: { query: BoardShareTargetsDocument, variables: { channelId: 'c1' } },
@@ -83,6 +83,6 @@ describe('ShareDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save sharing' }))
     await waitFor(() => expect(sent).not.toBeNull(), SLOW)
-    expect(sent).toMatchObject({ shares: [{ adminId: 'bo', roleId: null, level: 'edit' }, { adminId: null, roleId: 'mkt', level: 'view' }] })
+    expect(sent).toMatchObject({ shares: [{ adminId: 'bo', roleId: null, level: 'EDIT' }, { adminId: null, roleId: 'mkt', level: 'VIEW' }] })
   })
 })

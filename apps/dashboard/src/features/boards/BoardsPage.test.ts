@@ -3,11 +3,11 @@ import type { BoardsQuery } from './Boards.gql'
 import { inView } from './BoardsPage'
 
 type Row = BoardsQuery['boards'][number]
-const row = (over: Partial<Row>): Row => ({ __typename: 'BoardSummary', id: 'b', name: 'B', updatedAt: '', reportCount: 0, access: 'view', favourite: false, draftUpdatedAt: null, accessRequestCount: 0, owner: null, ...over }) as Row
+const row = (over: Partial<Row>): Row => ({ __typename: 'BoardSummary', id: 'b', name: 'B', updatedAt: '', reportCount: 0, access: 'VIEW', favourite: false, draftUpdatedAt: null, accessRequestCount: 0, owner: null, ...over }) as Row
 const owner = (id: string) => ({ __typename: 'BoardOwner' as const, id, name: id, removed: false })
 
 describe('the boards list views', () => {
-  const mine = row({ owner: owner('me'), access: 'own' })
+  const mine = row({ owner: owner('me'), access: 'OWN' })
   const theirs = row({ owner: owner('bo'), favourite: true })
   const shop = row({})
   const draft = row({ owner: owner('me'), draftUpdatedAt: '2026-11-04T09:00:00Z' })

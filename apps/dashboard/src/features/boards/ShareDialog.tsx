@@ -4,9 +4,11 @@ import { XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import type { BoardShareLevel } from '@/graphql/schema.types'
+import { ACCESS_LABEL, LEVELS } from './access'
 import { BoardShareTargetsDocument, BoardsDocument, SetBoardSharesDocument, type BoardFullFragment, type BoardShareTargetsQuery } from './Boards.gql'
 
-type Share = { adminId?: string | null; roleId?: string | null; name: string; level: string }
+type Share = { adminId?: string | null; roleId?: string | null; name: string; level: BoardShareLevel }
 type Target = BoardShareTargetsQuery['boardShareTargets'][number]
 
 const idOf = (s: Pick<Share, 'adminId' | 'roleId'>) => s.adminId ?? s.roleId ?? ''
@@ -24,7 +26,7 @@ export function shareWarning(t: Target | undefined, shop: string): string | null
 export function ShareDialog({ channelId, shop, board, onClose }: { channelId: string; shop: string; board: BoardFullFragment; onClose: () => void }) {
   const [shares, setShares] = useState<Share[]>(() => board.shares.map((s) => ({ adminId: s.adminId, roleId: s.roleId, name: s.name, level: s.level })))
   const [pick, setPick] = useState('')
-  const [pickLevel, setPickLevel] = useState('view')
+  const [pickLevel, setPickLevel] = useState<BoardShareLevel>('VIEW')
   const { data } = useQuery(BoardShareTargetsDocument, { variables: { channelId } })
   const [save, { loading, error }] = useMutation(SetBoardSharesDocument, { refetchQueries: [BoardsDocument] })
   const targets = data?.boardShareTargets ?? []
@@ -51,11 +53,14 @@ export function ShareDialog({ channelId, shop, board, onClose }: { channelId: st
                   <select
                     aria-label={`What ${s.name} can do`}
                     value={s.level}
-                    onChange={(e) => setShares((xs) => xs.map((x) => (idOf(x) === idOf(s) ? { ...x, level: e.target.value } : x)))}
+                    onChange={(e) => setShares((xs) => xs.map((x) => (idOf(x) === idOf(s) ? { ...x, level: e.target.value as BoardShareLevel } : x)))}
                     className="rounded border bg-background px-2 py-1 text-xs"
                   >
-                    <option value="view">Can view</option>
-                    <option value="edit">Can edit</option>
+                    {LEVELS.map((l) => (
+                      <option key={l} value={l}>
+                        {ACCESS_LABEL[l]}
+                      </option>
+                    ))}
                   </select>
                   <Button size="icon" variant="ghost" className="size-7" aria-label={`Stop sharing with ${s.name}`} onClick={() => setShares((xs) => xs.filter((x) => idOf(x) !== idOf(s)))}>
                     <XIcon className="size-3.5" />
@@ -84,9 +89,12 @@ export function ShareDialog({ channelId, shop, board, onClose }: { channelId: st
               ))}
             </select>
           </div>
-          <select aria-label="What they can do" value={pickLevel} onChange={(e) => setPickLevel(e.target.value)} className="rounded border bg-background px-2 py-1.5 text-sm">
-            <option value="view">Can view</option>
-            <option value="edit">Can edit</option>
+          <select aria-label="What they can do" value={pickLevel} onChange={(e) => setPickLevel(e.target.value as BoardShareLevel)} className="rounded border bg-background px-2 py-1.5 text-sm">
+            {LEVELS.map((l) => (
+              <option key={l} value={l}>
+                {ACCESS_LABEL[l]}
+              </option>
+            ))}
           </select>
           <Button
             variant="outline"

@@ -16,6 +16,7 @@ import { formatNumber } from '@/lib/format'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { MeDocument } from '@/shared/auth/Me.gql'
 import { ChannelRequired } from '@/shared/analytics/ChannelRequired'
+import { ACCESS_LABEL } from './access'
 import { BoardsDocument, CreateBoardDocument, CreateStarterBoardsDocument, SetBoardFavouriteDocument, type BoardsQuery } from './Boards.gql'
 
 type Row = BoardsQuery['boards'][number]
@@ -48,7 +49,6 @@ export function inView(view: View, me: string, b: Row): boolean {
   }
 }
 
-const ACCESS_LABEL: Record<string, string> = { view: 'Can view', edit: 'Can edit', own: 'Owner' }
 
 export function BoardsPage() {
   const urlState = useListUrlState()
@@ -120,7 +120,7 @@ export function BoardsPage() {
           return <span className={o.removed ? 'text-xs text-warning' : 'text-xs'}>{o.id === me ? 'You' : o.name}</span>
         },
       },
-      { id: 'access', header: 'You', size: 100, cell: ({ row }) => <span className="text-xs text-muted-foreground">{ACCESS_LABEL[row.original.access] ?? row.original.access}</span> },
+      { id: 'access', header: 'You', size: 100, cell: ({ row }) => <span className="text-xs text-muted-foreground">{ACCESS_LABEL[row.original.access]}</span> },
       { id: 'reports', header: 'Reports', size: 90, cell: ({ row }) => <span className="text-xs tabular-nums">{formatNumber(row.original.reportCount)}</span> },
       {
         id: 'updated',
