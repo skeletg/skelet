@@ -567,8 +567,8 @@ func (t *Tracker) onDownloadAccessed(ctx context.Context, e events.Event) error 
 		}
 	}
 	// A grant issued without an order names no channel, so the storefront request that downloaded supplies it - and one with neither stays off the spine, where no per-channel report could show it
-	if ch, ok := channel.FromContext(ctx); o.channel == uuid.Nil && ok && ch != nil {
-		o.channel = ch.ID
+	if o.channel == uuid.Nil {
+		o.channel = channel.IDFromContext(ctx)
 	}
 	if o.channel == uuid.Nil {
 		return nil
@@ -664,11 +664,7 @@ func (t *Tracker) onLogout(ctx context.Context, e events.Event) error {
 		return nil
 	}
 	// The event names no channel, so the storefront request that logged out supplies it
-	chID := uuid.Nil
-	if ch, ok := channel.FromContext(ctx); ok && ch != nil {
-		chID = ch.ID
-	}
-	return t.emit(ctx, sourceAccount, "logout", chID, ref(ev.SubjectID),
+	return t.emit(ctx, sourceAccount, "logout", channel.IDFromContext(ctx), ref(ev.SubjectID),
 		"act:logout:"+ev.SubjectID.String()+":"+itoa(secBucket(ctx)), nil) // always one session - revoke-all is a side effect of a password or account change, which records its own event
 }
 

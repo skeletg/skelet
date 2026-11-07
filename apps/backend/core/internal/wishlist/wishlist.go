@@ -68,14 +68,6 @@ var (
 	ErrFull            = fmt.Errorf("a wishlist holds at most %d products - remove some to save more", MaxItems)
 )
 
-// The storefront the request came through - nil for any other caller
-func shopOf(ctx context.Context) uuid.UUID {
-	if ch, ok := channel.FromContext(ctx); ok && ch != nil {
-		return ch.ID
-	}
-	return uuid.Nil
-}
-
 func (s *Service) Add(ctx context.Context, customerID, productID uuid.UUID) error {
 	n, err := s.queries.AddWishlistItem(ctx, db.AddWishlistItemParams{CustomerID: customerID, ProductID: productID, MaxItems: MaxItems})
 	if pgdb.IsForeignKeyViolation(err) {
@@ -93,7 +85,7 @@ func (s *Service) Add(ctx context.Context, customerID, productID uuid.UUID) erro
 			return ErrFull
 		}
 	}
-	s.publish(ctx, &ItemAdded{CustomerID: customerID, ProductID: productID, ChannelID: shopOf(ctx), Shopper: auth.ShopperFromContext(ctx)})
+	s.publish(ctx, &ItemAdded{CustomerID: customerID, ProductID: productID, ChannelID: channel.IDFromContext(ctx), Shopper: auth.ShopperFromContext(ctx)})
 	return nil
 }
 
@@ -101,7 +93,7 @@ func (s *Service) Remove(ctx context.Context, customerID, productID uuid.UUID) e
 	if err := s.queries.RemoveWishlistItem(ctx, db.RemoveWishlistItemParams{CustomerID: customerID, ProductID: productID}); err != nil {
 		return fmt.Errorf("remove wishlist item: %w", err)
 	}
-	s.publish(ctx, &ItemRemoved{CustomerID: customerID, ProductID: productID, ChannelID: shopOf(ctx), Shopper: auth.ShopperFromContext(ctx)})
+	s.publish(ctx, &ItemRemoved{CustomerID: customerID, ProductID: productID, ChannelID: channel.IDFromContext(ctx), Shopper: auth.ShopperFromContext(ctx)})
 	return nil
 }
 
