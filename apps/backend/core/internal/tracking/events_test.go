@@ -149,7 +149,7 @@ func TestAnEventSaysWhetherItsEmailMayBeMarketedTo(t *testing.T) {
 	registerTestKind(t, sdk.Destination{Kind: "t-capture"})
 	ch := uuid.New()
 	fs := newFakeStore(Destination{ID: uuid.New(), ChannelID: ch, Kind: "t-capture", Enabled: true})
-	h := handlers{svc: &Service{store: fs}, Readers: Readers{Marketing: optedIn{"yes@example.com": true}}}
+	h := handlers{svc: &Service{store: fs}, Marketing: optedIn{"yes@example.com": true}}
 	for _, email := range []string{"yes@example.com", "no@example.com", ""} {
 		if err := h.track(context.Background(), Event{ID: "e-" + email, Name: Purchase, ChannelID: ch, User: User{Email: email}}); err != nil {
 			t.Fatal(err)
@@ -184,7 +184,7 @@ func TestRefundsAndCancellationsSayWhatTheOrderIsStillWorth(t *testing.T) {
 	worth := func(orders memoOrders, e events.Event) float64 {
 		t.Helper()
 		fs := newFakeStore(Destination{ID: uuid.New(), ChannelID: o.ChannelID, Kind: "t-worth", Enabled: true})
-		h := handlers{svc: &Service{store: fs}, Readers: Readers{Orders: orders}}
+		h := handlers{svc: &Service{store: fs}, Orders: orders}
 		var err error
 		switch ev := e.(type) {
 		case *order.OrderRefunded:
