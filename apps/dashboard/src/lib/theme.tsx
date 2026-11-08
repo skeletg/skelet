@@ -225,13 +225,13 @@ const SINGLE_ID_KEY = 'skelet-dash:theme' // one id for the whole shell, not the
 // The shipped look, the Skelet Modern preset below - theme-pref.test holds the two together
 // eslint-disable-next-line react-refresh/only-export-components
 export const DEFAULT_APPEARANCE: Appearance = {
-  mode: 'light',
+  mode: 'system',
   palette: 'tuned',
-  radius: 'default',
+  radius: 'subtle',
   scale: 'default',
   typeface: 'geist',
   density: 'default',
-  frame: 'inset',
+  frame: 'docked',
   sidebarSide: 'left',
   reduceMotion: false,
   sidebarPalette: null,
@@ -263,8 +263,8 @@ export const THEME_PRESETS: ThemePreset[] = [
   {
     id: 'skelet-modern',
     label: 'Skelet Modern',
-    description: 'The shipped look - white content as a rounded sheet on the dark rail',
-    look: { mode: 'light', palette: 'tuned', radius: 'default', typeface: 'geist', density: 'default', sidebarPalette: null, sidebarMode: 'dark', accentHue: 25, vividness: 'vivid', surfaceTone: 'neutral', surfaceTint: 'subtle', darkBase: 'black', railTone: 'dark', frame: 'inset' },
+    description: 'The shipped look - light or dark as the system is, docked to the dark rail',
+    look: { mode: 'system', palette: 'tuned', radius: 'subtle', typeface: 'geist', density: 'default', sidebarPalette: null, sidebarMode: 'dark', accentHue: 25, vividness: 'vivid', surfaceTone: 'neutral', surfaceTint: 'subtle', darkBase: 'black', railTone: 'dark', frame: 'docked' },
   },
   {
     id: 'skelet-sharp',
