@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
@@ -55,14 +56,10 @@ func TestTaxInclusiveCarvesOutOfTotal(t *testing.T) {
 	f := h.NewStore(t, 10, 2000)
 	h.newTaxRule(t, f.Channel.ID, 875)
 
-	// No Go setter exists for the flag - flip the column and re-read (GetByID is uncached)
-	if _, err := h.D.DB.ExecContext(h.Ctx,
-		`UPDATE channels SET tax_inclusive_pricing = TRUE WHERE id = $1`, f.Channel.ID); err != nil {
-		t.Fatalf("mark channel inclusive: %v", err)
-	}
-	ch, err := h.D.Channel.GetByID(h.Ctx, f.Channel.ID)
+	on := true
+	ch, err := h.D.Channel.Update(h.Ctx, channel.UpdateChannelInput{ID: f.Channel.ID, TaxInclusivePricing: &on})
 	if err != nil {
-		t.Fatalf("re-read channel: %v", err)
+		t.Fatalf("mark channel inclusive: %v", err)
 	}
 
 	o, err := h.TryPlace(t, ch, h.NewGuestCart(t, f, 1))
@@ -74,6 +71,35 @@ func TestTaxInclusiveCarvesOutOfTotal(t *testing.T) {
 	}
 	if o.TaxAmount != 161 { // round(2000 * 875 / 10875) - the extraction formula
 		t.Errorf("carved-out tax = %d, want 161", o.TaxAmount)
+	}
+	if !o.TaxIncluded() {
+		t.Error("an order placed on an inclusive channel doesn't say its tax is included")
+	}
+	h.Settle(t)
+}
+
+// Scenario: an order keeps the mode it was priced in - flipping the channel afterwards and then editing the order
+// must neither carve its tax out nor add it again
+func TestAnEditKeepsTheOrdersOwnTaxMode(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 10, 2000)
+	h.newTaxRule(t, f.Channel.ID, 1000)
+	placed := h.PlaceGuestCOD(t, f, 1)
+	if placed.TaxAmount != 200 || placed.TotalAmount != 2200 || placed.TaxIncluded() {
+		t.Fatalf("placed exclusive: tax %d total %d included %v, want 200, 2200, false", placed.TaxAmount, placed.TotalAmount, placed.TaxIncluded())
+	}
+
+	on := true
+	if _, err := h.D.Channel.Update(h.Ctx, channel.UpdateChannelInput{ID: f.Channel.ID, TaxInclusivePricing: &on}); err != nil {
+		t.Fatalf("flip the channel: %v", err)
+	}
+	edited, err := h.D.Order.EditOrderAddress(h.Ctx, order.EditOrderAddressInput{OrderID: placed.ID, Shipping: editAddr("Grace", "Hopper", "Arlington", "22202")})
+	if err != nil {
+		t.Fatalf("edit address: %v", err)
+	}
+	if edited.TaxAmount != 200 || edited.TotalAmount != 2200 || edited.TaxIncluded() {
+		t.Errorf("after the flip and an edit: tax %d total %d included %v, want the order's own 200, 2200, false",
+			edited.TaxAmount, edited.TotalAmount, edited.TaxIncluded())
 	}
 	h.Settle(t)
 }

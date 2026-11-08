@@ -420,6 +420,7 @@
     "discount": "Discount",
     "shipping": "Shipping",
     "tax": "Tax",
+    "taxIncluded": "Includes tax",
     "total": "Total",
     "paidGiftCard": "Paid by gift card",
     "paidStoreCredit": "Paid by store credit",
@@ -492,6 +493,7 @@
       "none": "No estimate available for that destination.",
       "noShipping": "We don’t ship to that destination yet.",
       "tax": "Estimated tax",
+      "taxIncluded": "Estimated tax included",
       "total": "Estimated total",
       "disclaimer": "Estimate only - final shipping & tax are confirmed at checkout."
     },
@@ -1221,6 +1223,7 @@
     "remove": "Remove",
     "subtotal": "Subtotal",
     "taxNote": "Tax and delivery are added at checkout.",
+    "taxNoteIncluded": "Prices include tax. Delivery is added at checkout.",
     "continue": "Continue to checkout →",
     "locked": "Set by the store: {parts}.",
     "lock": {

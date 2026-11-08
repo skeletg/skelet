@@ -1843,6 +1843,7 @@ export type Channel = {
   name: Scalars['String']['output'];
   publicUrl: Scalars['String']['output'];
   slug: Scalars['String']['output'];
+  taxInclusivePricing: Scalars['Boolean']['output'];
 };
 
 export type ChannelInventoryLocation = {
@@ -2327,6 +2328,7 @@ export type CreateChannelInput = {
   name: Scalars['String']['input'];
   publicUrl?: InputMaybe<Scalars['String']['input']>;
   slug: Scalars['String']['input'];
+  taxInclusivePricing?: InputMaybe<Scalars['Boolean']['input']>;
 };
 
 export type CreateCollectionInput = {
@@ -7627,6 +7629,7 @@ export type Order = {
   storeCreditAmount: Scalars['Int']['output'];
   subtotal: Scalars['Int']['output'];
   taxAmount: Scalars['Int']['output'];
+  taxIncluded: Scalars['Boolean']['output'];
   taxLines: Array<OrderTaxLine>;
   total: Scalars['Int']['output'];
   trackingNumber: Scalars['String']['output'];
@@ -11824,6 +11827,7 @@ export type UpdateChannelInput = {
   metadata?: InputMaybe<Array<MetadataInput>>;
   name?: InputMaybe<Scalars['String']['input']>;
   publicUrl?: InputMaybe<Scalars['String']['input']>;
+  taxInclusivePricing?: InputMaybe<Scalars['Boolean']['input']>;
 };
 
 export type UpdateCollectionInput = {

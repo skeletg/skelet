@@ -16,6 +16,8 @@ type CartOfferEmailData struct {
 	ExpiresAt string // already formatted for the reader
 	Lines     []CartOfferLine
 	Total     string // the lines' subtotal, formatted - tax and delivery come at checkout
+	// The channel's prices already hold their tax, so only delivery is still to come
+	TaxIncluded bool
 }
 
 type CartOfferLine struct {
@@ -36,7 +38,7 @@ var cartOfferHTML = template.Must(template.New("cart_offer_html").Parse(`<!DOCTY
 {{end}}<tr><td colspan="2" style="padding:8px 12px 4px 0;font-weight:bold;">Subtotal</td><td style="padding:8px 0 4px;text-align:right;font-weight:bold;">{{.Total}}</td></tr>
 </table>
 <p><a href="{{.Link}}">View your offer</a></p>
-<p>The offer is open until {{.ExpiresAt}}. Tax and delivery are added at checkout.</p>
+<p>The offer is open until {{.ExpiresAt}}. {{if .TaxIncluded}}Prices include tax. Delivery is added at checkout.{{else}}Tax and delivery are added at checkout.{{end}}</p>
 </body></html>`))
 
 var cartOfferText = ttemplate.Must(ttemplate.New("cart_offer_text").Parse(
@@ -51,7 +53,7 @@ var cartOfferText = ttemplate.Must(ttemplate.New("cart_offer_text").Parse(
 
 View your offer: {{.Link}}
 
-The offer is open until {{.ExpiresAt}}. Tax and delivery are added at checkout.
+The offer is open until {{.ExpiresAt}}. {{if .TaxIncluded}}Prices include tax. Delivery is added at checkout.{{else}}Tax and delivery are added at checkout.{{end}}
 `))
 
 func RenderCartOfferEmail(data CartOfferEmailData) (subject, html, text string, err error) {

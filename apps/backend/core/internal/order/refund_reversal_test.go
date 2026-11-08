@@ -228,8 +228,14 @@ func TestRefundBasisKeepsShippingTaxOffTheLines(t *testing.T) {
 	if got := o.ShippingRefundable(); got != 550 {
 		t.Errorf("shipping refundable = %d, want 500 + 50 tax", got)
 	}
-	o.TotalAmount = 2_500 // tax-inclusive, so shipping's tax is already inside its 500
+	if o.TaxIncluded() {
+		t.Error("tax added on top reads as included")
+	}
+	o.TotalAmount, o.TaxInclusive = 2_500, true // tax-inclusive, so shipping's tax is already inside its 500
 	if got := o.ShippingRefundable(); got != 500 {
 		t.Errorf("inclusive shipping refundable = %d, want 500", got)
+	}
+	if !o.TaxIncluded() {
+		t.Error("tax inside the prices reads as added on top")
 	}
 }

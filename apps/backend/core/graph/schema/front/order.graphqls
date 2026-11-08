@@ -36,6 +36,8 @@ type Order {
   shippingAmount:  Int!
   discountAmount:  Int!
   taxAmount:       Int!
+  # taxAmount is already inside the prices rather than added on top - label it "includes tax"
+  taxIncluded:     Boolean!
   total:           Int!
   # Cents of `total` covered by gift cards (a tender, not a discount - `total` is unchanged). amountDue is what's still owed to the payment provider: total - giftCardAmount.
   giftCardAmount:  Int!

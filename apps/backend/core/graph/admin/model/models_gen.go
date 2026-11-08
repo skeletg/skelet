@@ -1548,18 +1548,19 @@ type CategoryOption struct {
 }
 
 type Channel struct {
-	ID                 string                      `json:"id"`
-	Slug               string                      `json:"slug"`
-	Name               string                      `json:"name"`
-	DefaultLocale      string                      `json:"defaultLocale"`
-	Locales            []*Locale                   `json:"locales"`
-	IsActive           bool                        `json:"isActive"`
-	IsDefault          bool                        `json:"isDefault"`
-	CurrencyCode       string                      `json:"currencyCode"`
-	PublicURL          string                      `json:"publicUrl"`
-	Metadata           []*MetadataItem             `json:"metadata"`
-	CreatedAt          time.Time                   `json:"createdAt"`
-	InventoryLocations []*ChannelInventoryLocation `json:"inventoryLocations"`
+	ID                  string                      `json:"id"`
+	Slug                string                      `json:"slug"`
+	Name                string                      `json:"name"`
+	DefaultLocale       string                      `json:"defaultLocale"`
+	Locales             []*Locale                   `json:"locales"`
+	IsActive            bool                        `json:"isActive"`
+	IsDefault           bool                        `json:"isDefault"`
+	CurrencyCode        string                      `json:"currencyCode"`
+	PublicURL           string                      `json:"publicUrl"`
+	TaxInclusivePricing bool                        `json:"taxInclusivePricing"`
+	Metadata            []*MetadataItem             `json:"metadata"`
+	CreatedAt           time.Time                   `json:"createdAt"`
+	InventoryLocations  []*ChannelInventoryLocation `json:"inventoryLocations"`
 }
 
 type ChannelInventoryLocation struct {
@@ -1948,13 +1949,14 @@ type CreateCategoryInput struct {
 }
 
 type CreateChannelInput struct {
-	Slug          string           `json:"slug"`
-	Name          string           `json:"name"`
-	DefaultLocale *string          `json:"defaultLocale,omitempty"`
-	Locales       []string         `json:"locales,omitempty"`
-	CurrencyCode  *string          `json:"currencyCode,omitempty"`
-	PublicURL     *string          `json:"publicUrl,omitempty"`
-	Metadata      []*MetadataInput `json:"metadata,omitempty"`
+	Slug                string           `json:"slug"`
+	Name                string           `json:"name"`
+	DefaultLocale       *string          `json:"defaultLocale,omitempty"`
+	Locales             []string         `json:"locales,omitempty"`
+	CurrencyCode        *string          `json:"currencyCode,omitempty"`
+	PublicURL           *string          `json:"publicUrl,omitempty"`
+	Metadata            []*MetadataInput `json:"metadata,omitempty"`
+	TaxInclusivePricing *bool            `json:"taxInclusivePricing,omitempty"`
 }
 
 type CreateCollectionInput struct {
@@ -3694,6 +3696,7 @@ type Order struct {
 	ShippingAmount      int32                 `json:"shippingAmount"`
 	DiscountAmount      int32                 `json:"discountAmount"`
 	TaxAmount           int32                 `json:"taxAmount"`
+	TaxIncluded         bool                  `json:"taxIncluded"`
 	ShippingTaxAmount   int32                 `json:"shippingTaxAmount"`
 	ShippingRefundable  int32                 `json:"shippingRefundable"`
 	Total               int32                 `json:"total"`
@@ -5923,14 +5926,15 @@ type UpdateCategoryInput struct {
 }
 
 type UpdateChannelInput struct {
-	ID            string           `json:"id"`
-	Name          *string          `json:"name,omitempty"`
-	DefaultLocale *string          `json:"defaultLocale,omitempty"`
-	Locales       []string         `json:"locales,omitempty"`
-	IsActive      *bool            `json:"isActive,omitempty"`
-	CurrencyCode  *string          `json:"currencyCode,omitempty"`
-	PublicURL     *string          `json:"publicUrl,omitempty"`
-	Metadata      []*MetadataInput `json:"metadata,omitempty"`
+	ID                  string           `json:"id"`
+	Name                *string          `json:"name,omitempty"`
+	DefaultLocale       *string          `json:"defaultLocale,omitempty"`
+	Locales             []string         `json:"locales,omitempty"`
+	IsActive            *bool            `json:"isActive,omitempty"`
+	CurrencyCode        *string          `json:"currencyCode,omitempty"`
+	PublicURL           *string          `json:"publicUrl,omitempty"`
+	Metadata            []*MetadataInput `json:"metadata,omitempty"`
+	TaxInclusivePricing *bool            `json:"taxInclusivePricing,omitempty"`
 }
 
 type UpdateCollectionInput struct {

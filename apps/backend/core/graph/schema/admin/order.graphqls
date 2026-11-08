@@ -55,6 +55,8 @@ type Order {
   shippingAmount:  Int!
   discountAmount:  Int!
   taxAmount:       Int!
+  # taxAmount is already inside the prices rather than added on top
+  taxIncluded:     Boolean!
   # The part of taxAmount charged on shipping. Zero when a remote tax provider or plugin priced the tax.
   shippingTaxAmount: Int!
   # The most a credit memo can refund for shipping - its tax included where tax was added on top.

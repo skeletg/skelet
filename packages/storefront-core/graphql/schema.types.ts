@@ -692,6 +692,7 @@ export type Channel = {
   name: Scalars['String']['output'];
   publicUrl: Scalars['String']['output'];
   slug: Scalars['String']['output'];
+  taxInclusivePricing: Scalars['Boolean']['output'];
 };
 
 export type CheckoutDestination = {
@@ -1626,6 +1627,7 @@ export type Order = {
   storeCreditAmount: Scalars['Int']['output'];
   subtotal: Scalars['Int']['output'];
   taxAmount: Scalars['Int']['output'];
+  taxIncluded: Scalars['Boolean']['output'];
   total: Scalars['Int']['output'];
   trackingNumber: Scalars['String']['output'];
   trackingUrl?: Maybe<Scalars['String']['output']>;

@@ -44,13 +44,14 @@ func (r *postgresRepository) inTx(ctx context.Context, fn func(*db.Queries) erro
 
 func (r *postgresRepository) Create(ctx context.Context, input CreateChannelInput) (Channel, error) {
 	row, err := r.queries.CreateChannel(ctx, db.CreateChannelParams{
-		Slug:           input.Slug,
-		Name:           input.Name,
-		DefaultLocale:  input.DefaultLocale,
-		CurrencyCode:   input.CurrencyCode,
-		PublicUrl:      input.PublicURL,
-		StorefrontHost: storefrontHost(input.PublicURL),
-		Metadata:       mapToJSON(input.Metadata),
+		Slug:                input.Slug,
+		Name:                input.Name,
+		DefaultLocale:       input.DefaultLocale,
+		CurrencyCode:        input.CurrencyCode,
+		TaxInclusivePricing: input.TaxInclusivePricing,
+		PublicUrl:           input.PublicURL,
+		StorefrontHost:      storefrontHost(input.PublicURL),
+		Metadata:            mapToJSON(input.Metadata),
 	})
 	if err != nil {
 		return Channel{}, writeError("create channel", err)
@@ -117,13 +118,14 @@ func (r *postgresRepository) ListByIDs(ctx context.Context, ids []uuid.UUID) (ma
 
 func (r *postgresRepository) Update(ctx context.Context, ch Channel, writeMetadata bool) (Channel, error) {
 	params := db.UpdateChannelParams{
-		ID:             ch.ID,
-		Name:           ch.Name,
-		DefaultLocale:  ch.DefaultLocale,
-		IsActive:       ch.IsActive,
-		CurrencyCode:   ch.CurrencyCode,
-		PublicUrl:      ch.PublicURL,
-		StorefrontHost: storefrontHost(ch.PublicURL),
+		ID:                  ch.ID,
+		Name:                ch.Name,
+		DefaultLocale:       ch.DefaultLocale,
+		IsActive:            ch.IsActive,
+		CurrencyCode:        ch.CurrencyCode,
+		PublicUrl:           ch.PublicURL,
+		StorefrontHost:      storefrontHost(ch.PublicURL),
+		TaxInclusivePricing: ch.TaxInclusivePricing,
 	}
 	if writeMetadata {
 		params.Metadata = pqtype.NullRawMessage{RawMessage: mapToJSON(ch.Metadata), Valid: true}

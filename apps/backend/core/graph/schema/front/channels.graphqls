@@ -8,6 +8,8 @@ type Channel {
   # Full Currency record matching `currencyCode` - exposed inline so the storefront doesn't have to make a second query just to know whether to render the symbol before or after the amount. Resolved server-side from the currencies table.
   currency:      Currency!
   publicUrl:     String!
+  # Prices already contain tax - a storefront labels its tax line "includes tax" rather than adding it
+  taxInclusivePricing: Boolean!
   # The locales THIS channel serves - deliberately not the same as the top-level `locales` query, which lists every globally active locale. A storefront must only offer and route the languages its own channel has, or it advertises a language the catalog will silently answer in the default one.
   locales:       [Locale!]!
 }

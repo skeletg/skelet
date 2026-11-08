@@ -42,6 +42,7 @@ type OrderConfirmationData struct {
 	Discount      int64
 	Shipping      int64
 	Tax           int64
+	TaxIncluded   bool // the tax sits inside the prices, so it's said under the total rather than added
 	Total         int64
 	ShipTo        []string // pre-formatted shipping address lines
 	StorefrontURL string
@@ -88,8 +89,10 @@ type OrderSnapshot struct {
 	Discount  int64            `json:"discount,omitempty"`
 	Shipping  int64            `json:"shipping,omitempty"`
 	Tax       int64            `json:"tax,omitempty"`
-	Total     int64            `json:"total,omitempty"`
-	ShipTo    []string         `json:"ship_to,omitempty"`
+	// The tax sits inside the prices rather than being added on top
+	TaxIncluded bool     `json:"tax_included,omitempty"`
+	Total       int64    `json:"total,omitempty"`
+	ShipTo      []string `json:"ship_to,omitempty"`
 	// Set on a shipment, from the fulfillment that triggered it rather than the order's latest
 	Carrier        string `json:"carrier,omitempty"`
 	TrackingNumber string `json:"tracking_number,omitempty"`
@@ -127,8 +130,9 @@ var orderConfirmationHTML = template.Must(template.New("order_conf_html").Funcs(
   <tr><td>Subtotal</td><td style="text-align:right;">{{money .Subtotal .Currency}}</td></tr>
   {{if .Discount}}<tr><td>Discount</td><td style="text-align:right;">-{{money .Discount .Currency}}</td></tr>{{end}}
   <tr><td>Shipping</td><td style="text-align:right;">{{money .Shipping .Currency}}</td></tr>
-  <tr><td>Tax</td><td style="text-align:right;">{{money .Tax .Currency}}</td></tr>
+  {{if not .TaxIncluded}}<tr><td>Tax</td><td style="text-align:right;">{{money .Tax .Currency}}</td></tr>{{end}}
   <tr><td><strong>Total</strong></td><td style="text-align:right;"><strong>{{money .Total .Currency}}</strong></td></tr>
+  {{if and .TaxIncluded .Tax}}<tr><td style="color:#888;font-size:12px;">Includes tax</td><td style="text-align:right;color:#888;font-size:12px;">{{money .Tax .Currency}}</td></tr>{{end}}
 </table>
 {{if .ShipTo}}<p style="margin-top:12px;"><strong>Shipping to</strong><br>{{range .ShipTo}}{{.}}<br>{{end}}</p>{{end}}
 {{if .StorefrontURL}}<p><a href="{{.StorefrontURL}}">Visit {{.StoreName}}</a></p>{{end}}
@@ -145,8 +149,10 @@ Thanks for your order! We've received order {{.OrderNumber}} and it's being proc
 Subtotal: {{money .Subtotal .Currency}}
 {{if .Discount}}Discount: -{{money .Discount .Currency}}
 {{end}}Shipping: {{money .Shipping .Currency}}
-Tax: {{money .Tax .Currency}}
-Total: {{money .Total .Currency}}
+{{if not .TaxIncluded}}Tax: {{money .Tax .Currency}}
+{{end}}Total: {{money .Total .Currency}}
+{{if and .TaxIncluded .Tax}}Includes tax: {{money .Tax .Currency}}
+{{end}}
 {{if .ShipTo}}
 Shipping to:
 {{range .ShipTo}}{{.}}

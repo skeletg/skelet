@@ -1268,18 +1268,19 @@ type ComplexityRoot struct {
 	}
 
 	Channel struct {
-		CreatedAt          func(childComplexity int) int
-		CurrencyCode       func(childComplexity int) int
-		DefaultLocale      func(childComplexity int) int
-		ID                 func(childComplexity int) int
-		InventoryLocations func(childComplexity int) int
-		IsActive           func(childComplexity int) int
-		IsDefault          func(childComplexity int) int
-		Locales            func(childComplexity int) int
-		Metadata           func(childComplexity int) int
-		Name               func(childComplexity int) int
-		PublicURL          func(childComplexity int) int
-		Slug               func(childComplexity int) int
+		CreatedAt           func(childComplexity int) int
+		CurrencyCode        func(childComplexity int) int
+		DefaultLocale       func(childComplexity int) int
+		ID                  func(childComplexity int) int
+		InventoryLocations  func(childComplexity int) int
+		IsActive            func(childComplexity int) int
+		IsDefault           func(childComplexity int) int
+		Locales             func(childComplexity int) int
+		Metadata            func(childComplexity int) int
+		Name                func(childComplexity int) int
+		PublicURL           func(childComplexity int) int
+		Slug                func(childComplexity int) int
+		TaxInclusivePricing func(childComplexity int) int
 	}
 
 	ChannelInventoryLocation struct {
@@ -3263,6 +3264,7 @@ type ComplexityRoot struct {
 		StoreCreditAmount   func(childComplexity int) int
 		Subtotal            func(childComplexity int) int
 		TaxAmount           func(childComplexity int) int
+		TaxIncluded         func(childComplexity int) int
 		TaxLines            func(childComplexity int) int
 		Total               func(childComplexity int) int
 		TrackingNumber      func(childComplexity int) int
@@ -11356,6 +11358,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Channel.Slug(childComplexity), true
+	case "Channel.taxInclusivePricing":
+		if e.ComplexityRoot.Channel.TaxInclusivePricing == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Channel.TaxInclusivePricing(childComplexity), true
 
 	case "ChannelInventoryLocation.location":
 		if e.ComplexityRoot.ChannelInventoryLocation.Location == nil {
@@ -23263,6 +23271,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Order.TaxAmount(childComplexity), true
+	case "Order.taxIncluded":
+		if e.ComplexityRoot.Order.TaxIncluded == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Order.TaxIncluded(childComplexity), true
 	case "Order.taxLines":
 		if e.ComplexityRoot.Order.TaxLines == nil {
 			break
@@ -36804,6 +36818,8 @@ extend type Mutation {
   currencyCode:        String!
   # Base URL used to build password-reset / verification email links.
   publicUrl:           String!
+  # Prices on this channel already contain tax, so checkout splits the tax out of them instead of adding it on top
+  taxInclusivePricing: Boolean!
   metadata:            [MetadataItem!]!
   createdAt:           Time!
   # Inventory locations assigned to this channel, ordered by priority asc.
@@ -36823,6 +36839,8 @@ input CreateChannelInput {
   currencyCode:  String
   publicUrl:     String
   metadata:      [MetadataInput!]
+  # Defaults to false - prices exclude tax
+  taxInclusivePricing: Boolean
 }
 
 input UpdateChannelInput {
@@ -36835,6 +36853,7 @@ input UpdateChannelInput {
   currencyCode:  String
   publicUrl:     String
   metadata:      [MetadataInput!]
+  taxInclusivePricing: Boolean
 }
 
 extend type Query {
@@ -39885,6 +39904,8 @@ type Order {
   shippingAmount:  Int!
   discountAmount:  Int!
   taxAmount:       Int!
+  # taxAmount is already inside the prices rather than added on top
+  taxIncluded:     Boolean!
   # The part of taxAmount charged on shipping. Zero when a remote tax provider or plugin priced the tax.
   shippingTaxAmount: Int!
   # The most a credit memo can refund for shipping - its tax included where tax was added on top.
@@ -46112,6 +46133,8 @@ func (ec *executionContext) childFields_Channel(ctx context.Context, field graph
 		return ec.fieldContext_Channel_currencyCode(ctx, field)
 	case "publicUrl":
 		return ec.fieldContext_Channel_publicUrl(ctx, field)
+	case "taxInclusivePricing":
+		return ec.fieldContext_Channel_taxInclusivePricing(ctx, field)
 	case "metadata":
 		return ec.fieldContext_Channel_metadata(ctx, field)
 	case "createdAt":
@@ -49000,6 +49023,8 @@ func (ec *executionContext) childFields_Order(ctx context.Context, field graphql
 		return ec.fieldContext_Order_discountAmount(ctx, field)
 	case "taxAmount":
 		return ec.fieldContext_Order_taxAmount(ctx, field)
+	case "taxIncluded":
+		return ec.fieldContext_Order_taxIncluded(ctx, field)
 	case "shippingTaxAmount":
 		return ec.fieldContext_Order_shippingTaxAmount(ctx, field)
 	case "shippingRefundable":
@@ -87516,6 +87541,29 @@ func (ec *executionContext) _Channel_publicUrl(ctx context.Context, field graphq
 }
 func (ec *executionContext) fieldContext_Channel_publicUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Channel", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Channel_taxInclusivePricing(ctx context.Context, field graphql.CollectedField, obj *model.Channel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Channel_taxInclusivePricing(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TaxInclusivePricing, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Channel_taxInclusivePricing(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Channel", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _Channel_metadata(ctx context.Context, field graphql.CollectedField, obj *model.Channel) (ret graphql.Marshaler) {
@@ -134656,6 +134704,29 @@ func (ec *executionContext) fieldContext_Order_taxAmount(_ context.Context, fiel
 	return graphql.NewScalarFieldContext("Order", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _Order_taxIncluded(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Order_taxIncluded(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TaxIncluded, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Order_taxIncluded(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Order", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _Order_shippingTaxAmount(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -179488,7 +179559,7 @@ func (ec *executionContext) unmarshalInputCreateChannelInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"slug", "name", "defaultLocale", "locales", "currencyCode", "publicUrl", "metadata"}
+	fieldsInOrder := [...]string{"slug", "name", "defaultLocale", "locales", "currencyCode", "publicUrl", "metadata", "taxInclusivePricing"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -179544,6 +179615,13 @@ func (ec *executionContext) unmarshalInputCreateChannelInput(ctx context.Context
 				return it, err
 			}
 			it.Metadata = data
+		case "taxInclusivePricing":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("taxInclusivePricing"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TaxInclusivePricing = data
 		}
 	}
 	return it, nil
@@ -187345,7 +187423,7 @@ func (ec *executionContext) unmarshalInputUpdateChannelInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "name", "defaultLocale", "locales", "isActive", "currencyCode", "publicUrl", "metadata"}
+	fieldsInOrder := [...]string{"id", "name", "defaultLocale", "locales", "isActive", "currencyCode", "publicUrl", "metadata", "taxInclusivePricing"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -187408,6 +187486,13 @@ func (ec *executionContext) unmarshalInputUpdateChannelInput(ctx context.Context
 				return it, err
 			}
 			it.Metadata = data
+		case "taxInclusivePricing":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("taxInclusivePricing"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TaxInclusivePricing = data
 		}
 	}
 	return it, nil
@@ -199711,6 +199796,11 @@ func (ec *executionContext) _Channel(ctx context.Context, sel ast.SelectionSet, 
 			}
 		case "publicUrl":
 			out.Values[i] = ec._Channel_publicUrl(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "taxInclusivePricing":
+			out.Values[i] = ec._Channel_taxInclusivePricing(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
@@ -213649,6 +213739,11 @@ func (ec *executionContext) _Order(ctx context.Context, sel ast.SelectionSet, ob
 			}
 		case "taxAmount":
 			out.Values[i] = ec._Order_taxAmount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "taxIncluded":
+			out.Values[i] = ec._Order_taxIncluded(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}

@@ -5,6 +5,7 @@ import { CartLineOptionsList } from "@/app/components/CartLineOptionsList";
 import { ChargeCurrencyNote } from "@/app/components/ChargeCurrencyNote";
 import { OwnCartLink } from "@/app/components/offer/LeaveOfferCheckout";
 import { formatPrice } from "@skelet/storefront-next/cart/read";
+import { getChannel } from "@skelet/storefront-next/channel/read";
 import type { Cart } from "@skelet/storefront-core/cart/types";
 import type { CheckoutState } from "@skelet/storefront-next/checkout/read";
 import { displayName } from "@skelet/storefront-core/display";
@@ -33,6 +34,7 @@ export async function OrderSummary({
   const t = await getTranslations({ locale, namespace: "checkout" });
   const to = await getTranslations({ locale, namespace: "order" });
   const priced = checkout.destination !== null;
+  const taxIncluded = (await getChannel())?.taxInclusivePricing === true;
   return (
     <>
       <ul className="space-y-3">
@@ -103,12 +105,14 @@ export async function OrderSummary({
       <Totals
         totals={checkout.totals}
         priced={priced}
+        taxIncluded={taxIncluded}
         currency={currency}
         labels={{
           subtotal: to("subtotal"),
           discount: to("discount"),
           shipping: to("shipping"),
           tax: to("tax"),
+          taxIncluded: to("taxIncluded"),
           total: to("total"),
           afterPostcode: t("afterPostcode"),
           giftCards: t("giftCardsApplied"),
@@ -128,14 +132,25 @@ export async function OrderSummary({
 function Totals({
   totals,
   priced,
+  taxIncluded,
   currency,
   labels,
 }: {
   totals: CheckoutState["totals"];
   priced: boolean;
+  taxIncluded: boolean;
   currency: Currency;
   labels: Record<
-    "subtotal" | "discount" | "shipping" | "tax" | "total" | "afterPostcode" | "giftCards" | "storeCredit" | "amountDue",
+    | "subtotal"
+    | "discount"
+    | "shipping"
+    | "tax"
+    | "taxIncluded"
+    | "total"
+    | "afterPostcode"
+    | "giftCards"
+    | "storeCredit"
+    | "amountDue",
     string
   >;
 }) {
@@ -159,13 +174,16 @@ function Totals({
             <span className="text-muted-foreground">{labels.afterPostcode}</span>
           )}
         </Row>
-        <Row label={labels.tax}>
-          {priced ? (
-            formatPrice(totals.taxCents, currency)
-          ) : (
-            <span className="text-muted-foreground">{labels.afterPostcode}</span>
-          )}
-        </Row>
+        {/* Tax already inside the prices isn't one more amount to add, so it's said under the total instead */}
+        {taxIncluded ? null : (
+          <Row label={labels.tax}>
+            {priced ? (
+              formatPrice(totals.taxCents, currency)
+            ) : (
+              <span className="text-muted-foreground">{labels.afterPostcode}</span>
+            )}
+          </Row>
+        )}
         {totals.giftCardCents > 0 ? (
           <Row label={labels.giftCards}>−{formatPrice(totals.giftCardCents, currency)}</Row>
         ) : null}
@@ -180,6 +198,12 @@ function Totals({
           {formatPrice(tenders > 0 ? totals.amountDueCents : totals.totalCents, currency)}
         </span>
       </p>
+      {taxIncluded && priced && totals.taxCents > 0 ? (
+        <p className="mt-1 flex justify-between text-xs text-muted-foreground">
+          <span>{labels.taxIncluded}</span>
+          <span className="tabular-nums">{formatPrice(totals.taxCents, currency)}</span>
+        </p>
+      ) : null}
     </>
   );
 }

@@ -186,9 +186,12 @@ export function OrderDetailView({
           <Row label={t("shipping")}>
             {formatPrice(order.shippingAmount, order.currencyCode)}
           </Row>
-          <Row label={t("tax")}>
-            {formatPrice(order.taxAmount, order.currencyCode)}
-          </Row>
+          {/* Tax already inside the prices isn't one more amount to add, so it's said under the total instead */}
+          {order.taxIncluded ? null : (
+            <Row label={t("tax")}>
+              {formatPrice(order.taxAmount, order.currencyCode)}
+            </Row>
+          )}
         </dl>
         <p className="mt-3 flex items-baseline justify-between border-t border-border pt-3 text-lg font-bold">
           <span>{t("total")}</span>
@@ -196,6 +199,12 @@ export function OrderDetailView({
             {formatPrice(order.total, order.currencyCode)}
           </span>
         </p>
+        {order.taxIncluded && order.taxAmount > 0 ? (
+          <p className="mt-1 flex justify-between text-xs text-muted-foreground">
+            <span>{t("taxIncluded")}</span>
+            <span className="tabular-nums">{formatPrice(order.taxAmount, order.currencyCode)}</span>
+          </p>
+        ) : null}
 
         {/* Gift cards and store credit are tenders, not discounts: they leave
             `total` alone and pay it down. Without these rows a customer who

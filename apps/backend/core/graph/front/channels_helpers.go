@@ -13,12 +13,13 @@ func toFrontChannelModel(sv channel.Channel) *model.Channel { // identity fields
 		locales[i] = toLocaleModel(l)
 	}
 	return &model.Channel{
-		ID:            sv.ID.String(),
-		Slug:          sv.Slug,
-		Name:          sv.Name,
-		DefaultLocale: sv.DefaultLocale,
-		Locales:       locales,
-		CurrencyCode:  sv.CurrencyCode,
-		PublicURL:     sv.PublicURL,
+		ID:                  sv.ID.String(),
+		Slug:                sv.Slug,
+		Name:                sv.Name,
+		DefaultLocale:       sv.DefaultLocale,
+		Locales:             locales,
+		CurrencyCode:        sv.CurrencyCode,
+		PublicURL:           sv.PublicURL,
+		TaxInclusivePricing: sv.TaxInclusivePricing,
 	}
 }

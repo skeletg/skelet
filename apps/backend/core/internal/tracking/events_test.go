@@ -356,3 +356,21 @@ func TestAPurchaseNamesTheCouponsItWasDiscountedBy(t *testing.T) {
 		t.Fatalf("purchase coupon: %+v", fs.events)
 	}
 }
+
+// A tax-inclusive order is worth its total - the tax already sits inside it, so adding it again overstated the value
+func TestATaxInclusiveOrderIsWorthItsTotal(t *testing.T) {
+	registerTestKind(t, sdk.Destination{Kind: "t-worth-incl"})
+	o := sampleOrder()
+	o.TaxInclusive, o.TotalAmount = true, 4990 // 50.00 - 5.00 + 4.90, the 9.00 tax inside
+	fs := newFakeStore(Destination{ID: uuid.New(), ChannelID: o.ChannelID, Kind: "t-worth-incl", Enabled: true})
+	h := handlers{svc: &Service{store: fs}, Orders: memoOrders{o, nil}}
+	if err := h.onCancelled(context.Background(), &order.OrderCancelled{OrderID: o.ID, RefundableFraction: 0.5}); err != nil {
+		t.Fatal(err)
+	}
+	if len(fs.events) != 1 || fs.events[0].Ecommerce.ValueAfter == nil {
+		t.Fatalf("events %+v", fs.events)
+	}
+	if got := *fs.events[0].Ecommerce.ValueAfter; got != 24.95 {
+		t.Errorf("an inclusive order half cancelled is worth %v, want half its 49.90 total", got)
+	}
+}

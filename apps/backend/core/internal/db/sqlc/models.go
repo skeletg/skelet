@@ -1833,6 +1833,7 @@ type Order struct {
 	BusinessIds         json.RawMessage `json:"business_ids"`
 	FulfillmentNeed     string          `json:"fulfillment_need"`
 	AssistedBy          string          `json:"assisted_by"`
+	TaxInclusive        bool            `json:"tax_inclusive"`
 }
 
 type OrderEmailLog struct {

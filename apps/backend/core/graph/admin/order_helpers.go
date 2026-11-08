@@ -154,6 +154,7 @@ func toOrderModel(o order.Order) *model.Order {
 		ShippingAmount:     int32(o.ShippingAmount),
 		DiscountAmount:     int32(o.DiscountAmount),
 		TaxAmount:          int32(o.TaxAmount),
+		TaxIncluded:        o.TaxIncluded(),
 		ShippingTaxAmount:  int32(o.ShippingTaxAmount),
 		ShippingRefundable: int32(o.ShippingRefundable()),
 		Total:              int32(o.TotalAmount),

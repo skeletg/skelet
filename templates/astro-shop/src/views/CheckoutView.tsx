@@ -82,7 +82,7 @@ export function CheckoutView({ error, cart, channel, countries, dest, groups, pi
             </form>
           )}
         </div>
-        <OrderSummary cart={cart} delivering={!!dest} currency={channel.currency} />
+        <OrderSummary cart={cart} delivering={!!dest} currency={channel.currency} taxIncluded={channel.taxInclusivePricing} />
       </div>
     </>
   );
@@ -204,7 +204,7 @@ function PaymentSection({ payments, pickedPayment }: Pick<Props, "payments" | "p
 }
 
 // Swapped in after a delivery pick (enhance.ts), so shipping and the total follow the choice
-function OrderSummary({ cart, delivering, currency }: { cart: Cart; delivering: boolean; currency: Currency }) {
+function OrderSummary({ cart, delivering, currency, taxIncluded }: { cart: Cart; delivering: boolean; currency: Currency; taxIncluded: boolean }) {
   const t = cart.checkout.totals;
   return (
     <aside className="rounded-3xl border border-border bg-card p-6 lg:sticky lg:top-24" aria-label="Order summary" data-summary="">
@@ -240,7 +240,7 @@ function OrderSummary({ cart, delivering, currency }: { cart: Cart; delivering: 
             <dd>{t.shippingCents === 0 ? "Free" : <Price amount={t.shippingCents} currency={currency} />}</dd>
           </div>
         )}
-        {t.taxCents > 0 && (
+        {t.taxCents > 0 && !taxIncluded && (
           <div className="flex justify-between">
             <dt className="text-muted-foreground">Tax</dt>
             <dd>
@@ -254,6 +254,15 @@ function OrderSummary({ cart, delivering, currency }: { cart: Cart; delivering: 
             <Price amount={t.totalCents} currency={currency} />
           </dd>
         </div>
+        {/* Tax already inside the prices isn't one more amount to add */}
+        {t.taxCents > 0 && taxIncluded && (
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <dt>Includes tax</dt>
+            <dd>
+              <Price amount={t.taxCents} currency={currency} />
+            </dd>
+          </div>
+        )}
       </dl>
       {delivering && (
         // Without scripts a delivery pick reprices through this; with them, each pick submits through it on its own

@@ -48,6 +48,7 @@ func toOrderModel(o order.Order) *model.Order {
 		ShippingAmount:      int32(o.ShippingAmount),
 		DiscountAmount:      int32(o.DiscountAmount),
 		TaxAmount:           int32(o.TaxAmount),
+		TaxIncluded:         o.TaxIncluded(),
 		Total:               int32(o.TotalAmount),
 		GiftCardAmount:      int32(o.GiftCardAmount),
 		StoreCreditAmount:   int32(o.StoreCreditAmount),

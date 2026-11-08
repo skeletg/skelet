@@ -152,7 +152,8 @@ export function OrderSummaryPanel({ order, isDraft }: { order: OrderData; isDraf
             <Row label="Discount" value={`-${money(order.discountAmount)}`} />
           ))}
         <Row label="Shipping" value={money(order.shippingAmount)} />
-        {order.taxLines.length > 0 ? (
+        {/* Tax inside the prices is part of them, not one more amount - it's said under the total instead */}
+        {order.taxIncluded ? null : order.taxLines.length > 0 ? (
           <ExpandableRow label="Tax" value={money(order.taxAmount)}>
             {order.taxLines.map((t) => {
               const name =
@@ -168,6 +169,7 @@ export function OrderSummaryPanel({ order, isDraft }: { order: OrderData; isDraf
 
       <Group>
         <Row label="Total" value={money(order.total)} tone="total" />
+        {order.taxIncluded && order.taxAmount > 0 ? <Row label="Includes tax" value={money(order.taxAmount)} /> : null}
       </Group>
 
       {!isDraft && (

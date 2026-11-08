@@ -22,6 +22,7 @@ fragment OrderSummaryFields on Order {
   shippingAmount
   discountAmount
   taxAmount
+  taxIncluded
   total
   # Tenders. These don't reduce `total` (they're payment, not discount) -
   # amountDue is what's left owing after them, and the receipt has to show

@@ -107,7 +107,7 @@ func (s *Service) renderOrderEmail(ctx context.Context, ch Store, f Flow, node N
 		return s.tmpl.RenderStoredOrderConfirmation(ctx, ch.ID, e, emailpkg.OrderConfirmationData{
 			StoreName: storeName, OrderNumber: snap.Number, FirstName: snap.FirstName, Currency: snap.Currency,
 			Lines: snap.Lines, Subtotal: snap.Subtotal, Discount: snap.Discount,
-			Shipping: snap.Shipping, Tax: snap.Tax, Total: snap.Total,
+			Shipping: snap.Shipping, Tax: snap.Tax, TaxIncluded: snap.TaxIncluded, Total: snap.Total,
 			ShipTo: snap.ShipTo, StorefrontURL: store,
 		})
 	}

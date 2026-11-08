@@ -183,6 +183,7 @@ func (s *Service) CreateDraftOrder(ctx context.Context, in CreateDraftOrderInput
 			ShippingTaxAmount:   cc.shippingTax,
 			ShippingAmount:      shipSel.Cents,
 			TotalAmount:         total,
+			TaxInclusive:        store.TaxInclusivePricing,
 			CurrencyCode:        store.CurrencyCode,
 			CustomerNote:        in.CustomerNote,
 			ShippingMethodID:    shipSel.MethodID,

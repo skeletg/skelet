@@ -592,6 +592,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			ShippingCarrierSlug: ptr.NonZero(shipSel.CarrierSlug),
 			ShippingMethodCode:  ptr.NonZero(shipSel.MethodCode),
 			AnonID:              visitor,
+			TaxInclusive:        store.TaxInclusivePricing,
 			AssistedBy:          cartObj.AssistedCredit(time.Now()),
 			Shopper:             shopper,
 		})

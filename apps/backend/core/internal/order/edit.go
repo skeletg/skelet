@@ -145,6 +145,7 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 	if err != nil {
 		return Order{}, fmt.Errorf("load channel: %w", err)
 	}
+	store.TaxInclusivePricing = o.TaxInclusive // the order keeps the mode it was priced in, whatever the channel says now
 	var cust customer.Customer
 	if o.CustomerID != nil {
 		if loaded, lerr := s.customerSvc.GetByIDWithAddresses(ctx, *o.CustomerID); lerr == nil {
@@ -400,6 +401,7 @@ func (s *Service) EditOrderAddress(ctx context.Context, in EditOrderAddressInput
 	if err != nil {
 		return Order{}, fmt.Errorf("load channel: %w", err)
 	}
+	store.TaxInclusivePricing = o.TaxInclusive // the order keeps the mode it was priced in, whatever the channel says now
 	var cust customer.Customer
 	if o.CustomerID != nil {
 		if loaded, lerr := s.customerSvc.GetByIDWithAddresses(ctx, *o.CustomerID); lerr == nil {
