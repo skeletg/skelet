@@ -15,7 +15,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/signals/internal/behavioralsegment"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/board"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/campaign"
-	"github.com/skeletg/skelet/apps/backend/signals/internal/destination"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/emailtemplate"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/experiment"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/flow"
@@ -48,7 +47,6 @@ type contractDeps struct {
 	Boards        *board.Service
 	Segment       *segment.Service
 	Behavioral    *behavioralsegment.Service
-	Destination   *destination.Service
 	SendLog       *sendlog.Store
 	Assistant     *assistantlog.Store
 	AIActivity    *aiactivity.Store
@@ -72,7 +70,6 @@ func newGRPCServer(d contractDeps) (*grpc.Server, error) {
 		Experiment:     d.Experiment,
 		Boards:         d.Boards,
 		Lens:           d.Lens,
-		Destination:    d.Destination,
 		Segment:        d.Segment,
 		Analytics:      d.Recorder,
 		CustomerRoster: d.Roster,

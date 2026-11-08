@@ -55,7 +55,8 @@ type MaintenanceServiceClient interface {
 	PruneAssistantConversations(ctx context.Context, in *PruneAssistantConversationsRequest, opts ...grpc.CallOption) (*PruneAssistantConversationsResponse, error)
 	// Per-customer RFM, lifecycle and engagement, across every channel the roster covers
 	ComputeTraits(ctx context.Context, in *ComputeTraitsRequest, opts ...grpc.CallOption) (*ComputeTraitsResponse, error)
-	// Drains the spine to the configured external destinations, resuming from durable cursors
+	// Deprecated: Do not use.
+	// Retired with the suite's event destinations - kept for a release as a no-op so an older core's job stays quiet
 	ForwardDestinations(ctx context.Context, in *ForwardDestinationsRequest, opts ...grpc.CallOption) (*ForwardDestinationsResponse, error)
 	// Whether aged data is archived before deletion - core's send-log sweep honours the same operator setting
 	GetRetentionAction(ctx context.Context, in *GetRetentionActionRequest, opts ...grpc.CallOption) (*GetRetentionActionResponse, error)
@@ -139,6 +140,7 @@ func (c *maintenanceServiceClient) ComputeTraits(ctx context.Context, in *Comput
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *maintenanceServiceClient) ForwardDestinations(ctx context.Context, in *ForwardDestinationsRequest, opts ...grpc.CallOption) (*ForwardDestinationsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ForwardDestinationsResponse)
@@ -255,7 +257,8 @@ type MaintenanceServiceServer interface {
 	PruneAssistantConversations(context.Context, *PruneAssistantConversationsRequest) (*PruneAssistantConversationsResponse, error)
 	// Per-customer RFM, lifecycle and engagement, across every channel the roster covers
 	ComputeTraits(context.Context, *ComputeTraitsRequest) (*ComputeTraitsResponse, error)
-	// Drains the spine to the configured external destinations, resuming from durable cursors
+	// Deprecated: Do not use.
+	// Retired with the suite's event destinations - kept for a release as a no-op so an older core's job stays quiet
 	ForwardDestinations(context.Context, *ForwardDestinationsRequest) (*ForwardDestinationsResponse, error)
 	// Whether aged data is archived before deletion - core's send-log sweep honours the same operator setting
 	GetRetentionAction(context.Context, *GetRetentionActionRequest) (*GetRetentionActionResponse, error)

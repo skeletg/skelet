@@ -53,7 +53,7 @@ skelet/
 │   │           ├── boot/            ← the suite's composition root
 │   │           ├── analytics/       ← the event spine, its engines, traits, rosters
 │   │           ├── geo/, uaclass/, archivefile/  ← IP country, device class, retention exports
-│   │           ├── lens/, segment/, experiment/, destination/, behavioralsegment/
+│   │           ├── lens/, segment/, experiment/, behavioralsegment/
 │   │           ├── sendlog/, suppression/  ← the email send log and the suppression list
 │   │           ├── emailtemplate/, flow/, campaign/  ← Pulse: the email builder, the flow engine, broadcasts
 │   │           ├── engagement/, sms/, corefront/     ← the send tracker, the text gateway, core's storefront API

@@ -19,8 +19,8 @@ func Hex(rnd io.Reader, n int) (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-// Key32 is 32 random bytes as padded base64: an AES-256 key for CONFIG_ENCRYPTION_KEY and SIGNALS_ENCRYPTION_KEY,
-// and the Ed25519 seed that is CUSTOMER_JWT_PRIVATE_KEY
+// Key32 is 32 random bytes as padded base64: the AES-256 key that is CONFIG_ENCRYPTION_KEY, and the Ed25519 seed that
+// is CUSTOMER_JWT_PRIVATE_KEY
 func Key32(rnd io.Reader) (string, error) {
 	b := make([]byte, 32)
 	if _, err := io.ReadFull(rnd, b); err != nil {

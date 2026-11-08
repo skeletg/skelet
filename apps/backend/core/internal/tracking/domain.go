@@ -120,25 +120,30 @@ func Allowed(purposes []Purpose, c *sdk.ShopConsent) bool {
 
 // Destination is one configured account on a platform, with its secret decrypted
 type Destination struct {
-	ID        uuid.UUID
-	ChannelID uuid.UUID
-	Kind      string
-	Name      string
-	Enabled   bool
-	Events    []string // empty: the kind's defaults
-	Config    map[string]string
-	Secret    string
-	// The Signals event destination this was imported from - nil for one set up here
-	ImportedFrom *uuid.UUID
-	LastSentAt   *time.Time // stamped at most once a minute; nil: never
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID         uuid.UUID
+	ChannelID  uuid.UUID
+	Kind       string
+	Name       string
+	Enabled    bool
+	Events     []string // empty: the kind's defaults
+	Config     map[string]string
+	Secret     string
+	LastSentAt *time.Time // stamped at most once a minute; nil: never
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 // Health is a destination's recent failures: the latest and how many failed in a day
 type Health struct {
 	LastError string // already redacted by the worker
 	Dead24h   int
+}
+
+// Pipeline is the queue across every channel, for the system health page
+type Pipeline struct {
+	Enabled int           // destinations switched on
+	Dead24h int           // deliveries that gave up in the past day
+	Late    time.Duration // how far the oldest due delivery is past its send time - zero when none is
 }
 
 // Kind is a plugin's destination as it registered it, plus the plugin it came from and where that plugin is on

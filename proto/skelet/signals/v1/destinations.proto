@@ -1,12 +1,15 @@
 syntax = "proto3";
 
-// Event destinations: spine events forwarded to external systems, and segment audiences pushed as hashed identifiers
-// Forwarding runs on a scheduled sweep with a durable per-destination cursor, so delivery is at-least-once in ingest order and last_error stands until a sweep succeeds
+// Retired: core's tracking destinations send shop events to analytics and ad platforms, and the suite serves none of
+// this any more. The definitions stay until the release after this one, so a core and a suite a release apart still
+// agree on the wire during a rolling deploy - then the file goes
 package skelet.signals.v1;
 
 import "google/protobuf/timestamp.proto";
 
 service DestinationService {
+  option deprecated = true;
+
   rpc ListDestinations(ListDestinationsRequest) returns (ListDestinationsResponse);
   rpc CreateDestination(CreateDestinationRequest) returns (CreateDestinationResponse);
   rpc UpdateDestination(UpdateDestinationRequest) returns (UpdateDestinationResponse);

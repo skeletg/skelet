@@ -106,3 +106,48 @@ func TestAnEventIsStoredOnceForEveryDestination(t *testing.T) {
 		t.Errorf("%d events past the replay window, want only the one still pending", n)
 	}
 }
+
+// The health page's read spans every channel: a switched-off destination isn't counted, a dead letter is, and the lag
+// is the oldest due delivery's - one a retry has scheduled for later isn't late at all
+func TestThePipelineReadsAcrossEveryChannel(t *testing.T) {
+	conn := testdb.Require(t)
+	ctx := context.Background()
+	repo := &repository{q: db.New(conn)}
+	before, err := repo.Pipeline(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var dests []uuid.UUID
+	for _, on := range []bool{true, true, false} {
+		var ch uuid.UUID
+		if err := conn.QueryRow(`INSERT INTO channels (slug, name, currency_code) VALUES ($1, 'trk', 'USD') RETURNING id`, "trk-"+uuid.NewString()[:8]).Scan(&ch); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM channels WHERE id = $1`, ch) })
+		d, err := repo.Create(ctx, Destination{ChannelID: ch, Kind: "test", Name: "d", Enabled: on})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := repo.Enqueue(ctx, []uuid.UUID{d.ID}, Event{ID: "e-" + uuid.NewString(), Name: PageView, ChannelID: ch}); err != nil {
+			t.Fatal(err)
+		}
+		dests = append(dests, d.ID)
+	}
+	set := func(q string, id uuid.UUID) {
+		t.Helper()
+		if _, err := conn.Exec(q, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	set(`UPDATE tracking_deliveries SET next_attempt_at = NOW() - INTERVAL '10 minutes' WHERE destination_id = $1`, dests[0])
+	set(`UPDATE tracking_deliveries SET status = 'dead', updated_at = NOW() WHERE destination_id = $1`, dests[1])
+	set(`UPDATE tracking_deliveries SET next_attempt_at = NOW() + INTERVAL '1 hour' WHERE destination_id = $1`, dests[2])
+
+	got, err := repo.Pipeline(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Enabled-before.Enabled != 2 || got.Dead24h-before.Dead24h != 1 || got.Late < 9*time.Minute {
+		t.Errorf("pipeline went %+v -> %+v, want two more on, one more dead, and at least 9m late", before, got)
+	}
+}

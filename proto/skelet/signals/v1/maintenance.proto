@@ -21,8 +21,10 @@ service MaintenanceService {
   rpc PruneAssistantConversations(PruneAssistantConversationsRequest) returns (PruneAssistantConversationsResponse);
   // Per-customer RFM, lifecycle and engagement, across every channel the roster covers
   rpc ComputeTraits(ComputeTraitsRequest) returns (ComputeTraitsResponse);
-  // Drains the spine to the configured external destinations, resuming from durable cursors
-  rpc ForwardDestinations(ForwardDestinationsRequest) returns (ForwardDestinationsResponse);
+  // Retired with the suite's event destinations - kept for a release as a no-op so an older core's job stays quiet
+  rpc ForwardDestinations(ForwardDestinationsRequest) returns (ForwardDestinationsResponse) {
+    option deprecated = true;
+  }
   // Whether aged data is archived before deletion - core's send-log sweep honours the same operator setting
   rpc GetRetentionAction(GetRetentionActionRequest) returns (GetRetentionActionResponse);
   // Everything core's health page reports about the suite, in one round trip - the page renders them together
@@ -96,8 +98,9 @@ message GetHealthResponse {
   int32 pending_erasures = 6;
   string erasures_error = 7;
   QueueHealth queue = 8;
-  repeated DestinationHealth destinations = 9;
-  string destinations_error = 10;
+  // Retired with the suite's event destinations, never filled
+  repeated DestinationHealth destinations = 9 [deprecated = true];
+  string destinations_error = 10 [deprecated = true];
 }
 
 // A queue is optional - unconfigured, events are written straight to the engine

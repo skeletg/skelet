@@ -138,17 +138,8 @@ func (f *fakeStore) GetDelivery(_ context.Context, id uuid.UUID) (Delivery, erro
 func (f *fakeStore) ListDeliveries(context.Context, uuid.UUID, string, int32) ([]Delivery, error) {
 	return nil, nil
 }
-func (f *fakeStore) Import(_ context.Context, d Destination, legacyID uuid.UUID) (Destination, bool, error) {
-	for _, existing := range f.dests {
-		if existing.ImportedFrom != nil && *existing.ImportedFrom == legacyID {
-			return Destination{}, false, nil
-		}
-	}
-	d.ID, d.Enabled, d.Secret, d.ImportedFrom = uuid.New(), false, "", &legacyID
-	f.dests[d.ID] = d
-	return d, true, nil
-}
 func (f *fakeStore) Health(context.Context, uuid.UUID) (map[uuid.UUID]Health, error) { return nil, nil }
+func (f *fakeStore) Pipeline(context.Context) (Pipeline, error)                      { return Pipeline{}, nil }
 func (f *fakeStore) Prune(context.Context, time.Time, time.Time) (int64, error)      { return 0, nil }
 
 func (f *fakeStore) byDestination(id uuid.UUID) []Delivery {

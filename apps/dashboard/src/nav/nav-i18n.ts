@@ -38,7 +38,6 @@ const NAV_LABELS: Record<string, MessageDescriptor> = {
   'Reviews': msg`Reviews`,
   'Product Q&A': msg`Product Q&A`,
   'Tracking': msg`Tracking`,
-  'Signals event export': msg`Signals event export`,
   'Privacy': msg`Privacy`,
   'Email templates': msg`Email templates`,
   'Content & SEO': msg`Content & SEO`,

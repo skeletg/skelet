@@ -95,7 +95,7 @@ const createTrackingDestination = `-- name: CreateTrackingDestination :one
 INSERT INTO tracking_destinations (channel_id, kind, name, enabled, events, config, secret)
 VALUES ($1, $2, $3, $4,
         $5::text[], $6, $7)
-RETURNING id, channel_id, kind, name, enabled, events, config, secret, created_at, updated_at, imported_from, last_sent_at
+RETURNING id, channel_id, kind, name, enabled, events, config, secret, created_at, updated_at, last_sent_at
 `
 
 type CreateTrackingDestinationParams struct {
@@ -130,7 +130,6 @@ func (q *Queries) CreateTrackingDestination(ctx context.Context, arg CreateTrack
 		&i.Secret,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.ImportedFrom,
 		&i.LastSentAt,
 	)
 	return i, err
@@ -244,7 +243,7 @@ func (q *Queries) GetTrackingDelivery(ctx context.Context, id uuid.UUID) (GetTra
 }
 
 const getTrackingDestination = `-- name: GetTrackingDestination :one
-SELECT id, channel_id, kind, name, enabled, events, config, secret, created_at, updated_at, imported_from, last_sent_at FROM tracking_destinations WHERE id = $1
+SELECT id, channel_id, kind, name, enabled, events, config, secret, created_at, updated_at, last_sent_at FROM tracking_destinations WHERE id = $1
 `
 
 func (q *Queries) GetTrackingDestination(ctx context.Context, id uuid.UUID) (TrackingDestination, error) {
@@ -261,57 +260,13 @@ func (q *Queries) GetTrackingDestination(ctx context.Context, id uuid.UUID) (Tra
 		&i.Secret,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.ImportedFrom,
-		&i.LastSentAt,
-	)
-	return i, err
-}
-
-const importTrackingDestination = `-- name: ImportTrackingDestination :one
-INSERT INTO tracking_destinations (channel_id, kind, name, enabled, events, config, secret, imported_from)
-VALUES ($1, $2, $3, FALSE, '{}'::text[], $4, '', $5)
-ON CONFLICT (imported_from) WHERE imported_from IS NOT NULL DO NOTHING
-RETURNING id, channel_id, kind, name, enabled, events, config, secret, created_at, updated_at, imported_from, last_sent_at
-`
-
-type ImportTrackingDestinationParams struct {
-	ChannelID    uuid.UUID       `json:"channel_id"`
-	Kind         string          `json:"kind"`
-	Name         string          `json:"name"`
-	Config       json.RawMessage `json:"config"`
-	ImportedFrom uuid.NullUUID   `json:"imported_from"`
-}
-
-// Always disabled and without a secret - the admin re-enters it, since Signals never hands one over. A second import of
-// the same Signals row returns nothing
-func (q *Queries) ImportTrackingDestination(ctx context.Context, arg ImportTrackingDestinationParams) (TrackingDestination, error) {
-	row := q.db.QueryRowContext(ctx, importTrackingDestination,
-		arg.ChannelID,
-		arg.Kind,
-		arg.Name,
-		arg.Config,
-		arg.ImportedFrom,
-	)
-	var i TrackingDestination
-	err := row.Scan(
-		&i.ID,
-		&i.ChannelID,
-		&i.Kind,
-		&i.Name,
-		&i.Enabled,
-		pq.Array(&i.Events),
-		&i.Config,
-		&i.Secret,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ImportedFrom,
 		&i.LastSentAt,
 	)
 	return i, err
 }
 
 const listEnabledTrackingDestinations = `-- name: ListEnabledTrackingDestinations :many
-SELECT id, channel_id, kind, name, enabled, events, config, secret, created_at, updated_at, imported_from, last_sent_at FROM tracking_destinations
+SELECT id, channel_id, kind, name, enabled, events, config, secret, created_at, updated_at, last_sent_at FROM tracking_destinations
 WHERE  channel_id = $1 AND enabled
 ORDER  BY created_at
 `
@@ -336,7 +291,6 @@ func (q *Queries) ListEnabledTrackingDestinations(ctx context.Context, channelID
 			&i.Secret,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.ImportedFrom,
 			&i.LastSentAt,
 		); err != nil {
 			return nil, err
@@ -420,7 +374,7 @@ func (q *Queries) ListTrackingDeliveries(ctx context.Context, arg ListTrackingDe
 }
 
 const listTrackingDestinations = `-- name: ListTrackingDestinations :many
-SELECT id, channel_id, kind, name, enabled, events, config, secret, created_at, updated_at, imported_from, last_sent_at FROM tracking_destinations
+SELECT id, channel_id, kind, name, enabled, events, config, secret, created_at, updated_at, last_sent_at FROM tracking_destinations
 WHERE  channel_id = $1
 ORDER  BY created_at
 `
@@ -445,7 +399,6 @@ func (q *Queries) ListTrackingDestinations(ctx context.Context, channelID uuid.U
 			&i.Secret,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.ImportedFrom,
 			&i.LastSentAt,
 		); err != nil {
 			return nil, err
@@ -590,6 +543,27 @@ func (q *Queries) TrackingDestinationHealth(ctx context.Context, channelID uuid.
 	return items, nil
 }
 
+const trackingPipelineHealth = `-- name: TrackingPipelineHealth :one
+SELECT (SELECT COUNT(*) FROM tracking_destinations WHERE enabled)::int AS enabled,
+       (SELECT COUNT(*) FROM tracking_deliveries WHERE status = 'dead' AND updated_at > NOW() - INTERVAL '24 hours')::int AS dead_24h,
+       (SELECT GREATEST(COALESCE(EXTRACT(EPOCH FROM NOW() - MIN(next_attempt_at)), 0), 0)
+        FROM tracking_deliveries WHERE status = 'pending')::int AS late_seconds
+`
+
+type TrackingPipelineHealthRow struct {
+	Enabled     int32 `json:"enabled"`
+	Dead24h     int32 `json:"dead_24h"`
+	LateSeconds int32 `json:"late_seconds"`
+}
+
+// Every channel at once, for the system health page - the dead count rides the prune index and the lag the due index
+func (q *Queries) TrackingPipelineHealth(ctx context.Context) (TrackingPipelineHealthRow, error) {
+	row := q.db.QueryRowContext(ctx, trackingPipelineHealth)
+	var i TrackingPipelineHealthRow
+	err := row.Scan(&i.Enabled, &i.Dead24h, &i.LateSeconds)
+	return i, err
+}
+
 const updateTrackingDestination = `-- name: UpdateTrackingDestination :one
 UPDATE tracking_destinations
 SET    name = $1, enabled = $2,
@@ -597,7 +571,7 @@ SET    name = $1, enabled = $2,
        secret = CASE WHEN $5::text = '' THEN secret ELSE $5::text END,
        updated_at = NOW()
 WHERE  id = $6
-RETURNING id, channel_id, kind, name, enabled, events, config, secret, created_at, updated_at, imported_from, last_sent_at
+RETURNING id, channel_id, kind, name, enabled, events, config, secret, created_at, updated_at, last_sent_at
 `
 
 type UpdateTrackingDestinationParams struct {
@@ -631,7 +605,6 @@ func (q *Queries) UpdateTrackingDestination(ctx context.Context, arg UpdateTrack
 		&i.Secret,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.ImportedFrom,
 		&i.LastSentAt,
 	)
 	return i, err

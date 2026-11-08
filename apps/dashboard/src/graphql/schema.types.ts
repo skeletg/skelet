@@ -3317,33 +3317,6 @@ export type EmbeddingCoverage = {
   queued: Scalars['Int']['output'];
 };
 
-export type EventDestination = {
-  __typename?: 'EventDestination';
-  channelId: Scalars['ID']['output'];
-  createdAt: Scalars['Time']['output'];
-  eventNames: Array<Scalars['String']['output']>;
-  eventSources: Array<Scalars['String']['output']>;
-  id: Scalars['ID']['output'];
-  isActive: Scalars['Boolean']['output'];
-  kind: Scalars['String']['output'];
-  lastError: Scalars['String']['output'];
-  lastForwardedAt?: Maybe<Scalars['Time']['output']>;
-  name: Scalars['String']['output'];
-  targetUrl: Scalars['String']['output'];
-  updatedAt: Scalars['Time']['output'];
-};
-
-export type EventDestinationInput = {
-  channelId: Scalars['ID']['input'];
-  eventNames?: InputMaybe<Array<Scalars['String']['input']>>;
-  eventSources?: InputMaybe<Array<Scalars['String']['input']>>;
-  isActive?: InputMaybe<Scalars['Boolean']['input']>;
-  kind: Scalars['String']['input'];
-  name: Scalars['String']['input'];
-  secret?: InputMaybe<Scalars['String']['input']>;
-  targetUrl: Scalars['String']['input'];
-};
-
 export type Experiment = {
   __typename?: 'Experiment';
   channelId: Scalars['ID']['output'];
@@ -4337,7 +4310,6 @@ export type Mutation = {
   createDraftOrder: Order;
   createEmailCampaign: EmailCampaign;
   createEmailGroup: EmailGroup;
-  createEventDestination: EventDestination;
   createExperiment: Experiment;
   createFlow: Flow;
   createFulfillment: Order;
@@ -4410,7 +4382,6 @@ export type Mutation = {
   deleteEmailBlock: Scalars['Boolean']['output'];
   deleteEmailCampaign: Scalars['Boolean']['output'];
   deleteEmailGroup: Scalars['Boolean']['output'];
-  deleteEventDestination: Scalars['Boolean']['output'];
   deleteExperiment: Scalars['Boolean']['output'];
   deleteFlow: Scalars['Boolean']['output'];
   deleteIntegration: Scalars['Boolean']['output'];
@@ -4475,7 +4446,6 @@ export type Mutation = {
   generatePromotionCodes: Array<PromotionCode>;
   generateShippingLabel: ShippingLabel;
   holdOrder: Order;
-  importSignalsDestinations: Array<TrackingDestination>;
   issueCreditMemo: CreditMemo;
   issueGiftCard: GiftCard;
   issueReturnRefund: OrderReturn;
@@ -4642,7 +4612,6 @@ export type Mutation = {
   synapseRefreshSegment: SynapseSegment;
   synapseSaveSegment: SynapseSegment;
   synapseSetSegmentLifecycleWindows: SynapseSegment;
-  syncAudience: Scalars['Int']['output'];
   syncCanonicalUrlRewrite: UrlRewrite;
   syncProductInventory: InventoryItem;
   syncProductInventoryBatch: SyncProductInventoryBatchResult;
@@ -4683,7 +4652,6 @@ export type Mutation = {
   updateCustomerSegment: CustomerSegment;
   updateDeliveryOption: DeliveryOption;
   updateEmailCampaign: EmailCampaign;
-  updateEventDestination: EventDestination;
   updateExperiment: Experiment;
   updateFlow: Flow;
   updateGroupedMember: Product;
@@ -5334,11 +5302,6 @@ export type MutationCreateEmailGroupArgs = {
 };
 
 
-export type MutationCreateEventDestinationArgs = {
-  input: EventDestinationInput;
-};
-
-
 export type MutationCreateExperimentArgs = {
   input: SaveExperimentInput;
 };
@@ -5715,11 +5678,6 @@ export type MutationDeleteEmailGroupArgs = {
 };
 
 
-export type MutationDeleteEventDestinationArgs = {
-  id: Scalars['ID']['input'];
-};
-
-
 export type MutationDeleteExperimentArgs = {
   id: Scalars['ID']['input'];
 };
@@ -6069,12 +6027,6 @@ export type MutationGenerateShippingLabelArgs = {
 export type MutationHoldOrderArgs = {
   id: Scalars['ID']['input'];
   reason?: InputMaybe<Scalars['String']['input']>;
-};
-
-
-export type MutationImportSignalsDestinationsArgs = {
-  channelId: Scalars['ID']['input'];
-  legacyIds: Array<Scalars['ID']['input']>;
 };
 
 
@@ -7049,12 +7001,6 @@ export type MutationSynapseSetSegmentLifecycleWindowsArgs = {
 };
 
 
-export type MutationSyncAudienceArgs = {
-  destinationId: Scalars['ID']['input'];
-  segmentId: Scalars['ID']['input'];
-};
-
-
 export type MutationSyncCanonicalUrlRewriteArgs = {
   input: SyncCanonicalUrlRewriteInput;
 };
@@ -7271,12 +7217,6 @@ export type MutationUpdateDeliveryOptionArgs = {
 export type MutationUpdateEmailCampaignArgs = {
   id: Scalars['ID']['input'];
   input: SaveCampaignInput;
-};
-
-
-export type MutationUpdateEventDestinationArgs = {
-  id: Scalars['ID']['input'];
-  input: EventDestinationInput;
 };
 
 
@@ -8655,7 +8595,6 @@ export type Query = {
   emailRevisions: Array<EmailRevision>;
   emailSuppressions: EmailSuppressionPage;
   embeddingCoverage: EmbeddingCoverage;
-  eventDestinations: Array<EventDestination>;
   experiment?: Maybe<Experiment>;
   experimentGoalEvents: Array<Scalars['String']['output']>;
   experimentResults: ExperimentResults;
@@ -8771,7 +8710,6 @@ export type Query = {
   shippingCarriers: Array<ShippingCarrierAdmin>;
   shippingZone?: Maybe<ShippingZone>;
   shippingZones: Array<ShippingZone>;
-  signalsImportCandidates: Array<SignalsImportCandidate>;
   signalsInsights: Array<SignalsInsight>;
   signupForm?: Maybe<SignupForm>;
   signupFormSubmissions: Array<SignupFormSubmission>;
@@ -9283,11 +9221,6 @@ export type QueryEmailSuppressionsArgs = {
 
 
 export type QueryEmbeddingCoverageArgs = {
-  channelId: Scalars['ID']['input'];
-};
-
-
-export type QueryEventDestinationsArgs = {
   channelId: Scalars['ID']['input'];
 };
 
@@ -9857,11 +9790,6 @@ export type QueryShippingZoneArgs = {
 
 
 export type QueryShippingZonesArgs = {
-  channelId: Scalars['ID']['input'];
-};
-
-
-export type QuerySignalsImportCandidatesArgs = {
   channelId: Scalars['ID']['input'];
 };
 
@@ -11174,19 +11102,6 @@ export type SignalsChatReply = {
   reply: Scalars['String']['output'];
 };
 
-export type SignalsImportCandidate = {
-  __typename?: 'SignalsImportCandidate';
-  config: Array<TrackingConfigValue>;
-  droppedFilters: Array<Scalars['String']['output']>;
-  importedAs?: Maybe<Scalars['ID']['output']>;
-  legacyId: Scalars['ID']['output'];
-  legacyKind: Scalars['String']['output'];
-  name: Scalars['String']['output'];
-  problem?: Maybe<Scalars['String']['output']>;
-  signalsActive: Scalars['Boolean']['output'];
-  targetKind?: Maybe<Scalars['String']['output']>;
-};
-
 export type SignalsInsight = {
   __typename?: 'SignalsInsight';
   detail: Scalars['String']['output'];
@@ -11677,7 +11592,6 @@ export type TrackingDestination = {
   events: Array<Scalars['String']['output']>;
   health: TrackingHealth;
   id: Scalars['ID']['output'];
-  importedFrom?: Maybe<Scalars['ID']['output']>;
   inTestMode: Scalars['Boolean']['output'];
   kind: Scalars['String']['output'];
   name: Scalars['String']['output'];

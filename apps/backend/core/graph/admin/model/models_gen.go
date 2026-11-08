@@ -2892,32 +2892,6 @@ type EmbeddingCoverage struct {
 	Failed           string `json:"failed"`
 }
 
-type EventDestination struct {
-	ID              string     `json:"id"`
-	ChannelID       string     `json:"channelId"`
-	Name            string     `json:"name"`
-	Kind            string     `json:"kind"`
-	TargetURL       string     `json:"targetUrl"`
-	EventSources    []string   `json:"eventSources"`
-	EventNames      []string   `json:"eventNames"`
-	IsActive        bool       `json:"isActive"`
-	LastError       string     `json:"lastError"`
-	LastForwardedAt *time.Time `json:"lastForwardedAt,omitempty"`
-	CreatedAt       time.Time  `json:"createdAt"`
-	UpdatedAt       time.Time  `json:"updatedAt"`
-}
-
-type EventDestinationInput struct {
-	ChannelID    string   `json:"channelId"`
-	Name         string   `json:"name"`
-	Kind         string   `json:"kind"`
-	TargetURL    string   `json:"targetUrl"`
-	Secret       *string  `json:"secret,omitempty"`
-	EventSources []string `json:"eventSources,omitempty"`
-	EventNames   []string `json:"eventNames,omitempty"`
-	IsActive     *bool    `json:"isActive,omitempty"`
-}
-
 type Experiment struct {
 	ID          string                 `json:"id"`
 	ChannelID   string                 `json:"channelId"`
@@ -5322,18 +5296,6 @@ type SignalsChatReply struct {
 	Reply string `json:"reply"`
 }
 
-type SignalsImportCandidate struct {
-	LegacyID       string                 `json:"legacyId"`
-	Name           string                 `json:"name"`
-	LegacyKind     string                 `json:"legacyKind"`
-	TargetKind     *string                `json:"targetKind,omitempty"`
-	Config         []*TrackingConfigValue `json:"config"`
-	SignalsActive  bool                   `json:"signalsActive"`
-	ImportedAs     *string                `json:"importedAs,omitempty"`
-	DroppedFilters []string               `json:"droppedFilters"`
-	Problem        *string                `json:"problem,omitempty"`
-}
-
 type SignalsInsight struct {
 	Level  string `json:"level"`
 	Title  string `json:"title"`
@@ -5746,7 +5708,6 @@ type TrackingDestination struct {
 	SecretSet       bool                   `json:"secretSet"`
 	NeedsSecret     bool                   `json:"needsSecret"`
 	InTestMode      bool                   `json:"inTestMode"`
-	ImportedFrom    *string                `json:"importedFrom,omitempty"`
 	Health          *TrackingHealth        `json:"health"`
 	CreatedAt       time.Time              `json:"createdAt"`
 	UpdatedAt       time.Time              `json:"updatedAt"`

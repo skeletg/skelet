@@ -60,12 +60,10 @@ type TrackingDestination {
   # Settings without the secret field
   config:      [TrackingConfigValue!]!
   secretSet:   Boolean!
-  # The platform requires a secret this destination doesn't have yet - an imported one, until it is entered
+  # The platform requires a secret this destination doesn't have yet
   needsSecret: Boolean!
   # Its platform's test-mode setting is on, so its sends aren't recorded as real
   inTestMode:  Boolean!
-  # The Signals event destination it was imported from
-  importedFrom: ID
   health:    TrackingHealth!
   createdAt: Time!
   updatedAt: Time!
@@ -105,30 +103,12 @@ type TrackingTestResult {
   message: String!
 }
 
-# An old Signals event destination and what it would become here
-type SignalsImportCandidate {
-  legacyId:      ID!
-  name:          String!
-  legacyKind:    String!
-  # Null when it can't be imported - see problem
-  targetKind:    String
-  config:        [TrackingConfigValue!]!
-  signalsActive: Boolean!
-  # The destination it was already imported as
-  importedAs:    ID
-  # Event filters set on the Signals destination; they don't carry over
-  droppedFilters: [String!]!
-  problem:       String
-}
-
 extend type Query {
   trackingPlatforms(channelId: ID!): [TrackingPlatform!]!
   trackingDestinations(channelId: ID!): [TrackingDestination!]!
   trackingDestination(id: ID!): TrackingDestination
   # Newest first, every status when it is null. limit at most 200
   trackingDeliveries(destinationId: ID!, status: TrackingDeliveryStatus, limit: Int): [TrackingDelivery!]!
-  # Needs settings.manage as well; empty when Signals is off
-  signalsImportCandidates(channelId: ID!): [SignalsImportCandidate!]!
 }
 
 extend type Mutation {
@@ -141,6 +121,4 @@ extend type Mutation {
   sendTrackingTest(id: ID!): TrackingTestResult!
   # Only a delivery that gave up (dead) can be retried
   redeliverTrackingDelivery(id: ID!): TrackingDelivery!
-  # Copies Signals event destinations here, disabled and without their secrets. Importing one again changes nothing
-  importSignalsDestinations(channelId: ID!, legacyIds: [ID!]!): [TrackingDestination!]!
 }

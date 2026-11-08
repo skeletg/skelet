@@ -638,19 +638,6 @@ func (q *Queries) PruneOrphanedChannelSettings(ctx context.Context) (int64, erro
 	return result.RowsAffected()
 }
 
-const pruneOrphanedDestinations = `-- name: PruneOrphanedDestinations :execrows
-DELETE FROM event_destinations d WHERE NOT EXISTS (SELECT 1 FROM channel_roster c WHERE c.channel_id = d.channel_id)
-`
-
-// Destinations hold another shop's credentials, and a retired channel's must not keep forwarding
-func (q *Queries) PruneOrphanedDestinations(ctx context.Context) (int64, error) {
-	result, err := q.db.ExecContext(ctx, pruneOrphanedDestinations)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
 const pruneOrphanedEmailBlocks = `-- name: PruneOrphanedEmailBlocks :execrows
 DELETE FROM email_blocks eb WHERE NOT EXISTS (
     SELECT 1 FROM channel_roster c WHERE c.channel_id = eb.channel_id

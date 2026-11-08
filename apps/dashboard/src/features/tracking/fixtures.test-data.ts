@@ -47,7 +47,6 @@ export function ga4Destination(over: Record<string, unknown> = {}) {
     secretSet: true,
     needsSecret: false,
     inTestMode: true,
-    importedFrom: null,
     health: { __typename: 'TrackingHealth' as const, lastSentAt: null, lastError: '', dead24h: 0 },
     createdAt: '2026-11-01T00:00:00Z',
     updatedAt: '2026-11-01T00:00:00Z',

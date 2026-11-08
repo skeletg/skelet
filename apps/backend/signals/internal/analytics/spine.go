@@ -2,7 +2,6 @@ package analytics
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log"
 	"time"
@@ -89,7 +88,6 @@ type SpineStore interface {
 	ExperimentResults(ctx context.Context, channelID uuid.UUID, key, goalEvent string, since time.Time) ([]VariationResult, error)
 
 	// A keyset page of raw events for outbound forwarding, ordered by (created_at, id) - the destination service pages through this with its stored cursor
-	EventsForForwarding(ctx context.Context, channelID uuid.UUID, afterCreatedAt time.Time, afterID uuid.UUID, limit int) ([]ForwardEvent, error)
 
 	// Spine primitives for commerce-orchestrated reads - the Recorder joins these with commerce data for segment membership, email_sends and trait projection
 	SegmentAffinitiesForMembers(ctx context.Context, channelID uuid.UUID, memberIDs []uuid.UUID, since time.Time, limit int) ([]SegmentAffinityCount, error)
@@ -144,19 +142,6 @@ type VariationResult struct {
 	Exposed   int
 	Converted int
 	Revenue   int64
-}
-
-// One raw spine event on its way to an external destination - CreatedAt is the ingest order the forwarding cursor advances through, which is not OccurredAt
-type ForwardEvent struct {
-	ID         uuid.UUID
-	DedupeKey  string // stable across re-ingests, where ID is per insert
-	Name       string
-	OccurredAt time.Time
-	CustomerID *uuid.UUID
-	AnonID     string
-	Source     string
-	Properties json.RawMessage
-	CreatedAt  time.Time
 }
 
 // One of a customer's recent marketing opens or clicks, best-first by click over open then recency, for conversion attribution
@@ -353,10 +338,6 @@ func (r *Recorder) ExperimentGoalEvents(ctx context.Context, channelID uuid.UUID
 
 func (r *Recorder) ExperimentResults(ctx context.Context, channelID uuid.UUID, key, goalEvent string, since time.Time) ([]VariationResult, error) {
 	return r.spine.ExperimentResults(ctx, channelID, key, goalEvent, since)
-}
-
-func (r *Recorder) EventsForForwarding(ctx context.Context, channelID uuid.UUID, afterCreatedAt time.Time, afterID uuid.UUID, limit int) ([]ForwardEvent, error) {
-	return r.spine.EventsForForwarding(ctx, channelID, afterCreatedAt, afterID, limit)
 }
 
 // ErrErasureInFlight is an engine still applying an earlier detach, which a second one would only duplicate

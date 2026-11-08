@@ -2,7 +2,6 @@ package signalsgrpc
 
 import (
 	"context"
-	"net/http"
 	"testing"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	signalsdb "github.com/skeletg/skelet/apps/backend/signals/internal/db/sqlc"
-	"github.com/skeletg/skelet/apps/backend/signals/internal/destination"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/emailtemplate"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/experiment"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/lens"
@@ -27,11 +25,11 @@ func grantOn(slug string, channelID uuid.UUID) auth.Grant {
 
 func TestAChannelGrantCannotNameAnotherChannel(t *testing.T) {
 	conn := testConn(t)
-	prism, dest, pulse := signalsv1.NewPrismServiceClient(conn), signalsv1.NewDestinationServiceClient(conn), signalsv1.NewPulseServiceClient(conn)
+	prism, pulse := signalsv1.NewPrismServiceClient(conn), signalsv1.NewPulseServiceClient(conn)
 	assistant := signalsv1.NewAssistantServiceClient(conn)
 	mine, theirs := uuid.New(), uuid.New()
 	ctx := tokenCtx(t,
-		grantOn("experiments.manage", mine), grantOn("settings.manage", mine), grantOn("emails.view", mine), grantOn("assistant.view", mine))
+		grantOn("experiments.manage", mine), grantOn("emails.view", mine), grantOn("assistant.view", mine))
 	other := theirs.String()
 
 	for name, call := range map[string]func() error{
@@ -49,14 +47,6 @@ func TestAChannelGrantCannotNameAnotherChannel(t *testing.T) {
 		},
 		"CreateExperiment": func() error {
 			_, e := prism.CreateExperiment(ctx, &signalsv1.CreateExperimentRequest{Experiment: &signalsv1.ExperimentInput{ChannelId: other, Key: "k", Name: "n"}})
-			return e
-		},
-		"ListDestinations": func() error {
-			_, e := dest.ListDestinations(ctx, &signalsv1.ListDestinationsRequest{ChannelId: other})
-			return e
-		},
-		"CreateDestination": func() error {
-			_, e := dest.CreateDestination(ctx, &signalsv1.CreateDestinationRequest{Destination: &signalsv1.DestinationInput{ChannelId: other, Name: "n"}})
 			return e
 		},
 		"GetEngagement": func() error {
@@ -85,13 +75,6 @@ func TestAChannelGrantCannotNameAnotherChannel(t *testing.T) {
 	}
 }
 
-type allowAllGuard struct{}
-
-func (allowAllGuard) ValidateTargetURL(string, bool) error { return nil }
-func (allowAllGuard) SafeTransport(bool) *http.Transport {
-	return http.DefaultTransport.(*http.Transport)
-}
-
 func channelScopeServer(t *testing.T) (*signalsdb.Queries, Deps) {
 	t.Helper()
 	conn := testdb.RequireSignals(t)
@@ -100,7 +83,6 @@ func channelScopeServer(t *testing.T) (*signalsdb.Queries, Deps) {
 		ServiceKeys: testKeys,
 		Channels:    analytics.NewChannelRoster(nil),
 		Experiment:  experiment.NewService(experiment.NewRepository(qs, nil)),
-		Destination: destination.NewService(qs, nil, allowAllGuard{}, nil, true),
 		Lens:        lens.NewService(qs, nil, nil, nil),
 		Builder:     emailtemplate.NewService(emailtemplate.NewRepository(qs), nil),
 	}
@@ -148,56 +130,6 @@ func TestAnExperimentByIdIsGatedOnItsOwnChannel(t *testing.T) {
 	}
 	if _, err := c.GetExperiment(tokenCtx(t, grantOn("experiments.view", theirs)), &signalsv1.GetExperimentRequest{Id: id}); err != nil {
 		t.Errorf("a grant on the experiment's own channel was refused: %v", err)
-	}
-}
-
-func TestADestinationByIdIsGatedOnItsOwnChannel(t *testing.T) {
-	qs, deps := channelScopeServer(t)
-	c := signalsv1.NewDestinationServiceClient(dial(t, deps))
-	mine, theirs := uuid.New(), uuid.New()
-	row, err := qs.CreateEventDestination(context.Background(), signalsdb.CreateEventDestinationParams{
-		ChannelID: theirs, Name: "theirs", Kind: destination.KindWebhook, TargetUrl: "https://theirs.example/hook",
-		EventSources: []string{}, EventNames: []string{}, IsActive: true,
-	})
-	if err != nil {
-		t.Fatalf("seed destination: %v", err)
-	}
-	id := row.ID.String()
-	ctx := tokenCtx(t, grantOn("settings.manage", mine))
-
-	for name, call := range map[string]func() error{
-		"GetDestination": func() error {
-			_, e := c.GetDestination(ctx, &signalsv1.GetDestinationRequest{Id: id})
-			return e
-		},
-		"UpdateDestination": func() error {
-			_, e := c.UpdateDestination(ctx, &signalsv1.UpdateDestinationRequest{Id: id, Destination: &signalsv1.DestinationInput{
-				ChannelId: mine.String(), Name: "mine", Kind: destination.KindWebhook, TargetUrl: "https://attacker.example/hook",
-			}})
-			return e
-		},
-		"DeleteDestination": func() error {
-			_, e := c.DeleteDestination(ctx, &signalsv1.DeleteDestinationRequest{Id: id})
-			return e
-		},
-		"SyncAudience": func() error {
-			_, e := c.SyncAudience(ctx, &signalsv1.SyncAudienceRequest{SegmentId: uuid.New().String(), DestinationId: id})
-			return e
-		},
-	} {
-		if got := status.Code(call()); got != codes.PermissionDenied {
-			t.Errorf("%s on another channel's destination answered %s, want PermissionDenied", name, got)
-		}
-	}
-	after, err := qs.GetEventDestination(context.Background(), row.ID)
-	if err != nil {
-		t.Fatalf("the destination is gone: %v", err)
-	}
-	if after.TargetUrl != "https://theirs.example/hook" {
-		t.Errorf("the target was repointed through a foreign grant: %q", after.TargetUrl)
-	}
-	if _, err := c.GetDestination(tokenCtx(t, grantOn("settings.manage", theirs)), &signalsv1.GetDestinationRequest{Id: id}); err != nil {
-		t.Errorf("a grant on the destination's own channel was refused: %v", err)
 	}
 }
 

@@ -10,5 +10,4 @@ func init() {
 	apperr.RegisterSentinel(ErrFieldUnknown, "TRACKING_FIELD_UNKNOWN", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrNeedsSecret, "TRACKING_NEEDS_SECRET", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrNotDead, "TRACKING_DELIVERY_NOT_DEAD", apperr.ClassValidation)
-	apperr.RegisterSentinel(ErrLegacyUnmapped, "TRACKING_LEGACY_UNMAPPED", apperr.ClassValidation)
 }

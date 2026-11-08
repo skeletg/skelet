@@ -51,7 +51,6 @@ type Client struct {
 	Synapse      signalsv1.SynapseServiceClient
 	Segments     signalsv1.SegmentServiceClient
 	Pulse        signalsv1.PulseServiceClient
-	Destination  signalsv1.DestinationServiceClient
 	Maintenance  signalsv1.MaintenanceServiceClient
 	Settings     signalsv1.SettingsServiceClient
 	Suppressions signalsv1.SuppressionServiceClient
@@ -93,7 +92,6 @@ func New(addr string, tr Transport, keys auth.ServiceKeys, ttl time.Duration, gr
 		Synapse:      signalsv1.NewSynapseServiceClient(conn),
 		Segments:     signalsv1.NewSegmentServiceClient(conn),
 		Pulse:        signalsv1.NewPulseServiceClient(conn),
-		Destination:  signalsv1.NewDestinationServiceClient(conn),
 		Maintenance:  signalsv1.NewMaintenanceServiceClient(conn),
 		Settings:     signalsv1.NewSettingsServiceClient(conn),
 		Suppressions: signalsv1.NewSuppressionServiceClient(conn),

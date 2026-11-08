@@ -4,8 +4,9 @@
 // - protoc             (unknown)
 // source: skelet/signals/v1/destinations.proto
 
-// Event destinations: spine events forwarded to external systems, and segment audiences pushed as hashed identifiers
-// Forwarding runs on a scheduled sweep with a durable per-destination cursor, so delivery is at-least-once in ingest order and last_error stands until a sweep succeeds
+// Retired: core's tracking destinations send shop events to analytics and ad platforms, and the suite serves none of
+// this any more. The definitions stay until the release after this one, so a core and a suite a release apart still
+// agree on the wire during a rolling deploy - then the file goes
 
 package signalsv1
 
@@ -33,6 +34,8 @@ const (
 // DestinationServiceClient is the client API for DestinationService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// Deprecated: Do not use.
 type DestinationServiceClient interface {
 	ListDestinations(ctx context.Context, in *ListDestinationsRequest, opts ...grpc.CallOption) (*ListDestinationsResponse, error)
 	CreateDestination(ctx context.Context, in *CreateDestinationRequest, opts ...grpc.CallOption) (*CreateDestinationResponse, error)
@@ -46,6 +49,7 @@ type destinationServiceClient struct {
 	cc grpc.ClientConnInterface
 }
 
+// Deprecated: Do not use.
 func NewDestinationServiceClient(cc grpc.ClientConnInterface) DestinationServiceClient {
 	return &destinationServiceClient{cc}
 }
@@ -113,6 +117,8 @@ func (c *destinationServiceClient) SyncAudience(ctx context.Context, in *SyncAud
 // DestinationServiceServer is the server API for DestinationService service.
 // All implementations must embed UnimplementedDestinationServiceServer
 // for forward compatibility.
+//
+// Deprecated: Do not use.
 type DestinationServiceServer interface {
 	ListDestinations(context.Context, *ListDestinationsRequest) (*ListDestinationsResponse, error)
 	CreateDestination(context.Context, *CreateDestinationRequest) (*CreateDestinationResponse, error)
@@ -158,6 +164,7 @@ type UnsafeDestinationServiceServer interface {
 	mustEmbedUnimplementedDestinationServiceServer()
 }
 
+// Deprecated: Do not use.
 func RegisterDestinationServiceServer(s grpc.ServiceRegistrar, srv DestinationServiceServer) {
 	// If the following call panics, it indicates UnimplementedDestinationServiceServer was
 	// embedded by pointer and is nil.  This will cause panics if an

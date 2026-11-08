@@ -550,17 +550,16 @@ func callSlugs(c signalsv1.SegmentServiceClient, ctx context.Context, id uuid.UU
 }
 
 // Core's scheduler drives the suite's upkeep, so these take the system token - a scheduled run has
-// no admin behind it, and refusing one would age out nothing and forward nothing, silently
+// no admin behind it, and refusing one would age out nothing, silently
 func TestASystemTokenAuthorizesTheMaintenanceMethods(t *testing.T) {
 	c := signalsv1.NewMaintenanceServiceClient(testConn(t))
 	sys := systemCtx(t)
 
 	for name, call := range map[string]func() error{
-		"PruneSpine":          func() error { _, e := c.PruneSpine(sys, &signalsv1.PruneSpineRequest{}); return e },
-		"PruneLens":           func() error { _, e := c.PruneLens(sys, &signalsv1.PruneLensRequest{}); return e },
-		"ComputeTraits":       func() error { _, e := c.ComputeTraits(sys, &signalsv1.ComputeTraitsRequest{}); return e },
-		"ForwardDestinations": func() error { _, e := c.ForwardDestinations(sys, &signalsv1.ForwardDestinationsRequest{}); return e },
-		"GetRetentionAction":  func() error { _, e := c.GetRetentionAction(sys, &signalsv1.GetRetentionActionRequest{}); return e },
+		"PruneSpine":         func() error { _, e := c.PruneSpine(sys, &signalsv1.PruneSpineRequest{}); return e },
+		"PruneLens":          func() error { _, e := c.PruneLens(sys, &signalsv1.PruneLensRequest{}); return e },
+		"ComputeTraits":      func() error { _, e := c.ComputeTraits(sys, &signalsv1.ComputeTraitsRequest{}); return e },
+		"GetRetentionAction": func() error { _, e := c.GetRetentionAction(sys, &signalsv1.GetRetentionActionRequest{}); return e },
 		"GetCustomerTraits": func() error {
 			_, e := c.GetCustomerTraits(sys, &signalsv1.GetCustomerTraitsRequest{CustomerId: uuid.NewString()})
 			return e
@@ -582,7 +581,6 @@ func TestAnAdminTokenCannotDriveMaintenance(t *testing.T) {
 		"PruneSpine":           func() error { _, e := c.PruneSpine(adm, &signalsv1.PruneSpineRequest{}); return e },
 		"PruneLens":            func() error { _, e := c.PruneLens(adm, &signalsv1.PruneLensRequest{}); return e },
 		"ComputeTraits":        func() error { _, e := c.ComputeTraits(adm, &signalsv1.ComputeTraitsRequest{}); return e },
-		"ForwardDestinations":  func() error { _, e := c.ForwardDestinations(adm, &signalsv1.ForwardDestinationsRequest{}); return e },
 		"GetRetentionAction":   func() error { _, e := c.GetRetentionAction(adm, &signalsv1.GetRetentionActionRequest{}); return e },
 		"GetHealth":            func() error { _, e := c.GetHealth(adm, &signalsv1.GetHealthRequest{}); return e },
 		"ListBrowseAbandoners": func() error { _, e := c.ListBrowseAbandoners(adm, &signalsv1.ListBrowseAbandonersRequest{}); return e },

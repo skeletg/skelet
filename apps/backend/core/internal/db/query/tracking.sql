@@ -107,14 +107,6 @@ FROM   tracking_deliveries d
 JOIN   tracking_events e ON e.id = d.tracking_event_id
 WHERE  d.id = $1;
 
--- name: ImportTrackingDestination :one
--- Always disabled and without a secret - the admin re-enters it, since Signals never hands one over. A second import of
--- the same Signals row returns nothing
-INSERT INTO tracking_destinations (channel_id, kind, name, enabled, events, config, secret, imported_from)
-VALUES (sqlc.arg(channel_id), sqlc.arg(kind), sqlc.arg(name), FALSE, '{}'::text[], sqlc.arg(config), '', sqlc.arg(imported_from))
-ON CONFLICT (imported_from) WHERE imported_from IS NOT NULL DO NOTHING
-RETURNING *;
-
 -- name: TrackingDestinationHealth :many
 -- Each destination of a channel with its last failure and failures in the past day
 SELECT d.id,
@@ -124,6 +116,13 @@ SELECT d.id,
           AND x.created_at > NOW() - INTERVAL '24 hours')::int AS dead_24h
 FROM   tracking_destinations d
 WHERE  d.channel_id = $1;
+
+-- name: TrackingPipelineHealth :one
+-- Every channel at once, for the system health page - the dead count rides the prune index and the lag the due index
+SELECT (SELECT COUNT(*) FROM tracking_destinations WHERE enabled)::int AS enabled,
+       (SELECT COUNT(*) FROM tracking_deliveries WHERE status = 'dead' AND updated_at > NOW() - INTERVAL '24 hours')::int AS dead_24h,
+       (SELECT GREATEST(COALESCE(EXTRACT(EPOCH FROM NOW() - MIN(next_attempt_at)), 0), 0)
+        FROM tracking_deliveries WHERE status = 'pending')::int AS late_seconds;
 
 -- name: PruneTrackingDeliveries :execrows
 -- A dead letter is kept for a retry until it is past following up; a pending row is never pruned

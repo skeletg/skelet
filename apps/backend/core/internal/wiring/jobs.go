@@ -282,8 +282,6 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 	// maintained on a server with Signals off and on one that hands its Signals jobs to cmd/signals
 	retentionJob("send-log-retention", "@every 24h", "Pre-create the email send log's upcoming month partitions and drop whole months past the retention window - deleted, or exported to the archive destination first under retention_action=archive.",
 		d.SignalsClient.PruneSendLog)
-	signalsJob("event-destinations-forward", "@every 1m", "Forward analytics-spine events to configured external destinations (webhooks, GA4, Meta CAPI) with durable per-destination cursors.",
-		d.SignalsClient.ForwardDestinations)
 	// Order-count, spend, recency, consent and group rules are plain commerce facts, but the suite is what materializes them into memberships
 	retentionJob("segment-refresh", "@every 6h", "Re-materialize dynamic customer-segment memberships from their rules (segments needing Synapse traits are skipped while Signals is off).",
 		func(ctx context.Context) error {

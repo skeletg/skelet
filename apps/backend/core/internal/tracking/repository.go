@@ -2,9 +2,7 @@ package tracking
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -65,10 +63,6 @@ func toRoute(row db.TrackingDestination) (Destination, error) {
 	d := Destination{
 		ID: row.ID, ChannelID: row.ChannelID, Kind: row.Kind, Name: row.Name, Enabled: row.Enabled,
 		Events: row.Events, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-	}
-	if row.ImportedFrom.Valid {
-		from := row.ImportedFrom.UUID
-		d.ImportedFrom = &from
 	}
 	if row.LastSentAt.Valid {
 		d.LastSentAt = &row.LastSentAt.Time
@@ -217,22 +211,6 @@ func (r *repository) GetDelivery(ctx context.Context, id uuid.UUID) (Delivery, e
 	return toDelivery(db.ClaimDueTrackingDeliveriesRow(row)), nil
 }
 
-// Imported disabled and without a secret; found is false when that Signals destination was imported before
-func (r *repository) Import(ctx context.Context, d Destination, legacyID uuid.UUID) (Destination, bool, error) {
-	cfg, _ := json.Marshal(d.Config)
-	row, err := r.q.ImportTrackingDestination(ctx, db.ImportTrackingDestinationParams{
-		ChannelID: d.ChannelID, Kind: d.Kind, Name: d.Name, Config: cfg, ImportedFrom: uuid.NullUUID{UUID: legacyID, Valid: true},
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		return Destination{}, false, nil
-	}
-	if err != nil {
-		return Destination{}, false, fmt.Errorf("import tracking destination: %w", err)
-	}
-	out, err := r.toDestination(row)
-	return out, err == nil, err
-}
-
 func (r *repository) Health(ctx context.Context, channelID uuid.UUID) (map[uuid.UUID]Health, error) {
 	rows, err := r.q.TrackingDestinationHealth(ctx, channelID)
 	if err != nil {
@@ -243,6 +221,14 @@ func (r *repository) Health(ctx context.Context, channelID uuid.UUID) (map[uuid.
 		out[row.ID] = Health{LastError: row.LastError, Dead24h: int(row.Dead24h)}
 	}
 	return out, nil
+}
+
+func (r *repository) Pipeline(ctx context.Context) (Pipeline, error) {
+	row, err := r.q.TrackingPipelineHealth(ctx)
+	if err != nil {
+		return Pipeline{}, fmt.Errorf("tracking pipeline health: %w", err)
+	}
+	return Pipeline{Enabled: int(row.Enabled), Dead24h: int(row.Dead24h), Late: time.Duration(row.LateSeconds) * time.Second}, nil
 }
 
 func (r *repository) ListDeliveries(ctx context.Context, destinationID uuid.UUID, status string, limit int32) ([]Delivery, error) {

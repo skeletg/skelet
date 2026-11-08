@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@apollo/client/react'
-import { CheckIcon, CopyIcon, DownloadIcon, ExternalLinkIcon } from 'lucide-react'
+import { CheckIcon, CopyIcon, ExternalLinkIcon } from 'lucide-react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { DataTable } from '@/components/data-table'
 import { DetailPageBody, DetailPageHeader, DetailPageLayout, DetailPageSection } from '@/components/layout/detail-page'
@@ -10,10 +10,8 @@ import { Button } from '@/components/ui/button'
 import { useConfigScope } from '@/lib/config-scope'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { LoadError } from '@/shared/errors/LoadError'
-import { useFeatures } from '@/shared/features/useFeatures'
 import { PURPOSE_LABELS, TRACKING_DOCS_URL, eventLabel } from './platformGuides'
 import { destinationStatus, enableCommand, platformStatus, type Destination, type Platform } from './status'
-import { SignalsImportDialog } from './SignalsImportDialog'
 import { TrackingOverviewDocument } from './Tracking.gql'
 
 // Every platform shop events can go to, with where each stands on this channel, and the destinations set up
@@ -21,9 +19,7 @@ export function TrackingPage() {
   const navigate = useNavigate()
   const { effectiveChannelId, selectedChannel } = useConfigScope()
   const { has } = usePermissions()
-  const { enabled: featureEnabled } = useFeatures()
   const canManage = has('tracking.manage')
-  const [importing, setImporting] = useState(false)
   const { data, loading, error, refetch } = useQuery(TrackingOverviewDocument, {
     variables: { channelId: effectiveChannelId ?? '' },
     skip: !effectiveChannelId,
@@ -111,19 +107,11 @@ export function TrackingPage() {
         title="Tracking"
         meta="Shop events go from the backend straight to each platform - no tracking script slows the storefront, and each visitor's cookie choice is respected."
         actions={
-          <>
-            <Button asChild variant="outline" size="sm">
-              <a href={TRACKING_DOCS_URL} target="_blank" rel="noreferrer">
-                Guide <ExternalLinkIcon className="size-3" />
-              </a>
-            </Button>
-            {canManage && featureEnabled('signals') && has('settings.manage') && effectiveChannelId && (
-              <Button variant="outline" size="sm" onClick={() => setImporting(true)}>
-                <DownloadIcon className="size-4" />
-                Import from Signals
-              </Button>
-            )}
-          </>
+          <Button asChild variant="outline" size="sm">
+            <a href={TRACKING_DOCS_URL} target="_blank" rel="noreferrer">
+              Guide <ExternalLinkIcon className="size-3" />
+            </a>
+          </Button>
         }
       />
       <DetailPageBody>
@@ -159,9 +147,6 @@ export function TrackingPage() {
           </>
         )}
       </DetailPageBody>
-      {effectiveChannelId && (
-        <SignalsImportDialog channelId={effectiveChannelId} open={importing} onOpenChange={setImporting} onImported={() => void refetch()} />
-      )}
     </DetailPageLayout>
   )
 }

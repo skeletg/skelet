@@ -74,19 +74,6 @@ shopper's email, IP and click ids. Credentials are write-only: stored encrypted 
 **Settings → Privacy** holds the cookie consent mode, the anonymous counts switch and the affiliate exceptions, and
 shows which destinations each consent category feeds.
 
-### Importing from Signals
-
-The older Signals event destinations (now **Marketing → Signals event export**) forward Signals' own events - email
-campaigns, flows, transactional and system events. **Import from Signals** on the Tracking page copies their GA4, Meta
-and webhook ones here after a preview:
-
-- each arrives switched off and asks for its secret again - Signals never hands one over
-- their event filters don't carry over; the platform's default shop events apply
-- a webhook changes format: one event per POST, signed with `X-Webhook-Signature-256`, where Signals posted batches
-  signed with `X-Destination-Signature` - update the receiver before turning it on
-- the Signals destination keeps running until you switch it off there, so switch one of the two off once the new one
-  works, or events go twice. Importing the same one again does nothing
-
 ### From the command line
 
 The same, for scripts:

@@ -3,11 +3,9 @@ package admin
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tracking"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
@@ -101,39 +99,6 @@ func (r *mutationResolver) RedeliverTrackingDelivery(ctx context.Context, id str
 	return toTrackingDelivery(d), nil
 }
 
-func (r *mutationResolver) ImportSignalsDestinations(ctx context.Context, channelID string, legacyIds []string) ([]*model.TrackingDestination, error) {
-	cid, err := r.requireTrackingChannel(ctx, trackingManage, channelID)
-	if err != nil {
-		return nil, err
-	}
-	// The rows are read again here rather than taken from the client, so an import is only ever what Signals holds
-	legacy, err := r.signalsDestinations(ctx, channelID)
-	if err != nil {
-		return nil, err
-	}
-	var items []tracking.Imported
-	for _, l := range legacy {
-		lid, err := uuid.Parse(l.GetId())
-		if err != nil || !slices.Contains(legacyIds, l.GetId()) {
-			continue
-		}
-		kind, cfg, err := legacyTarget(l)
-		if err != nil {
-			return nil, err // before anything is saved
-		}
-		items = append(items, tracking.Imported{ChannelID: cid, Kind: kind, Name: l.GetName(), Config: cfg, LegacyID: lid})
-	}
-	imported, err := r.TrackingSvc.Import(ctx, items)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]*model.TrackingDestination, 0, len(imported))
-	for _, d := range imported {
-		out = append(out, toTrackingDestination(d, tracking.Health{}))
-	}
-	return out, nil
-}
-
 func (r *queryResolver) TrackingPlatforms(ctx context.Context, channelID string) ([]*model.TrackingPlatform, error) {
 	cid, err := r.requireTrackingChannel(ctx, trackingView, channelID)
 	if err != nil {
@@ -190,27 +155,6 @@ func (r *queryResolver) TrackingDeliveries(ctx context.Context, destinationID st
 	out := make([]*model.TrackingDelivery, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, toTrackingDelivery(row))
-	}
-	return out, nil
-}
-
-func (r *queryResolver) SignalsImportCandidates(ctx context.Context, channelID string) ([]*model.SignalsImportCandidate, error) {
-	cid, err := r.requireTrackingChannel(ctx, trackingView, channelID)
-	if err != nil {
-		return nil, err
-	}
-	legacy, err := r.signalsDestinations(ctx, channelID)
-	if err != nil {
-		return nil, err
-	}
-	mine, err := r.TrackingSvc.List(ctx, cid)
-	if err != nil {
-		return nil, err
-	}
-	existing := importedFrom(mine)
-	out := make([]*model.SignalsImportCandidate, 0, len(legacy))
-	for _, l := range legacy {
-		out = append(out, importCandidate(l, existing))
 	}
 	return out, nil
 }
