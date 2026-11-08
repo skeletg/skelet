@@ -1,6 +1,6 @@
 - **Shop events can be sent server to server to Google Analytics 4, Google Ads and Meta.** Each
-  platform is a plugin in its own repository - `tracking-ga4`, `tracking-google-ads` and
-  `tracking-meta` under `github.com/skeletg` - added to a build with
+  platform is a plugin in its own repository - `skelet-tracking-ga4`, `skelet-tracking-google-ads` and
+  `skelet-tracking-meta` under `github.com/skeletg` - added to a build with
   `skelet cli plugin add github.com/skeletg/<plugin>`. Every one is in development: none has run
   against a production account yet.
   - GA4 uses the Measurement Protocol, sent to Google, its EU endpoint or your server-side Google

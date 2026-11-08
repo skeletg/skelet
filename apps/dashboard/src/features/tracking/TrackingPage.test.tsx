@@ -30,7 +30,7 @@ describe('TrackingPage', () => {
     expect(await screen.findByText('GA4 main', {}, SLOW)).toBeDefined()
     expect(screen.getAllByText('Needs its secret').length).toBeGreaterThan(0)
     expect(screen.getByText('Not in this build')).toBeDefined()
-    expect(screen.getByRole('button', { name: /skelet cli plugin add github\.com\/skeletg\/tracking-meta/ })).toBeDefined()
+    expect(screen.getByRole('button', { name: /skelet cli plugin add github\.com\/skeletg\/skelet-tracking-meta/ })).toBeDefined()
     expect(screen.getByRole('link', { name: 'Add another' }).getAttribute('href')).toBe('/tracking/new/ga4')
   })
 })
