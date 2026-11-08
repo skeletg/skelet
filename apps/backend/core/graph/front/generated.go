@@ -534,14 +534,15 @@ type ComplexityRoot struct {
 	}
 
 	Channel struct {
-		Currency      func(childComplexity int) int
-		CurrencyCode  func(childComplexity int) int
-		DefaultLocale func(childComplexity int) int
-		ID            func(childComplexity int) int
-		Locales       func(childComplexity int) int
-		Name          func(childComplexity int) int
-		PublicURL     func(childComplexity int) int
-		Slug          func(childComplexity int) int
+		Currency            func(childComplexity int) int
+		CurrencyCode        func(childComplexity int) int
+		DefaultLocale       func(childComplexity int) int
+		ID                  func(childComplexity int) int
+		Locales             func(childComplexity int) int
+		Name                func(childComplexity int) int
+		PublicURL           func(childComplexity int) int
+		Slug                func(childComplexity int) int
+		TaxInclusivePricing func(childComplexity int) int
 	}
 
 	CheckoutDestination struct {
@@ -974,7 +975,9 @@ type ComplexityRoot struct {
 		ID                  func(childComplexity int) int
 		Lines               func(childComplexity int) int
 		Number              func(childComplexity int) int
+		PaymentActionKind   func(childComplexity int) int
 		PaymentClientSecret func(childComplexity int) int
+		PaymentFailed       func(childComplexity int) int
 		PaymentInstructions func(childComplexity int) int
 		PaymentProvider     func(childComplexity int) int
 		PaymentStatus       func(childComplexity int) int
@@ -986,6 +989,7 @@ type ComplexityRoot struct {
 		StoreCreditAmount   func(childComplexity int) int
 		Subtotal            func(childComplexity int) int
 		TaxAmount           func(childComplexity int) int
+		TaxIncluded         func(childComplexity int) int
 		Total               func(childComplexity int) int
 		TrackingNumber      func(childComplexity int) int
 		TrackingURL         func(childComplexity int) int
@@ -4029,6 +4033,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Channel.Slug(childComplexity), true
+	case "Channel.taxInclusivePricing":
+		if e.ComplexityRoot.Channel.TaxInclusivePricing == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Channel.TaxInclusivePricing(childComplexity), true
 
 	case "CheckoutDestination.countryCode":
 		if e.ComplexityRoot.CheckoutDestination.CountryCode == nil {
@@ -6307,12 +6317,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Order.Number(childComplexity), true
+	case "Order.paymentActionKind":
+		if e.ComplexityRoot.Order.PaymentActionKind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Order.PaymentActionKind(childComplexity), true
 	case "Order.paymentClientSecret":
 		if e.ComplexityRoot.Order.PaymentClientSecret == nil {
 			break
 		}
 
 		return e.ComplexityRoot.Order.PaymentClientSecret(childComplexity), true
+	case "Order.paymentFailed":
+		if e.ComplexityRoot.Order.PaymentFailed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Order.PaymentFailed(childComplexity), true
 	case "Order.paymentInstructions":
 		if e.ComplexityRoot.Order.PaymentInstructions == nil {
 			break
@@ -6379,6 +6401,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Order.TaxAmount(childComplexity), true
+	case "Order.taxIncluded":
+		if e.ComplexityRoot.Order.TaxIncluded == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Order.TaxIncluded(childComplexity), true
 	case "Order.total":
 		if e.ComplexityRoot.Order.Total == nil {
 			break
@@ -10821,7 +10849,7 @@ type Category {
   description:      JSON
   metaTitle:        String
   metaDescription:  String
-  # First 250 published on this store, in merchandising order - browseProducts pages the rest
+  # The category's own products, first 250 published on this store in merchandising order - browseProducts pages the rest, and lists an anchor's whole tree
   products:         [Product!]!
 }
 
@@ -10968,6 +10996,8 @@ type Channel {
   # Full Currency record matching ` + "`" + `currencyCode` + "`" + ` - exposed inline so the storefront doesn't have to make a second query just to know whether to render the symbol before or after the amount. Resolved server-side from the currencies table.
   currency:      Currency!
   publicUrl:     String!
+  # Prices already contain tax - a storefront labels its tax line "includes tax" rather than adding it
+  taxInclusivePricing: Boolean!
   # The locales THIS channel serves - deliberately not the same as the top-level ` + "`" + `locales` + "`" + ` query, which lists every globally active locale. A storefront must only offer and route the languages its own channel has, or it advertises a language the catalog will silently answer in the default one.
   locales:       [Locale!]!
 }
@@ -11540,8 +11570,12 @@ type Order {
   paymentProvider: String!
   # Customer-facing payment instructions when the order is still unpaid and was placed with an offline method (bank details, "pay on pickup", …). Empty once paid or for gateway methods. Lets the order page show "how to pay".
   paymentInstructions: String
-  # Set ONLY on the placeOrder response when the gateway needs a client-side 3DS/SCA step: run it (stripe.handleNextAction) then call finalizeOrderPayment. Null everywhere else.
+  # Set ONLY on the placeOrder response when the gateway needs the shopper to do something before the payment is authorized - see paymentActionKind. Null everywhere else.
   paymentClientSecret: String
+  # What paymentClientSecret is for: "challenge" is an in-page step the gateway's JS runs with it (3DS, stripe.handleNextAction), then finalizeOrderPayment; "redirect" makes it a URL to send the browser to, and the gateway settles the order when the shopper comes back. Null with no action.
+  paymentActionKind: String
+  # Set ONLY on the placeOrder response: true when the gateway refused or never answered the payment, so the order is placed but unpaid - the shop shows it as unpaid rather than thanking the shopper. Null everywhere else.
+  paymentFailed: Boolean
   billingAddress:  OrderAddress!
   shippingAddress: OrderAddress!
   lines:           [OrderLine!]!
@@ -11550,6 +11584,8 @@ type Order {
   shippingAmount:  Int!
   discountAmount:  Int!
   taxAmount:       Int!
+  # taxAmount is already inside the prices rather than added on top - label it "includes tax"
+  taxIncluded:     Boolean!
   total:           Int!
   # Cents of ` + "`" + `total` + "`" + ` covered by gift cards (a tender, not a discount - ` + "`" + `total` + "`" + ` is unchanged). amountDue is what's still owed to the payment provider: total - giftCardAmount.
   giftCardAmount:  Int!
@@ -13300,6 +13336,8 @@ func (ec *executionContext) childFields_Channel(ctx context.Context, field graph
 		return ec.fieldContext_Channel_currency(ctx, field)
 	case "publicUrl":
 		return ec.fieldContext_Channel_publicUrl(ctx, field)
+	case "taxInclusivePricing":
+		return ec.fieldContext_Channel_taxInclusivePricing(ctx, field)
 	case "locales":
 		return ec.fieldContext_Channel_locales(ctx, field)
 	}
@@ -14000,6 +14038,10 @@ func (ec *executionContext) childFields_Order(ctx context.Context, field graphql
 		return ec.fieldContext_Order_paymentInstructions(ctx, field)
 	case "paymentClientSecret":
 		return ec.fieldContext_Order_paymentClientSecret(ctx, field)
+	case "paymentActionKind":
+		return ec.fieldContext_Order_paymentActionKind(ctx, field)
+	case "paymentFailed":
+		return ec.fieldContext_Order_paymentFailed(ctx, field)
 	case "billingAddress":
 		return ec.fieldContext_Order_billingAddress(ctx, field)
 	case "shippingAddress":
@@ -14016,6 +14058,8 @@ func (ec *executionContext) childFields_Order(ctx context.Context, field graphql
 		return ec.fieldContext_Order_discountAmount(ctx, field)
 	case "taxAmount":
 		return ec.fieldContext_Order_taxAmount(ctx, field)
+	case "taxIncluded":
+		return ec.fieldContext_Order_taxIncluded(ctx, field)
 	case "total":
 		return ec.fieldContext_Order_total(ctx, field)
 	case "giftCardAmount":
@@ -26173,6 +26217,29 @@ func (ec *executionContext) fieldContext_Channel_publicUrl(_ context.Context, fi
 	return graphql.NewScalarFieldContext("Channel", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _Channel_taxInclusivePricing(ctx context.Context, field graphql.CollectedField, obj *model.Channel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Channel_taxInclusivePricing(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TaxInclusivePricing, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Channel_taxInclusivePricing(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Channel", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _Channel_locales(ctx context.Context, field graphql.CollectedField, obj *model.Channel) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -35039,6 +35106,52 @@ func (ec *executionContext) fieldContext_Order_paymentClientSecret(_ context.Con
 	return graphql.NewScalarFieldContext("Order", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _Order_paymentActionKind(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Order_paymentActionKind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PaymentActionKind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Order_paymentActionKind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Order", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Order_paymentFailed(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Order_paymentFailed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PaymentFailed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *bool) graphql.Marshaler {
+			return ec.marshalOBoolean2ᚖbool(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Order_paymentFailed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Order", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _Order_billingAddress(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -35257,6 +35370,29 @@ func (ec *executionContext) _Order_taxAmount(ctx context.Context, field graphql.
 }
 func (ec *executionContext) fieldContext_Order_taxAmount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Order", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _Order_taxIncluded(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Order_taxIncluded(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TaxIncluded, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Order_taxIncluded(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Order", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _Order_total(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
@@ -54248,6 +54384,11 @@ func (ec *executionContext) _Channel(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "taxInclusivePricing":
+			out.Values[i] = ec._Channel_taxInclusivePricing(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "locales":
 			out.Values[i] = ec._Channel_locales(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -57359,6 +57500,16 @@ func (ec *executionContext) _Order(ctx context.Context, sel ast.SelectionSet, ob
 			if out.Values[i] == graphql.RequiredNull {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "paymentActionKind":
+			out.Values[i] = ec._Order_paymentActionKind(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "paymentFailed":
+			out.Values[i] = ec._Order_paymentFailed(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "billingAddress":
 			out.Values[i] = ec._Order_billingAddress(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -57396,6 +57547,11 @@ func (ec *executionContext) _Order(ctx context.Context, sel ast.SelectionSet, ob
 			}
 		case "taxAmount":
 			out.Values[i] = ec._Order_taxAmount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "taxIncluded":
+			out.Values[i] = ec._Order_taxIncluded(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}

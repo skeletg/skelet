@@ -1218,6 +1218,7 @@ type ComplexityRoot struct {
 		Description      func(childComplexity int) int
 		FacetOverrides   func(childComplexity int) int
 		ID               func(childComplexity int) int
+		IsAnchor         func(childComplexity int) int
 		IsPublished      func(childComplexity int) int
 		Level            func(childComplexity int) int
 		Listings         func(childComplexity int) int
@@ -1268,18 +1269,19 @@ type ComplexityRoot struct {
 	}
 
 	Channel struct {
-		CreatedAt          func(childComplexity int) int
-		CurrencyCode       func(childComplexity int) int
-		DefaultLocale      func(childComplexity int) int
-		ID                 func(childComplexity int) int
-		InventoryLocations func(childComplexity int) int
-		IsActive           func(childComplexity int) int
-		IsDefault          func(childComplexity int) int
-		Locales            func(childComplexity int) int
-		Metadata           func(childComplexity int) int
-		Name               func(childComplexity int) int
-		PublicURL          func(childComplexity int) int
-		Slug               func(childComplexity int) int
+		CreatedAt           func(childComplexity int) int
+		CurrencyCode        func(childComplexity int) int
+		DefaultLocale       func(childComplexity int) int
+		ID                  func(childComplexity int) int
+		InventoryLocations  func(childComplexity int) int
+		IsActive            func(childComplexity int) int
+		IsDefault           func(childComplexity int) int
+		Locales             func(childComplexity int) int
+		Metadata            func(childComplexity int) int
+		Name                func(childComplexity int) int
+		PublicURL           func(childComplexity int) int
+		Slug                func(childComplexity int) int
+		TaxInclusivePricing func(childComplexity int) int
 	}
 
 	ChannelInventoryLocation struct {
@@ -1996,6 +1998,16 @@ type ComplexityRoot struct {
 	EmailSuppressionPage struct {
 		Items      func(childComplexity int) int
 		TotalCount func(childComplexity int) int
+	}
+
+	EmailTranslation struct {
+		Blocks    func(childComplexity int) int
+		EmailID   func(childComplexity int) int
+		Locale    func(childComplexity int) int
+		Preheader func(childComplexity int) int
+		Styles    func(childComplexity int) int
+		Subject   func(childComplexity int) int
+		UpdatedAt func(childComplexity int) int
 	}
 
 	EmailWarning struct {
@@ -2869,6 +2881,7 @@ type ComplexityRoot struct {
 		DeleteEmailBlock                  func(childComplexity int, channelID string, slug string) int
 		DeleteEmailCampaign               func(childComplexity int, id string) int
 		DeleteEmailGroup                  func(childComplexity int, id string) int
+		DeleteEmailTranslation            func(childComplexity int, emailID string, locale string) int
 		DeleteExperiment                  func(childComplexity int, id string) int
 		DeleteFlow                        func(childComplexity int, id string) int
 		DeleteIntegration                 func(childComplexity int, id string) int
@@ -3012,6 +3025,7 @@ type ComplexityRoot struct {
 		SaveChatConversation              func(childComplexity int, id *string, title *string, messages []*model.SignalsChatMessage) int
 		SaveDeliveryPoints                func(childComplexity int, channelID string, points []*model.DeliveryPointInput) int
 		SaveEmailBlock                    func(childComplexity int, input model.SaveEmailBlockInput) int
+		SaveEmailTranslation              func(childComplexity int, input model.SaveEmailTranslationInput) int
 		SaveLibraryEmail                  func(childComplexity int, input model.SaveLibraryEmailInput) int
 		ScheduleBlogPost                  func(childComplexity int, id string, publishedAt time.Time) int
 		ScheduleCMSPage                   func(childComplexity int, id string, scheduledAt *time.Time) int
@@ -3247,7 +3261,9 @@ type ComplexityRoot struct {
 		ID                  func(childComplexity int) int
 		Lines               func(childComplexity int) int
 		Number              func(childComplexity int) int
+		PaymentActionKind   func(childComplexity int) int
 		PaymentClientSecret func(childComplexity int) int
+		PaymentFailed       func(childComplexity int) int
 		PaymentProvider     func(childComplexity int) int
 		PaymentReference    func(childComplexity int) int
 		PaymentStatus       func(childComplexity int) int
@@ -3263,6 +3279,7 @@ type ComplexityRoot struct {
 		StoreCreditAmount   func(childComplexity int) int
 		Subtotal            func(childComplexity int) int
 		TaxAmount           func(childComplexity int) int
+		TaxIncluded         func(childComplexity int) int
 		TaxLines            func(childComplexity int) int
 		Total               func(childComplexity int) int
 		TrackingNumber      func(childComplexity int) int
@@ -3990,6 +4007,7 @@ type ComplexityRoot struct {
 		EmailPreflight               func(childComplexity int, id string) int
 		EmailRevisions               func(childComplexity int, id string) int
 		EmailSuppressions            func(childComplexity int, reason *string, limit *int32, offset *int32) int
+		EmailTranslations            func(childComplexity int, emailID string) int
 		EmbeddingCoverage            func(childComplexity int, channelID string) int
 		Experiment                   func(childComplexity int, id string) int
 		ExperimentGoalEvents         func(childComplexity int, channelID string) int
@@ -4691,7 +4709,9 @@ type ComplexityRoot struct {
 		ID                 func(childComplexity int) int
 		IsActive           func(childComplexity int) int
 		Name               func(childComplexity int) int
+		RateTiers          func(childComplexity int) int
 		SortOrder          func(childComplexity int) int
+		TableBasis         func(childComplexity int) int
 		TypeRates          func(childComplexity int) int
 		UnitsPerCharge     func(childComplexity int) int
 		UpdatedAt          func(childComplexity int) int
@@ -4704,6 +4724,12 @@ type ComplexityRoot struct {
 		ProductTypeID        func(childComplexity int) int
 		ProductTypeName      func(childComplexity int) int
 		UnitsPerCharge       func(childComplexity int) int
+	}
+
+	ShippingRateTier struct {
+		From       func(childComplexity int) int
+		NotOffered func(childComplexity int) int
+		PriceCents func(childComplexity int) int
 	}
 
 	ShippingZone struct {
@@ -5639,6 +5665,8 @@ type MutationResolver interface {
 	RenameEmailGroup(ctx context.Context, id string, name string) (*model.EmailGroup, error)
 	DeleteEmailGroup(ctx context.Context, id string) (bool, error)
 	AssignEmailSlot(ctx context.Context, emailID string, slot string) (bool, error)
+	SaveEmailTranslation(ctx context.Context, input model.SaveEmailTranslationInput) (*model.EmailTranslation, error)
+	DeleteEmailTranslation(ctx context.Context, emailID string, locale string) (bool, error)
 	RestoreEmailRevision(ctx context.Context, revisionID string) (*model.LibraryEmail, error)
 	SeedPulseStarterContent(ctx context.Context, channelID string) (*model.PulseStarterContent, error)
 	SuggestEmailSubjects(ctx context.Context, context string, count *int32) ([]string, error)
@@ -6005,6 +6033,7 @@ type QueryResolver interface {
 	TransactionalSlots(ctx context.Context, channelID string) ([]*model.TransactionalSlot, error)
 	EmailPreflight(ctx context.Context, id string) ([]*model.EmailWarning, error)
 	EmailRevisions(ctx context.Context, id string) ([]*model.EmailRevision, error)
+	EmailTranslations(ctx context.Context, emailID string) ([]*model.EmailTranslation, error)
 	RenderLibraryPreview(ctx context.Context, channelID string, customerID *string, subject string, preheader *string, blocks interface{}, styles interface{}) (*model.EmailPreview, error)
 	ServerFeatures(ctx context.Context) (*model.ServerFeatures, error)
 	Flows(ctx context.Context, channelID string, includeDeleted *bool) ([]*model.Flow, error)
@@ -11052,6 +11081,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Category.ID(childComplexity), true
+	case "Category.isAnchor":
+		if e.ComplexityRoot.Category.IsAnchor == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Category.IsAnchor(childComplexity), true
 	case "Category.isPublished":
 		if e.ComplexityRoot.Category.IsPublished == nil {
 			break
@@ -11356,6 +11391,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Channel.Slug(childComplexity), true
+	case "Channel.taxInclusivePricing":
+		if e.ComplexityRoot.Channel.TaxInclusivePricing == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Channel.TaxInclusivePricing(childComplexity), true
 
 	case "ChannelInventoryLocation.location":
 		if e.ComplexityRoot.ChannelInventoryLocation.Location == nil {
@@ -14501,6 +14542,49 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.EmailSuppressionPage.TotalCount(childComplexity), true
+
+	case "EmailTranslation.blocks":
+		if e.ComplexityRoot.EmailTranslation.Blocks == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailTranslation.Blocks(childComplexity), true
+	case "EmailTranslation.emailId":
+		if e.ComplexityRoot.EmailTranslation.EmailID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailTranslation.EmailID(childComplexity), true
+	case "EmailTranslation.locale":
+		if e.ComplexityRoot.EmailTranslation.Locale == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailTranslation.Locale(childComplexity), true
+	case "EmailTranslation.preheader":
+		if e.ComplexityRoot.EmailTranslation.Preheader == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailTranslation.Preheader(childComplexity), true
+	case "EmailTranslation.styles":
+		if e.ComplexityRoot.EmailTranslation.Styles == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailTranslation.Styles(childComplexity), true
+	case "EmailTranslation.subject":
+		if e.ComplexityRoot.EmailTranslation.Subject == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailTranslation.Subject(childComplexity), true
+	case "EmailTranslation.updatedAt":
+		if e.ComplexityRoot.EmailTranslation.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailTranslation.UpdatedAt(childComplexity), true
 
 	case "EmailWarning.message":
 		if e.ComplexityRoot.EmailWarning.Message == nil {
@@ -19332,6 +19416,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteEmailGroup(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteEmailTranslation":
+		if e.ComplexityRoot.Mutation.DeleteEmailTranslation == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteEmailTranslation_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteEmailTranslation(childComplexity, args["emailId"].(string), args["locale"].(string)), true
 	case "Mutation.deleteExperiment":
 		if e.ComplexityRoot.Mutation.DeleteExperiment == nil {
 			break
@@ -20900,6 +20995,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SaveEmailBlock(childComplexity, args["input"].(model.SaveEmailBlockInput)), true
+	case "Mutation.saveEmailTranslation":
+		if e.ComplexityRoot.Mutation.SaveEmailTranslation == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_saveEmailTranslation_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SaveEmailTranslation(childComplexity, args["input"].(model.SaveEmailTranslationInput)), true
 	case "Mutation.saveLibraryEmail":
 		if e.ComplexityRoot.Mutation.SaveLibraryEmail == nil {
 			break
@@ -23167,12 +23273,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Order.Number(childComplexity), true
+	case "Order.paymentActionKind":
+		if e.ComplexityRoot.Order.PaymentActionKind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Order.PaymentActionKind(childComplexity), true
 	case "Order.paymentClientSecret":
 		if e.ComplexityRoot.Order.PaymentClientSecret == nil {
 			break
 		}
 
 		return e.ComplexityRoot.Order.PaymentClientSecret(childComplexity), true
+	case "Order.paymentFailed":
+		if e.ComplexityRoot.Order.PaymentFailed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Order.PaymentFailed(childComplexity), true
 	case "Order.paymentProvider":
 		if e.ComplexityRoot.Order.PaymentProvider == nil {
 			break
@@ -23263,6 +23381,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Order.TaxAmount(childComplexity), true
+	case "Order.taxIncluded":
+		if e.ComplexityRoot.Order.TaxIncluded == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Order.TaxIncluded(childComplexity), true
 	case "Order.taxLines":
 		if e.ComplexityRoot.Order.TaxLines == nil {
 			break
@@ -27044,6 +27168,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.EmailSuppressions(childComplexity, args["reason"].(*string), args["limit"].(*int32), args["offset"].(*int32)), true
+	case "Query.emailTranslations":
+		if e.ComplexityRoot.Query.EmailTranslations == nil {
+			break
+		}
+
+		args, err := ec.field_Query_emailTranslations_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.EmailTranslations(childComplexity, args["emailId"].(string)), true
 	case "Query.embeddingCoverage":
 		if e.ComplexityRoot.Query.EmbeddingCoverage == nil {
 			break
@@ -30821,12 +30956,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ShippingMethod.Name(childComplexity), true
+	case "ShippingMethod.rateTiers":
+		if e.ComplexityRoot.ShippingMethod.RateTiers == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ShippingMethod.RateTiers(childComplexity), true
 	case "ShippingMethod.sortOrder":
 		if e.ComplexityRoot.ShippingMethod.SortOrder == nil {
 			break
 		}
 
 		return e.ComplexityRoot.ShippingMethod.SortOrder(childComplexity), true
+	case "ShippingMethod.tableBasis":
+		if e.ComplexityRoot.ShippingMethod.TableBasis == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ShippingMethod.TableBasis(childComplexity), true
 	case "ShippingMethod.typeRates":
 		if e.ComplexityRoot.ShippingMethod.TypeRates == nil {
 			break
@@ -30882,6 +31029,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ShippingMethodTypeRate.UnitsPerCharge(childComplexity), true
+
+	case "ShippingRateTier.from":
+		if e.ComplexityRoot.ShippingRateTier.From == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ShippingRateTier.From(childComplexity), true
+	case "ShippingRateTier.notOffered":
+		if e.ComplexityRoot.ShippingRateTier.NotOffered == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ShippingRateTier.NotOffered(childComplexity), true
+	case "ShippingRateTier.priceCents":
+		if e.ComplexityRoot.ShippingRateTier.PriceCents == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ShippingRateTier.PriceCents(childComplexity), true
 
 	case "ShippingZone.channelId":
 		if e.ComplexityRoot.ShippingZone.ChannelID == nil {
@@ -33368,6 +33534,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputRolePermissionScopeInput,
 		ec.unmarshalInputSaveCampaignInput,
 		ec.unmarshalInputSaveEmailBlockInput,
+		ec.unmarshalInputSaveEmailTranslationInput,
 		ec.unmarshalInputSaveExperimentInput,
 		ec.unmarshalInputSaveFlowInput,
 		ec.unmarshalInputSaveLibraryEmailInput,
@@ -33387,6 +33554,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputSetSubscriptionTermsInput,
 		ec.unmarshalInputShippingBoxInput,
 		ec.unmarshalInputShippingMethodTypeRateInput,
+		ec.unmarshalInputShippingRateTierInput,
 		ec.unmarshalInputSignalsChatMessage,
 		ec.unmarshalInputSignalsChatPage,
 		ec.unmarshalInputSignupFormDisplayInput,
@@ -35246,6 +35414,8 @@ type Category {
   position:        Int!
   isPublished:     Boolean!
   seoNoindex:      Boolean!
+  # Its storefront page lists the products of every published category beneath it as well as its own
+  isAnchor:        Boolean!
   parent:          Category
   children:        [Category!]!
   ancestors:       [Category!]!
@@ -35262,7 +35432,7 @@ type Category {
   # The locale code whose content row populates name/description/seo* above. Tracks the requested locale when present, otherwise the global default locale (resolved via fallback). Null only if the category has no content rows at all.
   contentLocale:    String
   products:         [Product!]!
-  # Number of products directly assigned to this category (resolver-computed, excludes descendant categories). Cheap indexed COUNT - safe to select on the category tree (e.g. picker hints), unlike the full ` + "`" + `products` + "`" + ` list.
+  # Number of products directly assigned to this category (resolver-computed, excludes descendant categories - an anchor's storefront page lists those too). Cheap indexed COUNT - safe to select on the category tree (e.g. picker hints), unlike the full ` + "`" + `products` + "`" + ` list.
   productCount:     Int!
   # Per-store listings - gates which storefronts render this category.
   # Without a row, a category is hidden on that store.
@@ -35316,6 +35486,8 @@ input CreateCategoryInput {
   position:         Int
   isPublished:      Boolean
   seoNoindex:       Boolean
+  # Defaults to true
+  isAnchor:         Boolean
   metadata:         [MetadataInput!]
   privateMetadata:  [MetadataInput!]
   locale:           String!
@@ -35335,6 +35507,7 @@ input UpdateCategoryInput {
   position:        Int
   isPublished:     Boolean
   seoNoindex:      Boolean
+  isAnchor:        Boolean
   metadata:        [MetadataInput!]
   privateMetadata: [MetadataInput!]
 }
@@ -36804,6 +36977,8 @@ extend type Mutation {
   currencyCode:        String!
   # Base URL used to build password-reset / verification email links.
   publicUrl:           String!
+  # Prices on this channel already contain tax, so checkout splits the tax out of them instead of adding it on top
+  taxInclusivePricing: Boolean!
   metadata:            [MetadataItem!]!
   createdAt:           Time!
   # Inventory locations assigned to this channel, ordered by priority asc.
@@ -36823,6 +36998,8 @@ input CreateChannelInput {
   currencyCode:  String
   publicUrl:     String
   metadata:      [MetadataInput!]
+  # Defaults to false - prices exclude tax
+  taxInclusivePricing: Boolean
 }
 
 input UpdateChannelInput {
@@ -36835,6 +37012,7 @@ input UpdateChannelInput {
   currencyCode:  String
   publicUrl:     String
   metadata:      [MetadataInput!]
+  taxInclusivePricing: Boolean
 }
 
 extend type Query {
@@ -38589,6 +38767,27 @@ input SaveLibraryEmailInput {
   groupId:   ID
 }
 
+# A library email's version in another language - shoppers in that language get it (a regional locale like de-at reads de), everyone else the email itself.
+type EmailTranslation {
+  emailId:   ID!
+  locale:    String!
+  subject:   String!   # empty keeps the email's own subject
+  preheader: String!
+  blocks:    JSON!
+  styles:    JSON!
+  updatedAt: Time!
+}
+
+# Creates the locale's version or replaces it whole.
+input SaveEmailTranslationInput {
+  emailId:   ID!
+  locale:    String!
+  subject:   String!
+  preheader: String
+  blocks:    JSON!
+  styles:    JSON
+}
+
 # One pre-send checklist finding.
 type EmailWarning {
   severity: String!  # warn | info
@@ -38633,6 +38832,8 @@ extend type Query {
   emailPreflight(id: ID!): [EmailWarning!]!
   # Version history for an email (newest first).
   emailRevisions(id: ID!): [EmailRevision!]!
+  # The email's versions in other languages, by locale.
+  emailTranslations(emailId: ID!): [EmailTranslation!]!
   # Live preview of draft content. customerId (optional) renders merge tags with
   # that customer's real data; otherwise sample data. Includes the preheader.
   renderLibraryPreview(channelId: ID!, customerId: ID, subject: String!, preheader: String, blocks: JSON!, styles: JSON): EmailPreview!
@@ -38647,6 +38848,9 @@ extend type Mutation {
   deleteEmailGroup(id: ID!): Boolean!
   # Bind an email to a transactional slot (slot: "" clears it). One email per slot.
   assignEmailSlot(emailId: ID!, slot: String!): Boolean!
+  # An email's version in another language (emails.manage on the email's channel).
+  saveEmailTranslation(input: SaveEmailTranslationInput!): EmailTranslation!
+  deleteEmailTranslation(emailId: ID!, locale: String!): Boolean!
   # Restore a prior version of an email (records the restored state as a new revision).
   restoreEmailRevision(revisionId: ID!): LibraryEmail!
   # Pulse's starter content for a channel - the blocks, an email per transactional slot and an active flow that sends it (emails.manage + flows.manage)
@@ -39863,6 +40067,10 @@ type Order {
   # Transient: populated only on the storefront placeOrder response when the
   # gateway needs a client-side 3DS step. Always null on admin reads.
   paymentClientSecret: String
+  # Transient like paymentClientSecret - "challenge" or "redirect". Always null on admin reads.
+  paymentActionKind: String
+  # Transient like paymentClientSecret - true when the gateway refused the payment at placement. Always null on admin reads.
+  paymentFailed: Boolean
   # Payment provider slug chosen at checkout (empty when none / gift-card only).
   paymentProvider: String!
   # Gateway handle for the payment (Stripe PaymentIntent id, Braintree txn id);
@@ -39885,6 +40093,8 @@ type Order {
   shippingAmount:  Int!
   discountAmount:  Int!
   taxAmount:       Int!
+  # taxAmount is already inside the prices rather than added on top
+  taxIncluded:     Boolean!
   # The part of taxAmount charged on shipping. Zero when a remote tax provider or plugin priced the tax.
   shippingTaxAmount: Int!
   # The most a credit memo can refund for shipping - its tax included where tax was added on top.
@@ -41796,6 +42006,28 @@ extend type Query {
   FLAT
   FREE
   FREE_ABOVE
+  # Priced by tiers over the shipment's weight, subtotal or item count - see rateTiers
+  TABLE
+}
+
+# What a TABLE method's tiers measure: WEIGHT in grams of the lines it prices itself, SUBTOTAL in cents after discounts, QUANTITY in units of the lines it prices itself
+enum ShippingTableBasis {
+  WEIGHT
+  SUBTOTAL
+  QUANTITY
+}
+
+# One row of a TABLE method - a shipment measuring ` + "`" + `from` + "`" + ` or more pays priceCents, until the next tier. Below the first tier the method isn't offered, and a notOffered tier is the ceiling: from there on it isn't offered either.
+type ShippingRateTier {
+  from:       Int!
+  priceCents: Int!
+  notOffered: Boolean!
+}
+
+input ShippingRateTierInput {
+  from:       Int!
+  priceCents: Int!
+  notOffered: Boolean
 }
 
 type ShippingZone {
@@ -41835,6 +42067,9 @@ type ShippingMethod {
   deliversOnWeekends: Boolean!
   # Prices for particular product types - their lines are priced by their own row instead of pooling into the method's price.
   typeRates:        [ShippingMethodTypeRate!]!
+  # A TABLE method's measure and its tiers, ascending - unused by the other calc types
+  tableBasis:       ShippingTableBasis!
+  rateTiers:        [ShippingRateTier!]!
   createdAt:      Time!
   updatedAt:      Time!
 }
@@ -41890,6 +42125,8 @@ input CreateShippingMethodInput {
   estimatedDays:      Int
   deliversOnWeekends: Boolean
   typeRates:        [ShippingMethodTypeRateInput!]
+  tableBasis:       ShippingTableBasis
+  rateTiers:        [ShippingRateTierInput!]
 }
 
 input UpdateShippingMethodInput {
@@ -41909,6 +42146,9 @@ input UpdateShippingMethodInput {
   deliversOnWeekends: Boolean
   # Replaces the method's type rates when given.
   typeRates:        [ShippingMethodTypeRateInput!]
+  tableBasis:       ShippingTableBasis
+  # Replaces the method's tiers when given.
+  rateTiers:        [ShippingRateTierInput!]
 }
 
 # A registered shipping carrier with its per-channel config. The built-in zones/methods engine is the "builtin" carrier; plugin carriers register additional slugs. carrierSlug + the (carrierSlug, methodCode) selection at checkout identify a carrier. Credentials (API keys) are edited via Settings → Shipping → <carrier>, not here.
@@ -45988,6 +46228,8 @@ func (ec *executionContext) childFields_Category(ctx context.Context, field grap
 		return ec.fieldContext_Category_isPublished(ctx, field)
 	case "seoNoindex":
 		return ec.fieldContext_Category_seoNoindex(ctx, field)
+	case "isAnchor":
+		return ec.fieldContext_Category_isAnchor(ctx, field)
 	case "parent":
 		return ec.fieldContext_Category_parent(ctx, field)
 	case "children":
@@ -46112,6 +46354,8 @@ func (ec *executionContext) childFields_Channel(ctx context.Context, field graph
 		return ec.fieldContext_Channel_currencyCode(ctx, field)
 	case "publicUrl":
 		return ec.fieldContext_Channel_publicUrl(ctx, field)
+	case "taxInclusivePricing":
+		return ec.fieldContext_Channel_taxInclusivePricing(ctx, field)
 	case "metadata":
 		return ec.fieldContext_Channel_metadata(ctx, field)
 	case "createdAt":
@@ -47538,6 +47782,26 @@ func (ec *executionContext) childFields_EmailSuppressionPage(ctx context.Context
 		return ec.fieldContext_EmailSuppressionPage_totalCount(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type EmailSuppressionPage", field.Name)
+}
+
+func (ec *executionContext) childFields_EmailTranslation(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "emailId":
+		return ec.fieldContext_EmailTranslation_emailId(ctx, field)
+	case "locale":
+		return ec.fieldContext_EmailTranslation_locale(ctx, field)
+	case "subject":
+		return ec.fieldContext_EmailTranslation_subject(ctx, field)
+	case "preheader":
+		return ec.fieldContext_EmailTranslation_preheader(ctx, field)
+	case "blocks":
+		return ec.fieldContext_EmailTranslation_blocks(ctx, field)
+	case "styles":
+		return ec.fieldContext_EmailTranslation_styles(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_EmailTranslation_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type EmailTranslation", field.Name)
 }
 
 func (ec *executionContext) childFields_EmailWarning(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -48972,6 +49236,10 @@ func (ec *executionContext) childFields_Order(ctx context.Context, field graphql
 		return ec.fieldContext_Order_paymentStatus(ctx, field)
 	case "paymentClientSecret":
 		return ec.fieldContext_Order_paymentClientSecret(ctx, field)
+	case "paymentActionKind":
+		return ec.fieldContext_Order_paymentActionKind(ctx, field)
+	case "paymentFailed":
+		return ec.fieldContext_Order_paymentFailed(ctx, field)
 	case "paymentProvider":
 		return ec.fieldContext_Order_paymentProvider(ctx, field)
 	case "paymentReference":
@@ -49000,6 +49268,8 @@ func (ec *executionContext) childFields_Order(ctx context.Context, field graphql
 		return ec.fieldContext_Order_discountAmount(ctx, field)
 	case "taxAmount":
 		return ec.fieldContext_Order_taxAmount(ctx, field)
+	case "taxIncluded":
+		return ec.fieldContext_Order_taxIncluded(ctx, field)
 	case "shippingTaxAmount":
 		return ec.fieldContext_Order_shippingTaxAmount(ctx, field)
 	case "shippingRefundable":
@@ -51362,6 +51632,10 @@ func (ec *executionContext) childFields_ShippingMethod(ctx context.Context, fiel
 		return ec.fieldContext_ShippingMethod_deliversOnWeekends(ctx, field)
 	case "typeRates":
 		return ec.fieldContext_ShippingMethod_typeRates(ctx, field)
+	case "tableBasis":
+		return ec.fieldContext_ShippingMethod_tableBasis(ctx, field)
+	case "rateTiers":
+		return ec.fieldContext_ShippingMethod_rateTiers(ctx, field)
 	case "createdAt":
 		return ec.fieldContext_ShippingMethod_createdAt(ctx, field)
 	case "updatedAt":
@@ -51384,6 +51658,18 @@ func (ec *executionContext) childFields_ShippingMethodTypeRate(ctx context.Conte
 		return ec.fieldContext_ShippingMethodTypeRate_freeShippingEligible(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type ShippingMethodTypeRate", field.Name)
+}
+
+func (ec *executionContext) childFields_ShippingRateTier(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "from":
+		return ec.fieldContext_ShippingRateTier_from(ctx, field)
+	case "priceCents":
+		return ec.fieldContext_ShippingRateTier_priceCents(ctx, field)
+	case "notOffered":
+		return ec.fieldContext_ShippingRateTier_notOffered(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ShippingRateTier", field.Name)
 }
 
 func (ec *executionContext) childFields_ShippingZone(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -55792,6 +56078,28 @@ func (ec *executionContext) field_Mutation_deleteEmailGroup_args(ctx context.Con
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_deleteEmailTranslation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "emailId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["emailId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "locale",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["locale"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_deleteExperiment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -58396,6 +58704,20 @@ func (ec *executionContext) field_Mutation_saveEmailBlock_args(ctx context.Conte
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (model.SaveEmailBlockInput, error) {
 			return ec.unmarshalNSaveEmailBlockInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSaveEmailBlockInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_saveEmailTranslation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.SaveEmailTranslationInput, error) {
+			return ec.unmarshalNSaveEmailTranslationInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSaveEmailTranslationInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -64035,6 +64357,20 @@ func (ec *executionContext) field_Query_emailSuppressions_args(ctx context.Conte
 		return nil, err
 	}
 	args["offset"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_emailTranslations_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "emailId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["emailId"] = arg0
 	return args, nil
 }
 
@@ -86260,6 +86596,29 @@ func (ec *executionContext) fieldContext_Category_seoNoindex(_ context.Context, 
 	return graphql.NewScalarFieldContext("Category", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _Category_isAnchor(ctx context.Context, field graphql.CollectedField, obj *model.Category) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Category_isAnchor(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IsAnchor, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Category_isAnchor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Category", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _Category_parent(ctx context.Context, field graphql.CollectedField, obj *model.Category) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -87516,6 +87875,29 @@ func (ec *executionContext) _Channel_publicUrl(ctx context.Context, field graphq
 }
 func (ec *executionContext) fieldContext_Channel_publicUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Channel", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Channel_taxInclusivePricing(ctx context.Context, field graphql.CollectedField, obj *model.Channel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Channel_taxInclusivePricing(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TaxInclusivePricing, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Channel_taxInclusivePricing(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Channel", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _Channel_metadata(ctx context.Context, field graphql.CollectedField, obj *model.Channel) (ret graphql.Marshaler) {
@@ -100129,6 +100511,167 @@ func (ec *executionContext) _EmailSuppressionPage_totalCount(ctx context.Context
 }
 func (ec *executionContext) fieldContext_EmailSuppressionPage_totalCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("EmailSuppressionPage", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _EmailTranslation_emailId(ctx context.Context, field graphql.CollectedField, obj *model.EmailTranslation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailTranslation_emailId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EmailID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailTranslation_emailId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailTranslation", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _EmailTranslation_locale(ctx context.Context, field graphql.CollectedField, obj *model.EmailTranslation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailTranslation_locale(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Locale, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailTranslation_locale(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailTranslation", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailTranslation_subject(ctx context.Context, field graphql.CollectedField, obj *model.EmailTranslation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailTranslation_subject(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Subject, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailTranslation_subject(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailTranslation", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailTranslation_preheader(ctx context.Context, field graphql.CollectedField, obj *model.EmailTranslation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailTranslation_preheader(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Preheader, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailTranslation_preheader(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailTranslation", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailTranslation_blocks(ctx context.Context, field graphql.CollectedField, obj *model.EmailTranslation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailTranslation_blocks(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Blocks, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v any) graphql.Marshaler {
+			return ec.marshalNJSON2interface(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailTranslation_blocks(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailTranslation", field, false, false, errors.New("field of type JSON does not have child fields"))
+}
+
+func (ec *executionContext) _EmailTranslation_styles(ctx context.Context, field graphql.CollectedField, obj *model.EmailTranslation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailTranslation_styles(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Styles, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v any) graphql.Marshaler {
+			return ec.marshalNJSON2interface(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailTranslation_styles(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailTranslation", field, false, false, errors.New("field of type JSON does not have child fields"))
+}
+
+func (ec *executionContext) _EmailTranslation_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.EmailTranslation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailTranslation_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailTranslation_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailTranslation", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
 func (ec *executionContext) _EmailWarning_severity(ctx context.Context, field graphql.CollectedField, obj *model.EmailWarning) (ret graphql.Marshaler) {
@@ -124829,6 +125372,94 @@ func (ec *executionContext) fieldContext_Mutation_assignEmailSlot(ctx context.Co
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_saveEmailTranslation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_saveEmailTranslation(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SaveEmailTranslation(ctx, fc.Args["input"].(model.SaveEmailTranslationInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.EmailTranslation) graphql.Marshaler {
+			return ec.marshalNEmailTranslation2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐEmailTranslation(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_saveEmailTranslation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_EmailTranslation(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_saveEmailTranslation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteEmailTranslation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteEmailTranslation(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteEmailTranslation(ctx, fc.Args["emailId"].(string), fc.Args["locale"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteEmailTranslation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteEmailTranslation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_restoreEmailRevision(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -134289,6 +134920,52 @@ func (ec *executionContext) fieldContext_Order_paymentClientSecret(_ context.Con
 	return graphql.NewScalarFieldContext("Order", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _Order_paymentActionKind(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Order_paymentActionKind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PaymentActionKind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Order_paymentActionKind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Order", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Order_paymentFailed(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Order_paymentFailed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PaymentFailed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *bool) graphql.Marshaler {
+			return ec.marshalOBoolean2ᚖbool(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Order_paymentFailed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Order", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _Order_paymentProvider(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -134654,6 +135331,29 @@ func (ec *executionContext) _Order_taxAmount(ctx context.Context, field graphql.
 }
 func (ec *executionContext) fieldContext_Order_taxAmount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Order", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _Order_taxIncluded(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Order_taxIncluded(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TaxIncluded, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Order_taxIncluded(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Order", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _Order_shippingTaxAmount(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
@@ -150754,6 +151454,50 @@ func (ec *executionContext) fieldContext_Query_emailRevisions(ctx context.Contex
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_emailTranslations(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_emailTranslations(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().EmailTranslations(ctx, fc.Args["emailId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.EmailTranslation) graphql.Marshaler {
+			return ec.marshalNEmailTranslation2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐEmailTranslationᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_emailTranslations(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_EmailTranslation(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_emailTranslations_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_renderLibraryPreview(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -165489,6 +166233,61 @@ func (ec *executionContext) fieldContext_ShippingMethod_typeRates(_ context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _ShippingMethod_tableBasis(ctx context.Context, field graphql.CollectedField, obj *model.ShippingMethod) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ShippingMethod_tableBasis(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TableBasis, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.ShippingTableBasis) graphql.Marshaler {
+			return ec.marshalNShippingTableBasis2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐShippingTableBasis(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ShippingMethod_tableBasis(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ShippingMethod", field, false, false, errors.New("field of type ShippingTableBasis does not have child fields"))
+}
+
+func (ec *executionContext) _ShippingMethod_rateTiers(ctx context.Context, field graphql.CollectedField, obj *model.ShippingMethod) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ShippingMethod_rateTiers(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RateTiers, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.ShippingRateTier) graphql.Marshaler {
+			return ec.marshalNShippingRateTier2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐShippingRateTierᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ShippingMethod_rateTiers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ShippingMethod",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ShippingRateTier(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ShippingMethod_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.ShippingMethod) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -165648,6 +166447,75 @@ func (ec *executionContext) _ShippingMethodTypeRate_freeShippingEligible(ctx con
 }
 func (ec *executionContext) fieldContext_ShippingMethodTypeRate_freeShippingEligible(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("ShippingMethodTypeRate", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _ShippingRateTier_from(ctx context.Context, field graphql.CollectedField, obj *model.ShippingRateTier) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ShippingRateTier_from(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.From, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ShippingRateTier_from(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ShippingRateTier", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ShippingRateTier_priceCents(ctx context.Context, field graphql.CollectedField, obj *model.ShippingRateTier) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ShippingRateTier_priceCents(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PriceCents, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ShippingRateTier_priceCents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ShippingRateTier", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ShippingRateTier_notOffered(ctx context.Context, field graphql.CollectedField, obj *model.ShippingRateTier) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ShippingRateTier_notOffered(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NotOffered, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ShippingRateTier_notOffered(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ShippingRateTier", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _ShippingZone_id(ctx context.Context, field graphql.CollectedField, obj *model.ShippingZone) (ret graphql.Marshaler) {
@@ -179367,7 +180235,7 @@ func (ec *executionContext) unmarshalInputCreateCategoryInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"parentId", "slug", "position", "isPublished", "seoNoindex", "metadata", "privateMetadata", "locale", "name", "shortDescription", "description", "metaTitle", "metaDescription", "metaKeywords"}
+	fieldsInOrder := [...]string{"parentId", "slug", "position", "isPublished", "seoNoindex", "isAnchor", "metadata", "privateMetadata", "locale", "name", "shortDescription", "description", "metaTitle", "metaDescription", "metaKeywords"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -179409,6 +180277,13 @@ func (ec *executionContext) unmarshalInputCreateCategoryInput(ctx context.Contex
 				return it, err
 			}
 			it.SeoNoindex = data
+		case "isAnchor":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isAnchor"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IsAnchor = data
 		case "metadata":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("metadata"))
 			data, err := ec.unmarshalOMetadataInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMetadataInputᚄ(ctx, v)
@@ -179488,7 +180363,7 @@ func (ec *executionContext) unmarshalInputCreateChannelInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"slug", "name", "defaultLocale", "locales", "currencyCode", "publicUrl", "metadata"}
+	fieldsInOrder := [...]string{"slug", "name", "defaultLocale", "locales", "currencyCode", "publicUrl", "metadata", "taxInclusivePricing"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -179544,6 +180419,13 @@ func (ec *executionContext) unmarshalInputCreateChannelInput(ctx context.Context
 				return it, err
 			}
 			it.Metadata = data
+		case "taxInclusivePricing":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("taxInclusivePricing"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TaxInclusivePricing = data
 		}
 	}
 	return it, nil
@@ -181350,7 +182232,7 @@ func (ec *executionContext) unmarshalInputCreateShippingMethodInput(ctx context.
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"zoneId", "code", "name", "calcType", "flatCents", "freeAboveCents", "sortOrder", "isActive", "countryMode", "allowedCountries", "deliveryKind", "unitsPerCharge", "estimatedDays", "deliversOnWeekends", "typeRates"}
+	fieldsInOrder := [...]string{"zoneId", "code", "name", "calcType", "flatCents", "freeAboveCents", "sortOrder", "isActive", "countryMode", "allowedCountries", "deliveryKind", "unitsPerCharge", "estimatedDays", "deliversOnWeekends", "typeRates", "tableBasis", "rateTiers"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -181462,6 +182344,20 @@ func (ec *executionContext) unmarshalInputCreateShippingMethodInput(ctx context.
 				return it, err
 			}
 			it.TypeRates = data
+		case "tableBasis":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("tableBasis"))
+			data, err := ec.unmarshalOShippingTableBasis2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐShippingTableBasis(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TableBasis = data
+		case "rateTiers":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("rateTiers"))
+			data, err := ec.unmarshalOShippingRateTierInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐShippingRateTierInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RateTiers = data
 		}
 	}
 	return it, nil
@@ -184410,6 +185306,71 @@ func (ec *executionContext) unmarshalInputSaveEmailBlockInput(ctx context.Contex
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputSaveEmailTranslationInput(ctx context.Context, obj any) (model.SaveEmailTranslationInput, error) {
+	var it model.SaveEmailTranslationInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"emailId", "locale", "subject", "preheader", "blocks", "styles"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "emailId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("emailId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EmailID = data
+		case "locale":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("locale"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Locale = data
+		case "subject":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("subject"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Subject = data
+		case "preheader":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("preheader"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Preheader = data
+		case "blocks":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("blocks"))
+			data, err := ec.unmarshalNJSON2interface(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Blocks = data
+		case "styles":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("styles"))
+			data, err := ec.unmarshalOJSON2interface(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Styles = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputSaveExperimentInput(ctx context.Context, obj any) (model.SaveExperimentInput, error) {
 	var it model.SaveExperimentInput
 	if obj == nil {
@@ -185626,6 +186587,50 @@ func (ec *executionContext) unmarshalInputShippingMethodTypeRateInput(ctx contex
 				return it, err
 			}
 			it.FreeShippingEligible = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputShippingRateTierInput(ctx context.Context, obj any) (model.ShippingRateTierInput, error) {
+	var it model.ShippingRateTierInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"from", "priceCents", "notOffered"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "from":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("from"))
+			data, err := ec.unmarshalNInt2int32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.From = data
+		case "priceCents":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("priceCents"))
+			data, err := ec.unmarshalNInt2int32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PriceCents = data
+		case "notOffered":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("notOffered"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NotOffered = data
 		}
 	}
 	return it, nil
@@ -187259,7 +188264,7 @@ func (ec *executionContext) unmarshalInputUpdateCategoryInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "parentId", "clearParent", "slug", "position", "isPublished", "seoNoindex", "metadata", "privateMetadata"}
+	fieldsInOrder := [...]string{"id", "parentId", "clearParent", "slug", "position", "isPublished", "seoNoindex", "isAnchor", "metadata", "privateMetadata"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -187315,6 +188320,13 @@ func (ec *executionContext) unmarshalInputUpdateCategoryInput(ctx context.Contex
 				return it, err
 			}
 			it.SeoNoindex = data
+		case "isAnchor":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isAnchor"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IsAnchor = data
 		case "metadata":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("metadata"))
 			data, err := ec.unmarshalOMetadataInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMetadataInputᚄ(ctx, v)
@@ -187345,7 +188357,7 @@ func (ec *executionContext) unmarshalInputUpdateChannelInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "name", "defaultLocale", "locales", "isActive", "currencyCode", "publicUrl", "metadata"}
+	fieldsInOrder := [...]string{"id", "name", "defaultLocale", "locales", "isActive", "currencyCode", "publicUrl", "metadata", "taxInclusivePricing"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -187408,6 +188420,13 @@ func (ec *executionContext) unmarshalInputUpdateChannelInput(ctx context.Context
 				return it, err
 			}
 			it.Metadata = data
+		case "taxInclusivePricing":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("taxInclusivePricing"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TaxInclusivePricing = data
 		}
 	}
 	return it, nil
@@ -189711,7 +190730,7 @@ func (ec *executionContext) unmarshalInputUpdateShippingMethodInput(ctx context.
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "code", "name", "calcType", "flatCents", "freeAboveCents", "sortOrder", "isActive", "countryMode", "allowedCountries", "deliveryKind", "unitsPerCharge", "estimatedDays", "deliversOnWeekends", "typeRates"}
+	fieldsInOrder := [...]string{"id", "code", "name", "calcType", "flatCents", "freeAboveCents", "sortOrder", "isActive", "countryMode", "allowedCountries", "deliveryKind", "unitsPerCharge", "estimatedDays", "deliversOnWeekends", "typeRates", "tableBasis", "rateTiers"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -189823,6 +190842,20 @@ func (ec *executionContext) unmarshalInputUpdateShippingMethodInput(ctx context.
 				return it, err
 			}
 			it.TypeRates = data
+		case "tableBasis":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("tableBasis"))
+			data, err := ec.unmarshalOShippingTableBasis2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐShippingTableBasis(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TableBasis = data
+		case "rateTiers":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("rateTiers"))
+			data, err := ec.unmarshalOShippingRateTierInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐShippingRateTierInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RateTiers = data
 		}
 	}
 	return it, nil
@@ -199134,6 +200167,11 @@ func (ec *executionContext) _Category(ctx context.Context, sel ast.SelectionSet,
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "isAnchor":
+			out.Values[i] = ec._Category_isAnchor(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "parent":
 			out.Values[i] = ec._Category_parent(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
@@ -199711,6 +200749,11 @@ func (ec *executionContext) _Channel(ctx context.Context, sel ast.SelectionSet, 
 			}
 		case "publicUrl":
 			out.Values[i] = ec._Channel_publicUrl(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "taxInclusivePricing":
+			out.Values[i] = ec._Channel_taxInclusivePricing(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
@@ -204761,6 +205804,74 @@ func (ec *executionContext) _EmailSuppressionPage(ctx context.Context, sel ast.S
 			}
 		case "totalCount":
 			out.Values[i] = ec._EmailSuppressionPage_totalCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var emailTranslationImplementors = []string{"EmailTranslation"}
+
+func (ec *executionContext) _EmailTranslation(ctx context.Context, sel ast.SelectionSet, obj *model.EmailTranslation) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, emailTranslationImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EmailTranslation")
+		case "emailId":
+			out.Values[i] = ec._EmailTranslation_emailId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "locale":
+			out.Values[i] = ec._EmailTranslation_locale(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "subject":
+			out.Values[i] = ec._EmailTranslation_subject(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "preheader":
+			out.Values[i] = ec._EmailTranslation_preheader(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "blocks":
+			out.Values[i] = ec._EmailTranslation_blocks(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "styles":
+			out.Values[i] = ec._EmailTranslation_styles(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._EmailTranslation_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -211783,6 +212894,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "saveEmailTranslation":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_saveEmailTranslation(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteEmailTranslation":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteEmailTranslation(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "restoreEmailRevision":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_restoreEmailRevision(ctx, field)
@@ -213582,6 +214707,16 @@ func (ec *executionContext) _Order(ctx context.Context, sel ast.SelectionSet, ob
 			if out.Values[i] == graphql.RequiredNull {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "paymentActionKind":
+			out.Values[i] = ec._Order_paymentActionKind(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "paymentFailed":
+			out.Values[i] = ec._Order_paymentFailed(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "paymentProvider":
 			out.Values[i] = ec._Order_paymentProvider(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -213649,6 +214784,11 @@ func (ec *executionContext) _Order(ctx context.Context, sel ast.SelectionSet, ob
 			}
 		case "taxAmount":
 			out.Values[i] = ec._Order_taxAmount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "taxIncluded":
+			out.Values[i] = ec._Order_taxIncluded(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
@@ -221264,6 +222404,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "emailTranslations":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_emailTranslations(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "renderLibraryPreview":
 			field := field
 
@@ -228441,6 +229603,16 @@ func (ec *executionContext) _ShippingMethod(ctx context.Context, sel ast.Selecti
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "tableBasis":
+			out.Values[i] = ec._ShippingMethod_tableBasis(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rateTiers":
+			out.Values[i] = ec._ShippingMethod_rateTiers(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createdAt":
 			out.Values[i] = ec._ShippingMethod_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -228506,6 +229678,54 @@ func (ec *executionContext) _ShippingMethodTypeRate(ctx context.Context, sel ast
 			}
 		case "freeShippingEligible":
 			out.Values[i] = ec._ShippingMethodTypeRate_freeShippingEligible(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var shippingRateTierImplementors = []string{"ShippingRateTier"}
+
+func (ec *executionContext) _ShippingRateTier(ctx context.Context, sel ast.SelectionSet, obj *model.ShippingRateTier) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, shippingRateTierImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ShippingRateTier")
+		case "from":
+			out.Values[i] = ec._ShippingRateTier_from(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "priceCents":
+			out.Values[i] = ec._ShippingRateTier_priceCents(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "notOffered":
+			out.Values[i] = ec._ShippingRateTier_notOffered(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -238207,6 +239427,36 @@ func (ec *executionContext) marshalNEmailSuppressionPage2ᚖgithubᚗcomᚋskele
 	return ec._EmailSuppressionPage(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNEmailTranslation2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐEmailTranslation(ctx context.Context, sel ast.SelectionSet, v model.EmailTranslation) graphql.Marshaler {
+	return ec._EmailTranslation(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNEmailTranslation2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐEmailTranslationᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.EmailTranslation) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNEmailTranslation2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐEmailTranslation(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNEmailTranslation2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐEmailTranslation(ctx context.Context, sel ast.SelectionSet, v *model.EmailTranslation) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._EmailTranslation(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNEmailWarning2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐEmailWarningᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.EmailWarning) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -242929,6 +244179,11 @@ func (ec *executionContext) unmarshalNSaveEmailBlockInput2githubᚗcomᚋskeletg
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNSaveEmailTranslationInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSaveEmailTranslationInput(ctx context.Context, v any) (model.SaveEmailTranslationInput, error) {
+	res, err := ec.unmarshalInputSaveEmailTranslationInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNSaveExperimentInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSaveExperimentInput(ctx context.Context, v any) (model.SaveExperimentInput, error) {
 	res, err := ec.unmarshalInputSaveExperimentInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -243817,6 +245072,47 @@ func (ec *executionContext) marshalNShippingMethodTypeRate2ᚖgithubᚗcomᚋske
 func (ec *executionContext) unmarshalNShippingMethodTypeRateInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐShippingMethodTypeRateInput(ctx context.Context, v any) (*model.ShippingMethodTypeRateInput, error) {
 	res, err := ec.unmarshalInputShippingMethodTypeRateInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNShippingRateTier2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐShippingRateTierᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ShippingRateTier) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNShippingRateTier2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐShippingRateTier(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNShippingRateTier2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐShippingRateTier(ctx context.Context, sel ast.SelectionSet, v *model.ShippingRateTier) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ShippingRateTier(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNShippingRateTierInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐShippingRateTierInput(ctx context.Context, v any) (*model.ShippingRateTierInput, error) {
+	res, err := ec.unmarshalInputShippingRateTierInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNShippingTableBasis2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐShippingTableBasis(ctx context.Context, v any) (model.ShippingTableBasis, error) {
+	var res model.ShippingTableBasis
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNShippingTableBasis2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐShippingTableBasis(ctx context.Context, sel ast.SelectionSet, v model.ShippingTableBasis) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) marshalNShippingZone2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐShippingZone(ctx context.Context, sel ast.SelectionSet, v model.ShippingZone) graphql.Marshaler {
@@ -247655,6 +248951,39 @@ func (ec *executionContext) unmarshalOShippingMethodTypeRateInput2ᚕᚖgithub�
 		}
 	}
 	return res, nil
+}
+
+func (ec *executionContext) unmarshalOShippingRateTierInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐShippingRateTierInputᚄ(ctx context.Context, v any) ([]*model.ShippingRateTierInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]*model.ShippingRateTierInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNShippingRateTierInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐShippingRateTierInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalOShippingTableBasis2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐShippingTableBasis(ctx context.Context, v any) (*model.ShippingTableBasis, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.ShippingTableBasis)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOShippingTableBasis2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐShippingTableBasis(ctx context.Context, sel ast.SelectionSet, v *model.ShippingTableBasis) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
 }
 
 func (ec *executionContext) marshalOShippingZone2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐShippingZone(ctx context.Context, sel ast.SelectionSet, v *model.ShippingZone) graphql.Marshaler {

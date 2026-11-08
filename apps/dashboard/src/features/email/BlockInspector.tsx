@@ -256,7 +256,11 @@ function ContentFields({
   snippets: Array<{ slug: string; name: string }>
   aiRewrite?: AiRewriteFn
 }) {
-  const fields = blockDescriptor(block.type)?.fields ?? []
+  const descriptor = blockDescriptor(block.type)
+  const fields = descriptor?.fields ?? []
+  if (descriptor?.labels?.length) {
+    return <BlockLabels block={block} labels={descriptor.labels} onChange={(labels) => setField('labels', labels as never)} />
+  }
   if (fields.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -841,6 +845,41 @@ function VisibilitySection({
           </label>
         </div>
       )}
+    </div>
+  )
+}
+
+// An order block fills itself from the order, so what's left to write is its words - each language's version of the
+// email says them its own way, and an empty one keeps the English default
+function BlockLabels({
+  block,
+  labels,
+  onChange,
+}: {
+  block: EmailBlock
+  labels: NonNullable<ReturnType<typeof blockDescriptor>>['labels'] & object
+  onChange: (labels: Record<string, string>) => void
+}) {
+  const current = block.labels ?? {}
+  return (
+    <div className="grid gap-3">
+      <p className="text-xs text-muted-foreground">Fills in from the order. Change the words it prints here - empty keeps the default.</p>
+      {labels.map((l) => (
+        <div key={l.key} className="grid gap-1.5">
+          <Label htmlFor={`label-${l.key}`}>{l.label}</Label>
+          <Input
+            id={`label-${l.key}`}
+            value={current[l.key] ?? ''}
+            maxLength={60}
+            placeholder={l.fallback}
+            onChange={(e) => {
+              const next = { ...current, [l.key]: e.target.value }
+              if (!e.target.value) delete next[l.key]
+              onChange(next)
+            }}
+          />
+        </div>
+      ))}
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useUnsavedFields } from '@/lib/unsaved-changes'
 import { duringCommit } from '@/lib/nav-guard'
 import { useMutation, useQuery } from '@apollo/client/react'
@@ -73,8 +73,10 @@ import {
 import { EmailBlocksDocument, SaveEmailBlockDocument } from '@/features/email/Email.gql'
 import { toComponent } from '@/features/blocks/model'
 import {
+  DeleteEmailTranslationDocument,
   EmailGroupsDocument,
   EmailPreflightDocument,
+  EmailTranslationsDocument,
   EmailRevisionsDocument,
   EmailsAiStatusDocument,
   LibraryEmailDocument,
@@ -82,10 +84,12 @@ import {
   RenderLibraryPreviewDocument,
   RestoreEmailRevisionDocument,
   RewriteEmailTextDocument,
+  SaveEmailTranslationDocument,
   SaveLibraryEmailDocument,
   SuggestEmailSubjectsDocument,
 } from './Emails.gql'
 import { LoadError } from '@/shared/errors/LoadError'
+import { useConfirmDialog } from '@/shared/dialogs/useConfirmDialog'
 import { NotFound } from '@/shared/errors/NotFound'
 
 let uid = 0
@@ -138,10 +142,15 @@ function itemsFromBlocks(blocks: EmailBlock[]): CanvasItem[] {
 export function EmailLibraryDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { effectiveChannelId, isChannel } = useConfigScope()
+  const [params, setParams] = useSearchParams()
+  const { effectiveChannelId, isChannel, channels } = useConfigScope()
   const isNew = !id || id === 'new'
+  // The language being edited - '' is the email itself, a locale its version in that language
+  const lang = isNew ? '' : (params.get('lang') ?? '')
 
   const { data, loading, error, refetch } = useQuery(LibraryEmailDocument, { variables: { id: id ?? '' }, skip: isNew, fetchPolicy: 'cache-and-network' })
+  const translationsQuery = useQuery(EmailTranslationsDocument, { variables: { emailId: id ?? '' }, skip: isNew, fetchPolicy: 'cache-and-network' })
+  const translations = translationsQuery.data?.emailTranslations ?? []
   const { data: groupsData } = useQuery(EmailGroupsDocument, { fetchPolicy: 'cache-and-network' })
   const groups: GroupOption[] = groupsData?.emailGroups ?? []
   // New emails default to the Marketing group; the operator can retag as needed
@@ -165,7 +174,8 @@ export function EmailLibraryDetail() {
     return <LoadError title="Couldn't load this email" message={error.message} onRetry={() => void refetch()} retrying={loading} />
   }
   if (!isNew && !data?.libraryEmail && !loading) return <NotFound />
-  if (!isNew && !data?.libraryEmail) {
+  // A language's version has to be known before the canvas opens, or edits made while it loads are lost to the remount
+  if (!isNew && (!data?.libraryEmail || (lang && !translationsQuery.data && !translationsQuery.error))) {
     return (
       <DetailPageLayout>
         <DetailPageHeader title="Email" backTo="/emails" />
@@ -187,18 +197,87 @@ export function EmailLibraryDetail() {
         groupId: data!.libraryEmail!.groupId ?? null,
       }
 
-  // Remount the editor once the default group resolves (new) or per email (edit)
-  // so the initial group is applied without setState-in-effect
-  const editorKey = isNew ? `new-${defaultGroupId ?? 'none'}` : (initial.id ?? 'new')
+  // A language with no version yet starts from a copy of the email, to translate in place
+  const translation = lang ? translations.find((t) => t.locale === lang) : undefined
+  const content: Loaded = translation
+    ? {
+        ...initial,
+        subject: translation.subject,
+        preheader: translation.preheader,
+        blocks: (translation.blocks as EmailBlock[] | null) ?? [],
+        styles: (translation.styles as EmailStyles | null) ?? {},
+      }
+    : initial
+  const channel = channels.find((c) => c.id === initial.channelId)
+  const emailUpdatedAt = data?.libraryEmail?.updatedAt ?? ''
+  // A version saved before its channel dropped the language still exists, so it stays reachable to edit or delete
+  const languages: Languages | undefined =
+    isNew || !channel
+      ? undefined
+      : {
+          current: lang,
+          defaultLocale: channel.defaultLocale,
+          others: [...new Set([...channel.locales.map((l) => l.code), ...translations.map((t) => t.locale)])].filter(
+            (c) => c !== channel.defaultLocale,
+          ),
+          translated: translations.map((t) => t.locale),
+          outdated: translations.filter((t) => emailUpdatedAt !== '' && t.updatedAt < emailUpdatedAt).map((t) => t.locale),
+          offChannel: translations.map((t) => t.locale).filter((c) => !channel.locales.some((l) => l.code === c)),
+          exists: translation !== undefined,
+          onSwitch: (code) => setParams(code ? { lang: code } : {}),
+          onChanged: () => void translationsQuery.refetch(),
+        }
 
-  return <Editor key={editorKey} initial={initial} groups={groups} onCreated={(nid) => void duringCommit(() => navigate(`/emails/${nid}`))} />
+  // Remount the editor once the default group resolves (new) or per email and language (edit)
+  // so the initial group is applied without setState-in-effect
+  const editorKey = isNew
+    ? `new-${defaultGroupId ?? 'none'}`
+    : `${initial.id ?? 'new'}:${lang}:${translation?.updatedAt ?? ''}`
+
+  return (
+    <Editor
+      key={editorKey}
+      initial={content}
+      groups={groups}
+      locale={lang}
+      languages={languages}
+      onCreated={(nid) => void duringCommit(() => navigate(`/emails/${nid}`))}
+    />
+  )
+}
+
+// The languages an email can be written in - its channel's locales, the default being the email itself
+type Languages = {
+  current: string
+  defaultLocale: string
+  others: string[]
+  translated: string[]
+  outdated: string[] // versions saved before the email last changed
+  offChannel: string[] // versions of a language the channel no longer sells in
+  exists: boolean
+  onSwitch: (locale: string) => void
+  onChanged: () => void
 }
 
 // Undo/redo state - present doc plus bounded past/future stacks
 type Hist = { past: Doc[]; present: Doc; future: Doc[] }
 const HISTORY_LIMIT = 100
 
-function Editor({ initial, groups, onCreated }: { initial: Loaded; groups: GroupOption[]; onCreated: (id: string) => void }) {
+function Editor({
+  initial,
+  groups,
+  locale,
+  languages,
+  onCreated,
+}: {
+  initial: Loaded
+  groups: GroupOption[]
+  // The language being edited, straight from the URL - '' is the email itself. Never read off languages, which is
+  // missing while the channel isn't in scope, so a version could otherwise save over the email
+  locale: string
+  languages?: Languages
+  onCreated: (id: string) => void
+}) {
   const mergeTags = useMergeTags()
   const [hist, setHist] = useState<Hist>(() => ({
     past: [],
@@ -342,10 +421,42 @@ function Editor({ initial, groups, onCreated }: { initial: Loaded; groups: Group
   const warnings = preflightData?.emailPreflight ?? []
 
   const [saveEmail] = useMutation(SaveLibraryEmailDocument)
+  const [saveTranslation] = useMutation(SaveEmailTranslationDocument)
+  const [deleteTranslation] = useMutation(DeleteEmailTranslationDocument)
+
+  async function onDeleteTranslation() {
+    if (!emailId || !locale) return
+    setError(null)
+    try {
+      await deleteTranslation({ variables: { emailId, locale } })
+      languages?.onChanged()
+      languages?.onSwitch('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Delete failed.')
+    }
+  }
   // hist.present is the live design - the undo stacks around it are not unsaved work
   useUnsavedFields([hist.present])
+  const [savedDoc, setSavedDoc] = useState(() => JSON.stringify(hist.present))
+  const dirty = JSON.stringify(doc) !== savedDoc
 
   async function onSave() {
+    if (locale && emailId) {
+      setError(null)
+      setSaving(true)
+      try {
+        await saveTranslation({
+          variables: { input: { emailId, locale, subject: doc.subject, preheader: doc.preheader, blocks, styles: doc.styles } },
+        })
+        setSavedDoc(JSON.stringify(doc))
+        languages?.onChanged()
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Save failed.')
+      } finally {
+        setSaving(false)
+      }
+      return
+    }
     if (!doc.name.trim()) {
       setError('Give the email a name.')
       return
@@ -357,6 +468,7 @@ function Editor({ initial, groups, onCreated }: { initial: Loaded; groups: Group
         variables: { input: { id: emailId, channelId: initial.channelId, name: doc.name.trim(), subject: doc.subject, preheader: doc.preheader, blocks, styles: doc.styles, groupId: doc.groupId } },
       })
       const nid = res.data?.saveLibraryEmail?.id ?? null
+      setSavedDoc(JSON.stringify(doc))
       if (nid && !emailId) {
         setEmailId(nid)
         onCreated(nid)
@@ -415,7 +527,7 @@ function Editor({ initial, groups, onCreated }: { initial: Loaded; groups: Group
         <Button type="button" variant="outline" size="icon" className="size-8 shrink-0" aria-label="Redo" disabled={hist.future.length === 0} onClick={redo}>
           <Redo2Icon className="size-4" />
         </Button>
-        {emailId && (
+        {emailId && !locale && (
           <Button type="button" variant="outline" size="icon" className="size-8 shrink-0" aria-label="Version history" onClick={() => setHistoryOpen(true)}>
             <HistoryIcon className="size-4" />
           </Button>
@@ -476,6 +588,9 @@ function Editor({ initial, groups, onCreated }: { initial: Loaded; groups: Group
               }
               emailSettings={
                 <div className="grid gap-4">
+                  {languages && (languages.others.length > 0 || languages.current) ? (
+                    <LanguagePicker languages={languages} dirty={dirty} onDelete={onDeleteTranslation} />
+                  ) : null}
                   {aiEnabled && (
                     <SubjectAssist
                       subject={doc.subject}
@@ -499,11 +614,22 @@ function Editor({ initial, groups, onCreated }: { initial: Loaded; groups: Group
                   </div>
                   <div className="grid gap-1.5">
                     <Label htmlFor="email-name">Email name</Label>
-                    <Input id="email-name" value={doc.name} onChange={(e) => commit((d) => ({ ...d, name: e.target.value }), 'name')} placeholder="Welcome hero" />
+                    <Input
+                      id="email-name"
+                      value={doc.name}
+                      disabled={locale !== ''}
+                      onChange={(e) => commit((d) => ({ ...d, name: e.target.value }), 'name')}
+                      placeholder="Welcome hero"
+                    />
+                    {locale ? <p className="text-xs text-muted-foreground">The name and group are shared by every language.</p> : null}
                   </div>
                   <div className="grid gap-1.5">
                     <Label htmlFor="email-group">Group</Label>
-                    <Select value={doc.groupId ?? NO_GROUP} onValueChange={(v) => commit((d) => ({ ...d, groupId: v === NO_GROUP ? null : v }))}>
+                    <Select
+                      value={doc.groupId ?? NO_GROUP}
+                      disabled={locale !== ''}
+                      onValueChange={(v) => commit((d) => ({ ...d, groupId: v === NO_GROUP ? null : v }))}
+                    >
                       <SelectTrigger id="email-group">
                         <SelectValue placeholder="No group" />
                       </SelectTrigger>
@@ -517,7 +643,7 @@ function Editor({ initial, groups, onCreated }: { initial: Loaded; groups: Group
                       </SelectContent>
                     </Select>
                   </div>
-                  {emailId && <PreflightPanel warnings={warnings} />}
+                  {emailId && !locale && <PreflightPanel warnings={warnings} />}
                   <GlobalStyleControls value={doc.styles} onChange={(s) => commit((d) => ({ ...d, styles: s }))} />
                 </div>
               }
@@ -556,6 +682,90 @@ function Editor({ initial, groups, onCreated }: { initial: Loaded; groups: Group
       <SaveAsBlockDialog block={saveBlockFor} channelId={initial.channelId} onClose={() => setSaveBlockFor(null)} />
     </DndContext>
   )
+}
+
+// LanguagePicker switches the canvas between the email and its version in each of the channel's other languages. A
+// shopper whose storefront language has a version gets it, everyone else the email itself
+function LanguagePicker({ languages, dirty, onDelete }: { languages: Languages; dirty: boolean; onDelete: () => void }) {
+  const { current, defaultLocale, others, translated, outdated, offChannel, exists } = languages
+  const [confirm, confirmDialog] = useConfirmDialog()
+  // Switching reloads the canvas, and the router lets a same-page change through without its unsaved-changes prompt
+  function choose(value: string) {
+    const code = value === DEFAULT_LANGUAGE ? '' : value
+    if (code === current) return
+    if (!dirty) return languages.onSwitch(code)
+    confirm({
+      title: 'Discard your changes?',
+      description: `Switching to ${languageName(code || defaultLocale)} drops what you haven't saved here.`,
+      confirmLabel: 'Discard and switch',
+      destructive: true,
+      onConfirm: () => languages.onSwitch(code),
+    })
+  }
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor="email-language">Language</Label>
+      <Select value={current || DEFAULT_LANGUAGE} onValueChange={choose}>
+        <SelectTrigger id="email-language">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={DEFAULT_LANGUAGE}>{languageName(defaultLocale)} (default)</SelectItem>
+          {others.map((code) => (
+            <SelectItem key={code} value={code}>
+              {languageName(code)}
+              {!translated.includes(code)
+                ? ' - not translated yet'
+                : offChannel.includes(code)
+                  ? ' - no longer on the channel'
+                  : outdated.includes(code)
+                    ? ' - older than the default'
+                    : ''}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">
+        {current === ''
+          ? 'Shoppers in a language with its own version get that one, everyone else this email.'
+          : exists
+            ? `Shoppers browsing in ${languageName(current)} get this version.${outdated.includes(current) ? ' The default changed after it was saved, so check it still matches.' : ''}`
+            : `Starts as a copy of the default - translate it and save, and shoppers browsing in ${languageName(current)} get it.`}
+      </p>
+      {current !== '' && exists ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="justify-self-start text-destructive"
+          onClick={() =>
+            confirm({
+              title: `Delete the ${current} version?`,
+              description: `Shoppers browsing in ${current} get the default email again.`,
+              confirmLabel: 'Delete version',
+              destructive: true,
+              onConfirm: onDelete,
+            })
+          }
+        >
+          Delete the {current} version
+        </Button>
+      ) : null}
+      {confirmDialog}
+    </div>
+  )
+}
+
+const DEFAULT_LANGUAGE = '__default__'
+
+// "German (de)" for a locale code, or the code alone when the browser can't name it
+function languageName(code: string): string {
+  try {
+    const name = new Intl.DisplayNames(['en'], { type: 'language' }).of(code)
+    return name && name !== code ? `${name} (${code})` : code
+  } catch {
+    return code
+  }
 }
 
 // PreflightPanel renders the pre-send checklist: warn findings in a destructive

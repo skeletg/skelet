@@ -18,6 +18,8 @@ export type ChannelScopeOption = {
   defaultLocale: string
   locales: Array<{ code: string }>
   isActive: boolean
+  /** The currency the channel sells in - pages label money inputs with it */
+  currencyCode?: string
 }
 
 export type ConfigScopeContextValue = {

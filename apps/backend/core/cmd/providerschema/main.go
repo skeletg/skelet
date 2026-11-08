@@ -344,7 +344,7 @@ func exampleBasic(b *types.Basic, field string) any {
 		return false
 	case b.Info()&types.IsString != 0:
 		switch {
-		case strings.HasSuffix(f, "id"):
+		case strings.HasSuffix(f, "id"), strings.HasSuffix(f, "ids"):
 			return "00000000-0000-0000-0000-000000000000"
 		case f == "currency":
 			return "USD"

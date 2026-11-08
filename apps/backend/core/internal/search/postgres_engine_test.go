@@ -2,6 +2,7 @@ package search
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -19,6 +20,9 @@ type fakeCatalog struct {
 	gotCount  int32
 	gotSort   string
 	gotLocale string
+	// the categories the grid and each facet count were scoped to
+	gotCategories   []uuid.UUID
+	facetCategories [][]uuid.UUID
 	// the locale each facet count was asked for - it must match the browse call's
 	// or the counts describe a different result set than the grid
 	facetLocales []string
@@ -30,6 +34,7 @@ func (f *fakeCatalog) ListAttributes(context.Context) ([]catalog.Attribute, erro
 func (f *fakeCatalog) BrowseFallback(_ context.Context, flt catalog.BrowseFallbackFilter) ([]uuid.UUID, int64, error) {
 	f.gotValues, f.gotCount = flt.AttrValueIDs, flt.AttrCount
 	f.gotSort, f.gotLocale = flt.Sort, flt.Locale
+	f.gotCategories = flt.CategoryIDs
 	return []uuid.UUID{}, 0, nil
 }
 func (f *fakeCatalog) SearchFallback(context.Context, uuid.UUID, string, string, int32, int32) ([]catalog.SearchHit, int64, error) {
@@ -41,6 +46,7 @@ func (f *fakeCatalog) FacetCounts(_ context.Context, target uuid.UUID, flt catal
 	}
 	f.seen[target] = flt.OtherSelected
 	f.facetLocales = append(f.facetLocales, flt.Locale)
+	f.facetCategories = append(f.facetCategories, flt.CategoryIDs)
 	return []catalog.FacetBucketCount{{ValueID: uuid.New(), Slug: "s", Name: "S", Count: 1}}, nil
 }
 
@@ -154,5 +160,37 @@ func TestPostgresEngineThreadsLocaleToGridAndFacets(t *testing.T) {
 		if l != "de" {
 			t.Fatalf("facet counted at locale %q while the grid used de", l)
 		}
+	}
+}
+
+// An anchor category's page reaches the fallback as its whole tree, for the grid and every facet count alike - a page
+// naming one category with no tree still filters on it
+func TestPostgresEngineScopesToTheCategoryTree(t *testing.T) {
+	colour := selectable("Colour", "colour", "red")
+	fc := &fakeCatalog{attrs: []catalog.Attribute{colour}}
+	e := NewPostgresEngine(fc, nil)
+	page, child, grandchild := uuid.New(), uuid.New(), uuid.New()
+	tree := []uuid.UUID{page, child, grandchild}
+
+	if _, err := e.BrowseProducts(context.Background(), uuid.New(), "en", "", BrowseFilter{CategoryID: &page, CategoryIDs: tree}, "", 24, 0, nil); err != nil {
+		t.Fatalf("browse: %v", err)
+	}
+	if !slices.Equal(fc.gotCategories, tree) {
+		t.Fatalf("grid scoped to %v, want the tree %v", fc.gotCategories, tree)
+	}
+	if len(fc.facetCategories) == 0 {
+		t.Fatal("no facet was counted")
+	}
+	for _, got := range fc.facetCategories {
+		if !slices.Equal(got, tree) {
+			t.Fatalf("a facet counted over %v while the grid used %v", got, tree)
+		}
+	}
+
+	if _, err := e.BrowseProducts(context.Background(), uuid.New(), "en", "", BrowseFilter{CategoryID: &page}, "", 24, 0, nil); err != nil {
+		t.Fatalf("browse: %v", err)
+	}
+	if !slices.Equal(fc.gotCategories, []uuid.UUID{page}) {
+		t.Fatalf("a lone category scoped to %v, want just it", fc.gotCategories)
 	}
 }

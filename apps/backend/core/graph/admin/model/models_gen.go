@@ -1495,6 +1495,7 @@ type Category struct {
 	Position         int32                     `json:"position"`
 	IsPublished      bool                      `json:"isPublished"`
 	SeoNoindex       bool                      `json:"seoNoindex"`
+	IsAnchor         bool                      `json:"isAnchor"`
 	Parent           *Category                 `json:"parent,omitempty"`
 	Children         []*Category               `json:"children"`
 	Ancestors        []*Category               `json:"ancestors"`
@@ -1548,18 +1549,19 @@ type CategoryOption struct {
 }
 
 type Channel struct {
-	ID                 string                      `json:"id"`
-	Slug               string                      `json:"slug"`
-	Name               string                      `json:"name"`
-	DefaultLocale      string                      `json:"defaultLocale"`
-	Locales            []*Locale                   `json:"locales"`
-	IsActive           bool                        `json:"isActive"`
-	IsDefault          bool                        `json:"isDefault"`
-	CurrencyCode       string                      `json:"currencyCode"`
-	PublicURL          string                      `json:"publicUrl"`
-	Metadata           []*MetadataItem             `json:"metadata"`
-	CreatedAt          time.Time                   `json:"createdAt"`
-	InventoryLocations []*ChannelInventoryLocation `json:"inventoryLocations"`
+	ID                  string                      `json:"id"`
+	Slug                string                      `json:"slug"`
+	Name                string                      `json:"name"`
+	DefaultLocale       string                      `json:"defaultLocale"`
+	Locales             []*Locale                   `json:"locales"`
+	IsActive            bool                        `json:"isActive"`
+	IsDefault           bool                        `json:"isDefault"`
+	CurrencyCode        string                      `json:"currencyCode"`
+	PublicURL           string                      `json:"publicUrl"`
+	TaxInclusivePricing bool                        `json:"taxInclusivePricing"`
+	Metadata            []*MetadataItem             `json:"metadata"`
+	CreatedAt           time.Time                   `json:"createdAt"`
+	InventoryLocations  []*ChannelInventoryLocation `json:"inventoryLocations"`
 }
 
 type ChannelInventoryLocation struct {
@@ -1936,6 +1938,7 @@ type CreateCategoryInput struct {
 	Position         *int32           `json:"position,omitempty"`
 	IsPublished      *bool            `json:"isPublished,omitempty"`
 	SeoNoindex       *bool            `json:"seoNoindex,omitempty"`
+	IsAnchor         *bool            `json:"isAnchor,omitempty"`
 	Metadata         []*MetadataInput `json:"metadata,omitempty"`
 	PrivateMetadata  []*MetadataInput `json:"privateMetadata,omitempty"`
 	Locale           string           `json:"locale"`
@@ -1948,13 +1951,14 @@ type CreateCategoryInput struct {
 }
 
 type CreateChannelInput struct {
-	Slug          string           `json:"slug"`
-	Name          string           `json:"name"`
-	DefaultLocale *string          `json:"defaultLocale,omitempty"`
-	Locales       []string         `json:"locales,omitempty"`
-	CurrencyCode  *string          `json:"currencyCode,omitempty"`
-	PublicURL     *string          `json:"publicUrl,omitempty"`
-	Metadata      []*MetadataInput `json:"metadata,omitempty"`
+	Slug                string           `json:"slug"`
+	Name                string           `json:"name"`
+	DefaultLocale       *string          `json:"defaultLocale,omitempty"`
+	Locales             []string         `json:"locales,omitempty"`
+	CurrencyCode        *string          `json:"currencyCode,omitempty"`
+	PublicURL           *string          `json:"publicUrl,omitempty"`
+	Metadata            []*MetadataInput `json:"metadata,omitempty"`
+	TaxInclusivePricing *bool            `json:"taxInclusivePricing,omitempty"`
 }
 
 type CreateCollectionInput struct {
@@ -2233,6 +2237,8 @@ type CreateShippingMethodInput struct {
 	EstimatedDays      *int32                         `json:"estimatedDays,omitempty"`
 	DeliversOnWeekends *bool                          `json:"deliversOnWeekends,omitempty"`
 	TypeRates          []*ShippingMethodTypeRateInput `json:"typeRates,omitempty"`
+	TableBasis         *ShippingTableBasis            `json:"tableBasis,omitempty"`
+	RateTiers          []*ShippingRateTierInput       `json:"rateTiers,omitempty"`
 }
 
 type CreateShippingZoneInput struct {
@@ -2875,6 +2881,16 @@ type EmailSuppression struct {
 type EmailSuppressionPage struct {
 	Items      []*EmailSuppression `json:"items"`
 	TotalCount int32               `json:"totalCount"`
+}
+
+type EmailTranslation struct {
+	EmailID   string    `json:"emailId"`
+	Locale    string    `json:"locale"`
+	Subject   string    `json:"subject"`
+	Preheader string    `json:"preheader"`
+	Blocks    any       `json:"blocks"`
+	Styles    any       `json:"styles"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type EmailWarning struct {
@@ -3680,6 +3696,8 @@ type Order struct {
 	Status              OrderStatus           `json:"status"`
 	PaymentStatus       PaymentStatus         `json:"paymentStatus"`
 	PaymentClientSecret *string               `json:"paymentClientSecret,omitempty"`
+	PaymentActionKind   *string               `json:"paymentActionKind,omitempty"`
+	PaymentFailed       *bool                 `json:"paymentFailed,omitempty"`
 	PaymentProvider     string                `json:"paymentProvider"`
 	PaymentReference    string                `json:"paymentReference"`
 	Email               string                `json:"email"`
@@ -3694,6 +3712,7 @@ type Order struct {
 	ShippingAmount      int32                 `json:"shippingAmount"`
 	DiscountAmount      int32                 `json:"discountAmount"`
 	TaxAmount           int32                 `json:"taxAmount"`
+	TaxIncluded         bool                  `json:"taxIncluded"`
 	ShippingTaxAmount   int32                 `json:"shippingTaxAmount"`
 	ShippingRefundable  int32                 `json:"shippingRefundable"`
 	Total               int32                 `json:"total"`
@@ -4800,6 +4819,15 @@ type SaveEmailBlockInput struct {
 	Scripted     *bool   `json:"scripted,omitempty"`
 }
 
+type SaveEmailTranslationInput struct {
+	EmailID   string  `json:"emailId"`
+	Locale    string  `json:"locale"`
+	Subject   string  `json:"subject"`
+	Preheader *string `json:"preheader,omitempty"`
+	Blocks    any     `json:"blocks"`
+	Styles    any     `json:"styles,omitempty"`
+}
+
 type SaveExperimentInput struct {
 	ChannelID   string                      `json:"channelId"`
 	Key         string                      `json:"key"`
@@ -5217,6 +5245,8 @@ type ShippingMethod struct {
 	EstimatedDays      int32                     `json:"estimatedDays"`
 	DeliversOnWeekends bool                      `json:"deliversOnWeekends"`
 	TypeRates          []*ShippingMethodTypeRate `json:"typeRates"`
+	TableBasis         ShippingTableBasis        `json:"tableBasis"`
+	RateTiers          []*ShippingRateTier       `json:"rateTiers"`
 	CreatedAt          time.Time                 `json:"createdAt"`
 	UpdatedAt          time.Time                 `json:"updatedAt"`
 }
@@ -5234,6 +5264,18 @@ type ShippingMethodTypeRateInput struct {
 	PriceCents           int32  `json:"priceCents"`
 	UnitsPerCharge       *int32 `json:"unitsPerCharge,omitempty"`
 	FreeShippingEligible *bool  `json:"freeShippingEligible,omitempty"`
+}
+
+type ShippingRateTier struct {
+	From       int32 `json:"from"`
+	PriceCents int32 `json:"priceCents"`
+	NotOffered bool  `json:"notOffered"`
+}
+
+type ShippingRateTierInput struct {
+	From       int32 `json:"from"`
+	PriceCents int32 `json:"priceCents"`
+	NotOffered *bool `json:"notOffered,omitempty"`
 }
 
 type ShippingZone struct {
@@ -5918,19 +5960,21 @@ type UpdateCategoryInput struct {
 	Position        *int32           `json:"position,omitempty"`
 	IsPublished     *bool            `json:"isPublished,omitempty"`
 	SeoNoindex      *bool            `json:"seoNoindex,omitempty"`
+	IsAnchor        *bool            `json:"isAnchor,omitempty"`
 	Metadata        []*MetadataInput `json:"metadata,omitempty"`
 	PrivateMetadata []*MetadataInput `json:"privateMetadata,omitempty"`
 }
 
 type UpdateChannelInput struct {
-	ID            string           `json:"id"`
-	Name          *string          `json:"name,omitempty"`
-	DefaultLocale *string          `json:"defaultLocale,omitempty"`
-	Locales       []string         `json:"locales,omitempty"`
-	IsActive      *bool            `json:"isActive,omitempty"`
-	CurrencyCode  *string          `json:"currencyCode,omitempty"`
-	PublicURL     *string          `json:"publicUrl,omitempty"`
-	Metadata      []*MetadataInput `json:"metadata,omitempty"`
+	ID                  string           `json:"id"`
+	Name                *string          `json:"name,omitempty"`
+	DefaultLocale       *string          `json:"defaultLocale,omitempty"`
+	Locales             []string         `json:"locales,omitempty"`
+	IsActive            *bool            `json:"isActive,omitempty"`
+	CurrencyCode        *string          `json:"currencyCode,omitempty"`
+	PublicURL           *string          `json:"publicUrl,omitempty"`
+	Metadata            []*MetadataInput `json:"metadata,omitempty"`
+	TaxInclusivePricing *bool            `json:"taxInclusivePricing,omitempty"`
 }
 
 type UpdateCollectionInput struct {
@@ -6268,6 +6312,8 @@ type UpdateShippingMethodInput struct {
 	EstimatedDays      *int32                         `json:"estimatedDays,omitempty"`
 	DeliversOnWeekends *bool                          `json:"deliversOnWeekends,omitempty"`
 	TypeRates          []*ShippingMethodTypeRateInput `json:"typeRates,omitempty"`
+	TableBasis         *ShippingTableBasis            `json:"tableBasis,omitempty"`
+	RateTiers          []*ShippingRateTierInput       `json:"rateTiers,omitempty"`
 }
 
 type UpdateShippingZoneInput struct {
@@ -10502,17 +10548,19 @@ const (
 	ShippingCalcTypeFlat      ShippingCalcType = "FLAT"
 	ShippingCalcTypeFree      ShippingCalcType = "FREE"
 	ShippingCalcTypeFreeAbove ShippingCalcType = "FREE_ABOVE"
+	ShippingCalcTypeTable     ShippingCalcType = "TABLE"
 )
 
 var AllShippingCalcType = []ShippingCalcType{
 	ShippingCalcTypeFlat,
 	ShippingCalcTypeFree,
 	ShippingCalcTypeFreeAbove,
+	ShippingCalcTypeTable,
 }
 
 func (e ShippingCalcType) IsValid() bool {
 	switch e {
-	case ShippingCalcTypeFlat, ShippingCalcTypeFree, ShippingCalcTypeFreeAbove:
+	case ShippingCalcTypeFlat, ShippingCalcTypeFree, ShippingCalcTypeFreeAbove, ShippingCalcTypeTable:
 		return true
 	}
 	return false
@@ -10548,6 +10596,63 @@ func (e *ShippingCalcType) UnmarshalJSON(b []byte) error {
 }
 
 func (e ShippingCalcType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type ShippingTableBasis string
+
+const (
+	ShippingTableBasisWeight   ShippingTableBasis = "WEIGHT"
+	ShippingTableBasisSubtotal ShippingTableBasis = "SUBTOTAL"
+	ShippingTableBasisQuantity ShippingTableBasis = "QUANTITY"
+)
+
+var AllShippingTableBasis = []ShippingTableBasis{
+	ShippingTableBasisWeight,
+	ShippingTableBasisSubtotal,
+	ShippingTableBasisQuantity,
+}
+
+func (e ShippingTableBasis) IsValid() bool {
+	switch e {
+	case ShippingTableBasisWeight, ShippingTableBasisSubtotal, ShippingTableBasisQuantity:
+		return true
+	}
+	return false
+}
+
+func (e ShippingTableBasis) String() string {
+	return string(e)
+}
+
+func (e *ShippingTableBasis) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ShippingTableBasis(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ShippingTableBasis", str)
+	}
+	return nil
+}
+
+func (e ShippingTableBasis) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ShippingTableBasis) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ShippingTableBasis) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

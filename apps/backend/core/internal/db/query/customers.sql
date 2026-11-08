@@ -1,11 +1,17 @@
 -- name: CreateCustomer :one
 -- customer_group_id falls back to the current default group, so a caller names one only when it
 -- means to - a customer.registering plugin routing the account, say
-INSERT INTO customers (email, password_hash, first_name, last_name, channel_id, is_email_verified, customer_group_id)
+INSERT INTO customers (email, password_hash, first_name, last_name, channel_id, is_email_verified, customer_group_id, locale)
 VALUES (sqlc.arg(email), sqlc.arg(password_hash), sqlc.arg(first_name), sqlc.arg(last_name), sqlc.arg(channel_id),
         sqlc.arg(is_email_verified),
-        COALESCE(sqlc.narg(customer_group_id)::uuid, (SELECT id FROM customer_groups WHERE is_default)))
+        COALESCE(sqlc.narg(customer_group_id)::uuid, (SELECT id FROM customer_groups WHERE is_default)),
+        sqlc.arg(locale))
 RETURNING *;
+
+-- name: SetCustomerLocale :execrows
+-- The storefront language a customer signed in with - a repeat in the same one writes nothing
+UPDATE customers SET locale = sqlc.arg(locale), updated_at = now()
+WHERE id = sqlc.arg(id) AND locale <> sqlc.arg(locale);
 
 -- name: GetCustomerByChannelAndEmail :one
 -- Matches the way customers_store_email_lower_key enforces uniqueness, so the lookup rides that index

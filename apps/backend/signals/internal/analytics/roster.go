@@ -17,7 +17,7 @@ import (
 // Core streams customers here, and one gone from the stream is what tells the recompute to drop their traits
 
 // RosterVersion moves with every migration that adds a roster column - a full sync stamps it, and until one has, the roster reads as behind
-const RosterVersion int32 = 4
+const RosterVersion int32 = 5
 
 const rosterTombstoneTTL = 24 * time.Hour
 
@@ -52,6 +52,7 @@ type RosterEntry struct {
 	MonetaryCents    int64
 	FirstOrderAt     *time.Time
 	LastOrderAt      *time.Time
+	Locale           string // the storefront language they last signed in with - empty when not known
 }
 
 func consentsJSON(m map[string]bool) string {
@@ -98,6 +99,7 @@ func (s *RosterSync) Page(ctx context.Context, entries []RosterEntry) error {
 		p.MonetaryCents = append(p.MonetaryCents, e.MonetaryCents)
 		p.FirstOrderAts = append(p.FirstOrderAts, timeOrZero(e.FirstOrderAt)) // zero lands as NULL
 		p.LastOrderAts = append(p.LastOrderAts, timeOrZero(e.LastOrderAt))
+		p.Locales = append(p.Locales, e.Locale)
 	}
 	if err := s.r.qs.UpsertCustomerRoster(ctx, p); err != nil {
 		return fmt.Errorf("upsert roster: %w", err)
@@ -179,7 +181,7 @@ func (r *Roster) UpsertRosterEntry(ctx context.Context, e RosterEntry) error {
 		MarketingOptedIn: e.MarketingOptedIn, SmsOptedIn: e.SMSOptedIn,
 		Consents: json.RawMessage(consentsJSON(e.Consents)), ReadAt: e.ReadAt,
 		OrderCount: e.OrderCount, MonetaryCents: e.MonetaryCents,
-		FirstOrderAt: nullTime(e.FirstOrderAt), LastOrderAt: nullTime(e.LastOrderAt),
+		FirstOrderAt: nullTime(e.FirstOrderAt), LastOrderAt: nullTime(e.LastOrderAt), Locale: e.Locale,
 	})
 }
 

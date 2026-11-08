@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 
 import { cartEstimateAction, type CartEstimate } from "@skelet/storefront-next/cart/actions";
 import { formatPrice, type CurrencyInfo } from "@skelet/storefront-core/format";
+import { useChannel } from "@/app/components/ChannelProvider";
 
 export function CartEstimator({
   currency,
@@ -18,6 +19,7 @@ export function CartEstimator({
 }) {
   const t = useTranslations("cart.estimate");
   const tc = useTranslations("common");
+  const taxIncluded = useChannel()?.taxInclusivePricing === true;
   const [country, setCountry] = useState(defaultCountry);
   const [region, setRegion] = useState("");
   const [estimate, setEstimate] = useState<CartEstimate | null>(null);
@@ -90,7 +92,7 @@ export function CartEstimator({
             </ul>
           )}
           <div className="flex justify-between border-t border-border pt-1 text-muted-foreground">
-            <span>{t("tax")}</span>
+            <span>{taxIncluded ? t("taxIncluded") : t("tax")}</span>
             <span className="tabular-nums">{formatPrice(estimate.taxCents, currency)}</span>
           </div>
           <div className="flex justify-between font-medium text-foreground">

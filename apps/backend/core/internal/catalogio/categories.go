@@ -18,6 +18,7 @@ const (
 	colCatPosition   = "position"
 	colCatPublished  = "published"
 	colCatNoindex    = "seo_noindex"
+	colCatAnchor     = "is_anchor"
 	colCatMetaTitle  = "meta_title"
 	colCatMetaDesc   = "meta_description"
 	colCatURLPath    = "url_path"
@@ -31,6 +32,7 @@ var categoryFields = []dataio.Field{
 	{Name: colCatPosition, Label: "Position", Type: dataio.FieldInteger, Description: "Sort order within the parent"},
 	{Name: colCatPublished, Label: "Published", Type: dataio.FieldBool, Example: "true"},
 	{Name: colCatNoindex, Label: "SEO noindex", Type: dataio.FieldBool},
+	{Name: colCatAnchor, Label: "Show products from subcategories", Type: dataio.FieldBool, Description: "Blank keeps it on for a new category and unchanged for an existing one", Example: "true"},
 	{Name: colCatMetaTitle, Label: "Meta title", Type: dataio.FieldText},
 	{Name: colCatMetaDesc, Label: "Meta description", Type: dataio.FieldText},
 	{Name: colCatURLPath, Label: "URL path", Type: dataio.FieldText, ReadOnly: true, Description: "Derived from the tree - move a category by changing its parent, not this"},
@@ -123,6 +125,7 @@ func (e *categoryExporter) Stream(_ context.Context, emit func(*dataio.Row) erro
 		r.Set(colCatPosition, c.Position)
 		r.Set(colCatPublished, c.IsPublished)
 		r.Set(colCatNoindex, c.SEONoindex)
+		r.Set(colCatAnchor, c.IsAnchor)
 		r.Set(colCatURLPath, c.URLPath)
 		r.Set(colCatProductCnt, e.counts[c.ID])
 		if err := emit(r); err != nil {
@@ -177,6 +180,7 @@ func (im *categoryImporter) Row(ctx context.Context, r *dataio.Row) (dataio.Outc
 	position := r.Int32(colCatPosition)
 	published := r.OptBool(colCatPublished)
 	noindex := r.OptBool(colCatNoindex)
+	anchor := r.OptBool(colCatAnchor)
 	if err := r.Err(); err != nil {
 		return dataio.OutcomeSkipped, err
 	}
@@ -199,7 +203,7 @@ func (im *categoryImporter) Row(ctx context.Context, r *dataio.Row) (dataio.Outc
 
 	locale := im.locale
 	if exists {
-		upd := catalog.UpdateCategoryInput{ID: existing.ID, ParentID: parentID, Position: position, IsPublished: published, SEONoindex: noindex}
+		upd := catalog.UpdateCategoryInput{ID: existing.ID, ParentID: parentID, Position: position, IsPublished: published, SEONoindex: noindex, IsAnchor: anchor}
 		if parentID == nil && r.Column(colCatParent) && !r.Has(colCatParent) {
 			upd.ClearParent = true // an explicitly blank cell moves the category to the root
 		}
@@ -220,6 +224,7 @@ func (im *categoryImporter) Row(ctx context.Context, r *dataio.Row) (dataio.Outc
 		Name:            r.Str(colCatName),
 		MetaTitle:       r.Str(colCatMetaTitle),
 		MetaDescription: r.Str(colCatMetaDesc),
+		IsAnchor:        anchor,
 	}
 	if position != nil {
 		in.Position = *position

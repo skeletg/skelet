@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	"log"
 	"reflect"
 	"slices"
@@ -20,7 +19,9 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/internal/locale"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	shippingpkg "github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
@@ -592,6 +593,8 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			ShippingCarrierSlug: ptr.NonZero(shipSel.CarrierSlug),
 			ShippingMethodCode:  ptr.NonZero(shipSel.MethodCode),
 			AnonID:              visitor,
+			Locale:              locale.FromContext(ctx),
+			TaxInclusive:        store.TaxInclusivePricing,
 			AssistedBy:          cartObj.AssistedCredit(time.Now()),
 			Shopper:             shopper,
 		})
@@ -729,9 +732,10 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 
 	// Authorize the amount owed, best-effort post-commit since a gateway failure can't roll the order back - so it logs and emits events rather than returning fatally
 	// A 3DS step hands back the client secret, carried on the placement response only
-	outcome := s.authorizePostPlacement(ctx, in, placed)
+	outcome, failed := s.authorizePostPlacement(ctx, in, placed)
 	placed.PaymentActionKind = outcome.ActionKind
 	placed.PaymentActionSecret = outcome.ActionValue
+	placed.PaymentFailed = failed
 
 	return placed, nil
 }

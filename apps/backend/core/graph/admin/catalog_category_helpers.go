@@ -34,6 +34,7 @@ func toCategoryModel(c catalog.Category) *model.Category {
 		Position:        c.Position,
 		IsPublished:     c.IsPublished,
 		SeoNoindex:      c.SEONoindex,
+		IsAnchor:        c.IsAnchor,
 		Ancestors:       ancestors,
 		Children:        children,
 		Level:           int32(len(ancestors)),

@@ -327,7 +327,7 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 				for i, c := range rows {
 					out.Customers[i] = signalsclient.RosterCustomer{
 						CustomerID: c.CustomerID, ChannelID: c.ChannelID, Email: c.Email,
-						FirstName: c.FirstName, Phone: c.Phone, IsActive: c.IsActive,
+						FirstName: c.FirstName, Phone: c.Phone, IsActive: c.IsActive, Locale: c.Locale,
 						GroupID:          uuid.NullUUID{UUID: c.CustomerGroupID, Valid: c.CustomerGroupID != uuid.Nil},
 						GroupSlug:        c.CustomerGroupSlug,
 						Consents:         signalsclient.ConsentsFromJSON(c.Consents),

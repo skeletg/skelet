@@ -217,6 +217,7 @@ type CustomerRoster struct {
 	MonetaryCents       int64           `json:"monetary_cents"`
 	FirstOrderAt        sql.NullTime    `json:"first_order_at"`
 	LastOrderAt         sql.NullTime    `json:"last_order_at"`
+	Locale              string          `json:"locale"`
 }
 
 type CustomerRosterState struct {
@@ -363,6 +364,16 @@ type EmailLibraryRevision struct {
 	Styles        json.RawMessage `json:"styles"`
 	AuthorAdminID uuid.NullUUID   `json:"author_admin_id"`
 	CreatedAt     time.Time       `json:"created_at"`
+}
+
+type EmailLibraryTranslation struct {
+	EmailID   uuid.UUID       `json:"email_id"`
+	Locale    string          `json:"locale"`
+	Subject   string          `json:"subject"`
+	Preheader string          `json:"preheader"`
+	Blocks    json.RawMessage `json:"blocks"`
+	Styles    json.RawMessage `json:"styles"`
+	UpdatedAt time.Time       `json:"updated_at"`
 }
 
 type EmailSend struct {

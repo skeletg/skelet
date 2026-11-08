@@ -96,6 +96,8 @@ func (r *mutationResolver) CreateShippingMethod(ctx context.Context, input model
 		UnitsPerCharge:     intDeref(input.UnitsPerCharge, 0),
 		EstimatedDays:      intDeref(input.EstimatedDays, 0),
 		DeliversOnWeekends: boolDeref(input.DeliversOnWeekends, false),
+		TableBasis:         tableBasisFromModel(input.TableBasis),
+		RateTiers:          rateTiersFromModel(input.RateTiers),
 	}
 	var rates []shipping.TypeRate
 	if input.TypeRates != nil {
@@ -154,6 +156,12 @@ func (r *mutationResolver) UpdateShippingMethod(ctx context.Context, input model
 	}
 	if input.DeliversOnWeekends != nil {
 		existing.DeliversOnWeekends = *input.DeliversOnWeekends
+	}
+	if input.TableBasis != nil {
+		existing.TableBasis = tableBasisFromModel(input.TableBasis)
+	}
+	if input.RateTiers != nil {
+		existing.RateTiers = rateTiersFromModel(input.RateTiers)
 	}
 	var rates []shipping.TypeRate
 	if input.TypeRates != nil {

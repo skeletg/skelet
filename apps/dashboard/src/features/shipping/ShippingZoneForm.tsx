@@ -1,9 +1,10 @@
-import { useMemo, useRef, useState } from 'react'
+import { createContext, useContext, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { useStore } from '@tanstack/react-form'
 import { PlusIcon, Trash2Icon } from 'lucide-react'
 import { DetailPageSection } from '@/components/layout/detail-page'
+import { fieldErrorText } from '@/components/form/field-errors'
 import { useAppForm } from '@/components/form/form'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -16,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useConfigScope } from '@/lib/config-scope'
 import { sameValue } from '@/lib/form-drafts'
 import { useUnsavedChangesGuard } from '@/lib/unsaved-changes'
 import { LoadError } from '@/shared/errors/LoadError'
@@ -33,6 +35,7 @@ import {
   UpdateShippingZoneDocument,
 } from './Shipping.gql'
 import {
+  tierUnit,
   methodSchema,
   toMethodInput,
   toMethodValues,
@@ -40,6 +43,7 @@ import {
   type DeliveryKind,
   type ExistingMethod,
   type MethodValues,
+  type TableBasis,
 } from './schemas/method'
 import {
   ZONE_LABELS,
@@ -100,6 +104,7 @@ function ShippingZoneFormPage({
   onRefetch?: () => void
 }) {
   const navigate = useNavigate()
+  const { channels } = useConfigScope()
   const isEdit = mode === 'edit'
   const [createZone] = useMutation(CreateShippingZoneDocument)
   const [updateZone] = useMutation(UpdateShippingZoneDocument)
@@ -192,9 +197,20 @@ function ShippingZoneFormPage({
         </div>
       </DetailPageSection>
 
-      {zone && <MethodsSection zoneId={zone.id} methods={methods} onChanged={onRefetch} />}
+      {zone && (
+        <MoneyUnit.Provider value={channels.find((c) => c.id === channelId)?.currencyCode ?? ''}>
+          <MethodsSection zoneId={zone.id} methods={methods} onChanged={onRefetch} />
+        </MoneyUnit.Provider>
+      )}
     </RecordFormPage>
   )
+}
+
+// The zone's channel currency, which every price on its methods is in
+const MoneyUnit = createContext('')
+
+function moneyLabel(base: string, currency: string): string {
+  return currency ? `${base} (${currency})` : base
 }
 
 function MethodsSection({ zoneId, methods, onChanged }: { zoneId: string; methods: ExistingMethod[]; onChanged?: () => void }) {
@@ -245,6 +261,7 @@ function MethodRow({
   onCancel?: () => void
 }) {
   const [confirm, confirmDialog] = useConfirmDialog()
+  const currency = useContext(MoneyUnit)
   const key = method?.id ?? 'new'
   const [error, setError] = useState<string | null>(null)
   const [createMethod] = useMutation(CreateShippingMethodDocument)
@@ -307,6 +324,7 @@ function MethodRow({
                   <SelectItem value="FLAT">Flat</SelectItem>
                   <SelectItem value="FREE">Free</SelectItem>
                   <SelectItem value="FREE_ABOVE">Free above</SelectItem>
+                  <SelectItem value="TABLE">Table rate</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -315,12 +333,12 @@ function MethodRow({
       </div>
 
       <div className="grid items-start gap-3 sm:grid-cols-3">
-        {values.calcType !== 'FREE' && (
+        {values.calcType !== 'FREE' && values.calcType !== 'TABLE' && (
           <form.AppField name="flatDollars">
             {(f) => (
               <f.TextField
                 id={`flat-${key}`}
-                label="Flat price ($)"
+                label={moneyLabel('Flat price', currency)}
                 type="number"
                 inputMode="decimal"
                 step="0.01"
@@ -335,7 +353,7 @@ function MethodRow({
             {(f) => (
               <f.TextField
                 id={`above-${key}`}
-                label="Free above ($)"
+                label={moneyLabel('Free above', currency)}
                 type="number"
                 inputMode="decimal"
                 step="0.01"
@@ -366,7 +384,7 @@ function MethodRow({
             </div>
           )}
         </form.Field>
-        {values.calcType !== 'FREE' && (
+        {values.calcType !== 'FREE' && values.calcType !== 'TABLE' && (
           <form.AppField name="unitsPerCharge">
             {(f) => (
               <f.NumberField
@@ -400,6 +418,25 @@ function MethodRow({
           </form.AppField>
         </div>
       </div>
+
+      {values.calcType === 'TABLE' && (
+        <form.Field name="rateTiers">
+          {(f) => (
+            <RateTiers
+              idPrefix={key}
+              basis={values.tableBasis}
+              onBasisChange={(basis) => {
+                form.setFieldValue('tableBasis', basis)
+                // A start in kilograms means nothing in items, so the starts are typed again - a zero start still holds
+                f.handleChange(f.state.value.map((t) => ({ ...t, from: Number(t.from) === 0 && t.from !== '' ? t.from : '' })))
+              }}
+              tiers={f.state.value}
+              onChange={(tiers) => f.handleChange(tiers)}
+              error={fieldErrorText(f)}
+            />
+          )}
+        </form.Field>
+      )}
 
       <form.Field name="typeRates">
         {(f) => <TypeRates idPrefix={key} rates={f.state.value} onChange={(rates) => f.handleChange(rates)} />}
@@ -455,12 +492,112 @@ function MethodRow({
   )
 }
 
+type RateTierValue = MethodValues['rateTiers'][number]
+
+const BASIS_LABELS: Record<TableBasis, string> = {
+  WEIGHT: 'Weight of the items',
+  SUBTOTAL: 'Order subtotal',
+  QUANTITY: 'Number of items',
+}
+
+// A table method's tiers - a shipment pays the last row it reaches, and below the first the method isn't offered.
+// Edited with the row and saved by its Save
+function RateTiers({
+  idPrefix,
+  basis,
+  onBasisChange,
+  tiers,
+  onChange,
+  error,
+}: {
+  idPrefix: string
+  basis: TableBasis
+  onBasisChange: (basis: TableBasis) => void
+  tiers: RateTierValue[]
+  onChange: (tiers: RateTierValue[]) => void
+  error?: string | null
+}) {
+  const currency = useContext(MoneyUnit)
+  const unit = tierUnit(basis, currency)
+  const patch = (i: number, p: Partial<RateTierValue>) => onChange(tiers.map((t, j) => (j === i ? { ...t, ...p } : t)))
+  return (
+    <div className="grid gap-2 border-t pt-3">
+      <div className="grid items-end gap-3 sm:grid-cols-[16rem_1fr_auto]">
+        <div className="grid gap-1.5">
+          <Label htmlFor={`${idPrefix}-basis`}>Priced by</Label>
+          <Select value={basis} onValueChange={(v) => onBasisChange(v as TableBasis)}>
+            <SelectTrigger id={`${idPrefix}-basis`} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(BASIS_LABELS) as TableBasis[]).map((b) => (
+                <SelectItem key={b} value={b}>
+                  {BASIS_LABELS[b]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          A shipment pays the last row it reaches. Below the first row the method isn't offered, so start at 0 to always offer it,
+          and a row marked not offered stops it from there up. Items with a rate by product type below are priced by that instead.
+        </p>
+        <Button type="button" size="sm" variant="outline" onClick={() => onChange([...tiers, { from: tiers.length === 0 ? '0' : '', priceDollars: '', notOffered: false }])}>
+          <PlusIcon className="size-4" /> Add tier
+        </Button>
+      </div>
+      {tiers.length > 0 && (
+        <ul className="divide-y rounded-md border">
+          {tiers.map((t, i) => (
+            <li key={i} className="grid items-end gap-3 p-3 sm:grid-cols-[10rem_10rem_auto_auto]">
+              <div className="grid gap-1.5">
+                <Label htmlFor={`${idPrefix}-from-${i}`}>From ({unit})</Label>
+                <Input
+                  id={`${idPrefix}-from-${i}`}
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step={basis === 'QUANTITY' ? '1' : basis === 'SUBTOTAL' ? '0.01' : '0.001'}
+                  value={t.from}
+                  onChange={(e) => patch(i, { from: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor={`${idPrefix}-tier-price-${i}`}>{moneyLabel('Price', currency)}</Label>
+                <Input
+                  id={`${idPrefix}-tier-price-${i}`}
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  value={t.priceDollars}
+                  disabled={t.notOffered}
+                  onChange={(e) => patch(i, { priceDollars: e.target.value })}
+                />
+              </div>
+              <label htmlFor={`${idPrefix}-tier-off-${i}`} className="flex h-9 items-center gap-2 text-sm">
+                <Checkbox id={`${idPrefix}-tier-off-${i}`} checked={t.notOffered} onCheckedChange={(v) => patch(i, { notOffered: v === true })} />
+                Not offered
+              </label>
+              <Button type="button" variant="ghost" size="icon" aria-label="Remove tier" onClick={() => onChange(tiers.filter((_, j) => j !== i))}>
+                <Trash2Icon className="size-4 text-destructive" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
+  )
+}
+
 type TypeRateValue = MethodValues['typeRates'][number]
 
 // Prices for particular product types - a fridge at its own rate, never free unless ticked, while everything else
 // pools into the method's price. Edited with the row and saved by its Save
 function TypeRates({ idPrefix, rates, onChange }: { idPrefix: string; rates: TypeRateValue[]; onChange: (rates: TypeRateValue[]) => void }) {
   const { data } = useQuery(ProductTypesDocument)
+  const currency = useContext(MoneyUnit)
   const types = (data?.productTypes ?? []).filter((t) => t.isShippingRequired && !t.isDigital)
   const unused = types.filter((t) => !rates.some((r) => r.productTypeId === t.id))
   const patch = (i: number, p: Partial<TypeRateValue>) => onChange(rates.map((r, j) => (j === i ? { ...r, ...p } : r)))
@@ -504,7 +641,7 @@ function TypeRates({ idPrefix, rates, onChange }: { idPrefix: string; rates: Typ
                 </Select>
               </div>
               <div className="grid gap-1.5">
-                <Label htmlFor={`${idPrefix}-price-${i}`}>Price ($)</Label>
+                <Label htmlFor={`${idPrefix}-price-${i}`}>{moneyLabel('Price', currency)}</Label>
                 <Input
                   id={`${idPrefix}-price-${i}`}
                   type="number"

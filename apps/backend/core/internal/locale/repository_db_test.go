@@ -17,7 +17,7 @@ import (
 )
 
 // Columns that record what language something was written in, not content to keep in it - counting them would make a locale undeletable forever
-var historicalLocaleColumns = []string{"reviews", "cms_page_comments", "cms_page_revisions"}
+var historicalLocaleColumns = []string{"reviews", "cms_page_comments", "cms_page_revisions", "orders", "customers", "signup_confirmations"}
 
 // Rows derived from content, which go with their locale - the test holds them to a cascading key instead of the guard
 var derivedLocaleColumns = []string{"embeddings"}

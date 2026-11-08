@@ -1777,6 +1777,7 @@ export type Category = {
   description?: Maybe<Scalars['JSON']['output']>;
   facetOverrides: Array<FacetOverride>;
   id: Scalars['ID']['output'];
+  isAnchor: Scalars['Boolean']['output'];
   isPublished: Scalars['Boolean']['output'];
   level: Scalars['Int']['output'];
   listings: Array<CategoryChannelListing>;
@@ -1843,6 +1844,7 @@ export type Channel = {
   name: Scalars['String']['output'];
   publicUrl: Scalars['String']['output'];
   slug: Scalars['String']['output'];
+  taxInclusivePricing: Scalars['Boolean']['output'];
 };
 
 export type ChannelInventoryLocation = {
@@ -2304,6 +2306,7 @@ export type CreateCmsSnippetInput = {
 
 export type CreateCategoryInput = {
   description?: InputMaybe<Scalars['JSON']['input']>;
+  isAnchor?: InputMaybe<Scalars['Boolean']['input']>;
   isPublished?: InputMaybe<Scalars['Boolean']['input']>;
   locale: Scalars['String']['input'];
   metaDescription?: InputMaybe<Scalars['String']['input']>;
@@ -2327,6 +2330,7 @@ export type CreateChannelInput = {
   name: Scalars['String']['input'];
   publicUrl?: InputMaybe<Scalars['String']['input']>;
   slug: Scalars['String']['input'];
+  taxInclusivePricing?: InputMaybe<Scalars['Boolean']['input']>;
 };
 
 export type CreateCollectionInput = {
@@ -2603,7 +2607,9 @@ export type CreateShippingMethodInput = {
   freeAboveCents?: InputMaybe<Scalars['Int']['input']>;
   isActive?: InputMaybe<Scalars['Boolean']['input']>;
   name?: InputMaybe<Scalars['String']['input']>;
+  rateTiers?: InputMaybe<Array<ShippingRateTierInput>>;
   sortOrder?: InputMaybe<Scalars['Int']['input']>;
+  tableBasis?: InputMaybe<ShippingTableBasis>;
   typeRates?: InputMaybe<Array<ShippingMethodTypeRateInput>>;
   unitsPerCharge?: InputMaybe<Scalars['Int']['input']>;
   zoneId: Scalars['ID']['input'];
@@ -3298,6 +3304,17 @@ export type EmailSuppressionPage = {
   __typename?: 'EmailSuppressionPage';
   items: Array<EmailSuppression>;
   totalCount: Scalars['Int']['output'];
+};
+
+export type EmailTranslation = {
+  __typename?: 'EmailTranslation';
+  blocks: Scalars['JSON']['output'];
+  emailId: Scalars['ID']['output'];
+  locale: Scalars['String']['output'];
+  preheader: Scalars['String']['output'];
+  styles: Scalars['JSON']['output'];
+  subject: Scalars['String']['output'];
+  updatedAt: Scalars['Time']['output'];
 };
 
 export type EmailWarning = {
@@ -4382,6 +4399,7 @@ export type Mutation = {
   deleteEmailBlock: Scalars['Boolean']['output'];
   deleteEmailCampaign: Scalars['Boolean']['output'];
   deleteEmailGroup: Scalars['Boolean']['output'];
+  deleteEmailTranslation: Scalars['Boolean']['output'];
   deleteExperiment: Scalars['Boolean']['output'];
   deleteFlow: Scalars['Boolean']['output'];
   deleteIntegration: Scalars['Boolean']['output'];
@@ -4525,6 +4543,7 @@ export type Mutation = {
   saveChatConversation: Scalars['ID']['output'];
   saveDeliveryPoints: Array<DeliveryPointAdmin>;
   saveEmailBlock: EmailBlockSnippet;
+  saveEmailTranslation: EmailTranslation;
   saveLibraryEmail: LibraryEmail;
   scheduleBlogPost: BlogPost;
   scheduleCMSPage: CmsPage;
@@ -5678,6 +5697,12 @@ export type MutationDeleteEmailGroupArgs = {
 };
 
 
+export type MutationDeleteEmailTranslationArgs = {
+  emailId: Scalars['ID']['input'];
+  locale: Scalars['String']['input'];
+};
+
+
 export type MutationDeleteExperimentArgs = {
   id: Scalars['ID']['input'];
 };
@@ -6463,6 +6488,11 @@ export type MutationSaveDeliveryPointsArgs = {
 
 export type MutationSaveEmailBlockArgs = {
   input: SaveEmailBlockInput;
+};
+
+
+export type MutationSaveEmailTranslationArgs = {
+  input: SaveEmailTranslationInput;
 };
 
 
@@ -7611,7 +7641,9 @@ export type Order = {
   id: Scalars['ID']['output'];
   lines: Array<OrderLine>;
   number: Scalars['String']['output'];
+  paymentActionKind?: Maybe<Scalars['String']['output']>;
   paymentClientSecret?: Maybe<Scalars['String']['output']>;
+  paymentFailed?: Maybe<Scalars['Boolean']['output']>;
   paymentProvider: Scalars['String']['output'];
   paymentReference: Scalars['String']['output'];
   paymentStatus: PaymentStatus;
@@ -7627,6 +7659,7 @@ export type Order = {
   storeCreditAmount: Scalars['Int']['output'];
   subtotal: Scalars['Int']['output'];
   taxAmount: Scalars['Int']['output'];
+  taxIncluded: Scalars['Boolean']['output'];
   taxLines: Array<OrderTaxLine>;
   total: Scalars['Int']['output'];
   trackingNumber: Scalars['String']['output'];
@@ -8594,6 +8627,7 @@ export type Query = {
   emailPreflight: Array<EmailWarning>;
   emailRevisions: Array<EmailRevision>;
   emailSuppressions: EmailSuppressionPage;
+  emailTranslations: Array<EmailTranslation>;
   embeddingCoverage: EmbeddingCoverage;
   experiment?: Maybe<Experiment>;
   experimentGoalEvents: Array<Scalars['String']['output']>;
@@ -9217,6 +9251,11 @@ export type QueryEmailSuppressionsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   reason?: InputMaybe<Scalars['String']['input']>;
+};
+
+
+export type QueryEmailTranslationsArgs = {
+  emailId: Scalars['ID']['input'];
 };
 
 
@@ -10514,6 +10553,15 @@ export type SaveEmailBlockInput = {
   textTemplate?: InputMaybe<Scalars['String']['input']>;
 };
 
+export type SaveEmailTranslationInput = {
+  blocks: Scalars['JSON']['input'];
+  emailId: Scalars['ID']['input'];
+  locale: Scalars['String']['input'];
+  preheader?: InputMaybe<Scalars['String']['input']>;
+  styles?: InputMaybe<Scalars['JSON']['input']>;
+  subject: Scalars['String']['input'];
+};
+
 export type SaveExperimentInput = {
   channelId: Scalars['ID']['input'];
   coverage: Scalars['Int']['input'];
@@ -10973,7 +11021,8 @@ export type ShippingBoxInput = {
 export type ShippingCalcType =
   | 'FLAT'
   | 'FREE'
-  | 'FREE_ABOVE';
+  | 'FREE_ABOVE'
+  | 'TABLE';
 
 export type ShippingCarrierAdmin = {
   __typename?: 'ShippingCarrierAdmin';
@@ -11013,7 +11062,9 @@ export type ShippingMethod = {
   id: Scalars['ID']['output'];
   isActive: Scalars['Boolean']['output'];
   name: Scalars['String']['output'];
+  rateTiers: Array<ShippingRateTier>;
   sortOrder: Scalars['Int']['output'];
+  tableBasis: ShippingTableBasis;
   typeRates: Array<ShippingMethodTypeRate>;
   unitsPerCharge: Scalars['Int']['output'];
   updatedAt: Scalars['Time']['output'];
@@ -11035,6 +11086,24 @@ export type ShippingMethodTypeRateInput = {
   productTypeId: Scalars['ID']['input'];
   unitsPerCharge?: InputMaybe<Scalars['Int']['input']>;
 };
+
+export type ShippingRateTier = {
+  __typename?: 'ShippingRateTier';
+  from: Scalars['Int']['output'];
+  notOffered: Scalars['Boolean']['output'];
+  priceCents: Scalars['Int']['output'];
+};
+
+export type ShippingRateTierInput = {
+  from: Scalars['Int']['input'];
+  notOffered?: InputMaybe<Scalars['Boolean']['input']>;
+  priceCents: Scalars['Int']['input'];
+};
+
+export type ShippingTableBasis =
+  | 'QUANTITY'
+  | 'SUBTOTAL'
+  | 'WEIGHT';
 
 export type ShippingZone = {
   __typename?: 'ShippingZone';
@@ -11806,6 +11875,7 @@ export type UpdateCmsSnippetInput = {
 export type UpdateCategoryInput = {
   clearParent?: InputMaybe<Scalars['Boolean']['input']>;
   id: Scalars['ID']['input'];
+  isAnchor?: InputMaybe<Scalars['Boolean']['input']>;
   isPublished?: InputMaybe<Scalars['Boolean']['input']>;
   metadata?: InputMaybe<Array<MetadataInput>>;
   parentId?: InputMaybe<Scalars['ID']['input']>;
@@ -11824,6 +11894,7 @@ export type UpdateChannelInput = {
   metadata?: InputMaybe<Array<MetadataInput>>;
   name?: InputMaybe<Scalars['String']['input']>;
   publicUrl?: InputMaybe<Scalars['String']['input']>;
+  taxInclusivePricing?: InputMaybe<Scalars['Boolean']['input']>;
 };
 
 export type UpdateCollectionInput = {
@@ -12158,7 +12229,9 @@ export type UpdateShippingMethodInput = {
   id: Scalars['ID']['input'];
   isActive?: InputMaybe<Scalars['Boolean']['input']>;
   name?: InputMaybe<Scalars['String']['input']>;
+  rateTiers?: InputMaybe<Array<ShippingRateTierInput>>;
   sortOrder?: InputMaybe<Scalars['Int']['input']>;
+  tableBasis?: InputMaybe<ShippingTableBasis>;
   typeRates?: InputMaybe<Array<ShippingMethodTypeRateInput>>;
   unitsPerCharge?: InputMaybe<Scalars['Int']['input']>;
 };

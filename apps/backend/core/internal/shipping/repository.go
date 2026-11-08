@@ -1,10 +1,14 @@
 package shipping
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
+	"slices"
 
 	"github.com/google/uuid"
 
@@ -16,7 +20,9 @@ var (
 	ErrZoneNotFound   = errors.New("shipping: zone not found")
 	ErrCodeTaken      = errors.New("shipping: code already exists in this channel")
 	ErrMethodNotFound = errors.New("shipping: method not found")
-	ErrBoxNotFound    = errors.New("shipping: box not found")
+	// The method exists, but a table rate doesn't reach this shipment - below its first tier, or past its ceiling
+	ErrMethodUnavailable = errors.New("shipping: that delivery isn't available for this cart")
+	ErrBoxNotFound       = errors.New("shipping: box not found")
 )
 
 // Repository is the thin DB layer - Zone.Countries hydration is service-level
@@ -198,6 +204,10 @@ func (r *postgresRepository) ClearZoneCountries(ctx context.Context, zoneID uuid
 }
 
 func (r *postgresRepository) CreateMethod(ctx context.Context, in Method) (Method, error) {
+	tiers, err := tiersJSON(in.RateTiers)
+	if err != nil {
+		return Method{}, fmt.Errorf("encode rate tiers: %w", err)
+	}
 	row, err := r.queries.CreateShippingMethod(ctx, db.CreateShippingMethodParams{
 		ZoneID:             in.ZoneID,
 		Code:               in.Code,
@@ -212,6 +222,8 @@ func (r *postgresRepository) CreateMethod(ctx context.Context, in Method) (Metho
 		UnitsPerCharge:     in.UnitsPerCharge,
 		EstimatedDays:      in.EstimatedDays,
 		DeliversOnWeekends: in.DeliversOnWeekends,
+		TableBasis:         normalizeTableBasis(in.TableBasis),
+		RateTiers:          tiers,
 	})
 	if err != nil {
 		if pgdb.IsUniqueViolation(err) {
@@ -223,6 +235,10 @@ func (r *postgresRepository) CreateMethod(ctx context.Context, in Method) (Metho
 }
 
 func (r *postgresRepository) UpdateMethod(ctx context.Context, in Method) (Method, error) {
+	tiers, err := tiersJSON(in.RateTiers)
+	if err != nil {
+		return Method{}, fmt.Errorf("encode rate tiers: %w", err)
+	}
 	row, err := r.queries.UpdateShippingMethod(ctx, db.UpdateShippingMethodParams{
 		ID:                 in.ID,
 		Code:               in.Code,
@@ -237,6 +253,8 @@ func (r *postgresRepository) UpdateMethod(ctx context.Context, in Method) (Metho
 		UnitsPerCharge:     in.UnitsPerCharge,
 		EstimatedDays:      in.EstimatedDays,
 		DeliversOnWeekends: in.DeliversOnWeekends,
+		TableBasis:         normalizeTableBasis(in.TableBasis),
+		RateTiers:          tiers,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return Method{}, ErrMethodNotFound
@@ -396,9 +414,38 @@ func toMethod(row db.ShippingMethod) Method {
 		UnitsPerCharge:     row.UnitsPerCharge,
 		EstimatedDays:      row.EstimatedDays,
 		DeliversOnWeekends: row.DeliversOnWeekends,
+		TableBasis:         TableBasis(row.TableBasis),
+		RateTiers:          tiersFromJSON(row.ID, row.RateTiers),
 		CreatedAt:          row.CreatedAt,
 		UpdatedAt:          row.UpdatedAt,
 	}
+}
+
+// A method that isn't a table still stores a basis, so the CHECK always has one to read
+func normalizeTableBasis(b TableBasis) string {
+	if b == "" {
+		return string(BasisWeight)
+	}
+	return string(b)
+}
+
+func tiersJSON(tiers []RateTier) (json.RawMessage, error) {
+	if tiers == nil {
+		tiers = []RateTier{}
+	}
+	return json.Marshal(tiers)
+}
+
+// Read back in the ascending order tablePrice walks them, whatever order they were written in. A table that won't
+// parse leaves the method with no tiers, so it isn't offered - logged, since checkout just stops listing it
+func tiersFromJSON(methodID uuid.UUID, raw json.RawMessage) []RateTier {
+	var tiers []RateTier
+	if err := json.Unmarshal(raw, &tiers); err != nil {
+		slog.Error("shipping: unreadable rate tiers, the table method isn't offered", "method", methodID, "err", err)
+		return nil
+	}
+	slices.SortFunc(tiers, func(a, b RateTier) int { return cmp.Compare(a.From, b.From) })
+	return tiers
 }
 
 // normalizeDeliveryKind coerces an empty kind to door delivery for the DB CHECK constraint

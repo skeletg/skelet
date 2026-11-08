@@ -1,6 +1,7 @@
 import { Fragment, type CSSProperties, type ReactNode } from 'react'
 import { EyeOffIcon } from 'lucide-react'
 import {
+  blockWord,
   SAMPLE_LINES,
   SAMPLE_SHIPTO,
   interpolateSample,
@@ -196,9 +197,9 @@ function Leaf({ block, theme }: { block: EmailBlock; theme: EmailStyles }) {
         <table cellPadding={6} style={{ borderCollapse: 'collapse', width: '100%', fontSize: 14 }}>
           <thead>
             <tr style={{ textAlign: 'left', borderBottom: '1px solid #ddd' }}>
-              <th>Item</th>
-              <th>Qty</th>
-              <th style={{ textAlign: 'right' }}>Total</th>
+              <th>{blockWord(block, 'item')}</th>
+              <th>{blockWord(block, 'qty')}</th>
+              <th style={{ textAlign: 'right' }}>{blockWord(block, 'total')}</th>
             </tr>
           </thead>
           <tbody>
@@ -221,10 +222,10 @@ function Leaf({ block, theme }: { block: EmailBlock; theme: EmailStyles }) {
         <table style={{ marginTop: 12, width: '100%', fontSize: 14 }}>
           <tbody>
             {[
-              ['Subtotal', interpolateSample('{{order.subtotal}}')],
-              ['Discount', `-${interpolateSample('{{order.discount}}')}`],
-              ['Shipping', interpolateSample('{{order.shipping}}')],
-              ['Tax', interpolateSample('{{order.tax}}')],
+              [blockWord(block, 'subtotal'), interpolateSample('{{order.subtotal}}')],
+              [blockWord(block, 'discount'), `-${interpolateSample('{{order.discount}}')}`],
+              [blockWord(block, 'shipping'), interpolateSample('{{order.shipping}}')],
+              [blockWord(block, 'tax'), interpolateSample('{{order.tax}}')],
             ].map(([label, val]) => (
               <tr key={label}>
                 <td>{label}</td>
@@ -233,7 +234,7 @@ function Leaf({ block, theme }: { block: EmailBlock; theme: EmailStyles }) {
             ))}
             <tr>
               <td>
-                <strong>Total</strong>
+                <strong>{blockWord(block, 'total')}</strong>
               </td>
               <td style={{ textAlign: 'right' }}>
                 <strong>{interpolateSample('{{order.total}}')}</strong>
@@ -245,7 +246,7 @@ function Leaf({ block, theme }: { block: EmailBlock; theme: EmailStyles }) {
     case 'shipping_address':
       return (
         <p style={{ marginTop: 12, fontSize: 14 }}>
-          <strong>Shipping to</strong>
+          <strong>{blockWord(block, 'shippingTo')}</strong>
           <br />
           {SAMPLE_SHIPTO.map((line) => (
             <Fragment key={line}>
@@ -258,14 +259,14 @@ function Leaf({ block, theme }: { block: EmailBlock; theme: EmailStyles }) {
     case 'tracking':
       return (
         <p style={{ fontSize: 14 }}>
-          Carrier: {interpolateSample('{{tracking.carrier}}')} &middot; Tracking:{' '}
+          {blockWord(block, 'carrier')}: {interpolateSample('{{tracking.carrier}}')} &middot; {blockWord(block, 'tracking')}:{' '}
           <strong>{interpolateSample('{{tracking.number}}')}</strong>
         </p>
       )
     case 'refund_amount':
       return (
         <p style={{ fontSize: 14 }}>
-          Refund issued: <strong>{interpolateSample('{{refund.amount}}')}</strong>
+          {blockWord(block, 'refund')}: <strong>{interpolateSample('{{refund.amount}}')}</strong>
         </p>
       )
     default:

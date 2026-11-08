@@ -113,5 +113,8 @@ func OrderPayload(orderID, fulfillmentID uuid.UUID, snap email.OrderSnapshot) ma
 	if fulfillmentID != uuid.Nil {
 		p[signalsapi.PayloadFulfillmentID] = fulfillmentID.String()
 	}
+	if snap.Locale != "" {
+		p[signalsapi.PayloadLocale] = snap.Locale
+	}
 	return p
 }

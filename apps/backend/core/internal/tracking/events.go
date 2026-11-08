@@ -222,9 +222,10 @@ func (h handlers) onRefunded(ctx context.Context, e events.Event) error {
 }
 
 // setValueAfter is what the order is still worth once every credit memo, and a cancellation's share, is taken off -
-// the purchase's own value, tax and shipping in, never below zero
+// the purchase's own value, tax and shipping in, never below zero. The total already holds the tax whichever way the
+// order was priced, and gift cards are tenders rather than discounts, so they leave it alone
 func setValueAfter(ev *Event, o order.Order, memos []order.CreditMemo, cancelled float64) {
-	worth := o.SubtotalAmount - o.DiscountAmount + o.TaxAmount + o.ShippingAmount
+	worth := o.TotalAmount
 	left := worth
 	for _, m := range memos {
 		left -= m.TotalCents

@@ -43,7 +43,7 @@ WITH base AS (
                AND mp.sku ILIKE '%' || escape_like($7::text) || '%'))
       AND (NOT $9::boolean OR EXISTS (
             SELECT 1 FROM catalog_product_categories pc
-            WHERE pc.product_id = p.id AND pc.category_id = $10))
+            WHERE pc.product_id = p.id AND pc.category_id = ANY($10::uuid[])))
       AND (NOT $11::boolean OR EXISTS (
             SELECT 1 FROM catalog_collection_products cp
             WHERE cp.product_id = p.id AND cp.collection_id = $12))
@@ -76,7 +76,7 @@ type BrowseFacetCountsFallbackParams struct {
 	Search            string      `json:"search"`
 	Locale            string      `json:"locale"`
 	FilterCategory    bool        `json:"filter_category"`
-	CategoryID        uuid.UUID   `json:"category_id"`
+	CategoryIds       []uuid.UUID `json:"category_ids"`
 	FilterCollection  bool        `json:"filter_collection"`
 	CollectionID      uuid.UUID   `json:"collection_id"`
 	OtherValueIds     []uuid.UUID `json:"other_value_ids"`
@@ -104,7 +104,7 @@ func (q *Queries) BrowseFacetCountsFallback(ctx context.Context, arg BrowseFacet
 		arg.Search,
 		arg.Locale,
 		arg.FilterCategory,
-		arg.CategoryID,
+		pq.Array(arg.CategoryIds),
 		arg.FilterCollection,
 		arg.CollectionID,
 		pq.Array(arg.OtherValueIds),
@@ -170,7 +170,7 @@ WHERE l.is_published = TRUE
            AND mp.sku ILIKE '%' || escape_like($4::text) || '%'))
   AND (NOT $6::boolean OR EXISTS (
         SELECT 1 FROM catalog_product_categories pc
-        WHERE pc.product_id = p.id AND pc.category_id = $7))
+        WHERE pc.product_id = p.id AND pc.category_id = ANY($7::uuid[])))
   AND (NOT $8::boolean OR EXISTS (
         SELECT 1 FROM catalog_collection_products cp
         WHERE cp.product_id = p.id AND cp.collection_id = $9))
@@ -222,7 +222,7 @@ type BrowseProductsFallbackParams struct {
 	Search           string        `json:"search"`
 	Locale           string        `json:"locale"`
 	FilterCategory   bool          `json:"filter_category"`
-	CategoryID       uuid.UUID     `json:"category_id"`
+	CategoryIds      []uuid.UUID   `json:"category_ids"`
 	FilterCollection bool          `json:"filter_collection"`
 	CollectionID     uuid.UUID     `json:"collection_id"`
 	AttrCount        int32         `json:"attr_count"`
@@ -253,7 +253,7 @@ func (q *Queries) BrowseProductsFallback(ctx context.Context, arg BrowseProducts
 		arg.Search,
 		arg.Locale,
 		arg.FilterCategory,
-		arg.CategoryID,
+		pq.Array(arg.CategoryIds),
 		arg.FilterCollection,
 		arg.CollectionID,
 		arg.AttrCount,
@@ -736,10 +736,20 @@ SELECT p.sku,
                  FROM catalog_product_kit_components k
                  JOIN catalog_products c ON c.id = k.component_product_id
                  WHERE k.product_id = p.id)
-           ELSE p.weight_grams
+           ELSE COALESCE(NULLIF(p.weight_grams, 0), parent.weight_grams)
        END, 0)::int AS weight_grams,
-       p.length_mm, p.width_mm, p.height_mm, p.product_type_id
+       COALESCE(NULLIF(p.length_mm, 0), parent.length_mm) AS length_mm,
+       COALESCE(NULLIF(p.width_mm, 0), parent.width_mm) AS width_mm,
+       COALESCE(NULLIF(p.height_mm, 0), parent.height_mm) AS height_mm,
+       p.product_type_id
 FROM catalog_products p
+LEFT JOIN LATERAL (
+    SELECT pp.weight_grams, pp.length_mm, pp.width_mm, pp.height_mm
+    FROM catalog_product_children pc
+    JOIN catalog_products pp ON pp.id = pc.parent_id
+    WHERE pc.child_id = p.id
+    LIMIT 1
+) parent ON true
 WHERE p.sku = ANY($1::text[])
 `
 
@@ -753,7 +763,8 @@ type GetProductDimensionsBySKUsRow struct {
 }
 
 // What shipping rates a line by - its physical size, and its product type for the methods' per-type rates. A kit ships as
-// its own SKU, but one with no size or weight set weighs what its items do, so its rate isn't quoted as weightless
+// its own SKU, but one with no size or weight set weighs what its items do, so its rate isn't quoted as weightless. A
+// variant with none of its own takes its parent's, which is where a merchant usually sets them once for every size
 func (q *Queries) GetProductDimensionsBySKUs(ctx context.Context, skus []string) ([]GetProductDimensionsBySKUsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getProductDimensionsBySKUs, pq.Array(skus))
 	if err != nil {

@@ -86,3 +86,21 @@ WHERE r.email_id = sqlc.arg(email_id)
     ORDER BY created_at DESC
     LIMIT sqlc.arg(keep)
   );
+
+-- name: ListEmailTranslations :many
+SELECT * FROM email_library_translations WHERE email_id = $1 ORDER BY locale;
+
+-- name: ListEmailTranslationsIn :many
+-- The versions a shopper's locale could read - its own and its language's - so a send loads one or two rows, not all
+SELECT * FROM email_library_translations WHERE email_id = sqlc.arg(email_id) AND locale = ANY(sqlc.arg(locales)::text[]);
+
+-- name: UpsertEmailTranslation :one
+INSERT INTO email_library_translations (email_id, locale, subject, preheader, blocks, styles, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, now())
+ON CONFLICT (email_id, locale) DO UPDATE
+    SET subject = EXCLUDED.subject, preheader = EXCLUDED.preheader, blocks = EXCLUDED.blocks,
+        styles = EXCLUDED.styles, updated_at = now()
+RETURNING *;
+
+-- name: DeleteEmailTranslation :execrows
+DELETE FROM email_library_translations WHERE email_id = $1 AND locale = $2;

@@ -77,6 +77,12 @@
         "categoryId": {
           "type": "string"
         },
+        "categoryIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "collectionId": {
           "type": "string"
         },

@@ -315,7 +315,7 @@ func (h *Hybrid) run(ctx context.Context, r BrowseRequest, ex *Explanation) (Bro
 func (h *Hybrid) blend(ctx context.Context, r BrowseRequest, union bool, share float64, ex *Explanation) (BrowseResult, bool) {
 	scope := r.Filter // the shopper's filters hold for both lists, or the words' list would be cut before they apply
 	scope.ProductIDs, scope.NoFacets = nil, true
-	scoped := scope.CategoryID != nil || scope.CollectionID != nil || len(scope.Kinds) > 0 || len(scope.AttributeIn) > 0 ||
+	scoped := len(scope.CategorySet()) > 0 || scope.CollectionID != nil || len(scope.Kinds) > 0 || len(scope.AttributeIn) > 0 ||
 		scope.PriceMinCents != nil || scope.PriceMaxCents != nil
 	take := meaningTake
 	if scoped {

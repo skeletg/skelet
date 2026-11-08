@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 
@@ -58,11 +59,15 @@ func (s *Service) Quote(ctx context.Context, in QuoteInput) ([]Quote, error) {
 		if !methodAllowsCountry(m, in.CountryCode) {
 			continue
 		}
+		price, ok := ComputePrice(m, in.SubtotalCents, in.Items)
+		if !ok {
+			continue
+		}
 		out = append(out, Quote{
 			MethodID:           m.ID,
 			Code:               m.Code,
 			Name:               m.Name,
-			PriceCents:         ComputePrice(m, in.SubtotalCents, in.Items),
+			PriceCents:         price,
 			DeliveryKind:       normalizeDeliveryKind(m.DeliveryKind),
 			EstimatedDays:      m.EstimatedDays,
 			DeliversOnWeekends: m.DeliversOnWeekends,
@@ -104,19 +109,35 @@ func (s *Service) FreeShippingThreshold(ctx context.Context, channelID uuid.UUID
 			return 0, err
 		}
 		for _, m := range methods {
-			if m.CalcType != CalcFreeAbove || m.FreeAboveCents <= 0 {
+			free := freeFrom(m)
+			if free <= 0 {
 				continue
 			}
 			// With a known country, respect per-method allow-lists; the channel-wide estimate takes any
 			if country != "" && !methodAllowsCountry(m, country) {
 				continue
 			}
-			if threshold == 0 || m.FreeAboveCents < threshold {
-				threshold = m.FreeAboveCents
+			if threshold == 0 || free < threshold {
+				threshold = free
 			}
 		}
 	}
 	return threshold, nil
+}
+
+// The subtotal a method ships free from - free_above's threshold, or a subtotal table's first free tier past zero - 0 for none
+func freeFrom(m Method) int64 {
+	switch {
+	case m.CalcType == CalcFreeAbove:
+		return m.FreeAboveCents
+	case m.CalcType == CalcTable && m.TableBasis == BasisSubtotal:
+		for _, t := range m.RateTiers {
+			if t.PriceCents == 0 && !t.NotOffered {
+				return t.From
+			}
+		}
+	}
+	return 0
 }
 
 // Always true for mode "all", else only when the country is in the method's hydrated allow-list
@@ -165,7 +186,11 @@ func (s *Service) ComputeForOrder(ctx context.Context, methodCode string, in Quo
 	if !methodAllowsCountry(method, in.CountryCode) {
 		return 0, Method{}, ErrMethodNotFound
 	}
-	return ComputePrice(method, in.SubtotalCents, in.Items), method, nil
+	price, ok := ComputePrice(method, in.SubtotalCents, in.Items)
+	if !ok {
+		return 0, Method{}, ErrMethodUnavailable
+	}
+	return price, method, nil
 }
 
 // The ID-based sibling of ComputeForOrder - verifies the method belongs to the country's zone, so one from another zone can't be smuggled in, and is still active
@@ -188,7 +213,11 @@ func (s *Service) ComputeForOrderByID(ctx context.Context, methodID uuid.UUID, i
 	if !methodAllowsCountry(method, in.CountryCode) {
 		return 0, Method{}, ErrMethodNotFound
 	}
-	return ComputePrice(method, in.SubtotalCents, in.Items), method, nil
+	price, ok := ComputePrice(method, in.SubtotalCents, in.Items)
+	if !ok {
+		return 0, Method{}, ErrMethodUnavailable
+	}
+	return price, method, nil
 }
 
 // Fills Zone.Countries per zone - the bare ListZones omits them, being a separate table, so the admin surface uses this to return both together
@@ -254,6 +283,7 @@ var (
 	errMethodPrice     = apperr.New("SHIPPING_METHOD_PRICE_INVALID", apperr.ClassValidation, "a method's price and free-shipping threshold can't be negative")
 	errTypeRate        = apperr.New("SHIPPING_TYPE_RATE_INVALID", apperr.ClassValidation, "each product type is priced once, at zero or more")
 	errTypeRateUnknown = apperr.New("SHIPPING_TYPE_RATE_UNKNOWN_TYPE", apperr.ClassValidation, "a type rate names a product type that doesn't exist")
+	errRateTable       = apperr.New("SHIPPING_RATE_TABLE_INVALID", apperr.ClassValidation, "a table rate measures weight, subtotal or quantity, and needs 1 to 100 tiers - each starting at a different value, none below zero, at least one offered")
 )
 
 // CheckMethodPricing refuses a kind or a bundle size the engine can't price
@@ -269,6 +299,34 @@ func CheckMethodPricing(m Method) error {
 	}
 	if m.FlatCents < 0 || m.FreeAboveCents < 0 {
 		return errMethodPrice
+	}
+	if m.CalcType == CalcTable {
+		return checkRateTable(m.TableBasis, m.RateTiers)
+	}
+	return nil
+}
+
+// A table is read on every quote, so it stays short; values stay within what the admin API's Int carries
+const (
+	maxRateTiers   = 100
+	maxRateTierVal = math.MaxInt32
+)
+
+func checkRateTable(basis TableBasis, tiers []RateTier) error {
+	if !slices.Contains([]TableBasis{BasisWeight, BasisSubtotal, BasisQuantity}, basis) || len(tiers) == 0 || len(tiers) > maxRateTiers {
+		return errRateTable
+	}
+	seen := map[int64]bool{}
+	offered := false
+	for _, t := range tiers {
+		if t.From < 0 || t.PriceCents < 0 || t.From > maxRateTierVal || t.PriceCents > maxRateTierVal || seen[t.From] {
+			return errRateTable
+		}
+		seen[t.From] = true
+		offered = offered || !t.NotOffered
+	}
+	if !offered {
+		return errRateTable // a table offered at no measure at all
 	}
 	return nil
 }

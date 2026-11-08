@@ -198,6 +198,29 @@ path simply exists. What `app/plugins/registry.ts` covers is the places a plugin
 INSIDE a core page: `registerAccountNavItem` for the account sidebar, and `registerSlot` for
 a zone like `cart:summary` or `cart:actions`.
 
+**A gateway's card fields.** `registerPaymentUI({ provider, Fields })` puts a payment
+plugin's fields into the Next storefront's checkout while its method is picked and no saved
+card stands in. `Fields` mounts the gateway's browser SDK and hands checkout a handle through
+`register`, called from an effect once the SDK is ready (and with null on unmount). Pay stays
+disabled until it has been:
+
+- `tokenize()` runs when the shopper presses Pay, before anything is placed, and returns the
+  single-use token `placeOrder` takes as `paymentToken` - a Stripe payment-method id, a
+  Braintree nonce. Throwing keeps the shopper on the step with the message shown. Returning
+  null suits a gateway that confirms after placing instead.
+- `challenge(clientSecret)` runs when the order comes back with an in-page step to do (3DS,
+  `paymentActionKind: "challenge"`). Checkout then calls `finalizeOrderPayment`, so the
+  gateway - never the page - says whether the payment went through, and lands on the order.
+  A `"redirect"` action sends the browser to the gateway instead, as long as it's an https URL.
+
+A saved card mounts no fields, so a gateway whose saved cards can be challenged also registers a
+`challenge` of its own next to `Fields`, and checkout runs that one. A card the gateway refuses at
+placement comes back with `paymentFailed`, and the shopper lands on the order marked unpaid
+rather than on a thank-you.
+
+The gateway's hosts also have to be in the storefront's CSP - see `PAYMENT_ORIGINS` in
+[env.md](env.md).
+
 Everything in the storefront registry is client-safe on purpose. The host components are all
 `"use client"`, so a server-rendered slot could not mount in them; a plugin needing server
 data calls its own `"use server"` action from the slot, which is how a plugin shows its own

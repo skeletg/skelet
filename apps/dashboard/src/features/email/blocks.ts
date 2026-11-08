@@ -58,6 +58,8 @@ export type EmailBlock = {
   poster?: string
   /** Target time text for a `countdown` block, where label is the prefix */
   deadline?: string
+  /** The order blocks' own words, so each language's version can say them - a missing key keeps the English default */
+  labels?: Record<string, string>
 }
 
 export type EmailStyles = {
@@ -79,11 +81,16 @@ export type BlockField = {
   placeholder?: string
 }
 
+// One word an order block prints, which a language's version of the email can replace
+export type BlockLabel = { key: string; label: string; fallback: string }
+
 export type BlockDescriptor = {
   type: string
   label: string
   hint: string
   fields: BlockField[]
+  /** The words a data block prints, editable per block */
+  labels?: BlockLabel[]
   /** Group the block falls under in the "Add block" menu */
   group: 'content' | 'data' | 'layout' | 'reusable'
 }
@@ -181,6 +188,11 @@ export const BLOCK_TYPES: BlockDescriptor[] = [
     hint: 'The order line-item table. Renders only in order emails.',
     group: 'data',
     fields: [],
+    labels: [
+      { key: 'item', label: 'Item column', fallback: 'Item' },
+      { key: 'qty', label: 'Quantity column', fallback: 'Qty' },
+      { key: 'total', label: 'Total column', fallback: 'Total' },
+    ],
   },
   {
     type: 'order_totals',
@@ -188,6 +200,14 @@ export const BLOCK_TYPES: BlockDescriptor[] = [
     hint: 'Subtotal / shipping / tax / total. Order emails only.',
     group: 'data',
     fields: [],
+    labels: [
+      { key: 'subtotal', label: 'Subtotal', fallback: 'Subtotal' },
+      { key: 'discount', label: 'Discount', fallback: 'Discount' },
+      { key: 'shipping', label: 'Shipping', fallback: 'Shipping' },
+      { key: 'tax', label: 'Tax added', fallback: 'Tax' },
+      { key: 'taxIncluded', label: 'Tax included in prices', fallback: 'Includes tax' },
+      { key: 'total', label: 'Total', fallback: 'Total' },
+    ],
   },
   {
     type: 'shipping_address',
@@ -195,6 +215,7 @@ export const BLOCK_TYPES: BlockDescriptor[] = [
     hint: 'The order shipping address. Order emails only.',
     group: 'data',
     fields: [],
+    labels: [{ key: 'shippingTo', label: 'Heading', fallback: 'Shipping to' }],
   },
   {
     type: 'tracking',
@@ -202,6 +223,10 @@ export const BLOCK_TYPES: BlockDescriptor[] = [
     hint: 'Carrier + tracking number. Shipment emails only.',
     group: 'data',
     fields: [],
+    labels: [
+      { key: 'carrier', label: 'Carrier', fallback: 'Carrier' },
+      { key: 'tracking', label: 'Tracking number', fallback: 'Tracking' },
+    ],
   },
   {
     type: 'refund_amount',
@@ -209,6 +234,7 @@ export const BLOCK_TYPES: BlockDescriptor[] = [
     hint: 'The refunded total. Refund emails only.',
     group: 'data',
     fields: [],
+    labels: [{ key: 'refund', label: 'Refund line', fallback: 'Refund issued' }],
   },
   {
     type: 'row',
@@ -414,4 +440,11 @@ export function shortPreview(b: EmailBlock): string {
     default:
       return ''
   }
+}
+
+// The word a block prints for key - its own label when set, else the English default
+export function blockWord(block: EmailBlock, key: string): string {
+  const own = block.labels?.[key]?.trim()
+  if (own) return own
+  return blockDescriptor(block.type)?.labels?.find((l) => l.key === key)?.fallback ?? key
 }

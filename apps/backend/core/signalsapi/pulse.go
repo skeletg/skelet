@@ -66,6 +66,7 @@ const (
 	PayloadOfferExpires   = "offer_expires"
 	PayloadOfferMessage   = "offer_message"
 	PayloadStoreName      = "store_name"
+	PayloadLocale         = "locale" // the storefront language the moment happened in, so its email can go out in it
 	PayloadFirstName      = "first_name"
 	PayloadCartID         = "cart_id"
 	PayloadPageKey        = "page_key"

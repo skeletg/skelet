@@ -749,6 +749,7 @@ type CatalogCategory struct {
 	PrivateMetadata json.RawMessage `json:"private_metadata"`
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at"`
+	IsAnchor        bool            `json:"is_anchor"`
 }
 
 type CatalogCategoryChannelListing struct {
@@ -1389,6 +1390,7 @@ type Customer struct {
 	VatID                    string          `json:"vat_id"`
 	VatIDStatus              string          `json:"vat_id_status"`
 	VatIDCheckedAt           sql.NullTime    `json:"vat_id_checked_at"`
+	Locale                   string          `json:"locale"`
 }
 
 type CustomerConsent struct {
@@ -1833,6 +1835,8 @@ type Order struct {
 	BusinessIds         json.RawMessage `json:"business_ids"`
 	FulfillmentNeed     string          `json:"fulfillment_need"`
 	AssistedBy          string          `json:"assisted_by"`
+	Locale              string          `json:"locale"`
+	TaxInclusive        bool            `json:"tax_inclusive"`
 }
 
 type OrderEmailLog struct {
@@ -2604,22 +2608,24 @@ type ShippingLabel struct {
 }
 
 type ShippingMethod struct {
-	ID                 uuid.UUID `json:"id"`
-	ZoneID             uuid.UUID `json:"zone_id"`
-	Code               string    `json:"code"`
-	Name               string    `json:"name"`
-	CalcType           string    `json:"calc_type"`
-	FlatCents          int64     `json:"flat_cents"`
-	FreeAboveCents     int64     `json:"free_above_cents"`
-	SortOrder          int32     `json:"sort_order"`
-	IsActive           bool      `json:"is_active"`
-	CreatedAt          time.Time `json:"created_at"`
-	UpdatedAt          time.Time `json:"updated_at"`
-	CountryMode        string    `json:"country_mode"`
-	DeliveryKind       string    `json:"delivery_kind"`
-	UnitsPerCharge     int32     `json:"units_per_charge"`
-	EstimatedDays      int32     `json:"estimated_days"`
-	DeliversOnWeekends bool      `json:"delivers_on_weekends"`
+	ID                 uuid.UUID       `json:"id"`
+	ZoneID             uuid.UUID       `json:"zone_id"`
+	Code               string          `json:"code"`
+	Name               string          `json:"name"`
+	CalcType           string          `json:"calc_type"`
+	FlatCents          int64           `json:"flat_cents"`
+	FreeAboveCents     int64           `json:"free_above_cents"`
+	SortOrder          int32           `json:"sort_order"`
+	IsActive           bool            `json:"is_active"`
+	CreatedAt          time.Time       `json:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at"`
+	CountryMode        string          `json:"country_mode"`
+	DeliveryKind       string          `json:"delivery_kind"`
+	UnitsPerCharge     int32           `json:"units_per_charge"`
+	EstimatedDays      int32           `json:"estimated_days"`
+	DeliversOnWeekends bool            `json:"delivers_on_weekends"`
+	TableBasis         string          `json:"table_basis"`
+	RateTiers          json.RawMessage `json:"rate_tiers"`
 }
 
 type ShippingMethodCountry struct {
@@ -2663,6 +2669,7 @@ type SignupConfirmation struct {
 	CreatedAt   time.Time     `json:"created_at"`
 	ExpiresAt   time.Time     `json:"expires_at"`
 	ConfirmedAt sql.NullTime  `json:"confirmed_at"`
+	Locale      string        `json:"locale"`
 }
 
 type SignupForm struct {

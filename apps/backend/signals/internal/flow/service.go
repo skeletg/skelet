@@ -625,18 +625,20 @@ func (s *Service) execEmail(ctx context.Context, f Flow, node Node, run FlowRun)
 		return nil
 	}
 	vars := s.mergeVars(ctx, ch, cust, run)
+	locale := runLocale(run, cust)
 	var subj, html, text string
 	switch {
 	// A transactional order flow renders the chosen email from the snapshot its enrollment carried - items, totals, tracking, ship-to blocks
 	case transactional && isOrderTrigger(f.TriggerType) && hasOrderSnapshot(run):
-		subj, html, text, err = s.renderOrderEmail(ctx, ch, f, node, run)
+		subj, html, text, err = s.renderOrderEmail(ctx, ch, f, node, run, locale)
 	case strings.TrimSpace(node.Data.EmailID) != "":
 		e, ok := s.ownEmail(ctx, f.ChannelID, node.Data.EmailID)
 		if !ok {
 			log.Printf("[flow] email node %s: library email %q is not one of the flow's channel", node.ID, node.Data.EmailID)
 			return nil
 		}
-		subj, html, text, err = s.tmpl.RenderLibraryEmail(ctx, e.ID, vars)
+		e, _ = s.tmpl.Localize(ctx, e, locale)
+		subj, html, text, err = s.tmpl.RenderContent(ctx, e.ChannelID, e.Subject, e.Preheader, e.Blocks, e.Styles, vars)
 	default:
 		subj, html, text, err = s.tmpl.RenderContent(ctx, ch.ID, node.Data.Subject, "", node.Data.Blocks, node.Data.Styles, vars)
 	}

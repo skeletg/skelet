@@ -268,6 +268,7 @@ type CategoryRepository interface {
 	ListCategoryFacetOverrides(ctx context.Context, categoryID uuid.UUID) ([]FacetOverride, error)
 	ReplaceCategoryFacetOverrides(ctx context.Context, categoryID uuid.UUID, overrides []FacetOverride) error
 	ListCategoryChildren(ctx context.Context, parentID uuid.UUID) ([]Category, error)
+	ListCategoryListingIDs(ctx context.Context, channelID, id uuid.UUID) ([]uuid.UUID, error)
 	ListCategoriesListedOnChannel(ctx context.Context, channelID uuid.UUID) ([]Category, error)
 	ListCategoryChildrenListedOnChannel(ctx context.Context, channelID, parentID uuid.UUID) ([]Category, error)
 	ListCategoryContent(ctx context.Context, categoryID uuid.UUID) ([]CategoryContent, error)

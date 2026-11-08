@@ -479,6 +479,25 @@ func (s *Service) send(ctx context.Context, c Campaign) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	// Each language's version is worked out once per pass, then shared by everyone reading it - nil for a language with
+	// no version of its own, whose readers get the email as written
+	localized := map[string]*emailtemplate.LibraryEmail{}
+	var locales map[uuid.UUID]string
+	inLanguage := func(r Recipient) *emailtemplate.LibraryEmail {
+		if libEmail == nil || r.CustomerID == nil || locales[*r.CustomerID] == "" {
+			return nil
+		}
+		locale := locales[*r.CustomerID]
+		if e, ok := localized[locale]; ok {
+			return e
+		}
+		var hit *emailtemplate.LibraryEmail
+		if e, ok := s.tmpl.Localize(ctx, *libEmail, locale); ok {
+			hit = &e
+		}
+		localized[locale] = hit
+		return hit
+	}
 	sent := 0
 	var delivered, failed, skipped int // this pass's outcomes, added to the campaign's rollup once at the end
 	recounted := false                 // a full recount already includes them
@@ -514,6 +533,13 @@ func (s *Service) send(ctx context.Context, c Campaign) (int, error) {
 		if s.suppress != nil {
 			suppressed = s.suppress.SuppressedSet(ctx, emails)
 		}
+		locales = map[uuid.UUID]string{}
+		if libEmail != nil {
+			if locales, err = s.contacts.LocalesByIDs(ctx, custIDs); err != nil {
+				log.Printf("[campaign] recipient languages %s: %v - sending as written", c.ID, err)
+				locales = map[uuid.UUID]string{}
+			}
+		}
 		for _, r := range batch {
 			if sent >= perRunSendCap {
 				break
@@ -535,7 +561,7 @@ func (s *Service) send(ctx context.Context, c Campaign) (int, error) {
 				}
 				continue
 			}
-			subj, html, text, err := s.renderVariant(ctx, c, libEmail, r.Variant, s.recipientVars(ch, r))
+			subj, html, text, err := s.renderVariant(ctx, c, libEmail, inLanguage(r), r.Variant, s.recipientVars(ch, r))
 			if err != nil {
 				if merr := s.repo.MarkFailed(ctx, r.ID, err.Error()); merr != nil {
 					log.Printf("[campaign] mark failed %s: %v", r.ID, merr)
@@ -644,7 +670,12 @@ func (s *Service) pickWinner(ctx context.Context, c Campaign) string { // higher
 }
 
 // Renders a recipient's email, library or inline, overriding the subject with subject B for the B variant - content is identical across variants, since this is a subject-line test
-func (s *Service) renderVariant(ctx context.Context, c Campaign, libEmail *emailtemplate.LibraryEmail, variant string, vars map[string]string) (subject, html, text string, err error) {
+// translated is the recipient's language version when there is one - the B subject is written in the email's own
+// language, so a translated reader keeps their version's subject in either arm
+func (s *Service) renderVariant(ctx context.Context, c Campaign, libEmail, translated *emailtemplate.LibraryEmail, variant string, vars map[string]string) (subject, html, text string, err error) {
+	if translated != nil {
+		return s.renderPrepared(ctx, c, translated, vars)
+	}
 	subject, html, text, err = s.renderPrepared(ctx, c, libEmail, vars)
 	if err == nil && c.ABEnabled && variant == VariantB && strings.TrimSpace(c.ABSubjectB) != "" {
 		subject = c.ABSubjectB

@@ -16,8 +16,11 @@ export const channelIdentitySchema = z
       "Storefront base URL that password-reset and verification email links are built on - empty string for none",
     ),
     isActive: z.boolean().describe('Whether the channel is live'),
+    taxInclusivePricing: z
+      .boolean()
+      .describe('Whether prices on this channel already contain tax, so checkout splits it out instead of adding it'),
   })
-  .describe("A channel's name, currency, public URL and active flag")
+  .describe("A channel's name, currency, public URL, active flag and tax-inclusive pricing")
 
 export type ChannelIdentityValues = z.infer<typeof channelIdentitySchema>
 
@@ -26,6 +29,7 @@ export const CHANNEL_IDENTITY_LABELS: Record<keyof ChannelIdentityValues, string
   currencyCode: 'Currency',
   publicUrl: 'Public URL',
   isActive: 'Active',
+  taxInclusivePricing: 'Prices include tax',
 }
 
 type Channel = NonNullable<ChannelQuery['channel']>
@@ -36,6 +40,7 @@ export function toChannelIdentityValues(channel: Channel): ChannelIdentityValues
     currencyCode: channel.currencyCode,
     publicUrl: channel.publicUrl ?? '',
     isActive: channel.isActive,
+    taxInclusivePricing: channel.taxInclusivePricing,
   }
 }
 
@@ -49,6 +54,7 @@ export function toChannelIdentityInput(v: ChannelIdentityValues, channel: Channe
     currencyCode: v.currencyCode,
     publicUrl: v.publicUrl.trim() || null,
     metadata: channel.metadata,
+    taxInclusivePricing: v.taxInclusivePricing,
   }
 }
 

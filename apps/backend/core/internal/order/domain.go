@@ -12,6 +12,9 @@ import (
 )
 
 // A confirmed order, prices in cents - CustomerID is nil for guests, and Email is both the receipt address and the second half of the (id, email) bearer credential for unauthenticated detail lookups
+// TaxIncluded is an order whose tax sits inside its prices - the receipt says "includes tax" instead of adding a line
+func (o Order) TaxIncluded() bool { return o.TaxInclusive }
+
 type Order struct {
 	ID              uuid.UUID
 	CustomerID      *uuid.UUID
@@ -34,11 +37,14 @@ type Order struct {
 	ShippingTaxAmount int64 // the part of TaxAmount charged on shipping
 	TotalAmount       int64
 	AnonID            string // the visitor id it was placed under - a guest order's later events reach the profile its placement did
+	Locale            string // the storefront language it was placed in, so its emails can go out in it - empty when not known
+	TaxInclusive      bool   // its prices held their tax, as its channel priced it at placement
 	AssistedBy        string
 	Shopper           *auth.Shopper // the visitor as they placed it, kept in metadata.tracking so an event sent after they change their mind still follows the consent they bought under - nil unless a shop placed it
 	// TRANSIENT and never persisted - set on the placement response for a client-side 3DS step and consumed by the storefront immediately
 	PaymentActionKind   string // "", "redirect" or "challenge" - what the client must do with PaymentActionSecret
 	PaymentActionSecret string
+	PaymentFailed       bool // the gateway refused or never answered the authorization, so the order is placed unpaid
 	// The cents of TotalAmount covered by gift cards - it reduces what's owed to the provider, not TotalAmount, since tax is on the full price
 	GiftCardAmount    int64
 	StoreCreditAmount int64

@@ -53,8 +53,8 @@ SELECT id, email, customer_id, created_at FROM signup_form_submissions
 WHERE form_id = sqlc.arg(form_id) ORDER BY created_at DESC LIMIT sqlc.arg(lim);
 
 -- name: CreateSignupConfirmation :exec
-INSERT INTO signup_confirmations (token_hash, form_id, channel_id, email, first_name, consent_kind, expires_at)
-VALUES (sqlc.arg(token_hash), sqlc.arg(form_id), sqlc.arg(channel_id), sqlc.arg(email), sqlc.arg(first_name), sqlc.arg(consent_kind), sqlc.arg(expires_at));
+INSERT INTO signup_confirmations (token_hash, form_id, channel_id, email, first_name, consent_kind, expires_at, locale)
+VALUES (sqlc.arg(token_hash), sqlc.arg(form_id), sqlc.arg(channel_id), sqlc.arg(email), sqlc.arg(first_name), sqlc.arg(consent_kind), sqlc.arg(expires_at), sqlc.arg(locale));
 
 -- name: GetPendingSignupConfirmation :one
 SELECT * FROM signup_confirmations

@@ -128,6 +128,7 @@ func (r *mutationResolver) CreateCategory(ctx context.Context, input model.Creat
 		Position:         int32Or(input.Position, 0),
 		IsPublished:      boolOrFalse(input.IsPublished),
 		SEONoindex:       boolOrFalse(input.SeoNoindex),
+		IsAnchor:         input.IsAnchor,
 		Metadata:         metadataFromInput(input.Metadata),
 		PrivateMetadata:  metadataFromInput(input.PrivateMetadata),
 		Locale:           input.Locale,
@@ -166,6 +167,7 @@ func (r *mutationResolver) UpdateCategory(ctx context.Context, input model.Updat
 		Position:    input.Position,
 		IsPublished: input.IsPublished,
 		SEONoindex:  input.SeoNoindex,
+		IsAnchor:    input.IsAnchor,
 		ClearParent: boolOrFalse(input.ClearParent),
 	}
 	if input.ParentID != nil {
