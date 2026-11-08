@@ -13,12 +13,12 @@ type TrackingField {
   testMode: Boolean!
 }
 
-# One platform skelet can send to - every first-party one, whether or not this build compiled its plugin in
+# One platform skelet can send to - every one skelet publishes a plugin for, whether or not this build compiled it in
 type TrackingPlatform {
   kind:       String!
   label:      String!
   pluginSlug: String!
-  # The plugin is compiled into this build. False: enable it with `skelet cli plugin enable <pluginSlug>` and rebuild
+  # The plugin is compiled into this build. False: skelet cli plugin add github.com/skeletg/<pluginSlug>, then rebuild
   installed:  Boolean!
   # The plugin is switched on for the channel
   availableOnChannel: Boolean!
