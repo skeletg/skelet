@@ -156,7 +156,7 @@ template (`lib/email/cart_offer_template.go`).
 **Preview email** renders core’s template using the same composition as its send path.
 An active Pulse flow may send its own design instead. If the channel has no public URL,
 the preview shows the relative link path and marks the link incomplete; sending needs
-the public URL configured under **Settings → Identity**.
+the public URL configured under **Settings → All settings → Identity**.
 
 The flow email can use these merge tags:
 

@@ -128,7 +128,7 @@ warning doesn't stop the option being offered.
 
 A method quotes delivery days, and checkout turns them into the date the shopper sees
 ("Arrives Mon 5 Oct"). The count starts the day after the order, on the calendar of
-**Settings → General → Store information → Store timezone**. Saturday and Sunday are skipped unless the
+**Settings → All settings → General → Store information → Store timezone**. Saturday and Sunday are skipped unless the
 carrier delivers on weekends, so a Friday order quoted 1 day arrives Monday, or Saturday
 from a weekend carrier. The **Fastest** badge goes by that date, not by the days quoted.
 
