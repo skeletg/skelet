@@ -87,8 +87,6 @@ type SpineStore interface {
 	ExperimentGoalEvents(ctx context.Context, channelID uuid.UUID, since time.Time) ([]string, error)
 	ExperimentResults(ctx context.Context, channelID uuid.UUID, key, goalEvent string, since time.Time) ([]VariationResult, error)
 
-	// A keyset page of raw events for outbound forwarding, ordered by (created_at, id) - the destination service pages through this with its stored cursor
-
 	// Spine primitives for commerce-orchestrated reads - the Recorder joins these with commerce data for segment membership, email_sends and trait projection
 	SegmentAffinitiesForMembers(ctx context.Context, channelID uuid.UUID, memberIDs []uuid.UUID, since time.Time, limit int) ([]SegmentAffinityCount, error)
 	RecentEngagementEvents(ctx context.Context, channelID, customerID uuid.UUID, since time.Time) ([]EngagementCandidate, error)

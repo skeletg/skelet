@@ -5,3 +5,5 @@
   longer forwarded anywhere.
 - **`SIGNALS_ENCRYPTION_KEY` is no longer read.** It only sealed those destinations' secrets, so
   drop it from the root `.env` and `env/signals.env`.
+- **`DestinationService` and `MaintenanceService.ForwardDestinations` are gone from the Signals
+  contract.** Upgrade core and the suite together.

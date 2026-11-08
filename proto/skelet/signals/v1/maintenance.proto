@@ -21,10 +21,6 @@ service MaintenanceService {
   rpc PruneAssistantConversations(PruneAssistantConversationsRequest) returns (PruneAssistantConversationsResponse);
   // Per-customer RFM, lifecycle and engagement, across every channel the roster covers
   rpc ComputeTraits(ComputeTraitsRequest) returns (ComputeTraitsResponse);
-  // Retired with the suite's event destinations - kept for a release as a no-op so an older core's job stays quiet
-  rpc ForwardDestinations(ForwardDestinationsRequest) returns (ForwardDestinationsResponse) {
-    option deprecated = true;
-  }
   // Whether aged data is archived before deletion - core's send-log sweep honours the same operator setting
   rpc GetRetentionAction(GetRetentionActionRequest) returns (GetRetentionActionResponse);
   // Everything core's health page reports about the suite, in one round trip - the page renders them together
@@ -74,10 +70,6 @@ message ComputeTraitsRequest {}
 
 message ComputeTraitsResponse {}
 
-message ForwardDestinationsRequest {}
-
-message ForwardDestinationsResponse {}
-
 message GetRetentionActionRequest {}
 
 message GetRetentionActionResponse {
@@ -98,9 +90,9 @@ message GetHealthResponse {
   int32 pending_erasures = 6;
   string erasures_error = 7;
   QueueHealth queue = 8;
-  // Retired with the suite's event destinations, never filled
-  repeated DestinationHealth destinations = 9 [deprecated = true];
-  string destinations_error = 10 [deprecated = true];
+  // The suite's retired event destinations
+  reserved 9, 10;
+  reserved "destinations", "destinations_error";
 }
 
 // A queue is optional - unconfigured, events are written straight to the engine
@@ -111,12 +103,6 @@ message QueueHealth {
   int64 stream_messages = 4;
   int64 pending = 5;
   int64 redelivering = 6;
-}
-
-message DestinationHealth {
-  string name = 1;
-  string last_error = 2;
-  optional google.protobuf.Timestamp last_forwarded_at = 3;
 }
 
 message ListBrowseAbandonersRequest {
