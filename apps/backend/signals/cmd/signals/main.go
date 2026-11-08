@@ -92,7 +92,7 @@ func run() error {
 		}
 	}()
 
-	// Retention, trait compute and destination forwarding arrive on the contract - core's scheduler
+	// Retention and trait compute arrive on the contract - core's scheduler
 	// owns their cadence, their run history and the operator's run-now button
 	var wg sync.WaitGroup
 	if queue := d.Stack.Queue; queue != nil { // this process never wraps its spine, so the recorder's store is the engine itself
