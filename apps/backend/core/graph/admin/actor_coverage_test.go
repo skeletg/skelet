@@ -14,6 +14,7 @@ import (
 // The admin API serves integration tokens as well as people, so a resolver that refuses a token has to say so on purpose
 var humanOnly = map[string]string{
 	"Me":                         "the signed-in admin's own record",
+	"AdminSearch":                "the dashboard's ⌘K palette - an integration reads the paged lists, which serve tokens",
 	"ChangePassword":             "a person's own credential",
 	"AdminTotpSetup":             "a person's own second factor",
 	"AdminTotpEnable":            "a person's own second factor",

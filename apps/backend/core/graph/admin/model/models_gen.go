@@ -454,6 +454,31 @@ type AdminProductQuestion struct {
 	AnsweredAt  *time.Time `json:"answeredAt,omitempty"`
 }
 
+type AdminSearchCustomer struct {
+	ID    string `json:"id"`
+	Email string `json:"email"`
+	Name  string `json:"name"`
+}
+
+type AdminSearchOrder struct {
+	ID     string `json:"id"`
+	Number string `json:"number"`
+	Email  string `json:"email"`
+	Name   string `json:"name"`
+}
+
+type AdminSearchProduct struct {
+	ID   string `json:"id"`
+	Sku  string `json:"sku"`
+	Name string `json:"name"`
+}
+
+type AdminSearchResult struct {
+	Orders    []*AdminSearchOrder    `json:"orders"`
+	Customers []*AdminSearchCustomer `json:"customers"`
+	Products  []*AdminSearchProduct  `json:"products"`
+}
+
 type AdminSession struct {
 	ID           string    `json:"id"`
 	IPAddress    *string   `json:"ipAddress,omitempty"`
