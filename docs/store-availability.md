@@ -1,6 +1,6 @@
 # Store availability
 
-Enable **Settings → Sales → Store availability** globally or for a channel. It is
+Enable **Settings → All settings → Sales → Store availability** globally or for a channel. It is
 off by default. Under **Inventory locations**, mark each customer-facing location
 **List in store finder**, activate it, and assign it to the intended channels.
 Only **Retail store** locations can be publicly listed or accept online pickup.

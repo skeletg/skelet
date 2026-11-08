@@ -1,0 +1,22 @@
+# What the ⌘K palette finds as you type - the server decides which kinds and channels this admin may search, and
+# returns a few light rows of each
+query AdminSearch($term: String!) {
+  adminSearch(term: $term) {
+    orders {
+      id
+      number
+      email
+      name
+    }
+    customers {
+      id
+      email
+      name
+    }
+    products {
+      id
+      sku
+      name
+    }
+  }
+}

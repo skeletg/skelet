@@ -55,10 +55,10 @@ const countOrdersPaged = `-- name: CountOrdersPaged :one
 SELECT COUNT(*) FROM orders o
 WHERE  TRUE
   AND  ($1::text = '' OR
-        o.number ILIKE '%' || $1::text || '%' OR
-        o.email ILIKE '%' || $1::text || '%' OR
-        o.shipping_last_name ILIKE '%' || $1::text || '%' OR
-        o.billing_last_name ILIKE '%' || $1::text || '%')
+        o.number ILIKE '%' || escape_like($1::text) || '%' OR
+        o.email ILIKE '%' || escape_like($1::text) || '%' OR
+        o.shipping_last_name ILIKE '%' || escape_like($1::text) || '%' OR
+        o.billing_last_name ILIKE '%' || escape_like($1::text) || '%')
   AND  ($2::boolean OR o.status = ANY($3::text[]))
   AND  ($4::boolean OR o.payment_status = ANY($5::text[]))
 `
@@ -88,10 +88,10 @@ const countOrdersPagedInChannels = `-- name: CountOrdersPagedInChannels :one
 SELECT COUNT(*) FROM orders o
 WHERE  o.channel_id = ANY($1::uuid[])
   AND  ($2::text = '' OR
-        o.number ILIKE '%' || $2::text || '%' OR
-        o.email ILIKE '%' || $2::text || '%' OR
-        o.shipping_last_name ILIKE '%' || $2::text || '%' OR
-        o.billing_last_name ILIKE '%' || $2::text || '%')
+        o.number ILIKE '%' || escape_like($2::text) || '%' OR
+        o.email ILIKE '%' || escape_like($2::text) || '%' OR
+        o.shipping_last_name ILIKE '%' || escape_like($2::text) || '%' OR
+        o.billing_last_name ILIKE '%' || escape_like($2::text) || '%')
   AND  ($3::boolean OR o.status = ANY($4::text[]))
   AND  ($5::boolean OR o.payment_status = ANY($6::text[]))
 `
@@ -988,10 +988,10 @@ const listOrdersPaged = `-- name: ListOrdersPaged :many
 SELECT id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive FROM orders o
 WHERE  TRUE
   AND  ($1::text = '' OR
-        o.number ILIKE '%' || $1::text || '%' OR
-        o.email ILIKE '%' || $1::text || '%' OR
-        o.shipping_last_name ILIKE '%' || $1::text || '%' OR
-        o.billing_last_name ILIKE '%' || $1::text || '%')
+        o.number ILIKE '%' || escape_like($1::text) || '%' OR
+        o.email ILIKE '%' || escape_like($1::text) || '%' OR
+        o.shipping_last_name ILIKE '%' || escape_like($1::text) || '%' OR
+        o.billing_last_name ILIKE '%' || escape_like($1::text) || '%')
   AND  ($2::boolean OR o.status = ANY($3::text[]))
   AND  ($4::boolean OR o.payment_status = ANY($5::text[]))
 ORDER  BY o.created_at DESC
@@ -1101,10 +1101,10 @@ const listOrdersPagedInChannels = `-- name: ListOrdersPagedInChannels :many
 SELECT id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive FROM orders o
 WHERE  o.channel_id = ANY($1::uuid[])
   AND  ($2::text = '' OR
-        o.number ILIKE '%' || $2::text || '%' OR
-        o.email ILIKE '%' || $2::text || '%' OR
-        o.shipping_last_name ILIKE '%' || $2::text || '%' OR
-        o.billing_last_name ILIKE '%' || $2::text || '%')
+        o.number ILIKE '%' || escape_like($2::text) || '%' OR
+        o.email ILIKE '%' || escape_like($2::text) || '%' OR
+        o.shipping_last_name ILIKE '%' || escape_like($2::text) || '%' OR
+        o.billing_last_name ILIKE '%' || escape_like($2::text) || '%')
   AND  ($3::boolean OR o.status = ANY($4::text[]))
   AND  ($5::boolean OR o.payment_status = ANY($6::text[]))
 ORDER  BY o.created_at DESC

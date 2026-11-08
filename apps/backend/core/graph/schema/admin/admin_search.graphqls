@@ -1,0 +1,36 @@
+# The dashboard's ⌘K lookup across orders, customers and products - a few light rows per kind, each kind only for an
+# admin who may read it and only in the channels they may read it in
+
+type AdminSearchResult {
+  orders:    [AdminSearchOrder!]!
+  customers: [AdminSearchCustomer!]!
+  products:  [AdminSearchProduct!]!
+}
+
+type AdminSearchOrder {
+  id:     ID!
+  number: String!
+  email:  String!
+  # The name it ships to - empty when none was given
+  name:   String!
+}
+
+type AdminSearchCustomer {
+  id:    ID!
+  email: String!
+  # First and last name - empty when the customer gave neither
+  name:  String!
+}
+
+type AdminSearchProduct {
+  id:   ID!
+  sku:  String!
+  # In the admin's locale, else whichever translation exists - empty when none does
+  name: String!
+}
+
+extend type Query {
+  # Up to five of each kind, newest first, matched on a substring of the order number, email or shipping name, the
+  # customer's email or full name, or the product's name or SKU. Fewer than three characters finds nothing
+  adminSearch(term: String!): AdminSearchResult!
+}

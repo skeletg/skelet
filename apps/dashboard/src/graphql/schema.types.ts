@@ -489,6 +489,35 @@ export type AdminProductQuestion = {
   status: Scalars['String']['output'];
 };
 
+export type AdminSearchCustomer = {
+  __typename?: 'AdminSearchCustomer';
+  email: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+};
+
+export type AdminSearchOrder = {
+  __typename?: 'AdminSearchOrder';
+  email: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  number: Scalars['String']['output'];
+};
+
+export type AdminSearchProduct = {
+  __typename?: 'AdminSearchProduct';
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  sku: Scalars['String']['output'];
+};
+
+export type AdminSearchResult = {
+  __typename?: 'AdminSearchResult';
+  customers: Array<AdminSearchCustomer>;
+  orders: Array<AdminSearchOrder>;
+  products: Array<AdminSearchProduct>;
+};
+
 export type AdminSession = {
   __typename?: 'AdminSession';
   createdAt: Scalars['Time']['output'];
@@ -8531,6 +8560,7 @@ export type Query = {
   adminCartDeliveryPoints: Array<AdminCartDeliveryPoint>;
   adminCartOfferEmailPreview: AdminCartOfferEmailPreview;
   adminCartOfferPaymentMethods: Array<AdminCartOfferPaymentMethod>;
+  adminSearch: AdminSearchResult;
   admins: Array<AdminUser>;
   agenticStatus: Array<AgenticStatus>;
   aiInsights: AiInsights;
@@ -8817,6 +8847,11 @@ export type QueryAdminCartOfferEmailPreviewArgs = {
 
 export type QueryAdminCartOfferPaymentMethodsArgs = {
   cartId: Scalars['ID']['input'];
+};
+
+
+export type QueryAdminSearchArgs = {
+  term: Scalars['String']['input'];
 };
 
 

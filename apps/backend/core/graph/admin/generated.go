@@ -341,6 +341,31 @@ type ComplexityRoot struct {
 		Status      func(childComplexity int) int
 	}
 
+	AdminSearchCustomer struct {
+		Email func(childComplexity int) int
+		ID    func(childComplexity int) int
+		Name  func(childComplexity int) int
+	}
+
+	AdminSearchOrder struct {
+		Email  func(childComplexity int) int
+		ID     func(childComplexity int) int
+		Name   func(childComplexity int) int
+		Number func(childComplexity int) int
+	}
+
+	AdminSearchProduct struct {
+		ID   func(childComplexity int) int
+		Name func(childComplexity int) int
+		Sku  func(childComplexity int) int
+	}
+
+	AdminSearchResult struct {
+		Customers func(childComplexity int) int
+		Orders    func(childComplexity int) int
+		Products  func(childComplexity int) int
+	}
+
 	AdminSession struct {
 		CreatedAt    func(childComplexity int) int
 		ID           func(childComplexity int) int
@@ -3913,6 +3938,7 @@ type ComplexityRoot struct {
 		AdminCartDeliveryPoints      func(childComplexity int, cartID string, groupKey string, optionID string, search *string) int
 		AdminCartOfferEmailPreview   func(childComplexity int, cartID string) int
 		AdminCartOfferPaymentMethods func(childComplexity int, cartID string) int
+		AdminSearch                  func(childComplexity int, term string) int
 		Admins                       func(childComplexity int) int
 		AgenticStatus                func(childComplexity int, channelID string) int
 		AiInsights                   func(childComplexity int, channelID string, days *int32) int
@@ -5929,6 +5955,7 @@ type QueryResolver interface {
 	Roles(ctx context.Context) ([]*model.Role, error)
 	Role(ctx context.Context, id string) (*model.Role, error)
 	DevAdmins(ctx context.Context) ([]*model.AdminUser, error)
+	AdminSearch(ctx context.Context, term string) (*model.AdminSearchResult, error)
 	AgenticStatus(ctx context.Context, channelID string) ([]*model.AgenticStatus, error)
 	AiStatus(ctx context.Context) (*model.AIStatus, error)
 	AiInsights(ctx context.Context, channelID string, days *int32) (*model.AIInsights, error)
@@ -7388,6 +7415,88 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AdminProductQuestion.Status(childComplexity), true
+
+	case "AdminSearchCustomer.email":
+		if e.ComplexityRoot.AdminSearchCustomer.Email == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminSearchCustomer.Email(childComplexity), true
+	case "AdminSearchCustomer.id":
+		if e.ComplexityRoot.AdminSearchCustomer.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminSearchCustomer.ID(childComplexity), true
+	case "AdminSearchCustomer.name":
+		if e.ComplexityRoot.AdminSearchCustomer.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminSearchCustomer.Name(childComplexity), true
+
+	case "AdminSearchOrder.email":
+		if e.ComplexityRoot.AdminSearchOrder.Email == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminSearchOrder.Email(childComplexity), true
+	case "AdminSearchOrder.id":
+		if e.ComplexityRoot.AdminSearchOrder.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminSearchOrder.ID(childComplexity), true
+	case "AdminSearchOrder.name":
+		if e.ComplexityRoot.AdminSearchOrder.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminSearchOrder.Name(childComplexity), true
+	case "AdminSearchOrder.number":
+		if e.ComplexityRoot.AdminSearchOrder.Number == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminSearchOrder.Number(childComplexity), true
+
+	case "AdminSearchProduct.id":
+		if e.ComplexityRoot.AdminSearchProduct.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminSearchProduct.ID(childComplexity), true
+	case "AdminSearchProduct.name":
+		if e.ComplexityRoot.AdminSearchProduct.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminSearchProduct.Name(childComplexity), true
+	case "AdminSearchProduct.sku":
+		if e.ComplexityRoot.AdminSearchProduct.Sku == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminSearchProduct.Sku(childComplexity), true
+
+	case "AdminSearchResult.customers":
+		if e.ComplexityRoot.AdminSearchResult.Customers == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminSearchResult.Customers(childComplexity), true
+	case "AdminSearchResult.orders":
+		if e.ComplexityRoot.AdminSearchResult.Orders == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminSearchResult.Orders(childComplexity), true
+	case "AdminSearchResult.products":
+		if e.ComplexityRoot.AdminSearchResult.Products == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminSearchResult.Products(childComplexity), true
 
 	case "AdminSession.createdAt":
 		if e.ComplexityRoot.AdminSession.CreatedAt == nil {
@@ -26239,6 +26348,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.AdminCartOfferPaymentMethods(childComplexity, args["cartId"].(string)), true
+	case "Query.adminSearch":
+		if e.ComplexityRoot.Query.AdminSearch == nil {
+			break
+		}
+
+		args, err := ec.field_Query_adminSearch_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.AdminSearch(childComplexity, args["term"].(string)), true
 	case "Query.admins":
 		if e.ComplexityRoot.Query.Admins == nil {
 			break
@@ -33929,6 +34049,43 @@ extend type Mutation {
   createRole(input: CreateRoleInput!):                            Role!
   updateRole(id: ID!, input: UpdateRoleInput!):                   Role!
   deleteRole(id: ID!):                                            Boolean!
+}
+`, BuiltIn: false},
+	{Name: "../schema/admin/admin_search.graphqls", Input: `# The dashboard's ⌘K lookup across orders, customers and products - a few light rows per kind, each kind only for an
+# admin who may read it and only in the channels they may read it in
+
+type AdminSearchResult {
+  orders:    [AdminSearchOrder!]!
+  customers: [AdminSearchCustomer!]!
+  products:  [AdminSearchProduct!]!
+}
+
+type AdminSearchOrder {
+  id:     ID!
+  number: String!
+  email:  String!
+  # The name it ships to - empty when none was given
+  name:   String!
+}
+
+type AdminSearchCustomer {
+  id:    ID!
+  email: String!
+  # First and last name - empty when the customer gave neither
+  name:  String!
+}
+
+type AdminSearchProduct {
+  id:   ID!
+  sku:  String!
+  # In the admin's locale, else whichever translation exists - empty when none does
+  name: String!
+}
+
+extend type Query {
+  # Up to five of each kind, newest first, matched on a substring of the order number, email or shipping name, the
+  # customer's email or full name, or the product's name or SKU. Fewer than three characters finds nothing
+  adminSearch(term: String!): AdminSearchResult!
 }
 `, BuiltIn: false},
 	{Name: "../schema/admin/agentic.graphqls", Input: `enum AgenticState {
@@ -44478,6 +44635,56 @@ func (ec *executionContext) childFields_AdminProductQuestion(ctx context.Context
 		return ec.fieldContext_AdminProductQuestion_answeredAt(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type AdminProductQuestion", field.Name)
+}
+
+func (ec *executionContext) childFields_AdminSearchCustomer(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_AdminSearchCustomer_id(ctx, field)
+	case "email":
+		return ec.fieldContext_AdminSearchCustomer_email(ctx, field)
+	case "name":
+		return ec.fieldContext_AdminSearchCustomer_name(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AdminSearchCustomer", field.Name)
+}
+
+func (ec *executionContext) childFields_AdminSearchOrder(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_AdminSearchOrder_id(ctx, field)
+	case "number":
+		return ec.fieldContext_AdminSearchOrder_number(ctx, field)
+	case "email":
+		return ec.fieldContext_AdminSearchOrder_email(ctx, field)
+	case "name":
+		return ec.fieldContext_AdminSearchOrder_name(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AdminSearchOrder", field.Name)
+}
+
+func (ec *executionContext) childFields_AdminSearchProduct(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_AdminSearchProduct_id(ctx, field)
+	case "sku":
+		return ec.fieldContext_AdminSearchProduct_sku(ctx, field)
+	case "name":
+		return ec.fieldContext_AdminSearchProduct_name(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AdminSearchProduct", field.Name)
+}
+
+func (ec *executionContext) childFields_AdminSearchResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "orders":
+		return ec.fieldContext_AdminSearchResult_orders(ctx, field)
+	case "customers":
+		return ec.fieldContext_AdminSearchResult_customers(ctx, field)
+	case "products":
+		return ec.fieldContext_AdminSearchResult_products(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AdminSearchResult", field.Name)
 }
 
 func (ec *executionContext) childFields_AdminSession(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -62772,6 +62979,20 @@ func (ec *executionContext) field_Query_adminCartOfferPaymentMethods_args(ctx co
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_adminSearch_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "term",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["term"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_admin_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -72116,6 +72337,332 @@ func (ec *executionContext) _AdminProductQuestion_answeredAt(ctx context.Context
 }
 func (ec *executionContext) fieldContext_AdminProductQuestion_answeredAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AdminProductQuestion", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _AdminSearchCustomer_id(ctx context.Context, field graphql.CollectedField, obj *model.AdminSearchCustomer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminSearchCustomer_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminSearchCustomer_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminSearchCustomer", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _AdminSearchCustomer_email(ctx context.Context, field graphql.CollectedField, obj *model.AdminSearchCustomer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminSearchCustomer_email(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Email, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminSearchCustomer_email(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminSearchCustomer", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminSearchCustomer_name(ctx context.Context, field graphql.CollectedField, obj *model.AdminSearchCustomer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminSearchCustomer_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminSearchCustomer_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminSearchCustomer", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminSearchOrder_id(ctx context.Context, field graphql.CollectedField, obj *model.AdminSearchOrder) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminSearchOrder_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminSearchOrder_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminSearchOrder", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _AdminSearchOrder_number(ctx context.Context, field graphql.CollectedField, obj *model.AdminSearchOrder) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminSearchOrder_number(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Number, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminSearchOrder_number(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminSearchOrder", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminSearchOrder_email(ctx context.Context, field graphql.CollectedField, obj *model.AdminSearchOrder) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminSearchOrder_email(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Email, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminSearchOrder_email(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminSearchOrder", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminSearchOrder_name(ctx context.Context, field graphql.CollectedField, obj *model.AdminSearchOrder) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminSearchOrder_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminSearchOrder_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminSearchOrder", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminSearchProduct_id(ctx context.Context, field graphql.CollectedField, obj *model.AdminSearchProduct) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminSearchProduct_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminSearchProduct_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminSearchProduct", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _AdminSearchProduct_sku(ctx context.Context, field graphql.CollectedField, obj *model.AdminSearchProduct) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminSearchProduct_sku(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Sku, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminSearchProduct_sku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminSearchProduct", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminSearchProduct_name(ctx context.Context, field graphql.CollectedField, obj *model.AdminSearchProduct) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminSearchProduct_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminSearchProduct_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminSearchProduct", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminSearchResult_orders(ctx context.Context, field graphql.CollectedField, obj *model.AdminSearchResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminSearchResult_orders(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Orders, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.AdminSearchOrder) graphql.Marshaler {
+			return ec.marshalNAdminSearchOrder2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminSearchOrderᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminSearchResult_orders(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AdminSearchResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminSearchOrder(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AdminSearchResult_customers(ctx context.Context, field graphql.CollectedField, obj *model.AdminSearchResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminSearchResult_customers(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Customers, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.AdminSearchCustomer) graphql.Marshaler {
+			return ec.marshalNAdminSearchCustomer2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminSearchCustomerᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminSearchResult_customers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AdminSearchResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminSearchCustomer(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AdminSearchResult_products(ctx context.Context, field graphql.CollectedField, obj *model.AdminSearchResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminSearchResult_products(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Products, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.AdminSearchProduct) graphql.Marshaler {
+			return ec.marshalNAdminSearchProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminSearchProductᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminSearchResult_products(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AdminSearchResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminSearchProduct(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _AdminSession_id(ctx context.Context, field graphql.CollectedField, obj *model.AdminSession) (ret graphql.Marshaler) {
@@ -147115,6 +147662,50 @@ func (ec *executionContext) fieldContext_Query_devAdmins(_ context.Context, fiel
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_adminSearch(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_adminSearch(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().AdminSearch(ctx, fc.Args["term"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminSearchResult) graphql.Marshaler {
+			return ec.marshalNAdminSearchResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminSearchResult(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_adminSearch(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminSearchResult(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_adminSearch_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_agenticStatus(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -194035,6 +194626,203 @@ func (ec *executionContext) _AdminProductQuestion(ctx context.Context, sel ast.S
 	return out
 }
 
+var adminSearchCustomerImplementors = []string{"AdminSearchCustomer"}
+
+func (ec *executionContext) _AdminSearchCustomer(ctx context.Context, sel ast.SelectionSet, obj *model.AdminSearchCustomer) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminSearchCustomerImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminSearchCustomer")
+		case "id":
+			out.Values[i] = ec._AdminSearchCustomer_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "email":
+			out.Values[i] = ec._AdminSearchCustomer_email(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._AdminSearchCustomer_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var adminSearchOrderImplementors = []string{"AdminSearchOrder"}
+
+func (ec *executionContext) _AdminSearchOrder(ctx context.Context, sel ast.SelectionSet, obj *model.AdminSearchOrder) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminSearchOrderImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminSearchOrder")
+		case "id":
+			out.Values[i] = ec._AdminSearchOrder_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "number":
+			out.Values[i] = ec._AdminSearchOrder_number(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "email":
+			out.Values[i] = ec._AdminSearchOrder_email(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._AdminSearchOrder_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var adminSearchProductImplementors = []string{"AdminSearchProduct"}
+
+func (ec *executionContext) _AdminSearchProduct(ctx context.Context, sel ast.SelectionSet, obj *model.AdminSearchProduct) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminSearchProductImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminSearchProduct")
+		case "id":
+			out.Values[i] = ec._AdminSearchProduct_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sku":
+			out.Values[i] = ec._AdminSearchProduct_sku(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._AdminSearchProduct_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var adminSearchResultImplementors = []string{"AdminSearchResult"}
+
+func (ec *executionContext) _AdminSearchResult(ctx context.Context, sel ast.SelectionSet, obj *model.AdminSearchResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminSearchResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminSearchResult")
+		case "orders":
+			out.Values[i] = ec._AdminSearchResult_orders(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "customers":
+			out.Values[i] = ec._AdminSearchResult_customers(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "products":
+			out.Values[i] = ec._AdminSearchResult_products(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var adminSessionImplementors = []string{"AdminSession"}
 
 func (ec *executionContext) _AdminSession(ctx context.Context, sel ast.SelectionSet, obj *model.AdminSession) graphql.Marshaler {
@@ -220116,6 +220904,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "adminSearch":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_adminSearch(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "agenticStatus":
 			field := field
 
@@ -234943,6 +235753,98 @@ func (ec *executionContext) marshalNAdminProductQuestion2ᚖgithubᚗcomᚋskele
 		return graphql.Null
 	}
 	return ec._AdminProductQuestion(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAdminSearchCustomer2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminSearchCustomerᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AdminSearchCustomer) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAdminSearchCustomer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminSearchCustomer(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAdminSearchCustomer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminSearchCustomer(ctx context.Context, sel ast.SelectionSet, v *model.AdminSearchCustomer) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AdminSearchCustomer(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAdminSearchOrder2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminSearchOrderᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AdminSearchOrder) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAdminSearchOrder2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminSearchOrder(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAdminSearchOrder2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminSearchOrder(ctx context.Context, sel ast.SelectionSet, v *model.AdminSearchOrder) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AdminSearchOrder(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAdminSearchProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminSearchProductᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AdminSearchProduct) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAdminSearchProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminSearchProduct(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAdminSearchProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminSearchProduct(ctx context.Context, sel ast.SelectionSet, v *model.AdminSearchProduct) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AdminSearchProduct(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAdminSearchResult2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminSearchResult(ctx context.Context, sel ast.SelectionSet, v model.AdminSearchResult) graphql.Marshaler {
+	return ec._AdminSearchResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNAdminSearchResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminSearchResult(ctx context.Context, sel ast.SelectionSet, v *model.AdminSearchResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AdminSearchResult(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNAdminSession2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminSessionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AdminSession) graphql.Marshaler {

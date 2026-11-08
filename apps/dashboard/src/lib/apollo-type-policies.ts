@@ -63,3 +63,8 @@ for (const [rows, merge] of [[LOCALE_ROWS, mergeByLocale], [ATTRIBUTE_ROWS, merg
     for (const f of fields) policy.fields![f] = { merge }
   }
 }
+
+// An order's addresses carry no id either: the orders list's `shippingAddress { firstName lastName }` replaced the address
+// an open order page had fetched in full, which left that page's query incomplete, so it refetched and showed its loading
+// state over the order. Merged field by field instead
+typePolicies.OrderAddress = { merge: true }

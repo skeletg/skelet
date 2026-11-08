@@ -434,7 +434,13 @@ const unpagedOrdersCap int32 = 1000
 // Resolved before the SQL page so LIMIT only counts rows the caller can see
 // nil with none=false is every channel, none=true is no channel at all
 func (r *queryResolver) orderChannelScope(ctx context.Context, channelID *string) (channels []uuid.UUID, none bool, err error) {
-	perm, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, "orders.view")
+	return r.readableChannels(ctx, "orders.view", channelID)
+}
+
+// The channels a list reading slug may cover: the one asked for (or the header's) when the admin holds slug there -
+// FORBIDDEN when not - else every channel they hold it in, nil for all of them. none means they hold it nowhere
+func (r *queryResolver) readableChannels(ctx context.Context, slug string, channelID *string) (channels []uuid.UUID, none bool, err error) {
+	perm, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, slug)
 	if err != nil {
 		return nil, false, err
 	}
