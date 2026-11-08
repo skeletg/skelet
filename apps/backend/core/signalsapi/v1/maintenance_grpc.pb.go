@@ -27,7 +27,6 @@ const (
 	MaintenanceService_PruneSendLog_FullMethodName                = "/skelet.signals.v1.MaintenanceService/PruneSendLog"
 	MaintenanceService_PruneAssistantConversations_FullMethodName = "/skelet.signals.v1.MaintenanceService/PruneAssistantConversations"
 	MaintenanceService_ComputeTraits_FullMethodName               = "/skelet.signals.v1.MaintenanceService/ComputeTraits"
-	MaintenanceService_ForwardDestinations_FullMethodName         = "/skelet.signals.v1.MaintenanceService/ForwardDestinations"
 	MaintenanceService_GetRetentionAction_FullMethodName          = "/skelet.signals.v1.MaintenanceService/GetRetentionAction"
 	MaintenanceService_GetHealth_FullMethodName                   = "/skelet.signals.v1.MaintenanceService/GetHealth"
 	MaintenanceService_ListBrowseAbandoners_FullMethodName        = "/skelet.signals.v1.MaintenanceService/ListBrowseAbandoners"
@@ -55,9 +54,6 @@ type MaintenanceServiceClient interface {
 	PruneAssistantConversations(ctx context.Context, in *PruneAssistantConversationsRequest, opts ...grpc.CallOption) (*PruneAssistantConversationsResponse, error)
 	// Per-customer RFM, lifecycle and engagement, across every channel the roster covers
 	ComputeTraits(ctx context.Context, in *ComputeTraitsRequest, opts ...grpc.CallOption) (*ComputeTraitsResponse, error)
-	// Deprecated: Do not use.
-	// Retired with the suite's event destinations - kept for a release as a no-op so an older core's job stays quiet
-	ForwardDestinations(ctx context.Context, in *ForwardDestinationsRequest, opts ...grpc.CallOption) (*ForwardDestinationsResponse, error)
 	// Whether aged data is archived before deletion - core's send-log sweep honours the same operator setting
 	GetRetentionAction(ctx context.Context, in *GetRetentionActionRequest, opts ...grpc.CallOption) (*GetRetentionActionResponse, error)
 	// Everything core's health page reports about the suite, in one round trip - the page renders them together
@@ -134,17 +130,6 @@ func (c *maintenanceServiceClient) ComputeTraits(ctx context.Context, in *Comput
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ComputeTraitsResponse)
 	err := c.cc.Invoke(ctx, MaintenanceService_ComputeTraits_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// Deprecated: Do not use.
-func (c *maintenanceServiceClient) ForwardDestinations(ctx context.Context, in *ForwardDestinationsRequest, opts ...grpc.CallOption) (*ForwardDestinationsResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ForwardDestinationsResponse)
-	err := c.cc.Invoke(ctx, MaintenanceService_ForwardDestinations_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -257,9 +242,6 @@ type MaintenanceServiceServer interface {
 	PruneAssistantConversations(context.Context, *PruneAssistantConversationsRequest) (*PruneAssistantConversationsResponse, error)
 	// Per-customer RFM, lifecycle and engagement, across every channel the roster covers
 	ComputeTraits(context.Context, *ComputeTraitsRequest) (*ComputeTraitsResponse, error)
-	// Deprecated: Do not use.
-	// Retired with the suite's event destinations - kept for a release as a no-op so an older core's job stays quiet
-	ForwardDestinations(context.Context, *ForwardDestinationsRequest) (*ForwardDestinationsResponse, error)
 	// Whether aged data is archived before deletion - core's send-log sweep honours the same operator setting
 	GetRetentionAction(context.Context, *GetRetentionActionRequest) (*GetRetentionActionResponse, error)
 	// Everything core's health page reports about the suite, in one round trip - the page renders them together
@@ -306,9 +288,6 @@ func (UnimplementedMaintenanceServiceServer) PruneAssistantConversations(context
 }
 func (UnimplementedMaintenanceServiceServer) ComputeTraits(context.Context, *ComputeTraitsRequest) (*ComputeTraitsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ComputeTraits not implemented")
-}
-func (UnimplementedMaintenanceServiceServer) ForwardDestinations(context.Context, *ForwardDestinationsRequest) (*ForwardDestinationsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method ForwardDestinations not implemented")
 }
 func (UnimplementedMaintenanceServiceServer) GetRetentionAction(context.Context, *GetRetentionActionRequest) (*GetRetentionActionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetRetentionAction not implemented")
@@ -444,24 +423,6 @@ func _MaintenanceService_ComputeTraits_Handler(srv interface{}, ctx context.Cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(MaintenanceServiceServer).ComputeTraits(ctx, req.(*ComputeTraitsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _MaintenanceService_ForwardDestinations_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ForwardDestinationsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(MaintenanceServiceServer).ForwardDestinations(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: MaintenanceService_ForwardDestinations_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MaintenanceServiceServer).ForwardDestinations(ctx, req.(*ForwardDestinationsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -654,10 +615,6 @@ var MaintenanceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ComputeTraits",
 			Handler:    _MaintenanceService_ComputeTraits_Handler,
-		},
-		{
-			MethodName: "ForwardDestinations",
-			Handler:    _MaintenanceService_ForwardDestinations_Handler,
 		},
 		{
 			MethodName: "GetRetentionAction",

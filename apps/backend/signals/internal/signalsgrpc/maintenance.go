@@ -88,14 +88,6 @@ func (s *maintenanceServer) PruneLens(ctx context.Context, _ *signalsv1.PruneLen
 	return &signalsv1.PruneLensResponse{}, nil
 }
 
-// ForwardDestinations is retired and does nothing, so a core a release behind keeps its job quiet
-func (s *maintenanceServer) ForwardDestinations(ctx context.Context, _ *signalsv1.ForwardDestinationsRequest) (*signalsv1.ForwardDestinationsResponse, error) {
-	if err := requireSystem(ctx); err != nil {
-		return nil, err
-	}
-	return &signalsv1.ForwardDestinationsResponse{}, nil
-}
-
 func (s *maintenanceServer) PruneSendLog(ctx context.Context, _ *signalsv1.PruneSendLogRequest) (*signalsv1.PruneSendLogResponse, error) {
 	if err := requireSystem(ctx); err != nil {
 		return nil, err
