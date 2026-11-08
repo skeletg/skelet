@@ -63,6 +63,6 @@ describe('TrackingSetupPage', () => {
   it('says how to add a platform that is not in this build', async () => {
     renderSetup('meta_capi')
     expect(await screen.findByText("Meta (Facebook, Instagram) isn't in this build", {}, SLOW)).toBeDefined()
-    expect(screen.getByText('skelet cli plugin enable tracking-meta')).toBeDefined()
+    expect(screen.getByText('skelet cli plugin add github.com/skeletg/tracking-meta')).toBeDefined()
   })
 })

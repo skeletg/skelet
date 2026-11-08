@@ -10,7 +10,7 @@ import { useRecordForm } from '@/shared/saving/useRecordForm'
 import { DestinationFields } from './DestinationFields'
 import { PlatformIntro } from './PlatformIntro'
 import { guideFor } from './platformGuides'
-import { enableCommand, type Platform } from './status'
+import { installCommand, type Platform } from './status'
 import { CreateTrackingDestinationDocument, TrackingPlatformsDocument } from './Tracking.gql'
 import {
   toTrackingDestinationInput,
@@ -59,7 +59,7 @@ export function TrackingSetupPage() {
                 <>Turn its plugin on for {selectedChannel?.name ?? 'this channel'} under Settings → Plugins, then come back.</>
               ) : (
                 <>
-                  Enable its plugin and rebuild the backend: <code className="font-mono">{enableCommand(platform.pluginSlug)}</code>
+                  Install its plugin and rebuild the backend: <code className="font-mono">{installCommand(platform.pluginSlug)}</code>
                 </>
               )}
             </AlertDescription>

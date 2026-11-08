@@ -9,7 +9,7 @@ type Shopper struct {
 	Consent   Consent           `json:"consent"`
 	AnonID    string            `json:"anon_id,omitempty"`    // analytics
 	SessionID string            `json:"session_id,omitempty"` // analytics
-	ClickIDs  map[string]string `json:"click_ids,omitempty"`  // ads, or an affiliate network the merchant made necessary
+	ClickIDs  map[string]string `json:"click_ids,omitempty"`  // only with ads consent
 	IP        string            `json:"ip,omitempty"`         // ads, the platforms' match keys
 	UserAgent string            `json:"ua,omitempty"`         // ads
 }
@@ -20,8 +20,8 @@ func ShopperFromContext(ctx context.Context) *Shopper {
 	if !ok {
 		return nil
 	}
-	r, _ := RequestFromContext(ctx)                     // there, or there would be no consent
-	s := &Shopper{Consent: c, ClickIDs: ClickIDs(r, c)} // ClickIDs decides per id: ad platforms' need ads consent, an affiliate's may be necessary
+	r, _ := RequestFromContext(ctx) // there, or there would be no consent
+	s := &Shopper{Consent: c, ClickIDs: ClickIDs(r, c)}
 	if c.Analytics {
 		s.AnonID, s.SessionID = AnonID(ctx), sessionID(r)
 	}

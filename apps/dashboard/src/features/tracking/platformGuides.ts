@@ -45,36 +45,6 @@ const GUIDES: Record<string, PlatformGuide> = {
     links: [{ label: 'Meta Events Manager', url: 'https://business.facebook.com/events_manager2' }],
     testMode: { preset: '', note: 'Paste the code from Events Manager → Test events; events then show there and nowhere else' },
   },
-  bing_uet: {
-    intro: 'Sends conversions to Microsoft Advertising through the UET Conversions API, with the Microsoft click id.',
-    links: [{ label: 'Microsoft Advertising', url: 'https://ads.microsoft.com/' }],
-  },
-  openai: {
-    intro: 'Sends conversions to OpenAI Ads, with the click reference kept from the ad.',
-    links: [],
-    testMode: { preset: 'true', note: 'OpenAI checks the event and records nothing' },
-  },
-  cj: {
-    intro: 'Reports sales to CJ Affiliate server to server, with the click its cookie kept.',
-    links: [{ label: 'CJ Account Manager', url: 'https://members.cj.com/' }],
-  },
-  awin: {
-    intro: "Reports sales to Awin's Conversion API, with the click its cookie kept and a commission group per item.",
-    links: [{ label: 'Awin', url: 'https://ui.awin.com/' }],
-    testMode: { preset: 'true', note: 'Awin marks the transaction as a test' },
-  },
-  klaviyo: {
-    intro: "Sends shop events to Klaviyo for flows and segments - only for shoppers whose email opted into marketing, and never a phone number.",
-    links: [{ label: 'Klaviyo API keys', url: 'https://www.klaviyo.com/settings/account/api-keys' }],
-  },
-  attentive: {
-    intro: 'Sends product views, cart adds and purchases to Attentive - only for shoppers whose email opted into marketing.',
-    links: [{ label: 'Attentive', url: 'https://ui.attentivemobile.com/' }],
-  },
-  webhook: {
-    intro: 'Posts each event as signed JSON to your own endpoint - one POST per event, signed with X-Webhook-Signature-256.',
-    links: [{ label: 'Webhook format', url: TRACKING_DOCS_URL }],
-  },
 }
 
 export function guideFor(kind: string): PlatformGuide {

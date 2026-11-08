@@ -11,7 +11,7 @@ import { useConfigScope } from '@/lib/config-scope'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { LoadError } from '@/shared/errors/LoadError'
 import { PURPOSE_LABELS, TRACKING_DOCS_URL, eventLabel } from './platformGuides'
-import { destinationStatus, enableCommand, platformStatus, type Destination, type Platform } from './status'
+import { destinationStatus, installCommand, platformStatus, type Destination, type Platform } from './status'
 import { TrackingOverviewDocument } from './Tracking.gql'
 
 // Every platform shop events can go to, with where each stands on this channel, and the destinations set up
@@ -140,7 +140,7 @@ export function TrackingPage() {
             </DetailPageSection>
             <DetailPageSection title="Consent">
               <p className="max-w-2xl text-sm text-muted-foreground">
-                The cookie banner, consent mode and affiliate exceptions are under{' '}
+                The cookie banner and consent mode are under{' '}
                 <Link to="/privacy" className="underline underline-offset-4">Settings → Privacy</Link>, with which destination each choice feeds.
               </p>
             </DetailPageSection>
@@ -154,13 +154,13 @@ export function TrackingPage() {
 function PlatformAction({ platform, count, canManage }: { platform: Platform; count: number; canManage: boolean }) {
   const [copied, setCopied] = useState(false)
   if (!platform.installed) {
-    const command = enableCommand(platform.pluginSlug)
+    const command = installCommand(platform.pluginSlug)
     return (
       <Button
         variant="ghost"
         size="sm"
         className="h-7 gap-1.5 font-mono text-xs"
-        title="Enable the plugin, then rebuild the backend"
+        title="Install the plugin, then rebuild the backend"
         onClick={async (e) => {
           e.stopPropagation()
           try {

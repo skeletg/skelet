@@ -216,7 +216,6 @@ export async function storefrontProxy(req: NextRequest, event: NextFetchEvent): 
     url.searchParams,
     (name) => req.cookies.get(name)?.value,
     consent?.ads ?? false,
-    privacy?.necessary ?? new Set(),
     req.headers.get("host") ?? "",
     process.env.NODE_ENV === "production",
   );

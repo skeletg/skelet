@@ -14,7 +14,7 @@ func shopRequest(consent string) context.Context {
 	r.RemoteAddr = "203.0.113.7:4000"
 	r.Header.Set("User-Agent", "Mozilla/5.0 test")
 	r.Header.Set(auth.AnonHeader, "visitor-1")
-	r.Header.Set(auth.ClickIDsHeader, "cjevent=c1")
+	r.Header.Set(auth.ClickIDsHeader, "gclid=c1")
 	r.Header.Set(auth.ConsentHeader, consent)
 	return auth.WithRequest(context.Background(), r)
 }
