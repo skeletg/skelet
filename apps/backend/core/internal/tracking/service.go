@@ -33,6 +33,7 @@ type store interface {
 	GetDelivery(ctx context.Context, id uuid.UUID) (Delivery, error)
 	ListDeliveries(ctx context.Context, destinationID uuid.UUID, status string, limit int32) ([]Delivery, error)
 	Health(ctx context.Context, channelID uuid.UUID) (map[uuid.UUID]Health, error)
+	Pipeline(ctx context.Context) (Pipeline, error)
 	Prune(ctx context.Context, logBefore, replayBefore time.Time) (int64, error)
 }
 
@@ -175,6 +176,11 @@ func InTestMode(d Destination) bool {
 // Health is each destination of a channel with its last success, last failure and failures in the past day
 func (s *Service) Health(ctx context.Context, channelID uuid.UUID) (map[uuid.UUID]Health, error) {
 	return s.store.Health(ctx, channelID)
+}
+
+// Pipeline is the queue across every channel - how many destinations are on, what failed in a day, and how late it runs
+func (s *Service) Pipeline(ctx context.Context) (Pipeline, error) {
+	return s.store.Pipeline(ctx)
 }
 
 func (s *Service) Delivery(ctx context.Context, id uuid.UUID) (Delivery, error) {

@@ -15,6 +15,7 @@ import (
 	pluginhost "github.com/skeletg/skelet/apps/backend/core/internal/plugin"
 	"github.com/skeletg/skelet/apps/backend/core/internal/scheduler"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
+	"github.com/skeletg/skelet/apps/backend/core/internal/tracking"
 	"github.com/skeletg/skelet/apps/backend/core/internal/webhook"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/objstore"
@@ -32,6 +33,7 @@ type healthDeps struct {
 	MediaStorage  objstore.Storage
 	Scheduler     *scheduler.Service
 	Webhook       *webhook.Service
+	Tracking      *tracking.Service
 	SignalsClient *signalsclient.Client
 	SignalsOn     SignalsEnabled
 	Config        *config.Service
@@ -222,6 +224,35 @@ func registerDeliveryChecks(r *health.Registry, d healthDeps) {
 			}
 			return health.OK(fmt.Sprintf("%d active, last attempt succeeded on each", active))
 		}})
+
+	r.Register(health.Check{Group: "delivery", Key: "tracking", Label: "Tracking", Order: 2,
+		Run: func(ctx context.Context) health.Result {
+			p, err := d.Tracking.Pipeline(ctx)
+			if err != nil {
+				return health.Bad("unreadable", err.Error())
+			}
+			return trackingHealth(p)
+		}})
+}
+
+// The worker polls every couple of seconds, so a queue minutes behind isn't being drained - a burst or a slow
+// platform clears in less
+const trackingLagLimit = 5 * time.Minute
+
+func trackingHealth(p tracking.Pipeline) health.Result {
+	if p.Enabled == 0 {
+		return health.Off("none enabled", "")
+	}
+	detail := fmt.Sprintf("%d enabled", p.Enabled)
+	switch {
+	case p.Late > trackingLagLimit:
+		return health.Bad(fmt.Sprintf("%s, %s behind", detail, roundDur(p.Late)),
+			"Events wait past their send time. The tracking queue may not be running - check that a process with the jobs role is alive")
+	case p.Dead24h > 0:
+		return health.Warn(fmt.Sprintf("%s, %d failed in 24h", detail, p.Dead24h),
+			"Some events gave up after every retry. Each destination's delivery log under Marketing → Tracking has the platform's answer and a retry")
+	}
+	return health.OK(detail + ", none failed in 24h")
 }
 
 // Each probe asks the suite for the same snapshot - the registry memoises it, so the repeats cost one in-cluster round trip each

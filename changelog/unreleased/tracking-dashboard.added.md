@@ -5,6 +5,8 @@
   Each destination has a delivery log with retry, and credentials stay write-only.
 - **Settings → Privacy** brings the cookie consent mode and exceptions together with which
   destinations each consent category feeds.
+- **System health** shows the tracking queue across every channel: how many destinations are on,
+  how many events failed in the past day, and whether the queue has fallen behind.
 - New permissions `tracking.view` and `tracking.manage`.
 - **Plugin SDK:** `sdk.DestinationField.TestMode` marks the setting that keeps a destination's
   sends out of the platform's live reports. The dashboard reads it to warn before a test send that

@@ -223,6 +223,14 @@ func (r *repository) Health(ctx context.Context, channelID uuid.UUID) (map[uuid.
 	return out, nil
 }
 
+func (r *repository) Pipeline(ctx context.Context) (Pipeline, error) {
+	row, err := r.q.TrackingPipelineHealth(ctx)
+	if err != nil {
+		return Pipeline{}, fmt.Errorf("tracking pipeline health: %w", err)
+	}
+	return Pipeline{Enabled: int(row.Enabled), Dead24h: int(row.Dead24h), Late: time.Duration(row.LateSeconds) * time.Second}, nil
+}
+
 func (r *repository) ListDeliveries(ctx context.Context, destinationID uuid.UUID, status string, limit int32) ([]Delivery, error) {
 	rows, err := r.q.ListTrackingDeliveries(ctx, db.ListTrackingDeliveriesParams{DestinationID: destinationID, Status: status, Lim: limit})
 	if err != nil {

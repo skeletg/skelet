@@ -117,6 +117,13 @@ SELECT d.id,
 FROM   tracking_destinations d
 WHERE  d.channel_id = $1;
 
+-- name: TrackingPipelineHealth :one
+-- Every channel at once, for the system health page - the dead count rides the prune index and the lag the due index
+SELECT (SELECT COUNT(*) FROM tracking_destinations WHERE enabled)::int AS enabled,
+       (SELECT COUNT(*) FROM tracking_deliveries WHERE status = 'dead' AND updated_at > NOW() - INTERVAL '24 hours')::int AS dead_24h,
+       (SELECT GREATEST(COALESCE(EXTRACT(EPOCH FROM NOW() - MIN(next_attempt_at)), 0), 0)
+        FROM tracking_deliveries WHERE status = 'pending')::int AS late_seconds;
+
 -- name: PruneTrackingDeliveries :execrows
 -- A dead letter is kept for a retry until it is past following up; a pending row is never pruned
 DELETE FROM tracking_deliveries WHERE status = 'dead' AND updated_at < $1;

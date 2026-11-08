@@ -139,6 +139,7 @@ func (f *fakeStore) ListDeliveries(context.Context, uuid.UUID, string, int32) ([
 	return nil, nil
 }
 func (f *fakeStore) Health(context.Context, uuid.UUID) (map[uuid.UUID]Health, error) { return nil, nil }
+func (f *fakeStore) Pipeline(context.Context) (Pipeline, error)                      { return Pipeline{}, nil }
 func (f *fakeStore) Prune(context.Context, time.Time, time.Time) (int64, error)      { return 0, nil }
 
 func (f *fakeStore) byDestination(id uuid.UUID) []Delivery {

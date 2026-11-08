@@ -44,12 +44,15 @@ func TestEveryContractMethodAnswersFromTheWiredGraph(t *testing.T) {
 	system := tokenCtx(t, h.service, auth.ServiceClaims{System: true})
 	broken := map[codes.Code]bool{codes.Unknown: true, codes.Internal: true, codes.Unimplemented: true, codes.Unavailable: true, codes.DataLoss: true}
 
+	served := h.d.Contract.GetServiceInfo()
 	var methods int
 	protoregistry.GlobalFiles.RangeFilesByPackage("skelet.signals.v1", func(fd protoreflect.FileDescriptor) bool {
 		for i := 0; i < fd.Services().Len(); i++ {
 			svc := fd.Services().Get(i)
-			if opts, _ := svc.Options().(*descriptorpb.ServiceOptions); opts.GetDeprecated() {
-				continue // a retired service is left unregistered on purpose
+			if _, ok := served[string(svc.FullName())]; !ok {
+				if opts, _ := svc.Options().(*descriptorpb.ServiceOptions); opts.GetDeprecated() {
+					continue // retired and left unregistered on purpose - one still served is checked like any other
+				}
 			}
 			for j := 0; j < svc.Methods().Len(); j++ {
 				m := svc.Methods().Get(j)

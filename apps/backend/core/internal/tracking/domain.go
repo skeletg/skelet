@@ -139,6 +139,13 @@ type Health struct {
 	Dead24h   int
 }
 
+// Pipeline is the queue across every channel, for the system health page
+type Pipeline struct {
+	Enabled int           // destinations switched on
+	Dead24h int           // deliveries that gave up in the past day
+	Late    time.Duration // how far the oldest due delivery is past its send time - zero when none is
+}
+
 // Kind is a plugin's destination as it registered it, plus the plugin it came from and where that plugin is on
 type Kind struct {
 	sdk.Destination

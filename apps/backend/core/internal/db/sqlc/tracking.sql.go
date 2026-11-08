@@ -543,6 +543,27 @@ func (q *Queries) TrackingDestinationHealth(ctx context.Context, channelID uuid.
 	return items, nil
 }
 
+const trackingPipelineHealth = `-- name: TrackingPipelineHealth :one
+SELECT (SELECT COUNT(*) FROM tracking_destinations WHERE enabled)::int AS enabled,
+       (SELECT COUNT(*) FROM tracking_deliveries WHERE status = 'dead' AND updated_at > NOW() - INTERVAL '24 hours')::int AS dead_24h,
+       (SELECT GREATEST(COALESCE(EXTRACT(EPOCH FROM NOW() - MIN(next_attempt_at)), 0), 0)
+        FROM tracking_deliveries WHERE status = 'pending')::int AS late_seconds
+`
+
+type TrackingPipelineHealthRow struct {
+	Enabled     int32 `json:"enabled"`
+	Dead24h     int32 `json:"dead_24h"`
+	LateSeconds int32 `json:"late_seconds"`
+}
+
+// Every channel at once, for the system health page - the dead count rides the prune index and the lag the due index
+func (q *Queries) TrackingPipelineHealth(ctx context.Context) (TrackingPipelineHealthRow, error) {
+	row := q.db.QueryRowContext(ctx, trackingPipelineHealth)
+	var i TrackingPipelineHealthRow
+	err := row.Scan(&i.Enabled, &i.Dead24h, &i.LateSeconds)
+	return i, err
+}
+
 const updateTrackingDestination = `-- name: UpdateTrackingDestination :one
 UPDATE tracking_destinations
 SET    name = $1, enabled = $2,
