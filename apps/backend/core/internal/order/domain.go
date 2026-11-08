@@ -43,6 +43,7 @@ type Order struct {
 	// TRANSIENT and never persisted - set on the placement response for a client-side 3DS step and consumed by the storefront immediately
 	PaymentActionKind   string // "", "redirect" or "challenge" - what the client must do with PaymentActionSecret
 	PaymentActionSecret string
+	PaymentFailed       bool // the gateway refused or never answered the authorization, so the order is placed unpaid
 	// The cents of TotalAmount covered by gift cards - it reduces what's owed to the provider, not TotalAmount, since tax is on the full price
 	GiftCardAmount    int64
 	StoreCreditAmount int64

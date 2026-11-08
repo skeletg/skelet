@@ -3249,7 +3249,9 @@ type ComplexityRoot struct {
 		ID                  func(childComplexity int) int
 		Lines               func(childComplexity int) int
 		Number              func(childComplexity int) int
+		PaymentActionKind   func(childComplexity int) int
 		PaymentClientSecret func(childComplexity int) int
+		PaymentFailed       func(childComplexity int) int
 		PaymentProvider     func(childComplexity int) int
 		PaymentReference    func(childComplexity int) int
 		PaymentStatus       func(childComplexity int) int
@@ -23190,12 +23192,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Order.Number(childComplexity), true
+	case "Order.paymentActionKind":
+		if e.ComplexityRoot.Order.PaymentActionKind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Order.PaymentActionKind(childComplexity), true
 	case "Order.paymentClientSecret":
 		if e.ComplexityRoot.Order.PaymentClientSecret == nil {
 			break
 		}
 
 		return e.ComplexityRoot.Order.PaymentClientSecret(childComplexity), true
+	case "Order.paymentFailed":
+		if e.ComplexityRoot.Order.PaymentFailed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Order.PaymentFailed(childComplexity), true
 	case "Order.paymentProvider":
 		if e.ComplexityRoot.Order.PaymentProvider == nil {
 			break
@@ -39934,6 +39948,10 @@ type Order {
   # Transient: populated only on the storefront placeOrder response when the
   # gateway needs a client-side 3DS step. Always null on admin reads.
   paymentClientSecret: String
+  # Transient like paymentClientSecret - "challenge" or "redirect". Always null on admin reads.
+  paymentActionKind: String
+  # Transient like paymentClientSecret - true when the gateway refused the payment at placement. Always null on admin reads.
+  paymentFailed: Boolean
   # Payment provider slug chosen at checkout (empty when none / gift-card only).
   paymentProvider: String!
   # Gateway handle for the payment (Stripe PaymentIntent id, Braintree txn id);
@@ -49079,6 +49097,10 @@ func (ec *executionContext) childFields_Order(ctx context.Context, field graphql
 		return ec.fieldContext_Order_paymentStatus(ctx, field)
 	case "paymentClientSecret":
 		return ec.fieldContext_Order_paymentClientSecret(ctx, field)
+	case "paymentActionKind":
+		return ec.fieldContext_Order_paymentActionKind(ctx, field)
+	case "paymentFailed":
+		return ec.fieldContext_Order_paymentFailed(ctx, field)
 	case "paymentProvider":
 		return ec.fieldContext_Order_paymentProvider(ctx, field)
 	case "paymentReference":
@@ -134460,6 +134482,52 @@ func (ec *executionContext) fieldContext_Order_paymentClientSecret(_ context.Con
 	return graphql.NewScalarFieldContext("Order", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _Order_paymentActionKind(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Order_paymentActionKind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PaymentActionKind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Order_paymentActionKind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Order", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Order_paymentFailed(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Order_paymentFailed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PaymentFailed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *bool) graphql.Marshaler {
+			return ec.marshalOBoolean2ᚖbool(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Order_paymentFailed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Order", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _Order_paymentProvider(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -214007,6 +214075,16 @@ func (ec *executionContext) _Order(ctx context.Context, sel ast.SelectionSet, ob
 			}
 		case "paymentClientSecret":
 			out.Values[i] = ec._Order_paymentClientSecret(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "paymentActionKind":
+			out.Values[i] = ec._Order_paymentActionKind(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "paymentFailed":
+			out.Values[i] = ec._Order_paymentFailed(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				atomic.AddUint32(&out.Invalids, 1)
 			}

@@ -3,16 +3,19 @@
 import { CheckoutCartFields } from "@/app/components/offer/CheckoutCartContext";
 
 import { useTranslations } from "next-intl";
-import { useMemo, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { FieldErrors, FormErrors, inputClass } from "@/app/components/account/AccountUI";
 import { Link } from "@/app/components/LocaleLink";
 import {
   applyGiftCardAction,
+  finalizePlacedPaymentAction,
   placeOrderAction,
   removeGiftCardAction,
   setStoreCreditAction,
 } from "@skelet/storefront-next/checkout/actions";
+import { getPaymentUI, type PaymentHandle } from "@/app/plugins/registry";
+import type { PendingPayment } from "@skelet/storefront-core/checkout/actions";
 import type { CheckoutState, PaymentMethodOption } from "@skelet/storefront-next/checkout/read";
 import { giftCardSchema, paymentStepSchema } from "@skelet/storefront-core/checkout/schemas";
 import type { CheckoutSettings } from "@skelet/storefront-core/checkout/settings";
@@ -23,6 +26,9 @@ import type { SavedPaymentMethod } from "@skelet/storefront-next/payment-methods
 import { ChoiceCard } from "./fields";
 
 type Currency = string | { code: string; symbol?: string; symbolPosition?: string };
+
+// How long a placed order's payment step may run before the shopper is offered their order page anyway
+const STALL_MS = 60_000;
 
 export function PaymentStep({
   methods,
@@ -95,19 +101,98 @@ function PlaceOrderForm({
   const covered = checkout.totals.amountDueCents <= 0;
   const provider = covered ? "" : (checkout.paymentProviderSlug ?? methods[0]?.providerSlug ?? "");
   const schema = useMemo(() => paymentStepSchema({ requireMethod: !covered, consent }), [covered, consent]);
-  const { form, fields, formAction, onSubmit, pending } = useActionForm(placeOrderAction, schema, {
+  const { form, fields, formAction, onSubmit, pending, lastResult } = useActionForm(placeOrderAction, schema, {
     defaultValue: { providerSlug: provider, savedPaymentMethodId: "", note },
   });
   const picked = typeof fields.providerSlug.value === "string" ? fields.providerSlug.value : provider;
+  const pickedUI = covered ? undefined : getPaymentUI(picked);
+  // The gateway's card fields show while its method is picked and no saved card stands in for them
+  const savedCard = typeof fields.savedPaymentMethodId.value === "string" && fields.savedPaymentMethodId.value !== "";
+  const ui = savedCard ? undefined : pickedUI;
+  const [registered, setRegistered] = useState<{ provider: string; handle: PaymentHandle } | null>(null);
+  const uiProvider = ui?.provider;
+  // Stable per provider, so fields that register from an effect don't loop - a late null from the last provider's
+  // fields never unregisters the next one's
+  const register = useCallback(
+    (h: PaymentHandle | null) => {
+      if (!uiProvider) return;
+      setRegistered((cur) => (h ? { provider: uiProvider, handle: h } : cur?.provider === uiProvider ? null : cur));
+    },
+    [uiProvider],
+  );
+  const handle = ui && registered?.provider === ui.provider ? registered.handle : null;
+  // A saved card mounts no fields, so only the gateway's own registration can run its step
+  const challenge = handle?.challenge ?? pickedUI?.challenge;
+  const canRunStep = ui !== undefined || pickedUI?.challenge !== undefined;
+  const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
+
+  // The card fields make their token right before placing, so it is fresh and never sits in the form
+  const pay = (event: FormEvent<HTMLFormElement>) => {
+    if (!ui) return onSubmit(event);
+    form.onSubmit(event);
+    if (event.defaultPrevented) return;
+    event.preventDefault();
+    if (!handle) return; // the fields are still loading - Pay stays down until they register
+    const data = new FormData(event.currentTarget, (event.nativeEvent as SubmitEvent).submitter);
+    setPayError(null);
+    setPaying(true);
+    handle
+      .tokenize()
+      .then((token) => {
+        if (token) data.set("paymentToken", token);
+        startTransition(() => formAction(data));
+      })
+      .catch((err: unknown) => setPayError(err instanceof Error && err.message ? err.message : t("cardFailed")))
+      .finally(() => setPaying(false));
+  };
+
+  // The order is placed and the gateway wants its in-page step - run it, then let the gateway say how it went
+  const pendingPayment = lastResult?.payment;
+  const [stalled, setStalled] = useState(false);
+  const started = useRef<PendingPayment | null>(null);
+  useEffect(() => {
+    if (!pendingPayment || started.current === pendingPayment) return;
+    started.current = pendingPayment;
+    const { clientSecret, ...placed } = pendingPayment;
+    // The order exists either way, so a step or finalize that hangs or fails still leaves a way to it
+    setTimeout(() => setStalled(true), STALL_MS);
+    (challenge ? challenge(clientSecret) : Promise.resolve())
+      .catch(() => undefined) // a cancelled or failed step is the gateway's to report, not the page's
+      .then(() =>
+        startTransition(async () => {
+          try {
+            await finalizePlacedPaymentAction(placed);
+          } catch {
+            setStalled(true);
+          }
+        }),
+      );
+  }, [pendingPayment, challenge]);
+  // Placing, making the token, or finishing the gateway's step - the button stays down until the order page loads
+  const busy = pending || paying || pendingPayment !== undefined || (ui !== undefined && !handle);
 
   if (!covered && methods.length === 0) {
     return <p className="text-sm text-muted-foreground">{t("none")}</p>;
   }
 
-  // What follows the chosen method, rendered once inside it: saved cards, the note, consent and the Pay button
+  // What follows the chosen method, rendered once inside it: saved cards, the gateway's fields, the note, consent and the
+  // Pay button
   const finish = (
     <div className="grid gap-4">
       <SavedCards cards={savedCards.filter((c) => c.providerSlug === picked)} field={fields.savedPaymentMethodId} />
+      {ui ? (
+        <>
+          <ui.Fields
+            key={ui.provider}
+            amountCents={checkout.totals.amountDueCents}
+            currency={typeof currency === "string" ? currency : currency.code}
+            register={register}
+          />
+          {payError ? <p role="alert" className="text-sm text-destructive">{payError}</p> : null}
+        </>
+      ) : null}
+      {canRunStep ? <input type="hidden" name={fields.paymentUi.name} value="on" /> : null}
       <details className="text-sm" open={note !== ""}>
         <summary className="cursor-pointer text-xs underline underline-offset-2">{t("addNote")}</summary>
         <label className="mt-2 flex flex-col gap-1.5">
@@ -132,20 +217,28 @@ function PlaceOrderForm({
       <Consent consent={consent} field={fields.tos} />
       <button
         type="submit"
-        disabled={pending}
+        disabled={busy}
         className="inline-flex h-12 items-center justify-center rounded-md bg-primary text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
       >
-        {pending
+        {busy
           ? t("placing")
           : covered
             ? t("placeCovered")
             : t("pay", { amount: formatPrice(checkout.totals.amountDueCents, currency) })}
       </button>
+      {stalled && pendingPayment ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          {t("paymentStalled")}{" "}
+          <Link href={placedOrderHref(pendingPayment)} className="underline underline-offset-2">
+            {t("openOrder")}
+          </Link>
+        </p>
+      ) : null}
     </div>
   );
 
   return (
-    <form id={form.id} onSubmit={onSubmit} action={formAction} noValidate className="grid gap-4">
+    <form id={form.id} onSubmit={pay} action={formAction} noValidate className="grid gap-4">
         <CheckoutCartFields />
       <FormErrors errors={form.errors} />
 
@@ -197,6 +290,12 @@ function PlaceOrderForm({
       )}
     </form>
   );
+}
+
+// Where the order page is for a payment the gateway hasn't settled yet - a guest's opens with its email
+function placedOrderHref({ orderId, email }: PendingPayment): string {
+  const id = encodeURIComponent(orderId);
+  return email ? `/orders/${id}?email=${encodeURIComponent(email)}&payment=incomplete` : `/account/orders/${id}?payment=incomplete`;
 }
 
 // Saved cards belong to one provider, so the list follows the method picked

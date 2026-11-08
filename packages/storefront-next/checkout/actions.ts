@@ -42,3 +42,7 @@ export async function placeOrderAction(...args: Parameters<typeof core.placeOrde
 export async function applyCheckoutCouponAction(...args: Parameters<typeof core.applyCheckoutCouponAction>) {
   return core.applyCheckoutCouponAction(...args);
 }
+
+export async function finalizePlacedPaymentAction(...args: Parameters<typeof core.finalizePlacedPaymentAction>) {
+  return core.finalizePlacedPaymentAction(...args);
+}

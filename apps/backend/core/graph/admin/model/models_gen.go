@@ -3686,6 +3686,8 @@ type Order struct {
 	Status              OrderStatus           `json:"status"`
 	PaymentStatus       PaymentStatus         `json:"paymentStatus"`
 	PaymentClientSecret *string               `json:"paymentClientSecret,omitempty"`
+	PaymentActionKind   *string               `json:"paymentActionKind,omitempty"`
+	PaymentFailed       *bool                 `json:"paymentFailed,omitempty"`
 	PaymentProvider     string                `json:"paymentProvider"`
 	PaymentReference    string                `json:"paymentReference"`
 	Email               string                `json:"email"`

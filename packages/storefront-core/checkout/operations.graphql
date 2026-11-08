@@ -159,7 +159,14 @@ mutation PlaceOrder($cartId: ID, $paymentToken: String, $savedPaymentMethodId: I
     storeCreditAmount
     amountDue
     paymentClientSecret
+    paymentActionKind
+    paymentFailed
   }
+}
+
+# After a gateway's in-page step (3DS), asks the gateway whether the payment went through - true once authorized
+mutation FinalizeOrderPayment($orderId: ID!) {
+  finalizeOrderPayment(orderId: $orderId)
 }
 
 # Balance check for the /gift-card page. Rate-limited per IP server-side.

@@ -33,6 +33,10 @@ type Order {
   # Transient: populated only on the storefront placeOrder response when the
   # gateway needs a client-side 3DS step. Always null on admin reads.
   paymentClientSecret: String
+  # Transient like paymentClientSecret - "challenge" or "redirect". Always null on admin reads.
+  paymentActionKind: String
+  # Transient like paymentClientSecret - true when the gateway refused the payment at placement. Always null on admin reads.
+  paymentFailed: Boolean
   # Payment provider slug chosen at checkout (empty when none / gift-card only).
   paymentProvider: String!
   # Gateway handle for the payment (Stripe PaymentIntent id, Braintree txn id);

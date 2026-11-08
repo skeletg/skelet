@@ -422,6 +422,15 @@ at build, so `skelet release` passes it through. Without it uploads fail
 with a CSP error in the browser console. Dev needs nothing - its local hosts
 are already allowed.
 
+A card gateway's fields load from the gateway's own hosts, which the Next
+storefront's CSP blocks until `PAYMENT_ORIGINS` names them - separated by spaces
+or commas, baked in at build like `UPLOAD_ORIGINS`, and read from the root `.env`
+in dev too. Each one has to be a bare https origin, and anything else fails the
+build rather than loosening the policy. Use the hosts the gateway plugin lists in
+its manifest's `SecurityOrigins` (Stripe: `https://js.stripe.com
+https://api.stripe.com`). The backend, dashboard and Caddy CSPs pick those up
+from the compiled-in plugin on `skelet gen`, so only the storefront needs this.
+
 ### S3
 
 Two shapes:

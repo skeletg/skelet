@@ -7617,7 +7617,9 @@ export type Order = {
   id: Scalars['ID']['output'];
   lines: Array<OrderLine>;
   number: Scalars['String']['output'];
+  paymentActionKind?: Maybe<Scalars['String']['output']>;
   paymentClientSecret?: Maybe<Scalars['String']['output']>;
+  paymentFailed?: Maybe<Scalars['Boolean']['output']>;
   paymentProvider: Scalars['String']['output'];
   paymentReference: Scalars['String']['output'];
   paymentStatus: PaymentStatus;

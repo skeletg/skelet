@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http/httptest"
 	"strings"
 	"sync"
@@ -23,7 +24,9 @@ type fakeGateway struct {
 	// park leaves the next authorizations on a redirect, the way a shopper who closes a hosted checkout does, and sync is what
 	// the gateway answers when core asks where such a payment stands
 	park bool
-	sync sdk.SyncPaymentResult
+	// decline refuses the next authorizations, as a bank does a card
+	decline bool
+	sync    sdk.SyncPaymentResult
 	// what the last Authorize actually received - the typed token slots once had NO producer and every
 	// gateway silently authorized with nothing, so e2e now watches the seam itself
 	lastAuthorize sdk.AuthorizeRequest
@@ -44,8 +47,11 @@ func (g *fakeGateway) setCaptureRef(ref string) {
 func (g *fakeGateway) Authorize(_ context.Context, req sdk.AuthorizeRequest) (sdk.AuthorizeResult, error) {
 	g.mu.Lock()
 	g.lastAuthorize = req
-	park := g.park
+	park, decline := g.park, g.decline
 	g.mu.Unlock()
+	if decline {
+		return sdk.AuthorizeResult{}, errors.New("card declined")
+	}
 	if park {
 		return sdk.AuthorizeResult{ProviderReference: "auth-" + req.OrderID.String()[:8],
 			Action: sdk.PendingAction{Kind: sdk.ActionRedirect, Value: "https://gateway.example.test/checkout"}}, nil
@@ -66,6 +72,17 @@ func (g *fakeGateway) parkAuthorizations(t *testing.T) {
 	t.Cleanup(func() {
 		g.mu.Lock()
 		g.park, g.sync = false, sdk.SyncPaymentResult{}
+		g.mu.Unlock()
+	})
+}
+
+func (g *fakeGateway) declineAuthorizations(t *testing.T) {
+	g.mu.Lock()
+	g.decline = true
+	g.mu.Unlock()
+	t.Cleanup(func() {
+		g.mu.Lock()
+		g.decline = false
 		g.mu.Unlock()
 	})
 }
@@ -169,6 +186,28 @@ func TestGatewayAuthorizeAtPlacement(t *testing.T) {
 	if row.PaymentStatus != "authorized" {
 		t.Errorf("payment_status = %q, want authorized", row.PaymentStatus)
 	}
+}
+
+// Scenario: a declined card still places the order, unpaid, and the placement says so - the shop must not thank the shopper
+// for an order nobody paid for, and nothing is held on the ledger
+func TestADeclinedCardPlacesTheOrderUnpaidAndSaysSo(t *testing.T) {
+	h := newHarness(t)
+	f := h.gatewayStore(t, 5, 2600)
+	if ok := h.placeWithGateway(t, f); ok.PaymentFailed {
+		t.Fatal("an authorized placement says the payment failed")
+	}
+	fakeGW.declineAuthorizations(t)
+	o := h.placeWithGateway(t, f)
+	if !o.PaymentFailed {
+		t.Error("a declined placement doesn't say the payment failed")
+	}
+	if sums := h.LedgerByKind(t, o.ID); sums[order.PaymentTxnAuthorize] != 0 {
+		t.Errorf("authorize ledger = %+v, want nothing held", sums)
+	}
+	if got := h.eventTypes(t, o.ID)["payment_authorization_failed"]; got != 1 {
+		t.Errorf("%d payment_authorization_failed events, want 1", got)
+	}
+	h.Settle(t)
 }
 
 // Scenario: the storefront's tokenization handle survives the whole placement path - resolver input to order service to wiring adapter to payment service to the gateway - this seam once dropped every token silently (the metadata-key indirection was emptied and the typed slot had no producer)

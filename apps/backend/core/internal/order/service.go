@@ -730,9 +730,10 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 
 	// Authorize the amount owed, best-effort post-commit since a gateway failure can't roll the order back - so it logs and emits events rather than returning fatally
 	// A 3DS step hands back the client secret, carried on the placement response only
-	outcome := s.authorizePostPlacement(ctx, in, placed)
+	outcome, failed := s.authorizePostPlacement(ctx, in, placed)
 	placed.PaymentActionKind = outcome.ActionKind
 	placed.PaymentActionSecret = outcome.ActionValue
+	placed.PaymentFailed = failed
 
 	return placed, nil
 }
