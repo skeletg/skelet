@@ -18,7 +18,9 @@ const maxResultWindow = 10000
 
 // All fields optional - zero-valued ones are dropped from the query, and the caller clamps limit/offset
 type BrowseFilter struct {
-	CategoryID    *uuid.UUID
+	CategoryID *uuid.UUID
+	// The category and, under an anchor, the published ones beneath it - a product in any of them matches. Empty: CategoryID alone
+	CategoryIDs   []uuid.UUID
 	CollectionID  *uuid.UUID
 	AttributeIn   []AttributeIn // one entry per attribute slug with OR'd values
 	PriceMinCents *int64
@@ -28,6 +30,17 @@ type BrowseFilter struct {
 	// InStockOnly keeps what's in stock where the engine knows stock, and is ignored where it doesn't
 	InStockOnly bool
 	NoFacets    bool
+}
+
+// The categories a product may sit in to match, nil when the filter names none
+func (f BrowseFilter) CategorySet() []uuid.UUID {
+	if len(f.CategoryIDs) > 0 {
+		return f.CategoryIDs
+	}
+	if f.CategoryID != nil {
+		return []uuid.UUID{*f.CategoryID}
+	}
+	return nil
 }
 
 // "attr_<slug>.keyword IN (values…)" - entries AND together, values inside one entry OR together
@@ -180,10 +193,14 @@ func (i *ProductIndexer) BrowseProducts(
 	// Each clause is tagged with the attribute slug it belongs to (or _category / _collection / _price / _kind) - per-facet aggs exclude the matching tag
 	clauses := make([]taggedFilter, 0)
 
-	if filter.CategoryID != nil {
+	if cats := filter.CategorySet(); len(cats) > 0 {
+		ids := make([]string, len(cats))
+		for i, id := range cats {
+			ids[i] = id.String()
+		}
 		clauses = append(clauses, taggedFilter{
 			tag:    "_category",
-			clause: map[string]any{"term": map[string]any{"category_ids": filter.CategoryID.String()}},
+			clause: map[string]any{"terms": map[string]any{"category_ids": ids}},
 		})
 	}
 	if filter.CollectionID != nil {

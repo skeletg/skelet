@@ -29,6 +29,7 @@ func (r *postgresRepository) CreateCategory(ctx context.Context, input CreateCat
 		SeoNoindex:      input.SEONoindex,
 		Metadata:        metadataToJSON(input.Metadata),
 		PrivateMetadata: metadataToJSON(input.PrivateMetadata),
+		IsAnchor:        input.IsAnchor == nil || *input.IsAnchor,
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -179,6 +180,10 @@ func (r *postgresRepository) UpdateCategory(ctx context.Context, input UpdateCat
 	if input.PrivateMetadata != nil {
 		privateMetadata = metadataToJSON(*input.PrivateMetadata)
 	}
+	isAnchor := current.IsAnchor
+	if input.IsAnchor != nil {
+		isAnchor = *input.IsAnchor
+	}
 	row, err := r.queries.UpdateCategory(ctx, db.UpdateCategoryParams{
 		ID:              input.ID,
 		Slug:            slug,
@@ -189,6 +194,7 @@ func (r *postgresRepository) UpdateCategory(ctx context.Context, input UpdateCat
 		SeoNoindex:      seoNoindex,
 		Metadata:        metadata,
 		PrivateMetadata: privateMetadata,
+		IsAnchor:        isAnchor,
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -490,6 +496,10 @@ func (r *postgresRepository) ListPrimaryCategoryByProductIDs(ctx context.Context
 	return out, nil
 }
 
+func (r *postgresRepository) ListCategoryListingIDs(ctx context.Context, channelID, id uuid.UUID) ([]uuid.UUID, error) {
+	return r.queries.ListCategoryListingIDs(ctx, db.ListCategoryListingIDsParams{ID: id, ChannelID: channelID, MaxDepth: maxCategoryDepth})
+}
+
 func (r *postgresRepository) ListProductIDsInPrimaryCategoryDescendants(ctx context.Context, rootID uuid.UUID) ([]uuid.UUID, error) {
 	ids, err := r.queries.ListProductIDsInPrimaryCategoryDescendants(ctx, db.ListProductIDsInPrimaryCategoryDescendantsParams{ID: rootID, MaxDepth: maxCategoryDepth})
 	if err != nil {
@@ -508,6 +518,7 @@ func toCategory(row db.CatalogCategory) Category {
 		Position:        row.Position,
 		IsPublished:     row.IsPublished,
 		SEONoindex:      row.SeoNoindex,
+		IsAnchor:        row.IsAnchor,
 		Metadata:        metadataFromJSON(row.Metadata),
 		PrivateMetadata: metadataFromJSON(row.PrivateMetadata),
 		CreatedAt:       row.CreatedAt,

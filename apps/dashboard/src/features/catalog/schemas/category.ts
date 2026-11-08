@@ -17,6 +17,7 @@ export const categorySchema = z
     position: wholeNumber().describe('Order among its sibling categories - lower first'),
     isPublished: z.boolean().describe('Whether the category is visible on the storefront'),
     seoNoindex: z.boolean().describe('Ask search engines not to index the category page'),
+    isAnchor: z.boolean().describe("Whether the category page also lists the products of the published categories beneath it"),
     // Opaque rich-text JSON to the form - its recursive type would blow up TanStack's deep field paths
     shortDescription: z.unknown().describe('Short description in the edited locale, as Lexical rich-text JSON, or null'),
     description: z.unknown().describe('Full description in the edited locale, as Lexical rich-text JSON, or null'),
@@ -34,6 +35,7 @@ export const CATEGORY_LABELS: Record<keyof CategoryValues, string> = {
   position: 'Position',
   isPublished: 'Published',
   seoNoindex: 'Noindex',
+  isAnchor: 'Show products from subcategories',
   shortDescription: 'Short description',
   description: 'Description',
   metaTitle: 'Meta title',
@@ -47,6 +49,7 @@ export const emptyCategory: CategoryValues = {
   position: 0,
   isPublished: false,
   seoNoindex: false,
+  isAnchor: true,
   shortDescription: null,
   description: null,
   metaTitle: '',
@@ -59,6 +62,7 @@ type ExistingCategory = {
   position: number
   isPublished: boolean
   seoNoindex: boolean
+  isAnchor: boolean
   parent?: { id: string } | null
   content: { locale: string; name: string; shortDescription?: unknown; description?: unknown; metaTitle?: string | null; metaDescription?: string | null }[]
 }
@@ -74,6 +78,7 @@ export function toCategoryValues(c: ExistingCategory, locale: string): CategoryV
     position: c.position,
     isPublished: c.isPublished,
     seoNoindex: c.seoNoindex,
+    isAnchor: c.isAnchor,
     shortDescription: content?.shortDescription ?? null,
     description: content?.description ?? null,
     metaTitle: content?.metaTitle ?? '',
@@ -94,6 +99,7 @@ const structureInput = (v: CategoryValues) => ({
   position: v.position,
   isPublished: v.isPublished,
   seoNoindex: v.seoNoindex,
+  isAnchor: v.isAnchor,
 })
 
 export function toCategoryCreateInput(v: CategoryValues, locale: string) {
@@ -108,7 +114,8 @@ export function categoryChanges(before: CategoryValues, after: CategoryValues) {
     before.parentId !== after.parentId ||
     before.position !== after.position ||
     before.isPublished !== after.isPublished ||
-    before.seoNoindex !== after.seoNoindex
+    before.seoNoindex !== after.seoNoindex ||
+    before.isAnchor !== after.isAnchor
   const content =
     before.name !== after.name ||
     before.metaTitle !== after.metaTitle ||
@@ -132,6 +139,7 @@ export function categoryDiff(parentName: (id: string) => string) {
       { label: CATEGORY_LABELS.position, value: (v) => v.position },
       { label: CATEGORY_LABELS.isPublished, value: (v) => v.isPublished },
       { label: CATEGORY_LABELS.seoNoindex, value: (v) => v.seoNoindex },
+      { label: CATEGORY_LABELS.isAnchor, value: (v) => v.isAnchor },
       { label: CATEGORY_LABELS.metaTitle, value: (v) => v.metaTitle },
       { label: CATEGORY_LABELS.metaDescription, value: (v) => clip(v.metaDescription) },
     ]),

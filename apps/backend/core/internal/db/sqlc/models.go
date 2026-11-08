@@ -749,6 +749,7 @@ type CatalogCategory struct {
 	PrivateMetadata json.RawMessage `json:"private_metadata"`
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at"`
+	IsAnchor        bool            `json:"is_anchor"`
 }
 
 type CatalogCategoryChannelListing struct {

@@ -542,8 +542,8 @@ func TestTheLastResortTranslationIsBatched(t *testing.T) {
 func TestChangedCategoryFieldsNameEveryInput(t *testing.T) {
 	s, p, b := "x", int32(1), true
 	m := Metadata{}
-	got := changedCategoryFields(UpdateCategoryInput{Slug: &s, ClearParent: true, Position: &p, IsPublished: &b, SEONoindex: &b, Metadata: &m, PrivateMetadata: &m})
-	want := []string{"slug", "parent_id", "position", "is_published", "seo_noindex", "metadata", "private_metadata"}
+	got := changedCategoryFields(UpdateCategoryInput{Slug: &s, ClearParent: true, Position: &p, IsPublished: &b, SEONoindex: &b, IsAnchor: &b, Metadata: &m, PrivateMetadata: &m})
+	want := []string{"slug", "parent_id", "position", "is_published", "seo_noindex", "is_anchor", "metadata", "private_metadata"}
 	if !slices.Equal(got, want) {
 		t.Errorf("changed = %v, want %v", got, want)
 	}

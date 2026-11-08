@@ -886,6 +886,15 @@ function CategoryRecordForm({
                 </form.AppField>
                 <form.AppField name="position">{(f) => <f.NumberField id="cat-position" label="Position" />}</form.AppField>
               </div>
+              <form.AppField name="isAnchor">
+                {(f) => (
+                  <f.SwitchField
+                    id="cat-anchor"
+                    label="Show products from subcategories"
+                    description="The storefront page lists the products of every published category beneath this one as well as its own. An unpublished subcategory hides its branch."
+                  />
+                )}
+              </form.AppField>
 
               {/* Name, descriptions and SEO are all per-locale - this is where a locale's copy gets
                   dropped again. An immediate action, like the Delete button in the header */}

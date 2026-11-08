@@ -1777,6 +1777,7 @@ export type Category = {
   description?: Maybe<Scalars['JSON']['output']>;
   facetOverrides: Array<FacetOverride>;
   id: Scalars['ID']['output'];
+  isAnchor: Scalars['Boolean']['output'];
   isPublished: Scalars['Boolean']['output'];
   level: Scalars['Int']['output'];
   listings: Array<CategoryChannelListing>;
@@ -2305,6 +2306,7 @@ export type CreateCmsSnippetInput = {
 
 export type CreateCategoryInput = {
   description?: InputMaybe<Scalars['JSON']['input']>;
+  isAnchor?: InputMaybe<Scalars['Boolean']['input']>;
   isPublished?: InputMaybe<Scalars['Boolean']['input']>;
   locale: Scalars['String']['input'];
   metaDescription?: InputMaybe<Scalars['String']['input']>;
@@ -11809,6 +11811,7 @@ export type UpdateCmsSnippetInput = {
 export type UpdateCategoryInput = {
   clearParent?: InputMaybe<Scalars['Boolean']['input']>;
   id: Scalars['ID']['input'];
+  isAnchor?: InputMaybe<Scalars['Boolean']['input']>;
   isPublished?: InputMaybe<Scalars['Boolean']['input']>;
   metadata?: InputMaybe<Array<MetadataInput>>;
   parentId?: InputMaybe<Scalars['ID']['input']>;

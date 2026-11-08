@@ -1495,6 +1495,7 @@ type Category struct {
 	Position         int32                     `json:"position"`
 	IsPublished      bool                      `json:"isPublished"`
 	SeoNoindex       bool                      `json:"seoNoindex"`
+	IsAnchor         bool                      `json:"isAnchor"`
 	Parent           *Category                 `json:"parent,omitempty"`
 	Children         []*Category               `json:"children"`
 	Ancestors        []*Category               `json:"ancestors"`
@@ -1937,6 +1938,7 @@ type CreateCategoryInput struct {
 	Position         *int32           `json:"position,omitempty"`
 	IsPublished      *bool            `json:"isPublished,omitempty"`
 	SeoNoindex       *bool            `json:"seoNoindex,omitempty"`
+	IsAnchor         *bool            `json:"isAnchor,omitempty"`
 	Metadata         []*MetadataInput `json:"metadata,omitempty"`
 	PrivateMetadata  []*MetadataInput `json:"privateMetadata,omitempty"`
 	Locale           string           `json:"locale"`
@@ -5921,6 +5923,7 @@ type UpdateCategoryInput struct {
 	Position        *int32           `json:"position,omitempty"`
 	IsPublished     *bool            `json:"isPublished,omitempty"`
 	SeoNoindex      *bool            `json:"seoNoindex,omitempty"`
+	IsAnchor        *bool            `json:"isAnchor,omitempty"`
 	Metadata        []*MetadataInput `json:"metadata,omitempty"`
 	PrivateMetadata []*MetadataInput `json:"privateMetadata,omitempty"`
 }

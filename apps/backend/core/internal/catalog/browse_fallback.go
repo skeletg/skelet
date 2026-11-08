@@ -24,8 +24,8 @@ const (
 type BrowseFallbackFilter struct { // the subset of the index's browse contract Postgres can answer - relevance scoring is deliberately absent, this keeps the store shoppable when OpenSearch is down rather than replacing it
 	ChannelID     uuid.UUID
 	Query         string
-	Locale        string // which content rows Query matches against - an empty one narrows the search back to SKU
-	CategoryID    *uuid.UUID
+	Locale        string      // which content rows Query matches against - an empty one narrows the search back to SKU
+	CategoryIDs   []uuid.UUID // a product in any of them matches - empty filters on no category
 	CollectionID  *uuid.UUID
 	PriceMinCents *int64
 	PriceMaxCents *int64
@@ -63,9 +63,7 @@ func (s *productService) BrowseFallback(ctx context.Context, f BrowseFallbackFil
 	if params.ProductIds == nil {
 		params.ProductIds = []uuid.UUID{}
 	}
-	if f.CategoryID != nil {
-		params.FilterCategory, params.CategoryID = true, *f.CategoryID
-	}
+	params.FilterCategory, params.CategoryIds = len(f.CategoryIDs) > 0, f.CategoryIDs
 	if f.CollectionID != nil {
 		params.FilterCollection, params.CollectionID = true, *f.CollectionID
 	}
@@ -140,8 +138,8 @@ type FacetBucketCount struct { // one attribute value plus how many products car
 type FacetCountFilter struct {
 	ChannelID     uuid.UUID
 	Query         string
-	Locale        string // must match the browse call's locale or the counts describe a different result set
-	CategoryID    *uuid.UUID
+	Locale        string      // must match the browse call's locale or the counts describe a different result set
+	CategoryIDs   []uuid.UUID // a product in any of them matches - empty filters on no category
 	CollectionID  *uuid.UUID
 	Kinds         []string
 	ProductIDs    []uuid.UUID
@@ -183,9 +181,7 @@ func (s *productService) FacetCounts(ctx context.Context, targetAttributeID uuid
 	if params.ProductIds == nil {
 		params.ProductIds = []uuid.UUID{}
 	}
-	if f.CategoryID != nil {
-		params.FilterCategory, params.CategoryID = true, *f.CategoryID
-	}
+	params.FilterCategory, params.CategoryIds = len(f.CategoryIDs) > 0, f.CategoryIDs
 	if f.CollectionID != nil {
 		params.FilterCollection, params.CollectionID = true, *f.CollectionID
 	}

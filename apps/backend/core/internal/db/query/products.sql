@@ -381,7 +381,7 @@ WHERE l.is_published = TRUE
            AND mp.sku ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'))
   AND (NOT sqlc.arg(filter_category)::boolean OR EXISTS (
         SELECT 1 FROM catalog_product_categories pc
-        WHERE pc.product_id = p.id AND pc.category_id = sqlc.arg(category_id)))
+        WHERE pc.product_id = p.id AND pc.category_id = ANY(sqlc.arg(category_ids)::uuid[])))
   AND (NOT sqlc.arg(filter_collection)::boolean OR EXISTS (
         SELECT 1 FROM catalog_collection_products cp
         WHERE cp.product_id = p.id AND cp.collection_id = sqlc.arg(collection_id)))
@@ -482,7 +482,7 @@ WITH base AS (
                AND mp.sku ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'))
       AND (NOT sqlc.arg(filter_category)::boolean OR EXISTS (
             SELECT 1 FROM catalog_product_categories pc
-            WHERE pc.product_id = p.id AND pc.category_id = sqlc.arg(category_id)))
+            WHERE pc.product_id = p.id AND pc.category_id = ANY(sqlc.arg(category_ids)::uuid[])))
       AND (NOT sqlc.arg(filter_collection)::boolean OR EXISTS (
             SELECT 1 FROM catalog_collection_products cp
             WHERE cp.product_id = p.id AND cp.collection_id = sqlc.arg(collection_id)))

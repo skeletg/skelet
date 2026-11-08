@@ -43,7 +43,7 @@ WITH base AS (
                AND mp.sku ILIKE '%' || escape_like($7::text) || '%'))
       AND (NOT $9::boolean OR EXISTS (
             SELECT 1 FROM catalog_product_categories pc
-            WHERE pc.product_id = p.id AND pc.category_id = $10))
+            WHERE pc.product_id = p.id AND pc.category_id = ANY($10::uuid[])))
       AND (NOT $11::boolean OR EXISTS (
             SELECT 1 FROM catalog_collection_products cp
             WHERE cp.product_id = p.id AND cp.collection_id = $12))
@@ -76,7 +76,7 @@ type BrowseFacetCountsFallbackParams struct {
 	Search            string      `json:"search"`
 	Locale            string      `json:"locale"`
 	FilterCategory    bool        `json:"filter_category"`
-	CategoryID        uuid.UUID   `json:"category_id"`
+	CategoryIds       []uuid.UUID `json:"category_ids"`
 	FilterCollection  bool        `json:"filter_collection"`
 	CollectionID      uuid.UUID   `json:"collection_id"`
 	OtherValueIds     []uuid.UUID `json:"other_value_ids"`
@@ -104,7 +104,7 @@ func (q *Queries) BrowseFacetCountsFallback(ctx context.Context, arg BrowseFacet
 		arg.Search,
 		arg.Locale,
 		arg.FilterCategory,
-		arg.CategoryID,
+		pq.Array(arg.CategoryIds),
 		arg.FilterCollection,
 		arg.CollectionID,
 		pq.Array(arg.OtherValueIds),
@@ -170,7 +170,7 @@ WHERE l.is_published = TRUE
            AND mp.sku ILIKE '%' || escape_like($4::text) || '%'))
   AND (NOT $6::boolean OR EXISTS (
         SELECT 1 FROM catalog_product_categories pc
-        WHERE pc.product_id = p.id AND pc.category_id = $7))
+        WHERE pc.product_id = p.id AND pc.category_id = ANY($7::uuid[])))
   AND (NOT $8::boolean OR EXISTS (
         SELECT 1 FROM catalog_collection_products cp
         WHERE cp.product_id = p.id AND cp.collection_id = $9))
@@ -222,7 +222,7 @@ type BrowseProductsFallbackParams struct {
 	Search           string        `json:"search"`
 	Locale           string        `json:"locale"`
 	FilterCategory   bool          `json:"filter_category"`
-	CategoryID       uuid.UUID     `json:"category_id"`
+	CategoryIds      []uuid.UUID   `json:"category_ids"`
 	FilterCollection bool          `json:"filter_collection"`
 	CollectionID     uuid.UUID     `json:"collection_id"`
 	AttrCount        int32         `json:"attr_count"`
@@ -253,7 +253,7 @@ func (q *Queries) BrowseProductsFallback(ctx context.Context, arg BrowseProducts
 		arg.Search,
 		arg.Locale,
 		arg.FilterCategory,
-		arg.CategoryID,
+		pq.Array(arg.CategoryIds),
 		arg.FilterCollection,
 		arg.CollectionID,
 		arg.AttrCount,

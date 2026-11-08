@@ -1218,6 +1218,7 @@ type ComplexityRoot struct {
 		Description      func(childComplexity int) int
 		FacetOverrides   func(childComplexity int) int
 		ID               func(childComplexity int) int
+		IsAnchor         func(childComplexity int) int
 		IsPublished      func(childComplexity int) int
 		Level            func(childComplexity int) int
 		Listings         func(childComplexity int) int
@@ -11054,6 +11055,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Category.ID(childComplexity), true
+	case "Category.isAnchor":
+		if e.ComplexityRoot.Category.IsAnchor == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Category.IsAnchor(childComplexity), true
 	case "Category.isPublished":
 		if e.ComplexityRoot.Category.IsPublished == nil {
 			break
@@ -35260,6 +35267,8 @@ type Category {
   position:        Int!
   isPublished:     Boolean!
   seoNoindex:      Boolean!
+  # Its storefront page lists the products of every published category beneath it as well as its own
+  isAnchor:        Boolean!
   parent:          Category
   children:        [Category!]!
   ancestors:       [Category!]!
@@ -35330,6 +35339,8 @@ input CreateCategoryInput {
   position:         Int
   isPublished:      Boolean
   seoNoindex:       Boolean
+  # Defaults to true
+  isAnchor:         Boolean
   metadata:         [MetadataInput!]
   privateMetadata:  [MetadataInput!]
   locale:           String!
@@ -35349,6 +35360,7 @@ input UpdateCategoryInput {
   position:        Int
   isPublished:     Boolean
   seoNoindex:      Boolean
+  isAnchor:        Boolean
   metadata:        [MetadataInput!]
   privateMetadata: [MetadataInput!]
 }
@@ -46009,6 +46021,8 @@ func (ec *executionContext) childFields_Category(ctx context.Context, field grap
 		return ec.fieldContext_Category_isPublished(ctx, field)
 	case "seoNoindex":
 		return ec.fieldContext_Category_seoNoindex(ctx, field)
+	case "isAnchor":
+		return ec.fieldContext_Category_isAnchor(ctx, field)
 	case "parent":
 		return ec.fieldContext_Category_parent(ctx, field)
 	case "children":
@@ -86282,6 +86296,29 @@ func (ec *executionContext) _Category_seoNoindex(ctx context.Context, field grap
 	)
 }
 func (ec *executionContext) fieldContext_Category_seoNoindex(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Category", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Category_isAnchor(ctx context.Context, field graphql.CollectedField, obj *model.Category) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Category_isAnchor(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IsAnchor, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Category_isAnchor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Category", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
@@ -179438,7 +179475,7 @@ func (ec *executionContext) unmarshalInputCreateCategoryInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"parentId", "slug", "position", "isPublished", "seoNoindex", "metadata", "privateMetadata", "locale", "name", "shortDescription", "description", "metaTitle", "metaDescription", "metaKeywords"}
+	fieldsInOrder := [...]string{"parentId", "slug", "position", "isPublished", "seoNoindex", "isAnchor", "metadata", "privateMetadata", "locale", "name", "shortDescription", "description", "metaTitle", "metaDescription", "metaKeywords"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -179480,6 +179517,13 @@ func (ec *executionContext) unmarshalInputCreateCategoryInput(ctx context.Contex
 				return it, err
 			}
 			it.SeoNoindex = data
+		case "isAnchor":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isAnchor"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IsAnchor = data
 		case "metadata":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("metadata"))
 			data, err := ec.unmarshalOMetadataInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMetadataInputᚄ(ctx, v)
@@ -187337,7 +187381,7 @@ func (ec *executionContext) unmarshalInputUpdateCategoryInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "parentId", "clearParent", "slug", "position", "isPublished", "seoNoindex", "metadata", "privateMetadata"}
+	fieldsInOrder := [...]string{"id", "parentId", "clearParent", "slug", "position", "isPublished", "seoNoindex", "isAnchor", "metadata", "privateMetadata"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -187393,6 +187437,13 @@ func (ec *executionContext) unmarshalInputUpdateCategoryInput(ctx context.Contex
 				return it, err
 			}
 			it.SeoNoindex = data
+		case "isAnchor":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isAnchor"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IsAnchor = data
 		case "metadata":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("metadata"))
 			data, err := ec.unmarshalOMetadataInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMetadataInputᚄ(ctx, v)
@@ -199216,6 +199267,11 @@ func (ec *executionContext) _Category(ctx context.Context, sel ast.SelectionSet,
 			}
 		case "seoNoindex":
 			out.Values[i] = ec._Category_seoNoindex(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "isAnchor":
+			out.Values[i] = ec._Category_isAnchor(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}

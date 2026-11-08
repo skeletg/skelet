@@ -78,7 +78,7 @@ SET cover_id         = NULL,
     cover_alt        = '',
     updated_at       = NOW()
 WHERE id = $1
-RETURNING id, parent_id, slug, url_path, position, is_published, seo_noindex, cover_id, cover_s3_key, cover_mime_type, cover_size_bytes, cover_width, cover_height, cover_status, cover_alt, metadata, private_metadata, created_at, updated_at
+RETURNING id, parent_id, slug, url_path, position, is_published, seo_noindex, cover_id, cover_s3_key, cover_mime_type, cover_size_bytes, cover_width, cover_height, cover_status, cover_alt, metadata, private_metadata, created_at, updated_at, is_anchor
 `
 
 func (q *Queries) ClearCategoryCover(ctx context.Context, id uuid.UUID) (CatalogCategory, error) {
@@ -104,6 +104,7 @@ func (q *Queries) ClearCategoryCover(ctx context.Context, id uuid.UUID) (Catalog
 		&i.PrivateMetadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsAnchor,
 	)
 	return i, err
 }
@@ -115,7 +116,7 @@ SET cover_width  = $1,
     cover_status = 'ready',
     updated_at   = NOW()
 WHERE id = $3 AND cover_id = $4 AND cover_status = 'pending'
-RETURNING id, parent_id, slug, url_path, position, is_published, seo_noindex, cover_id, cover_s3_key, cover_mime_type, cover_size_bytes, cover_width, cover_height, cover_status, cover_alt, metadata, private_metadata, created_at, updated_at
+RETURNING id, parent_id, slug, url_path, position, is_published, seo_noindex, cover_id, cover_s3_key, cover_mime_type, cover_size_bytes, cover_width, cover_height, cover_status, cover_alt, metadata, private_metadata, created_at, updated_at, is_anchor
 `
 
 type ConfirmCategoryCoverParams struct {
@@ -153,6 +154,7 @@ func (q *Queries) ConfirmCategoryCover(ctx context.Context, arg ConfirmCategoryC
 		&i.PrivateMetadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsAnchor,
 	)
 	return i, err
 }
@@ -241,9 +243,9 @@ func (q *Queries) CountProductsInCategory(ctx context.Context, categoryID uuid.U
 
 const createCategory = `-- name: CreateCategory :one
 
-INSERT INTO catalog_categories (parent_id, slug, url_path, position, is_published, seo_noindex, metadata, private_metadata)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, parent_id, slug, url_path, position, is_published, seo_noindex, cover_id, cover_s3_key, cover_mime_type, cover_size_bytes, cover_width, cover_height, cover_status, cover_alt, metadata, private_metadata, created_at, updated_at
+INSERT INTO catalog_categories (parent_id, slug, url_path, position, is_published, seo_noindex, metadata, private_metadata, is_anchor)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING id, parent_id, slug, url_path, position, is_published, seo_noindex, cover_id, cover_s3_key, cover_mime_type, cover_size_bytes, cover_width, cover_height, cover_status, cover_alt, metadata, private_metadata, created_at, updated_at, is_anchor
 `
 
 type CreateCategoryParams struct {
@@ -255,6 +257,7 @@ type CreateCategoryParams struct {
 	SeoNoindex      bool            `json:"seo_noindex"`
 	Metadata        json.RawMessage `json:"metadata"`
 	PrivateMetadata json.RawMessage `json:"private_metadata"`
+	IsAnchor        bool            `json:"is_anchor"`
 }
 
 // ==================== Categories ====================
@@ -268,6 +271,7 @@ func (q *Queries) CreateCategory(ctx context.Context, arg CreateCategoryParams) 
 		arg.SeoNoindex,
 		arg.Metadata,
 		arg.PrivateMetadata,
+		arg.IsAnchor,
 	)
 	var i CatalogCategory
 	err := row.Scan(
@@ -290,6 +294,7 @@ func (q *Queries) CreateCategory(ctx context.Context, arg CreateCategoryParams) 
 		&i.PrivateMetadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsAnchor,
 	)
 	return i, err
 }
@@ -372,7 +377,7 @@ func (q *Queries) GetCatalogCategoryChannelListing(ctx context.Context, arg GetC
 }
 
 const getCategoryByID = `-- name: GetCategoryByID :one
-SELECT id, parent_id, slug, url_path, position, is_published, seo_noindex, cover_id, cover_s3_key, cover_mime_type, cover_size_bytes, cover_width, cover_height, cover_status, cover_alt, metadata, private_metadata, created_at, updated_at FROM catalog_categories WHERE id = $1
+SELECT id, parent_id, slug, url_path, position, is_published, seo_noindex, cover_id, cover_s3_key, cover_mime_type, cover_size_bytes, cover_width, cover_height, cover_status, cover_alt, metadata, private_metadata, created_at, updated_at, is_anchor FROM catalog_categories WHERE id = $1
 `
 
 func (q *Queries) GetCategoryByID(ctx context.Context, id uuid.UUID) (CatalogCategory, error) {
@@ -398,12 +403,13 @@ func (q *Queries) GetCategoryByID(ctx context.Context, id uuid.UUID) (CatalogCat
 		&i.PrivateMetadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsAnchor,
 	)
 	return i, err
 }
 
 const getCategoryBySlug = `-- name: GetCategoryBySlug :one
-SELECT id, parent_id, slug, url_path, position, is_published, seo_noindex, cover_id, cover_s3_key, cover_mime_type, cover_size_bytes, cover_width, cover_height, cover_status, cover_alt, metadata, private_metadata, created_at, updated_at FROM catalog_categories WHERE slug = $1
+SELECT id, parent_id, slug, url_path, position, is_published, seo_noindex, cover_id, cover_s3_key, cover_mime_type, cover_size_bytes, cover_width, cover_height, cover_status, cover_alt, metadata, private_metadata, created_at, updated_at, is_anchor FROM catalog_categories WHERE slug = $1
 `
 
 func (q *Queries) GetCategoryBySlug(ctx context.Context, slug string) (CatalogCategory, error) {
@@ -429,6 +435,7 @@ func (q *Queries) GetCategoryBySlug(ctx context.Context, slug string) (CatalogCa
 		&i.PrivateMetadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsAnchor,
 	)
 	return i, err
 }
@@ -482,7 +489,7 @@ func (q *Queries) InsertCategoryFacetOverride(ctx context.Context, arg InsertCat
 }
 
 const listAllCategories = `-- name: ListAllCategories :many
-SELECT id, parent_id, slug, url_path, position, is_published, seo_noindex, cover_id, cover_s3_key, cover_mime_type, cover_size_bytes, cover_width, cover_height, cover_status, cover_alt, metadata, private_metadata, created_at, updated_at FROM catalog_categories ORDER BY url_path, position, slug
+SELECT id, parent_id, slug, url_path, position, is_published, seo_noindex, cover_id, cover_s3_key, cover_mime_type, cover_size_bytes, cover_width, cover_height, cover_status, cover_alt, metadata, private_metadata, created_at, updated_at, is_anchor FROM catalog_categories ORDER BY url_path, position, slug
 `
 
 func (q *Queries) ListAllCategories(ctx context.Context) ([]CatalogCategory, error) {
@@ -514,6 +521,7 @@ func (q *Queries) ListAllCategories(ctx context.Context) ([]CatalogCategory, err
 			&i.PrivateMetadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.IsAnchor,
 		); err != nil {
 			return nil, err
 		}
@@ -564,7 +572,7 @@ func (q *Queries) ListCatalogCategoryChannelListings(ctx context.Context, catego
 }
 
 const listCategoriesByProduct = `-- name: ListCategoriesByProduct :many
-SELECT c.id, c.parent_id, c.slug, c.url_path, c.position, c.is_published, c.seo_noindex, c.cover_id, c.cover_s3_key, c.cover_mime_type, c.cover_size_bytes, c.cover_width, c.cover_height, c.cover_status, c.cover_alt, c.metadata, c.private_metadata, c.created_at, c.updated_at, pc.is_primary AS pc_is_primary
+SELECT c.id, c.parent_id, c.slug, c.url_path, c.position, c.is_published, c.seo_noindex, c.cover_id, c.cover_s3_key, c.cover_mime_type, c.cover_size_bytes, c.cover_width, c.cover_height, c.cover_status, c.cover_alt, c.metadata, c.private_metadata, c.created_at, c.updated_at, c.is_anchor, pc.is_primary AS pc_is_primary
 FROM catalog_product_categories pc
 JOIN catalog_categories c ON c.id = pc.category_id
 WHERE pc.product_id = $1
@@ -591,6 +599,7 @@ type ListCategoriesByProductRow struct {
 	PrivateMetadata json.RawMessage `json:"private_metadata"`
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at"`
+	IsAnchor        bool            `json:"is_anchor"`
 	PcIsPrimary     bool            `json:"pc_is_primary"`
 }
 
@@ -623,6 +632,7 @@ func (q *Queries) ListCategoriesByProduct(ctx context.Context, productID uuid.UU
 			&i.PrivateMetadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.IsAnchor,
 			&i.PcIsPrimary,
 		); err != nil {
 			return nil, err
@@ -639,7 +649,7 @@ func (q *Queries) ListCategoriesByProduct(ctx context.Context, productID uuid.UU
 }
 
 const listCategoriesByProductIDs = `-- name: ListCategoriesByProductIDs :many
-SELECT c.id, c.parent_id, c.slug, c.url_path, c.position, c.is_published, c.seo_noindex, c.cover_id, c.cover_s3_key, c.cover_mime_type, c.cover_size_bytes, c.cover_width, c.cover_height, c.cover_status, c.cover_alt, c.metadata, c.private_metadata, c.created_at, c.updated_at,
+SELECT c.id, c.parent_id, c.slug, c.url_path, c.position, c.is_published, c.seo_noindex, c.cover_id, c.cover_s3_key, c.cover_mime_type, c.cover_size_bytes, c.cover_width, c.cover_height, c.cover_status, c.cover_alt, c.metadata, c.private_metadata, c.created_at, c.updated_at, c.is_anchor,
        pc.product_id AS pc_product_id,
        pc.is_primary AS pc_is_primary,
        pc.position   AS pc_position
@@ -669,6 +679,7 @@ type ListCategoriesByProductIDsRow struct {
 	PrivateMetadata json.RawMessage `json:"private_metadata"`
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at"`
+	IsAnchor        bool            `json:"is_anchor"`
 	PcProductID     uuid.UUID       `json:"pc_product_id"`
 	PcIsPrimary     bool            `json:"pc_is_primary"`
 	PcPosition      int32           `json:"pc_position"`
@@ -703,6 +714,7 @@ func (q *Queries) ListCategoriesByProductIDs(ctx context.Context, productIds []u
 			&i.PrivateMetadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.IsAnchor,
 			&i.PcProductID,
 			&i.PcIsPrimary,
 			&i.PcPosition,
@@ -721,7 +733,7 @@ func (q *Queries) ListCategoriesByProductIDs(ctx context.Context, productIds []u
 }
 
 const listCategoriesListedOnChannel = `-- name: ListCategoriesListedOnChannel :many
-SELECT c.id, c.parent_id, c.slug, c.url_path, c.position, c.is_published, c.seo_noindex, c.cover_id, c.cover_s3_key, c.cover_mime_type, c.cover_size_bytes, c.cover_width, c.cover_height, c.cover_status, c.cover_alt, c.metadata, c.private_metadata, c.created_at, c.updated_at, ccsl.sort_order_override
+SELECT c.id, c.parent_id, c.slug, c.url_path, c.position, c.is_published, c.seo_noindex, c.cover_id, c.cover_s3_key, c.cover_mime_type, c.cover_size_bytes, c.cover_width, c.cover_height, c.cover_status, c.cover_alt, c.metadata, c.private_metadata, c.created_at, c.updated_at, c.is_anchor, ccsl.sort_order_override
 FROM catalog_categories c
 JOIN catalog_category_channel_listings ccsl ON ccsl.category_id = c.id
 WHERE ccsl.channel_id = $1
@@ -748,6 +760,7 @@ type ListCategoriesListedOnChannelRow struct {
 	PrivateMetadata   json.RawMessage `json:"private_metadata"`
 	CreatedAt         time.Time       `json:"created_at"`
 	UpdatedAt         time.Time       `json:"updated_at"`
+	IsAnchor          bool            `json:"is_anchor"`
 	SortOrderOverride sql.NullInt32   `json:"sort_order_override"`
 }
 
@@ -781,6 +794,7 @@ func (q *Queries) ListCategoriesListedOnChannel(ctx context.Context, channelID u
 			&i.PrivateMetadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.IsAnchor,
 			&i.SortOrderOverride,
 		); err != nil {
 			return nil, err
@@ -805,7 +819,7 @@ WITH RECURSIVE chain(id, parent_id, depth) AS (
     JOIN chain ON p.id = chain.parent_id
     WHERE chain.depth < $2::int
 )
-SELECT c.id, c.parent_id, c.slug, c.url_path, c.position, c.is_published, c.seo_noindex, c.cover_id, c.cover_s3_key, c.cover_mime_type, c.cover_size_bytes, c.cover_width, c.cover_height, c.cover_status, c.cover_alt, c.metadata, c.private_metadata, c.created_at, c.updated_at
+SELECT c.id, c.parent_id, c.slug, c.url_path, c.position, c.is_published, c.seo_noindex, c.cover_id, c.cover_s3_key, c.cover_mime_type, c.cover_size_bytes, c.cover_width, c.cover_height, c.cover_status, c.cover_alt, c.metadata, c.private_metadata, c.created_at, c.updated_at, c.is_anchor
 FROM chain
 JOIN catalog_categories c ON c.id = chain.id
 ORDER BY chain.depth
@@ -846,6 +860,7 @@ func (q *Queries) ListCategoryChain(ctx context.Context, arg ListCategoryChainPa
 			&i.PrivateMetadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.IsAnchor,
 		); err != nil {
 			return nil, err
 		}
@@ -861,7 +876,7 @@ func (q *Queries) ListCategoryChain(ctx context.Context, arg ListCategoryChainPa
 }
 
 const listCategoryChildren = `-- name: ListCategoryChildren :many
-SELECT id, parent_id, slug, url_path, position, is_published, seo_noindex, cover_id, cover_s3_key, cover_mime_type, cover_size_bytes, cover_width, cover_height, cover_status, cover_alt, metadata, private_metadata, created_at, updated_at FROM catalog_categories WHERE parent_id = $1 ORDER BY position, slug
+SELECT id, parent_id, slug, url_path, position, is_published, seo_noindex, cover_id, cover_s3_key, cover_mime_type, cover_size_bytes, cover_width, cover_height, cover_status, cover_alt, metadata, private_metadata, created_at, updated_at, is_anchor FROM catalog_categories WHERE parent_id = $1 ORDER BY position, slug
 `
 
 func (q *Queries) ListCategoryChildren(ctx context.Context, parentID uuid.NullUUID) ([]CatalogCategory, error) {
@@ -893,6 +908,7 @@ func (q *Queries) ListCategoryChildren(ctx context.Context, parentID uuid.NullUU
 			&i.PrivateMetadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.IsAnchor,
 		); err != nil {
 			return nil, err
 		}
@@ -908,7 +924,7 @@ func (q *Queries) ListCategoryChildren(ctx context.Context, parentID uuid.NullUU
 }
 
 const listCategoryChildrenListedOnChannel = `-- name: ListCategoryChildrenListedOnChannel :many
-SELECT c.id, c.parent_id, c.slug, c.url_path, c.position, c.is_published, c.seo_noindex, c.cover_id, c.cover_s3_key, c.cover_mime_type, c.cover_size_bytes, c.cover_width, c.cover_height, c.cover_status, c.cover_alt, c.metadata, c.private_metadata, c.created_at, c.updated_at, ccsl.sort_order_override
+SELECT c.id, c.parent_id, c.slug, c.url_path, c.position, c.is_published, c.seo_noindex, c.cover_id, c.cover_s3_key, c.cover_mime_type, c.cover_size_bytes, c.cover_width, c.cover_height, c.cover_status, c.cover_alt, c.metadata, c.private_metadata, c.created_at, c.updated_at, c.is_anchor, ccsl.sort_order_override
 FROM catalog_categories c
 JOIN catalog_category_channel_listings ccsl ON ccsl.category_id = c.id
 WHERE ccsl.channel_id = $1
@@ -941,6 +957,7 @@ type ListCategoryChildrenListedOnChannelRow struct {
 	PrivateMetadata   json.RawMessage `json:"private_metadata"`
 	CreatedAt         time.Time       `json:"created_at"`
 	UpdatedAt         time.Time       `json:"updated_at"`
+	IsAnchor          bool            `json:"is_anchor"`
 	SortOrderOverride sql.NullInt32   `json:"sort_order_override"`
 }
 
@@ -973,6 +990,7 @@ func (q *Queries) ListCategoryChildrenListedOnChannel(ctx context.Context, arg L
 			&i.PrivateMetadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.IsAnchor,
 			&i.SortOrderOverride,
 		); err != nil {
 			return nil, err
@@ -1155,6 +1173,54 @@ func (q *Queries) ListCategoryFacetOverrides(ctx context.Context, categoryID uui
 	return items, nil
 }
 
+const listCategoryListingIDs = `-- name: ListCategoryListingIDs :many
+WITH RECURSIVE root AS (
+    SELECT c.id, c.is_anchor FROM catalog_categories c WHERE c.id = $1::uuid
+), tree(id, depth) AS (
+    SELECT root.id, 0 FROM root
+    UNION ALL
+    SELECT c.id, tree.depth + 1
+    FROM catalog_categories c
+    JOIN tree ON c.parent_id = tree.id
+    JOIN catalog_category_channel_listings l
+      ON l.category_id = c.id AND l.channel_id = $2::uuid AND l.is_published
+    WHERE c.is_published AND tree.depth < $3::int AND (SELECT is_anchor FROM root)
+)
+SELECT id FROM tree
+`
+
+type ListCategoryListingIDsParams struct {
+	ID        uuid.UUID `json:"id"`
+	ChannelID uuid.UUID `json:"channel_id"`
+	MaxDepth  int32     `json:"max_depth"`
+}
+
+// What a category page lists products from on a channel: the category, and under an anchor every category beneath it
+// that the channel shows - published globally and listed published there, as its menu has it. One the channel hides
+// hides its branch, and the depth cap stops a parent cycle recursing forever
+func (q *Queries) ListCategoryListingIDs(ctx context.Context, arg ListCategoryListingIDsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, listCategoryListingIDs, arg.ID, arg.ChannelID, arg.MaxDepth)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listFullyVisibleCategoryIDsForChannelFiltered = `-- name: ListFullyVisibleCategoryIDsForChannelFiltered :many
 WITH RECURSIVE chain(origin_id, cur_id, parent_id, depth) AS (
     SELECT c.id, c.id, c.parent_id, 0
@@ -1214,7 +1280,7 @@ func (q *Queries) ListFullyVisibleCategoryIDsForChannelFiltered(ctx context.Cont
 }
 
 const listPrimaryCategoryByProductIDs = `-- name: ListPrimaryCategoryByProductIDs :many
-SELECT c.id, c.parent_id, c.slug, c.url_path, c.position, c.is_published, c.seo_noindex, c.cover_id, c.cover_s3_key, c.cover_mime_type, c.cover_size_bytes, c.cover_width, c.cover_height, c.cover_status, c.cover_alt, c.metadata, c.private_metadata, c.created_at, c.updated_at, pc.product_id AS pc_product_id
+SELECT c.id, c.parent_id, c.slug, c.url_path, c.position, c.is_published, c.seo_noindex, c.cover_id, c.cover_s3_key, c.cover_mime_type, c.cover_size_bytes, c.cover_width, c.cover_height, c.cover_status, c.cover_alt, c.metadata, c.private_metadata, c.created_at, c.updated_at, c.is_anchor, pc.product_id AS pc_product_id
 FROM catalog_product_categories pc
 JOIN catalog_categories c ON c.id = pc.category_id
 WHERE pc.product_id = ANY($1::uuid[])
@@ -1241,6 +1307,7 @@ type ListPrimaryCategoryByProductIDsRow struct {
 	PrivateMetadata json.RawMessage `json:"private_metadata"`
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at"`
+	IsAnchor        bool            `json:"is_anchor"`
 	PcProductID     uuid.UUID       `json:"pc_product_id"`
 }
 
@@ -1273,6 +1340,7 @@ func (q *Queries) ListPrimaryCategoryByProductIDs(ctx context.Context, productId
 			&i.PrivateMetadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.IsAnchor,
 			&i.PcProductID,
 		); err != nil {
 			return nil, err
@@ -1406,7 +1474,7 @@ func (q *Queries) ListProductsByCategory(ctx context.Context, arg ListProductsBy
 }
 
 const listPublishedCategoriesForChannel = `-- name: ListPublishedCategoriesForChannel :many
-SELECT c.id, c.parent_id, c.slug, c.url_path, c.position, c.is_published, c.seo_noindex, c.cover_id, c.cover_s3_key, c.cover_mime_type, c.cover_size_bytes, c.cover_width, c.cover_height, c.cover_status, c.cover_alt, c.metadata, c.private_metadata, c.created_at, c.updated_at, ccsl.sort_order_override
+SELECT c.id, c.parent_id, c.slug, c.url_path, c.position, c.is_published, c.seo_noindex, c.cover_id, c.cover_s3_key, c.cover_mime_type, c.cover_size_bytes, c.cover_width, c.cover_height, c.cover_status, c.cover_alt, c.metadata, c.private_metadata, c.created_at, c.updated_at, c.is_anchor, ccsl.sort_order_override
 FROM catalog_categories c
 JOIN catalog_category_channel_listings ccsl ON ccsl.category_id = c.id
 WHERE ccsl.channel_id = $1 AND ccsl.is_published = TRUE
@@ -1434,6 +1502,7 @@ type ListPublishedCategoriesForChannelRow struct {
 	PrivateMetadata   json.RawMessage `json:"private_metadata"`
 	CreatedAt         time.Time       `json:"created_at"`
 	UpdatedAt         time.Time       `json:"updated_at"`
+	IsAnchor          bool            `json:"is_anchor"`
 	SortOrderOverride sql.NullInt32   `json:"sort_order_override"`
 }
 
@@ -1467,6 +1536,7 @@ func (q *Queries) ListPublishedCategoriesForChannel(ctx context.Context, channel
 			&i.PrivateMetadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.IsAnchor,
 			&i.SortOrderOverride,
 		); err != nil {
 			return nil, err
@@ -1483,7 +1553,7 @@ func (q *Queries) ListPublishedCategoriesForChannel(ctx context.Context, channel
 }
 
 const listPublishedCategoryChildrenForChannel = `-- name: ListPublishedCategoryChildrenForChannel :many
-SELECT c.id, c.parent_id, c.slug, c.url_path, c.position, c.is_published, c.seo_noindex, c.cover_id, c.cover_s3_key, c.cover_mime_type, c.cover_size_bytes, c.cover_width, c.cover_height, c.cover_status, c.cover_alt, c.metadata, c.private_metadata, c.created_at, c.updated_at, ccsl.sort_order_override
+SELECT c.id, c.parent_id, c.slug, c.url_path, c.position, c.is_published, c.seo_noindex, c.cover_id, c.cover_s3_key, c.cover_mime_type, c.cover_size_bytes, c.cover_width, c.cover_height, c.cover_status, c.cover_alt, c.metadata, c.private_metadata, c.created_at, c.updated_at, c.is_anchor, ccsl.sort_order_override
 FROM catalog_categories c
 JOIN catalog_category_channel_listings ccsl ON ccsl.category_id = c.id
 WHERE ccsl.channel_id = $1 AND ccsl.is_published = TRUE
@@ -1517,6 +1587,7 @@ type ListPublishedCategoryChildrenForChannelRow struct {
 	PrivateMetadata   json.RawMessage `json:"private_metadata"`
 	CreatedAt         time.Time       `json:"created_at"`
 	UpdatedAt         time.Time       `json:"updated_at"`
+	IsAnchor          bool            `json:"is_anchor"`
 	SortOrderOverride sql.NullInt32   `json:"sort_order_override"`
 }
 
@@ -1549,6 +1620,7 @@ func (q *Queries) ListPublishedCategoryChildrenForChannel(ctx context.Context, a
 			&i.PrivateMetadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.IsAnchor,
 			&i.SortOrderOverride,
 		); err != nil {
 			return nil, err
@@ -1604,7 +1676,7 @@ func (q *Queries) ListPublishedCategoryIDsForChannelFiltered(ctx context.Context
 }
 
 const listPublishedRootCategoriesForChannel = `-- name: ListPublishedRootCategoriesForChannel :many
-SELECT c.id, c.parent_id, c.slug, c.url_path, c.position, c.is_published, c.seo_noindex, c.cover_id, c.cover_s3_key, c.cover_mime_type, c.cover_size_bytes, c.cover_width, c.cover_height, c.cover_status, c.cover_alt, c.metadata, c.private_metadata, c.created_at, c.updated_at, ccsl.sort_order_override
+SELECT c.id, c.parent_id, c.slug, c.url_path, c.position, c.is_published, c.seo_noindex, c.cover_id, c.cover_s3_key, c.cover_mime_type, c.cover_size_bytes, c.cover_width, c.cover_height, c.cover_status, c.cover_alt, c.metadata, c.private_metadata, c.created_at, c.updated_at, c.is_anchor, ccsl.sort_order_override
 FROM catalog_categories c
 JOIN catalog_category_channel_listings ccsl ON ccsl.category_id = c.id
 WHERE ccsl.channel_id = $1 AND ccsl.is_published = TRUE
@@ -1633,6 +1705,7 @@ type ListPublishedRootCategoriesForChannelRow struct {
 	PrivateMetadata   json.RawMessage `json:"private_metadata"`
 	CreatedAt         time.Time       `json:"created_at"`
 	UpdatedAt         time.Time       `json:"updated_at"`
+	IsAnchor          bool            `json:"is_anchor"`
 	SortOrderOverride sql.NullInt32   `json:"sort_order_override"`
 }
 
@@ -1665,6 +1738,7 @@ func (q *Queries) ListPublishedRootCategoriesForChannel(ctx context.Context, cha
 			&i.PrivateMetadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.IsAnchor,
 			&i.SortOrderOverride,
 		); err != nil {
 			return nil, err
@@ -1681,7 +1755,7 @@ func (q *Queries) ListPublishedRootCategoriesForChannel(ctx context.Context, cha
 }
 
 const listRootCategories = `-- name: ListRootCategories :many
-SELECT id, parent_id, slug, url_path, position, is_published, seo_noindex, cover_id, cover_s3_key, cover_mime_type, cover_size_bytes, cover_width, cover_height, cover_status, cover_alt, metadata, private_metadata, created_at, updated_at FROM catalog_categories WHERE parent_id IS NULL ORDER BY position, slug
+SELECT id, parent_id, slug, url_path, position, is_published, seo_noindex, cover_id, cover_s3_key, cover_mime_type, cover_size_bytes, cover_width, cover_height, cover_status, cover_alt, metadata, private_metadata, created_at, updated_at, is_anchor FROM catalog_categories WHERE parent_id IS NULL ORDER BY position, slug
 `
 
 func (q *Queries) ListRootCategories(ctx context.Context) ([]CatalogCategory, error) {
@@ -1713,6 +1787,7 @@ func (q *Queries) ListRootCategories(ctx context.Context) ([]CatalogCategory, er
 			&i.PrivateMetadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.IsAnchor,
 		); err != nil {
 			return nil, err
 		}
@@ -1728,7 +1803,7 @@ func (q *Queries) ListRootCategories(ctx context.Context) ([]CatalogCategory, er
 }
 
 const lockCategoryByID = `-- name: LockCategoryByID :one
-SELECT id, parent_id, slug, url_path, position, is_published, seo_noindex, cover_id, cover_s3_key, cover_mime_type, cover_size_bytes, cover_width, cover_height, cover_status, cover_alt, metadata, private_metadata, created_at, updated_at FROM catalog_categories WHERE id = $1 FOR UPDATE
+SELECT id, parent_id, slug, url_path, position, is_published, seo_noindex, cover_id, cover_s3_key, cover_mime_type, cover_size_bytes, cover_width, cover_height, cover_status, cover_alt, metadata, private_metadata, created_at, updated_at, is_anchor FROM catalog_categories WHERE id = $1 FOR UPDATE
 `
 
 // Row lock for delete - a child insert or a product assignment needs a KEY SHARE on this row, so they wait until the delete decides
@@ -1755,6 +1830,7 @@ func (q *Queries) LockCategoryByID(ctx context.Context, id uuid.UUID) (CatalogCa
 		&i.PrivateMetadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsAnchor,
 	)
 	return i, err
 }
@@ -1860,7 +1936,7 @@ SET cover_id         = $2,
     cover_height     = NULL,
     updated_at       = NOW()
 WHERE id = $1
-RETURNING id, parent_id, slug, url_path, position, is_published, seo_noindex, cover_id, cover_s3_key, cover_mime_type, cover_size_bytes, cover_width, cover_height, cover_status, cover_alt, metadata, private_metadata, created_at, updated_at
+RETURNING id, parent_id, slug, url_path, position, is_published, seo_noindex, cover_id, cover_s3_key, cover_mime_type, cover_size_bytes, cover_width, cover_height, cover_status, cover_alt, metadata, private_metadata, created_at, updated_at, is_anchor
 `
 
 type SetCategoryCoverParams struct {
@@ -1903,6 +1979,7 @@ func (q *Queries) SetCategoryCover(ctx context.Context, arg SetCategoryCoverPara
 		&i.PrivateMetadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsAnchor,
 	)
 	return i, err
 }
@@ -1933,9 +2010,10 @@ SET slug             = $2,
     seo_noindex      = $7,
     metadata         = $8,
     private_metadata = $9,
+    is_anchor        = $10,
     updated_at       = NOW()
 WHERE id = $1
-RETURNING id, parent_id, slug, url_path, position, is_published, seo_noindex, cover_id, cover_s3_key, cover_mime_type, cover_size_bytes, cover_width, cover_height, cover_status, cover_alt, metadata, private_metadata, created_at, updated_at
+RETURNING id, parent_id, slug, url_path, position, is_published, seo_noindex, cover_id, cover_s3_key, cover_mime_type, cover_size_bytes, cover_width, cover_height, cover_status, cover_alt, metadata, private_metadata, created_at, updated_at, is_anchor
 `
 
 type UpdateCategoryParams struct {
@@ -1948,6 +2026,7 @@ type UpdateCategoryParams struct {
 	SeoNoindex      bool            `json:"seo_noindex"`
 	Metadata        json.RawMessage `json:"metadata"`
 	PrivateMetadata json.RawMessage `json:"private_metadata"`
+	IsAnchor        bool            `json:"is_anchor"`
 }
 
 func (q *Queries) UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (CatalogCategory, error) {
@@ -1961,6 +2040,7 @@ func (q *Queries) UpdateCategory(ctx context.Context, arg UpdateCategoryParams) 
 		arg.SeoNoindex,
 		arg.Metadata,
 		arg.PrivateMetadata,
+		arg.IsAnchor,
 	)
 	var i CatalogCategory
 	err := row.Scan(
@@ -1983,6 +2063,7 @@ func (q *Queries) UpdateCategory(ctx context.Context, arg UpdateCategoryParams) 
 		&i.PrivateMetadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsAnchor,
 	)
 	return i, err
 }

@@ -18,7 +18,7 @@ fragment CategorySummaryFields on Category {
 }
 
 fragment CategoryDetailFields on Category {
-  id slug urlPath position level isPublished seoNoindex
+  id slug urlPath position level isPublished seoNoindex isAnchor
   name shortDescription description metaTitle metaDescription contentLocale
   content { locale name shortDescription description metaTitle metaDescription metaKeywords updatedAt }
   coverImage { url altText width height mimeType status }

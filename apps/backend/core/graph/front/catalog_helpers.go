@@ -7,10 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"slices"
 	"strings"
 
 	"github.com/99designs/gqlgen/graphql"
+	"github.com/skeletg/skelet/apps/backend/core/internal/graphqlx"
 	"github.com/skeletg/skelet/apps/backend/core/internal/search"
 
 	"github.com/google/uuid"
@@ -1263,6 +1265,18 @@ func toCustomOptionRuleModels(ctx context.Context, rules []catalog.ProductOption
 		}
 	}
 	return out
+}
+
+// An anchor category's page lists the categories beneath it the channel shows - a failed read lists the category alone
+// rather than failing the page, and keeps that thinner page out of the response cache
+func (r *Resolver) categoryListingIDs(ctx context.Context, channelID, id uuid.UUID) []uuid.UUID {
+	ids, err := r.CatalogSvc.CategoryListingIDs(ctx, channelID, id)
+	if err != nil {
+		slog.WarnContext(ctx, "browse: category tree unreadable, listing the category alone", "category", id, "err", err)
+		graphqlx.MarkUncacheable(ctx)
+		return nil
+	}
+	return ids
 }
 
 // browse lists products through search by meaning where it's wired, the engine alone where it isn't

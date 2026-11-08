@@ -830,6 +830,7 @@ func (r *queryResolver) BrowseProducts(ctx context.Context, query *string, filte
 		if filter.CategoryID != nil {
 			if id, err := uuid.Parse(*filter.CategoryID); err == nil {
 				indexerFilter.CategoryID = &id
+				indexerFilter.CategoryIDs = r.categoryListingIDs(ctx, *storeID, id)
 			}
 		}
 		if filter.CollectionID != nil {
