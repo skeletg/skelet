@@ -1,6 +1,6 @@
-# Server-side tracking: GA4, GTM, ad and affiliate platforms
+# Server-side tracking: GA4, GTM and ad platforms
 
-How shop events reach analytics, ad, affiliate and marketing platforms. The default sends everything server to
+How shop events reach analytics, ad and marketing platforms. The default sends everything server to
 server, so the storefront loads no tracking script. What each event needs from the visitor's cookie choices is in
 [privacy.md](privacy.md).
 
@@ -27,33 +27,29 @@ once.
 
 ## Destinations
 
-**Every destination is in development.** Each is built from its vendor's documentation and tested against recorded
-requests, but none has yet run against a production account. They are off by default and compiled into no build
-until enabled. Verify one against a real account before relying on it in production:
+**Each platform is a plugin in its own repository**, installed into a build with `skelet cli plugin add`. None is
+compiled in by default. Every one is still in development: built from its vendor's documentation and tested against
+recorded requests, but not yet run against a production account. Verify one against a real account before relying on
+it in production:
 
 ```bash
-skelet cli plugin enable tracking-ga4                      # compiles it in; restart the backend
+skelet cli plugin add github.com/skeletg/tracking-ga4    # then rebuild the backend
 ```
 
 | Kind | Plugin | Platform | Needs |
 |---|---|---|---|
-| `ga4` | `tracking-ga4` | Google Analytics 4, Measurement Protocol | analytics |
-| `google_ads` | `tracking-google-ads` | Google Ads conversions, Data Manager API | ads |
-| `google_ads_audience` | `tracking-google-ads` | Google Ads Customer Match list | ads and personalization, plus the account's marketing opt-in; removals need none |
-| `meta_capi` | `tracking-meta` | Meta Conversions API | ads |
-| `bing_uet` | `tracking-bing` | Microsoft Advertising, UET Conversions API | ads |
-| `openai` | `tracking-openai` | OpenAI Ads Conversions API | ads |
-| `cj` | `tracking-cj` | CJ Affiliate, server-to-server postback | ads, or none with `general/privacy/cj_cookie_necessary` |
-| `awin` | `tracking-awin` | Awin Conversion API | ads, or none with `general/privacy/awin_cookie_necessary` |
-| `klaviyo` | `tracking-klaviyo` | Klaviyo Events API | personalization, plus the email's marketing opt-in |
-| `attentive` | `tracking-attentive` | Attentive eCommerce events | personalization, plus the email's marketing opt-in |
-| `webhook` | `tracking-webhook` | Your own endpoint, signed JSON | analytics |
+| `ga4` | [`tracking-ga4`](https://github.com/skeletg/tracking-ga4) | Google Analytics 4, Measurement Protocol | analytics |
+| `google_ads` | [`tracking-google-ads`](https://github.com/skeletg/tracking-google-ads) | Google Ads conversions, Data Manager API | ads |
+| `google_ads_audience` | [`tracking-google-ads`](https://github.com/skeletg/tracking-google-ads) | Google Ads Customer Match list | ads and personalization, plus the account's marketing opt-in; removals need none |
+| `meta_capi` | [`tracking-meta`](https://github.com/skeletg/tracking-meta) | Meta Conversions API | ads |
+
+Any other platform is a plugin you write against the SDK's `RegisterDestination` - see [plugins.md](plugins.md).
 
 ### Setting up in the dashboard
 
 **Marketing → Tracking** lists every platform with where it stands on the selected channel: on, off, failing,
 waiting for its secret, not set up, its plugin switched off on the channel, or not in this build - with the
-`skelet cli plugin enable <slug>` command that adds it. Admins need `tracking.view` to see it and `tracking.manage`
+`skelet cli plugin add` command that adds it. Admins need `tracking.view` to see it and `tracking.manage`
 to change it.
 
 Setting a platform up is guided:
@@ -62,7 +58,7 @@ Setting a platform up is guided:
    field says where to find its value.
 2. **Consent** - the cookie categories every event needs.
 3. **Settings and events** - saved switched off, in the platform's test mode where it has one (GA4's validate,
-   Google Ads' and OpenAI's validate-only, Awin's test flag; Meta's test event code is pasted in).
+   Google Ads' validate-only; Meta's test event code is pasted in).
 4. **Send a test** - one sample purchase, with the platform's answer shown as it came back, credentials redacted.
 5. **Turn it on** - leaves test mode and switches it on in one save.
 
@@ -71,7 +67,7 @@ A destination's page keeps its settings behind the one reviewed Save, with **Sen
 the failed ones. The log shows the event and the platform's answer, never the event's contents, which hold the
 shopper's email, IP and click ids. Credentials are write-only: stored encrypted and never shown again.
 
-**Settings → Privacy** holds the cookie consent mode, the anonymous counts switch and the affiliate exceptions, and
+**Settings → Privacy** holds the cookie consent mode and the anonymous counts switch, and
 shows which destinations each consent category feeds.
 
 ### From the command line
@@ -131,7 +127,7 @@ Setting one up:
 4. Add the destination, checking it first with `validate_only`, which records nothing:
 
 ```bash
-skelet cli plugin enable tracking-google-ads             # compiles it in; restart the backend
+skelet cli plugin add github.com/skeletg/tracking-google-ads   # then rebuild the backend
 TRACKING_SECRET="$(cat service-account.json)" skelet cli tracking add --channel <id> --kind google_ads \
   --name "Google Ads" --set customer_id=1234567890 --set conversion_action_id=<id> --set validate_only=true
 skelet cli tracking test <destination-id>

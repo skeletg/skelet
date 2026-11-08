@@ -21,10 +21,6 @@ Visitors choose three categories. They follow Google's Consent Mode v2.
 
 The choice is stored in the `storefront_consent` cookie. It is strictly necessary, so it needs no consent itself.
 
-**Affiliate cookies.** CJ's `cje` and Awin's `awc` need advertising consent by default.
-`general/privacy/cj_cookie_necessary` and `general/privacy/awin_cookie_necessary` let them work without it, which some
-programmes require. Whether that is lawful where you sell is your decision.
-
 ## Orders follow the consent given at purchase
 
 Each order keeps a snapshot of the visitor's choices. Each part is kept only under the category it needs:
@@ -32,7 +28,7 @@ Each order keeps a snapshot of the visitor's choices. Each part is kept only und
 | Part | Needs |
 |---|---|
 | Visitor id | Analytics |
-| Click ids, IP address, browser | Advertising, or a necessary affiliate network |
+| Click ids, IP address, browser | Advertising |
 
 Events sent later about the order, such as a refund weeks after the purchase, follow the choices made at purchase,
 not the visitor's current ones. GDPR erasure clears the snapshot with the rest of the order's personal data.
