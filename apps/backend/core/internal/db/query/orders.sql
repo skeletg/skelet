@@ -30,10 +30,10 @@ SELECT * FROM orders WHERE id = $1 LIMIT 1;
 SELECT * FROM orders o
 WHERE  TRUE
   AND  (sqlc.arg(search)::text = '' OR
-        o.number ILIKE '%' || sqlc.arg(search)::text || '%' OR
-        o.email ILIKE '%' || sqlc.arg(search)::text || '%' OR
-        o.shipping_last_name ILIKE '%' || sqlc.arg(search)::text || '%' OR
-        o.billing_last_name ILIKE '%' || sqlc.arg(search)::text || '%')
+        o.number ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%' OR
+        o.email ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%' OR
+        o.shipping_last_name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%' OR
+        o.billing_last_name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%')
   AND  (sqlc.arg(all_statuses)::boolean OR o.status = ANY(sqlc.arg(statuses)::text[]))
   AND  (sqlc.arg(all_payment)::boolean OR o.payment_status = ANY(sqlc.arg(payment_statuses)::text[]))
 ORDER  BY o.created_at DESC
@@ -43,10 +43,10 @@ LIMIT  sqlc.arg(lim) OFFSET sqlc.arg(off);
 SELECT COUNT(*) FROM orders o
 WHERE  TRUE
   AND  (sqlc.arg(search)::text = '' OR
-        o.number ILIKE '%' || sqlc.arg(search)::text || '%' OR
-        o.email ILIKE '%' || sqlc.arg(search)::text || '%' OR
-        o.shipping_last_name ILIKE '%' || sqlc.arg(search)::text || '%' OR
-        o.billing_last_name ILIKE '%' || sqlc.arg(search)::text || '%')
+        o.number ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%' OR
+        o.email ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%' OR
+        o.shipping_last_name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%' OR
+        o.billing_last_name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%')
   AND  (sqlc.arg(all_statuses)::boolean OR o.status = ANY(sqlc.arg(statuses)::text[]))
   AND  (sqlc.arg(all_payment)::boolean OR o.payment_status = ANY(sqlc.arg(payment_statuses)::text[]));
 
@@ -55,10 +55,10 @@ WHERE  TRUE
 SELECT * FROM orders o
 WHERE  o.channel_id = ANY(sqlc.arg(channel_ids)::uuid[])
   AND  (sqlc.arg(search)::text = '' OR
-        o.number ILIKE '%' || sqlc.arg(search)::text || '%' OR
-        o.email ILIKE '%' || sqlc.arg(search)::text || '%' OR
-        o.shipping_last_name ILIKE '%' || sqlc.arg(search)::text || '%' OR
-        o.billing_last_name ILIKE '%' || sqlc.arg(search)::text || '%')
+        o.number ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%' OR
+        o.email ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%' OR
+        o.shipping_last_name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%' OR
+        o.billing_last_name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%')
   AND  (sqlc.arg(all_statuses)::boolean OR o.status = ANY(sqlc.arg(statuses)::text[]))
   AND  (sqlc.arg(all_payment)::boolean OR o.payment_status = ANY(sqlc.arg(payment_statuses)::text[]))
 ORDER  BY o.created_at DESC
@@ -68,10 +68,10 @@ LIMIT  sqlc.arg(lim) OFFSET sqlc.arg(off);
 SELECT COUNT(*) FROM orders o
 WHERE  o.channel_id = ANY(sqlc.arg(channel_ids)::uuid[])
   AND  (sqlc.arg(search)::text = '' OR
-        o.number ILIKE '%' || sqlc.arg(search)::text || '%' OR
-        o.email ILIKE '%' || sqlc.arg(search)::text || '%' OR
-        o.shipping_last_name ILIKE '%' || sqlc.arg(search)::text || '%' OR
-        o.billing_last_name ILIKE '%' || sqlc.arg(search)::text || '%')
+        o.number ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%' OR
+        o.email ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%' OR
+        o.shipping_last_name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%' OR
+        o.billing_last_name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%')
   AND  (sqlc.arg(all_statuses)::boolean OR o.status = ANY(sqlc.arg(statuses)::text[]))
   AND  (sqlc.arg(all_payment)::boolean OR o.payment_status = ANY(sqlc.arg(payment_statuses)::text[]));
 
