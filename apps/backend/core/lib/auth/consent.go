@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
-	"slices"
 )
 
 const ConsentHeader = "X-Consent" // the visitor's cookie consent, the storefront_consent cookie's value
@@ -58,30 +57,25 @@ func sessionID(r *http.Request) string {
 	return ""
 }
 
-const ClickIDsHeader = "X-Click-Ids" // the ad and affiliate click ids the storefront keeps in first-party cookies, as a query string
+const ClickIDsHeader = "X-Click-Ids" // the ad click ids the storefront keeps in first-party cookies, as a query string
 
-// SYNC: the keys of CLICK_IDS in packages/storefront-core/consent/click-ids.ts, ad and affiliate alike - skelet check compares them
-var adClickIDKeys = []string{"gclid", "gbraid", "wbraid", "msclkid", "ttclid", "fbc", "fbp", "oppref", "obref"}
-
-// The affiliate networks' ids, which a merchant may treat as necessary - the storefront sends them only when its setting
-// or the visitor's ads consent allows, and the pipeline holds each network's conversions to the same rule
-var affiliateClickIDKeys = []string{"awc", "cjevent"}
+// SYNC: the keys of CLICK_IDS in packages/storefront-core/consent/click-ids.ts - skelet check compares them
+var clickIDKeys = []string{"gclid", "gbraid", "wbraid", "msclkid", "ttclid", "fbc", "fbp", "oppref", "obref"}
 
 var clickIDValue = regexp.MustCompile(`^[\w.~-]{1,255}$`)
 
-// ClickIDs reads the forwarded click ids - ad platforms' only with ads consent, whatever the header says. Only known keys
+// ClickIDs reads the forwarded click ids, only with ads consent whatever the header says. Only known keys
 // holding opaque tokens pass, so the header can't write arbitrary data into an order
 func ClickIDs(r *http.Request, c Consent) map[string]string {
+	if !c.Ads {
+		return nil
+	}
 	q, err := url.ParseQuery(r.Header.Get(ClickIDsHeader))
 	if err != nil {
 		return nil
 	}
-	keys := affiliateClickIDKeys
-	if c.Ads {
-		keys = append(slices.Clone(adClickIDKeys), affiliateClickIDKeys...)
-	}
 	var out map[string]string
-	for _, k := range keys {
+	for _, k := range clickIDKeys {
 		if v := q.Get(k); clickIDValue.MatchString(v) {
 			if out == nil {
 				out = map[string]string{}

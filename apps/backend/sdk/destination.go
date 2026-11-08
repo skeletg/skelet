@@ -37,7 +37,7 @@ type ShopEvent struct {
 	Ecommerce  *ShopEcommerce    `json:"ecommerce,omitempty"`
 	User       ShopUser          `json:"user"`
 	Context    ShopContext       `json:"context"`
-	ClickIDs   map[string]string `json:"click_ids,omitempty"`   // gclid, gbraid, wbraid, msclkid, ttclid, fbc, fbp, awc, cjevent
+	ClickIDs   map[string]string `json:"click_ids,omitempty"`   // gclid, gbraid, wbraid, msclkid, ttclid, fbc, fbp, oppref, obref
 	Consent    *ShopConsent      `json:"consent,omitempty"`     // nil: placed with no banner, by an admin or an API client
 	Source     string            `json:"source"`                // browser | server
 	SearchTerm string            `json:"search_term,omitempty"` // search only

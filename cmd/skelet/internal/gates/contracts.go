@@ -722,43 +722,31 @@ func (c contracts) consentFormat() {
 	}
 }
 
-// clickIDs - core keeps only the click ids it knows, each under the consent its kind needs, so an id the storefront
-// stores and core doesn't list is dropped, and one core treats as an ad id is lost if the storefront makes it an affiliate's
+// clickIDs - core keeps only the click ids it knows, so an id the storefront stores and core doesn't list is dropped
 func (c contracts) clickIDs() {
 	c.r.section("the click ids agree")
 	if !c.inPackage(tsClickIDs) {
 		return
 	}
-	goSrc := c.read(goConsent)
-	list := func(name string) []string {
-		m := goKeyList(name).FindStringSubmatch(goSrc)
-		if m == nil {
-			return nil
-		}
-		return set([]string{m[1]}, quotedKey)
+	var goIDs []string
+	if m := goKeyList("clickIDKeys").FindStringSubmatch(c.read(goConsent)); m != nil {
+		goIDs = set([]string{m[1]}, quotedKey)
 	}
-	goAd, goAff := list("adClickIDKeys"), list("affiliateClickIDKeys")
-	var tsAd, tsAff []string
+	var tsIDs []string
 	for line := range strings.SplitSeq(c.read(tsClickIDs), "\n") {
 		if m := tsClickID.FindStringSubmatch(line); m != nil {
-			if strings.Contains(line, "affiliate: true") {
-				tsAff = append(tsAff, m[1])
-			} else {
-				tsAd = append(tsAd, m[1])
-			}
+			tsIDs = append(tsIDs, m[1])
 		}
 	}
-	slices.Sort(tsAd)
-	slices.Sort(tsAff)
+	slices.Sort(tsIDs)
 	switch {
-	case len(goAd) == 0 || len(tsAd) == 0:
+	case len(goIDs) == 0 || len(tsIDs) == 0:
 		c.r.bad("click id extraction came back empty - %s or %s changed shape", goConsent, tsClickIDs)
-	case slices.Equal(goAd, tsAd) && slices.Equal(goAff, tsAff):
-		c.r.pass("%d ad and %d affiliate click ids on both sides", len(goAd), len(goAff))
+	case slices.Equal(goIDs, tsIDs):
+		c.r.pass("%d click ids on both sides", len(goIDs))
 	default:
-		c.r.bad("click ids differ (ad, then affiliate)")
-		c.sides(goAd, tsAd)
-		c.sides(goAff, tsAff)
+		c.r.bad("click ids differ")
+		c.sides(goIDs, tsIDs)
 	}
 }
 

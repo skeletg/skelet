@@ -128,18 +128,14 @@ func TestClickIDs(t *testing.T) {
 		}
 		return s.ClickIDs
 	}
-	got := clicks("v2:a0.d1.p0", "cjevent=c1&fbc=fb.1.5.Iw_1&oppref=op_1&evil=x&gclid="+url.QueryEscape("a;b"))
-	if want := map[string]string{"cjevent": "c1", "fbc": "fb.1.5.Iw_1", "oppref": "op_1"}; !maps.Equal(got, want) {
+	got := clicks("v2:a0.d1.p0", "awc=c1&fbc=fb.1.5.Iw_1&oppref=op_1&evil=x&gclid="+url.QueryEscape("a;b"))
+	if want := map[string]string{"fbc": "fb.1.5.Iw_1", "oppref": "op_1"}; !maps.Equal(got, want) {
 		t.Errorf("ClickIDs = %v, want %v", got, want)
 	}
 	for _, consent := range []string{"v2:a1.d0.p1", "", "garbage"} {
 		if got := clicks(consent, "gclid=g1&fbp=fb.1.1.1"); got != nil {
 			t.Errorf("consent %q: ClickIDs = %v, want no ad ids without ads consent", consent, got)
 		}
-	}
-	// The storefront forwards an affiliate id without ads consent only where the merchant made that network necessary
-	if got := clicks("v2:a0.d0.p0", "cjevent=c1&gclid=g1"); !maps.Equal(got, map[string]string{"cjevent": "c1"}) {
-		t.Errorf("ClickIDs = %v, want the affiliate id alone", got)
 	}
 	if got := ShopperFromContext(context.Background()); got != nil {
 		t.Errorf("no request: shopper %+v", got)
