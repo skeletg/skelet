@@ -56,6 +56,9 @@ type Block struct {
 	// The "video" block's thumbnail - email can't embed video, so it links out
 	Poster   string `json:"poster,omitempty"`
 	Deadline string `json:"deadline,omitempty"`
+	// The order blocks' own words - "Item", "Total", "Shipping to" - so each language's version of an email says them in
+	// its language. A missing key keeps the English default
+	Labels map[string]string `json:"labels,omitempty"`
 }
 
 type SocialLink struct {

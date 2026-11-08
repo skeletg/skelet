@@ -302,6 +302,7 @@ type RosterCustomer struct {
 	MonetaryCents    int64
 	FirstOrderAt     *time.Time
 	LastOrderAt      *time.Time
+	Locale           string // the storefront language they last signed in with
 }
 
 // TimeFromAny reads the roster query's lifetime order dates, which sqlc hands over untyped - nil for a customer with no orders
@@ -434,7 +435,7 @@ func rosterEntry(c RosterCustomer) *signalsv1.RosterEntry {
 		CustomerId: c.CustomerID.String(), ChannelId: c.ChannelID.String(),
 		Email: c.Email, FirstName: c.FirstName, Phone: c.Phone, IsActive: c.IsActive,
 		MarketingOptedIn: c.MarketingOptedIn, SmsOptedIn: c.SMSOptedIn, ReadAt: stamp(c.ReadAt),
-		OrderCount: c.OrderCount, MonetaryCents: c.MonetaryCents,
+		OrderCount: c.OrderCount, MonetaryCents: c.MonetaryCents, Locale: c.Locale,
 	}
 	if c.FirstOrderAt != nil {
 		e.FirstOrderAt = stamp(*c.FirstOrderAt)

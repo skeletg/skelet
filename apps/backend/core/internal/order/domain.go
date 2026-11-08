@@ -37,6 +37,7 @@ type Order struct {
 	ShippingTaxAmount int64 // the part of TaxAmount charged on shipping
 	TotalAmount       int64
 	AnonID            string // the visitor id it was placed under - a guest order's later events reach the profile its placement did
+	Locale            string // the storefront language it was placed in, so its emails can go out in it - empty when not known
 	TaxInclusive      bool   // its prices held their tax, as its channel priced it at placement
 	AssistedBy        string
 	Shopper           *auth.Shopper // the visitor as they placed it, kept in metadata.tracking so an event sent after they change their mind still follows the consent they bought under - nil unless a shop placed it

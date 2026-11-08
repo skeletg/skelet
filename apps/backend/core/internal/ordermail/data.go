@@ -109,7 +109,7 @@ func Snapshot(o order.Order) email.OrderSnapshot {
 		Number: o.Number, FirstName: FirstName(o), Currency: o.CurrencyCode,
 		Lines: Lines(o), Subtotal: o.SubtotalAmount, Discount: o.DiscountAmount,
 		Shipping: o.ShippingAmount, Tax: o.TaxAmount, Total: o.TotalAmount,
-		ShipTo: AddressLines(o.ShippingAddress), TaxIncluded: o.TaxInclusive,
+		ShipTo: AddressLines(o.ShippingAddress), Locale: o.Locale, TaxIncluded: o.TaxInclusive,
 	}
 }
 

@@ -536,6 +536,8 @@ type RosterEntry struct {
 	MonetaryCents int64                  `protobuf:"varint,14,opt,name=monetary_cents,json=monetaryCents,proto3" json:"monetary_cents,omitempty"`
 	FirstOrderAt  *timestamppb.Timestamp `protobuf:"bytes,15,opt,name=first_order_at,json=firstOrderAt,proto3" json:"first_order_at,omitempty"`
 	LastOrderAt   *timestamppb.Timestamp `protobuf:"bytes,16,opt,name=last_order_at,json=lastOrderAt,proto3" json:"last_order_at,omitempty"`
+	// The storefront language the customer last signed in with, lowercase - empty when not known yet
+	Locale        string `protobuf:"bytes,17,opt,name=locale,proto3" json:"locale,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -680,6 +682,13 @@ func (x *RosterEntry) GetLastOrderAt() *timestamppb.Timestamp {
 		return x.LastOrderAt
 	}
 	return nil
+}
+
+func (x *RosterEntry) GetLocale() string {
+	if x != nil {
+		return x.Locale
+	}
+	return ""
 }
 
 type Consent struct {
@@ -2108,7 +2117,7 @@ const file_skelet_signals_v1_ingest_proto_rawDesc = "" +
 	"\bchannels\x18\x01 \x03(\v2\x1f.skelet.signals.v1.ChannelEntryR\bchannels\"F\n" +
 	"\x14SyncChannelsResponse\x12\x16\n" +
 	"\x06synced\x18\x01 \x01(\x05R\x06synced\x12\x16\n" +
-	"\x06pruned\x18\x02 \x01(\x05R\x06pruned\"\x98\x05\n" +
+	"\x06pruned\x18\x02 \x01(\x05R\x06pruned\"\xb0\x05\n" +
 	"\vRosterEntry\x12\x1f\n" +
 	"\vcustomer_id\x18\x01 \x01(\tR\n" +
 	"customerId\x12\x1d\n" +
@@ -2131,7 +2140,8 @@ const file_skelet_signals_v1_ingest_proto_rawDesc = "" +
 	"orderCount\x12%\n" +
 	"\x0emonetary_cents\x18\x0e \x01(\x03R\rmonetaryCents\x12@\n" +
 	"\x0efirst_order_at\x18\x0f \x01(\v2\x1a.google.protobuf.TimestampR\ffirstOrderAt\x12>\n" +
-	"\rlast_order_at\x18\x10 \x01(\v2\x1a.google.protobuf.TimestampR\vlastOrderAt\"8\n" +
+	"\rlast_order_at\x18\x10 \x01(\v2\x1a.google.protobuf.TimestampR\vlastOrderAt\x12\x16\n" +
+	"\x06locale\x18\x11 \x01(\tR\x06locale\"8\n" +
 	"\aConsent\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bopted_in\x18\x02 \x01(\bR\aoptedIn\"Y\n" +

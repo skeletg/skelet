@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -276,6 +277,7 @@ func rosterEntry(e *signalsv1.RosterEntry) (analytics.RosterEntry, error) {
 		out.ReadAt = e.GetReadAt().AsTime()
 	}
 	out.OrderCount, out.MonetaryCents = e.GetOrderCount(), e.GetMonetaryCents()
+	out.Locale = strings.ToLower(strings.TrimSpace(e.GetLocale()))
 	if t := e.GetFirstOrderAt(); t != nil {
 		v := t.AsTime()
 		out.FirstOrderAt = &v

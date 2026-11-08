@@ -2,6 +2,7 @@ package campaign
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -86,4 +87,47 @@ func TestACampaignOnlyUsesALibraryEmailOfItsOwnChannel(t *testing.T) {
 			t.Error("a send pass ran with another channel's email")
 		}
 	})
+}
+
+// A reader with their language's version gets its subject in either arm - subject B is written in the email's own
+// language, so only someone reading the email as written gets it
+func TestSubjectBIsOnlyForReadersOfTheEmailAsWritten(t *testing.T) {
+	conn := testdb.RequireSignals(t)
+	ctx := context.Background()
+	tmpl := emailtemplate.NewService(emailtemplate.NewRepository(db.New(conn)), nil)
+	e, err := tmpl.CreateLibraryEmail(ctx, emailtemplate.LibraryEmail{ChannelID: uuid.New(), Name: "Sale", Subject: "Spring sale",
+		Blocks: []emailtemplate.Block{{Type: "text", Content: "Hello"}}})
+	if err != nil {
+		t.Fatalf("seed email: %v", err)
+	}
+	if _, err := tmpl.SaveTranslation(ctx, emailtemplate.Translation{EmailID: e.ID, Locale: "de", Subject: "Frühlingsangebote",
+		Blocks: []emailtemplate.Block{{Type: "text", Content: "Hallo"}}}); err != nil {
+		t.Fatalf("seed translation: %v", err)
+	}
+	german, ok := tmpl.Localize(ctx, e, "de")
+	if !ok {
+		t.Fatal("the de version wasn't found")
+	}
+	svc := &Service{tmpl: tmpl}
+	c := Campaign{ChannelID: e.ChannelID, ABEnabled: true, ABSubjectB: "Last chance"}
+	for _, tc := range []struct {
+		name       string
+		translated *emailtemplate.LibraryEmail
+		variant    string
+		subject    string
+		text       string
+	}{
+		{"as written, arm A", nil, VariantA, "Spring sale", "Hello"},
+		{"as written, arm B", nil, VariantB, "Last chance", "Hello"},
+		{"in German, arm A", &german, VariantA, "Frühlingsangebote", "Hallo"},
+		{"in German, arm B", &german, VariantB, "Frühlingsangebote", "Hallo"},
+	} {
+		subject, html, _, err := svc.renderVariant(ctx, c, &e, tc.translated, tc.variant, map[string]string{})
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		if subject != tc.subject || !strings.Contains(html, tc.text) {
+			t.Errorf("%s: subject %q, body has %q: %v - want %q", tc.name, subject, tc.text, strings.Contains(html, tc.text), tc.subject)
+		}
+	}
 }

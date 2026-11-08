@@ -94,6 +94,40 @@ func (r *mutationResolver) AssignEmailSlot(ctx context.Context, emailID string, 
 	return true, nil
 }
 
+func (r *mutationResolver) SaveEmailTranslation(ctx context.Context, input model.SaveEmailTranslationInput) (*model.EmailTranslation, error) {
+	authed, err := r.signalsScoped(ctx, "emails.manage")
+	if err != nil {
+		return nil, err
+	}
+	blocks, err := jsonText(input.Blocks)
+	if err != nil {
+		return nil, errInvalidInput("blocks", err)
+	}
+	styles, err := jsonText(input.Styles)
+	if err != nil {
+		return nil, errInvalidInput("styles", err)
+	}
+	res, err := r.SignalsAPI.Builder.SaveEmailTranslation(authed, &signalsv1.SaveEmailTranslationRequest{Translation: &signalsv1.EmailTranslation{
+		EmailId: input.EmailID, Locale: input.Locale, Subject: input.Subject, Preheader: optionalStr(input.Preheader),
+		BlocksJson: blocks, StylesJson: styles,
+	}})
+	if err != nil {
+		return nil, signalsErr(err)
+	}
+	return emailTranslationModel(res.GetTranslation()), nil
+}
+
+func (r *mutationResolver) DeleteEmailTranslation(ctx context.Context, emailID string, locale string) (bool, error) {
+	authed, err := r.signalsScoped(ctx, "emails.manage")
+	if err != nil {
+		return false, err
+	}
+	if _, err := r.SignalsAPI.Builder.DeleteEmailTranslation(authed, &signalsv1.DeleteEmailTranslationRequest{EmailId: emailID, Locale: locale}); err != nil {
+		return false, signalsErr(err)
+	}
+	return true, nil
+}
+
 func (r *mutationResolver) RestoreEmailRevision(ctx context.Context, revisionID string) (*model.LibraryEmail, error) {
 	authed, err := r.signalsScoped(ctx, "emails.manage")
 	if err != nil {
@@ -256,6 +290,22 @@ func (r *queryResolver) EmailRevisions(ctx context.Context, id string) ([]*model
 			Styles:    jsonValue(rev.GetStylesJson(), "{}"),
 			CreatedAt: protoTime(rev.GetCreatedAt()),
 		})
+	}
+	return out, nil
+}
+
+func (r *queryResolver) EmailTranslations(ctx context.Context, emailID string) ([]*model.EmailTranslation, error) {
+	authed, err := r.signalsScoped(ctx, "emails.view")
+	if err != nil {
+		return nil, err
+	}
+	res, err := r.SignalsAPI.Builder.ListEmailTranslations(authed, &signalsv1.ListEmailTranslationsRequest{EmailId: emailID})
+	if err != nil {
+		return nil, signalsErr(err)
+	}
+	out := make([]*model.EmailTranslation, 0, len(res.GetTranslations()))
+	for _, t := range res.GetTranslations() {
+		out = append(out, emailTranslationModel(t))
 	}
 	return out, nil
 }

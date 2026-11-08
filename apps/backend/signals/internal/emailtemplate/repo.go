@@ -43,6 +43,12 @@ type Repository interface {
 	InsertRevision(ctx context.Context, e LibraryEmail, adminID *uuid.UUID, keep int) error
 	ListRevisions(ctx context.Context, emailID uuid.UUID, limit int32) ([]EmailRevision, error)
 	GetRevision(ctx context.Context, id uuid.UUID) (EmailRevision, bool, error)
+
+	// An email's versions in other languages
+	ListTranslations(ctx context.Context, emailID uuid.UUID) ([]Translation, error)
+	TranslationsIn(ctx context.Context, emailID uuid.UUID, locales []string) ([]Translation, error)
+	UpsertTranslation(ctx context.Context, t Translation) (Translation, error)
+	DeleteTranslation(ctx context.Context, emailID uuid.UUID, locale string) error
 }
 
 type repo struct{ q *db.Queries }

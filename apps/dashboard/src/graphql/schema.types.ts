@@ -3306,6 +3306,17 @@ export type EmailSuppressionPage = {
   totalCount: Scalars['Int']['output'];
 };
 
+export type EmailTranslation = {
+  __typename?: 'EmailTranslation';
+  blocks: Scalars['JSON']['output'];
+  emailId: Scalars['ID']['output'];
+  locale: Scalars['String']['output'];
+  preheader: Scalars['String']['output'];
+  styles: Scalars['JSON']['output'];
+  subject: Scalars['String']['output'];
+  updatedAt: Scalars['Time']['output'];
+};
+
 export type EmailWarning = {
   __typename?: 'EmailWarning';
   message: Scalars['String']['output'];
@@ -4388,6 +4399,7 @@ export type Mutation = {
   deleteEmailBlock: Scalars['Boolean']['output'];
   deleteEmailCampaign: Scalars['Boolean']['output'];
   deleteEmailGroup: Scalars['Boolean']['output'];
+  deleteEmailTranslation: Scalars['Boolean']['output'];
   deleteExperiment: Scalars['Boolean']['output'];
   deleteFlow: Scalars['Boolean']['output'];
   deleteIntegration: Scalars['Boolean']['output'];
@@ -4531,6 +4543,7 @@ export type Mutation = {
   saveChatConversation: Scalars['ID']['output'];
   saveDeliveryPoints: Array<DeliveryPointAdmin>;
   saveEmailBlock: EmailBlockSnippet;
+  saveEmailTranslation: EmailTranslation;
   saveLibraryEmail: LibraryEmail;
   scheduleBlogPost: BlogPost;
   scheduleCMSPage: CmsPage;
@@ -5684,6 +5697,12 @@ export type MutationDeleteEmailGroupArgs = {
 };
 
 
+export type MutationDeleteEmailTranslationArgs = {
+  emailId: Scalars['ID']['input'];
+  locale: Scalars['String']['input'];
+};
+
+
 export type MutationDeleteExperimentArgs = {
   id: Scalars['ID']['input'];
 };
@@ -6469,6 +6488,11 @@ export type MutationSaveDeliveryPointsArgs = {
 
 export type MutationSaveEmailBlockArgs = {
   input: SaveEmailBlockInput;
+};
+
+
+export type MutationSaveEmailTranslationArgs = {
+  input: SaveEmailTranslationInput;
 };
 
 
@@ -8603,6 +8627,7 @@ export type Query = {
   emailPreflight: Array<EmailWarning>;
   emailRevisions: Array<EmailRevision>;
   emailSuppressions: EmailSuppressionPage;
+  emailTranslations: Array<EmailTranslation>;
   embeddingCoverage: EmbeddingCoverage;
   experiment?: Maybe<Experiment>;
   experimentGoalEvents: Array<Scalars['String']['output']>;
@@ -9226,6 +9251,11 @@ export type QueryEmailSuppressionsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   reason?: InputMaybe<Scalars['String']['input']>;
+};
+
+
+export type QueryEmailTranslationsArgs = {
+  emailId: Scalars['ID']['input'];
 };
 
 
@@ -10521,6 +10551,15 @@ export type SaveEmailBlockInput = {
   scripted?: InputMaybe<Scalars['Boolean']['input']>;
   slug: Scalars['String']['input'];
   textTemplate?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type SaveEmailTranslationInput = {
+  blocks: Scalars['JSON']['input'];
+  emailId: Scalars['ID']['input'];
+  locale: Scalars['String']['input'];
+  preheader?: InputMaybe<Scalars['String']['input']>;
+  styles?: InputMaybe<Scalars['JSON']['input']>;
+  subject: Scalars['String']['input'];
 };
 
 export type SaveExperimentInput = {

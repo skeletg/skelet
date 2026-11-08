@@ -88,6 +88,7 @@ type Customer struct {
 	ID                       uuid.UUID
 	ChannelID                uuid.UUID
 	Email                    string
+	Locale                   string // the storefront language they last signed in with - empty when not known
 	PasswordHash             string // internal - never expose via GraphQL
 	FirstName                string
 	LastName                 string
@@ -148,6 +149,7 @@ type CreateCustomerInput struct {
 	GroupID      *uuid.UUID // nil takes the default group
 	// Only a path that has proven the address sets this - a confirmed double opt-in
 	EmailVerified bool
+	Locale        string // the storefront language they signed up in
 }
 
 type UpdateCustomerInput struct {

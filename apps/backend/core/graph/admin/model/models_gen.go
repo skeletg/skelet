@@ -2883,6 +2883,16 @@ type EmailSuppressionPage struct {
 	TotalCount int32               `json:"totalCount"`
 }
 
+type EmailTranslation struct {
+	EmailID   string    `json:"emailId"`
+	Locale    string    `json:"locale"`
+	Subject   string    `json:"subject"`
+	Preheader string    `json:"preheader"`
+	Blocks    any       `json:"blocks"`
+	Styles    any       `json:"styles"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
 type EmailWarning struct {
 	Severity string `json:"severity"`
 	Message  string `json:"message"`
@@ -4807,6 +4817,15 @@ type SaveEmailBlockInput struct {
 	TextTemplate *string `json:"textTemplate,omitempty"`
 	CSS          *string `json:"css,omitempty"`
 	Scripted     *bool   `json:"scripted,omitempty"`
+}
+
+type SaveEmailTranslationInput struct {
+	EmailID   string  `json:"emailId"`
+	Locale    string  `json:"locale"`
+	Subject   string  `json:"subject"`
+	Preheader *string `json:"preheader,omitempty"`
+	Blocks    any     `json:"blocks"`
+	Styles    any     `json:"styles,omitempty"`
 }
 
 type SaveExperimentInput struct {

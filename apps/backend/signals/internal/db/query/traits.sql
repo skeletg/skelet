@@ -5,13 +5,13 @@
 -- Lands a page of the synced roster - paired arrays, one statement per page
 -- A deleted customer's tombstone keeps a page read before the delete from bringing them back, and a row core read later than this page is left alone
 INSERT INTO customer_roster (customer_id, channel_id, email, first_name, phone, is_active, customer_group_id, customer_group_slug, marketing_opted_in, sms_opted_in, consents, source_read_at, synced_at,
-                             order_count, monetary_cents, first_order_at, last_order_at)
+                             order_count, monetary_cents, first_order_at, last_order_at, locale)
 SELECT u.customer_id, u.channel_id, u.email, u.first_name, u.phone, u.is_active, u.group_id, u.group_slug,
        u.opted_in, u.sms_opted_in, u.consents::jsonb,
        CASE WHEN u.read_at > 'epoch'::timestamptz THEN u.read_at END, sqlc.arg(synced_at),
        u.order_count, u.monetary_cents,
        CASE WHEN u.first_order_at > 'epoch'::timestamptz THEN u.first_order_at END,
-       CASE WHEN u.last_order_at > 'epoch'::timestamptz THEN u.last_order_at END
+       CASE WHEN u.last_order_at > 'epoch'::timestamptz THEN u.last_order_at END, u.locale
 FROM (SELECT unnest(sqlc.arg(customer_ids)::uuid[]) AS customer_id, unnest(sqlc.arg(channel_ids)::uuid[]) AS channel_id,
              unnest(sqlc.arg(emails)::text[]) AS email, unnest(sqlc.arg(first_names)::text[]) AS first_name,
              unnest(sqlc.arg(phones)::text[]) AS phone, unnest(sqlc.arg(actives)::boolean[]) AS is_active,
@@ -19,7 +19,8 @@ FROM (SELECT unnest(sqlc.arg(customer_ids)::uuid[]) AS customer_id, unnest(sqlc.
              unnest(sqlc.arg(opted_in)::boolean[]) AS opted_in, unnest(sqlc.arg(sms_opted_in)::boolean[]) AS sms_opted_in,
              unnest(sqlc.arg(consents)::text[]) AS consents, unnest(sqlc.arg(read_ats)::timestamptz[]) AS read_at,
              unnest(sqlc.arg(order_counts)::int[]) AS order_count, unnest(sqlc.arg(monetary_cents)::bigint[]) AS monetary_cents,
-             unnest(sqlc.arg(first_order_ats)::timestamptz[]) AS first_order_at, unnest(sqlc.arg(last_order_ats)::timestamptz[]) AS last_order_at) u
+             unnest(sqlc.arg(first_order_ats)::timestamptz[]) AS first_order_at, unnest(sqlc.arg(last_order_ats)::timestamptz[]) AS last_order_at,
+             unnest(sqlc.arg(locales)::text[]) AS locale) u
 WHERE NOT EXISTS (SELECT 1 FROM customer_roster_tombstones t WHERE t.customer_id = u.customer_id)
 ON CONFLICT (customer_id) DO UPDATE
     SET channel_id = EXCLUDED.channel_id, email = EXCLUDED.email, first_name = EXCLUDED.first_name,
@@ -28,7 +29,7 @@ ON CONFLICT (customer_id) DO UPDATE
         marketing_opted_in = EXCLUDED.marketing_opted_in, sms_opted_in = EXCLUDED.sms_opted_in,
         consents = EXCLUDED.consents, source_read_at = EXCLUDED.source_read_at, synced_at = EXCLUDED.synced_at,
         order_count = EXCLUDED.order_count, monetary_cents = EXCLUDED.monetary_cents,
-        first_order_at = EXCLUDED.first_order_at, last_order_at = EXCLUDED.last_order_at
+        first_order_at = EXCLUDED.first_order_at, last_order_at = EXCLUDED.last_order_at, locale = EXCLUDED.locale
     WHERE customer_roster.source_read_at IS NULL OR EXCLUDED.source_read_at IS NULL
        OR EXCLUDED.source_read_at >= customer_roster.source_read_at;
 
@@ -39,12 +40,13 @@ WHERE customer_id = ANY(sqlc.arg(customer_ids)::uuid[]) AND synced_at < sqlc.arg
 -- name: UpsertCustomerRosterEntry :exec
 -- One customer, arriving on a change rather than a sweep - synced_at moves too, so the next sweep does not prune a row that just landed
 INSERT INTO customer_roster (customer_id, channel_id, email, first_name, phone, is_active, customer_group_id, customer_group_slug, marketing_opted_in, sms_opted_in, consents, source_read_at, synced_at,
-                             order_count, monetary_cents, first_order_at, last_order_at)
+                             order_count, monetary_cents, first_order_at, last_order_at, locale)
 SELECT sqlc.arg(customer_id)::uuid, sqlc.arg(channel_id)::uuid, sqlc.arg(email)::text, sqlc.arg(first_name)::text,
        sqlc.arg(phone)::text, sqlc.arg(is_active)::boolean, sqlc.narg(customer_group_id)::uuid, sqlc.arg(customer_group_slug)::text,
        sqlc.arg(marketing_opted_in)::boolean, sqlc.arg(sms_opted_in)::boolean, sqlc.arg(consents)::jsonb,
        CASE WHEN sqlc.arg(read_at)::timestamptz > 'epoch'::timestamptz THEN sqlc.arg(read_at)::timestamptz END, now(),
-       sqlc.arg(order_count)::int, sqlc.arg(monetary_cents)::bigint, sqlc.narg(first_order_at)::timestamptz, sqlc.narg(last_order_at)::timestamptz
+       sqlc.arg(order_count)::int, sqlc.arg(monetary_cents)::bigint, sqlc.narg(first_order_at)::timestamptz, sqlc.narg(last_order_at)::timestamptz,
+       sqlc.arg(locale)::text
 WHERE NOT EXISTS (SELECT 1 FROM customer_roster_tombstones t WHERE t.customer_id = sqlc.arg(customer_id)::uuid)
 ON CONFLICT (customer_id) DO UPDATE
     SET channel_id = EXCLUDED.channel_id, email = EXCLUDED.email, first_name = EXCLUDED.first_name,
@@ -53,7 +55,7 @@ ON CONFLICT (customer_id) DO UPDATE
         marketing_opted_in = EXCLUDED.marketing_opted_in, sms_opted_in = EXCLUDED.sms_opted_in,
         consents = EXCLUDED.consents, source_read_at = EXCLUDED.source_read_at, synced_at = EXCLUDED.synced_at,
         order_count = EXCLUDED.order_count, monetary_cents = EXCLUDED.monetary_cents,
-        first_order_at = EXCLUDED.first_order_at, last_order_at = EXCLUDED.last_order_at
+        first_order_at = EXCLUDED.first_order_at, last_order_at = EXCLUDED.last_order_at, locale = EXCLUDED.locale
     WHERE customer_roster.source_read_at IS NULL OR EXCLUDED.source_read_at IS NULL
        OR EXCLUDED.source_read_at >= customer_roster.source_read_at;
 
@@ -420,8 +422,13 @@ DELETE FROM email_templates et WHERE et.channel_id IS NOT NULL AND NOT EXISTS (
 -- name: RosterContact :one
 -- One person a flow run can reach, as core last pushed them - consent is read here rather than
 -- carried on the run, so someone who unsubscribes mid-journey is not sent to
-SELECT customer_id, channel_id, email, first_name, phone, is_active, marketing_opted_in, sms_opted_in
+SELECT customer_id, channel_id, email, first_name, phone, is_active, marketing_opted_in, sms_opted_in, locale
 FROM customer_roster WHERE customer_id = sqlc.arg(customer_id);
+
+-- name: RosterLocales :many
+-- The language each of a page of recipients last signed in with - those without one get the email as written
+SELECT customer_id, locale FROM customer_roster
+WHERE customer_id = ANY(sqlc.arg(customer_ids)::uuid[]) AND locale <> '';
 
 -- name: ChannelRosterContacts :many
 -- Everyone a channel could mail, as core last pushed them, a keyset page at a time - the audience a campaign draws from,

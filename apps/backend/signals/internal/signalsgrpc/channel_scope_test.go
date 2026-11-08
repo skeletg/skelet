@@ -218,3 +218,52 @@ func TestAReplayFlushCannotJoinAForeignSession(t *testing.T) {
 		t.Errorf("the owner's own next flush was refused: n=%d err=%v", n, err)
 	}
 }
+
+// An email's language versions belong to its channel: its own admin writes, reads, replaces and drops them, and a
+// grant on another channel touches none of it
+func TestAnEmailsTranslationsStayOnItsChannel(t *testing.T) {
+	_, deps := channelScopeServer(t)
+	c := signalsv1.NewEmailBuilderServiceClient(dial(t, deps))
+	mine, theirs := uuid.New(), uuid.New()
+	e, err := deps.Builder.CreateLibraryEmail(context.Background(), emailtemplate.LibraryEmail{ChannelID: mine, Name: "Order confirmed", Subject: "Thanks"})
+	if err != nil {
+		t.Fatalf("seed email: %v", err)
+	}
+	own := tokenCtx(t, grantOn("emails.manage", mine), grantOn("emails.view", mine))
+	other := tokenCtx(t, grantOn("emails.manage", theirs), grantOn("emails.view", theirs))
+	save := func(ctx context.Context, subject string) error {
+		_, err := c.SaveEmailTranslation(ctx, &signalsv1.SaveEmailTranslationRequest{Translation: &signalsv1.EmailTranslation{
+			EmailId: e.ID.String(), Locale: "DE", Subject: subject, BlocksJson: `[{"type":"text","content":"Hallo"}]`,
+		}})
+		return err
+	}
+
+	if got := status.Code(save(other, "Fremd")); got != codes.PermissionDenied {
+		t.Errorf("another channel's admin saving a translation answered %s, want PermissionDenied", got)
+	}
+	if err := save(own, "Danke"); err != nil {
+		t.Fatalf("own admin saving: %v", err)
+	}
+	if err := save(own, "Vielen Dank"); err != nil {
+		t.Fatalf("own admin replacing: %v", err)
+	}
+	if _, err := c.ListEmailTranslations(other, &signalsv1.ListEmailTranslationsRequest{EmailId: e.ID.String()}); status.Code(err) != codes.PermissionDenied {
+		t.Errorf("another channel listing translations answered %v, want PermissionDenied", status.Code(err))
+	}
+	res, err := c.ListEmailTranslations(own, &signalsv1.ListEmailTranslationsRequest{EmailId: e.ID.String()})
+	if err != nil || len(res.GetTranslations()) != 1 || res.GetTranslations()[0].GetLocale() != "de" || res.GetTranslations()[0].GetSubject() != "Vielen Dank" {
+		t.Fatalf("listed %v, %v - want one de version, replaced", res.GetTranslations(), err)
+	}
+	if got, _ := deps.Builder.Localize(context.Background(), e, "de-at"); got.Subject != "Vielen Dank" {
+		t.Errorf("a de-at shopper gets %q, want the de version", got.Subject)
+	}
+	if _, err := c.DeleteEmailTranslation(other, &signalsv1.DeleteEmailTranslationRequest{EmailId: e.ID.String(), Locale: "de"}); status.Code(err) != codes.PermissionDenied {
+		t.Errorf("another channel deleting answered %v, want PermissionDenied", status.Code(err))
+	}
+	if _, err := c.DeleteEmailTranslation(own, &signalsv1.DeleteEmailTranslationRequest{EmailId: e.ID.String(), Locale: "de"}); err != nil {
+		t.Fatalf("own admin deleting: %v", err)
+	}
+	if got, ok := deps.Builder.Localize(context.Background(), e, "de"); got.Subject != "Thanks" || ok {
+		t.Errorf("after the delete a de shopper gets %q, want the email itself", got.Subject)
+	}
+}

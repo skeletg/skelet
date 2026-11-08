@@ -2000,6 +2000,16 @@ type ComplexityRoot struct {
 		TotalCount func(childComplexity int) int
 	}
 
+	EmailTranslation struct {
+		Blocks    func(childComplexity int) int
+		EmailID   func(childComplexity int) int
+		Locale    func(childComplexity int) int
+		Preheader func(childComplexity int) int
+		Styles    func(childComplexity int) int
+		Subject   func(childComplexity int) int
+		UpdatedAt func(childComplexity int) int
+	}
+
 	EmailWarning struct {
 		Message  func(childComplexity int) int
 		Severity func(childComplexity int) int
@@ -2871,6 +2881,7 @@ type ComplexityRoot struct {
 		DeleteEmailBlock                  func(childComplexity int, channelID string, slug string) int
 		DeleteEmailCampaign               func(childComplexity int, id string) int
 		DeleteEmailGroup                  func(childComplexity int, id string) int
+		DeleteEmailTranslation            func(childComplexity int, emailID string, locale string) int
 		DeleteExperiment                  func(childComplexity int, id string) int
 		DeleteFlow                        func(childComplexity int, id string) int
 		DeleteIntegration                 func(childComplexity int, id string) int
@@ -3014,6 +3025,7 @@ type ComplexityRoot struct {
 		SaveChatConversation              func(childComplexity int, id *string, title *string, messages []*model.SignalsChatMessage) int
 		SaveDeliveryPoints                func(childComplexity int, channelID string, points []*model.DeliveryPointInput) int
 		SaveEmailBlock                    func(childComplexity int, input model.SaveEmailBlockInput) int
+		SaveEmailTranslation              func(childComplexity int, input model.SaveEmailTranslationInput) int
 		SaveLibraryEmail                  func(childComplexity int, input model.SaveLibraryEmailInput) int
 		ScheduleBlogPost                  func(childComplexity int, id string, publishedAt time.Time) int
 		ScheduleCMSPage                   func(childComplexity int, id string, scheduledAt *time.Time) int
@@ -3995,6 +4007,7 @@ type ComplexityRoot struct {
 		EmailPreflight               func(childComplexity int, id string) int
 		EmailRevisions               func(childComplexity int, id string) int
 		EmailSuppressions            func(childComplexity int, reason *string, limit *int32, offset *int32) int
+		EmailTranslations            func(childComplexity int, emailID string) int
 		EmbeddingCoverage            func(childComplexity int, channelID string) int
 		Experiment                   func(childComplexity int, id string) int
 		ExperimentGoalEvents         func(childComplexity int, channelID string) int
@@ -5652,6 +5665,8 @@ type MutationResolver interface {
 	RenameEmailGroup(ctx context.Context, id string, name string) (*model.EmailGroup, error)
 	DeleteEmailGroup(ctx context.Context, id string) (bool, error)
 	AssignEmailSlot(ctx context.Context, emailID string, slot string) (bool, error)
+	SaveEmailTranslation(ctx context.Context, input model.SaveEmailTranslationInput) (*model.EmailTranslation, error)
+	DeleteEmailTranslation(ctx context.Context, emailID string, locale string) (bool, error)
 	RestoreEmailRevision(ctx context.Context, revisionID string) (*model.LibraryEmail, error)
 	SeedPulseStarterContent(ctx context.Context, channelID string) (*model.PulseStarterContent, error)
 	SuggestEmailSubjects(ctx context.Context, context string, count *int32) ([]string, error)
@@ -6018,6 +6033,7 @@ type QueryResolver interface {
 	TransactionalSlots(ctx context.Context, channelID string) ([]*model.TransactionalSlot, error)
 	EmailPreflight(ctx context.Context, id string) ([]*model.EmailWarning, error)
 	EmailRevisions(ctx context.Context, id string) ([]*model.EmailRevision, error)
+	EmailTranslations(ctx context.Context, emailID string) ([]*model.EmailTranslation, error)
 	RenderLibraryPreview(ctx context.Context, channelID string, customerID *string, subject string, preheader *string, blocks interface{}, styles interface{}) (*model.EmailPreview, error)
 	ServerFeatures(ctx context.Context) (*model.ServerFeatures, error)
 	Flows(ctx context.Context, channelID string, includeDeleted *bool) ([]*model.Flow, error)
@@ -14527,6 +14543,49 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.EmailSuppressionPage.TotalCount(childComplexity), true
 
+	case "EmailTranslation.blocks":
+		if e.ComplexityRoot.EmailTranslation.Blocks == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailTranslation.Blocks(childComplexity), true
+	case "EmailTranslation.emailId":
+		if e.ComplexityRoot.EmailTranslation.EmailID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailTranslation.EmailID(childComplexity), true
+	case "EmailTranslation.locale":
+		if e.ComplexityRoot.EmailTranslation.Locale == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailTranslation.Locale(childComplexity), true
+	case "EmailTranslation.preheader":
+		if e.ComplexityRoot.EmailTranslation.Preheader == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailTranslation.Preheader(childComplexity), true
+	case "EmailTranslation.styles":
+		if e.ComplexityRoot.EmailTranslation.Styles == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailTranslation.Styles(childComplexity), true
+	case "EmailTranslation.subject":
+		if e.ComplexityRoot.EmailTranslation.Subject == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailTranslation.Subject(childComplexity), true
+	case "EmailTranslation.updatedAt":
+		if e.ComplexityRoot.EmailTranslation.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailTranslation.UpdatedAt(childComplexity), true
+
 	case "EmailWarning.message":
 		if e.ComplexityRoot.EmailWarning.Message == nil {
 			break
@@ -19357,6 +19416,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteEmailGroup(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteEmailTranslation":
+		if e.ComplexityRoot.Mutation.DeleteEmailTranslation == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteEmailTranslation_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteEmailTranslation(childComplexity, args["emailId"].(string), args["locale"].(string)), true
 	case "Mutation.deleteExperiment":
 		if e.ComplexityRoot.Mutation.DeleteExperiment == nil {
 			break
@@ -20925,6 +20995,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SaveEmailBlock(childComplexity, args["input"].(model.SaveEmailBlockInput)), true
+	case "Mutation.saveEmailTranslation":
+		if e.ComplexityRoot.Mutation.SaveEmailTranslation == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_saveEmailTranslation_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SaveEmailTranslation(childComplexity, args["input"].(model.SaveEmailTranslationInput)), true
 	case "Mutation.saveLibraryEmail":
 		if e.ComplexityRoot.Mutation.SaveLibraryEmail == nil {
 			break
@@ -27087,6 +27168,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.EmailSuppressions(childComplexity, args["reason"].(*string), args["limit"].(*int32), args["offset"].(*int32)), true
+	case "Query.emailTranslations":
+		if e.ComplexityRoot.Query.EmailTranslations == nil {
+			break
+		}
+
+		args, err := ec.field_Query_emailTranslations_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.EmailTranslations(childComplexity, args["emailId"].(string)), true
 	case "Query.embeddingCoverage":
 		if e.ComplexityRoot.Query.EmbeddingCoverage == nil {
 			break
@@ -33442,6 +33534,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputRolePermissionScopeInput,
 		ec.unmarshalInputSaveCampaignInput,
 		ec.unmarshalInputSaveEmailBlockInput,
+		ec.unmarshalInputSaveEmailTranslationInput,
 		ec.unmarshalInputSaveExperimentInput,
 		ec.unmarshalInputSaveFlowInput,
 		ec.unmarshalInputSaveLibraryEmailInput,
@@ -38674,6 +38767,27 @@ input SaveLibraryEmailInput {
   groupId:   ID
 }
 
+# A library email's version in another language - shoppers in that language get it (a regional locale like de-at reads de), everyone else the email itself.
+type EmailTranslation {
+  emailId:   ID!
+  locale:    String!
+  subject:   String!   # empty keeps the email's own subject
+  preheader: String!
+  blocks:    JSON!
+  styles:    JSON!
+  updatedAt: Time!
+}
+
+# Creates the locale's version or replaces it whole.
+input SaveEmailTranslationInput {
+  emailId:   ID!
+  locale:    String!
+  subject:   String!
+  preheader: String
+  blocks:    JSON!
+  styles:    JSON
+}
+
 # One pre-send checklist finding.
 type EmailWarning {
   severity: String!  # warn | info
@@ -38718,6 +38832,8 @@ extend type Query {
   emailPreflight(id: ID!): [EmailWarning!]!
   # Version history for an email (newest first).
   emailRevisions(id: ID!): [EmailRevision!]!
+  # The email's versions in other languages, by locale.
+  emailTranslations(emailId: ID!): [EmailTranslation!]!
   # Live preview of draft content. customerId (optional) renders merge tags with
   # that customer's real data; otherwise sample data. Includes the preheader.
   renderLibraryPreview(channelId: ID!, customerId: ID, subject: String!, preheader: String, blocks: JSON!, styles: JSON): EmailPreview!
@@ -38732,6 +38848,9 @@ extend type Mutation {
   deleteEmailGroup(id: ID!): Boolean!
   # Bind an email to a transactional slot (slot: "" clears it). One email per slot.
   assignEmailSlot(emailId: ID!, slot: String!): Boolean!
+  # An email's version in another language (emails.manage on the email's channel).
+  saveEmailTranslation(input: SaveEmailTranslationInput!): EmailTranslation!
+  deleteEmailTranslation(emailId: ID!, locale: String!): Boolean!
   # Restore a prior version of an email (records the restored state as a new revision).
   restoreEmailRevision(revisionId: ID!): LibraryEmail!
   # Pulse's starter content for a channel - the blocks, an email per transactional slot and an active flow that sends it (emails.manage + flows.manage)
@@ -47665,6 +47784,26 @@ func (ec *executionContext) childFields_EmailSuppressionPage(ctx context.Context
 	return nil, fmt.Errorf("no field named %q was found under type EmailSuppressionPage", field.Name)
 }
 
+func (ec *executionContext) childFields_EmailTranslation(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "emailId":
+		return ec.fieldContext_EmailTranslation_emailId(ctx, field)
+	case "locale":
+		return ec.fieldContext_EmailTranslation_locale(ctx, field)
+	case "subject":
+		return ec.fieldContext_EmailTranslation_subject(ctx, field)
+	case "preheader":
+		return ec.fieldContext_EmailTranslation_preheader(ctx, field)
+	case "blocks":
+		return ec.fieldContext_EmailTranslation_blocks(ctx, field)
+	case "styles":
+		return ec.fieldContext_EmailTranslation_styles(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_EmailTranslation_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type EmailTranslation", field.Name)
+}
+
 func (ec *executionContext) childFields_EmailWarning(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "severity":
@@ -55939,6 +56078,28 @@ func (ec *executionContext) field_Mutation_deleteEmailGroup_args(ctx context.Con
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_deleteEmailTranslation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "emailId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["emailId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "locale",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["locale"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_deleteExperiment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -58543,6 +58704,20 @@ func (ec *executionContext) field_Mutation_saveEmailBlock_args(ctx context.Conte
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (model.SaveEmailBlockInput, error) {
 			return ec.unmarshalNSaveEmailBlockInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSaveEmailBlockInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_saveEmailTranslation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.SaveEmailTranslationInput, error) {
+			return ec.unmarshalNSaveEmailTranslationInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSaveEmailTranslationInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -64182,6 +64357,20 @@ func (ec *executionContext) field_Query_emailSuppressions_args(ctx context.Conte
 		return nil, err
 	}
 	args["offset"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_emailTranslations_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "emailId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["emailId"] = arg0
 	return args, nil
 }
 
@@ -100324,6 +100513,167 @@ func (ec *executionContext) fieldContext_EmailSuppressionPage_totalCount(_ conte
 	return graphql.NewScalarFieldContext("EmailSuppressionPage", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _EmailTranslation_emailId(ctx context.Context, field graphql.CollectedField, obj *model.EmailTranslation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailTranslation_emailId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EmailID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailTranslation_emailId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailTranslation", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _EmailTranslation_locale(ctx context.Context, field graphql.CollectedField, obj *model.EmailTranslation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailTranslation_locale(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Locale, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailTranslation_locale(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailTranslation", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailTranslation_subject(ctx context.Context, field graphql.CollectedField, obj *model.EmailTranslation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailTranslation_subject(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Subject, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailTranslation_subject(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailTranslation", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailTranslation_preheader(ctx context.Context, field graphql.CollectedField, obj *model.EmailTranslation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailTranslation_preheader(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Preheader, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailTranslation_preheader(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailTranslation", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailTranslation_blocks(ctx context.Context, field graphql.CollectedField, obj *model.EmailTranslation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailTranslation_blocks(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Blocks, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v any) graphql.Marshaler {
+			return ec.marshalNJSON2interface(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailTranslation_blocks(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailTranslation", field, false, false, errors.New("field of type JSON does not have child fields"))
+}
+
+func (ec *executionContext) _EmailTranslation_styles(ctx context.Context, field graphql.CollectedField, obj *model.EmailTranslation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailTranslation_styles(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Styles, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v any) graphql.Marshaler {
+			return ec.marshalNJSON2interface(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailTranslation_styles(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailTranslation", field, false, false, errors.New("field of type JSON does not have child fields"))
+}
+
+func (ec *executionContext) _EmailTranslation_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.EmailTranslation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailTranslation_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailTranslation_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailTranslation", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
 func (ec *executionContext) _EmailWarning_severity(ctx context.Context, field graphql.CollectedField, obj *model.EmailWarning) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -125016,6 +125366,94 @@ func (ec *executionContext) fieldContext_Mutation_assignEmailSlot(ctx context.Co
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_assignEmailSlot_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_saveEmailTranslation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_saveEmailTranslation(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SaveEmailTranslation(ctx, fc.Args["input"].(model.SaveEmailTranslationInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.EmailTranslation) graphql.Marshaler {
+			return ec.marshalNEmailTranslation2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐEmailTranslation(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_saveEmailTranslation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_EmailTranslation(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_saveEmailTranslation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteEmailTranslation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteEmailTranslation(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteEmailTranslation(ctx, fc.Args["emailId"].(string), fc.Args["locale"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteEmailTranslation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteEmailTranslation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -151010,6 +151448,50 @@ func (ec *executionContext) fieldContext_Query_emailRevisions(ctx context.Contex
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_emailRevisions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_emailTranslations(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_emailTranslations(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().EmailTranslations(ctx, fc.Args["emailId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.EmailTranslation) graphql.Marshaler {
+			return ec.marshalNEmailTranslation2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐEmailTranslationᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_emailTranslations(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_EmailTranslation(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_emailTranslations_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -184824,6 +185306,71 @@ func (ec *executionContext) unmarshalInputSaveEmailBlockInput(ctx context.Contex
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputSaveEmailTranslationInput(ctx context.Context, obj any) (model.SaveEmailTranslationInput, error) {
+	var it model.SaveEmailTranslationInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"emailId", "locale", "subject", "preheader", "blocks", "styles"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "emailId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("emailId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EmailID = data
+		case "locale":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("locale"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Locale = data
+		case "subject":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("subject"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Subject = data
+		case "preheader":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("preheader"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Preheader = data
+		case "blocks":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("blocks"))
+			data, err := ec.unmarshalNJSON2interface(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Blocks = data
+		case "styles":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("styles"))
+			data, err := ec.unmarshalOJSON2interface(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Styles = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputSaveExperimentInput(ctx context.Context, obj any) (model.SaveExperimentInput, error) {
 	var it model.SaveExperimentInput
 	if obj == nil {
@@ -205281,6 +205828,74 @@ func (ec *executionContext) _EmailSuppressionPage(ctx context.Context, sel ast.S
 	return out
 }
 
+var emailTranslationImplementors = []string{"EmailTranslation"}
+
+func (ec *executionContext) _EmailTranslation(ctx context.Context, sel ast.SelectionSet, obj *model.EmailTranslation) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, emailTranslationImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EmailTranslation")
+		case "emailId":
+			out.Values[i] = ec._EmailTranslation_emailId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "locale":
+			out.Values[i] = ec._EmailTranslation_locale(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "subject":
+			out.Values[i] = ec._EmailTranslation_subject(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "preheader":
+			out.Values[i] = ec._EmailTranslation_preheader(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "blocks":
+			out.Values[i] = ec._EmailTranslation_blocks(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "styles":
+			out.Values[i] = ec._EmailTranslation_styles(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._EmailTranslation_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var emailWarningImplementors = []string{"EmailWarning"}
 
 func (ec *executionContext) _EmailWarning(ctx context.Context, sel ast.SelectionSet, obj *model.EmailWarning) graphql.Marshaler {
@@ -212275,6 +212890,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "assignEmailSlot":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_assignEmailSlot(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "saveEmailTranslation":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_saveEmailTranslation(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteEmailTranslation":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteEmailTranslation(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -221763,6 +222392,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_emailRevisions(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "emailTranslations":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_emailTranslations(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -238776,6 +239427,36 @@ func (ec *executionContext) marshalNEmailSuppressionPage2ᚖgithubᚗcomᚋskele
 	return ec._EmailSuppressionPage(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNEmailTranslation2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐEmailTranslation(ctx context.Context, sel ast.SelectionSet, v model.EmailTranslation) graphql.Marshaler {
+	return ec._EmailTranslation(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNEmailTranslation2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐEmailTranslationᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.EmailTranslation) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNEmailTranslation2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐEmailTranslation(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNEmailTranslation2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐEmailTranslation(ctx context.Context, sel ast.SelectionSet, v *model.EmailTranslation) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._EmailTranslation(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNEmailWarning2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐEmailWarningᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.EmailWarning) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -243495,6 +244176,11 @@ func (ec *executionContext) unmarshalNSaveCampaignInput2githubᚗcomᚋskeletg�
 
 func (ec *executionContext) unmarshalNSaveEmailBlockInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSaveEmailBlockInput(ctx context.Context, v any) (model.SaveEmailBlockInput, error) {
 	res, err := ec.unmarshalInputSaveEmailBlockInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNSaveEmailTranslationInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSaveEmailTranslationInput(ctx context.Context, v any) (model.SaveEmailTranslationInput, error) {
+	res, err := ec.unmarshalInputSaveEmailTranslationInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 

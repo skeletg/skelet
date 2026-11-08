@@ -123,6 +123,8 @@ message RosterEntry {
   int64 monetary_cents = 14;
   google.protobuf.Timestamp first_order_at = 15;
   google.protobuf.Timestamp last_order_at = 16;
+  // The storefront language the customer last signed in with, lowercase - empty when not known yet
+  string locale = 17;
 }
 
 message Consent {

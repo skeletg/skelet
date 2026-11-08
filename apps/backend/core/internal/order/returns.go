@@ -596,6 +596,7 @@ func (s *Service) createExchangeDraft(ctx context.Context, o Order, ret OrderRet
 		ShippingAddress: o.ShippingAddress,
 		Lines:           lines,
 		CustomerNote:    fmt.Sprintf("Exchange for RMA %s (order %s)", ret.RMANumber, o.Number),
+		Locale:          o.Locale, // the replacement's mail speaks the language the original was bought in
 		// The original picks already shipped - the replacement carries them via the note
 		SkipRequiredOptionCheck: true,
 	})

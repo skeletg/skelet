@@ -101,6 +101,57 @@ func (s *builderServer) DeleteLibraryEmail(ctx context.Context, req *signalsv1.D
 	return &signalsv1.DeleteLibraryEmailResponse{}, nil
 }
 
+// An email's versions in other languages ride the email's own channel scope
+func (s *builderServer) ListEmailTranslations(ctx context.Context, req *signalsv1.ListEmailTranslationsRequest) (*signalsv1.ListEmailTranslationsResponse, error) {
+	e, err := s.load(ctx, "emails.view", req.GetEmailId())
+	if err != nil {
+		return nil, err
+	}
+	all, err := s.svc.ListTranslations(ctx, e.ID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*signalsv1.EmailTranslation, len(all))
+	for i, t := range all {
+		out[i] = translationProto(t)
+	}
+	return &signalsv1.ListEmailTranslationsResponse{Translations: out}, nil
+}
+
+func (s *builderServer) SaveEmailTranslation(ctx context.Context, req *signalsv1.SaveEmailTranslationRequest) (*signalsv1.SaveEmailTranslationResponse, error) {
+	in := req.GetTranslation()
+	if in == nil {
+		return nil, invalidArgument("translation is required")
+	}
+	e, err := s.load(ctx, "emails.manage", in.GetEmailId())
+	if err != nil {
+		return nil, err
+	}
+	t := emailtemplate.Translation{EmailID: e.ID, Locale: in.GetLocale(), Subject: in.GetSubject(), Preheader: in.GetPreheader()}
+	if t.Blocks, err = blocksFromJSON(in.GetBlocksJson()); err != nil {
+		return nil, err
+	}
+	if t.Styles, err = stylesFromJSON(in.GetStylesJson()); err != nil {
+		return nil, err
+	}
+	saved, err := s.svc.SaveTranslation(ctx, t)
+	if err != nil {
+		return nil, domainErr(err)
+	}
+	return &signalsv1.SaveEmailTranslationResponse{Translation: translationProto(saved)}, nil
+}
+
+func (s *builderServer) DeleteEmailTranslation(ctx context.Context, req *signalsv1.DeleteEmailTranslationRequest) (*signalsv1.DeleteEmailTranslationResponse, error) {
+	e, err := s.load(ctx, "emails.manage", req.GetEmailId())
+	if err != nil {
+		return nil, err
+	}
+	if err := s.svc.DeleteTranslation(ctx, e.ID, req.GetLocale()); err != nil {
+		return nil, err
+	}
+	return &signalsv1.DeleteEmailTranslationResponse{}, nil
+}
+
 // Groups are global rather than per channel, so the permission alone gates them
 func (s *builderServer) ListEmailGroups(ctx context.Context, _ *signalsv1.ListEmailGroupsRequest) (*signalsv1.ListEmailGroupsResponse, error) {
 	if err := requirePermissionOrSystem(ctx, "emails.view"); err != nil {
@@ -429,6 +480,13 @@ func libraryEmailProto(e emailtemplate.LibraryEmail) *signalsv1.LibraryEmail {
 		Id: e.ID.String(), ChannelId: e.ChannelID.String(), Name: e.Name, Subject: e.Subject, Preheader: e.Preheader,
 		BlocksJson: blocksJSON(e.Blocks), StylesJson: stylesJSON(e.Styles), GroupId: optionalIDString(e.GroupID), Slot: e.Slot,
 		CreatedAt: ts(e.CreatedAt), UpdatedAt: ts(e.UpdatedAt),
+	}
+}
+
+func translationProto(t emailtemplate.Translation) *signalsv1.EmailTranslation {
+	return &signalsv1.EmailTranslation{
+		EmailId: t.EmailID.String(), Locale: t.Locale, Subject: t.Subject, Preheader: t.Preheader,
+		BlocksJson: blocksJSON(t.Blocks), StylesJson: stylesJSON(t.Styles), UpdatedAt: ts(t.UpdatedAt),
 	}
 }
 

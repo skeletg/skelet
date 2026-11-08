@@ -1077,7 +1077,7 @@ func (q *Queries) RosterChannels(ctx context.Context) ([]uuid.UUID, error) {
 }
 
 const rosterContact = `-- name: RosterContact :one
-SELECT customer_id, channel_id, email, first_name, phone, is_active, marketing_opted_in, sms_opted_in
+SELECT customer_id, channel_id, email, first_name, phone, is_active, marketing_opted_in, sms_opted_in, locale
 FROM customer_roster WHERE customer_id = $1
 `
 
@@ -1090,6 +1090,7 @@ type RosterContactRow struct {
 	IsActive         bool      `json:"is_active"`
 	MarketingOptedIn bool      `json:"marketing_opted_in"`
 	SmsOptedIn       bool      `json:"sms_opted_in"`
+	Locale           string    `json:"locale"`
 }
 
 // One person a flow run can reach, as core last pushed them - consent is read here rather than
@@ -1106,8 +1107,43 @@ func (q *Queries) RosterContact(ctx context.Context, customerID uuid.UUID) (Rost
 		&i.IsActive,
 		&i.MarketingOptedIn,
 		&i.SmsOptedIn,
+		&i.Locale,
 	)
 	return i, err
+}
+
+const rosterLocales = `-- name: RosterLocales :many
+SELECT customer_id, locale FROM customer_roster
+WHERE customer_id = ANY($1::uuid[]) AND locale <> ''
+`
+
+type RosterLocalesRow struct {
+	CustomerID uuid.UUID `json:"customer_id"`
+	Locale     string    `json:"locale"`
+}
+
+// The language each of a page of recipients last signed in with - those without one get the email as written
+func (q *Queries) RosterLocales(ctx context.Context, customerIds []uuid.UUID) ([]RosterLocalesRow, error) {
+	rows, err := q.db.QueryContext(ctx, rosterLocales, pq.Array(customerIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RosterLocalesRow{}
+	for rows.Next() {
+		var i RosterLocalesRow
+		if err := rows.Scan(&i.CustomerID, &i.Locale); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const rosterMarketingConsent = `-- name: RosterMarketingConsent :many
@@ -1395,13 +1431,13 @@ func (q *Queries) UpsertChannelRoster(ctx context.Context, arg UpsertChannelRost
 const upsertCustomerRoster = `-- name: UpsertCustomerRoster :exec
 
 INSERT INTO customer_roster (customer_id, channel_id, email, first_name, phone, is_active, customer_group_id, customer_group_slug, marketing_opted_in, sms_opted_in, consents, source_read_at, synced_at,
-                             order_count, monetary_cents, first_order_at, last_order_at)
+                             order_count, monetary_cents, first_order_at, last_order_at, locale)
 SELECT u.customer_id, u.channel_id, u.email, u.first_name, u.phone, u.is_active, u.group_id, u.group_slug,
        u.opted_in, u.sms_opted_in, u.consents::jsonb,
        CASE WHEN u.read_at > 'epoch'::timestamptz THEN u.read_at END, $1,
        u.order_count, u.monetary_cents,
        CASE WHEN u.first_order_at > 'epoch'::timestamptz THEN u.first_order_at END,
-       CASE WHEN u.last_order_at > 'epoch'::timestamptz THEN u.last_order_at END
+       CASE WHEN u.last_order_at > 'epoch'::timestamptz THEN u.last_order_at END, u.locale
 FROM (SELECT unnest($2::uuid[]) AS customer_id, unnest($3::uuid[]) AS channel_id,
              unnest($4::text[]) AS email, unnest($5::text[]) AS first_name,
              unnest($6::text[]) AS phone, unnest($7::boolean[]) AS is_active,
@@ -1409,7 +1445,8 @@ FROM (SELECT unnest($2::uuid[]) AS customer_id, unnest($3::uuid[]) AS channel_id
              unnest($10::boolean[]) AS opted_in, unnest($11::boolean[]) AS sms_opted_in,
              unnest($12::text[]) AS consents, unnest($13::timestamptz[]) AS read_at,
              unnest($14::int[]) AS order_count, unnest($15::bigint[]) AS monetary_cents,
-             unnest($16::timestamptz[]) AS first_order_at, unnest($17::timestamptz[]) AS last_order_at) u
+             unnest($16::timestamptz[]) AS first_order_at, unnest($17::timestamptz[]) AS last_order_at,
+             unnest($18::text[]) AS locale) u
 WHERE NOT EXISTS (SELECT 1 FROM customer_roster_tombstones t WHERE t.customer_id = u.customer_id)
 ON CONFLICT (customer_id) DO UPDATE
     SET channel_id = EXCLUDED.channel_id, email = EXCLUDED.email, first_name = EXCLUDED.first_name,
@@ -1418,7 +1455,7 @@ ON CONFLICT (customer_id) DO UPDATE
         marketing_opted_in = EXCLUDED.marketing_opted_in, sms_opted_in = EXCLUDED.sms_opted_in,
         consents = EXCLUDED.consents, source_read_at = EXCLUDED.source_read_at, synced_at = EXCLUDED.synced_at,
         order_count = EXCLUDED.order_count, monetary_cents = EXCLUDED.monetary_cents,
-        first_order_at = EXCLUDED.first_order_at, last_order_at = EXCLUDED.last_order_at
+        first_order_at = EXCLUDED.first_order_at, last_order_at = EXCLUDED.last_order_at, locale = EXCLUDED.locale
     WHERE customer_roster.source_read_at IS NULL OR EXCLUDED.source_read_at IS NULL
        OR EXCLUDED.source_read_at >= customer_roster.source_read_at
 `
@@ -1441,6 +1478,7 @@ type UpsertCustomerRosterParams struct {
 	MonetaryCents []int64     `json:"monetary_cents"`
 	FirstOrderAts []time.Time `json:"first_order_ats"`
 	LastOrderAts  []time.Time `json:"last_order_ats"`
+	Locales       []string    `json:"locales"`
 }
 
 // Spine half of trait compute (the `act` CTE), split out of the commerce RecomputeChannelTraits - feeds the
@@ -1466,18 +1504,20 @@ func (q *Queries) UpsertCustomerRoster(ctx context.Context, arg UpsertCustomerRo
 		pq.Array(arg.MonetaryCents),
 		pq.Array(arg.FirstOrderAts),
 		pq.Array(arg.LastOrderAts),
+		pq.Array(arg.Locales),
 	)
 	return err
 }
 
 const upsertCustomerRosterEntry = `-- name: UpsertCustomerRosterEntry :exec
 INSERT INTO customer_roster (customer_id, channel_id, email, first_name, phone, is_active, customer_group_id, customer_group_slug, marketing_opted_in, sms_opted_in, consents, source_read_at, synced_at,
-                             order_count, monetary_cents, first_order_at, last_order_at)
+                             order_count, monetary_cents, first_order_at, last_order_at, locale)
 SELECT $1::uuid, $2::uuid, $3::text, $4::text,
        $5::text, $6::boolean, $7::uuid, $8::text,
        $9::boolean, $10::boolean, $11::jsonb,
        CASE WHEN $12::timestamptz > 'epoch'::timestamptz THEN $12::timestamptz END, now(),
-       $13::int, $14::bigint, $15::timestamptz, $16::timestamptz
+       $13::int, $14::bigint, $15::timestamptz, $16::timestamptz,
+       $17::text
 WHERE NOT EXISTS (SELECT 1 FROM customer_roster_tombstones t WHERE t.customer_id = $1::uuid)
 ON CONFLICT (customer_id) DO UPDATE
     SET channel_id = EXCLUDED.channel_id, email = EXCLUDED.email, first_name = EXCLUDED.first_name,
@@ -1486,7 +1526,7 @@ ON CONFLICT (customer_id) DO UPDATE
         marketing_opted_in = EXCLUDED.marketing_opted_in, sms_opted_in = EXCLUDED.sms_opted_in,
         consents = EXCLUDED.consents, source_read_at = EXCLUDED.source_read_at, synced_at = EXCLUDED.synced_at,
         order_count = EXCLUDED.order_count, monetary_cents = EXCLUDED.monetary_cents,
-        first_order_at = EXCLUDED.first_order_at, last_order_at = EXCLUDED.last_order_at
+        first_order_at = EXCLUDED.first_order_at, last_order_at = EXCLUDED.last_order_at, locale = EXCLUDED.locale
     WHERE customer_roster.source_read_at IS NULL OR EXCLUDED.source_read_at IS NULL
        OR EXCLUDED.source_read_at >= customer_roster.source_read_at
 `
@@ -1508,6 +1548,7 @@ type UpsertCustomerRosterEntryParams struct {
 	MonetaryCents     int64           `json:"monetary_cents"`
 	FirstOrderAt      sql.NullTime    `json:"first_order_at"`
 	LastOrderAt       sql.NullTime    `json:"last_order_at"`
+	Locale            string          `json:"locale"`
 }
 
 // One customer, arriving on a change rather than a sweep - synced_at moves too, so the next sweep does not prune a row that just landed
@@ -1529,6 +1570,7 @@ func (q *Queries) UpsertCustomerRosterEntry(ctx context.Context, arg UpsertCusto
 		arg.MonetaryCents,
 		arg.FirstOrderAt,
 		arg.LastOrderAt,
+		arg.Locale,
 	)
 	return err
 }

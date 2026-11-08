@@ -163,3 +163,29 @@ mutation SeedPulseStarterContent($channelId: ID!) {
     flows
   }
 }
+
+fragment EmailTranslationFields on EmailTranslation {
+  emailId
+  locale
+  subject
+  preheader
+  blocks
+  styles
+  updatedAt
+}
+
+query EmailTranslations($emailId: ID!) {
+  emailTranslations(emailId: $emailId) {
+    ...EmailTranslationFields
+  }
+}
+
+mutation SaveEmailTranslation($input: SaveEmailTranslationInput!) {
+  saveEmailTranslation(input: $input) {
+    ...EmailTranslationFields
+  }
+}
+
+mutation DeleteEmailTranslation($emailId: ID!, $locale: String!) {
+  deleteEmailTranslation(emailId: $emailId, locale: $locale)
+}

@@ -100,12 +100,13 @@ var blockHTML = map[string]func(Block, renderCtx) string{
 	"spacer": func(b Block, _ renderCtx) string {
 		return `<div style="height:` + strconv.Itoa(spacerPx(b)) + `px;line-height:` + strconv.Itoa(spacerPx(b)) + `px;">&nbsp;</div>`
 	},
-	"order_items": func(_ Block, rc renderCtx) string {
+	"order_items": func(blk Block, rc renderCtx) string {
 		if len(rc.Lines) == 0 {
 			return ""
 		}
 		var b strings.Builder
-		b.WriteString(`<table cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%;"><thead><tr style="text-align:left;border-bottom:1px solid #ddd;"><th>Item</th><th>Qty</th><th style="text-align:right;">Total</th></tr></thead><tbody>`)
+		fmt.Fprintf(&b, `<table cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%%;"><thead><tr style="text-align:left;border-bottom:1px solid #ddd;"><th>%s</th><th>%s</th><th style="text-align:right;">%s</th></tr></thead><tbody>`,
+			labelHTML(blk, "item"), labelHTML(blk, "qty"), labelHTML(blk, "total"))
 		for _, l := range rc.Lines {
 			fmt.Fprintf(&b, `<tr style="border-bottom:1px solid #f0f0f0;"><td>%s<br><span style="color:#888;font-size:12px;">%s</span></td><td>%s</td><td style="text-align:right;">%s</td></tr>`,
 				html.EscapeString(l.Name), html.EscapeString(l.SKU), qty(l.Quantity), money(l.LineTotal, rc.Currency))
@@ -113,29 +114,37 @@ var blockHTML = map[string]func(Block, renderCtx) string{
 		b.WriteString(`</tbody></table>`)
 		return b.String()
 	},
-	"order_totals": func(_ Block, rc renderCtx) string {
+	"order_totals": func(blk Block, rc renderCtx) string {
 		v := rc.Vars
 		if v["order.total"] == "" {
 			return ""
 		}
+		included := v["order.taxIncluded"] == "true"
 		var b strings.Builder
 		b.WriteString(`<table cellpadding="2" cellspacing="0" style="margin-top:12px;width:100%;">`)
-		totalsRow(&b, "Subtotal", v["order.subtotal"], false)
+		totalsRow(&b, labelHTML(blk, "subtotal"), v["order.subtotal"], false)
 		if v["order.discount"] != "" {
-			totalsRow(&b, "Discount", "-"+v["order.discount"], false)
+			totalsRow(&b, labelHTML(blk, "discount"), "-"+v["order.discount"], false)
 		}
-		totalsRow(&b, "Shipping", v["order.shipping"], false)
-		totalsRow(&b, "Tax", v["order.tax"], false)
-		totalsRow(&b, "Total", v["order.total"], true)
+		totalsRow(&b, labelHTML(blk, "shipping"), v["order.shipping"], false)
+		if !included {
+			totalsRow(&b, labelHTML(blk, "tax"), v["order.tax"], false)
+		}
+		totalsRow(&b, labelHTML(blk, "total"), v["order.total"], true)
+		// Tax already inside the prices isn't one more amount to add, so it's said under the total
+		if included {
+			fmt.Fprintf(&b, `<tr><td style="color:#888;font-size:12px;">%s</td><td style="text-align:right;color:#888;font-size:12px;">%s</td></tr>`,
+				labelHTML(blk, "taxIncluded"), html.EscapeString(v["order.tax"]))
+		}
 		b.WriteString(`</table>`)
 		return b.String()
 	},
-	"shipping_address": func(_ Block, rc renderCtx) string {
+	"shipping_address": func(blk Block, rc renderCtx) string {
 		if len(rc.ShipTo) == 0 {
 			return ""
 		}
 		var b strings.Builder
-		b.WriteString(`<p style="margin-top:12px;"><strong>Shipping to</strong><br>`)
+		b.WriteString(`<p style="margin-top:12px;"><strong>` + labelHTML(blk, "shippingTo") + `</strong><br>`)
 		for _, line := range rc.ShipTo {
 			b.WriteString(html.EscapeString(line))
 			b.WriteString("<br>")
@@ -143,22 +152,22 @@ var blockHTML = map[string]func(Block, renderCtx) string{
 		b.WriteString(`</p>`)
 		return b.String()
 	},
-	"tracking": func(_ Block, rc renderCtx) string {
+	"tracking": func(blk Block, rc renderCtx) string {
 		c, n := rc.Vars["tracking.carrier"], rc.Vars["tracking.number"]
 		if c == "" && n == "" {
 			return ""
 		}
-		out := `<p>Carrier: ` + html.EscapeString(c)
+		out := `<p>` + labelHTML(blk, "carrier") + `: ` + html.EscapeString(c)
 		if n != "" {
-			out += ` &middot; Tracking: <strong>` + html.EscapeString(n) + `</strong>`
+			out += ` &middot; ` + labelHTML(blk, "tracking") + `: <strong>` + html.EscapeString(n) + `</strong>`
 		}
 		return out + `</p>`
 	},
-	"refund_amount": func(_ Block, rc renderCtx) string {
+	"refund_amount": func(blk Block, rc renderCtx) string {
 		if rc.Vars["refund.amount"] == "" {
 			return ""
 		}
-		return `<p>Refund issued: <strong>` + html.EscapeString(rc.Vars["refund.amount"]) + `</strong></p>`
+		return `<p>` + labelHTML(blk, "refund") + `: <strong>` + html.EscapeString(rc.Vars["refund.amount"]) + `</strong></p>`
 	},
 	"social": func(b Block, rc renderCtx) string {
 		if len(b.Social) == 0 {
@@ -250,41 +259,49 @@ var blockText = map[string]func(Block, renderCtx) string{
 		}
 		return b.String()
 	},
-	"order_totals": func(_ Block, rc renderCtx) string {
+	"order_totals": func(blk Block, rc renderCtx) string {
 		v := rc.Vars
 		if v["order.total"] == "" {
 			return ""
 		}
 		var b strings.Builder
-		fmt.Fprintf(&b, "Subtotal: %s\n", v["order.subtotal"])
+		fmt.Fprintf(&b, "%s: %s\n", labelOf(blk, "subtotal"), v["order.subtotal"])
 		if v["order.discount"] != "" {
-			fmt.Fprintf(&b, "Discount: -%s\n", v["order.discount"])
+			fmt.Fprintf(&b, "%s: -%s\n", labelOf(blk, "discount"), v["order.discount"])
 		}
-		fmt.Fprintf(&b, "Shipping: %s\nTax: %s\nTotal: %s\n", v["order.shipping"], v["order.tax"], v["order.total"])
+		fmt.Fprintf(&b, "%s: %s\n", labelOf(blk, "shipping"), v["order.shipping"])
+		included := v["order.taxIncluded"] == "true"
+		if !included {
+			fmt.Fprintf(&b, "%s: %s\n", labelOf(blk, "tax"), v["order.tax"])
+		}
+		fmt.Fprintf(&b, "%s: %s\n", labelOf(blk, "total"), v["order.total"])
+		if included {
+			fmt.Fprintf(&b, "%s: %s\n", labelOf(blk, "taxIncluded"), v["order.tax"])
+		}
 		return b.String()
 	},
-	"shipping_address": func(_ Block, rc renderCtx) string {
+	"shipping_address": func(blk Block, rc renderCtx) string {
 		if len(rc.ShipTo) == 0 {
 			return ""
 		}
-		return "Shipping to:\n" + strings.Join(rc.ShipTo, "\n") + "\n"
+		return labelOf(blk, "shippingTo") + ":\n" + strings.Join(rc.ShipTo, "\n") + "\n"
 	},
-	"tracking": func(_ Block, rc renderCtx) string {
+	"tracking": func(blk Block, rc renderCtx) string {
 		c, n := rc.Vars["tracking.carrier"], rc.Vars["tracking.number"]
 		if c == "" && n == "" {
 			return ""
 		}
-		out := "Carrier: " + c
+		out := labelOf(blk, "carrier") + ": " + c
 		if n != "" {
-			out += " - Tracking: " + n
+			out += " - " + labelOf(blk, "tracking") + ": " + n
 		}
 		return out + "\n"
 	},
-	"refund_amount": func(_ Block, rc renderCtx) string {
+	"refund_amount": func(blk Block, rc renderCtx) string {
 		if rc.Vars["refund.amount"] == "" {
 			return ""
 		}
-		return "Refund issued: " + rc.Vars["refund.amount"] + "\n"
+		return labelOf(blk, "refund") + ": " + rc.Vars["refund.amount"] + "\n"
 	},
 	"social": func(b Block, rc renderCtx) string {
 		if len(b.Social) == 0 {
@@ -349,6 +366,25 @@ func spacerPx(b Block) int {
 
 func qty(q float64) string { return strconv.FormatFloat(q, 'f', -1, 64) }
 
+// The order blocks' English words, which a block's Labels replace one by one
+var defaultLabels = map[string]string{
+	"item": "Item", "qty": "Qty", "total": "Total",
+	"subtotal": "Subtotal", "discount": "Discount", "shipping": "Shipping", "tax": "Tax", "taxIncluded": "Includes tax",
+	"shippingTo": "Shipping to", "carrier": "Carrier", "tracking": "Tracking", "refund": "Refund issued",
+}
+
+const maxLabelLen = 60
+
+func labelOf(b Block, key string) string {
+	if v := strings.TrimSpace(b.Labels[key]); v != "" {
+		return v
+	}
+	return defaultLabels[key]
+}
+
+func labelHTML(b Block, key string) string { return html.EscapeString(labelOf(b, key)) }
+
+// totalsRow takes an already-escaped label
 func totalsRow(b *strings.Builder, label, value string, bold bool) {
 	if bold {
 		fmt.Fprintf(b, `<tr><td><strong>%s</strong></td><td style="text-align:right;"><strong>%s</strong></td></tr>`, label, html.EscapeString(value))
@@ -364,6 +400,11 @@ func totalsRow(b *strings.Builder, label, value string, bold bool) {
 func validateBlock(b Block, allowRef bool) error {
 	if err := validateStyle(b.Style); err != nil {
 		return err
+	}
+	for k, v := range b.Labels {
+		if _, known := defaultLabels[k]; !known || len(v) > maxLabelLen {
+			return fmt.Errorf("label %q: a known label key, up to %d characters", k, maxLabelLen)
+		}
 	}
 	switch b.Type {
 	case "button", "image":

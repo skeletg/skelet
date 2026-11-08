@@ -295,6 +295,9 @@ func (s *Service) orderConfirmationCtx(ctx context.Context, channelID uuid.UUID,
 	v["order.shipping"] = money(d.Shipping, d.Currency)
 	v["order.tax"] = money(d.Tax, d.Currency)
 	v["order.total"] = money(d.Total, d.Currency)
+	if d.TaxIncluded {
+		v["order.taxIncluded"] = "true"
+	}
 	if d.Discount > 0 {
 		v["order.discount"] = money(d.Discount, d.Currency)
 	}

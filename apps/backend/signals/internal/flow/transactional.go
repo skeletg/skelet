@@ -62,10 +62,14 @@ func orderIDFromRun(run FlowRun) uuid.UUID {
 }
 
 // chosenEmail returns the library email the send_email node renders: the
-// node's referenced library email, or one built from its inline content
-func (s *Service) chosenEmail(ctx context.Context, ch Store, node Node) (emailtemplate.LibraryEmail, bool) {
+// node's referenced library email in the run's language, or one built from its inline content
+func (s *Service) chosenEmail(ctx context.Context, ch Store, node Node, locale string) (emailtemplate.LibraryEmail, bool) {
 	if id := strings.TrimSpace(node.Data.EmailID); id != "" {
-		return s.ownEmail(ctx, ch.ID, id)
+		e, ok := s.ownEmail(ctx, ch.ID, id)
+		if ok {
+			e, _ = s.tmpl.Localize(ctx, e, locale)
+		}
+		return e, ok
 	}
 	return emailtemplate.LibraryEmail{
 		ChannelID: ch.ID, Subject: node.Data.Subject, Blocks: node.Data.Blocks, Styles: node.Data.Styles,
@@ -74,12 +78,12 @@ func (s *Service) chosenEmail(ctx context.Context, ch Store, node Node) (emailte
 
 // renderOrderEmail renders the node's chosen email from the snapshot the enrollment carried, so the
 // order_items / order_totals / tracking / shipping_address blocks populate without reading the order back
-func (s *Service) renderOrderEmail(ctx context.Context, ch Store, f Flow, node Node, run FlowRun) (string, string, string, error) {
+func (s *Service) renderOrderEmail(ctx context.Context, ch Store, f Flow, node Node, run FlowRun, locale string) (string, string, string, error) {
 	snap, ok := orderSnapshotFromRun(run)
 	if !ok {
 		return "", "", "", errNoOrderSnapshot
 	}
-	e, ok := s.chosenEmail(ctx, ch, node)
+	e, ok := s.chosenEmail(ctx, ch, node, locale)
 	if !ok {
 		return "", "", "", errEmailNotFound
 	}
@@ -131,4 +135,16 @@ func orderSnapshotFromRun(run FlowRun) (emailpkg.OrderSnapshot, bool) {
 		return emailpkg.OrderSnapshot{}, false
 	}
 	return *rc.Order, true
+}
+
+// The language a run's email goes out in - the one its moment carried (the order's, or the storefront the shopper was
+// on), else the one the customer last signed in with. Empty sends the email as written
+func runLocale(run FlowRun, cust Contact) string {
+	var rc map[string]any
+	if len(run.Context) > 0 && json.Unmarshal(run.Context, &rc) == nil {
+		if l, _ := rc[signalsapi.PayloadLocale].(string); l != "" {
+			return l
+		}
+	}
+	return cust.Locale
 }

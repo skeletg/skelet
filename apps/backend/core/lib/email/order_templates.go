@@ -98,6 +98,8 @@ type OrderSnapshot struct {
 	TrackingNumber string `json:"tracking_number,omitempty"`
 	// Set on a refund, as it stood when the refund landed
 	RefundedAmount int64 `json:"refunded_amount,omitempty"`
+	// The storefront language the order was placed in - its emails go out in that language's version when there is one
+	Locale string `json:"locale,omitempty"`
 }
 
 // The transactional messages core sends, named so a send is identifiable in a log or a resend request

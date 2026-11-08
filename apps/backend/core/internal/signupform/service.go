@@ -25,6 +25,7 @@ import (
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/internal/locale"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/consentkind"
 )
@@ -336,6 +337,7 @@ func (s *Service) Submit(ctx context.Context, channelID uuid.UUID, formSlugOrID,
 	if err := s.q.CreateSignupConfirmation(ctx, db.CreateSignupConfirmationParams{
 		TokenHash: hash, FormID: f.ID, ChannelID: channelID, Email: em, FirstName: first,
 		ConsentKind: orDefault(f.ConsentKind, consentkind.MarketingEmail), ExpiresAt: s.now().Add(ConfirmationTTL),
+		Locale: locale.FromContext(ctx),
 	}); err != nil {
 		return "", fmt.Errorf("record signup confirmation: %w", err)
 	}
@@ -397,7 +399,11 @@ func (s *Service) Confirm(ctx context.Context, token string) error {
 }
 
 func (s *Service) subscribe(ctx context.Context, row db.SignupConfirmation) (uuid.UUID, error) {
-	// The confirmation link reached this inbox, so a contact made here starts verified
+	// The confirmation link reached this inbox, so a contact made here starts verified - and in the language the form was
+	// sent from, since the link itself is opened off the storefront
+	if row.Locale != "" {
+		ctx = locale.WithLocale(ctx, row.Locale)
+	}
 	custID, err := s.contact.EnsureContact(ctx, row.ChannelID, row.Email, row.FirstName, true)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("ensure contact: %w", err)

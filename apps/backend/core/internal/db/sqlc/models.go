@@ -1390,6 +1390,7 @@ type Customer struct {
 	VatID                    string          `json:"vat_id"`
 	VatIDStatus              string          `json:"vat_id_status"`
 	VatIDCheckedAt           sql.NullTime    `json:"vat_id_checked_at"`
+	Locale                   string          `json:"locale"`
 }
 
 type CustomerConsent struct {
@@ -1834,6 +1835,7 @@ type Order struct {
 	BusinessIds         json.RawMessage `json:"business_ids"`
 	FulfillmentNeed     string          `json:"fulfillment_need"`
 	AssistedBy          string          `json:"assisted_by"`
+	Locale              string          `json:"locale"`
 	TaxInclusive        bool            `json:"tax_inclusive"`
 }
 
@@ -2667,6 +2669,7 @@ type SignupConfirmation struct {
 	CreatedAt   time.Time     `json:"created_at"`
 	ExpiresAt   time.Time     `json:"expires_at"`
 	ConfirmedAt sql.NullTime  `json:"confirmed_at"`
+	Locale      string        `json:"locale"`
 }
 
 type SignupForm struct {
