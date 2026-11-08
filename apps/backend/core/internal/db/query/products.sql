@@ -313,7 +313,8 @@ WHERE sku = ANY(sqlc.arg(skus)::text[]);
 
 -- name: GetProductDimensionsBySKUs :many
 -- What shipping rates a line by - its physical size, and its product type for the methods' per-type rates. A kit ships as
--- its own SKU, but one with no size or weight set weighs what its items do, so its rate isn't quoted as weightless
+-- its own SKU, but one with no size or weight set weighs what its items do, so its rate isn't quoted as weightless. A
+-- variant with none of its own takes its parent's, which is where a merchant usually sets them once for every size
 SELECT p.sku,
        COALESCE(CASE
            WHEN p.kind = 'kit' AND COALESCE(p.weight_grams, 0) = 0 AND COALESCE(p.length_mm, 0) = 0
@@ -322,10 +323,20 @@ SELECT p.sku,
                  FROM catalog_product_kit_components k
                  JOIN catalog_products c ON c.id = k.component_product_id
                  WHERE k.product_id = p.id)
-           ELSE p.weight_grams
+           ELSE COALESCE(NULLIF(p.weight_grams, 0), parent.weight_grams)
        END, 0)::int AS weight_grams,
-       p.length_mm, p.width_mm, p.height_mm, p.product_type_id
+       COALESCE(NULLIF(p.length_mm, 0), parent.length_mm) AS length_mm,
+       COALESCE(NULLIF(p.width_mm, 0), parent.width_mm) AS width_mm,
+       COALESCE(NULLIF(p.height_mm, 0), parent.height_mm) AS height_mm,
+       p.product_type_id
 FROM catalog_products p
+LEFT JOIN LATERAL (
+    SELECT pp.weight_grams, pp.length_mm, pp.width_mm, pp.height_mm
+    FROM catalog_product_children pc
+    JOIN catalog_products pp ON pp.id = pc.parent_id
+    WHERE pc.child_id = p.id
+    LIMIT 1
+) parent ON true
 WHERE p.sku = ANY(sqlc.arg(skus)::text[]);
 
 -- name: GetProductCostsBySKUs :many

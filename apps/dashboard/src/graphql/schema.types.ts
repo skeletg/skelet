@@ -2607,7 +2607,9 @@ export type CreateShippingMethodInput = {
   freeAboveCents?: InputMaybe<Scalars['Int']['input']>;
   isActive?: InputMaybe<Scalars['Boolean']['input']>;
   name?: InputMaybe<Scalars['String']['input']>;
+  rateTiers?: InputMaybe<Array<ShippingRateTierInput>>;
   sortOrder?: InputMaybe<Scalars['Int']['input']>;
+  tableBasis?: InputMaybe<ShippingTableBasis>;
   typeRates?: InputMaybe<Array<ShippingMethodTypeRateInput>>;
   unitsPerCharge?: InputMaybe<Scalars['Int']['input']>;
   zoneId: Scalars['ID']['input'];
@@ -10978,7 +10980,8 @@ export type ShippingBoxInput = {
 export type ShippingCalcType =
   | 'FLAT'
   | 'FREE'
-  | 'FREE_ABOVE';
+  | 'FREE_ABOVE'
+  | 'TABLE';
 
 export type ShippingCarrierAdmin = {
   __typename?: 'ShippingCarrierAdmin';
@@ -11018,7 +11021,9 @@ export type ShippingMethod = {
   id: Scalars['ID']['output'];
   isActive: Scalars['Boolean']['output'];
   name: Scalars['String']['output'];
+  rateTiers: Array<ShippingRateTier>;
   sortOrder: Scalars['Int']['output'];
+  tableBasis: ShippingTableBasis;
   typeRates: Array<ShippingMethodTypeRate>;
   unitsPerCharge: Scalars['Int']['output'];
   updatedAt: Scalars['Time']['output'];
@@ -11040,6 +11045,24 @@ export type ShippingMethodTypeRateInput = {
   productTypeId: Scalars['ID']['input'];
   unitsPerCharge?: InputMaybe<Scalars['Int']['input']>;
 };
+
+export type ShippingRateTier = {
+  __typename?: 'ShippingRateTier';
+  from: Scalars['Int']['output'];
+  notOffered: Scalars['Boolean']['output'];
+  priceCents: Scalars['Int']['output'];
+};
+
+export type ShippingRateTierInput = {
+  from: Scalars['Int']['input'];
+  notOffered?: InputMaybe<Scalars['Boolean']['input']>;
+  priceCents: Scalars['Int']['input'];
+};
+
+export type ShippingTableBasis =
+  | 'QUANTITY'
+  | 'SUBTOTAL'
+  | 'WEIGHT';
 
 export type ShippingZone = {
   __typename?: 'ShippingZone';
@@ -12165,7 +12188,9 @@ export type UpdateShippingMethodInput = {
   id: Scalars['ID']['input'];
   isActive?: InputMaybe<Scalars['Boolean']['input']>;
   name?: InputMaybe<Scalars['String']['input']>;
+  rateTiers?: InputMaybe<Array<ShippingRateTierInput>>;
   sortOrder?: InputMaybe<Scalars['Int']['input']>;
+  tableBasis?: InputMaybe<ShippingTableBasis>;
   typeRates?: InputMaybe<Array<ShippingMethodTypeRateInput>>;
   unitsPerCharge?: InputMaybe<Scalars['Int']['input']>;
 };

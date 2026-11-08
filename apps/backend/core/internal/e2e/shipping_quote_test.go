@@ -116,4 +116,22 @@ func TestProductDimensionsReachShippingRates(t *testing.T) {
 	if _, ok := dims["no-such-sku"]; ok {
 		t.Error("an unknown sku came back with dimensions")
 	}
+
+	// a variant with no weight of its own ships at its parent's, where a merchant sets it once for every size
+	var parentID uuid.UUID
+	if err := h.D.DB.QueryRowContext(h.Ctx, `INSERT INTO catalog_products (product_type_id, sku, url, kind, weight_grams) VALUES ($1, $2, $2, 'configurable', 2000) RETURNING id`,
+		f.Product.ProductTypeID, "dims-parent-"+uuid.NewString()[:8]).Scan(&parentID); err != nil {
+		t.Fatal(err)
+	}
+	variant := h.AddProduct(t, f, 1000, true, 5)
+	if _, err := h.D.DB.ExecContext(h.Ctx, `INSERT INTO catalog_product_children (parent_id, child_id) VALUES ($1, $2)`, parentID, variant.ID); err != nil {
+		t.Fatal(err)
+	}
+	dims, err = h.D.Catalog.ProductDimensionsBySKUs(h.Ctx, []string{variant.SKU})
+	if err != nil {
+		t.Fatalf("variant dimensions: %v", err)
+	}
+	if got := dims[variant.SKU]; got.WeightGrams != 2000 {
+		t.Errorf("a weightless variant weighs %d, want its parent's 2000", got.WeightGrams)
+	}
 }

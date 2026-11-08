@@ -1,11 +1,12 @@
 import { z } from 'zod'
 import { countryListText, formatCountryList, parseCountryList } from '@/shared/schemas/countries'
-import { dollarsToCents, money, wholeNumber } from '@/shared/schemas/fields'
+import { dollarsToCents, money, numberText, parseNumberText, wholeNumber } from '@/shared/schemas/fields'
 
 // Shipping method row - an inline CRUD row with its own Save (the conventions' allowed exception),
 // validated by the same kind of schema as the record forms
 
-export type CalcType = 'FLAT' | 'FREE' | 'FREE_ABOVE'
+export type CalcType = 'FLAT' | 'FREE' | 'FREE_ABOVE' | 'TABLE'
+export type TableBasis = 'WEIGHT' | 'SUBTOTAL' | 'QUANTITY'
 export type DeliveryKind = 'ship_to_address' | 'parcel_locker' | 'carrier_point'
 
 export type ExistingTypeRate = {
@@ -32,6 +33,29 @@ export type ExistingMethod = {
   estimatedDays?: number
   deliversOnWeekends?: boolean
   typeRates?: ExistingTypeRate[]
+  tableBasis?: TableBasis
+  rateTiers?: { from: number; priceCents: number; notOffered: boolean }[]
+}
+
+// A tier's start is typed in the basis' own unit - kilograms, the channel's currency or items - and stored in grams,
+// cents or units
+export function tierUnit(basis: TableBasis, currency: string): string {
+  if (basis === 'WEIGHT') return 'kg'
+  if (basis === 'QUANTITY') return 'items'
+  return currency || 'amount'
+}
+
+function tierFromToText(basis: TableBasis, from: number): string {
+  if (basis === 'WEIGHT') return String(from / 1000)
+  if (basis === 'SUBTOTAL') return (from / 100).toFixed(2)
+  return String(from)
+}
+
+export function tierFromTextToValue(basis: TableBasis, text: string): number {
+  const n = parseNumberText(text) ?? 0
+  if (basis === 'WEIGHT') return Math.round(n * 1000)
+  if (basis === 'SUBTOTAL') return Math.round(n * 100)
+  return Math.round(n)
 }
 
 // Prices are typed in dollars as text and stored in cents
@@ -43,8 +67,10 @@ export const methodSchema = z
     code: z.string().trim().min(1, 'Code is required').describe('Stable identifier of the method'),
     name: z.string().describe('Name shoppers see at checkout - empty string for none'),
     calcType: z
-      .enum(['FLAT', 'FREE', 'FREE_ABOVE'])
-      .describe('How the rate is worked out: FLAT charges flatDollars, FREE charges nothing, FREE_ABOVE charges flatDollars until the order reaches freeAboveDollars'),
+      .enum(['FLAT', 'FREE', 'FREE_ABOVE', 'TABLE'])
+      .describe(
+        'How the rate is worked out: FLAT charges flatDollars, FREE charges nothing, FREE_ABOVE charges flatDollars until the order reaches freeAboveDollars, TABLE charges the rateTiers row the shipment reaches',
+      ),
     flatDollars: dollars('Flat rate charged, for FLAT and FREE_ABOVE'),
     freeAboveDollars: dollars('Order subtotal from which shipping is free, for FREE_ABOVE'),
     sortOrder: wholeNumber().describe('Order at checkout - lower first'),
@@ -74,6 +100,40 @@ export const methodSchema = z
       )
       .refine((rates) => new Set(rates.map((r) => r.productTypeId)).size === rates.length, 'Each product type can have one rate')
       .describe("Prices for particular product types - their items are priced by their row instead of the method's price"),
+    tableBasis: z
+      .enum(['WEIGHT', 'SUBTOTAL', 'QUANTITY'])
+      .describe("What a TABLE method's tiers measure: WEIGHT in kilograms, SUBTOTAL in dollars after discounts, QUANTITY in items"),
+    rateTiers: z
+      .array(
+        z.object({
+          from: numberText({ min: 0 }).describe("Where the tier starts, in the basis' unit written as text"),
+          priceDollars: money({ optional: true }).describe('Price of a shipment in this tier, in major currency units written as text'),
+          notOffered: z.boolean().describe('Whether the method stops being offered from this tier up - its price is then ignored'),
+        }),
+      )
+      .describe(
+        'Tiers of a TABLE method - a shipment pays the last tier it reaches, below the first the method is not offered, and a notOffered tier stops it from there up',
+      ),
+  })
+  .superRefine((v, ctx) => {
+    if (v.calcType !== 'TABLE') return
+    if (v.rateTiers.length === 0) {
+      ctx.addIssue({ code: 'custom', path: ['rateTiers'], message: 'Add at least one tier' })
+      return
+    }
+    const starts = v.rateTiers.map((t) => tierFromTextToValue(v.tableBasis, t.from))
+    if (new Set(starts).size !== starts.length) {
+      ctx.addIssue({ code: 'custom', path: ['rateTiers'], message: 'Each tier starts at a different value' })
+    }
+    if (v.tableBasis === 'QUANTITY' && v.rateTiers.some((t) => !Number.isInteger(parseNumberText(t.from) ?? 0))) {
+      ctx.addIssue({ code: 'custom', path: ['rateTiers'], message: 'Item counts are whole numbers' })
+    }
+    if (v.rateTiers.some((t) => !t.notOffered && t.priceDollars.trim() === '')) {
+      ctx.addIssue({ code: 'custom', path: ['rateTiers'], message: 'Give each offered tier a price - 0 for free' })
+    }
+    if (v.rateTiers.every((t) => t.notOffered)) {
+      ctx.addIssue({ code: 'custom', path: ['rateTiers'], message: 'At least one tier has to be offered' })
+    }
   })
   .describe('A shipping method offered within a shipping zone')
 
@@ -100,6 +160,12 @@ export function toMethodValues(method?: ExistingMethod): MethodValues {
       unitsPerCharge: r.unitsPerCharge,
       freeShippingEligible: r.freeShippingEligible,
     })),
+    tableBasis: method?.tableBasis ?? 'WEIGHT',
+    rateTiers: (method?.rateTiers ?? []).map((t) => ({
+      from: tierFromToText(method?.tableBasis ?? 'WEIGHT', t.from),
+      priceDollars: t.notOffered ? '' : (t.priceCents / 100).toFixed(2),
+      notOffered: t.notOffered,
+    })),
   }
 }
 
@@ -124,5 +190,14 @@ export function toMethodInput(v: MethodValues) {
       unitsPerCharge: r.unitsPerCharge,
       freeShippingEligible: r.freeShippingEligible,
     })),
+    tableBasis: v.tableBasis,
+    rateTiers:
+      v.calcType === 'TABLE'
+        ? v.rateTiers.map((t) => ({
+            from: tierFromTextToValue(v.tableBasis, t.from),
+            priceCents: t.notOffered ? 0 : dollarsToCents(t.priceDollars),
+            notOffered: t.notOffered,
+          }))
+        : [],
   }
 }

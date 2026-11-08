@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -79,25 +80,27 @@ const createShippingMethod = `-- name: CreateShippingMethod :one
 
 INSERT INTO shipping_methods (
     zone_id, code, name, calc_type, flat_cents, free_above_cents, sort_order, is_active, country_mode, delivery_kind, units_per_charge,
-    estimated_days, delivers_on_weekends
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-RETURNING id, zone_id, code, name, calc_type, flat_cents, free_above_cents, sort_order, is_active, created_at, updated_at, country_mode, delivery_kind, units_per_charge, estimated_days, delivers_on_weekends
+    estimated_days, delivers_on_weekends, table_basis, rate_tiers
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+RETURNING id, zone_id, code, name, calc_type, flat_cents, free_above_cents, sort_order, is_active, created_at, updated_at, country_mode, delivery_kind, units_per_charge, estimated_days, delivers_on_weekends, table_basis, rate_tiers
 `
 
 type CreateShippingMethodParams struct {
-	ZoneID             uuid.UUID `json:"zone_id"`
-	Code               string    `json:"code"`
-	Name               string    `json:"name"`
-	CalcType           string    `json:"calc_type"`
-	FlatCents          int64     `json:"flat_cents"`
-	FreeAboveCents     int64     `json:"free_above_cents"`
-	SortOrder          int32     `json:"sort_order"`
-	IsActive           bool      `json:"is_active"`
-	CountryMode        string    `json:"country_mode"`
-	DeliveryKind       string    `json:"delivery_kind"`
-	UnitsPerCharge     int32     `json:"units_per_charge"`
-	EstimatedDays      int32     `json:"estimated_days"`
-	DeliversOnWeekends bool      `json:"delivers_on_weekends"`
+	ZoneID             uuid.UUID       `json:"zone_id"`
+	Code               string          `json:"code"`
+	Name               string          `json:"name"`
+	CalcType           string          `json:"calc_type"`
+	FlatCents          int64           `json:"flat_cents"`
+	FreeAboveCents     int64           `json:"free_above_cents"`
+	SortOrder          int32           `json:"sort_order"`
+	IsActive           bool            `json:"is_active"`
+	CountryMode        string          `json:"country_mode"`
+	DeliveryKind       string          `json:"delivery_kind"`
+	UnitsPerCharge     int32           `json:"units_per_charge"`
+	EstimatedDays      int32           `json:"estimated_days"`
+	DeliversOnWeekends bool            `json:"delivers_on_weekends"`
+	TableBasis         string          `json:"table_basis"`
+	RateTiers          json.RawMessage `json:"rate_tiers"`
 }
 
 // Methods
@@ -116,6 +119,8 @@ func (q *Queries) CreateShippingMethod(ctx context.Context, arg CreateShippingMe
 		arg.UnitsPerCharge,
 		arg.EstimatedDays,
 		arg.DeliversOnWeekends,
+		arg.TableBasis,
+		arg.RateTiers,
 	)
 	var i ShippingMethod
 	err := row.Scan(
@@ -135,6 +140,8 @@ func (q *Queries) CreateShippingMethod(ctx context.Context, arg CreateShippingMe
 		&i.UnitsPerCharge,
 		&i.EstimatedDays,
 		&i.DeliversOnWeekends,
+		&i.TableBasis,
+		&i.RateTiers,
 	)
 	return i, err
 }
@@ -264,7 +271,7 @@ func (q *Queries) GetShippingBox(ctx context.Context, id uuid.UUID) (ShippingBox
 }
 
 const getShippingMethod = `-- name: GetShippingMethod :one
-SELECT id, zone_id, code, name, calc_type, flat_cents, free_above_cents, sort_order, is_active, created_at, updated_at, country_mode, delivery_kind, units_per_charge, estimated_days, delivers_on_weekends FROM shipping_methods WHERE id = $1
+SELECT id, zone_id, code, name, calc_type, flat_cents, free_above_cents, sort_order, is_active, created_at, updated_at, country_mode, delivery_kind, units_per_charge, estimated_days, delivers_on_weekends, table_basis, rate_tiers FROM shipping_methods WHERE id = $1
 `
 
 func (q *Queries) GetShippingMethod(ctx context.Context, id uuid.UUID) (ShippingMethod, error) {
@@ -287,12 +294,14 @@ func (q *Queries) GetShippingMethod(ctx context.Context, id uuid.UUID) (Shipping
 		&i.UnitsPerCharge,
 		&i.EstimatedDays,
 		&i.DeliversOnWeekends,
+		&i.TableBasis,
+		&i.RateTiers,
 	)
 	return i, err
 }
 
 const getShippingMethodByCode = `-- name: GetShippingMethodByCode :one
-SELECT id, zone_id, code, name, calc_type, flat_cents, free_above_cents, sort_order, is_active, created_at, updated_at, country_mode, delivery_kind, units_per_charge, estimated_days, delivers_on_weekends FROM shipping_methods WHERE zone_id = $1 AND code = $2
+SELECT id, zone_id, code, name, calc_type, flat_cents, free_above_cents, sort_order, is_active, created_at, updated_at, country_mode, delivery_kind, units_per_charge, estimated_days, delivers_on_weekends, table_basis, rate_tiers FROM shipping_methods WHERE zone_id = $1 AND code = $2
 `
 
 type GetShippingMethodByCodeParams struct {
@@ -320,6 +329,8 @@ func (q *Queries) GetShippingMethodByCode(ctx context.Context, arg GetShippingMe
 		&i.UnitsPerCharge,
 		&i.EstimatedDays,
 		&i.DeliversOnWeekends,
+		&i.TableBasis,
+		&i.RateTiers,
 	)
 	return i, err
 }
@@ -410,7 +421,7 @@ func (q *Queries) ListActiveShippingBoxesByChannel(ctx context.Context, channelI
 }
 
 const listActiveShippingMethodsByZone = `-- name: ListActiveShippingMethodsByZone :many
-SELECT id, zone_id, code, name, calc_type, flat_cents, free_above_cents, sort_order, is_active, created_at, updated_at, country_mode, delivery_kind, units_per_charge, estimated_days, delivers_on_weekends FROM shipping_methods
+SELECT id, zone_id, code, name, calc_type, flat_cents, free_above_cents, sort_order, is_active, created_at, updated_at, country_mode, delivery_kind, units_per_charge, estimated_days, delivers_on_weekends, table_basis, rate_tiers FROM shipping_methods
 WHERE zone_id = $1 AND is_active = TRUE
 ORDER BY sort_order, code
 `
@@ -441,6 +452,8 @@ func (q *Queries) ListActiveShippingMethodsByZone(ctx context.Context, zoneID uu
 			&i.UnitsPerCharge,
 			&i.EstimatedDays,
 			&i.DeliversOnWeekends,
+			&i.TableBasis,
+			&i.RateTiers,
 		); err != nil {
 			return nil, err
 		}
@@ -633,7 +646,7 @@ func (q *Queries) ListShippingBoxesByChannel(ctx context.Context, channelID uuid
 }
 
 const listShippingMethodsByZone = `-- name: ListShippingMethodsByZone :many
-SELECT id, zone_id, code, name, calc_type, flat_cents, free_above_cents, sort_order, is_active, created_at, updated_at, country_mode, delivery_kind, units_per_charge, estimated_days, delivers_on_weekends FROM shipping_methods
+SELECT id, zone_id, code, name, calc_type, flat_cents, free_above_cents, sort_order, is_active, created_at, updated_at, country_mode, delivery_kind, units_per_charge, estimated_days, delivers_on_weekends, table_basis, rate_tiers FROM shipping_methods
 WHERE zone_id = $1
 ORDER BY sort_order, code
 `
@@ -664,6 +677,8 @@ func (q *Queries) ListShippingMethodsByZone(ctx context.Context, zoneID uuid.UUI
 			&i.UnitsPerCharge,
 			&i.EstimatedDays,
 			&i.DeliversOnWeekends,
+			&i.TableBasis,
+			&i.RateTiers,
 		); err != nil {
 			return nil, err
 		}
@@ -745,25 +760,29 @@ SET code = $2,
     units_per_charge = $11,
     estimated_days = $12,
     delivers_on_weekends = $13,
+    table_basis = $14,
+    rate_tiers = $15,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, zone_id, code, name, calc_type, flat_cents, free_above_cents, sort_order, is_active, created_at, updated_at, country_mode, delivery_kind, units_per_charge, estimated_days, delivers_on_weekends
+RETURNING id, zone_id, code, name, calc_type, flat_cents, free_above_cents, sort_order, is_active, created_at, updated_at, country_mode, delivery_kind, units_per_charge, estimated_days, delivers_on_weekends, table_basis, rate_tiers
 `
 
 type UpdateShippingMethodParams struct {
-	ID                 uuid.UUID `json:"id"`
-	Code               string    `json:"code"`
-	Name               string    `json:"name"`
-	CalcType           string    `json:"calc_type"`
-	FlatCents          int64     `json:"flat_cents"`
-	FreeAboveCents     int64     `json:"free_above_cents"`
-	SortOrder          int32     `json:"sort_order"`
-	IsActive           bool      `json:"is_active"`
-	CountryMode        string    `json:"country_mode"`
-	DeliveryKind       string    `json:"delivery_kind"`
-	UnitsPerCharge     int32     `json:"units_per_charge"`
-	EstimatedDays      int32     `json:"estimated_days"`
-	DeliversOnWeekends bool      `json:"delivers_on_weekends"`
+	ID                 uuid.UUID       `json:"id"`
+	Code               string          `json:"code"`
+	Name               string          `json:"name"`
+	CalcType           string          `json:"calc_type"`
+	FlatCents          int64           `json:"flat_cents"`
+	FreeAboveCents     int64           `json:"free_above_cents"`
+	SortOrder          int32           `json:"sort_order"`
+	IsActive           bool            `json:"is_active"`
+	CountryMode        string          `json:"country_mode"`
+	DeliveryKind       string          `json:"delivery_kind"`
+	UnitsPerCharge     int32           `json:"units_per_charge"`
+	EstimatedDays      int32           `json:"estimated_days"`
+	DeliversOnWeekends bool            `json:"delivers_on_weekends"`
+	TableBasis         string          `json:"table_basis"`
+	RateTiers          json.RawMessage `json:"rate_tiers"`
 }
 
 func (q *Queries) UpdateShippingMethod(ctx context.Context, arg UpdateShippingMethodParams) (ShippingMethod, error) {
@@ -781,6 +800,8 @@ func (q *Queries) UpdateShippingMethod(ctx context.Context, arg UpdateShippingMe
 		arg.UnitsPerCharge,
 		arg.EstimatedDays,
 		arg.DeliversOnWeekends,
+		arg.TableBasis,
+		arg.RateTiers,
 	)
 	var i ShippingMethod
 	err := row.Scan(
@@ -800,6 +821,8 @@ func (q *Queries) UpdateShippingMethod(ctx context.Context, arg UpdateShippingMe
 		&i.UnitsPerCharge,
 		&i.EstimatedDays,
 		&i.DeliversOnWeekends,
+		&i.TableBasis,
+		&i.RateTiers,
 	)
 	return i, err
 }

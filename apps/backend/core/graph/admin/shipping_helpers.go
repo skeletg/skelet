@@ -67,6 +67,8 @@ func toShippingMethodModel(m shipping.Method) *model.ShippingMethod {
 		EstimatedDays:      m.EstimatedDays,
 		DeliversOnWeekends: m.DeliversOnWeekends,
 		TypeRates:          toTypeRateModels(m.TypeRates),
+		TableBasis:         tableBasisToModel(m.TableBasis),
+		RateTiers:          toRateTierModels(m.RateTiers),
 		CreatedAt:          m.CreatedAt,
 		UpdatedAt:          m.UpdatedAt,
 	}
@@ -104,9 +106,52 @@ func shippingCalcTypeFromModel(t model.ShippingCalcType) shipping.CalcType {
 		return shipping.CalcFree
 	case model.ShippingCalcTypeFreeAbove:
 		return shipping.CalcFreeAbove
+	case model.ShippingCalcTypeTable:
+		return shipping.CalcTable
 	default:
 		return shipping.CalcFlat
 	}
+}
+
+func tableBasisFromModel(b *model.ShippingTableBasis) shipping.TableBasis {
+	if b == nil {
+		return shipping.BasisWeight
+	}
+	switch *b {
+	case model.ShippingTableBasisSubtotal:
+		return shipping.BasisSubtotal
+	case model.ShippingTableBasisQuantity:
+		return shipping.BasisQuantity
+	default:
+		return shipping.BasisWeight
+	}
+}
+
+func tableBasisToModel(b shipping.TableBasis) model.ShippingTableBasis {
+	switch b {
+	case shipping.BasisSubtotal:
+		return model.ShippingTableBasisSubtotal
+	case shipping.BasisQuantity:
+		return model.ShippingTableBasisQuantity
+	default:
+		return model.ShippingTableBasisWeight
+	}
+}
+
+func rateTiersFromModel(in []*model.ShippingRateTierInput) []shipping.RateTier {
+	out := make([]shipping.RateTier, len(in))
+	for i, t := range in {
+		out[i] = shipping.RateTier{From: int64(t.From), PriceCents: int64(t.PriceCents), NotOffered: boolDeref(t.NotOffered, false)}
+	}
+	return out
+}
+
+func toRateTierModels(tiers []shipping.RateTier) []*model.ShippingRateTier {
+	out := make([]*model.ShippingRateTier, len(tiers))
+	for i, t := range tiers {
+		out[i] = &model.ShippingRateTier{From: int32(t.From), PriceCents: int32(t.PriceCents), NotOffered: t.NotOffered}
+	}
+	return out
 }
 
 func shippingCalcTypeToModel(t shipping.CalcType) model.ShippingCalcType {
@@ -115,6 +160,8 @@ func shippingCalcTypeToModel(t shipping.CalcType) model.ShippingCalcType {
 		return model.ShippingCalcTypeFree
 	case shipping.CalcFreeAbove:
 		return model.ShippingCalcTypeFreeAbove
+	case shipping.CalcTable:
+		return model.ShippingCalcTypeTable
 	default:
 		return model.ShippingCalcTypeFlat
 	}

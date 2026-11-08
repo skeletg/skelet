@@ -21,6 +21,12 @@ fragment ShippingMethodFields on ShippingMethod {
     unitsPerCharge
     freeShippingEligible
   }
+  tableBasis
+  rateTiers {
+    from
+    priceCents
+    notOffered
+  }
   createdAt
   updatedAt
 }

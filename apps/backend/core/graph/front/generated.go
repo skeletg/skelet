@@ -10835,7 +10835,7 @@ type Category {
   description:      JSON
   metaTitle:        String
   metaDescription:  String
-  # First 250 published on this store, in merchandising order - browseProducts pages the rest
+  # The category's own products, first 250 published on this store in merchandising order - browseProducts pages the rest, and lists an anchor's whole tree
   products:         [Product!]!
 }
 

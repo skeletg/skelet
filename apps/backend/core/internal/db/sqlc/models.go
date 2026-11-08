@@ -2606,22 +2606,24 @@ type ShippingLabel struct {
 }
 
 type ShippingMethod struct {
-	ID                 uuid.UUID `json:"id"`
-	ZoneID             uuid.UUID `json:"zone_id"`
-	Code               string    `json:"code"`
-	Name               string    `json:"name"`
-	CalcType           string    `json:"calc_type"`
-	FlatCents          int64     `json:"flat_cents"`
-	FreeAboveCents     int64     `json:"free_above_cents"`
-	SortOrder          int32     `json:"sort_order"`
-	IsActive           bool      `json:"is_active"`
-	CreatedAt          time.Time `json:"created_at"`
-	UpdatedAt          time.Time `json:"updated_at"`
-	CountryMode        string    `json:"country_mode"`
-	DeliveryKind       string    `json:"delivery_kind"`
-	UnitsPerCharge     int32     `json:"units_per_charge"`
-	EstimatedDays      int32     `json:"estimated_days"`
-	DeliversOnWeekends bool      `json:"delivers_on_weekends"`
+	ID                 uuid.UUID       `json:"id"`
+	ZoneID             uuid.UUID       `json:"zone_id"`
+	Code               string          `json:"code"`
+	Name               string          `json:"name"`
+	CalcType           string          `json:"calc_type"`
+	FlatCents          int64           `json:"flat_cents"`
+	FreeAboveCents     int64           `json:"free_above_cents"`
+	SortOrder          int32           `json:"sort_order"`
+	IsActive           bool            `json:"is_active"`
+	CreatedAt          time.Time       `json:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at"`
+	CountryMode        string          `json:"country_mode"`
+	DeliveryKind       string          `json:"delivery_kind"`
+	UnitsPerCharge     int32           `json:"units_per_charge"`
+	EstimatedDays      int32           `json:"estimated_days"`
+	DeliversOnWeekends bool            `json:"delivers_on_weekends"`
+	TableBasis         string          `json:"table_basis"`
+	RateTiers          json.RawMessage `json:"rate_tiers"`
 }
 
 type ShippingMethodCountry struct {

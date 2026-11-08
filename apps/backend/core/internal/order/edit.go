@@ -510,6 +510,13 @@ func (s *Service) requoteShipping(ctx context.Context, o Order, to OrderAddress,
 	cents, _, err := s.shipping.PriceSelected(ctx, *o.ShippingCarrierSlug, *o.ShippingMethodCode, req)
 	if err != nil {
 		log.Printf("[order] edit re-quote shipping for order %s failed; holding it at %d: %v", o.ID, o.ShippingAmount, err)
+		// Said on the order too, since the operator who made the edit reads the timeline, not the log
+		if _, evErr := s.repo.AddOrderEvent(ctx, OrderEvent{
+			OrderID: o.ID, Type: "shipping_requote_failed",
+			Message: fmt.Sprintf("Shipping couldn't be re-priced for the edit, so it stays at the earlier amount: %v", err),
+		}); evErr != nil {
+			log.Printf("[order] record re-quote failure on order %s: %v", o.ID, evErr)
+		}
 		return 0, false, nil
 	}
 	return cents, true, nil

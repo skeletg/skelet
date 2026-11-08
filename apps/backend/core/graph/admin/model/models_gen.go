@@ -2237,6 +2237,8 @@ type CreateShippingMethodInput struct {
 	EstimatedDays      *int32                         `json:"estimatedDays,omitempty"`
 	DeliversOnWeekends *bool                          `json:"deliversOnWeekends,omitempty"`
 	TypeRates          []*ShippingMethodTypeRateInput `json:"typeRates,omitempty"`
+	TableBasis         *ShippingTableBasis            `json:"tableBasis,omitempty"`
+	RateTiers          []*ShippingRateTierInput       `json:"rateTiers,omitempty"`
 }
 
 type CreateShippingZoneInput struct {
@@ -5222,6 +5224,8 @@ type ShippingMethod struct {
 	EstimatedDays      int32                     `json:"estimatedDays"`
 	DeliversOnWeekends bool                      `json:"deliversOnWeekends"`
 	TypeRates          []*ShippingMethodTypeRate `json:"typeRates"`
+	TableBasis         ShippingTableBasis        `json:"tableBasis"`
+	RateTiers          []*ShippingRateTier       `json:"rateTiers"`
 	CreatedAt          time.Time                 `json:"createdAt"`
 	UpdatedAt          time.Time                 `json:"updatedAt"`
 }
@@ -5239,6 +5243,18 @@ type ShippingMethodTypeRateInput struct {
 	PriceCents           int32  `json:"priceCents"`
 	UnitsPerCharge       *int32 `json:"unitsPerCharge,omitempty"`
 	FreeShippingEligible *bool  `json:"freeShippingEligible,omitempty"`
+}
+
+type ShippingRateTier struct {
+	From       int32 `json:"from"`
+	PriceCents int32 `json:"priceCents"`
+	NotOffered bool  `json:"notOffered"`
+}
+
+type ShippingRateTierInput struct {
+	From       int32 `json:"from"`
+	PriceCents int32 `json:"priceCents"`
+	NotOffered *bool `json:"notOffered,omitempty"`
 }
 
 type ShippingZone struct {
@@ -6275,6 +6291,8 @@ type UpdateShippingMethodInput struct {
 	EstimatedDays      *int32                         `json:"estimatedDays,omitempty"`
 	DeliversOnWeekends *bool                          `json:"deliversOnWeekends,omitempty"`
 	TypeRates          []*ShippingMethodTypeRateInput `json:"typeRates,omitempty"`
+	TableBasis         *ShippingTableBasis            `json:"tableBasis,omitempty"`
+	RateTiers          []*ShippingRateTierInput       `json:"rateTiers,omitempty"`
 }
 
 type UpdateShippingZoneInput struct {
@@ -10509,17 +10527,19 @@ const (
 	ShippingCalcTypeFlat      ShippingCalcType = "FLAT"
 	ShippingCalcTypeFree      ShippingCalcType = "FREE"
 	ShippingCalcTypeFreeAbove ShippingCalcType = "FREE_ABOVE"
+	ShippingCalcTypeTable     ShippingCalcType = "TABLE"
 )
 
 var AllShippingCalcType = []ShippingCalcType{
 	ShippingCalcTypeFlat,
 	ShippingCalcTypeFree,
 	ShippingCalcTypeFreeAbove,
+	ShippingCalcTypeTable,
 }
 
 func (e ShippingCalcType) IsValid() bool {
 	switch e {
-	case ShippingCalcTypeFlat, ShippingCalcTypeFree, ShippingCalcTypeFreeAbove:
+	case ShippingCalcTypeFlat, ShippingCalcTypeFree, ShippingCalcTypeFreeAbove, ShippingCalcTypeTable:
 		return true
 	}
 	return false
@@ -10555,6 +10575,63 @@ func (e *ShippingCalcType) UnmarshalJSON(b []byte) error {
 }
 
 func (e ShippingCalcType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type ShippingTableBasis string
+
+const (
+	ShippingTableBasisWeight   ShippingTableBasis = "WEIGHT"
+	ShippingTableBasisSubtotal ShippingTableBasis = "SUBTOTAL"
+	ShippingTableBasisQuantity ShippingTableBasis = "QUANTITY"
+)
+
+var AllShippingTableBasis = []ShippingTableBasis{
+	ShippingTableBasisWeight,
+	ShippingTableBasisSubtotal,
+	ShippingTableBasisQuantity,
+}
+
+func (e ShippingTableBasis) IsValid() bool {
+	switch e {
+	case ShippingTableBasisWeight, ShippingTableBasisSubtotal, ShippingTableBasisQuantity:
+		return true
+	}
+	return false
+}
+
+func (e ShippingTableBasis) String() string {
+	return string(e)
+}
+
+func (e *ShippingTableBasis) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ShippingTableBasis(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ShippingTableBasis", str)
+	}
+	return nil
+}
+
+func (e ShippingTableBasis) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ShippingTableBasis) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ShippingTableBasis) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
