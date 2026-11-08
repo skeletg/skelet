@@ -600,15 +600,19 @@ type GetHealthResponse struct {
 	// Deprecated: Marked as deprecated in skelet/signals/v1/maintenance.proto.
 	Enabled bool `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
 	// postgres | clickhouse
-	SpineEngine       string                 `protobuf:"bytes,2,opt,name=spine_engine,json=spineEngine,proto3" json:"spine_engine,omitempty"`
-	SpineError        string                 `protobuf:"bytes,3,opt,name=spine_error,json=spineError,proto3" json:"spine_error,omitempty"`
-	SpineOldest       *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=spine_oldest,json=spineOldest,proto3,oneof" json:"spine_oldest,omitempty"`
-	SpineNewest       *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=spine_newest,json=spineNewest,proto3,oneof" json:"spine_newest,omitempty"`
-	PendingErasures   int32                  `protobuf:"varint,6,opt,name=pending_erasures,json=pendingErasures,proto3" json:"pending_erasures,omitempty"`
-	ErasuresError     string                 `protobuf:"bytes,7,opt,name=erasures_error,json=erasuresError,proto3" json:"erasures_error,omitempty"`
-	Queue             *QueueHealth           `protobuf:"bytes,8,opt,name=queue,proto3" json:"queue,omitempty"`
-	Destinations      []*DestinationHealth   `protobuf:"bytes,9,rep,name=destinations,proto3" json:"destinations,omitempty"`
-	DestinationsError string                 `protobuf:"bytes,10,opt,name=destinations_error,json=destinationsError,proto3" json:"destinations_error,omitempty"`
+	SpineEngine     string                 `protobuf:"bytes,2,opt,name=spine_engine,json=spineEngine,proto3" json:"spine_engine,omitempty"`
+	SpineError      string                 `protobuf:"bytes,3,opt,name=spine_error,json=spineError,proto3" json:"spine_error,omitempty"`
+	SpineOldest     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=spine_oldest,json=spineOldest,proto3,oneof" json:"spine_oldest,omitempty"`
+	SpineNewest     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=spine_newest,json=spineNewest,proto3,oneof" json:"spine_newest,omitempty"`
+	PendingErasures int32                  `protobuf:"varint,6,opt,name=pending_erasures,json=pendingErasures,proto3" json:"pending_erasures,omitempty"`
+	ErasuresError   string                 `protobuf:"bytes,7,opt,name=erasures_error,json=erasuresError,proto3" json:"erasures_error,omitempty"`
+	Queue           *QueueHealth           `protobuf:"bytes,8,opt,name=queue,proto3" json:"queue,omitempty"`
+	// Retired with the suite's event destinations, never filled
+	//
+	// Deprecated: Marked as deprecated in skelet/signals/v1/maintenance.proto.
+	Destinations []*DestinationHealth `protobuf:"bytes,9,rep,name=destinations,proto3" json:"destinations,omitempty"`
+	// Deprecated: Marked as deprecated in skelet/signals/v1/maintenance.proto.
+	DestinationsError string `protobuf:"bytes,10,opt,name=destinations_error,json=destinationsError,proto3" json:"destinations_error,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -700,6 +704,7 @@ func (x *GetHealthResponse) GetQueue() *QueueHealth {
 	return nil
 }
 
+// Deprecated: Marked as deprecated in skelet/signals/v1/maintenance.proto.
 func (x *GetHealthResponse) GetDestinations() []*DestinationHealth {
 	if x != nil {
 		return x.Destinations
@@ -707,6 +712,7 @@ func (x *GetHealthResponse) GetDestinations() []*DestinationHealth {
 	return nil
 }
 
+// Deprecated: Marked as deprecated in skelet/signals/v1/maintenance.proto.
 func (x *GetHealthResponse) GetDestinationsError() string {
 	if x != nil {
 		return x.DestinationsError
@@ -1784,7 +1790,7 @@ const file_skelet_signals_v1_maintenance_proto_rawDesc = "" +
 	"\x19GetRetentionActionRequest\"6\n" +
 	"\x1aGetRetentionActionResponse\x12\x18\n" +
 	"\aarchive\x18\x01 \x01(\bR\aarchive\"\x12\n" +
-	"\x10GetHealthRequest\"\xa0\x04\n" +
+	"\x10GetHealthRequest\"\xa8\x04\n" +
 	"\x11GetHealthResponse\x12\x1c\n" +
 	"\aenabled\x18\x01 \x01(\bB\x02\x18\x01R\aenabled\x12!\n" +
 	"\fspine_engine\x18\x02 \x01(\tR\vspineEngine\x12\x1f\n" +
@@ -1794,10 +1800,10 @@ const file_skelet_signals_v1_maintenance_proto_rawDesc = "" +
 	"\fspine_newest\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampH\x01R\vspineNewest\x88\x01\x01\x12)\n" +
 	"\x10pending_erasures\x18\x06 \x01(\x05R\x0fpendingErasures\x12%\n" +
 	"\x0eerasures_error\x18\a \x01(\tR\rerasuresError\x124\n" +
-	"\x05queue\x18\b \x01(\v2\x1e.skelet.signals.v1.QueueHealthR\x05queue\x12H\n" +
-	"\fdestinations\x18\t \x03(\v2$.skelet.signals.v1.DestinationHealthR\fdestinations\x12-\n" +
+	"\x05queue\x18\b \x01(\v2\x1e.skelet.signals.v1.QueueHealthR\x05queue\x12L\n" +
+	"\fdestinations\x18\t \x03(\v2$.skelet.signals.v1.DestinationHealthB\x02\x18\x01R\fdestinations\x121\n" +
 	"\x12destinations_error\x18\n" +
-	" \x01(\tR\x11destinationsErrorB\x0f\n" +
+	" \x01(\tB\x02\x18\x01R\x11destinationsErrorB\x0f\n" +
 	"\r_spine_oldestB\x0f\n" +
 	"\r_spine_newest\"\xcd\x01\n" +
 	"\vQueueHealth\x12\x1e\n" +
@@ -1886,15 +1892,15 @@ const file_skelet_signals_v1_maintenance_proto_rawDesc = "" +
 	"\x1aProcessDueCampaignsRequest\x121\n" +
 	"\x06budget\x18\x01 \x01(\v2\x19.google.protobuf.DurationR\x06budget\"P\n" +
 	"\x1bProcessDueCampaignsResponse\x121\n" +
-	"\x14recipients_processed\x18\x01 \x01(\x05R\x13recipientsProcessed2\xa0\r\n" +
+	"\x14recipients_processed\x18\x01 \x01(\x05R\x13recipientsProcessed2\xa5\r\n" +
 	"\x12MaintenanceService\x12Y\n" +
 	"\n" +
 	"PruneSpine\x12$.skelet.signals.v1.PruneSpineRequest\x1a%.skelet.signals.v1.PruneSpineResponse\x12V\n" +
 	"\tPruneLens\x12#.skelet.signals.v1.PruneLensRequest\x1a$.skelet.signals.v1.PruneLensResponse\x12_\n" +
 	"\fPruneSendLog\x12&.skelet.signals.v1.PruneSendLogRequest\x1a'.skelet.signals.v1.PruneSendLogResponse\x12\x8c\x01\n" +
 	"\x1bPruneAssistantConversations\x125.skelet.signals.v1.PruneAssistantConversationsRequest\x1a6.skelet.signals.v1.PruneAssistantConversationsResponse\x12b\n" +
-	"\rComputeTraits\x12'.skelet.signals.v1.ComputeTraitsRequest\x1a(.skelet.signals.v1.ComputeTraitsResponse\x12t\n" +
-	"\x13ForwardDestinations\x12-.skelet.signals.v1.ForwardDestinationsRequest\x1a..skelet.signals.v1.ForwardDestinationsResponse\x12q\n" +
+	"\rComputeTraits\x12'.skelet.signals.v1.ComputeTraitsRequest\x1a(.skelet.signals.v1.ComputeTraitsResponse\x12y\n" +
+	"\x13ForwardDestinations\x12-.skelet.signals.v1.ForwardDestinationsRequest\x1a..skelet.signals.v1.ForwardDestinationsResponse\"\x03\x88\x02\x01\x12q\n" +
 	"\x12GetRetentionAction\x12,.skelet.signals.v1.GetRetentionActionRequest\x1a-.skelet.signals.v1.GetRetentionActionResponse\x12V\n" +
 	"\tGetHealth\x12#.skelet.signals.v1.GetHealthRequest\x1a$.skelet.signals.v1.GetHealthResponse\x12w\n" +
 	"\x14ListBrowseAbandoners\x12..skelet.signals.v1.ListBrowseAbandonersRequest\x1a/.skelet.signals.v1.ListBrowseAbandonersResponse\x12q\n" +

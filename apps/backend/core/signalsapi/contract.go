@@ -17,7 +17,6 @@ var Slugs = []string{
 	"experiments.manage",
 	"lens.view",
 	"assistant.view",
-	"settings.manage", // the event-destination screens
 	"promotions.view",
 	"promotions.manage", // segments are administered under promotions
 	"customers.view",    // Synapse - customer behaviour, profiles, audiences

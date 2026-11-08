@@ -271,11 +271,11 @@ func (e *editor) key32() string {
 	return v
 }
 
-// generate makes a value in the encoding key's checks demand: the two AES keys and the Ed25519 seed are base64 of 32
+// generate makes a value in the encoding key's checks demand: the AES key and the Ed25519 seed are base64 of 32
 // bytes, everything else is 32 bytes of hex
 func (e *editor) generate(key string) string {
 	switch key {
-	case "CONFIG_ENCRYPTION_KEY", "SIGNALS_ENCRYPTION_KEY", "CUSTOMER_JWT_PRIVATE_KEY":
+	case "CONFIG_ENCRYPTION_KEY", "CUSTOMER_JWT_PRIVATE_KEY":
 		return e.key32()
 	}
 	return e.hex(32)
@@ -325,7 +325,7 @@ func (e *editor) secrets(backend, target string) {
 	e.del(".env", "JWT_SECRET")
 	shared := []string{"ADMIN_JWT_SECRET", "CUSTOMER_JWT_PRIVATE_KEY", "CUSTOMER_JWT_PUBLIC_KEY", "EMAIL_LINK_SECRET",
 		"REVIEW_VOTER_TOKEN_SECRET", "CONFIG_ENCRYPTION_KEY", "SIGNALS_SERVICE_SECRET", "STOREFRONT_REVALIDATE_SECRET"}
-	for _, k := range append(slices.Clone(shared), "SIGNALS_ENCRYPTION_KEY", "STORAGE_SIGNING_KEY", "DB_PASSWORD",
+	for _, k := range append(slices.Clone(shared), "STORAGE_SIGNING_KEY", "DB_PASSWORD",
 		"SIGNALS_DB_PASSWORD", "VALKEY_PASSWORD", "CLICKHOUSE_PASSWORD") {
 		if !placeholder(e.get(".env", k)) {
 			fmt.Fprintf(e.out, "    .env %s already set, left alone\n", k)

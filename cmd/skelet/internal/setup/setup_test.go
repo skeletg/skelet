@@ -219,9 +219,6 @@ func TestSmallAndProdFillTheRootEnvComposeReads(t *testing.T) {
 				t.Errorf("%s: .env %s differs from env/%s.env's - compose's environment: would override it", target, k, target)
 			}
 		}
-		if b, err := base64.StdEncoding.DecodeString(dotenv["SIGNALS_ENCRYPTION_KEY"]); err != nil || len(b) != 32 || dotenv["SIGNALS_ENCRYPTION_KEY"] == dotenv["CONFIG_ENCRYPTION_KEY"] {
-			t.Errorf("%s: SIGNALS_ENCRYPTION_KEY must be its own 32-byte key", target)
-		}
 		for _, k := range []string{"DB_PASSWORD", "SIGNALS_DB_PASSWORD", "VALKEY_PASSWORD", "CLICKHOUSE_PASSWORD", "STORAGE_SIGNING_KEY"} {
 			if len(dotenv[k]) != 64 {
 				t.Errorf("%s: .env %s = %q", target, k, dotenv[k])

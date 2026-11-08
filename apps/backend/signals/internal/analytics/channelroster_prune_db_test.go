@@ -127,7 +127,7 @@ func TestARetiredChannelsRecordingsLeaveTheBucketEvenAfterAFailedSweep(t *testin
 		{`INSERT INTO lens_sessions (id, channel_id, anon_id, started_at, last_event_at) VALUES ($1, $2, 'a', now(), now())`, []any{session, retire}},
 		{`INSERT INTO lens_session_chunks (session_id, seq, first_ts, last_ts, blob_key) VALUES ($1, 0, 1, 2, $2)`, []any{session, chunkKey}},
 		{`INSERT INTO lens_page_snapshots (channel_id, page_key, viewport_bucket, layout_hash, width, height, blob_key) VALUES ($1, '/', 'd', 'h', 1, 1, $2)`, []any{retire, snapKey}},
-		{`INSERT INTO event_destinations (channel_id, name, target_url) VALUES ($1, 'hook', 'https://example.test/hook')`, []any{retire}},
+		{`INSERT INTO experiments (channel_id, key, name) VALUES ($1, 'test', 'Test')`, []any{retire}},
 	} {
 		if _, err := conn.Exec(seed.q, seed.args...); err != nil {
 			t.Fatalf("seed: %v\n%s", err, seed.q)
@@ -136,7 +136,7 @@ func TestARetiredChannelsRecordingsLeaveTheBucketEvenAfterAFailedSweep(t *testin
 	t.Cleanup(func() {
 		_, _ = conn.Exec(`DELETE FROM lens_sessions WHERE channel_id = $1`, retire)
 		_, _ = conn.Exec(`DELETE FROM lens_page_snapshots WHERE channel_id = $1`, retire)
-		_, _ = conn.Exec(`DELETE FROM event_destinations WHERE channel_id = $1`, retire)
+		_, _ = conn.Exec(`DELETE FROM experiments WHERE channel_id = $1`, retire)
 		_, _ = conn.Exec(`DELETE FROM channel_roster_tombstones`)
 	})
 	blobs := &flakyBlobs{fail: true}
@@ -148,8 +148,8 @@ func TestARetiredChannelsRecordingsLeaveTheBucketEvenAfterAFailedSweep(t *testin
 	if _, _, err := r.SyncChannels(ctx, []ChannelEntry{{ID: keep, IsActive: true}}); err == nil {
 		t.Error("a sweep that could not delete the recordings reported success")
 	}
-	if n := countWhere(t, r, `SELECT count(*) FROM event_destinations WHERE channel_id = $1`, retire); n != 0 {
-		t.Errorf("a failing step stopped the sweep: %d destinations still forward for the retired channel", n)
+	if n := countWhere(t, r, `SELECT count(*) FROM experiments WHERE channel_id = $1`, retire); n != 0 {
+		t.Errorf("a failing step stopped the sweep: %d experiments still run for the retired channel", n)
 	}
 	if n := countWhere(t, r, `SELECT count(*) FROM lens_sessions WHERE channel_id = $1`, retire); n != 1 {
 		t.Errorf("recording rows = %d while their objects are still in the bucket, want the row kept to find them again", n)

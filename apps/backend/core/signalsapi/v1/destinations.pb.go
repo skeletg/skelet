@@ -4,8 +4,9 @@
 // 	protoc        (unknown)
 // source: skelet/signals/v1/destinations.proto
 
-// Event destinations: spine events forwarded to external systems, and segment audiences pushed as hashed identifiers
-// Forwarding runs on a scheduled sweep with a durable per-destination cursor, so delivery is at-least-once in ingest order and last_error stands until a sweep succeeds
+// Retired: core's tracking destinations send shop events to analytics and ad platforms, and the suite serves none of
+// this any more. The definitions stay until the release after this one, so a core and a suite a release apart still
+// agree on the wire during a rolling deploy - then the file goes
 
 package signalsv1
 
@@ -913,14 +914,14 @@ const file_skelet_signals_v1_destinations_proto_rawDesc = "" +
 	"\x0edestination_id\x18\x02 \x01(\tR\rdestinationId\x12 \n" +
 	"\videntifiers\x18\x03 \x03(\tR\videntifiers\"A\n" +
 	"\x14SyncAudienceResponse\x12)\n" +
-	"\x10identifiers_sent\x18\x01 \x01(\x05R\x0fidentifiersSent2\x99\x05\n" +
+	"\x10identifiers_sent\x18\x01 \x01(\x05R\x0fidentifiersSent2\x9e\x05\n" +
 	"\x12DestinationService\x12k\n" +
 	"\x10ListDestinations\x12*.skelet.signals.v1.ListDestinationsRequest\x1a+.skelet.signals.v1.ListDestinationsResponse\x12n\n" +
 	"\x11CreateDestination\x12+.skelet.signals.v1.CreateDestinationRequest\x1a,.skelet.signals.v1.CreateDestinationResponse\x12n\n" +
 	"\x11UpdateDestination\x12+.skelet.signals.v1.UpdateDestinationRequest\x1a,.skelet.signals.v1.UpdateDestinationResponse\x12e\n" +
 	"\x0eGetDestination\x12(.skelet.signals.v1.GetDestinationRequest\x1a).skelet.signals.v1.GetDestinationResponse\x12n\n" +
 	"\x11DeleteDestination\x12+.skelet.signals.v1.DeleteDestinationRequest\x1a,.skelet.signals.v1.DeleteDestinationResponse\x12_\n" +
-	"\fSyncAudience\x12&.skelet.signals.v1.SyncAudienceRequest\x1a'.skelet.signals.v1.SyncAudienceResponseB\xd5\x01\n" +
+	"\fSyncAudience\x12&.skelet.signals.v1.SyncAudienceRequest\x1a'.skelet.signals.v1.SyncAudienceResponse\x1a\x03\x88\x02\x01B\xd5\x01\n" +
 	"\x15com.skelet.signals.v1B\x11DestinationsProtoP\x01ZCgithub.com/skeletg/skelet/apps/backend/core/signalsapi/v1;signalsv1\xa2\x02\x03SSX\xaa\x02\x11Skelet.Signals.V1\xca\x02\x11Skelet\\Signals\\V1\xe2\x02\x1dSkelet\\Signals\\V1\\GPBMetadata\xea\x02\x13Skelet::Signals::V1b\x06proto3"
 
 var (

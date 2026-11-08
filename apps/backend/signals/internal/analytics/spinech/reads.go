@@ -1206,43 +1206,6 @@ func (s *Store) ChannelEngagementCountsFor(ctx context.Context, channelID uuid.U
 	return out, rows.Err()
 }
 
-// A keyset page of raw events for outbound forwarding - ClickHouse sorts on (channel_id, dedupe_key), so this orders explicitly and pays a sort, which is bounded by the batch limit
-// The cursor compares milliseconds and the uuid AS TEXT: a batch insert stamps one created_at across the whole batch, so the tiebreaker decides the page boundary, and ClickHouse orders UUID by its two internal words rather than by its text, so comparing the raw column would disagree with the text cursor and re-serve rows
-func (s *Store) EventsForForwarding(ctx context.Context, channelID uuid.UUID, afterCreatedAt time.Time, afterID uuid.UUID, limit int) ([]analytics.ForwardEvent, error) {
-	// the 5s watermark - a batch mid-flush must never end up behind an advanced cursor
-	// The bare created_at >= bound is what the minmax skip index can evaluate - without it the function-wrapped tuple reads the channel's entire retained history every poll, and the tuple then draws the exact page boundary within that granule set
-	rows, err := s.conn.Query(ctx, `
-		SELECT id, event_name, occurred_at, customer_id, anon_id, source, properties, created_at, dedupe_key
-		FROM analytics_events FINAL
-		WHERE channel_id = ? AND created_at >= ?
-		  AND (toUnixTimestamp64Milli(created_at), toString(id)) > (?, ?)
-		  AND created_at < now64(3) - INTERVAL 5 SECOND
-		ORDER BY toUnixTimestamp64Milli(created_at), toString(id) LIMIT ?`,
-		channelID, afterCreatedAt, afterCreatedAt.UnixMilli(), afterID.String(), uint64(limit))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []analytics.ForwardEvent
-	for rows.Next() {
-		var (
-			e    analytics.ForwardEvent
-			cust uuid.UUID
-			raw  string
-		)
-		if err := rows.Scan(&e.ID, &e.Name, &e.OccurredAt, &cust, &e.AnonID, &e.Source, &raw, &e.CreatedAt, &e.DedupeKey); err != nil {
-			return nil, err
-		}
-		if cust != uuid.Nil {
-			id := cust
-			e.CustomerID = &id
-		}
-		e.Properties = json.RawMessage(raw)
-		out = append(out, e)
-	}
-	return out, rows.Err()
-}
-
 // Pickable goal-event names, most-frequent first - web custom events by their real name, plus commerce and account event names so an experiment can measure orders
 func (s *Store) ExperimentGoalEvents(ctx context.Context, channelID uuid.UUID, since time.Time) ([]string, error) {
 	rows, err := s.conn.Query(ctx, `

@@ -13,7 +13,6 @@ fragment TrackingDestinationFields on TrackingDestination {
   secretSet
   needsSecret
   inTestMode
-  importedFrom
   health {
     lastSentAt
     lastError
@@ -76,23 +75,6 @@ query TrackingDeliveries($destinationId: ID!, $status: TrackingDeliveryStatus, $
   }
 }
 
-query SignalsImportCandidates($channelId: ID!) {
-  signalsImportCandidates(channelId: $channelId) {
-    legacyId
-    name
-    legacyKind
-    targetKind
-    config {
-      key
-      value
-    }
-    signalsActive
-    importedAs
-    droppedFilters
-    problem
-  }
-}
-
 mutation CreateTrackingDestination($channelId: ID!, $kind: String!, $input: TrackingDestinationInput!) {
   createTrackingDestination(channelId: $channelId, kind: $kind, input: $input) {
     ...TrackingDestinationFields
@@ -132,8 +114,3 @@ mutation RedeliverTrackingDelivery($id: ID!) {
   }
 }
 
-mutation ImportSignalsDestinations($channelId: ID!, $legacyIds: [ID!]!) {
-  importSignalsDestinations(channelId: $channelId, legacyIds: $legacyIds) {
-    ...TrackingDestinationFields
-  }
-}

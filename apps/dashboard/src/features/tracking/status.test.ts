@@ -7,7 +7,7 @@ const platform = (over: Partial<Platform> = {}): Platform => ({
 })
 const dest = (over: Partial<Destination> = {}): Destination => ({
   id: 'd1', channelId: 'c1', kind: 'ga4', name: 'GA4', enabled: true, events: [], effectiveEvents: [], config: [],
-  secretSet: true, needsSecret: false, inTestMode: false, importedFrom: null, createdAt: '', updatedAt: '',
+  secretSet: true, needsSecret: false, inTestMode: false, createdAt: '', updatedAt: '',
   health: { lastSentAt: null, lastError: '', dead24h: 0 }, ...over,
 })
 

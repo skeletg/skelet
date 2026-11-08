@@ -155,7 +155,6 @@ func (c *ChannelRoster) sweepRetired(ctx context.Context) error {
 		{"saved emails", c.qs.PruneOrphanedEmailLibrary},
 		{"block types", c.qs.PruneOrphanedEmailBlocks},
 		{"template overrides", c.qs.PruneOrphanedEmailTemplates},
-		{"event destinations", c.qs.PruneOrphanedDestinations},
 		{"experiments", c.qs.PruneOrphanedExperiments},
 		{"boards", c.qs.PruneOrphanedBoards},
 		{"channel settings", c.qs.PruneOrphanedChannelSettings},

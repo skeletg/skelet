@@ -50,15 +50,6 @@ func (c *Client) ComputeTraits(ctx context.Context) error {
 	return err
 }
 
-func (c *Client) ForwardDestinations(ctx context.Context) error {
-	sys, err := c.System(ctx)
-	if err != nil {
-		return err
-	}
-	_, err = c.Maintenance.ForwardDestinations(sys, &signalsv1.ForwardDestinationsRequest{})
-	return err
-}
-
 // AdvanceFlowRuns is one tick of the flow engine - the suite keeps claiming batches while the budget allows, zero runs one batch
 // Answers how many runs the tick advanced
 func (c *Client) AdvanceFlowRuns(ctx context.Context, budget time.Duration) (int, error) {
@@ -99,15 +90,13 @@ func (c *Client) PruneSendLog(ctx context.Context) error {
 
 // SuiteHealth is what core's health page reports about the suite, gathered in one round trip
 type SuiteHealth struct {
-	SpineEngine       string
-	SpineError        string
-	SpineOldest       *time.Time
-	SpineNewest       *time.Time
-	PendingErasures   int
-	ErasuresError     string
-	Queue             QueueHealth
-	Destinations      []DestinationHealth
-	DestinationsError string
+	SpineEngine     string
+	SpineError      string
+	SpineOldest     *time.Time
+	SpineNewest     *time.Time
+	PendingErasures int
+	ErasuresError   string
+	Queue           QueueHealth
 }
 
 type QueueHealth struct {
@@ -117,12 +106,6 @@ type QueueHealth struct {
 	StreamMessages int64
 	Pending        int64
 	Redelivering   int64
-}
-
-type DestinationHealth struct {
-	Name            string
-	LastError       string
-	LastForwardedAt *time.Time
 }
 
 func (c *Client) Health(ctx context.Context) (SuiteHealth, error) {
@@ -138,18 +121,12 @@ func (c *Client) Health(ctx context.Context) (SuiteHealth, error) {
 		SpineEngine: res.GetSpineEngine(), SpineError: res.GetSpineError(),
 		SpineOldest: timeOrNil(res.SpineOldest), SpineNewest: timeOrNil(res.SpineNewest),
 		PendingErasures: int(res.GetPendingErasures()), ErasuresError: res.GetErasuresError(),
-		DestinationsError: res.GetDestinationsError(),
 	}
 	if q := res.GetQueue(); q != nil {
 		h.Queue = QueueHealth{
 			Configured: q.GetConfigured(), Error: q.GetError(), HasConsumer: q.GetHasConsumer(),
 			StreamMessages: q.GetStreamMessages(), Pending: q.GetPending(), Redelivering: q.GetRedelivering(),
 		}
-	}
-	for _, d := range res.GetDestinations() {
-		h.Destinations = append(h.Destinations, DestinationHealth{
-			Name: d.GetName(), LastError: d.GetLastError(), LastForwardedAt: timeOrNil(d.LastForwardedAt),
-		})
 	}
 	return h, nil
 }

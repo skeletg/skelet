@@ -222,44 +222,6 @@ func registerDeliveryChecks(r *health.Registry, d healthDeps) {
 			}
 			return health.OK(fmt.Sprintf("%d active, last attempt succeeded on each", active))
 		}})
-
-	// The destination rows carry their own last error, so this is a read rather than a probe
-	r.Register(health.Check{Group: "delivery", Key: "destinations", Label: "Event forwarding", Order: 2,
-		Run: func(ctx context.Context) health.Result {
-			if !bool(d.SignalsOn) {
-				return health.Off("disabled", "SIGNALS_ENABLED is false, so nothing is forwarded")
-			}
-			h, err := d.SignalsClient.Health(ctx)
-			if err != nil {
-				return health.Bad("unreadable", err.Error())
-			}
-			if h.DestinationsError != "" {
-				return health.Bad("unreadable", h.DestinationsError)
-			}
-			dests := h.Destinations
-			if len(dests) == 0 {
-				return health.Off("no destinations", "")
-			}
-			var broken []string
-			var quietest *signalsclient.DestinationHealth
-			for i, dest := range dests {
-				if dest.LastError != "" {
-					broken = append(broken, dest.Name)
-				}
-				if quietest == nil || olderForward(dest.LastForwardedAt, quietest.LastForwardedAt) {
-					quietest = &dests[i]
-				}
-			}
-			if len(broken) > 0 {
-				return health.Bad(fmt.Sprintf("%d active, %d erroring", len(dests), len(broken)),
-					strings.Join(broken, ", ")+" reported an error on the last send")
-			}
-			if quietest != nil && hoursSince(quietest.LastForwardedAt) > 1 {
-				return health.Warn(fmt.Sprintf("%d active, quietest sent %s", len(dests), agoText(quietest.LastForwardedAt)),
-					"No delivery in over an hour. Fine if the store is quiet, otherwise check the receiver")
-			}
-			return health.OK(fmt.Sprintf("%d active", len(dests)))
-		}})
 }
 
 // Each probe asks the suite for the same snapshot - the registry memoises it, so the repeats cost one in-cluster round trip each
@@ -453,16 +415,6 @@ func hoursSince(t *time.Time) float64 {
 }
 
 const math_Inf = 1e9 // a sentinel, so "never" compares greater than every threshold without importing math for one value
-
-func olderForward(a, b *time.Time) bool {
-	if a == nil {
-		return true
-	}
-	if b == nil {
-		return false
-	}
-	return a.Before(*b)
-}
 
 func agoText(t *time.Time) string {
 	if t == nil {

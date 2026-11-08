@@ -32,7 +32,6 @@ type store interface {
 	Retry(ctx context.Context, id uuid.UUID) (bool, error)
 	GetDelivery(ctx context.Context, id uuid.UUID) (Delivery, error)
 	ListDeliveries(ctx context.Context, destinationID uuid.UUID, status string, limit int32) ([]Delivery, error)
-	Import(ctx context.Context, d Destination, legacyID uuid.UUID) (Destination, bool, error)
 	Health(ctx context.Context, channelID uuid.UUID) (map[uuid.UUID]Health, error)
 	Prune(ctx context.Context, logBefore, replayBefore time.Time) (int64, error)
 }
@@ -135,7 +134,7 @@ func (s *Service) Update(ctx context.Context, d Destination) (Destination, error
 	if err != nil {
 		return Destination{}, err
 	}
-	d.Kind, d.ChannelID, d.ImportedFrom = current.Kind, current.ChannelID, current.ImportedFrom
+	d.Kind, d.ChannelID = current.Kind, current.ChannelID
 	if err := validate(d, false); err != nil {
 		return Destination{}, err
 	}
@@ -160,12 +159,6 @@ func NeedsSecret(d Destination) bool {
 	return false
 }
 
-// Imported is a destination copied from elsewhere, with the id of the one it was copied from
-type Imported struct {
-	Destination
-	LegacyID uuid.UUID
-}
-
 // InTestMode reports a destination whose kind's test-mode setting is on - its sends stay out of the platform's live
 // reports. A kind without one is never in test mode
 func InTestMode(d Destination) bool {
@@ -177,28 +170,6 @@ func InTestMode(d Destination) bool {
 		}
 	}
 	return false
-}
-
-// Import copies destinations from elsewhere (old Signals ones) - always disabled and without a secret, which the admin
-// enters before turning one on. Every one is checked before any is saved, so a refusal imports nothing. It returns the
-// newly imported; one imported before is left as it was
-func (s *Service) Import(ctx context.Context, items []Imported) ([]Destination, error) {
-	for _, it := range items {
-		if err := validate(it.Destination, false); err != nil {
-			return nil, fmt.Errorf("%s: %w", it.Name, err)
-		}
-	}
-	out := []Destination{}
-	for _, it := range items {
-		d, imported, err := s.store.Import(ctx, it.Destination, it.LegacyID)
-		if err != nil {
-			return nil, err
-		}
-		if imported {
-			out = append(out, d)
-		}
-	}
-	return out, nil
 }
 
 // Health is each destination of a channel with its last success, last failure and failures in the past day

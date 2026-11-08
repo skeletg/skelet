@@ -107,14 +107,6 @@ FROM   tracking_deliveries d
 JOIN   tracking_events e ON e.id = d.tracking_event_id
 WHERE  d.id = $1;
 
--- name: ImportTrackingDestination :one
--- Always disabled and without a secret - the admin re-enters it, since Signals never hands one over. A second import of
--- the same Signals row returns nothing
-INSERT INTO tracking_destinations (channel_id, kind, name, enabled, events, config, secret, imported_from)
-VALUES (sqlc.arg(channel_id), sqlc.arg(kind), sqlc.arg(name), FALSE, '{}'::text[], sqlc.arg(config), '', sqlc.arg(imported_from))
-ON CONFLICT (imported_from) WHERE imported_from IS NOT NULL DO NOTHING
-RETURNING *;
-
 -- name: TrackingDestinationHealth :many
 -- Each destination of a channel with its last failure and failures in the past day
 SELECT d.id,

@@ -120,19 +120,17 @@ func Allowed(purposes []Purpose, c *sdk.ShopConsent) bool {
 
 // Destination is one configured account on a platform, with its secret decrypted
 type Destination struct {
-	ID        uuid.UUID
-	ChannelID uuid.UUID
-	Kind      string
-	Name      string
-	Enabled   bool
-	Events    []string // empty: the kind's defaults
-	Config    map[string]string
-	Secret    string
-	// The Signals event destination this was imported from - nil for one set up here
-	ImportedFrom *uuid.UUID
-	LastSentAt   *time.Time // stamped at most once a minute; nil: never
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID         uuid.UUID
+	ChannelID  uuid.UUID
+	Kind       string
+	Name       string
+	Enabled    bool
+	Events     []string // empty: the kind's defaults
+	Config     map[string]string
+	Secret     string
+	LastSentAt *time.Time // stamped at most once a minute; nil: never
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 // Health is a destination's recent failures: the latest and how many failed in a day

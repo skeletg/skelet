@@ -78,9 +78,9 @@ describe('TrackingDestinationPage', () => {
     await vi.waitFor(() => expect(sent).toHaveBeenCalled(), SLOW)
   })
 
-  it('asks for the secret on an imported destination and keeps it switched off', async () => {
-    renderDestination(ga4Destination({ needsSecret: true, secretSet: false, importedFrom: 'legacy-1' }))
-    expect(await screen.findByText(/Imported from Signals/, {}, SLOW)).toBeDefined()
+  it('asks for the secret a destination is missing and keeps it switched off', async () => {
+    renderDestination(ga4Destination({ needsSecret: true, secretSet: false }))
+    expect(await screen.findByText(/Enter it below and save before turning this destination on/, {}, SLOW)).toBeDefined()
     expect((screen.getByRole('switch', { name: /Off/ }) as HTMLButtonElement).disabled).toBe(true)
   })
 })

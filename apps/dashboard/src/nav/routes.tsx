@@ -186,13 +186,6 @@ registerNavNode({
           element: lazyPage(() => import('@/features/tracking/TrackingPage'), 'TrackingPage'),
           permission: 'tracking.view',
         },
-        {
-          title: 'Signals event export',
-          path: '/destinations',
-          element: lazyPage(() => import('@/features/destinations/DestinationsPage'), 'DestinationsPage'),
-          permission: 'settings.manage',
-          feature: 'signals',
-        },
       ],
     },
   ],

@@ -210,20 +210,7 @@ function DestinationForm({ destination, platform, refetch }: { destination: Dest
             <Alert variant="warning">
               <AlertTitle>Needs its {platform.fields.find((f) => f.secret)?.label ?? 'secret'}</AlertTitle>
               <AlertDescription>
-                {destination.importedFrom
-                  ? 'Imported from Signals, which never hands secrets over. Enter it below and save, then send a test.'
-                  : 'Enter it below and save before turning this destination on.'}
-              </AlertDescription>
-            </Alert>
-          </div>
-        )}
-
-        {destination.importedFrom && platform.kind === 'webhook' && (
-          <div className="px-6 pt-6">
-            <Alert variant="info">
-              <AlertTitle>The webhook format changed</AlertTitle>
-              <AlertDescription>
-                Signals posted batches signed with X-Destination-Signature. This sends one event per POST, signed with X-Webhook-Signature-256 - update the receiver before turning it on.
+                Enter it below and save before turning this destination on.
               </AlertDescription>
             </Alert>
           </div>

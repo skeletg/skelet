@@ -444,10 +444,6 @@ SELECT filled_version, filled_at FROM customer_roster_state WHERE one_row;
 INSERT INTO customer_roster_state (one_row, filled_version, filled_at) VALUES (true, sqlc.arg(filled_version), now())
 ON CONFLICT (one_row) DO UPDATE SET filled_version = EXCLUDED.filled_version, filled_at = EXCLUDED.filled_at;
 
--- name: PruneOrphanedDestinations :execrows
--- Destinations hold another shop's credentials, and a retired channel's must not keep forwarding
-DELETE FROM event_destinations d WHERE NOT EXISTS (SELECT 1 FROM channel_roster c WHERE c.channel_id = d.channel_id);
-
 -- name: PruneOrphanedExperiments :execrows
 DELETE FROM experiments e WHERE NOT EXISTS (SELECT 1 FROM channel_roster c WHERE c.channel_id = e.channel_id);
 

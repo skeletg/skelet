@@ -20,7 +20,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/signals/internal/assistantlog"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/behavioralsegment"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/board"
-	"github.com/skeletg/skelet/apps/backend/signals/internal/destination"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/experiment"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/geo"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/lens"
@@ -32,7 +31,7 @@ import (
 
 type RootContext struct{ context.Context } // supplied by the entrypoint rather than provided, since that's where signal handling lives
 
-// AllowPrivateTargets lets destinations point at private addresses - dev only, or set explicitly
+// AllowPrivateTargets lets a flow's webhook point at private addresses - dev only, or set explicitly
 type AllowPrivateTargets bool
 
 // QueueMode says whether this process wraps its spine writes into the ingest queue or holds the bare engine
@@ -59,7 +58,6 @@ var Services = fx.Module("services",
 		newExperiment,
 		newBoards,
 		newSegment,
-		newDestination,
 		newChannelRoster,
 		newRollup,
 		newBehavioral,
@@ -74,6 +72,8 @@ var Services = fx.Module("services",
 )
 
 // The same rule core applies to its webhooks, read here from the same variable so both agree
+// The suite's settings service reads and writes its own store alone - every path the suite reads is a
+// Signals path, and core administers them over the contract rather than the other way round
 func newAllowPrivateTargets() AllowPrivateTargets {
 	if v := os.Getenv("ALLOW_PRIVATE_WEBHOOK_TARGETS"); v != "" {
 		b, err := strconv.ParseBool(v)
@@ -82,8 +82,6 @@ func newAllowPrivateTargets() AllowPrivateTargets {
 	return AllowPrivateTargets(os.Getenv("APP_ENV") == "development")
 }
 
-// The suite's settings service reads and writes its own store alone - every path the suite reads is a
-// Signals path, and core administers them over the contract rather than the other way round
 func newSettings(q Queries, vk *redis.Client) *config.Service {
 	repo := signalsboot.NewSettingsRepository(q.Queries)
 	svc := config.NewService(repo)
@@ -161,14 +159,6 @@ func (o spineOrders) CustomerOrdersSince(ctx context.Context, channelID uuid.UUI
 		out[i] = segment.CustomerOrderStat{CustomerID: r.CustomerID, OrderCount: int64(r.OrderCount), MonetaryCents: r.MonetaryCents}
 	}
 	return out, nil
-}
-
-func newDestination(cfg Config, q Queries, rec *analytics.Recorder, allow AllowPrivateTargets) *destination.Service {
-	var sealer destination.Sealer // a nil *Cipher boxed in the interface would read as configured
-	if cfg.Secrets != nil {
-		sealer = cfg.Secrets
-	}
-	return destination.NewService(q.Queries, rec, urlGuard{}, sealer, bool(allow))
 }
 
 // The beacon surface's copy of core's active channels, which core's push job keeps current
