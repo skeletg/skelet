@@ -17,10 +17,12 @@ import (
 // Store is the shop an email renders for, as core pushed it onto the channel roster - the logo is
 // the one branding value a template reads on its own
 type Store struct {
-	ID        uuid.UUID
-	Name      string
-	PublicURL string
-	LogoURL   string
+	ID          uuid.UUID
+	Name        string
+	PublicURL   string
+	LogoURL     string
+	FromName    string
+	FromAddress string
 }
 
 // StoreReader answers which shop a channel id is - the roster, in the suite; nil renders without a logo
@@ -256,7 +258,7 @@ func wrapHTML(inner string, theme EmailStyles, preheader string) string {
 	if theme.ContentWidth >= 200 && theme.ContentWidth <= 1000 {
 		width = theme.ContentWidth
 	}
-	linkStyle := `<style>@media only screen and (max-width:600px){.skl-hide-mobile{display:none!important}}</style>`
+	linkStyle := `<style>@media only screen and (max-width:600px){.skl-hide-mobile{display:none!important}.skl-stack{display:block!important;width:100%!important;padding:0 0 12px!important}}</style>`
 	if c := strings.TrimSpace(theme.LinkColor); c != "" {
 		linkStyle += `<style>a{color:` + html.EscapeString(c) + `;}</style>`
 	}
