@@ -26,3 +26,14 @@ mutation SaveEmailBlock($input: SaveEmailBlockInput!) {
 mutation DeleteEmailBlock($channelId: ID!, $slug: String!) {
   deleteEmailBlock(channelId: $channelId, slug: $slug)
 }
+
+# The products a products block names by SKU, for its panel and the canvas
+query EmailBlockProducts($skus: [String!]!) {
+  productsBySkus(skus: $skus) {
+    id
+    sku
+    name
+    thumbnail { id url altText }
+    displayImage { id url altText }
+  }
+}

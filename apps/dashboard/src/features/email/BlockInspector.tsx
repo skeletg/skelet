@@ -1,11 +1,13 @@
-import { useRef, useState, useId } from 'react'
+import { useState, useId, type ReactNode } from 'react'
 import { useQuery } from '@apollo/client/react'
-import { PlusIcon, SparklesIcon, XIcon } from 'lucide-react'
+import { ArrowDownIcon, ArrowUpIcon, PackageIcon, PencilLineIcon, PlusIcon, SparklesIcon, XIcon } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Select,
   SelectContent,
@@ -21,6 +23,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { MediaPickerButton } from '@/components/MediaPicker'
 import { CollectionsDocument } from '@/features/catalog/Collections.gql'
+import { ProductPickerDialog } from '@/features/catalog/ProductPickerDialog'
 import {
   blockDescriptor,
   blockLabel,
@@ -28,8 +31,15 @@ import {
   type BlockComponent,
   type CustomFieldDef,
   type EmailBlock,
+  type MenuLink,
   type SocialLink,
 } from './blocks'
+import { BlockIcon } from './BlockIcon'
+import { productImage, useBlockProducts } from './blockProducts'
+import { insertAtCaret } from './caret'
+import { MergeTagMenu } from './MergeTagMenu'
+import { FLOATING_PANEL } from './panel'
+import { plainToRich, richToPlain } from './richtext'
 
 /** AI copy-rewrite callback (returns the rewritten text) - When absent, the
  *  "Rewrite with AI" affordance is hidden - Instruction is a preset like
@@ -57,13 +67,12 @@ const VISIBILITY_TAG_SUGGESTIONS = [
 // Custom field kinds whose value is free text and so accept {{merge.tags}}
 const TAG_KINDS = new Set(['text', 'textarea', 'url', 'image'])
 
-/** Right-rail inspector - Edits the selected block's content (+ merge-tag
- *  insertion); with no block selected it shows email settings (subject) - A
- *  `ref` to a parameterized component renders the component picker plus a
- *  schema-driven form for the component's fields - Style controls layer in via
- *  the `styleControls` slot */
+type Tab = 'block' | 'email' | 'theme'
+
+/** Right-rail inspector: the selected block, the settings and (given themeSettings) the theme, as tabs */
 export function BlockInspector({
   block,
+  blockKey,
   onChangeBlock,
   subject,
   onSubjectChange,
@@ -73,10 +82,14 @@ export function BlockInspector({
   showSubject,
   styleControls,
   emailSettings,
+  themeSettings,
+  settingsLabel = 'Email',
   footer,
   aiRewrite,
+  inlineText = false,
 }: {
   block: EmailBlock | null
+  blockKey?: string | null
   onChangeBlock: (b: EmailBlock) => void
   subject: string
   onSubjectChange: (s: string) => void
@@ -85,20 +98,30 @@ export function BlockInspector({
   components?: Record<string, BlockComponent>
   showSubject: boolean
   /** Per-block style controls for the selected block */
-  styleControls?: React.ReactNode
+  styleControls?: ReactNode
   /** Global email style controls (shown in email settings) */
-  emailSettings?: React.ReactNode
+  emailSettings?: ReactNode
+  themeSettings?: ReactNode
+  settingsLabel?: string
   /** Pinned action bar rendered at the bottom of the panel (Save, etc.) */
-  footer?: React.ReactNode
+  footer?: ReactNode
   /** AI copy rewrite (present only when AI is configured) */
   aiRewrite?: AiRewriteFn
+  inlineText?: boolean
 }) {
-  const activeRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null)
   // The component a `ref` points at (or a former custom-type instance whose
   // Type names a component slug)
   const component = block
     ? components?.[block.type === 'ref' ? (block.slug ?? '') : block.type]
     : undefined
+
+  const key = blockKey !== undefined ? blockKey : block ? 'selected' : null
+  const [tab, setTab] = useState<Tab>(block ? 'block' : 'email')
+  const [lastKey, setLastKey] = useState(key)
+  if (key !== lastKey) {
+    setLastKey(key)
+    setTab(key ? 'block' : tab === 'block' ? 'email' : tab)
+  }
 
   function setField(key: keyof EmailBlock, val: string | number) {
     if (!block) return
@@ -125,135 +148,180 @@ export function BlockInspector({
     onChangeBlock({ ...block, social: links })
   }
 
-  function insertTag(tag: string) {
-    const el = activeRef.current
-    const token = `{{${tag}}}`
-    if (!el) return
-    const key = el.dataset.field
-    if (!key) return
-    const isCustom = el.dataset.custom === '1'
-    const cur = isCustom
-      ? String(block?.fields?.[key] ?? '')
-      : String(block?.[key as keyof EmailBlock] ?? '')
-    const start = el.selectionStart ?? cur.length
-    const end = el.selectionEnd ?? cur.length
-    const next = cur.slice(0, start) + token + cur.slice(end)
-    if (isCustom) setCustomField(key, next)
-    else setField(key as keyof EmailBlock, next)
-    const caret = start + token.length
-    requestAnimationFrame(() => {
-      el.focus()
-      el.setSelectionRange(caret, caret)
-    })
-  }
+  const blockPanel = block ? (
+    <>
+      <BlockTitle block={block} component={component} />
+      {block.type === 'ref' ? (
+        <>
+          <ContentFields block={block} setField={setField} snippets={snippets} mergeTags={mergeTags} />
+          {component && component.fields.length > 0 && (
+            <CustomFields fields={component.fields} values={block.fields} setCustomField={setCustomField} mergeTags={mergeTags} />
+          )}
+        </>
+      ) : component ? (
+        <CustomFields fields={component.fields} values={block.fields} setCustomField={setCustomField} mergeTags={mergeTags} />
+      ) : block.type === 'products' ? (
+        <ProductsFields block={block} setProducts={setProducts} />
+      ) : block.type === 'social' ? (
+        <SocialFields block={block} setSocial={setSocial} />
+      ) : block.type === 'menu' ? (
+        <MenuFields links={block.links ?? []} mergeTags={mergeTags} onChange={(links) => onChangeBlock({ ...block, links })} />
+      ) : block.type === 'text' && inlineText ? (
+        <TextOnCanvas block={block} onChangeBlock={onChangeBlock} aiRewrite={aiRewrite} />
+      ) : (
+        <>
+          {block.type === 'image_text' ? <SideField side={block.side ?? 'left'} onChange={(side) => onChangeBlock({ ...block, side })} /> : null}
+          <ContentFields block={block} setField={setField} snippets={snippets} mergeTags={mergeTags} aiRewrite={aiRewrite} />
+        </>
+      )}
 
-  const showTags = !!block && mergeTags.length > 0 && hasTagField(block, component)
+      {styleControls}
+
+      <VisibilitySection visibleIf={block.visibleIf} onChange={setVisibleIf} />
+    </>
+  ) : (
+    <p className="text-sm text-muted-foreground">Select a block on the canvas to edit it.</p>
+  )
+
+  const emailPanel = (
+    <>
+      {showSubject && (
+        <div className="grid gap-1.5">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="email-subject">Subject</Label>
+            <MergeTagMenu
+              tags={mergeTags}
+              onPick={(tag) => {
+                const next = insertAtCaret('email-subject', subject, tag)
+                onSubjectChange(next.value)
+                next.restore()
+              }}
+            />
+          </div>
+          <Input id="email-subject" value={subject} onChange={(e) => onSubjectChange(e.target.value)} placeholder="Email subject line" />
+        </div>
+      )}
+      {emailSettings}
+    </>
+  )
 
   return (
-    <aside className="flex w-80 shrink-0 flex-col border-l bg-card">
-      <div className="border-b px-4 py-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          {block ? `Edit ${component?.name ?? blockLabel(block.type)}` : 'Email settings'}
-        </h2>
-      </div>
-
-      <div className="flex-1 space-y-5 overflow-y-auto p-4">
-        {!block && (
-          <>
-            {showSubject && (
-              <div className="grid gap-1.5">
-                <Label htmlFor="email-subject">Subject</Label>
-                <Input
-                  id="email-subject"
-                  value={subject}
-                  onChange={(e) => onSubjectChange(e.target.value)}
-                  placeholder="Email subject line"
-                />
-                <p className="text-xs text-muted-foreground">Supports merge tags, e.g. {`{{order.number}}`}.</p>
-              </div>
-            )}
-            {emailSettings}
-            <p className="text-xs text-muted-foreground">Select a block on the canvas to edit it.</p>
-          </>
-        )}
-
-        {block && (
-          <>
-            {block.type === 'ref' ? (
-              <>
-                <ContentFields block={block} setField={setField} activeRef={activeRef} snippets={snippets} />
-                {component && component.fields.length > 0 && (
-                  <CustomFields
-                    fields={component.fields}
-                    values={block.fields}
-                    setCustomField={setCustomField}
-                    activeRef={activeRef}
-                  />
-                )}
-              </>
-            ) : component ? (
-              <CustomFields
-                fields={component.fields}
-                values={block.fields}
-                setCustomField={setCustomField}
-                activeRef={activeRef}
-              />
-            ) : block.type === 'products' ? (
-              <ProductsFields block={block} setProducts={setProducts} />
-            ) : block.type === 'social' ? (
-              <SocialFields block={block} setSocial={setSocial} />
-            ) : (
-              <ContentFields block={block} setField={setField} activeRef={activeRef} snippets={snippets} aiRewrite={aiRewrite} />
-            )}
-
-            {showTags && (
-              <div className="rounded-md border bg-muted/30 p-2.5">
-                <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">
-                  Insert merge tag (into the focused field)
-                </p>
-                <div className="flex flex-wrap gap-1">
-                  {mergeTags.map((tag) => (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => insertTag(tag)}
-                      className="rounded border bg-background px-1.5 py-0.5 font-mono text-[10px] hover:bg-accent hover:text-accent-foreground"
-                    >
-                      {`{{${tag}}}`}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {styleControls}
-
-            <VisibilitySection visibleIf={block.visibleIf} onChange={setVisibleIf} />
-          </>
-        )}
-      </div>
-
+    <aside className={cn(FLOATING_PANEL, 'ml-0 w-72 @min-[1200px]/editor:w-80')}>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="flex min-h-0 flex-1 flex-col">
+        <div className="border-b px-3 py-2">
+          <TabsList className={cn('grid h-9 w-full', themeSettings ? 'grid-cols-3' : 'grid-cols-2')}>
+            <TabsTrigger value="block" className="text-xs">
+              Block
+            </TabsTrigger>
+            <TabsTrigger value="email" className="text-xs">
+              {settingsLabel}
+            </TabsTrigger>
+            {themeSettings ? (
+              <TabsTrigger value="theme" className="text-xs">
+                Theme
+              </TabsTrigger>
+            ) : null}
+          </TabsList>
+        </div>
+        <TabsContent value="block" className="mt-0 min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
+          {blockPanel}
+        </TabsContent>
+        <TabsContent value="email" className="mt-0 min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
+          {emailPanel}
+        </TabsContent>
+        {themeSettings ? (
+          <TabsContent value="theme" className="mt-0 min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
+            {themeSettings}
+          </TabsContent>
+        ) : null}
+      </Tabs>
       {footer && <div className="shrink-0 border-t p-3">{footer}</div>}
     </aside>
   )
 }
 
-function hasTagField(block: EmailBlock, component: BlockComponent | undefined): boolean {
-  if (component) return component.fields.some((f) => TAG_KINDS.has(f.kind))
-  return (blockDescriptor(block.type)?.fields ?? []).some((f) => f.supportsTags)
+function BlockTitle({ block, component }: { block: EmailBlock; component?: BlockComponent }) {
+  const hint = component ? 'A block from your reusable library.' : blockDescriptor(block.type)?.hint
+  return (
+    <div className="flex items-start gap-2.5">
+      <span className="grid size-8 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
+        <BlockIcon type={component ? 'ref' : block.type} className="size-4" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-sm font-medium">{component?.name ?? blockLabel(block.type)}</p>
+        {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+      </div>
+    </div>
+  )
+}
+
+function TextOnCanvas({ block, onChangeBlock, aiRewrite }: { block: EmailBlock; onChangeBlock: (b: EmailBlock) => void; aiRewrite?: AiRewriteFn }) {
+  const plain = block.format === 'rich' ? richToPlain(block.content ?? '') : (block.content ?? '')
+  return (
+    <div className="flex items-start gap-2.5 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+      <PencilLineIcon className="mt-0.5 size-3.5 shrink-0" />
+      <div className="grid flex-1 gap-2">
+        <p>Write right on the canvas. Select words to make them bold, italic or a link, or start a list.</p>
+        {aiRewrite ? (
+          <div>
+            <AiRewriteButton
+              value={plain}
+              rewrite={aiRewrite}
+              onChange={(v) => onChangeBlock({ ...block, format: 'rich', content: plainToRich(v) })}
+            />
+          </div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+function FieldLabel({
+  id,
+  label,
+  tags,
+  value,
+  onInsert,
+  extra,
+}: {
+  id: string
+  label: ReactNode
+  tags?: string[]
+  value: string
+  onInsert: (value: string) => void
+  extra?: ReactNode
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <Label htmlFor={id}>{label}</Label>
+      <div className="flex items-center gap-1">
+        {extra}
+        {tags ? (
+          <MergeTagMenu
+            tags={tags}
+            onPick={(tag) => {
+              const next = insertAtCaret(id, value, tag)
+              onInsert(next.value)
+              next.restore()
+            }}
+          />
+        ) : null}
+      </div>
+    </div>
+  )
 }
 
 function ContentFields({
   block,
   setField,
-  activeRef,
   snippets,
+  mergeTags,
   aiRewrite,
 }: {
   block: EmailBlock
   setField: (key: keyof EmailBlock, val: string | number) => void
-  activeRef: React.MutableRefObject<HTMLInputElement | HTMLTextAreaElement | null>
   snippets: Array<{ slug: string; name: string }>
+  mergeTags: string[]
   aiRewrite?: AiRewriteFn
 }) {
   const descriptor = blockDescriptor(block.type)
@@ -264,7 +332,7 @@ function ContentFields({
   if (fields.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        This block has no content settings - it renders from the order automatically.
+        {descriptor?.group === 'data' ? 'Fills itself in from the order.' : 'Nothing to write here - change how it looks below.'}
       </p>
     )
   }
@@ -274,6 +342,8 @@ function ContentFields({
         const id = `f-${field.key}`
         const raw = block[field.key]
         const strVal = raw == null ? '' : String(raw)
+        const tags = field.supportsTags ? mergeTags : undefined
+        const set = (v: string) => setField(field.key, v)
 
         if (field.kind === 'ref') {
           return (
@@ -304,17 +374,10 @@ function ContentFields({
         if (field.kind === 'image') {
           return (
             <div key={field.key} className="grid gap-1.5">
-              <Label htmlFor={id}>{field.label}</Label>
+              <FieldLabel id={id} label={field.label} tags={tags} value={strVal} onInsert={set} />
               <div className="flex items-center gap-1.5">
-                <Input
-                  id={id}
-                  data-field={field.key}
-                  value={strVal}
-                  placeholder={field.placeholder}
-                  onFocus={(e) => field.supportsTags && (activeRef.current = e.currentTarget)}
-                  onChange={(e) => setField(field.key, e.target.value)}
-                />
-                <MediaPickerButton onPick={(url) => setField(field.key, url)} />
+                <Input id={id} value={strVal} placeholder={field.placeholder} onChange={(e) => set(e.target.value)} />
+                <MediaPickerButton onPick={set} />
               </div>
               {strVal && !strVal.includes('{{') && (
                 <img src={strVal} alt="" className="mt-1 max-h-24 w-auto rounded border object-contain" />
@@ -323,27 +386,22 @@ function ContentFields({
           )
         }
 
+        const ai =
+          aiRewrite && field.supportsTags && block.type !== 'html' && field.kind !== 'url' ? (
+            <AiRewriteButton value={strVal} onChange={set} rewrite={aiRewrite} />
+          ) : null
+
         if (field.kind === 'textarea') {
           return (
             <div key={field.key} className="grid gap-1.5">
-              <div className="flex items-center justify-between">
-                <Label htmlFor={id}>{field.label}</Label>
-                {aiRewrite && field.supportsTags && block.type !== 'html' && (
-                  <AiRewriteButton
-                    value={strVal}
-                    onChange={(v) => setField(field.key, v)}
-                    rewrite={aiRewrite}
-                  />
-                )}
-              </div>
+              <FieldLabel id={id} label={field.label} tags={tags} value={strVal} onInsert={set} extra={ai} />
               <Textarea
                 id={id}
-                data-field={field.key}
                 value={strVal}
-                rows={4}
+                rows={block.type === 'html' ? 8 : 4}
                 placeholder={field.placeholder}
-                onFocus={(e) => field.supportsTags && (activeRef.current = e.currentTarget)}
-                onChange={(e) => setField(field.key, e.target.value)}
+                className={block.type === 'html' ? 'font-mono text-xs' : undefined}
+                onChange={(e) => set(e.target.value)}
               />
             </div>
           )
@@ -351,23 +409,12 @@ function ContentFields({
 
         return (
           <div key={field.key} className="grid gap-1.5">
-            <div className="flex items-center justify-between">
-              <Label htmlFor={id}>{field.label}</Label>
-              {aiRewrite && field.supportsTags && field.kind === 'text' && (
-                <AiRewriteButton
-                  value={strVal}
-                  onChange={(v) => setField(field.key, v)}
-                  rewrite={aiRewrite}
-                />
-              )}
-            </div>
+            <FieldLabel id={id} label={field.label} tags={tags} value={strVal} onInsert={set} extra={ai} />
             <Input
               id={id}
-              data-field={field.key}
               type={field.kind === 'number' ? 'number' : 'text'}
               value={strVal}
               placeholder={field.placeholder}
-              onFocus={(e) => field.supportsTags && (activeRef.current = e.currentTarget)}
               onChange={(e) =>
                 setField(field.key, field.kind === 'number' ? Number(e.target.value || 0) : e.target.value)
               }
@@ -424,6 +471,88 @@ function AiRewriteButton({
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+function SideField({ side, onChange }: { side: 'left' | 'right'; onChange: (side: 'left' | 'right') => void }) {
+  return (
+    <div className="grid gap-1.5">
+      <p className="text-sm font-medium">Picture on the</p>
+      <div role="radiogroup" aria-label="Picture on the" className="grid grid-cols-2 gap-1">
+        {(['left', 'right'] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            role="radio"
+            aria-checked={side === v}
+            onClick={() => onChange(v)}
+            className={cn(
+              'h-8 rounded border text-xs capitalize transition-colors',
+              side === v ? 'border-primary bg-primary/10 text-primary' : 'bg-background text-muted-foreground hover:bg-accent',
+            )}
+          >
+            {v}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// A menu block's links in order, each a label and where it goes
+function MenuFields({ links, mergeTags, onChange }: { links: MenuLink[]; mergeTags: string[]; onChange: (links: MenuLink[]) => void }) {
+  const fid = useId()
+  function patch(i: number, next: Partial<MenuLink>) {
+    onChange(links.map((l, idx) => (idx === i ? { ...l, ...next } : l)))
+  }
+  function move(i: number, dir: -1 | 1) {
+    const next = [...links]
+    ;[next[i], next[i + dir]] = [next[i + dir], next[i]]
+    onChange(next)
+  }
+  return (
+    <div className="grid grid-cols-1 gap-2">
+      <p className="text-sm font-medium">Links</p>
+      {links.map((l, i) => (
+        <div key={i} className="grid gap-1.5 rounded-md border p-2">
+          <div className="flex items-center gap-1">
+            <Input aria-label={`Link ${i + 1} label`} value={l.label} placeholder="Shop" className="h-8" onChange={(e) => patch(i, { label: e.target.value })} />
+            <Button type="button" variant="ghost" size="icon" className="size-7 shrink-0" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}>
+              <ArrowUpIcon className="size-3.5" />
+            </Button>
+            <Button type="button" variant="ghost" size="icon" className="size-7 shrink-0" aria-label="Move down" disabled={i === links.length - 1} onClick={() => move(i, 1)}>
+              <ArrowDownIcon className="size-3.5" />
+            </Button>
+            <Button type="button" variant="ghost" size="icon" className="size-7 shrink-0" aria-label={`Remove ${l.label || 'link'}`} onClick={() => onChange(links.filter((_, idx) => idx !== i))}>
+              <XIcon className="size-3.5" />
+            </Button>
+          </div>
+          <div className="flex items-center gap-1">
+            <Input
+              id={`${fid}-url-${i}`}
+              aria-label={`Link ${i + 1} address`}
+              value={l.url}
+              placeholder="https://… or {{storefront.url}}/sale"
+              className="h-8"
+              onChange={(e) => patch(i, { url: e.target.value })}
+            />
+            <MergeTagMenu
+              tags={mergeTags}
+              label=""
+              onPick={(tag) => {
+                const next = insertAtCaret(`${fid}-url-${i}`, l.url, tag)
+                patch(i, { url: next.value })
+                next.restore()
+              }}
+            />
+          </div>
+        </div>
+      ))}
+      <Button type="button" variant="outline" size="sm" disabled={links.length >= 12} onClick={() => onChange([...links, { label: '', url: '' }])}>
+        <PlusIcon className="mr-1 size-3.5" />
+        Add link
+      </Button>
+    </div>
   )
 }
 
@@ -489,18 +618,17 @@ function SocialFields({
   )
 }
 
-// CustomFields renders the editing form for a custom block-type instance, driven entirely by the type's `fields` schema - Values live in
-// block.fields CustomFields renders the schema-driven inputs for a parameterized block's field values (stored in block.fields)
+// CustomFields renders the schema-driven inputs for a parameterized block's field values (stored in block.fields)
 function CustomFields({
   fields,
   values,
   setCustomField,
-  activeRef,
+  mergeTags,
 }: {
   fields: CustomFieldDef[]
   values?: Record<string, string>
   setCustomField: (key: string, val: string) => void
-  activeRef: React.MutableRefObject<HTMLInputElement | HTMLTextAreaElement | null>
+  mergeTags: string[]
 }) {
   if (fields.length === 0) {
     return <p className="text-sm text-muted-foreground">This block has no inputs.</p>
@@ -513,7 +641,7 @@ function CustomFields({
           field={field}
           value={values?.[field.key] ?? ''}
           onChange={(v) => setCustomField(field.key, v)}
-          activeRef={activeRef}
+          mergeTags={mergeTags}
         />
       ))}
     </div>
@@ -524,35 +652,31 @@ function CustomFieldInput({
   field,
   value,
   onChange,
-  activeRef,
+  mergeTags,
 }: {
   field: CustomFieldDef
   value: string
   onChange: (v: string) => void
-  activeRef: React.MutableRefObject<HTMLInputElement | HTMLTextAreaElement | null>
+  mergeTags: string[]
 }) {
   const id = `cf-${field.key}`
-  const tagged = TAG_KINDS.has(field.kind)
-  const label = (
-    <Label htmlFor={id}>
+  const name = (
+    <>
       {field.label || field.key}
       {field.required && <span className="ml-0.5 text-destructive">*</span>}
-    </Label>
+    </>
+  )
+  const label = TAG_KINDS.has(field.kind) ? (
+    <FieldLabel id={id} label={name} tags={mergeTags} value={value} onInsert={onChange} />
+  ) : (
+    <Label htmlFor={id}>{name}</Label>
   )
 
   if (field.kind === 'textarea') {
     return (
       <div className="grid gap-1.5">
         {label}
-        <Textarea
-          id={id}
-          data-field={field.key}
-          data-custom="1"
-          rows={4}
-          value={value}
-          onFocus={(e) => tagged && (activeRef.current = e.currentTarget)}
-          onChange={(e) => onChange(e.target.value)}
-        />
+        <Textarea id={id} rows={4} value={value} onChange={(e) => onChange(e.target.value)} />
       </div>
     )
   }
@@ -609,7 +733,7 @@ function CustomFieldInput({
             value={value || '#000000'}
             onChange={(e) => onChange(e.target.value)}
           />
-          <Input value={value} placeholder="#000000" onChange={(e) => onChange(e.target.value)} />
+          <Input id={id} value={value} placeholder="#000000" onChange={(e) => onChange(e.target.value)} />
         </div>
       </div>
     )
@@ -621,12 +745,9 @@ function CustomFieldInput({
       {label}
       <Input
         id={id}
-        data-field={field.key}
-        data-custom="1"
         type={inputType}
         value={value}
         placeholder={field.kind === 'url' || field.kind === 'image' ? 'https://…' : undefined}
-        onFocus={(e) => tagged && (activeRef.current = e.currentTarget)}
         onChange={(e) => onChange(e.target.value)}
       />
     </div>
@@ -654,20 +775,9 @@ function ProductsFields({
   function patch(next: Partial<NonNullable<EmailBlock['products']>>) {
     setProducts({ ...p, ...next })
   }
-  function setSku(i: number, val: string) {
-    const arr = [...skus]
-    arr[i] = val
-    patch({ skus: arr })
-  }
-  function addSku() {
-    patch({ skus: [...skus, ''] })
-  }
-  function removeSku(i: number) {
-    patch({ skus: skus.filter((_, idx) => idx !== i) })
-  }
 
   return (
-    <div className="grid gap-3">
+    <div className="grid grid-cols-1 gap-3">
       <div className="grid gap-1.5">
         <Label htmlFor={`${fid}-source`}>Source</Label>
         <Select value={p.mode || 'skus'} onValueChange={(v) => patch({ mode: v })}>
@@ -707,30 +817,15 @@ function ProductsFields({
           )}
         </div>
       ) : (
-        <div className="grid gap-1.5">
-          <Label>SKUs</Label>
-          <div className="grid gap-1.5">
-            {skus.map((sku, i) => (
-              <div key={i} className="flex items-center gap-1.5">
-                <Input value={sku} placeholder="SKU-123" onChange={(e) => setSku(i, e.target.value)} />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0"
-                  aria-label="Remove SKU"
-                  onClick={() => removeSku(i)}
-                >
-                  <XIcon className="size-4" />
-                </Button>
-              </div>
-            ))}
-            <Button type="button" variant="outline" size="sm" onClick={addSku}>
-              <PlusIcon className="mr-1 size-3.5" />
-              Add SKU
-            </Button>
-          </div>
-        </div>
+        <PickedProducts
+          skus={skus}
+          limit={p.limit && p.limit > 0 ? p.limit : 3}
+          // Raise the limit only for additions; reordering and removal keep the explicit cap.
+          onChange={(next) => patch({
+            skus: next,
+            ...(next.length > skus.length ? { limit: Math.max(p.limit && p.limit > 0 ? p.limit : 3, next.length) } : {}),
+          })}
+        />
       )}
 
       <div className="grid grid-cols-2 gap-3">
@@ -758,6 +853,82 @@ function ProductsFields({
           />
         </div>
       </div>
+    </div>
+  )
+}
+
+function PickedProducts({ skus, limit, onChange }: { skus: string[]; limit: number; onChange: (skus: string[]) => void }) {
+  const [picking, setPicking] = useState(false)
+  const { bySku, loading } = useBlockProducts(skus)
+  const taken = new Set(skus.map((s) => bySku.get(s)?.id).filter((id): id is string => !!id))
+  function move(i: number, dir: -1 | 1) {
+    const next = [...skus]
+    ;[next[i], next[i + dir]] = [next[i + dir], next[i]]
+    onChange(next)
+  }
+  return (
+    <div className="grid grid-cols-1 gap-1.5">
+      <p className="text-sm font-medium">Products</p>
+      {skus.length === 0 ? (
+        <p className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">No products yet.</p>
+      ) : (
+        <ul className="divide-y rounded-md border">
+          {skus.map((sku, i) => {
+            const product = bySku.get(sku)
+            const image = productImage(product)
+            return (
+              <li key={sku} className={cn('flex items-center gap-2 px-2 py-1.5', i >= limit && 'opacity-50')}>
+                {image ? (
+                  <img src={image} alt="" className="size-9 shrink-0 rounded border object-cover" />
+                ) : (
+                  <span className="grid size-9 shrink-0 place-items-center rounded border bg-muted">
+                    <PackageIcon className="size-4 text-muted-foreground" />
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  {product ? (
+                    <p className="truncate text-sm">{product.name}</p>
+                  ) : loading ? (
+                    <p className="truncate text-sm text-muted-foreground">Loading…</p>
+                  ) : (
+                    <p className="truncate text-sm text-warning">Not in the catalog</p>
+                  )}
+                  <p className="truncate font-mono text-[11px] text-muted-foreground">{sku}</p>
+                  {i >= limit ? <p className="text-[11px] text-warning">Past Max products - not sent</p> : null}
+                </div>
+                <div className="flex shrink-0 items-center">
+                  <Button type="button" variant="ghost" size="icon" className="size-7" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}>
+                    <ArrowUpIcon className="size-3.5" />
+                  </Button>
+                  <Button type="button" variant="ghost" size="icon" className="size-7" aria-label="Move down" disabled={i === skus.length - 1} onClick={() => move(i, 1)}>
+                    <ArrowDownIcon className="size-3.5" />
+                  </Button>
+                  <Button type="button" variant="ghost" size="icon" className="size-7" aria-label={`Remove ${product?.name ?? sku}`} onClick={() => onChange(skus.filter((s) => s !== sku))}>
+                    <XIcon className="size-3.5" />
+                  </Button>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      <Button type="button" variant="outline" size="sm" onClick={() => setPicking(true)}>
+        <PlusIcon className="mr-1 size-3.5" />
+        Choose products
+      </Button>
+      <ProductPickerDialog
+        open={picking}
+        onOpenChange={setPicking}
+        title="Products for this email"
+        description="Ticked products join the end of the block, and show with their live price when the email is sent."
+        takenIds={taken}
+        takenLabel="In this block"
+        confirmLabel={(n) => (n === 0 ? 'Add products' : n === 1 ? 'Add 1 product' : `Add ${n} products`)}
+        onConfirm={(picks) => {
+          const added = picks.map((pick) => pick.product.sku).filter((sku) => sku && !skus.includes(sku))
+          onChange([...skus, ...added])
+        }}
+      />
     </div>
   )
 }
