@@ -61,6 +61,16 @@ var blockHTML = map[string]func(Block, renderCtx) string{
 	},
 	"text": func(b Block, rc renderCtx) string {
 		s := styleOf(b)
+		if b.Format == FormatRich {
+			st := "line-height:1.5;text-align:" + alignOf(s) + ";"
+			if c := col(s.Color, rc.Theme.TextColor, "#333"); c != "" {
+				st += "color:" + c + ";"
+			}
+			if s.FontSize > 0 {
+				st += "font-size:" + pxOr(s.FontSize, 0) + ";"
+			}
+			return `<div style="` + st + `">` + richHTML(b.Content, rc.Vars, col(rc.Theme.LinkColor)) + `</div>`
+		}
 		body := strings.ReplaceAll(esc(b.Content, rc.Vars), "\n", "<br>")
 		st := "margin:0 0 12px;line-height:1.5;text-align:" + alignOf(s) + ";"
 		if c := col(s.Color, rc.Theme.TextColor, "#333"); c != "" {
@@ -80,6 +90,10 @@ var blockHTML = map[string]func(Block, renderCtx) string{
 			esc(b.Label, rc.Vars) + `</a>`
 		return `<div style="text-align:` + alignOf(s) + `;margin:16px 0;">` + a + `</div>`
 	},
+	"coupon":       couponHTML,
+	"store_footer": footerHTML,
+	"menu":         menuHTML,
+	"image_text":   imageTextHTML,
 	"image": func(b Block, rc renderCtx) string {
 		src := strings.TrimSpace(interpolate(b.URL, rc.Vars))
 		if src == "" {
@@ -244,8 +258,17 @@ func socialLabel(p string) string {
 }
 
 var blockText = map[string]func(Block, renderCtx) string{
-	"heading": func(b Block, rc renderCtx) string { return interpolate(b.Text, rc.Vars) + "\n" },
-	"text":    func(b Block, rc renderCtx) string { return interpolate(b.Content, rc.Vars) + "\n" },
+	"coupon":       couponText,
+	"store_footer": footerText,
+	"menu":         menuText,
+	"image_text":   imageTextText,
+	"heading":      func(b Block, rc renderCtx) string { return interpolate(b.Text, rc.Vars) + "\n" },
+	"text": func(b Block, rc renderCtx) string {
+		if b.Format == FormatRich {
+			return richPlain(b.Content, rc.Vars)
+		}
+		return interpolate(b.Content, rc.Vars) + "\n"
+	},
 	"button": func(b Block, rc renderCtx) string {
 		return interpolate(b.Label, rc.Vars) + ": " + interpolate(b.URL, rc.Vars) + "\n"
 	},
@@ -401,12 +424,17 @@ func validateBlock(b Block, allowRef bool) error {
 	if err := validateStyle(b.Style); err != nil {
 		return err
 	}
+	if err := validateRichText(b); err != nil {
+		return err
+	}
 	for k, v := range b.Labels {
 		if _, known := defaultLabels[k]; !known || len(v) > maxLabelLen {
 			return fmt.Errorf("label %q: a known label key, up to %d characters", k, maxLabelLen)
 		}
 	}
 	switch b.Type {
+	case "coupon", "store_footer", "menu", "image_text":
+		return validateMarketingBlock(b)
 	case "button", "image":
 		return validateLink(b.URL)
 	case "heading", "text", "divider", "spacer",

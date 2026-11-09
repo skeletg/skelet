@@ -408,8 +408,14 @@ body[data-sidebar-resizing="true"] [data-slot="sidebar-container"] {
     }
   html {
     @apply font-sans;
-    scrollbar-width: thin;
-    scrollbar-color: color-mix(in oklch, var(--muted-foreground) 40%, transparent) transparent;
+    }
+  /* Firefox has no WebKit scrollbar styling, so it gets the standard thin bar. Kept away from Chrome on purpose:
+     there, setting scrollbar-width or scrollbar-color switches the WebKit rules below off, arrows included */
+  @supports not selector(::-webkit-scrollbar) {
+    html {
+      scrollbar-width: thin;
+      scrollbar-color: color-mix(in oklch, var(--muted-foreground) 40%, transparent) transparent;
+      }
     }
 
   /* Global scrollbars: style the native (page / dialog / <select> / plain
@@ -418,15 +424,15 @@ body[data-sidebar-resizing="true"] [data-slot="sidebar-container"] {
      actually removes the arrows everywhere; .scrollbar-accent still overrides
      the thumb color where it's applied. */
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 6px;
+    height: 6px;
     }
   ::-webkit-scrollbar-track {
     background: transparent;
     }
   ::-webkit-scrollbar-thumb {
     background-color: color-mix(in oklch, var(--muted-foreground) 35%, transparent);
-    border: 2px solid transparent;
+    border: 1px solid transparent;
     background-clip: padding-box;
     border-radius: 9999px;
     }
@@ -709,19 +715,21 @@ body[data-sidebar-resizing="true"] [data-slot="sidebar-container"] {
 }
 
 @utility scrollbar-accent {
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklch, var(--primary) 55%, transparent) transparent;
+  @supports not selector(::-webkit-scrollbar) {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--primary) 55%, transparent) transparent;
+  }
 
   &::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 6px;
+    height: 6px;
   }
   &::-webkit-scrollbar-track {
     background: transparent;
   }
   &::-webkit-scrollbar-thumb {
     background-color: color-mix(in oklch, var(--primary) 50%, transparent);
-    border: 2px solid transparent;
+    border: 1px solid transparent;
     background-clip: padding-box;
     border-radius: 9999px;
   }

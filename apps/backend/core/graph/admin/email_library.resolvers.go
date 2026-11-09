@@ -330,5 +330,8 @@ func (r *queryResolver) RenderLibraryPreview(ctx context.Context, channelID stri
 	if err != nil {
 		return nil, signalsErr(err)
 	}
-	return &model.EmailPreview{Subject: res.GetSubject(), HTML: res.GetHtml()}, nil
+	return &model.EmailPreview{
+		Subject: res.GetSubject(), HTML: res.GetHtml(), Text: strPtrOrNil(res.GetText()), Preheader: strPtrOrNil(res.GetPreheader()),
+		FromName: strPtrOrNil(res.GetFromName()), FromAddress: strPtrOrNil(res.GetFromAddress()),
+	}, nil
 }

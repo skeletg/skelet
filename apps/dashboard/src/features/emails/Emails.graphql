@@ -101,6 +101,10 @@ query RenderLibraryPreview(
   ) {
     subject
     html
+    text
+    preheader
+    fromName
+    fromAddress
   }
 }
 

@@ -1892,9 +1892,14 @@ func (x *RenderLibraryPreviewRequest) GetStylesJson() string {
 }
 
 type RenderLibraryPreviewResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Subject       string                 `protobuf:"bytes,1,opt,name=subject,proto3" json:"subject,omitempty"`
-	Html          string                 `protobuf:"bytes,2,opt,name=html,proto3" json:"html,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Subject string                 `protobuf:"bytes,1,opt,name=subject,proto3" json:"subject,omitempty"`
+	Html    string                 `protobuf:"bytes,2,opt,name=html,proto3" json:"html,omitempty"`
+	Text    string                 `protobuf:"bytes,3,opt,name=text,proto3" json:"text,omitempty"`
+	// The preheader with its merge tags filled in, as an inbox shows it after the subject
+	Preheader     string `protobuf:"bytes,4,opt,name=preheader,proto3" json:"preheader,omitempty"`
+	FromName      string `protobuf:"bytes,5,opt,name=from_name,json=fromName,proto3" json:"from_name,omitempty"`
+	FromAddress   string `protobuf:"bytes,6,opt,name=from_address,json=fromAddress,proto3" json:"from_address,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1939,6 +1944,34 @@ func (x *RenderLibraryPreviewResponse) GetSubject() string {
 func (x *RenderLibraryPreviewResponse) GetHtml() string {
 	if x != nil {
 		return x.Html
+	}
+	return ""
+}
+
+func (x *RenderLibraryPreviewResponse) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+func (x *RenderLibraryPreviewResponse) GetPreheader() string {
+	if x != nil {
+		return x.Preheader
+	}
+	return ""
+}
+
+func (x *RenderLibraryPreviewResponse) GetFromName() string {
+	if x != nil {
+		return x.FromName
+	}
+	return ""
+}
+
+func (x *RenderLibraryPreviewResponse) GetFromAddress() string {
+	if x != nil {
+		return x.FromAddress
 	}
 	return ""
 }
@@ -2714,10 +2747,14 @@ const file_skelet_signals_v1_builder_proto_rawDesc = "" +
 	"blocksJson\x12\x1f\n" +
 	"\vstyles_json\x18\x06 \x01(\tR\n" +
 	"stylesJsonB\x0e\n" +
-	"\f_customer_id\"L\n" +
+	"\f_customer_id\"\xbe\x01\n" +
 	"\x1cRenderLibraryPreviewResponse\x12\x18\n" +
 	"\asubject\x18\x01 \x01(\tR\asubject\x12\x12\n" +
-	"\x04html\x18\x02 \x01(\tR\x04html\"7\n" +
+	"\x04html\x18\x02 \x01(\tR\x04html\x12\x12\n" +
+	"\x04text\x18\x03 \x01(\tR\x04text\x12\x1c\n" +
+	"\tpreheader\x18\x04 \x01(\tR\tpreheader\x12\x1b\n" +
+	"\tfrom_name\x18\x05 \x01(\tR\bfromName\x12!\n" +
+	"\ffrom_address\x18\x06 \x01(\tR\vfromAddress\"7\n" +
 	"\x16ListEmailBlocksRequest\x12\x1d\n" +
 	"\n" +
 	"channel_id\x18\x01 \x01(\tR\tchannelId\"P\n" +

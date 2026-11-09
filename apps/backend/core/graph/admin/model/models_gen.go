@@ -2879,8 +2879,12 @@ type EmailGroup struct {
 }
 
 type EmailPreview struct {
-	Subject string `json:"subject"`
-	HTML    string `json:"html"`
+	Subject     string  `json:"subject"`
+	HTML        string  `json:"html"`
+	Text        *string `json:"text,omitempty"`
+	Preheader   *string `json:"preheader,omitempty"`
+	FromName    *string `json:"fromName,omitempty"`
+	FromAddress *string `json:"fromAddress,omitempty"`
 }
 
 type EmailRevision struct {

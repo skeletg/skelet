@@ -3,28 +3,17 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useUnsavedFields } from '@/lib/unsaved-changes'
 import { duringCommit } from '@/lib/nav-guard'
 import { useMutation, useQuery } from '@apollo/client/react'
-import {
-  DndContext,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  type DragOverEvent,
-} from '@dnd-kit/core'
+import { DndContext } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
 import {
   HistoryIcon,
-  MonitorIcon,
-  MoonIcon,
   Redo2Icon,
-  SmartphoneIcon,
   SparklesIcon,
-  SunIcon,
   Undo2Icon,
 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -44,20 +33,28 @@ import {
 } from '@/components/ui/dialog'
 import { DetailPageHeader, DetailPageLayout } from '@/components/layout/detail-page'
 import { LoadingState } from '@/components/ui/loading-state'
-import { cn } from '@/lib/utils'
 import { useConfigScope } from '@/lib/config-scope'
 import { CampaignMergeTagsDocument } from '@/features/campaigns/Campaigns.gql'
 import { FlowMergeTagsDocument } from '@/features/flows/Flows.gql'
 import { BlockPalette } from '@/features/email/BlockPalette'
-import { EmailCanvas, END_DROP, type CanvasItem } from '@/features/email/EmailCanvas'
+import { PreviewDialog } from './PreviewDialog'
+import { EmailSizeMeter } from './EmailSizeMeter'
+import { EmailCanvas, type CanvasItem } from '@/features/email/EmailCanvas'
 import { BlockInspector, type AiRewriteFn } from '@/features/email/BlockInspector'
 import { BlockStyleControls, GlobalStyleControls } from '@/features/email/StyleControls'
 import { RowInspector } from '@/features/email/RowInspector'
+import { FLOATING_PANEL, PANEL_BACKDROP, PANEL_TITLE } from '@/features/email/panel'
+import { MergeTagMenu } from '@/features/email/MergeTagMenu'
+import { ShortcutsHelp } from '@/features/email/ShortcutsHelp'
+import { insertAtCaret } from '@/features/email/caret'
+import { useCanvasShortcuts } from '@/features/email/shortcuts'
+import { useCanvasDnd } from '@/features/email/canvasDnd'
 import {
-  addToColumn,
+  childSel,
   duplicateBlock,
   findBlock,
   moveChild,
+  parseSel,
   removeBlock,
   replaceBlock,
 } from '@/features/email/treeops'
@@ -80,8 +77,6 @@ import {
   EmailRevisionsDocument,
   EmailsAiStatusDocument,
   LibraryEmailDocument,
-  PreviewCustomersDocument,
-  RenderLibraryPreviewDocument,
   RestoreEmailRevisionDocument,
   RewriteEmailTextDocument,
   SaveEmailTranslationDocument,
@@ -92,8 +87,10 @@ import { LoadError } from '@/shared/errors/LoadError'
 import { useConfirmDialog } from '@/shared/dialogs/useConfirmDialog'
 import { NotFound } from '@/shared/errors/NotFound'
 
+// A hot reload restarts the counter, not the open editor - the prefix keeps new ids off old ones, which select together
+const LOAD = Math.random().toString(36).slice(2, 7)
 let uid = 0
-const nextId = () => `le_${++uid}`
+const nextId = () => `le_${LOAD}_${++uid}`
 
 // The sentinel Select value for "no group" - Radix Select forbids ""
 const NO_GROUP = '__none__'
@@ -321,7 +318,6 @@ function Editor({
   }
 
   const [sel, setSel] = useState<string | null>(null)
-  const [dropBefore, setDropBefore] = useState<string | null>(null)
   const [emailId, setEmailId] = useState<string | null>(initial.id)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -338,7 +334,6 @@ function Editor({
   const { data: aiStatusData } = useQuery(EmailsAiStatusDocument, { fetchPolicy: 'cache-first' })
   const aiEnabled = aiStatusData?.aiStatus.enabled ?? false
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
   const selectedBlock = findBlock(doc.items, sel)
   const selectedIsRow = !!selectedBlock && selectedBlock.type === 'row' && !!sel && !sel.includes('::')
 
@@ -356,60 +351,68 @@ function Editor({
   function duplicateSel(target: string) {
     setItems((prev) => duplicateBlock(prev, target, nextId))
   }
+  function editBlock(target: string, next: EmailBlock) {
+    setItems((prev) => replaceBlock(prev, target, next), `block:${target}`)
+  }
   function updateSelected(next: EmailBlock) {
-    if (sel) setItems((prev) => replaceBlock(prev, sel, next), `block:${sel}`)
+    if (sel) editBlock(sel, next)
   }
   function onMoveChild(rowId: string, col: number, idx: number, dir: -1 | 1) {
     setItems((prev) => moveChild(prev, rowId, col, idx, dir))
   }
-  // Track where a dragged palette block will land, to draw the insertion line
-  function onDragOver(e: DragOverEvent) {
-    const ad = e.active.data.current
-    if (!ad?.fromPalette) {
-      if (dropBefore !== null) setDropBefore(null)
-      return
-    }
-    const overId = e.over ? String(e.over.id) : null
-    if (!overId || overId.startsWith('col:')) {
-      setDropBefore(null) // over a column drop-zone (it highlights itself) or nothing
-      return
-    }
-    setDropBefore(overId === 'canvas' ? END_DROP : overId)
+  function insertAt(index: number, type: string) {
+    const item = { id: nextId(), block: makeBlock(type) }
+    setItems((prev) => {
+      const next = [...prev]
+      next.splice(Math.max(0, Math.min(index, prev.length)), 0, item)
+      return next
+    })
+    setSel(item.id)
   }
-  function onDragEnd(e: DragEndEvent) {
-    setDropBefore(null)
-    const { active, over } = e
-    if (!over) return
-    const overId = String(over.id)
-    const ad = active.data.current
-    if (ad?.fromPalette) {
-      const type = String(ad.blockType)
-      // Components (dropped as refs) + rows can't nest inside a column
-      if (overId.startsWith('col:') && type !== 'row' && type !== 'ref' && !compMap[type]) {
-        const [, rowId, colStr] = overId.split(':')
-        setItems((prev) => addToColumn(prev, rowId, Number(colStr), makeBlock(type)))
-        return
-      }
-      const item = { id: nextId(), block: makeBlock(type) }
-      setItems((prev) => {
-        const overIdx = prev.findIndex((i) => i.id === overId)
-        if (overIdx === -1) return [...prev, item]
-        const next = [...prev]
-        next.splice(overIdx, 0, item)
-        return next
-      })
-      setSel(item.id)
+  // A palette click lands after the selected block - after its row when it sits in a column - or at the end
+  function addBlock(type: string) {
+    const at = sel ? doc.items.findIndex((i) => i.id === parseSel(sel).id) : -1
+    insertAt(at === -1 ? doc.items.length : at + 1, type)
+  }
+  function startFrom(starter: EmailBlock[]) {
+    setItems(() => itemsFromBlocks(structuredClone(starter)))
+    setSel(null)
+  }
+  function moveSel(target: string, dir: -1 | 1) {
+    const p = parseSel(target)
+    if (p.col !== undefined) {
+      const count = findBlock(doc.items, p.id)?.columns?.[p.col]?.blocks?.length ?? 0
+      const to = (p.idx ?? 0) + dir
+      if (to < 0 || to >= count) return
+      onMoveChild(p.id, p.col, p.idx ?? 0, dir)
+      setSel(childSel(p.id, p.col, to))
       return
     }
-    if (active.id !== over.id) {
-      setItems((prev) => {
-        const from = prev.findIndex((i) => i.id === active.id)
-        const to = prev.findIndex((i) => i.id === overId)
-        if (from === -1 || to === -1) return prev
-        return arrayMove(prev, from, to)
-      })
-    }
+    setItems((prev) => {
+      const from = prev.findIndex((i) => i.id === p.id)
+      const to = from + dir
+      if (from === -1 || to < 0 || to >= prev.length) return prev
+      return arrayMove(prev, from, to)
+    })
   }
+  useCanvasShortcuts({
+    sel,
+    order: doc.items.map((i) => i.id),
+    select: setSel,
+    remove: deleteSel,
+    duplicate: duplicateSel,
+    move: moveSel,
+    undo,
+    redo,
+  })
+  const { dropBefore, dndProps } = useCanvasDnd({
+    items: doc.items,
+    setItems: (update) => setItems(update),
+    makeBlock,
+    canNest: (type) => type !== 'row' && type !== 'ref' && !compMap[type],
+    nextId,
+    onPlaced: (placed) => placed && setSel(placed),
+  })
 
   // Pre-send checklist (deliverability + quality warnings) - only for a saved
   // email - Refetched after each successful save so the list reflects edits
@@ -543,20 +546,15 @@ function Editor({
   )
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragOver={onDragOver}
-      onDragEnd={onDragEnd}
-      onDragCancel={() => setDropBefore(null)}
-    >
+    <DndContext {...dndProps}>
       <DetailPageLayout
-        leftSidebar={<BlockPalette allowData={false} components={components} />}
+        className={cn('@container/editor', PANEL_BACKDROP)}
+        leftSidebar={<BlockPalette components={components} onAdd={addBlock} />}
         rightSidebar={
           selectedIsRow && selectedBlock ? (
-            <aside className="flex w-80 shrink-0 flex-col border-l bg-card">
-              <div className="border-b px-4 py-3">
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Edit Columns</h2>
+            <aside className={cn(FLOATING_PANEL, 'ml-0 w-72 @min-[1200px]/editor:w-80')}>
+              <div className="border-b px-4 py-3.5">
+                <h2 className={PANEL_TITLE}>Columns</h2>
               </div>
               <div className="flex-1 overflow-y-auto p-4">
                 <RowInspector block={selectedBlock} onChange={updateSelected} />
@@ -566,6 +564,8 @@ function Editor({
           ) : (
             <BlockInspector
               block={selectedBlock}
+              blockKey={sel}
+              inlineText
               onChangeBlock={updateSelected}
               subject={doc.subject}
               onSubjectChange={(s) => commit((d) => ({ ...d, subject: s }), 'subject')}
@@ -577,7 +577,7 @@ function Editor({
               styleControls={
                 selectedBlock ? (
                   <>
-                    <BlockStyleControls block={selectedBlock} onChange={updateSelected} />
+                    <BlockStyleControls block={selectedBlock} onChange={updateSelected} theme={doc.styles} />
                     {sel && !sel.includes('::') && selectedBlock.type !== 'ref' && (
                       <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => setSaveBlockFor(selectedBlock)}>
                         Save as reusable block
@@ -601,16 +601,24 @@ function Editor({
                     />
                   )}
                   <div className="grid gap-1.5">
-                    <Label htmlFor="email-preheader">Preheader</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="email-preheader">Preheader</Label>
+                      <MergeTagMenu
+                        tags={mergeTags}
+                        onPick={(tag) => {
+                          const next = insertAtCaret('email-preheader', doc.preheader, tag)
+                          commit((d) => ({ ...d, preheader: next.value }))
+                          next.restore()
+                        }}
+                      />
+                    </div>
                     <Input
                       id="email-preheader"
                       value={doc.preheader}
                       onChange={(e) => commit((d) => ({ ...d, preheader: e.target.value }), 'preheader')}
                       placeholder="Inbox-preview snippet"
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Shown after the subject in the inbox preview. Supports merge tags.
-                    </p>
+                    <p className="text-xs text-muted-foreground">Shown after the subject in the inbox preview.</p>
                   </div>
                   <div className="grid gap-1.5">
                     <Label htmlFor="email-name">Email name</Label>
@@ -644,9 +652,9 @@ function Editor({
                     </Select>
                   </div>
                   {emailId && !locale && <PreflightPanel warnings={warnings} />}
-                  <GlobalStyleControls value={doc.styles} onChange={(s) => commit((d) => ({ ...d, styles: s }))} />
                 </div>
               }
+              themeSettings={<GlobalStyleControls value={doc.styles} onChange={(s) => commit((d) => ({ ...d, styles: s }), 'styles')} />}
               footer={actionsFooter}
             />
           )
@@ -659,6 +667,17 @@ function Editor({
           onDelete={deleteSel}
           onDuplicate={duplicateSel}
           onMoveChild={onMoveChild}
+          onEdit={editBlock}
+          onInsertAt={insertAt}
+          onStart={startFrom}
+          mergeTags={mergeTags}
+          canAdd
+          toolbar={
+            <>
+              <EmailSizeMeter channelId={initial.channelId} subject={doc.subject} preheader={doc.preheader} blocks={blocks} styles={doc.styles} />
+              <ShortcutsHelp />
+            </>
+          }
           theme={doc.styles}
           components={compMap}
           subject={doc.subject}
@@ -866,102 +885,6 @@ function SubjectAssist({
         </ul>
       )}
     </div>
-  )
-}
-
-// PreviewDialog renders the email server-side, with device (desktop/mobile),
-// dark-mode approximation, and optional real-customer merge-tag data
-function PreviewDialog({
-  open,
-  onOpenChange,
-  channelId,
-  subject,
-  preheader,
-  blocks,
-  styles,
-}: {
-  open: boolean
-  onOpenChange: (o: boolean) => void
-  channelId: string
-  subject: string
-  preheader: string
-  blocks: EmailBlock[]
-  styles: EmailStyles
-}) {
-  const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop')
-  const [dark, setDark] = useState(false)
-  const [customerId, setCustomerId] = useState<string | null>(null)
-
-  const { data: custData } = useQuery(PreviewCustomersDocument, { variables: { channelId }, skip: !open, fetchPolicy: 'cache-first' })
-  const customers = custData?.customersPaged.items ?? []
-
-  const { data, loading } = useQuery(RenderLibraryPreviewDocument, {
-    variables: { channelId, customerId, subject, preheader, blocks, styles },
-    skip: !open,
-    fetchPolicy: 'no-cache',
-  })
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>Preview</DialogTitle>
-          <DialogDescription>Rendered server-side. Choose a device, dark mode, or a real customer’s data.</DialogDescription>
-        </DialogHeader>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-md border p-0.5">
-            <button
-              type="button"
-              onClick={() => setDevice('desktop')}
-              className={cn('flex items-center gap-1 rounded px-2 py-1 text-xs', device === 'desktop' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground')}
-            >
-              <MonitorIcon className="size-3.5" /> Desktop
-            </button>
-            <button
-              type="button"
-              onClick={() => setDevice('mobile')}
-              className={cn('flex items-center gap-1 rounded px-2 py-1 text-xs', device === 'mobile' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground')}
-            >
-              <SmartphoneIcon className="size-3.5" /> Mobile
-            </button>
-          </div>
-          <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => setDark((d) => !d)}>
-            {dark ? <SunIcon className="mr-1 size-3.5" /> : <MoonIcon className="mr-1 size-3.5" />}
-            {dark ? 'Light' : 'Dark'}
-          </Button>
-          <Select value={customerId ?? NO_GROUP} onValueChange={(v) => setCustomerId(v === NO_GROUP ? null : v)}>
-            <SelectTrigger className="h-8 w-56 text-xs">
-              <SelectValue placeholder="Sample data" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NO_GROUP}>Sample data</SelectItem>
-              {customers.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {[c.firstName, c.lastName].filter(Boolean).join(' ') || c.email}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className={cn('rounded-md p-3', dark ? 'bg-neutral-900' : 'bg-muted/40')}>
-          <div className="mb-2 text-xs" style={{ color: dark ? '#ddd' : undefined }}>
-            <span className="font-medium">Subject:</span> {loading ? '…' : data?.renderLibraryPreview.subject || '-'}
-          </div>
-          <div className="mx-auto overflow-hidden rounded border bg-white" style={{ maxWidth: device === 'mobile' ? 390 : '100%' }}>
-            <iframe
-              title="Email preview"
-              sandbox=""
-              className="h-[440px] w-full bg-white"
-              style={dark ? { filter: 'invert(1) hue-rotate(180deg)' } : undefined}
-              srcDoc={data?.renderLibraryPreview.html ?? ''}
-            />
-          </div>
-          {dark && <p className="mt-2 text-center text-[11px]" style={{ color: '#999' }}>Dark mode is an approximation (color inversion).</p>}
-        </div>
-      </DialogContent>
-    </Dialog>
   )
 }
 
