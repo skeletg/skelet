@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	emailpkg "github.com/skeletg/skelet/apps/backend/core/lib/email"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/emailtemplate"
 )
@@ -306,26 +307,41 @@ func (s *builderServer) RenderLibraryPreview(ctx context.Context, req *signalsv1
 	if err != nil {
 		return nil, err
 	}
-	vars, err := s.previewVars(ctx, cid, req.CustomerId)
+	store := s.previewStore(ctx, cid)
+	vars, err := s.previewVars(ctx, cid, store, req.CustomerId)
 	if err != nil {
 		return nil, err
 	}
-	subject, html, _, err := s.svc.RenderContent(ctx, cid, req.GetSubject(), req.GetPreheader(), blocks, styles, vars)
+	subject, html, text, err := s.svc.RenderContent(ctx, cid, req.GetSubject(), req.GetPreheader(), blocks, styles, vars)
 	if err != nil {
 		return nil, domainErr(err)
 	}
-	return &signalsv1.RenderLibraryPreviewResponse{Subject: subject, Html: html}, nil
+	// The sender a send would carry - the channel's own from name, else its name
+	fromName, fromAddress := strings.TrimSpace(store.FromName), strings.TrimSpace(store.FromAddress)
+	if fromName == "" {
+		fromName = store.Name
+	}
+	if fromAddress == "" {
+		fromAddress = emailpkg.FallbackFromAddress
+	}
+	return &signalsv1.RenderLibraryPreviewResponse{
+		Subject: subject, Html: html, Text: text,
+		Preheader: emailtemplate.Interpolate(req.GetPreheader(), vars), FromName: fromName, FromAddress: fromAddress,
+	}, nil
+}
+
+func (s *builderServer) previewStore(ctx context.Context, channelID uuid.UUID) emailtemplate.Store {
+	if s.stores != nil {
+		if st, err := s.stores.Get(ctx, channelID); err == nil {
+			return st
+		}
+	}
+	return emailtemplate.Store{}
 }
 
 // The merge tags a live editor preview renders with - a named customer's real data off the roster,
 // otherwise representative sample data so tags don't show up as literal {{...}}
-func (s *builderServer) previewVars(ctx context.Context, channelID uuid.UUID, customerID *string) (map[string]string, error) {
-	var store emailtemplate.Store
-	if s.stores != nil {
-		if st, err := s.stores.Get(ctx, channelID); err == nil {
-			store = st
-		}
-	}
+func (s *builderServer) previewVars(ctx context.Context, channelID uuid.UUID, store emailtemplate.Store, customerID *string) (map[string]string, error) {
 	storefront := strings.TrimRight(strings.TrimSpace(store.PublicURL), "/")
 	vars := map[string]string{
 		"store.name":     store.Name,

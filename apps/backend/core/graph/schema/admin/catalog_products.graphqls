@@ -422,6 +422,8 @@ extend type Query {
   product(id: ID!): Product!
   # Batched label/detail resolution for pickers holding bare ids - capped at 100
   productsByIds(ids: [ID!]!): [Product!]!
+  # The same for what holds SKUs, like the email products block - unknown SKUs are left out, in no set order
+  productsBySkus(skus: [String!]!): [Product!]!
 }
 
 # --- Mutations (require catalog.manage) ---

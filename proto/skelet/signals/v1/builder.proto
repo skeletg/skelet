@@ -228,6 +228,11 @@ message RenderLibraryPreviewRequest {
 message RenderLibraryPreviewResponse {
   string subject = 1;
   string html = 2;
+  string text = 3;
+  // The preheader with its merge tags filled in, as an inbox shows it after the subject
+  string preheader = 4;
+  string from_name = 5;
+  string from_address = 6;
 }
 
 message ListEmailBlocksRequest {

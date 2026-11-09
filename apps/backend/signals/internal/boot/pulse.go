@@ -73,7 +73,7 @@ func (r *RosterStores) Get(ctx context.Context, channelID uuid.UUID) (emailtempl
 	if err != nil {
 		return emailtemplate.Store{}, err
 	}
-	return emailtemplate.Store{ID: e.ID, Name: e.Name, PublicURL: e.PublicURL, LogoURL: e.LogoURL}, nil
+	return emailtemplate.Store{ID: e.ID, Name: e.Name, PublicURL: e.PublicURL, LogoURL: e.LogoURL, FromName: e.FromName, FromAddress: e.FromAddress}, nil
 }
 
 type flowStores struct{ *RosterStores }

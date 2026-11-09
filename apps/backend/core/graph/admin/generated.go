@@ -1996,8 +1996,12 @@ type ComplexityRoot struct {
 	}
 
 	EmailPreview struct {
-		HTML    func(childComplexity int) int
-		Subject func(childComplexity int) int
+		FromAddress func(childComplexity int) int
+		FromName    func(childComplexity int) int
+		HTML        func(childComplexity int) int
+		Preheader   func(childComplexity int) int
+		Subject     func(childComplexity int) int
+		Text        func(childComplexity int) int
 	}
 
 	EmailRevision struct {
@@ -4109,6 +4113,7 @@ type ComplexityRoot struct {
 		ProductTypes                 func(childComplexity int) int
 		Products                     func(childComplexity int, channelID *string) int
 		ProductsByIds                func(childComplexity int, ids []string) int
+		ProductsBySkus               func(childComplexity int, skus []string) int
 		ProductsPaged                func(childComplexity int, channelID *string, search *string, kinds []model.ProductKind, productTypeSlugs []string, published *bool, attributeValueIds []string, categoryIds []string, collectionIds []string, priceMin *string, priceMax *string, inStock *bool, sortKey *string, sortDesc *bool, limit *int32, offset *int32) int
 		PromotionActionTypes         func(childComplexity int) int
 		PromotionAnalytics           func(childComplexity int, start *time.Time, end *time.Time) int
@@ -6007,6 +6012,7 @@ type QueryResolver interface {
 	ProductsPaged(ctx context.Context, channelID *string, search *string, kinds []model.ProductKind, productTypeSlugs []string, published *bool, attributeValueIds []string, categoryIds []string, collectionIds []string, priceMin *string, priceMax *string, inStock *bool, sortKey *string, sortDesc *bool, limit *int32, offset *int32) (*model.ProductPage, error)
 	Product(ctx context.Context, id string) (*model.Product, error)
 	ProductsByIds(ctx context.Context, ids []string) ([]*model.Product, error)
+	ProductsBySkus(ctx context.Context, skus []string) ([]*model.Product, error)
 	ProductLinks(ctx context.Context, productID string, kind model.ProductLinkKind) ([]string, error)
 	Channels(ctx context.Context) ([]*model.Channel, error)
 	Channel(ctx context.Context, id string) (*model.Channel, error)
@@ -14540,18 +14546,42 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.EmailGroup.Slug(childComplexity), true
 
+	case "EmailPreview.fromAddress":
+		if e.ComplexityRoot.EmailPreview.FromAddress == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailPreview.FromAddress(childComplexity), true
+	case "EmailPreview.fromName":
+		if e.ComplexityRoot.EmailPreview.FromName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailPreview.FromName(childComplexity), true
 	case "EmailPreview.html":
 		if e.ComplexityRoot.EmailPreview.HTML == nil {
 			break
 		}
 
 		return e.ComplexityRoot.EmailPreview.HTML(childComplexity), true
+	case "EmailPreview.preheader":
+		if e.ComplexityRoot.EmailPreview.Preheader == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailPreview.Preheader(childComplexity), true
 	case "EmailPreview.subject":
 		if e.ComplexityRoot.EmailPreview.Subject == nil {
 			break
 		}
 
 		return e.ComplexityRoot.EmailPreview.Subject(childComplexity), true
+	case "EmailPreview.text":
+		if e.ComplexityRoot.EmailPreview.Text == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailPreview.Text(childComplexity), true
 
 	case "EmailRevision.blocks":
 		if e.ComplexityRoot.EmailRevision.Blocks == nil {
@@ -28060,6 +28090,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.ProductsByIds(childComplexity, args["ids"].([]string)), true
+	case "Query.productsBySkus":
+		if e.ComplexityRoot.Query.ProductsBySkus == nil {
+			break
+		}
+
+		args, err := ec.field_Query_productsBySkus_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.ProductsBySkus(childComplexity, args["skus"].([]string)), true
 	case "Query.productsPaged":
 		if e.ComplexityRoot.Query.ProductsPaged == nil {
 			break
@@ -37025,6 +37066,8 @@ extend type Query {
   product(id: ID!): Product!
   # Batched label/detail resolution for pickers holding bare ids - capped at 100
   productsByIds(ids: [ID!]!): [Product!]!
+  # The same for what holds SKUs, like the email products block - unknown SKUs are left out, in no set order
+  productsBySkus(skus: [String!]!): [Product!]!
 }
 
 # --- Mutations (require catalog.manage) ---
@@ -38865,6 +38908,11 @@ type EmailBlockSnippet {
 type EmailPreview {
   subject: String!
   html:    String!
+  # The plain-text part, the preheader as an inbox shows it, and the sender - a library preview's only
+  text:        String
+  preheader:   String
+  fromName:    String
+  fromAddress: String
 }
 
 input SaveEmailBlockInput {
@@ -47937,6 +47985,14 @@ func (ec *executionContext) childFields_EmailPreview(ctx context.Context, field 
 		return ec.fieldContext_EmailPreview_subject(ctx, field)
 	case "html":
 		return ec.fieldContext_EmailPreview_html(ctx, field)
+	case "text":
+		return ec.fieldContext_EmailPreview_text(ctx, field)
+	case "preheader":
+		return ec.fieldContext_EmailPreview_preheader(ctx, field)
+	case "fromName":
+		return ec.fieldContext_EmailPreview_fromName(ctx, field)
+	case "fromAddress":
+		return ec.fieldContext_EmailPreview_fromAddress(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type EmailPreview", field.Name)
 }
@@ -65806,6 +65862,20 @@ func (ec *executionContext) field_Query_productsByIds_args(ctx context.Context, 
 		return nil, err
 	}
 	args["ids"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_productsBySkus_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "skus",
+		func(ctx context.Context, v any) ([]string, error) {
+			return ec.unmarshalNString2ᚕstringᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["skus"] = arg0
 	return args, nil
 }
 
@@ -100680,6 +100750,98 @@ func (ec *executionContext) _EmailPreview_html(ctx context.Context, field graphq
 	)
 }
 func (ec *executionContext) fieldContext_EmailPreview_html(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailPreview", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailPreview_text(ctx context.Context, field graphql.CollectedField, obj *model.EmailPreview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailPreview_text(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Text, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_EmailPreview_text(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailPreview", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailPreview_preheader(ctx context.Context, field graphql.CollectedField, obj *model.EmailPreview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailPreview_preheader(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Preheader, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_EmailPreview_preheader(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailPreview", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailPreview_fromName(ctx context.Context, field graphql.CollectedField, obj *model.EmailPreview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailPreview_fromName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FromName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_EmailPreview_fromName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailPreview", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailPreview_fromAddress(ctx context.Context, field graphql.CollectedField, obj *model.EmailPreview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailPreview_fromAddress(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FromAddress, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_EmailPreview_fromAddress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("EmailPreview", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -149839,6 +150001,50 @@ func (ec *executionContext) fieldContext_Query_productsByIds(ctx context.Context
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_productsByIds_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_productsBySkus(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_productsBySkus(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().ProductsBySkus(ctx, fc.Args["skus"].([]string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.Product) graphql.Marshaler {
+			return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐProductᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_productsBySkus(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Product(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_productsBySkus_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -206416,6 +206622,26 @@ func (ec *executionContext) _EmailPreview(ctx context.Context, sel ast.Selection
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "text":
+			out.Values[i] = ec._EmailPreview_text(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "preheader":
+			out.Values[i] = ec._EmailPreview_preheader(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "fromName":
+			out.Values[i] = ec._EmailPreview_fromName(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "fromAddress":
+			out.Values[i] = ec._EmailPreview_fromAddress(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -222036,6 +222262,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_productsByIds(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "productsBySkus":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_productsBySkus(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}

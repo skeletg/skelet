@@ -3303,8 +3303,12 @@ export type EmailGroup = {
 
 export type EmailPreview = {
   __typename?: 'EmailPreview';
+  fromAddress?: Maybe<Scalars['String']['output']>;
+  fromName?: Maybe<Scalars['String']['output']>;
   html: Scalars['String']['output'];
+  preheader?: Maybe<Scalars['String']['output']>;
   subject: Scalars['String']['output'];
+  text?: Maybe<Scalars['String']['output']>;
 };
 
 export type EmailRevision = {
@@ -8733,6 +8737,7 @@ export type Query = {
   productTypes: Array<ProductType>;
   products: Array<Product>;
   productsByIds: Array<Product>;
+  productsBySkus: Array<Product>;
   productsPaged: ProductPage;
   promotionActionTypes: Array<PromotionTypeDescriptor>;
   promotionAnalytics: Array<PromotionRuleAnalytics>;
@@ -9646,6 +9651,11 @@ export type QueryProductsArgs = {
 
 export type QueryProductsByIdsArgs = {
   ids: Array<Scalars['ID']['input']>;
+};
+
+
+export type QueryProductsBySkusArgs = {
+  skus: Array<Scalars['String']['input']>;
 };
 
 
