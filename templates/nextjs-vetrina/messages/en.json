@@ -41,6 +41,13 @@
       "addFailed": "Could not add to cart.",
       "missingProduct": "Missing product details.",
       "invalidBundle": "Invalid bundle selection.",
+      "bundleSelectionMissing": "Pick an item for every required choice.",
+      "bundleVariantMissing": "Pick a size or variant for every item that needs one.",
+      "bundleSelectionCount": "Check how many items each choice allows.",
+      "bundleOutdated": "This bundle has changed. Reload the page and pick again.",
+      "bundleChanged": "A bundle in your cart has changed since you added it. Remove it and add it again.",
+      "productUnavailable": "An item in your cart is no longer available. Remove it and try again.",
+      "productNotSold": "This item isn't available right now.",
       "invalidOption": "Invalid option selection.",
       "invalidSelection": "Invalid selection.",
       "chooseAtLeastOne": "Choose at least one item.",
@@ -404,7 +411,7 @@
     "placed": "Placed {date}",
     "paymentPending": "Payment pending",
     "paymentIncompleteTitle": "Your order was created, but payment is not complete",
-    "paymentIncompleteBody": "The payment provider asked for a step this store can't complete online. Nothing more will be charged here - contact us to finish paying for this order.",
+    "paymentIncompleteBody": "The payment didn't go through. If your bank confirms it after all, this order updates on its own - otherwise contact us to finish paying for it.",
     "shippedVia": "Shipped via {carrier}",
     "carrierFallback": "carrier",
     "trackingDelay": "Tracking details from your carrier may take a few hours to appear.",
@@ -413,6 +420,7 @@
     "discount": "Discount",
     "shipping": "Shipping",
     "tax": "Tax",
+    "taxIncluded": "Includes tax",
     "total": "Total",
     "paidGiftCard": "Paid by gift card",
     "paidStoreCredit": "Paid by store credit",
@@ -485,6 +493,7 @@
       "none": "No estimate available for that destination.",
       "noShipping": "We don’t ship to that destination yet.",
       "tax": "Estimated tax",
+      "taxIncluded": "Estimated tax included",
       "total": "Estimated total",
       "disclaimer": "Estimate only - final shipping & tax are confirmed at checkout."
     },
@@ -510,7 +519,12 @@
       "freeShip": "Free ship",
       "remove": "Remove {code}"
     },
-    "freeShippingExclusions": "Product-specific charges may still apply. Your final delivery price is shown at checkout."
+    "freeShippingExclusions": "Product-specific charges may still apply. Your final delivery price is shown at checkout.",
+    "handoff": {
+      "expired": "That checkout link has expired - ask your assistant for a new one.",
+      "invalid": "That checkout link isn't valid.",
+      "failed": "We couldn't open that checkout link just now - please try it again in a moment."
+    }
   },
   "search": {
     "label": "Search products",
@@ -525,14 +539,27 @@
     "prompt": "Type a query above to search products. Looking for posts? Try the <link>blog</link>.",
     "empty": "No products matched “{query}”. Try a different query or refine the filters.",
     "resultsFor": "Results for <q>“{query}”</q>",
-    "submit": "Search"
+    "submit": "Search",
+    "clear": "Clear search"
   },
   "consent": {
     "label": "Cookie consent",
-    "body": "We use cookies for the essentials (sign in, cart, language) plus optional analytics and marketing. Pick “Essential only” to skip the optional ones.",
+    "body": "We use cookies for the essentials (sign in, cart, language). With your permission we also use them for analytics, advertising and personalisation. Pick “Essential only” to skip the optional ones.",
     "policy": "Privacy policy",
     "essentialOnly": "Essential only",
-    "acceptAll": "Accept all"
+    "acceptAll": "Accept all",
+    "customize": "Customize",
+    "save": "Save choices",
+    "settings": "Cookie settings",
+    "necessary": "Necessary",
+    "necessaryHelp": "Sign in, cart, checkout and language. Always on.",
+    "analytics": "Analytics",
+    "analyticsHelp": "Helps us see how the shop is used, so we can improve it.",
+    "ads": "Advertising",
+    "adsHelp": "Lets ad and affiliate partners know a visit or order came from them.",
+    "personalization": "Personalisation",
+    "personalizationHelp": "Recommendations and offers based on what you browse.",
+    "privacyChoices": "Your privacy choices"
   },
   "masquerade": {
     "banner": "Rep session: shopping as {name} ({email}) - expires automatically in 15 minutes."
@@ -597,6 +624,7 @@
     "primaryCategory": "Primary category: <value></value>",
     "collections": "Collections: <value></value>",
     "alsoLike": "You may also like",
+    "inTheBox": "In the box",
     "specifications": "Specifications",
     "available": "{count} available",
     "reassurance": {
@@ -735,7 +763,15 @@
       "qtyLockedTotal": "Quantity {qty} - set by your selection · <total></total> total",
       "ruleAdjustment": "Adjustment",
       "ruleUnavailable": "This combination can't be bought in this store.",
-      "ruleBlocked": "Not available here"
+      "ruleBlocked": "Not available here",
+      "pickExactly": "Pick {count}",
+      "pickBetween": "Pick {min}–{max}",
+      "pickUpTo": "Pick up to {count}",
+      "pickAtLeast": "Pick at least {count}",
+      "picked": "{count} picked",
+      "bundleSave": "Save {percent}%",
+      "chooseVariant": "Choose {name}",
+      "howMany": "How many"
     },
     "steps": {
       "progress": "Step {current} of {total}",
@@ -752,6 +788,7 @@
   },
   "listing": {
     "empty": "No products match the current filters.",
+    "byMeaningOnly": "Nothing matched “{query}” word for word, so these are the closest to what you’re after.",
     "products": "Products",
     "sort": "Sort:",
     "pagination": "Pagination",
@@ -940,17 +977,21 @@
       "cardFallback": "Card",
       "expires": "exp {month}/{year}",
       "newCard": "Use a new card",
+      "cardFailed": "Your card details could not be checked. Please look them over and try again.",
       "note": "Order note",
       "notePlaceholder": "Delivery instructions, gift message, etc.",
       "tos": "I agree to the <terms>terms of service</terms> and <privacy>privacy policy</privacy>.",
       "placing": "Placing order…",
+      "paymentStalled": "Your order is placed, but the payment provider hasn't answered yet.",
+      "openOrder": "Open your order",
       "orderTotal": "Order total",
       "toPay": "To pay",
       "covered": "Your gift cards and store credit cover the whole order.",
       "addNote": "Add a note to your order",
       "tosNotice": "By placing your order you agree to the <terms>terms of service</terms> and <privacy>privacy policy</privacy>.",
       "pay": "Pay {amount}",
-      "placeCovered": "Place order"
+      "placeCovered": "Place order",
+      "marketingOptIn": "Send me occasional offers by email."
     },
     "giftCards": {
       "title": "Gift card",
@@ -1185,6 +1226,7 @@
     "remove": "Remove",
     "subtotal": "Subtotal",
     "taxNote": "Tax and delivery are added at checkout.",
+    "taxNoteIncluded": "Prices include tax. Delivery is added at checkout.",
     "continue": "Continue to checkout →",
     "locked": "Set by the store: {parts}.",
     "lock": {
@@ -1229,5 +1271,114 @@
     "submitting": "Looking up…",
     "haveAccount": "Have an account?",
     "signInHint": "Sign in to see all your orders"
+  },
+  "assistant": {
+    "title": "Shopping assistant",
+    "open": "Ask the shopping assistant",
+    "close": "Close the assistant",
+    "resize": "Resize the assistant",
+    "newChat": "New chat",
+    "greeting": "Hi there",
+    "intro": "Ask me anything about shopping at {store} - I can find products, compare them and fill your cart.",
+    "introHere": "Ask me anything about shopping here - I can find products, compare them and fill your cart.",
+    "starter1": "What are your best sellers right now?",
+    "starter2": "Help me pick a gift",
+    "starter3": "How do shipping and returns work?",
+    "starters": {
+      "product": {
+        "1": "Tell me about {title}",
+        "2": "Who is it best for?",
+        "3": "Show me similar products"
+      },
+      "listing": {
+        "1": "What's the best pick here?",
+        "2": "Sort this cheapest first",
+        "3": "Help me narrow this down"
+      },
+      "search": {
+        "1": "Which of these is best?",
+        "2": "Sort these cheapest first",
+        "3": "Help me narrow these down"
+      },
+      "page": {
+        "1": "Sum up this page for me",
+        "2": "What should I know before I order?"
+      }
+    },
+    "followUps": "Suggested replies",
+    "placeholder": "Ask about products, delivery or returns",
+    "send": "Send",
+    "thinking": "Thinking…",
+    "steps": {
+      "search": "Searching the catalog…",
+      "searchFor": "Searching for “{detail}”…",
+      "similar": "Looking for similar products…",
+      "similarTo": "Looking for products like {detail}…",
+      "product": "Looking at a product…",
+      "productNamed": "Looking at {detail}…",
+      "writeUp": "Writing it up…",
+      "writeUpNamed": "Writing up {detail}…",
+      "deals": "Checking today's deals…",
+      "categories": "Browsing the categories…",
+      "pages": "Reading the store's pages…",
+      "pagesAbout": "Reading up on “{detail}”…",
+      "delivery": "Checking delivery options…",
+      "deliveryTo": "Checking delivery to {detail}…",
+      "cart": "Checking your cart…",
+      "updateCart": "Updating your cart…",
+      "checkout": "Getting your cart ready…",
+      "picking": "Picking products to show you…",
+      "links": "Finding the right page…",
+      "currentPage": "Looking at this page…",
+      "listing": "Updating the list…",
+      "store": "Checking the store's details…",
+      "orders": "Looking up your orders…",
+      "order": "Looking at your order…",
+      "orderNamed": "Looking at order {detail}…",
+      "return": "Checking your return…",
+      "returnFor": "Checking a return on order {detail}…"
+    },
+    "reviewCart": "Review cart",
+    "cartLost": "What I added didn't make it into your cart - add it from its page, or ask me again.",
+    "cartMissed": "These didn't make it into your cart: {items}.",
+    "noAnswer": "Sorry, I couldn't put an answer together - could you ask that another way?",
+    "cutShort": "My answer got cut short. Anything I did to your cart still stands - ask again if you need more.",
+    "retry": "Try again",
+    "loading": "Opening the assistant…",
+    "loadFailed": "The assistant couldn't load.",
+    "speaker": {
+      "you": "You",
+      "assistant": "Assistant"
+    },
+    "products": "Suggested products",
+    "tellMe": "Tell me more",
+    "links": {
+      "count": "{count, plural, one {# product} other {# products}}",
+      "updated": "List updated: {count, plural, one {# product} other {# products}}",
+      "see": "See it"
+    },
+    "detail": {
+      "inStock": "In stock",
+      "yes": "Yes",
+      "no": "No",
+      "view": "View product",
+      "goodFor": "Good for",
+      "keepInMind": "Keep in mind",
+      "specs": "Specifications ({count})"
+    },
+    "disclaimer": "AI can make mistakes. Your cart confirms prices and stock.",
+    "overview": {
+      "label": "AI overview",
+      "writing": "Writing an overview…",
+      "disclaimer": "Written by AI from the products below - check the details on each product.",
+      "continue": "Continue in chat"
+    },
+    "problems": {
+      "unavailable": "The assistant isn't available right now - the search at the top of the page still finds everything, or try again in a minute.",
+      "busy": "Still working on your last question - one moment.",
+      "limited": "That's a lot of questions at once - wait a moment and try again.",
+      "invalid": "Your message is too long - shorten it and send it again.",
+      "failed": "Something went wrong - please try again."
+    }
   }
 }

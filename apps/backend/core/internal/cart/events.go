@@ -7,6 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
+
 	"github.com/skeletg/skelet/apps/backend/core/internal/syncveto"
 )
 
@@ -48,7 +50,23 @@ const ( // subscribe by these, e.g. bus.SubscribeSync(cart.EventLineAdding, 100,
 	EventOfferSent    = "cart.offer.sent"
 	EventOfferOpened  = "cart.offer.opened"
 	EventOfferExpired = "cart.offer.expired"
+	// A shopper's checkout step picked a different delivery or payment method
+	EventCheckoutChosen = "cart.checkout.chosen"
 )
+
+type CheckoutChosen struct { // fires AFTER the step is saved, async - at least one of Shipping and Payment is set
+	CartID     uuid.UUID
+	ChannelID  uuid.UUID
+	CustomerID *uuid.UUID
+	AnonID     string
+	Shipping   string // the shipping methods it changed to, comma-joined per delivery group - empty when unchanged
+	Payment    string // the payment provider's slug it changed to - empty when unchanged
+	Lines      []CartLine
+	Shopper    *auth.Shopper // the visitor as their consent stood, nil for a caller with no banner
+}
+
+func (*CheckoutChosen) Type() string                { return EventCheckoutChosen }
+func (e *CheckoutChosen) EventChannelID() uuid.UUID { return e.ChannelID }
 
 type OfferSent struct { // fires AFTER an admin emails an offer, async
 	CartID     uuid.UUID
@@ -122,6 +140,7 @@ type LineAdded struct { // fires AFTER the upsert, async
 	ProductSku string
 	UnitPrice  int64
 	Quantity   float64
+	Shopper    *auth.Shopper // the visitor as their consent stood, nil for a caller with no banner
 }
 
 func (*LineAdded) Type() string                { return EventLineAdded }
@@ -135,6 +154,8 @@ type BundleAdding struct { // fires BEFORE a bundle line is upserted, like LineA
 	ProductName string
 	UnitPrice   *int64   // mutable: bundle's summed component price; plugin can override
 	Quantity    *float64 // mutable
+	// The components the bundle takes, per bundle unit, so the stock guard can check them - the bundle itself holds no stock
+	StockParts []CartLineStockPart `json:"-"`
 }
 
 func (*BundleAdding) Type() string                { return EventBundleAdding }
@@ -166,6 +187,7 @@ type BundleAdded struct { // fires AFTER the upsert, async
 	ProductSku string
 	UnitPrice  int64
 	Quantity   float64
+	Shopper    *auth.Shopper // the visitor as their consent stood, nil for a caller with no banner
 }
 
 func (*BundleAdded) Type() string                { return EventBundleAdded }
@@ -199,12 +221,16 @@ func (e *LineUpdating) ApplyWebhookResponse(body []byte) (bool, string, error) {
 }
 
 type LineUpdated struct { // fires AFTER the quantity is written, async
-	CartID     uuid.UUID
-	ChannelID  uuid.UUID
-	CustomerID *uuid.UUID
-	AnonID     string
-	LineID     uuid.UUID
-	Quantity   float64
+	CartID       uuid.UUID
+	ChannelID    uuid.UUID
+	CustomerID   *uuid.UUID
+	AnonID       string
+	LineID       uuid.UUID
+	ProductSku   string
+	UnitPrice    int64 // after the edit, which may have crossed a price tier
+	Quantity     float64
+	PrevQuantity float64
+	Shopper      *auth.Shopper // the visitor as their consent stood, nil for a caller with no banner
 }
 
 func (*LineUpdated) Type() string                { return EventLineUpdated }
@@ -226,6 +252,10 @@ type LineRemoved struct { // fires AFTER the removal, async
 	CustomerID *uuid.UUID
 	AnonID     string
 	LineID     uuid.UUID
+	Shopper    *auth.Shopper // the visitor as their consent stood, nil for a caller with no banner
+	ProductSku string        // what the line held, for the platforms that report a removal by item
+	UnitPrice  int64
+	Quantity   float64
 }
 
 func (*LineRemoved) Type() string                { return EventLineRemoved }
@@ -236,6 +266,7 @@ type Cleared struct { // fires AFTER all lines are removed, async
 	ChannelID  uuid.UUID
 	CustomerID *uuid.UUID
 	AnonID     string
+	Shopper    *auth.Shopper // the visitor as their consent stood, nil for a caller with no banner
 }
 
 func (*Cleared) Type() string                { return EventCleared }
@@ -256,6 +287,7 @@ type Merged struct { // fires AFTER the merge commits, async
 	GuestCartID    uuid.UUID
 	CustomerID     uuid.UUID
 	ChannelID      uuid.UUID
+	Shopper        *auth.Shopper // the visitor as their consent stood, nil for a caller with no banner
 }
 
 func (*Merged) Type() string                { return EventMerged }

@@ -114,6 +114,7 @@ SET default_price              = $2,
     min_order_qty              = $23,
     max_order_qty              = $24,
     cost_cents                 = $25,
+    kit_items_returnable       = $26,
     updated_at                 = NOW()
 WHERE id = $1
 RETURNING *;
@@ -311,9 +312,32 @@ SELECT sku, tax_class FROM catalog_products
 WHERE sku = ANY(sqlc.arg(skus)::text[]);
 
 -- name: GetProductDimensionsBySKUs :many
--- What shipping rates a line by - its physical size, and its product type for the methods' per-type rates
-SELECT sku, weight_grams, length_mm, width_mm, height_mm, product_type_id FROM catalog_products
-WHERE sku = ANY(sqlc.arg(skus)::text[]);
+-- What shipping rates a line by - its physical size, and its product type for the methods' per-type rates. A kit ships as
+-- its own SKU, but one with no size or weight set weighs what its items do, so its rate isn't quoted as weightless. A
+-- variant with none of its own takes its parent's, which is where a merchant usually sets them once for every size
+SELECT p.sku,
+       COALESCE(CASE
+           WHEN p.kind = 'kit' AND COALESCE(p.weight_grams, 0) = 0 AND COALESCE(p.length_mm, 0) = 0
+                AND COALESCE(p.width_mm, 0) = 0 AND COALESCE(p.height_mm, 0) = 0
+           THEN (SELECT ROUND(SUM(COALESCE(c.weight_grams, 0) * k.quantity))
+                 FROM catalog_product_kit_components k
+                 JOIN catalog_products c ON c.id = k.component_product_id
+                 WHERE k.product_id = p.id)
+           ELSE COALESCE(NULLIF(p.weight_grams, 0), parent.weight_grams)
+       END, 0)::int AS weight_grams,
+       COALESCE(NULLIF(p.length_mm, 0), parent.length_mm) AS length_mm,
+       COALESCE(NULLIF(p.width_mm, 0), parent.width_mm) AS width_mm,
+       COALESCE(NULLIF(p.height_mm, 0), parent.height_mm) AS height_mm,
+       p.product_type_id
+FROM catalog_products p
+LEFT JOIN LATERAL (
+    SELECT pp.weight_grams, pp.length_mm, pp.width_mm, pp.height_mm
+    FROM catalog_product_children pc
+    JOIN catalog_products pp ON pp.id = pc.parent_id
+    WHERE pc.child_id = p.id
+    LIMIT 1
+) parent ON true
+WHERE p.sku = ANY(sqlc.arg(skus)::text[]);
 
 -- name: GetProductCostsBySKUs :many
 -- Order-placement COGS snapshot: resolve each cart line's unit cost from its SKU in one query (mirrors GetProductTaxClassesBySKUs) instead of a per-line pricing round-trip - rows with NULL cost_cents are omitted, so a present key always carries a real cost
@@ -350,6 +374,9 @@ JOIN catalog_product_channel_listings l
 WHERE l.is_published = TRUE
   AND (cardinality(sqlc.arg(kinds)::text[]) = 0
        OR p.kind::text = ANY(sqlc.arg(kinds)::text[]))
+  -- A search by meaning hands over the products it found, and the listing narrows to them
+  AND (COALESCE(cardinality(sqlc.arg(product_ids)::uuid[]), 0) = 0
+       OR p.id = ANY(sqlc.arg(product_ids)::uuid[]))
   -- Same arms SearchProductsFallback uses, so a term typed into a filtered PLP finds what the search box finds - matching SKU alone meant a shopper who typed a product NAME on a category page got an empty grid on this tier Shaped as a UNION of per-table arms for the same reason: each is an index path, where one OR across p and c would force a scan of the whole join The <> '' guard inside each arm matters - without it an unfiltered PLP (the common case) still builds the subquery, and ILIKE '%%' matches every row
   AND (sqlc.arg(search)::text = '' OR p.id IN (
         SELECT mc.product_id
@@ -365,7 +392,7 @@ WHERE l.is_published = TRUE
            AND mp.sku ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'))
   AND (NOT sqlc.arg(filter_category)::boolean OR EXISTS (
         SELECT 1 FROM catalog_product_categories pc
-        WHERE pc.product_id = p.id AND pc.category_id = sqlc.arg(category_id)))
+        WHERE pc.product_id = p.id AND pc.category_id = ANY(sqlc.arg(category_ids)::uuid[])))
   AND (NOT sqlc.arg(filter_collection)::boolean OR EXISTS (
         SELECT 1 FROM catalog_collection_products cp
         WHERE cp.product_id = p.id AND cp.collection_id = sqlc.arg(collection_id)))
@@ -448,6 +475,8 @@ WITH base AS (
     WHERE l.is_published = TRUE
       AND (cardinality(sqlc.arg(kinds)::text[]) = 0
            OR p.kind::text = ANY(sqlc.arg(kinds)::text[]))
+      AND (COALESCE(cardinality(sqlc.arg(product_ids)::uuid[]), 0) = 0
+           OR p.id = ANY(sqlc.arg(product_ids)::uuid[]))
       -- Character-for-character the predicate BrowseProductsFallback applies - a
       -- facet counted over a wider set than the grid shows is a count that lies
       AND (sqlc.arg(search)::text = '' OR p.id IN (
@@ -464,7 +493,7 @@ WITH base AS (
                AND mp.sku ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'))
       AND (NOT sqlc.arg(filter_category)::boolean OR EXISTS (
             SELECT 1 FROM catalog_product_categories pc
-            WHERE pc.product_id = p.id AND pc.category_id = sqlc.arg(category_id)))
+            WHERE pc.product_id = p.id AND pc.category_id = ANY(sqlc.arg(category_ids)::uuid[])))
       AND (NOT sqlc.arg(filter_collection)::boolean OR EXISTS (
             SELECT 1 FROM catalog_collection_products cp
             WHERE cp.product_id = p.id AND cp.collection_id = sqlc.arg(collection_id)))

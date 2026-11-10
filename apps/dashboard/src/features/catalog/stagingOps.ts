@@ -18,6 +18,21 @@ export function isTemp(id: string): boolean {
   return id.startsWith(TEMP_PREFIX)
 }
 
+// Thrown when a mid-sequence mutation fails - carries the unapplied tail (temp refs already resolved) so the section
+// can keep just that and a retry resumes instead of re-running committed adds and duplicating rows
+export class CommitError<Op = unknown> extends Error {
+  remaining: Op[]
+  // Temp ids that became real before the failure - anything else still naming them has to follow
+  idMap: Map<string, string>
+  constructor(cause: unknown, remaining: Op[], idMap: Map<string, string> = new Map()) {
+    super(cause instanceof Error ? cause.message : String(cause))
+    this.name = 'CommitError'
+    this.cause = cause
+    this.remaining = remaining
+    this.idMap = idMap
+  }
+}
+
 /**
  * What the collapser needs to know about an op, without knowing the op
  *

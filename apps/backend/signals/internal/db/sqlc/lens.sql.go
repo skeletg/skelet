@@ -465,6 +465,133 @@ func (q *Queries) LensLatestSnapshot(ctx context.Context, arg LensLatestSnapshot
 	return i, err
 }
 
+const lensOverviewTerms = `-- name: LensOverviewTerms :many
+SELECT key AS term,
+  COALESCE(SUM(views) FILTER (WHERE dim = 'overview_shown'), 0)::bigint AS shown,
+  COALESCE(SUM(views) FILTER (WHERE dim = 'overview_click'), 0)::bigint AS clicks,
+  COALESCE(SUM(views) FILTER (WHERE dim = 'overview_chat'), 0)::bigint AS chats
+FROM lens_traffic_daily
+WHERE channel_id = $1 AND day >= $2::date AND dim IN ('overview_shown', 'overview_click', 'overview_chat')
+GROUP BY key
+ORDER BY shown DESC, key
+LIMIT $3
+`
+
+type LensOverviewTermsParams struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	Since     time.Time `json:"since"`
+	Lim       int32     `json:"lim"`
+}
+
+type LensOverviewTermsRow struct {
+	Term   string `json:"term"`
+	Shown  int64  `json:"shown"`
+	Clicks int64  `json:"clicks"`
+	Chats  int64  `json:"chats"`
+}
+
+// The same per search, the most shown first
+func (q *Queries) LensOverviewTerms(ctx context.Context, arg LensOverviewTermsParams) ([]LensOverviewTermsRow, error) {
+	rows, err := q.db.QueryContext(ctx, lensOverviewTerms, arg.ChannelID, arg.Since, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LensOverviewTermsRow{}
+	for rows.Next() {
+		var i LensOverviewTermsRow
+		if err := rows.Scan(
+			&i.Term,
+			&i.Shown,
+			&i.Clicks,
+			&i.Chats,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lensOverviewTotals = `-- name: LensOverviewTotals :one
+SELECT
+  COALESCE(SUM(views) FILTER (WHERE dim = 'overview_shown'), 0)::bigint AS shown,
+  COALESCE(SUM(views) FILTER (WHERE dim = 'overview_click'), 0)::bigint AS clicks,
+  COALESCE(SUM(views) FILTER (WHERE dim = 'overview_chat'), 0)::bigint AS chats
+FROM lens_traffic_daily
+WHERE channel_id = $1 AND day >= $2::date AND dim IN ('overview_shown', 'overview_click', 'overview_chat')
+`
+
+type LensOverviewTotalsParams struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	Since     time.Time `json:"since"`
+}
+
+type LensOverviewTotalsRow struct {
+	Shown  int64 `json:"shown"`
+	Clicks int64 `json:"clicks"`
+	Chats  int64 `json:"chats"`
+}
+
+// The AI overview above search results, over the window
+func (q *Queries) LensOverviewTotals(ctx context.Context, arg LensOverviewTotalsParams) (LensOverviewTotalsRow, error) {
+	row := q.db.QueryRowContext(ctx, lensOverviewTotals, arg.ChannelID, arg.Since)
+	var i LensOverviewTotalsRow
+	err := row.Scan(&i.Shown, &i.Clicks, &i.Chats)
+	return i, err
+}
+
+const lensPlanIssues = `-- name: LensPlanIssues :many
+SELECT dim AS kind, key, SUM(views)::bigint AS count
+FROM lens_traffic_daily
+WHERE channel_id = $1 AND day >= $2::date AND dim LIKE 'plan\_%'
+GROUP BY dim, key
+ORDER BY count DESC
+LIMIT $3
+`
+
+type LensPlanIssuesParams struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	Since     time.Time `json:"since"`
+	Lim       int32     `json:"lim"`
+}
+
+type LensPlanIssuesRow struct {
+	Kind  string `json:"kind"`
+	Key   string `json:"key"`
+	Count int64  `json:"count"`
+}
+
+// What ingest stripped against the tracking plan (dim plan_*, key event or event.prop), for Data health. Rollup-backed.
+func (q *Queries) LensPlanIssues(ctx context.Context, arg LensPlanIssuesParams) ([]LensPlanIssuesRow, error) {
+	rows, err := q.db.QueryContext(ctx, lensPlanIssues, arg.ChannelID, arg.Since, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LensPlanIssuesRow{}
+	for rows.Next() {
+		var i LensPlanIssuesRow
+		if err := rows.Scan(&i.Kind, &i.Key, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lensPruneSessions = `-- name: LensPruneSessions :execrows
 DELETE FROM lens_sessions WHERE last_event_at < $1
 `
@@ -516,9 +643,10 @@ func (q *Queries) LensReplayState(ctx context.Context, arg LensReplayStateParams
 const lensSearchDaily = `-- name: LensSearchDaily :many
 SELECT to_char(day, 'YYYY-MM-DD') AS day,
   COALESCE(SUM(views) FILTER (WHERE dim = 'search'), 0)::bigint      AS searches,
-  COALESCE(SUM(views) FILTER (WHERE dim = 'search_zero'), 0)::bigint AS zero_results
+  COALESCE(SUM(views) FILTER (WHERE dim = 'search_zero'), 0)::bigint AS zero_results,
+  COALESCE(SUM(views) FILTER (WHERE dim = 'search_meaning'), 0)::bigint AS meaning_only
 FROM lens_traffic_daily
-WHERE channel_id = $1 AND day >= $2::date AND dim IN ('search', 'search_zero')
+WHERE channel_id = $1 AND day >= $2::date AND dim IN ('search', 'search_zero', 'search_meaning')
 GROUP BY day
 ORDER BY day
 `
@@ -532,6 +660,7 @@ type LensSearchDailyRow struct {
 	Day         string `json:"day"`
 	Searches    int64  `json:"searches"`
 	ZeroResults int64  `json:"zero_results"`
+	MeaningOnly int64  `json:"meaning_only"`
 }
 
 func (q *Queries) LensSearchDaily(ctx context.Context, arg LensSearchDailyParams) ([]LensSearchDailyRow, error) {
@@ -543,7 +672,61 @@ func (q *Queries) LensSearchDaily(ctx context.Context, arg LensSearchDailyParams
 	items := []LensSearchDailyRow{}
 	for rows.Next() {
 		var i LensSearchDailyRow
-		if err := rows.Scan(&i.Day, &i.Searches, &i.ZeroResults); err != nil {
+		if err := rows.Scan(
+			&i.Day,
+			&i.Searches,
+			&i.ZeroResults,
+			&i.MeaningOnly,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lensSearchGaps = `-- name: LensSearchGaps :many
+SELECT key AS term, SUM(views)::bigint AS count
+FROM lens_traffic_daily
+WHERE channel_id = $1 AND day >= $2::date AND dim = $3::text
+GROUP BY key
+ORDER BY count DESC
+LIMIT $4
+`
+
+type LensSearchGapsParams struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	Since     time.Time `json:"since"`
+	Dim       string    `json:"dim"`
+	Lim       int32     `json:"lim"`
+}
+
+type LensSearchGapsRow struct {
+	Term  string `json:"term"`
+	Count int64  `json:"count"`
+}
+
+func (q *Queries) LensSearchGaps(ctx context.Context, arg LensSearchGapsParams) ([]LensSearchGapsRow, error) {
+	rows, err := q.db.QueryContext(ctx, lensSearchGaps,
+		arg.ChannelID,
+		arg.Since,
+		arg.Dim,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LensSearchGapsRow{}
+	for rows.Next() {
+		var i LensSearchGapsRow
+		if err := rows.Scan(&i.Term, &i.Count); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -561,9 +744,10 @@ const lensSearchTotals = `-- name: LensSearchTotals :one
 SELECT
   COALESCE(SUM(views) FILTER (WHERE dim = 'search'), 0)::bigint      AS total_searches,
   COUNT(DISTINCT key) FILTER (WHERE dim = 'search')::bigint          AS distinct_terms,
-  COALESCE(SUM(views) FILTER (WHERE dim = 'search_zero'), 0)::bigint AS zero_result_searches
+  COALESCE(SUM(views) FILTER (WHERE dim = 'search_zero'), 0)::bigint AS zero_result_searches,
+  COALESCE(SUM(views) FILTER (WHERE dim = 'search_meaning'), 0)::bigint AS meaning_only_searches
 FROM lens_traffic_daily
-WHERE channel_id = $1 AND day >= $2::date AND dim IN ('search', 'search_zero')
+WHERE channel_id = $1 AND day >= $2::date AND dim IN ('search', 'search_zero', 'search_meaning')
 `
 
 type LensSearchTotalsParams struct {
@@ -572,15 +756,21 @@ type LensSearchTotalsParams struct {
 }
 
 type LensSearchTotalsRow struct {
-	TotalSearches      int64 `json:"total_searches"`
-	DistinctTerms      int64 `json:"distinct_terms"`
-	ZeroResultSearches int64 `json:"zero_result_searches"`
+	TotalSearches       int64 `json:"total_searches"`
+	DistinctTerms       int64 `json:"distinct_terms"`
+	ZeroResultSearches  int64 `json:"zero_result_searches"`
+	MeaningOnlySearches int64 `json:"meaning_only_searches"`
 }
 
 func (q *Queries) LensSearchTotals(ctx context.Context, arg LensSearchTotalsParams) (LensSearchTotalsRow, error) {
 	row := q.db.QueryRowContext(ctx, lensSearchTotals, arg.ChannelID, arg.Since)
 	var i LensSearchTotalsRow
-	err := row.Scan(&i.TotalSearches, &i.DistinctTerms, &i.ZeroResultSearches)
+	err := row.Scan(
+		&i.TotalSearches,
+		&i.DistinctTerms,
+		&i.ZeroResultSearches,
+		&i.MeaningOnlySearches,
+	)
 	return i, err
 }
 
@@ -1264,49 +1454,6 @@ func (q *Queries) LensVisitorCount(ctx context.Context, arg LensVisitorCountPara
 	var visitors int64
 	err := row.Scan(&visitors)
 	return visitors, err
-}
-
-const lensZeroResultSearches = `-- name: LensZeroResultSearches :many
-SELECT key AS term, SUM(views)::bigint AS count
-FROM lens_traffic_daily
-WHERE channel_id = $1 AND day >= $2::date AND dim = 'search_zero'
-GROUP BY key
-ORDER BY count DESC
-LIMIT $3
-`
-
-type LensZeroResultSearchesParams struct {
-	ChannelID uuid.UUID `json:"channel_id"`
-	Since     time.Time `json:"since"`
-	Lim       int32     `json:"lim"`
-}
-
-type LensZeroResultSearchesRow struct {
-	Term  string `json:"term"`
-	Count int64  `json:"count"`
-}
-
-func (q *Queries) LensZeroResultSearches(ctx context.Context, arg LensZeroResultSearchesParams) ([]LensZeroResultSearchesRow, error) {
-	rows, err := q.db.QueryContext(ctx, lensZeroResultSearches, arg.ChannelID, arg.Since, arg.Lim)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []LensZeroResultSearchesRow{}
-	for rows.Next() {
-		var i LensZeroResultSearchesRow
-		if err := rows.Scan(&i.Term, &i.Count); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const pruneLensDaily = `-- name: PruneLensDaily :execrows

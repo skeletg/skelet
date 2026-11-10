@@ -18,6 +18,7 @@ import { useConfigScope } from '@/lib/config-scope'
 import { type LensOverviewQuery, LensFrustrationDocument, LensOverviewDocument, LensVitalsSummaryDocument } from './Lens.gql'
 import { VITAL_ORDER, isVitalMetric } from './vitals'
 import { VitalGauge } from './VitalGauge'
+import { DataHealthSection } from './DataHealthSection'
 import { Empty, Panel, Tile } from '@/components/layout/panels'
 import { formatNumber } from '@/lib/format'
 import { LoadError } from '@/shared/errors/LoadError'
@@ -267,6 +268,8 @@ export function LensHome() {
                 </div>
               )}
             </DetailPageSection>
+
+            <DataHealthSection issues={ov.planIssues} />
           </>
         )}
       </DetailPageBody>

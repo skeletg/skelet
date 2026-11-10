@@ -15,6 +15,7 @@ import { CartSidebar } from "./CartSidebar";
 import { HeaderMenu } from "./HeaderMenu";
 import { HeaderShell } from "./HeaderShell";
 import { SearchModal } from "./SearchModal";
+import { AssistantTrigger } from "./assistant/AssistantTrigger";
 
 export async function Header() {
   // getChannel is cached at the request level so this doesn't
@@ -58,8 +59,10 @@ export async function Header() {
       </div>
 
       <HeaderShell>
-        <div className="mx-auto flex h-16 w-full max-w-8xl items-center gap-2 px-4 text-foreground sm:gap-3 md:px-8">
-          <div className="flex shrink-0 items-center gap-2">
+        {/* A container, so the nav answers to the room the header has - the assistant's panel narrows it on a wide screen */}
+        <div className="@container mx-auto flex h-16 w-full max-w-8xl items-center gap-2 px-4 text-foreground sm:gap-3 md:px-8">
+          {/* The logo is what gives way on a narrow phone, so the actions on the right always fit */}
+          <div className="flex min-w-0 items-center gap-2">
             <HeaderMenu
               brand={brand}
               categories={categories}
@@ -73,7 +76,7 @@ export async function Header() {
             <Link
               href="/"
               aria-label={brand}
-              className="flex items-baseline font-heading text-lg font-extrabold uppercase leading-none tracking-[0.08em] text-foreground"
+              className="flex min-w-0 items-baseline font-heading text-lg font-extrabold uppercase leading-none tracking-[0.08em] text-foreground"
             >
               {branding.logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -82,11 +85,11 @@ export async function Header() {
                   alt={brand}
                   // Bounded both ways: the header row is h-16, and a wide logo would otherwise push
                   // the nav off a narrow viewport
-                  className="max-h-8 w-auto max-w-[11rem] object-contain"
+                  className="max-h-8 w-auto min-w-0 max-w-[min(11rem,100%)] object-contain object-left"
                 />
               ) : (
                 <>
-                  <span>{brand}</span>
+                  <span className="truncate">{brand}</span>
                   <span aria-hidden="true" className="text-signal">
                     .
                   </span>
@@ -98,16 +101,17 @@ export async function Header() {
           {/* Admin-curated main-nav, catalog fallbacks otherwise - unresolved targets drop silently */}
           <nav
             aria-label={mainNav?.name ?? t("browse")}
-            className="hidden min-w-0 md:block md:pl-4"
+            className="hidden min-w-0 pl-4 md:block [:root[data-assistant-open]_&]:@max-[60rem]:hidden"
           >
-            <ul className="flex items-center gap-5 text-sm font-medium text-muted-foreground">
+            {/* Items that don't fit wrap onto a hidden second line rather than paint under the search */}
+            <ul className="flex h-8 flex-wrap content-start gap-x-5 overflow-hidden text-sm font-medium text-muted-foreground">
               {(mainNav && mainNav.items.length > 0
                 ? mainNav.items.flatMap((it) =>
                     it.url ? [{ key: it.id, url: it.url, label: it.label }] : [],
                   )
                 : FALLBACK_NAV.map((it) => ({ ...it, label: t(it.label) }))
               ).map((it) => (
-                <li key={it.key} className="shrink-0">
+                <li key={it.key} className="flex h-8 shrink-0 items-center">
                   <Link
                     href={it.url}
                     className="whitespace-nowrap transition hover:text-foreground"
@@ -122,6 +126,7 @@ export async function Header() {
           <div className="ml-auto flex shrink-0 items-center gap-1">
             <StoresLink />
             <SearchModal />
+            <AssistantTrigger />
             {/* The currency switcher (approx-price presentment) is deliberately not rendered - the
                 provider, cookie plumbing and backend rates all still work, so restoring it is just
                 mounting components/CurrencySwitcher here again */}

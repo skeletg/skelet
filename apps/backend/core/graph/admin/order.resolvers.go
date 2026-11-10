@@ -475,6 +475,13 @@ func (r *mutationResolver) RequestReturn(ctx context.Context, input model.Reques
 		if l.Reason != nil {
 			li.Reason = *l.Reason
 		}
+		if l.ComponentID != nil {
+			cid, err := parseID(*l.ComponentID, "component")
+			if err != nil {
+				return nil, err
+			}
+			li.ComponentID = &cid
+		}
 		lines = append(lines, li)
 	}
 	in := order.RequestReturnInput{OrderID: orderID, Lines: lines, Restock: true}
@@ -896,8 +903,8 @@ func (r *queryResolver) OrderDocumentPDF(ctx context.Context, orderID string, ki
 		if ch.PublicURL != "" {
 			in.Store.Lines = append(in.Store.Lines, ch.PublicURL)
 		}
-		in.TaxInclusive = ch.TaxInclusivePricing
 	}
+	in.TaxInclusive = o.TaxInclusive // the order's own mode - the channel may have changed since
 	if cur, cerr := r.CurrencySvc.GetByCode(ctx, o.CurrencyCode); cerr == nil {
 		in.Decimals = int(cur.Decimals)
 	}

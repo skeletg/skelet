@@ -18,6 +18,7 @@ const cart = {
   customerName: 'Shopper Twentyone',
   status: 'active',
   kind: 'SHOPPER',
+  source: 'web',
   email: 'shopper@example.com',
   offerState: null,
   offerExpiresAt: null,

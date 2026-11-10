@@ -2,6 +2,7 @@
 package gitx
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path"
@@ -51,6 +52,22 @@ func SkipWorktree(root string, pathspecs ...string) []string {
 		}
 	}
 	return files
+}
+
+func HasTag(root, tag string) bool {
+	_, err := output(root, "rev-parse", "-q", "--verify", "refs/tags/"+tag)
+	return err == nil
+}
+
+// ChangedSince is whether any of paths in the working tree differs from tag - an error when git can't tell
+func ChangedSince(root, tag string, paths ...string) (bool, error) {
+	cmd := exec.Command("git", append([]string{"diff", "--quiet", tag, "--"}, paths...)...)
+	cmd.Dir = root
+	err := cmd.Run()
+	if exit := (*exec.ExitError)(nil); errors.As(err, &exit) && exit.ExitCode() == 1 {
+		return true, nil
+	}
+	return false, err
 }
 
 func SparseOn(root string) bool {

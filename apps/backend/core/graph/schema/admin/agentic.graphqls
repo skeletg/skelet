@@ -1,0 +1,20 @@
+enum AgenticState {
+  ON
+  OFF
+  # Switched on, but something it needs is missing or failing
+  ATTENTION
+}
+
+# One piece of the shopping assistant's and shoppers' agents' setup on a store, and where it's set
+type AgenticStatus {
+  key:          String!
+  label:        String!
+  state:        AgenticState!
+  detail:       String!
+  settingsPath: String!
+}
+
+extend type Query {
+  # What's switched on for AI shopping on one store, in the order it builds up - config.view on the channel
+  agenticStatus(channelId: ID!): [AgenticStatus!]!
+}

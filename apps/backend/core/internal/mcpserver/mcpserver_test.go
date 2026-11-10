@@ -21,6 +21,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
+	"github.com/skeletg/skelet/apps/backend/core/signalsapi"
 )
 
 const initBody = `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"c","version":"1"}}}`
@@ -28,11 +29,11 @@ const initBody = `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"proto
 var objectSchema = map[string]any{"type": "object", "properties": map[string]any{"a": map[string]any{"type": "integer"}}}
 
 var registry = []ai.Tool{
-	{Name: "echo", Schema: objectSchema},
-	{Name: "broken"},
-	{Name: "boom"},
-	{Name: "block"},
-	{Name: "hidden"},
+	{Name: "echo", Schema: objectSchema, Effect: ai.Reads, Idempotent: true},
+	{Name: "broken", Effect: ai.Reads, Idempotent: true},
+	{Name: "boom", Effect: ai.Reads, Idempotent: true},
+	{Name: "block", Effect: ai.Reads, Idempotent: true},
+	{Name: "hidden", Effect: ai.Reads, Idempotent: true},
 }
 
 type fakeTools struct {
@@ -98,14 +99,17 @@ func (rec *recorder) source(ctx context.Context, cid uuid.UUID, days int) ToolSe
 }
 
 type keyRecorder struct {
-	mu   sync.Mutex
-	keys []string
+	mu    sync.Mutex
+	keys  []string
+	rates []int
 }
 
-func (k *keyRecorder) Allow(_ context.Context, key string) bool {
+func (k *keyRecorder) Allow(ctx context.Context, key string) bool { return k.AllowN(ctx, key, -1) }
+
+func (k *keyRecorder) AllowN(_ context.Context, key string, rate int) bool {
 	k.mu.Lock()
 	defer k.mu.Unlock()
-	k.keys = append(k.keys, key)
+	k.keys, k.rates = append(k.keys, key), append(k.rates, rate)
 	return false
 }
 
@@ -122,16 +126,14 @@ type fixture struct {
 	reporter *panicReporter
 }
 
-func newFixture(t *testing.T, limiter interface {
-	Allow(context.Context, string) bool
-}) *fixture {
+func newFixture(t *testing.T, limiter Limiter) *fixture {
 	t.Helper()
 	f := &fixture{pin: uuid.New(), alt: uuid.New(), reporter: &panicReporter{}}
 	f.rec = &recorder{none: uuid.New(), entered: make(chan struct{}, 16), release: make(chan struct{})}
 	f.chans = fakeChannels{broken: uuid.New(), known: map[uuid.UUID]channel.Channel{
 		f.pin: {ID: f.pin, Name: "Pinned"}, f.alt: {ID: f.alt, Name: "Other"}, f.rec.none: {ID: f.rec.none, Name: "Closed"},
 	}}
-	f.handler = NewHandler(Config{Tools: registry, Source: f.rec.source, Channels: f.chans, Limiter: limiter, Reporter: f.reporter})
+	f.handler = NewHandler(Config{Tools: registry, Resolve: Admin(f.rec.source, f.chans), Instructions: AdminInstructions, Limiter: limiter, Reporter: f.reporter})
 	return f
 }
 
@@ -353,13 +355,13 @@ func TestInFlightCallsAreCappedPerCredential(t *testing.T) {
 	busy := token(&f.pin)
 	cs := session(t, f.handler, busy, nil)
 	var wg sync.WaitGroup
-	for range maxInFlight {
+	for range defaultMaxInFlight {
 		wg.Go(func() { call(t, cs, "block", map[string]any{}) })
 	}
-	for range maxInFlight {
+	for range defaultMaxInFlight {
 		<-f.rec.entered
 	}
-	if text, isErr := call(t, cs, "echo", map[string]any{}); !isErr || !strings.Contains(text, fmt.Sprint(maxInFlight)) {
+	if text, isErr := call(t, cs, "echo", map[string]any{}); !isErr || !strings.Contains(text, fmt.Sprint(defaultMaxInFlight)) {
 		t.Errorf("a call past the cap should be refused, got %q (error %v)", text, isErr)
 	}
 	if _, isErr := call(t, session(t, f.handler, token(&f.pin), nil), "echo", map[string]any{}); isErr {
@@ -379,9 +381,8 @@ func BenchmarkToolCall(b *testing.B) {
 	}
 	pin := uuid.New()
 	h := NewHandler(Config{
-		Tools:    tools,
-		Source:   func(context.Context, uuid.UUID, int) ToolSet { return fakeTools{defs: tools} },
-		Channels: fakeChannels{known: map[uuid.UUID]channel.Channel{pin: {ID: pin}}},
+		Tools:   tools,
+		Resolve: Admin(func(context.Context, uuid.UUID, int) ToolSet { return fakeTools{defs: tools} }, fakeChannels{known: map[uuid.UUID]channel.Channel{pin: {ID: pin}}}),
 	})
 	ctx := token(&pin)(context.Background())
 	body := []byte(`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"tool_3","arguments":{"a":3}}}`)
@@ -395,6 +396,86 @@ func BenchmarkToolCall(b *testing.B) {
 		h.ServeHTTP(w, req)
 		if w.Code != http.StatusOK {
 			b.Fatalf("status %d: %s", w.Code, w.Body.String())
+		}
+	}
+}
+
+func TestAHandlerWithoutAResolverRefusesToBuild(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error("a handler with no Resolve would answer every request with a panic")
+		}
+	}()
+	NewHandler(Config{Tools: registry})
+}
+
+func TestAStorefrontCallerIsScopedToItsChannelAndAddress(t *testing.T) {
+	open, closed := uuid.New(), uuid.New()
+	keys := &keyRecorder{}
+	tools := []ai.Tool{{Name: "look", Effect: ai.Reads, Idempotent: true}, {Name: "change", Effect: ai.Writes, Idempotent: true}, {Name: "close", Effect: ai.Destroys}}
+	h := NewHandler(Config{
+		Tools: tools,
+		Resolve: Storefront(func(_ context.Context, ch channel.Channel, _ string) (ToolSet, *Refusal) {
+			if ch.ID == closed {
+				return nil, &Refusal{http.StatusNotFound, "closed to agents"}
+			}
+			return fakeTools{defs: tools}, nil
+		}, func(_ context.Context, ch channel.Channel) int { return 45 }),
+		Limiter: keys,
+	})
+	on := func(id uuid.UUID) func(context.Context) context.Context {
+		return func(ctx context.Context) context.Context { return channel.WithChannel(ctx, &channel.Channel{ID: id}) }
+	}
+	none := func(ctx context.Context) context.Context { return ctx }
+	if got := send(t, serve(t, h, none), http.MethodPost, initBody, nil); got != http.StatusBadRequest {
+		t.Errorf("no channel = %d, want 400", got)
+	}
+	if got := send(t, serve(t, h, on(closed)), http.MethodPost, initBody, nil); got != http.StatusNotFound {
+		t.Errorf("a channel closed to agents = %d, want its refusal's 404", got)
+	}
+
+	cs := session(t, h, on(open), nil)
+	list, err := cs.ListTools(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tl := range list.Tools {
+		a := tl.Annotations
+		switch tl.Name {
+		case "look":
+			if !a.ReadOnlyHint || a.DestructiveHint != nil {
+				t.Errorf("a read should say so and nothing about destroying: %+v", a)
+			}
+		case "change":
+			if a.ReadOnlyHint || a.DestructiveHint == nil || *a.DestructiveHint || !a.IdempotentHint {
+				t.Errorf("a non-destructive idempotent write should say exactly that: %+v", a)
+			}
+		case "close":
+			if a.ReadOnlyHint || a.DestructiveHint == nil || !*a.DestructiveHint || a.IdempotentHint {
+				t.Errorf("a destructive write should say so: %+v", a)
+			}
+		}
+	}
+	call(t, cs, "look", map[string]any{})
+	keys.mu.Lock()
+	defer keys.mu.Unlock()
+	if len(keys.keys) != 1 || !strings.HasPrefix(keys.keys[0], "mcp:front:"+open.String()+":") || strings.HasSuffix(keys.keys[0], ":") || keys.rates[0] != 45 {
+		t.Errorf("budget keys = %v at %v a minute - want one per store and client address, at the store's own rate", keys.keys, keys.rates)
+	}
+}
+
+func TestAnAgentIsNamedByWhatItsClientCallsItself(t *testing.T) {
+	for ua, want := range map[string]string{
+		"ShopBot/1.0 (+https://example.com/bot)":   "ShopBot",
+		"AskAgent/2.1; +https://example.org/agent": "AskAgent",
+		"python-httpx/0.28.1":                      "python-httpx",
+		"  cursor ":                                "cursor",
+		"":                                         "unknown",
+		"bad\x00name/1":                            "badname",
+		strings.Repeat("a", 100):                   strings.Repeat("a", signalsapi.AIMaxAgentName),
+	} {
+		if got := AgentName(ua); got != want {
+			t.Errorf("AgentName(%q) = %q, want %q", ua, got, want)
 		}
 	}
 }

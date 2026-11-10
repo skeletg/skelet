@@ -119,6 +119,11 @@ func (s *Service) Standing(ctx context.Context, adminID uuid.UUID) (superuser, a
 	return u.IsSuperuser, u.IsActive, nil
 }
 
+// RoleIDs are the roles an admin holds, for a service token - Signals checks a board shared with a role against them
+func (s *Service) RoleIDs(ctx context.Context, adminID uuid.UUID) ([]uuid.UUID, error) {
+	return s.repo.RoleIDs(ctx, adminID)
+}
+
 // Grants returns every scope an admin holds, for minting a service token that carries them
 func (s *Service) Grants(ctx context.Context, adminID uuid.UUID) ([]auth.Grant, error) {
 	set, err := s.grantsFor(ctx, adminID)

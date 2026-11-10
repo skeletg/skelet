@@ -17,10 +17,14 @@ import (
 type standingGrants struct {
 	superuser, active bool
 	grants            []auth.Grant
+	roles             []uuid.UUID
 }
 
 func (s standingGrants) Grants(context.Context, uuid.UUID) ([]auth.Grant, error) {
 	return s.grants, nil
+}
+func (s standingGrants) RoleIDs(context.Context, uuid.UUID) ([]uuid.UUID, error) {
+	return s.roles, nil
 }
 func (s standingGrants) Standing(context.Context, uuid.UUID) (bool, bool, error) {
 	return s.superuser, s.active, nil
@@ -39,7 +43,7 @@ func minted(t *testing.T, ctx context.Context) *auth.ServiceClaims {
 
 func TestAsAdminCarriesTheAdminsStanding(t *testing.T) {
 	mk := func(g Grants) *Client {
-		c, err := New("127.0.0.1:1", auth.MustServiceKeys("test-secret"), time.Minute, g)
+		c, err := New("127.0.0.1:1", Transport{}, auth.MustServiceKeys("test-secret"), time.Minute, g)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -55,5 +59,28 @@ func TestAsAdminCarriesTheAdminsStanding(t *testing.T) {
 	}
 	if c := minted(t, ctx); !c.IsSuperuser {
 		t.Error("a superuser's queued work was minted without the superuser flag, so the suite refuses it")
+	}
+}
+
+// A board shared with a role is checked in the suite, so both an admin's call and their queued work say which roles they hold
+func TestTheTokenCarriesTheAdminsRoles(t *testing.T) {
+	role := uuid.New()
+	c, err := New("127.0.0.1:1", Transport{}, auth.MustServiceKeys("test-secret"), time.Minute, standingGrants{active: true, roles: []uuid.UUID{role}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = c.Close() })
+	queued, err := c.AsAdmin(context.Background(), uuid.New())
+	if err != nil {
+		t.Fatal(err)
+	}
+	direct, err := c.Authed(auth.WithAdmin(context.Background(), &auth.Claims{AdminID: uuid.New()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, ctx := range map[string]context.Context{"queued": queued, "direct": direct} {
+		if got := minted(t, ctx).RoleIDs; len(got) != 1 || got[0] != role {
+			t.Errorf("%s token roles = %v, want [%s]", name, got, role)
+		}
 	}
 }

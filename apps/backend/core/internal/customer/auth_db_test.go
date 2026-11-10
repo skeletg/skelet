@@ -1,6 +1,7 @@
 package customer
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -9,6 +10,9 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/internal/locale"
 )
 
 // Stray case or whitespace still has to resolve, and a case-variant can't become a second account
@@ -267,5 +271,66 @@ func TestEnsureContactIsIdempotentAndCannotSignIn(t *testing.T) {
 		if _, err := f.svc.Authenticate(f.ctx, ch, addr, guess); !errors.Is(err, ErrInvalidCredentials) {
 			t.Errorf("a contact row authenticated with %q: %v", guess, err)
 		}
+	}
+}
+
+// A customer keeps the storefront language they signed up and last signed in with - the one their marketing email
+// goes out in
+func TestACustomerKeepsTheLanguageTheySignInWith(t *testing.T) {
+	f := newFixture(t)
+	ch := f.newChannel(t)
+	addr := randomEmail()
+	// the roster pushes on this event, so a new language reaches Signals before the next campaign rather than the next sweep
+	var mu sync.Mutex
+	var pushed []string
+	f.bus.Subscribe(EventProfileUpdated, func(_ context.Context, e events.Event) error {
+		mu.Lock()
+		defer mu.Unlock()
+		pushed = append(pushed, strings.Join(e.(*CustomerProfileUpdated).ChangedFields, ","))
+		return nil
+	})
+
+	c, err := f.svc.Register(locale.WithLocale(f.ctx, "de"), ch, addr, "password123", "Ana", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Locale != "de" {
+		t.Errorf("signed up in de, stored %q", c.Locale)
+	}
+	if _, err := f.svc.Authenticate(locale.WithLocale(f.ctx, "fr"), ch, addr, "password123"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := f.svc.GetByID(f.ctx, c.ID); err != nil || got.Locale != "fr" {
+		t.Errorf("after signing in in fr: %q, %v", got.Locale, err)
+	}
+	if _, err := f.svc.Authenticate(f.ctx, ch, addr, "password123"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := f.svc.GetByID(f.ctx, c.ID); got.Locale != "fr" {
+		t.Errorf("a sign-in with no language forgot fr: %q", got.Locale)
+	}
+	if err := f.bus.WaitIdle(f.ctx); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(pushed) != 1 || pushed[0] != "locale" {
+		t.Errorf("profile events %v, want one locale change - repeats and no-language sign-ins push nothing", pushed)
+	}
+}
+
+// A newsletter contact gets the storefront language they signed up in, and an import - run in the admin's request -
+// never takes the dashboard's
+func TestAContactKeepsTheLanguageTheySignedUpIn(t *testing.T) {
+	f := newFixture(t)
+	ch := f.newChannel(t)
+	german := locale.WithLocale(f.ctx, "de")
+	c, _, err := f.svc.EnsureContact(german, ch, randomEmail(), "Ana", true)
+	if err != nil || c.Locale != "de" {
+		t.Fatalf("a signup-form contact stored %q, %v - want de", c.Locale, err)
+	}
+	imported, _, err := f.svc.EnsureContactFrom(german, ch, randomEmail(), "Bo", false, SourceImport)
+	if err != nil || imported.Locale != "" {
+		t.Errorf("an imported contact stored %q, %v - want none", imported.Locale, err)
 	}
 }

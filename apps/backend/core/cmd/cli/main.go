@@ -28,6 +28,8 @@ func main() {
 	rootCmd.AddCommand(commands.ConfigCmd)
 	rootCmd.AddCommand(commands.PluginCmd)
 	rootCmd.AddCommand(commands.CustomerCmd)
+	rootCmd.AddCommand(commands.SignalsCmd)
+	rootCmd.AddCommand(commands.TrackingCmd)
 	rootCmd.AddCommand(commands.DataCmd)
 	rootCmd.AddCommand(commands.DevResetCmd)
 	rootCmd.AddCommand(commands.DevStoreDemoCmd)

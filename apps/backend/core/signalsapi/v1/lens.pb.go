@@ -1070,6 +1070,7 @@ type LensSearchDay struct {
 	Date          string `protobuf:"bytes,1,opt,name=date,proto3" json:"date,omitempty"`
 	Searches      int32  `protobuf:"varint,2,opt,name=searches,proto3" json:"searches,omitempty"`
 	ZeroResults   int32  `protobuf:"varint,3,opt,name=zero_results,json=zeroResults,proto3" json:"zero_results,omitempty"`
+	MeaningOnly   int32  `protobuf:"varint,4,opt,name=meaning_only,json=meaningOnly,proto3" json:"meaning_only,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1121,6 +1122,13 @@ func (x *LensSearchDay) GetSearches() int32 {
 func (x *LensSearchDay) GetZeroResults() int32 {
 	if x != nil {
 		return x.ZeroResults
+	}
+	return 0
+}
+
+func (x *LensSearchDay) GetMeaningOnly() int32 {
+	if x != nil {
+		return x.MeaningOnly
 	}
 	return 0
 }
@@ -1189,7 +1197,9 @@ type GetOverviewResponse struct {
 	Devices   []*LabelCount    `protobuf:"bytes,5,rep,name=devices,proto3" json:"devices,omitempty"`
 	Referrers []*LabelCount    `protobuf:"bytes,6,rep,name=referrers,proto3" json:"referrers,omitempty"`
 	// Named UI interactions, by count
-	Interactions  []*LabelCount `protobuf:"bytes,7,rep,name=interactions,proto3" json:"interactions,omitempty"`
+	Interactions []*LabelCount `protobuf:"bytes,7,rep,name=interactions,proto3" json:"interactions,omitempty"`
+	// What ingest stripped against the tracking plan (docs/tracking-plan.md), most frequent first
+	PlanIssues    []*PlanIssue `protobuf:"bytes,8,rep,name=plan_issues,json=planIssues,proto3" json:"plan_issues,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1273,6 +1283,84 @@ func (x *GetOverviewResponse) GetInteractions() []*LabelCount {
 	return nil
 }
 
+func (x *GetOverviewResponse) GetPlanIssues() []*PlanIssue {
+	if x != nil {
+		return x.PlanIssues
+	}
+	return nil
+}
+
+type PlanIssue struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// plan_unknown_event | plan_unknown_prop | plan_bad_type | plan_server_prop
+	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	// The event name, or "custom" for a merchant-named event
+	Event string `protobuf:"bytes,2,opt,name=event,proto3" json:"event,omitempty"`
+	// Empty when the whole event was dropped
+	Prop          string `protobuf:"bytes,3,opt,name=prop,proto3" json:"prop,omitempty"`
+	Count         int64  `protobuf:"varint,4,opt,name=count,proto3" json:"count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlanIssue) Reset() {
+	*x = PlanIssue{}
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlanIssue) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlanIssue) ProtoMessage() {}
+
+func (x *PlanIssue) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlanIssue.ProtoReflect.Descriptor instead.
+func (*PlanIssue) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *PlanIssue) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *PlanIssue) GetEvent() string {
+	if x != nil {
+		return x.Event
+	}
+	return ""
+}
+
+func (x *PlanIssue) GetProp() string {
+	if x != nil {
+		return x.Prop
+	}
+	return ""
+}
+
+func (x *PlanIssue) GetCount() int64 {
+	if x != nil {
+		return x.Count
+	}
+	return 0
+}
+
 type GetBotTrafficRequest struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	ChannelId string                 `protobuf:"bytes,1,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
@@ -1285,7 +1373,7 @@ type GetBotTrafficRequest struct {
 
 func (x *GetBotTrafficRequest) Reset() {
 	*x = GetBotTrafficRequest{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[18]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1297,7 +1385,7 @@ func (x *GetBotTrafficRequest) String() string {
 func (*GetBotTrafficRequest) ProtoMessage() {}
 
 func (x *GetBotTrafficRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[18]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1310,7 +1398,7 @@ func (x *GetBotTrafficRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBotTrafficRequest.ProtoReflect.Descriptor instead.
 func (*GetBotTrafficRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{18}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *GetBotTrafficRequest) GetChannelId() string {
@@ -1351,7 +1439,7 @@ type GetBotTrafficResponse struct {
 
 func (x *GetBotTrafficResponse) Reset() {
 	*x = GetBotTrafficResponse{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[19]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1363,7 +1451,7 @@ func (x *GetBotTrafficResponse) String() string {
 func (*GetBotTrafficResponse) ProtoMessage() {}
 
 func (x *GetBotTrafficResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[19]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1376,7 +1464,7 @@ func (x *GetBotTrafficResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBotTrafficResponse.ProtoReflect.Descriptor instead.
 func (*GetBotTrafficResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{19}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *GetBotTrafficResponse) GetBotHits() int32 {
@@ -1439,7 +1527,7 @@ type ListPagesRequest struct {
 
 func (x *ListPagesRequest) Reset() {
 	*x = ListPagesRequest{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[20]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1451,7 +1539,7 @@ func (x *ListPagesRequest) String() string {
 func (*ListPagesRequest) ProtoMessage() {}
 
 func (x *ListPagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[20]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1464,7 +1552,7 @@ func (x *ListPagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPagesRequest.ProtoReflect.Descriptor instead.
 func (*ListPagesRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{20}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ListPagesRequest) GetChannelId() string {
@@ -1498,7 +1586,7 @@ type ListPagesResponse struct {
 
 func (x *ListPagesResponse) Reset() {
 	*x = ListPagesResponse{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[21]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1510,7 +1598,7 @@ func (x *ListPagesResponse) String() string {
 func (*ListPagesResponse) ProtoMessage() {}
 
 func (x *ListPagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[21]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1523,7 +1611,7 @@ func (x *ListPagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPagesResponse.ProtoReflect.Descriptor instead.
 func (*ListPagesResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{21}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ListPagesResponse) GetPages() []*LensPage {
@@ -1551,7 +1639,7 @@ type ListStatesRequest struct {
 
 func (x *ListStatesRequest) Reset() {
 	*x = ListStatesRequest{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[22]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1563,7 +1651,7 @@ func (x *ListStatesRequest) String() string {
 func (*ListStatesRequest) ProtoMessage() {}
 
 func (x *ListStatesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[22]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1576,7 +1664,7 @@ func (x *ListStatesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListStatesRequest.ProtoReflect.Descriptor instead.
 func (*ListStatesRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{22}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ListStatesRequest) GetChannelId() string {
@@ -1609,7 +1697,7 @@ type ListStatesResponse struct {
 
 func (x *ListStatesResponse) Reset() {
 	*x = ListStatesResponse{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[23]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1621,7 +1709,7 @@ func (x *ListStatesResponse) String() string {
 func (*ListStatesResponse) ProtoMessage() {}
 
 func (x *ListStatesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[23]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1634,7 +1722,7 @@ func (x *ListStatesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListStatesResponse.ProtoReflect.Descriptor instead.
 func (*ListStatesResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{23}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *ListStatesResponse) GetStates() []string {
@@ -1654,7 +1742,7 @@ type GetPageStatsRequest struct {
 
 func (x *GetPageStatsRequest) Reset() {
 	*x = GetPageStatsRequest{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[24]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1666,7 +1754,7 @@ func (x *GetPageStatsRequest) String() string {
 func (*GetPageStatsRequest) ProtoMessage() {}
 
 func (x *GetPageStatsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[24]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1679,7 +1767,7 @@ func (x *GetPageStatsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPageStatsRequest.ProtoReflect.Descriptor instead.
 func (*GetPageStatsRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{24}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *GetPageStatsRequest) GetChannelId() string {
@@ -1716,7 +1804,7 @@ type GetPageStatsResponse struct {
 
 func (x *GetPageStatsResponse) Reset() {
 	*x = GetPageStatsResponse{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[25]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1728,7 +1816,7 @@ func (x *GetPageStatsResponse) String() string {
 func (*GetPageStatsResponse) ProtoMessage() {}
 
 func (x *GetPageStatsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[25]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1741,7 +1829,7 @@ func (x *GetPageStatsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPageStatsResponse.ProtoReflect.Descriptor instead.
 func (*GetPageStatsResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{25}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *GetPageStatsResponse) GetViews() int32 {
@@ -1813,7 +1901,7 @@ type GetHeatmapRequest struct {
 
 func (x *GetHeatmapRequest) Reset() {
 	*x = GetHeatmapRequest{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[26]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1825,7 +1913,7 @@ func (x *GetHeatmapRequest) String() string {
 func (*GetHeatmapRequest) ProtoMessage() {}
 
 func (x *GetHeatmapRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[26]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1838,7 +1926,7 @@ func (x *GetHeatmapRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetHeatmapRequest.ProtoReflect.Descriptor instead.
 func (*GetHeatmapRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{26}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *GetHeatmapRequest) GetChannelId() string {
@@ -1879,7 +1967,7 @@ type GetHeatmapResponse struct {
 
 func (x *GetHeatmapResponse) Reset() {
 	*x = GetHeatmapResponse{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[27]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1891,7 +1979,7 @@ func (x *GetHeatmapResponse) String() string {
 func (*GetHeatmapResponse) ProtoMessage() {}
 
 func (x *GetHeatmapResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[27]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1904,7 +1992,7 @@ func (x *GetHeatmapResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetHeatmapResponse.ProtoReflect.Descriptor instead.
 func (*GetHeatmapResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{27}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *GetHeatmapResponse) GetHeatmap() *Heatmap {
@@ -1932,7 +2020,7 @@ type Heatmap struct {
 
 func (x *Heatmap) Reset() {
 	*x = Heatmap{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[28]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1944,7 +2032,7 @@ func (x *Heatmap) String() string {
 func (*Heatmap) ProtoMessage() {}
 
 func (x *Heatmap) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[28]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1957,7 +2045,7 @@ func (x *Heatmap) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Heatmap.ProtoReflect.Descriptor instead.
 func (*Heatmap) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{28}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *Heatmap) GetPageKey() string {
@@ -2042,7 +2130,7 @@ type ListSessionsRequest struct {
 
 func (x *ListSessionsRequest) Reset() {
 	*x = ListSessionsRequest{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[29]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2054,7 +2142,7 @@ func (x *ListSessionsRequest) String() string {
 func (*ListSessionsRequest) ProtoMessage() {}
 
 func (x *ListSessionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[29]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2067,7 +2155,7 @@ func (x *ListSessionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSessionsRequest.ProtoReflect.Descriptor instead.
 func (*ListSessionsRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{29}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *ListSessionsRequest) GetChannelId() string {
@@ -2102,7 +2190,7 @@ type ListCustomerSessionsRequest struct {
 
 func (x *ListCustomerSessionsRequest) Reset() {
 	*x = ListCustomerSessionsRequest{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[30]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2114,7 +2202,7 @@ func (x *ListCustomerSessionsRequest) String() string {
 func (*ListCustomerSessionsRequest) ProtoMessage() {}
 
 func (x *ListCustomerSessionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[30]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2127,7 +2215,7 @@ func (x *ListCustomerSessionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCustomerSessionsRequest.ProtoReflect.Descriptor instead.
 func (*ListCustomerSessionsRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{30}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *ListCustomerSessionsRequest) GetCustomerId() string {
@@ -2162,7 +2250,7 @@ type ListVisitorSessionsRequest struct {
 
 func (x *ListVisitorSessionsRequest) Reset() {
 	*x = ListVisitorSessionsRequest{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[31]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2174,7 +2262,7 @@ func (x *ListVisitorSessionsRequest) String() string {
 func (*ListVisitorSessionsRequest) ProtoMessage() {}
 
 func (x *ListVisitorSessionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[31]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2187,7 +2275,7 @@ func (x *ListVisitorSessionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListVisitorSessionsRequest.ProtoReflect.Descriptor instead.
 func (*ListVisitorSessionsRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{31}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *ListVisitorSessionsRequest) GetAnonId() string {
@@ -2221,7 +2309,7 @@ type ListSessionsResponse struct {
 
 func (x *ListSessionsResponse) Reset() {
 	*x = ListSessionsResponse{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[32]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2233,7 +2321,7 @@ func (x *ListSessionsResponse) String() string {
 func (*ListSessionsResponse) ProtoMessage() {}
 
 func (x *ListSessionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[32]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2246,7 +2334,7 @@ func (x *ListSessionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSessionsResponse.ProtoReflect.Descriptor instead.
 func (*ListSessionsResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{32}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *ListSessionsResponse) GetSessions() []*LensSession {
@@ -2274,7 +2362,7 @@ type ListCustomerSessionsResponse struct {
 
 func (x *ListCustomerSessionsResponse) Reset() {
 	*x = ListCustomerSessionsResponse{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[33]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2286,7 +2374,7 @@ func (x *ListCustomerSessionsResponse) String() string {
 func (*ListCustomerSessionsResponse) ProtoMessage() {}
 
 func (x *ListCustomerSessionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[33]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2299,7 +2387,7 @@ func (x *ListCustomerSessionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCustomerSessionsResponse.ProtoReflect.Descriptor instead.
 func (*ListCustomerSessionsResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{33}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *ListCustomerSessionsResponse) GetSessions() []*LensSession {
@@ -2326,7 +2414,7 @@ type ListVisitorSessionsResponse struct {
 
 func (x *ListVisitorSessionsResponse) Reset() {
 	*x = ListVisitorSessionsResponse{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[34]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2338,7 +2426,7 @@ func (x *ListVisitorSessionsResponse) String() string {
 func (*ListVisitorSessionsResponse) ProtoMessage() {}
 
 func (x *ListVisitorSessionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[34]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2351,7 +2439,7 @@ func (x *ListVisitorSessionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListVisitorSessionsResponse.ProtoReflect.Descriptor instead.
 func (*ListVisitorSessionsResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{34}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *ListVisitorSessionsResponse) GetSessions() []*LensSession {
@@ -2377,7 +2465,7 @@ type GetSessionEventsRequest struct {
 
 func (x *GetSessionEventsRequest) Reset() {
 	*x = GetSessionEventsRequest{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[35]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2389,7 +2477,7 @@ func (x *GetSessionEventsRequest) String() string {
 func (*GetSessionEventsRequest) ProtoMessage() {}
 
 func (x *GetSessionEventsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[35]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2402,7 +2490,7 @@ func (x *GetSessionEventsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSessionEventsRequest.ProtoReflect.Descriptor instead.
 func (*GetSessionEventsRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{35}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *GetSessionEventsRequest) GetId() string {
@@ -2422,7 +2510,7 @@ type GetSessionEventsResponse struct {
 
 func (x *GetSessionEventsResponse) Reset() {
 	*x = GetSessionEventsResponse{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[36]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2434,7 +2522,7 @@ func (x *GetSessionEventsResponse) String() string {
 func (*GetSessionEventsResponse) ProtoMessage() {}
 
 func (x *GetSessionEventsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[36]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2447,7 +2535,7 @@ func (x *GetSessionEventsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSessionEventsResponse.ProtoReflect.Descriptor instead.
 func (*GetSessionEventsResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{36}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *GetSessionEventsResponse) GetChunk() []byte {
@@ -2466,7 +2554,7 @@ type GetSessionSignalsRequest struct {
 
 func (x *GetSessionSignalsRequest) Reset() {
 	*x = GetSessionSignalsRequest{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[37]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2478,7 +2566,7 @@ func (x *GetSessionSignalsRequest) String() string {
 func (*GetSessionSignalsRequest) ProtoMessage() {}
 
 func (x *GetSessionSignalsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[37]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2491,7 +2579,7 @@ func (x *GetSessionSignalsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSessionSignalsRequest.ProtoReflect.Descriptor instead.
 func (*GetSessionSignalsRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{37}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *GetSessionSignalsRequest) GetId() string {
@@ -2511,7 +2599,7 @@ type SessionError struct {
 
 func (x *SessionError) Reset() {
 	*x = SessionError{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[38]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2523,7 +2611,7 @@ func (x *SessionError) String() string {
 func (*SessionError) ProtoMessage() {}
 
 func (x *SessionError) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[38]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2536,7 +2624,7 @@ func (x *SessionError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SessionError.ProtoReflect.Descriptor instead.
 func (*SessionError) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{38}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *SessionError) GetMessage() string {
@@ -2563,7 +2651,7 @@ type SessionVital struct {
 
 func (x *SessionVital) Reset() {
 	*x = SessionVital{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[39]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2575,7 +2663,7 @@ func (x *SessionVital) String() string {
 func (*SessionVital) ProtoMessage() {}
 
 func (x *SessionVital) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[39]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2588,7 +2676,7 @@ func (x *SessionVital) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SessionVital.ProtoReflect.Descriptor instead.
 func (*SessionVital) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{39}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *SessionVital) GetMetric() string {
@@ -2616,7 +2704,7 @@ type GetSessionSignalsResponse struct {
 
 func (x *GetSessionSignalsResponse) Reset() {
 	*x = GetSessionSignalsResponse{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[40]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2628,7 +2716,7 @@ func (x *GetSessionSignalsResponse) String() string {
 func (*GetSessionSignalsResponse) ProtoMessage() {}
 
 func (x *GetSessionSignalsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[40]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2641,7 +2729,7 @@ func (x *GetSessionSignalsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSessionSignalsResponse.ProtoReflect.Descriptor instead.
 func (*GetSessionSignalsResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{40}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *GetSessionSignalsResponse) GetErrors() []*SessionError {
@@ -2668,7 +2756,7 @@ type GetFrustrationRequest struct {
 
 func (x *GetFrustrationRequest) Reset() {
 	*x = GetFrustrationRequest{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[41]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2680,7 +2768,7 @@ func (x *GetFrustrationRequest) String() string {
 func (*GetFrustrationRequest) ProtoMessage() {}
 
 func (x *GetFrustrationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[41]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2693,7 +2781,7 @@ func (x *GetFrustrationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetFrustrationRequest.ProtoReflect.Descriptor instead.
 func (*GetFrustrationRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{41}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *GetFrustrationRequest) GetChannelId() string {
@@ -2722,7 +2810,7 @@ type GetFrustrationResponse struct {
 
 func (x *GetFrustrationResponse) Reset() {
 	*x = GetFrustrationResponse{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[42]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2734,7 +2822,7 @@ func (x *GetFrustrationResponse) String() string {
 func (*GetFrustrationResponse) ProtoMessage() {}
 
 func (x *GetFrustrationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[42]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2747,7 +2835,7 @@ func (x *GetFrustrationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetFrustrationResponse.ProtoReflect.Descriptor instead.
 func (*GetFrustrationResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{42}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *GetFrustrationResponse) GetRagePages() []*LensSignalPage {
@@ -2783,7 +2871,7 @@ type ListErrorsRequest struct {
 
 func (x *ListErrorsRequest) Reset() {
 	*x = ListErrorsRequest{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[43]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2795,7 +2883,7 @@ func (x *ListErrorsRequest) String() string {
 func (*ListErrorsRequest) ProtoMessage() {}
 
 func (x *ListErrorsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[43]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2808,7 +2896,7 @@ func (x *ListErrorsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListErrorsRequest.ProtoReflect.Descriptor instead.
 func (*ListErrorsRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{43}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *ListErrorsRequest) GetChannelId() string {
@@ -2841,7 +2929,7 @@ type ListErrorsResponse struct {
 
 func (x *ListErrorsResponse) Reset() {
 	*x = ListErrorsResponse{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[44]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2853,7 +2941,7 @@ func (x *ListErrorsResponse) String() string {
 func (*ListErrorsResponse) ProtoMessage() {}
 
 func (x *ListErrorsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[44]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2866,7 +2954,7 @@ func (x *ListErrorsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListErrorsResponse.ProtoReflect.Descriptor instead.
 func (*ListErrorsResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{44}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *ListErrorsResponse) GetErrors() []*LensErrorStat {
@@ -2886,7 +2974,7 @@ type GetPerformanceRequest struct {
 
 func (x *GetPerformanceRequest) Reset() {
 	*x = GetPerformanceRequest{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[45]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2898,7 +2986,7 @@ func (x *GetPerformanceRequest) String() string {
 func (*GetPerformanceRequest) ProtoMessage() {}
 
 func (x *GetPerformanceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[45]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2911,7 +2999,7 @@ func (x *GetPerformanceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPerformanceRequest.ProtoReflect.Descriptor instead.
 func (*GetPerformanceRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{45}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *GetPerformanceRequest) GetChannelId() string {
@@ -2937,7 +3025,7 @@ type GetPerformanceResponse struct {
 
 func (x *GetPerformanceResponse) Reset() {
 	*x = GetPerformanceResponse{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[46]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2949,7 +3037,7 @@ func (x *GetPerformanceResponse) String() string {
 func (*GetPerformanceResponse) ProtoMessage() {}
 
 func (x *GetPerformanceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[46]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2962,7 +3050,7 @@ func (x *GetPerformanceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPerformanceResponse.ProtoReflect.Descriptor instead.
 func (*GetPerformanceResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{46}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *GetPerformanceResponse) GetPages() []*LensPageVitals {
@@ -2982,7 +3070,7 @@ type GetVitalsSummaryRequest struct {
 
 func (x *GetVitalsSummaryRequest) Reset() {
 	*x = GetVitalsSummaryRequest{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[47]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2994,7 +3082,7 @@ func (x *GetVitalsSummaryRequest) String() string {
 func (*GetVitalsSummaryRequest) ProtoMessage() {}
 
 func (x *GetVitalsSummaryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[47]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3007,7 +3095,7 @@ func (x *GetVitalsSummaryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetVitalsSummaryRequest.ProtoReflect.Descriptor instead.
 func (*GetVitalsSummaryRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{47}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *GetVitalsSummaryRequest) GetChannelId() string {
@@ -3033,7 +3121,7 @@ type GetVitalsSummaryResponse struct {
 
 func (x *GetVitalsSummaryResponse) Reset() {
 	*x = GetVitalsSummaryResponse{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[48]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3045,7 +3133,7 @@ func (x *GetVitalsSummaryResponse) String() string {
 func (*GetVitalsSummaryResponse) ProtoMessage() {}
 
 func (x *GetVitalsSummaryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[48]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3058,7 +3146,7 @@ func (x *GetVitalsSummaryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetVitalsSummaryResponse.ProtoReflect.Descriptor instead.
 func (*GetVitalsSummaryResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{48}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *GetVitalsSummaryResponse) GetVitals() []*LensVital {
@@ -3078,7 +3166,7 @@ type GetSearchAnalyticsRequest struct {
 
 func (x *GetSearchAnalyticsRequest) Reset() {
 	*x = GetSearchAnalyticsRequest{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[49]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3090,7 +3178,7 @@ func (x *GetSearchAnalyticsRequest) String() string {
 func (*GetSearchAnalyticsRequest) ProtoMessage() {}
 
 func (x *GetSearchAnalyticsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[49]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3103,7 +3191,7 @@ func (x *GetSearchAnalyticsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSearchAnalyticsRequest.ProtoReflect.Descriptor instead.
 func (*GetSearchAnalyticsRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{49}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *GetSearchAnalyticsRequest) GetChannelId() string {
@@ -3127,15 +3215,25 @@ type GetSearchAnalyticsResponse struct {
 	ZeroResultSearches int32                  `protobuf:"varint,3,opt,name=zero_result_searches,json=zeroResultSearches,proto3" json:"zero_result_searches,omitempty"`
 	Top                []*LensSearchTerm      `protobuf:"bytes,4,rep,name=top,proto3" json:"top,omitempty"`
 	// Searches that returned nothing, which is where the merchandising gaps are
-	ZeroResult    []*LensSearchTerm `protobuf:"bytes,5,rep,name=zero_result,json=zeroResult,proto3" json:"zero_result,omitempty"`
-	Daily         []*LensSearchDay  `protobuf:"bytes,6,rep,name=daily,proto3" json:"daily,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	ZeroResult []*LensSearchTerm `protobuf:"bytes,5,rep,name=zero_result,json=zeroResult,proto3" json:"zero_result,omitempty"`
+	Daily      []*LensSearchDay  `protobuf:"bytes,6,rep,name=daily,proto3" json:"daily,omitempty"`
+	// Searches whose words matched nothing, answered by meaning alone - the shopper's wording the catalog doesn't use
+	MeaningOnlySearches int32             `protobuf:"varint,7,opt,name=meaning_only_searches,json=meaningOnlySearches,proto3" json:"meaning_only_searches,omitempty"`
+	MeaningOnly         []*LensSearchTerm `protobuf:"bytes,8,rep,name=meaning_only,json=meaningOnly,proto3" json:"meaning_only,omitempty"`
+	// What shoppers asked the shopping assistant or their own AI agents for that came back empty
+	AiGaps []*LensAISearchGap `protobuf:"bytes,9,rep,name=ai_gaps,json=aiGaps,proto3" json:"ai_gaps,omitempty"`
+	// The AI overview above search results: shown, a product in it followed, carried into the chat
+	OverviewsShown int32               `protobuf:"varint,10,opt,name=overviews_shown,json=overviewsShown,proto3" json:"overviews_shown,omitempty"`
+	OverviewClicks int32               `protobuf:"varint,11,opt,name=overview_clicks,json=overviewClicks,proto3" json:"overview_clicks,omitempty"`
+	OverviewChats  int32               `protobuf:"varint,12,opt,name=overview_chats,json=overviewChats,proto3" json:"overview_chats,omitempty"`
+	Overviews      []*LensOverviewTerm `protobuf:"bytes,13,rep,name=overviews,proto3" json:"overviews,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *GetSearchAnalyticsResponse) Reset() {
 	*x = GetSearchAnalyticsResponse{}
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[50]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3147,7 +3245,7 @@ func (x *GetSearchAnalyticsResponse) String() string {
 func (*GetSearchAnalyticsResponse) ProtoMessage() {}
 
 func (x *GetSearchAnalyticsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_lens_proto_msgTypes[50]
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3160,7 +3258,7 @@ func (x *GetSearchAnalyticsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSearchAnalyticsResponse.ProtoReflect.Descriptor instead.
 func (*GetSearchAnalyticsResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{50}
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *GetSearchAnalyticsResponse) GetTotalSearches() int32 {
@@ -3203,6 +3301,183 @@ func (x *GetSearchAnalyticsResponse) GetDaily() []*LensSearchDay {
 		return x.Daily
 	}
 	return nil
+}
+
+func (x *GetSearchAnalyticsResponse) GetMeaningOnlySearches() int32 {
+	if x != nil {
+		return x.MeaningOnlySearches
+	}
+	return 0
+}
+
+func (x *GetSearchAnalyticsResponse) GetMeaningOnly() []*LensSearchTerm {
+	if x != nil {
+		return x.MeaningOnly
+	}
+	return nil
+}
+
+func (x *GetSearchAnalyticsResponse) GetAiGaps() []*LensAISearchGap {
+	if x != nil {
+		return x.AiGaps
+	}
+	return nil
+}
+
+func (x *GetSearchAnalyticsResponse) GetOverviewsShown() int32 {
+	if x != nil {
+		return x.OverviewsShown
+	}
+	return 0
+}
+
+func (x *GetSearchAnalyticsResponse) GetOverviewClicks() int32 {
+	if x != nil {
+		return x.OverviewClicks
+	}
+	return 0
+}
+
+func (x *GetSearchAnalyticsResponse) GetOverviewChats() int32 {
+	if x != nil {
+		return x.OverviewChats
+	}
+	return 0
+}
+
+func (x *GetSearchAnalyticsResponse) GetOverviews() []*LensOverviewTerm {
+	if x != nil {
+		return x.Overviews
+	}
+	return nil
+}
+
+type LensAISearchGap struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Term          string                 `protobuf:"bytes,1,opt,name=term,proto3" json:"term,omitempty"`
+	Assistant     int32                  `protobuf:"varint,2,opt,name=assistant,proto3" json:"assistant,omitempty"`
+	Agents        int32                  `protobuf:"varint,3,opt,name=agents,proto3" json:"agents,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LensAISearchGap) Reset() {
+	*x = LensAISearchGap{}
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[52]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LensAISearchGap) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LensAISearchGap) ProtoMessage() {}
+
+func (x *LensAISearchGap) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[52]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LensAISearchGap.ProtoReflect.Descriptor instead.
+func (*LensAISearchGap) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{52}
+}
+
+func (x *LensAISearchGap) GetTerm() string {
+	if x != nil {
+		return x.Term
+	}
+	return ""
+}
+
+func (x *LensAISearchGap) GetAssistant() int32 {
+	if x != nil {
+		return x.Assistant
+	}
+	return 0
+}
+
+func (x *LensAISearchGap) GetAgents() int32 {
+	if x != nil {
+		return x.Agents
+	}
+	return 0
+}
+
+type LensOverviewTerm struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Term          string                 `protobuf:"bytes,1,opt,name=term,proto3" json:"term,omitempty"`
+	Shown         int32                  `protobuf:"varint,2,opt,name=shown,proto3" json:"shown,omitempty"`
+	Clicks        int32                  `protobuf:"varint,3,opt,name=clicks,proto3" json:"clicks,omitempty"`
+	Chats         int32                  `protobuf:"varint,4,opt,name=chats,proto3" json:"chats,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LensOverviewTerm) Reset() {
+	*x = LensOverviewTerm{}
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LensOverviewTerm) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LensOverviewTerm) ProtoMessage() {}
+
+func (x *LensOverviewTerm) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_lens_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LensOverviewTerm.ProtoReflect.Descriptor instead.
+func (*LensOverviewTerm) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_lens_proto_rawDescGZIP(), []int{53}
+}
+
+func (x *LensOverviewTerm) GetTerm() string {
+	if x != nil {
+		return x.Term
+	}
+	return ""
+}
+
+func (x *LensOverviewTerm) GetShown() int32 {
+	if x != nil {
+		return x.Shown
+	}
+	return 0
+}
+
+func (x *LensOverviewTerm) GetClicks() int32 {
+	if x != nil {
+		return x.Clicks
+	}
+	return 0
+}
+
+func (x *LensOverviewTerm) GetChats() int32 {
+	if x != nil {
+		return x.Chats
+	}
+	return 0
 }
 
 var File_skelet_signals_v1_lens_proto protoreflect.FileDescriptor
@@ -3300,16 +3575,17 @@ const file_skelet_signals_v1_lens_proto_rawDesc = "" +
 	"\x05_ttfb\":\n" +
 	"\x0eLensSearchTerm\x12\x12\n" +
 	"\x04term\x18\x01 \x01(\tR\x04term\x12\x14\n" +
-	"\x05count\x18\x02 \x01(\x05R\x05count\"b\n" +
+	"\x05count\x18\x02 \x01(\x05R\x05count\"\x85\x01\n" +
 	"\rLensSearchDay\x12\x12\n" +
 	"\x04date\x18\x01 \x01(\tR\x04date\x12\x1a\n" +
 	"\bsearches\x18\x02 \x01(\x05R\bsearches\x12!\n" +
-	"\fzero_results\x18\x03 \x01(\x05R\vzeroResults\"R\n" +
+	"\fzero_results\x18\x03 \x01(\x05R\vzeroResults\x12!\n" +
+	"\fmeaning_only\x18\x04 \x01(\x05R\vmeaningOnly\"R\n" +
 	"\x12GetOverviewRequest\x12\x1d\n" +
 	"\n" +
 	"channel_id\x18\x01 \x01(\tR\tchannelId\x12\x1d\n" +
 	"\n" +
-	"since_days\x18\x02 \x01(\x05R\tsinceDays\"\xf6\x02\n" +
+	"since_days\x18\x02 \x01(\x05R\tsinceDays\"\xb5\x03\n" +
 	"\x13GetOverviewResponse\x12\x14\n" +
 	"\x05views\x18\x01 \x01(\x05R\x05views\x12\x1a\n" +
 	"\bvisitors\x18\x02 \x01(\x05R\bvisitors\x126\n" +
@@ -3317,7 +3593,14 @@ const file_skelet_signals_v1_lens_proto_rawDesc = "" +
 	"\ttop_pages\x18\x04 \x03(\v2\x1f.skelet.signals.v1.LensPageStatR\btopPages\x127\n" +
 	"\adevices\x18\x05 \x03(\v2\x1d.skelet.signals.v1.LabelCountR\adevices\x12;\n" +
 	"\treferrers\x18\x06 \x03(\v2\x1d.skelet.signals.v1.LabelCountR\treferrers\x12A\n" +
-	"\finteractions\x18\a \x03(\v2\x1d.skelet.signals.v1.LabelCountR\finteractions\"f\n" +
+	"\finteractions\x18\a \x03(\v2\x1d.skelet.signals.v1.LabelCountR\finteractions\x12=\n" +
+	"\vplan_issues\x18\b \x03(\v2\x1c.skelet.signals.v1.PlanIssueR\n" +
+	"planIssues\"_\n" +
+	"\tPlanIssue\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x14\n" +
+	"\x05event\x18\x02 \x01(\tR\x05event\x12\x12\n" +
+	"\x04prop\x18\x03 \x01(\tR\x04prop\x12\x14\n" +
+	"\x05count\x18\x04 \x01(\x03R\x05count\"f\n" +
 	"\x14GetBotTrafficRequest\x12\x1d\n" +
 	"\n" +
 	"channel_id\x18\x01 \x01(\tR\tchannelId\x12\x1d\n" +
@@ -3462,7 +3745,7 @@ const file_skelet_signals_v1_lens_proto_rawDesc = "" +
 	"\n" +
 	"channel_id\x18\x01 \x01(\tR\tchannelId\x12\x1d\n" +
 	"\n" +
-	"since_days\x18\x02 \x01(\x05R\tsinceDays\"\xcd\x02\n" +
+	"since_days\x18\x02 \x01(\x05R\tsinceDays\"\xc0\x05\n" +
 	"\x1aGetSearchAnalyticsResponse\x12%\n" +
 	"\x0etotal_searches\x18\x01 \x01(\x05R\rtotalSearches\x12%\n" +
 	"\x0edistinct_terms\x18\x02 \x01(\x05R\rdistinctTerms\x120\n" +
@@ -3470,7 +3753,24 @@ const file_skelet_signals_v1_lens_proto_rawDesc = "" +
 	"\x03top\x18\x04 \x03(\v2!.skelet.signals.v1.LensSearchTermR\x03top\x12B\n" +
 	"\vzero_result\x18\x05 \x03(\v2!.skelet.signals.v1.LensSearchTermR\n" +
 	"zeroResult\x126\n" +
-	"\x05daily\x18\x06 \x03(\v2 .skelet.signals.v1.LensSearchDayR\x05daily2\xf6\f\n" +
+	"\x05daily\x18\x06 \x03(\v2 .skelet.signals.v1.LensSearchDayR\x05daily\x122\n" +
+	"\x15meaning_only_searches\x18\a \x01(\x05R\x13meaningOnlySearches\x12D\n" +
+	"\fmeaning_only\x18\b \x03(\v2!.skelet.signals.v1.LensSearchTermR\vmeaningOnly\x12;\n" +
+	"\aai_gaps\x18\t \x03(\v2\".skelet.signals.v1.LensAISearchGapR\x06aiGaps\x12'\n" +
+	"\x0foverviews_shown\x18\n" +
+	" \x01(\x05R\x0eoverviewsShown\x12'\n" +
+	"\x0foverview_clicks\x18\v \x01(\x05R\x0eoverviewClicks\x12%\n" +
+	"\x0eoverview_chats\x18\f \x01(\x05R\roverviewChats\x12A\n" +
+	"\toverviews\x18\r \x03(\v2#.skelet.signals.v1.LensOverviewTermR\toverviews\"[\n" +
+	"\x0fLensAISearchGap\x12\x12\n" +
+	"\x04term\x18\x01 \x01(\tR\x04term\x12\x1c\n" +
+	"\tassistant\x18\x02 \x01(\x05R\tassistant\x12\x16\n" +
+	"\x06agents\x18\x03 \x01(\x05R\x06agents\"j\n" +
+	"\x10LensOverviewTerm\x12\x12\n" +
+	"\x04term\x18\x01 \x01(\tR\x04term\x12\x14\n" +
+	"\x05shown\x18\x02 \x01(\x05R\x05shown\x12\x16\n" +
+	"\x06clicks\x18\x03 \x01(\x05R\x06clicks\x12\x14\n" +
+	"\x05chats\x18\x04 \x01(\x05R\x05chats2\xf6\f\n" +
 	"\vLensService\x12\\\n" +
 	"\vGetOverview\x12%.skelet.signals.v1.GetOverviewRequest\x1a&.skelet.signals.v1.GetOverviewResponse\x12b\n" +
 	"\rGetBotTraffic\x12'.skelet.signals.v1.GetBotTrafficRequest\x1a(.skelet.signals.v1.GetBotTrafficResponse\x12V\n" +
@@ -3505,7 +3805,7 @@ func file_skelet_signals_v1_lens_proto_rawDescGZIP() []byte {
 	return file_skelet_signals_v1_lens_proto_rawDescData
 }
 
-var file_skelet_signals_v1_lens_proto_msgTypes = make([]protoimpl.MessageInfo, 51)
+var file_skelet_signals_v1_lens_proto_msgTypes = make([]protoimpl.MessageInfo, 54)
 var file_skelet_signals_v1_lens_proto_goTypes = []any{
 	(*LensPageStat)(nil),                 // 0: skelet.signals.v1.LensPageStat
 	(*LensTimePoint)(nil),                // 1: skelet.signals.v1.LensTimePoint
@@ -3525,117 +3825,124 @@ var file_skelet_signals_v1_lens_proto_goTypes = []any{
 	(*LensSearchDay)(nil),                // 15: skelet.signals.v1.LensSearchDay
 	(*GetOverviewRequest)(nil),           // 16: skelet.signals.v1.GetOverviewRequest
 	(*GetOverviewResponse)(nil),          // 17: skelet.signals.v1.GetOverviewResponse
-	(*GetBotTrafficRequest)(nil),         // 18: skelet.signals.v1.GetBotTrafficRequest
-	(*GetBotTrafficResponse)(nil),        // 19: skelet.signals.v1.GetBotTrafficResponse
-	(*ListPagesRequest)(nil),             // 20: skelet.signals.v1.ListPagesRequest
-	(*ListPagesResponse)(nil),            // 21: skelet.signals.v1.ListPagesResponse
-	(*ListStatesRequest)(nil),            // 22: skelet.signals.v1.ListStatesRequest
-	(*ListStatesResponse)(nil),           // 23: skelet.signals.v1.ListStatesResponse
-	(*GetPageStatsRequest)(nil),          // 24: skelet.signals.v1.GetPageStatsRequest
-	(*GetPageStatsResponse)(nil),         // 25: skelet.signals.v1.GetPageStatsResponse
-	(*GetHeatmapRequest)(nil),            // 26: skelet.signals.v1.GetHeatmapRequest
-	(*GetHeatmapResponse)(nil),           // 27: skelet.signals.v1.GetHeatmapResponse
-	(*Heatmap)(nil),                      // 28: skelet.signals.v1.Heatmap
-	(*ListSessionsRequest)(nil),          // 29: skelet.signals.v1.ListSessionsRequest
-	(*ListCustomerSessionsRequest)(nil),  // 30: skelet.signals.v1.ListCustomerSessionsRequest
-	(*ListVisitorSessionsRequest)(nil),   // 31: skelet.signals.v1.ListVisitorSessionsRequest
-	(*ListSessionsResponse)(nil),         // 32: skelet.signals.v1.ListSessionsResponse
-	(*ListCustomerSessionsResponse)(nil), // 33: skelet.signals.v1.ListCustomerSessionsResponse
-	(*ListVisitorSessionsResponse)(nil),  // 34: skelet.signals.v1.ListVisitorSessionsResponse
-	(*GetSessionEventsRequest)(nil),      // 35: skelet.signals.v1.GetSessionEventsRequest
-	(*GetSessionEventsResponse)(nil),     // 36: skelet.signals.v1.GetSessionEventsResponse
-	(*GetSessionSignalsRequest)(nil),     // 37: skelet.signals.v1.GetSessionSignalsRequest
-	(*SessionError)(nil),                 // 38: skelet.signals.v1.SessionError
-	(*SessionVital)(nil),                 // 39: skelet.signals.v1.SessionVital
-	(*GetSessionSignalsResponse)(nil),    // 40: skelet.signals.v1.GetSessionSignalsResponse
-	(*GetFrustrationRequest)(nil),        // 41: skelet.signals.v1.GetFrustrationRequest
-	(*GetFrustrationResponse)(nil),       // 42: skelet.signals.v1.GetFrustrationResponse
-	(*ListErrorsRequest)(nil),            // 43: skelet.signals.v1.ListErrorsRequest
-	(*ListErrorsResponse)(nil),           // 44: skelet.signals.v1.ListErrorsResponse
-	(*GetPerformanceRequest)(nil),        // 45: skelet.signals.v1.GetPerformanceRequest
-	(*GetPerformanceResponse)(nil),       // 46: skelet.signals.v1.GetPerformanceResponse
-	(*GetVitalsSummaryRequest)(nil),      // 47: skelet.signals.v1.GetVitalsSummaryRequest
-	(*GetVitalsSummaryResponse)(nil),     // 48: skelet.signals.v1.GetVitalsSummaryResponse
-	(*GetSearchAnalyticsRequest)(nil),    // 49: skelet.signals.v1.GetSearchAnalyticsRequest
-	(*GetSearchAnalyticsResponse)(nil),   // 50: skelet.signals.v1.GetSearchAnalyticsResponse
-	(*timestamppb.Timestamp)(nil),        // 51: google.protobuf.Timestamp
-	(*LabelCount)(nil),                   // 52: skelet.signals.v1.LabelCount
+	(*PlanIssue)(nil),                    // 18: skelet.signals.v1.PlanIssue
+	(*GetBotTrafficRequest)(nil),         // 19: skelet.signals.v1.GetBotTrafficRequest
+	(*GetBotTrafficResponse)(nil),        // 20: skelet.signals.v1.GetBotTrafficResponse
+	(*ListPagesRequest)(nil),             // 21: skelet.signals.v1.ListPagesRequest
+	(*ListPagesResponse)(nil),            // 22: skelet.signals.v1.ListPagesResponse
+	(*ListStatesRequest)(nil),            // 23: skelet.signals.v1.ListStatesRequest
+	(*ListStatesResponse)(nil),           // 24: skelet.signals.v1.ListStatesResponse
+	(*GetPageStatsRequest)(nil),          // 25: skelet.signals.v1.GetPageStatsRequest
+	(*GetPageStatsResponse)(nil),         // 26: skelet.signals.v1.GetPageStatsResponse
+	(*GetHeatmapRequest)(nil),            // 27: skelet.signals.v1.GetHeatmapRequest
+	(*GetHeatmapResponse)(nil),           // 28: skelet.signals.v1.GetHeatmapResponse
+	(*Heatmap)(nil),                      // 29: skelet.signals.v1.Heatmap
+	(*ListSessionsRequest)(nil),          // 30: skelet.signals.v1.ListSessionsRequest
+	(*ListCustomerSessionsRequest)(nil),  // 31: skelet.signals.v1.ListCustomerSessionsRequest
+	(*ListVisitorSessionsRequest)(nil),   // 32: skelet.signals.v1.ListVisitorSessionsRequest
+	(*ListSessionsResponse)(nil),         // 33: skelet.signals.v1.ListSessionsResponse
+	(*ListCustomerSessionsResponse)(nil), // 34: skelet.signals.v1.ListCustomerSessionsResponse
+	(*ListVisitorSessionsResponse)(nil),  // 35: skelet.signals.v1.ListVisitorSessionsResponse
+	(*GetSessionEventsRequest)(nil),      // 36: skelet.signals.v1.GetSessionEventsRequest
+	(*GetSessionEventsResponse)(nil),     // 37: skelet.signals.v1.GetSessionEventsResponse
+	(*GetSessionSignalsRequest)(nil),     // 38: skelet.signals.v1.GetSessionSignalsRequest
+	(*SessionError)(nil),                 // 39: skelet.signals.v1.SessionError
+	(*SessionVital)(nil),                 // 40: skelet.signals.v1.SessionVital
+	(*GetSessionSignalsResponse)(nil),    // 41: skelet.signals.v1.GetSessionSignalsResponse
+	(*GetFrustrationRequest)(nil),        // 42: skelet.signals.v1.GetFrustrationRequest
+	(*GetFrustrationResponse)(nil),       // 43: skelet.signals.v1.GetFrustrationResponse
+	(*ListErrorsRequest)(nil),            // 44: skelet.signals.v1.ListErrorsRequest
+	(*ListErrorsResponse)(nil),           // 45: skelet.signals.v1.ListErrorsResponse
+	(*GetPerformanceRequest)(nil),        // 46: skelet.signals.v1.GetPerformanceRequest
+	(*GetPerformanceResponse)(nil),       // 47: skelet.signals.v1.GetPerformanceResponse
+	(*GetVitalsSummaryRequest)(nil),      // 48: skelet.signals.v1.GetVitalsSummaryRequest
+	(*GetVitalsSummaryResponse)(nil),     // 49: skelet.signals.v1.GetVitalsSummaryResponse
+	(*GetSearchAnalyticsRequest)(nil),    // 50: skelet.signals.v1.GetSearchAnalyticsRequest
+	(*GetSearchAnalyticsResponse)(nil),   // 51: skelet.signals.v1.GetSearchAnalyticsResponse
+	(*LensAISearchGap)(nil),              // 52: skelet.signals.v1.LensAISearchGap
+	(*LensOverviewTerm)(nil),             // 53: skelet.signals.v1.LensOverviewTerm
+	(*timestamppb.Timestamp)(nil),        // 54: google.protobuf.Timestamp
+	(*LabelCount)(nil),                   // 55: skelet.signals.v1.LabelCount
 }
 var file_skelet_signals_v1_lens_proto_depIdxs = []int32{
-	51, // 0: skelet.signals.v1.BotAgent.last_seen:type_name -> google.protobuf.Timestamp
-	51, // 1: skelet.signals.v1.LensSession.started_at:type_name -> google.protobuf.Timestamp
-	51, // 2: skelet.signals.v1.LensSession.ended_at:type_name -> google.protobuf.Timestamp
-	51, // 3: skelet.signals.v1.LensErrorStat.last_seen:type_name -> google.protobuf.Timestamp
+	54, // 0: skelet.signals.v1.BotAgent.last_seen:type_name -> google.protobuf.Timestamp
+	54, // 1: skelet.signals.v1.LensSession.started_at:type_name -> google.protobuf.Timestamp
+	54, // 2: skelet.signals.v1.LensSession.ended_at:type_name -> google.protobuf.Timestamp
+	54, // 3: skelet.signals.v1.LensErrorStat.last_seen:type_name -> google.protobuf.Timestamp
 	1,  // 4: skelet.signals.v1.GetOverviewResponse.daily:type_name -> skelet.signals.v1.LensTimePoint
 	0,  // 5: skelet.signals.v1.GetOverviewResponse.top_pages:type_name -> skelet.signals.v1.LensPageStat
-	52, // 6: skelet.signals.v1.GetOverviewResponse.devices:type_name -> skelet.signals.v1.LabelCount
-	52, // 7: skelet.signals.v1.GetOverviewResponse.referrers:type_name -> skelet.signals.v1.LabelCount
-	52, // 8: skelet.signals.v1.GetOverviewResponse.interactions:type_name -> skelet.signals.v1.LabelCount
-	5,  // 9: skelet.signals.v1.GetBotTrafficResponse.bots:type_name -> skelet.signals.v1.BotAgent
-	6,  // 10: skelet.signals.v1.GetBotTrafficResponse.top_pages:type_name -> skelet.signals.v1.BotPage
-	7,  // 11: skelet.signals.v1.GetBotTrafficResponse.daily:type_name -> skelet.signals.v1.BotDayPoint
-	2,  // 12: skelet.signals.v1.ListPagesResponse.pages:type_name -> skelet.signals.v1.LensPage
-	1,  // 13: skelet.signals.v1.GetPageStatsResponse.timeline:type_name -> skelet.signals.v1.LensTimePoint
-	52, // 14: skelet.signals.v1.GetPageStatsResponse.referrers:type_name -> skelet.signals.v1.LabelCount
-	52, // 15: skelet.signals.v1.GetPageStatsResponse.clients:type_name -> skelet.signals.v1.LabelCount
-	52, // 16: skelet.signals.v1.GetPageStatsResponse.devices:type_name -> skelet.signals.v1.LabelCount
-	28, // 17: skelet.signals.v1.GetHeatmapResponse.heatmap:type_name -> skelet.signals.v1.Heatmap
-	3,  // 18: skelet.signals.v1.Heatmap.click:type_name -> skelet.signals.v1.LensCell
-	3,  // 19: skelet.signals.v1.Heatmap.move:type_name -> skelet.signals.v1.LensCell
-	3,  // 20: skelet.signals.v1.Heatmap.scroll:type_name -> skelet.signals.v1.LensCell
-	4,  // 21: skelet.signals.v1.Heatmap.elements:type_name -> skelet.signals.v1.LensElementClick
-	8,  // 22: skelet.signals.v1.ListSessionsResponse.sessions:type_name -> skelet.signals.v1.LensSession
-	8,  // 23: skelet.signals.v1.ListCustomerSessionsResponse.sessions:type_name -> skelet.signals.v1.LensSession
-	8,  // 24: skelet.signals.v1.ListVisitorSessionsResponse.sessions:type_name -> skelet.signals.v1.LensSession
-	51, // 25: skelet.signals.v1.SessionError.at:type_name -> google.protobuf.Timestamp
-	38, // 26: skelet.signals.v1.GetSessionSignalsResponse.errors:type_name -> skelet.signals.v1.SessionError
-	39, // 27: skelet.signals.v1.GetSessionSignalsResponse.vitals:type_name -> skelet.signals.v1.SessionVital
-	9,  // 28: skelet.signals.v1.GetFrustrationResponse.rage_pages:type_name -> skelet.signals.v1.LensSignalPage
-	9,  // 29: skelet.signals.v1.GetFrustrationResponse.dead_pages:type_name -> skelet.signals.v1.LensSignalPage
-	10, // 30: skelet.signals.v1.GetFrustrationResponse.rage_elements:type_name -> skelet.signals.v1.LensRageElement
-	11, // 31: skelet.signals.v1.ListErrorsResponse.errors:type_name -> skelet.signals.v1.LensErrorStat
-	13, // 32: skelet.signals.v1.GetPerformanceResponse.pages:type_name -> skelet.signals.v1.LensPageVitals
-	12, // 33: skelet.signals.v1.GetVitalsSummaryResponse.vitals:type_name -> skelet.signals.v1.LensVital
-	14, // 34: skelet.signals.v1.GetSearchAnalyticsResponse.top:type_name -> skelet.signals.v1.LensSearchTerm
-	14, // 35: skelet.signals.v1.GetSearchAnalyticsResponse.zero_result:type_name -> skelet.signals.v1.LensSearchTerm
-	15, // 36: skelet.signals.v1.GetSearchAnalyticsResponse.daily:type_name -> skelet.signals.v1.LensSearchDay
-	16, // 37: skelet.signals.v1.LensService.GetOverview:input_type -> skelet.signals.v1.GetOverviewRequest
-	18, // 38: skelet.signals.v1.LensService.GetBotTraffic:input_type -> skelet.signals.v1.GetBotTrafficRequest
-	20, // 39: skelet.signals.v1.LensService.ListPages:input_type -> skelet.signals.v1.ListPagesRequest
-	22, // 40: skelet.signals.v1.LensService.ListStates:input_type -> skelet.signals.v1.ListStatesRequest
-	24, // 41: skelet.signals.v1.LensService.GetPageStats:input_type -> skelet.signals.v1.GetPageStatsRequest
-	26, // 42: skelet.signals.v1.LensService.GetHeatmap:input_type -> skelet.signals.v1.GetHeatmapRequest
-	29, // 43: skelet.signals.v1.LensService.ListSessions:input_type -> skelet.signals.v1.ListSessionsRequest
-	30, // 44: skelet.signals.v1.LensService.ListCustomerSessions:input_type -> skelet.signals.v1.ListCustomerSessionsRequest
-	31, // 45: skelet.signals.v1.LensService.ListVisitorSessions:input_type -> skelet.signals.v1.ListVisitorSessionsRequest
-	35, // 46: skelet.signals.v1.LensService.GetSessionEvents:input_type -> skelet.signals.v1.GetSessionEventsRequest
-	37, // 47: skelet.signals.v1.LensService.GetSessionSignals:input_type -> skelet.signals.v1.GetSessionSignalsRequest
-	41, // 48: skelet.signals.v1.LensService.GetFrustration:input_type -> skelet.signals.v1.GetFrustrationRequest
-	43, // 49: skelet.signals.v1.LensService.ListErrors:input_type -> skelet.signals.v1.ListErrorsRequest
-	45, // 50: skelet.signals.v1.LensService.GetPerformance:input_type -> skelet.signals.v1.GetPerformanceRequest
-	47, // 51: skelet.signals.v1.LensService.GetVitalsSummary:input_type -> skelet.signals.v1.GetVitalsSummaryRequest
-	49, // 52: skelet.signals.v1.LensService.GetSearchAnalytics:input_type -> skelet.signals.v1.GetSearchAnalyticsRequest
-	17, // 53: skelet.signals.v1.LensService.GetOverview:output_type -> skelet.signals.v1.GetOverviewResponse
-	19, // 54: skelet.signals.v1.LensService.GetBotTraffic:output_type -> skelet.signals.v1.GetBotTrafficResponse
-	21, // 55: skelet.signals.v1.LensService.ListPages:output_type -> skelet.signals.v1.ListPagesResponse
-	23, // 56: skelet.signals.v1.LensService.ListStates:output_type -> skelet.signals.v1.ListStatesResponse
-	25, // 57: skelet.signals.v1.LensService.GetPageStats:output_type -> skelet.signals.v1.GetPageStatsResponse
-	27, // 58: skelet.signals.v1.LensService.GetHeatmap:output_type -> skelet.signals.v1.GetHeatmapResponse
-	32, // 59: skelet.signals.v1.LensService.ListSessions:output_type -> skelet.signals.v1.ListSessionsResponse
-	33, // 60: skelet.signals.v1.LensService.ListCustomerSessions:output_type -> skelet.signals.v1.ListCustomerSessionsResponse
-	34, // 61: skelet.signals.v1.LensService.ListVisitorSessions:output_type -> skelet.signals.v1.ListVisitorSessionsResponse
-	36, // 62: skelet.signals.v1.LensService.GetSessionEvents:output_type -> skelet.signals.v1.GetSessionEventsResponse
-	40, // 63: skelet.signals.v1.LensService.GetSessionSignals:output_type -> skelet.signals.v1.GetSessionSignalsResponse
-	42, // 64: skelet.signals.v1.LensService.GetFrustration:output_type -> skelet.signals.v1.GetFrustrationResponse
-	44, // 65: skelet.signals.v1.LensService.ListErrors:output_type -> skelet.signals.v1.ListErrorsResponse
-	46, // 66: skelet.signals.v1.LensService.GetPerformance:output_type -> skelet.signals.v1.GetPerformanceResponse
-	48, // 67: skelet.signals.v1.LensService.GetVitalsSummary:output_type -> skelet.signals.v1.GetVitalsSummaryResponse
-	50, // 68: skelet.signals.v1.LensService.GetSearchAnalytics:output_type -> skelet.signals.v1.GetSearchAnalyticsResponse
-	53, // [53:69] is the sub-list for method output_type
-	37, // [37:53] is the sub-list for method input_type
-	37, // [37:37] is the sub-list for extension type_name
-	37, // [37:37] is the sub-list for extension extendee
-	0,  // [0:37] is the sub-list for field type_name
+	55, // 6: skelet.signals.v1.GetOverviewResponse.devices:type_name -> skelet.signals.v1.LabelCount
+	55, // 7: skelet.signals.v1.GetOverviewResponse.referrers:type_name -> skelet.signals.v1.LabelCount
+	55, // 8: skelet.signals.v1.GetOverviewResponse.interactions:type_name -> skelet.signals.v1.LabelCount
+	18, // 9: skelet.signals.v1.GetOverviewResponse.plan_issues:type_name -> skelet.signals.v1.PlanIssue
+	5,  // 10: skelet.signals.v1.GetBotTrafficResponse.bots:type_name -> skelet.signals.v1.BotAgent
+	6,  // 11: skelet.signals.v1.GetBotTrafficResponse.top_pages:type_name -> skelet.signals.v1.BotPage
+	7,  // 12: skelet.signals.v1.GetBotTrafficResponse.daily:type_name -> skelet.signals.v1.BotDayPoint
+	2,  // 13: skelet.signals.v1.ListPagesResponse.pages:type_name -> skelet.signals.v1.LensPage
+	1,  // 14: skelet.signals.v1.GetPageStatsResponse.timeline:type_name -> skelet.signals.v1.LensTimePoint
+	55, // 15: skelet.signals.v1.GetPageStatsResponse.referrers:type_name -> skelet.signals.v1.LabelCount
+	55, // 16: skelet.signals.v1.GetPageStatsResponse.clients:type_name -> skelet.signals.v1.LabelCount
+	55, // 17: skelet.signals.v1.GetPageStatsResponse.devices:type_name -> skelet.signals.v1.LabelCount
+	29, // 18: skelet.signals.v1.GetHeatmapResponse.heatmap:type_name -> skelet.signals.v1.Heatmap
+	3,  // 19: skelet.signals.v1.Heatmap.click:type_name -> skelet.signals.v1.LensCell
+	3,  // 20: skelet.signals.v1.Heatmap.move:type_name -> skelet.signals.v1.LensCell
+	3,  // 21: skelet.signals.v1.Heatmap.scroll:type_name -> skelet.signals.v1.LensCell
+	4,  // 22: skelet.signals.v1.Heatmap.elements:type_name -> skelet.signals.v1.LensElementClick
+	8,  // 23: skelet.signals.v1.ListSessionsResponse.sessions:type_name -> skelet.signals.v1.LensSession
+	8,  // 24: skelet.signals.v1.ListCustomerSessionsResponse.sessions:type_name -> skelet.signals.v1.LensSession
+	8,  // 25: skelet.signals.v1.ListVisitorSessionsResponse.sessions:type_name -> skelet.signals.v1.LensSession
+	54, // 26: skelet.signals.v1.SessionError.at:type_name -> google.protobuf.Timestamp
+	39, // 27: skelet.signals.v1.GetSessionSignalsResponse.errors:type_name -> skelet.signals.v1.SessionError
+	40, // 28: skelet.signals.v1.GetSessionSignalsResponse.vitals:type_name -> skelet.signals.v1.SessionVital
+	9,  // 29: skelet.signals.v1.GetFrustrationResponse.rage_pages:type_name -> skelet.signals.v1.LensSignalPage
+	9,  // 30: skelet.signals.v1.GetFrustrationResponse.dead_pages:type_name -> skelet.signals.v1.LensSignalPage
+	10, // 31: skelet.signals.v1.GetFrustrationResponse.rage_elements:type_name -> skelet.signals.v1.LensRageElement
+	11, // 32: skelet.signals.v1.ListErrorsResponse.errors:type_name -> skelet.signals.v1.LensErrorStat
+	13, // 33: skelet.signals.v1.GetPerformanceResponse.pages:type_name -> skelet.signals.v1.LensPageVitals
+	12, // 34: skelet.signals.v1.GetVitalsSummaryResponse.vitals:type_name -> skelet.signals.v1.LensVital
+	14, // 35: skelet.signals.v1.GetSearchAnalyticsResponse.top:type_name -> skelet.signals.v1.LensSearchTerm
+	14, // 36: skelet.signals.v1.GetSearchAnalyticsResponse.zero_result:type_name -> skelet.signals.v1.LensSearchTerm
+	15, // 37: skelet.signals.v1.GetSearchAnalyticsResponse.daily:type_name -> skelet.signals.v1.LensSearchDay
+	14, // 38: skelet.signals.v1.GetSearchAnalyticsResponse.meaning_only:type_name -> skelet.signals.v1.LensSearchTerm
+	52, // 39: skelet.signals.v1.GetSearchAnalyticsResponse.ai_gaps:type_name -> skelet.signals.v1.LensAISearchGap
+	53, // 40: skelet.signals.v1.GetSearchAnalyticsResponse.overviews:type_name -> skelet.signals.v1.LensOverviewTerm
+	16, // 41: skelet.signals.v1.LensService.GetOverview:input_type -> skelet.signals.v1.GetOverviewRequest
+	19, // 42: skelet.signals.v1.LensService.GetBotTraffic:input_type -> skelet.signals.v1.GetBotTrafficRequest
+	21, // 43: skelet.signals.v1.LensService.ListPages:input_type -> skelet.signals.v1.ListPagesRequest
+	23, // 44: skelet.signals.v1.LensService.ListStates:input_type -> skelet.signals.v1.ListStatesRequest
+	25, // 45: skelet.signals.v1.LensService.GetPageStats:input_type -> skelet.signals.v1.GetPageStatsRequest
+	27, // 46: skelet.signals.v1.LensService.GetHeatmap:input_type -> skelet.signals.v1.GetHeatmapRequest
+	30, // 47: skelet.signals.v1.LensService.ListSessions:input_type -> skelet.signals.v1.ListSessionsRequest
+	31, // 48: skelet.signals.v1.LensService.ListCustomerSessions:input_type -> skelet.signals.v1.ListCustomerSessionsRequest
+	32, // 49: skelet.signals.v1.LensService.ListVisitorSessions:input_type -> skelet.signals.v1.ListVisitorSessionsRequest
+	36, // 50: skelet.signals.v1.LensService.GetSessionEvents:input_type -> skelet.signals.v1.GetSessionEventsRequest
+	38, // 51: skelet.signals.v1.LensService.GetSessionSignals:input_type -> skelet.signals.v1.GetSessionSignalsRequest
+	42, // 52: skelet.signals.v1.LensService.GetFrustration:input_type -> skelet.signals.v1.GetFrustrationRequest
+	44, // 53: skelet.signals.v1.LensService.ListErrors:input_type -> skelet.signals.v1.ListErrorsRequest
+	46, // 54: skelet.signals.v1.LensService.GetPerformance:input_type -> skelet.signals.v1.GetPerformanceRequest
+	48, // 55: skelet.signals.v1.LensService.GetVitalsSummary:input_type -> skelet.signals.v1.GetVitalsSummaryRequest
+	50, // 56: skelet.signals.v1.LensService.GetSearchAnalytics:input_type -> skelet.signals.v1.GetSearchAnalyticsRequest
+	17, // 57: skelet.signals.v1.LensService.GetOverview:output_type -> skelet.signals.v1.GetOverviewResponse
+	20, // 58: skelet.signals.v1.LensService.GetBotTraffic:output_type -> skelet.signals.v1.GetBotTrafficResponse
+	22, // 59: skelet.signals.v1.LensService.ListPages:output_type -> skelet.signals.v1.ListPagesResponse
+	24, // 60: skelet.signals.v1.LensService.ListStates:output_type -> skelet.signals.v1.ListStatesResponse
+	26, // 61: skelet.signals.v1.LensService.GetPageStats:output_type -> skelet.signals.v1.GetPageStatsResponse
+	28, // 62: skelet.signals.v1.LensService.GetHeatmap:output_type -> skelet.signals.v1.GetHeatmapResponse
+	33, // 63: skelet.signals.v1.LensService.ListSessions:output_type -> skelet.signals.v1.ListSessionsResponse
+	34, // 64: skelet.signals.v1.LensService.ListCustomerSessions:output_type -> skelet.signals.v1.ListCustomerSessionsResponse
+	35, // 65: skelet.signals.v1.LensService.ListVisitorSessions:output_type -> skelet.signals.v1.ListVisitorSessionsResponse
+	37, // 66: skelet.signals.v1.LensService.GetSessionEvents:output_type -> skelet.signals.v1.GetSessionEventsResponse
+	41, // 67: skelet.signals.v1.LensService.GetSessionSignals:output_type -> skelet.signals.v1.GetSessionSignalsResponse
+	43, // 68: skelet.signals.v1.LensService.GetFrustration:output_type -> skelet.signals.v1.GetFrustrationResponse
+	45, // 69: skelet.signals.v1.LensService.ListErrors:output_type -> skelet.signals.v1.ListErrorsResponse
+	47, // 70: skelet.signals.v1.LensService.GetPerformance:output_type -> skelet.signals.v1.GetPerformanceResponse
+	49, // 71: skelet.signals.v1.LensService.GetVitalsSummary:output_type -> skelet.signals.v1.GetVitalsSummaryResponse
+	51, // 72: skelet.signals.v1.LensService.GetSearchAnalytics:output_type -> skelet.signals.v1.GetSearchAnalyticsResponse
+	57, // [57:73] is the sub-list for method output_type
+	41, // [41:57] is the sub-list for method input_type
+	41, // [41:41] is the sub-list for extension type_name
+	41, // [41:41] is the sub-list for extension extendee
+	0,  // [0:41] is the sub-list for field type_name
 }
 
 func init() { file_skelet_signals_v1_lens_proto_init() }
@@ -3652,7 +3959,7 @@ func file_skelet_signals_v1_lens_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_skelet_signals_v1_lens_proto_rawDesc), len(file_skelet_signals_v1_lens_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   51,
+			NumMessages:   54,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

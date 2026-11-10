@@ -3,31 +3,17 @@ package boot
 import (
 	"context"
 	"log/slog"
-	"net/http"
 	"os"
 	"strconv"
 	"strings"
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/objstore"
-	"github.com/skeletg/skelet/apps/backend/core/lib/urlguard"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/archivefile"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/lens"
 )
 
 // The seams the suite packages declare, filled from core's public leaves
-
-// The SSRF guard destinations are held to - the create-time check and the transport the forwarder
-// posts through, which is where a host that turns private at request time is caught
-type urlGuard struct{}
-
-func (urlGuard) ValidateTargetURL(raw string, allowPrivate bool) error {
-	return urlguard.ValidateTargetURL(raw, allowPrivate)
-}
-
-func (urlGuard) SafeTransport(allowPrivate bool) *http.Transport {
-	return urlguard.SafeTransport(allowPrivate)
-}
 
 // The BACKUP_* destination the retention sweeps archive to before deleting
 // A broken one only warns: the sweep fails closed without a sink rather than deleting what it could not archive

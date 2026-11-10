@@ -1,0 +1,140 @@
+type AssistantToolCall {
+  tool:    String!
+  # The arguments the model sent, as JSON
+  input:   String!
+  output:  String!
+  isError: Boolean!
+  # Asked for in the last round the turn allowed, so it never ran
+  skipped: Boolean!
+}
+
+# One answer from the model inside a turn: a summary of its thinking where the model gives one, any words, then the tools it called and what they returned
+type AssistantRound {
+  thinking: String!
+  text:     String!
+  calls:    [AssistantToolCall!]!
+  # Whether these words reached the shopper
+  shown:    Boolean!
+}
+
+enum AssistantShownKind {
+  CARD
+  PANEL
+  BUTTON
+  MOVED
+  CART
+  # A recap nothing could be read from, kept as its text
+  TEXT
+}
+
+# One thing a reply put in front of the shopper besides its words
+type AssistantShownItem {
+  kind:      AssistantShownKind!
+  # A card or the details panel
+  productId: ID
+  name:      String
+  # A button, and where it went - moved is the list the shopper was sent to
+  label:     String
+  path:      String
+  text:      String
+}
+
+type AssistantTranscriptTurn {
+  id:               ID!
+  page:             String!
+  question:         String!
+  reply:            String!
+  recap:            String!
+  # What the reply showed, read from its recap
+  showed:           [AssistantShownItem!]!
+  followUps:        [String!]!
+  # What its rounds hold - assistantTurnRounds reads the rounds themselves
+  steps:            Int!
+  toolCalls:        Int!
+  refused:          Boolean!
+  thought:          Boolean!
+  products:         Int!
+  cartChanged:      Boolean!
+  checkout:         Boolean!
+  incomplete:       Boolean!
+  model:            String!
+  inputTokens:      Int64!
+  outputTokens:     Int64!
+  cacheReadTokens:  Int64!
+  cacheWriteTokens: Int64!
+  at:               Time!
+}
+
+type AssistantConversation {
+  id:            ID!
+  customerId:    ID
+  anonId:        String!
+  firstQuestion: String!
+  turns:         Int!
+  cartChanged:   Boolean!
+  checkout:      Boolean!
+  incomplete:    Boolean!
+  startedAt:     Time!
+  lastAt:        Time!
+  # How many of its messages the store couldn't answer - of the filtered kind, when the list was filtered to one
+  unanswered:       Int!
+  # The latest of them
+  latestUnanswered: AssistantGap
+}
+
+# A message the store couldn't answer
+type AssistantGap {
+  turnId:   ID!
+  question: String!
+  reasons:  [AssistantGapReason!]!
+}
+
+type AssistantConversationDetail {
+  conversation: AssistantConversation!
+  turns:        [AssistantTranscriptTurn!]!
+}
+
+type AssistantConversationPage {
+  items:      [AssistantConversation!]!
+  # Conversations with each kind of message the store couldn't answer, whatever the filter and search - asked for only when selected
+  counts:     AssistantGapCounts!
+  nextCursor: String
+}
+
+# Why the store couldn't answer a message
+enum AssistantGapReason {
+  # Nothing said and nothing shown
+  NO_ANSWER
+  CUT_SHORT
+  # Every search in the turn came back empty
+  FOUND_NOTHING
+  # The assistant said the store's information didn't cover it
+  UNSURE
+}
+
+# Keeps only conversations with a message the store couldn't answer - of any kind, or one
+enum AssistantUnansweredFilter {
+  ANY
+  NO_ANSWER
+  CUT_SHORT
+  FOUND_NOTHING
+  UNSURE
+}
+
+# Conversations, each counted once however many such messages it has
+type AssistantGapCounts {
+  any:          Int!
+  noAnswer:     Int!
+  cutShort:     Int!
+  foundNothing: Int!
+  unsure:       Int!
+}
+
+extend type Query {
+  # The conversations a store keeps, newest first - assistant.view on the channel, with Signals on
+  assistantConversations(channelId: ID!, search: String, customerId: ID, unanswered: AssistantUnansweredFilter, after: String, limit: Int = 30): AssistantConversationPage!
+  # Null when the store holds no such conversation. A very long one comes with only its latest turns, and the turns come without their rounds
+  assistantConversation(channelId: ID!, id: ID!): AssistantConversationDetail
+  # One turn's rounds, empty when the store holds no such turn
+  assistantTurnRounds(channelId: ID!, turnId: ID!): [AssistantRound!]!
+}

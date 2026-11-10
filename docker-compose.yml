@@ -242,8 +242,8 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # Dashboard + storefronts sit behind profiles so a clone can run headless - .skelet-apps, which
-  # skelet setup writes, lists the ones that run in Docker; no file = none, and the rest run on the host
+  # Dashboard + storefronts sit behind profiles so a clone can run headless - COMPOSE_PROFILES in .env,
+  # which skelet setup writes, lists the ones that run in Docker; the rest run on the host
   dashboard:
     profiles: ["dashboard"]
     # Same uid story as the app service
@@ -323,6 +323,8 @@ services:
       # The dashboard's origin, named in this storefront's frame-ancestors CSP and checked on every
       # preview postMessage - pairs with the dashboard's VITE_STOREFRONT_ORIGIN
       - NEXT_PUBLIC_DASHBOARD_ORIGIN=${NEXT_PUBLIC_DASHBOARD_ORIGIN:-http://localhost:5173}
+      # A payment plugin's gateway hosts, let into the CSP - the same root .env line the prod build reads
+      - PAYMENT_ORIGINS=${PAYMENT_ORIGINS:-}
       # Empty keeps /api/front/graphql - mirrors the backend FRONT_API_SLUG
       - FRONT_API_SLUG=${FRONT_API_SLUG:-}
       - NEXT_PUBLIC_BACKEND_URL=http://localhost:8080
@@ -383,8 +385,10 @@ services:
     logging: *logging
 
   # Datastores publish on 127.0.0.1 only - dev credentials are trivial (skelet/ skelet) and valkey/opensearch/clickhouse run unauthenticated, so binding them to every interface put a live database on whatever network you were on - WSL2 still forwards localhost, so Windows-side tools keep working
+  # Postgres with pgvector, for the store's embeddings - Debian-based, so a volume made by the old Alpine image needs a
+  # one-time REINDEX DATABASE, since the two sort text differently and Postgres can't tell
   db:
-    image: postgres:18-alpine
+    image: pgvector/pgvector:0.8.6-pg18-trixie
     env_file:
       - env/db.env
     ports:
@@ -479,7 +483,7 @@ services:
     logging: *logging
 
   # Optional dev tools below - nothing in the stack needs them. Each sits behind a profile of its own name,
-  # picked in skelet setup (saved to .skelet-tools) or started ad hoc with `skelet up <name>`
+  # picked in skelet setup (into COMPOSE_PROFILES in .env) or started ad hoc with `skelet up <name>`
 
   # SMTP catcher - anything mailed lands in the web UI on :8025
   mailpit:

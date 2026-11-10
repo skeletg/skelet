@@ -36,6 +36,7 @@ type Block struct {
 	Type    string `json:"type"`
 	Text    string `json:"text,omitempty"`    // heading
 	Content string `json:"content,omitempty"` // text (multi-line)
+	Format  string `json:"format,omitempty"`  // text: FormatRich for the editor's HTML subset, empty for plain text
 	Label   string `json:"label,omitempty"`   // button
 	URL     string `json:"url,omitempty"`     // button, image
 	Alt     string `json:"alt,omitempty"`     // image
@@ -54,8 +55,15 @@ type Block struct {
 	Products  *ProductBlock   `json:"products,omitempty"`
 	Social    []SocialLink    `json:"social,omitempty"`
 	// The "video" block's thumbnail - email can't embed video, so it links out
-	Poster   string `json:"poster,omitempty"`
-	Deadline string `json:"deadline,omitempty"`
+	Poster   string     `json:"poster,omitempty"`
+	Deadline string     `json:"deadline,omitempty"`
+	Code     string     `json:"code,omitempty"`  // coupon
+	Links    []MenuLink `json:"links,omitempty"` // menu
+	Image    string     `json:"image,omitempty"` // image_text's picture - its url is the button's
+	Side     string     `json:"side,omitempty"`  // image_text: left | right
+	// The order blocks' own words - "Item", "Total", "Shipping to" - so each language's version of an email says them in
+	// its language. A missing key keeps the English default
+	Labels map[string]string `json:"labels,omitempty"`
 }
 
 type SocialLink struct {
@@ -183,6 +191,9 @@ const maxRefDepth = 8
 func money(cents int64, currency string) string {
 	return fmt.Sprintf("%.2f %s", float64(cents)/100, currency)
 }
+
+// Interpolate fills a plain-text field such as a subject or preheader
+func Interpolate(s string, vars map[string]string) string { return interpolate(s, vars) }
 
 // Unknown tokens resolve to "" and literal text passes through - the caller HTML-escapes the result
 func interpolate(s string, vars map[string]string) string {

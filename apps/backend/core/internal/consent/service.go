@@ -3,10 +3,12 @@ package consent
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/lib/consentkind"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
@@ -29,6 +31,24 @@ func (s *Service) SetEventBus(b *events.Bus) { s.bus = b }
 // Records an opt-in or opt-out - rejects unknown kinds with ErrUnknownConsent, opting out of required kinds with ErrConsentRequired and a source outside the Source* constants with ErrUnknownSource
 func (s *Service) SetConsent(ctx context.Context, customerID uuid.UUID, kind string, optedIn bool, source string) (Consent, error) {
 	return s.set(ctx, Change{CustomerID: customerID, Kind: kind, OptedIn: optedIn, Source: source})
+}
+
+// RecordEmailOptIn keeps a guest's marketing opt-in under their address, for every email marketing kind the store defines -
+// the reference (an order number) is what shows where it was given
+func (s *Service) RecordEmailOptIn(ctx context.Context, channelID uuid.UUID, email, source, reference string) error {
+	if !validSource(source) {
+		return ErrUnknownSource
+	}
+	email = strings.ToLower(strings.TrimSpace(email))
+	for _, d := range AllDefinitions() {
+		if d.Purpose != PurposeMarketing || d.Channel != ChannelEmail {
+			continue
+		}
+		if err := s.repo.RecordEmailOptIn(ctx, EmailOptIn{ChannelID: channelID, Email: email, Kind: d.Slug, Source: source, Reference: reference}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // The dashboard's write - the history names the admin who made it, nil when an integration token did
@@ -136,4 +156,13 @@ func (s *Service) IsOptedIn(ctx context.Context, customerID uuid.UUID, kind stri
 		return false, err
 	}
 	return c.OptedIn, nil
+}
+
+// EmailMarketingAllowed is whether an address may receive marketing email: the account's own consent when there is one,
+// else a guest's opt-in kept under the address
+func (s *Service) EmailMarketingAllowed(ctx context.Context, channelID uuid.UUID, customerID *uuid.UUID, email string) (bool, error) {
+	if customerID != nil {
+		return s.IsOptedIn(ctx, *customerID, consentkind.MarketingEmail)
+	}
+	return s.repo.HasEmailOptIn(ctx, channelID, strings.ToLower(strings.TrimSpace(email)), consentkind.MarketingEmail)
 }

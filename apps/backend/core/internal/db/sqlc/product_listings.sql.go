@@ -102,7 +102,7 @@ func (q *Queries) GetListingProductIDByChannelURL(ctx context.Context, arg GetLi
 }
 
 const getProductChannelListing = `-- name: GetProductChannelListing :one
-SELECT product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to FROM catalog_product_channel_listings
+SELECT product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to, bundle_pricing, bundle_discount_percent FROM catalog_product_channel_listings
 WHERE product_id = $1 AND channel_id = $2
 `
 
@@ -126,12 +126,14 @@ func (q *Queries) GetProductChannelListing(ctx context.Context, arg GetProductCh
 		&i.SpecialPrice,
 		&i.SpecialFrom,
 		&i.SpecialTo,
+		&i.BundlePricing,
+		&i.BundleDiscountPercent,
 	)
 	return i, err
 }
 
 const listProductChannelListingsByChannel = `-- name: ListProductChannelListingsByChannel :many
-SELECT product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to FROM catalog_product_channel_listings
+SELECT product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to, bundle_pricing, bundle_discount_percent FROM catalog_product_channel_listings
 WHERE channel_id = $1
 ORDER BY product_id
 `
@@ -157,6 +159,8 @@ func (q *Queries) ListProductChannelListingsByChannel(ctx context.Context, chann
 			&i.SpecialPrice,
 			&i.SpecialFrom,
 			&i.SpecialTo,
+			&i.BundlePricing,
+			&i.BundleDiscountPercent,
 		); err != nil {
 			return nil, err
 		}
@@ -172,7 +176,7 @@ func (q *Queries) ListProductChannelListingsByChannel(ctx context.Context, chann
 }
 
 const listProductChannelListingsByProduct = `-- name: ListProductChannelListingsByProduct :many
-SELECT product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to FROM catalog_product_channel_listings
+SELECT product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to, bundle_pricing, bundle_discount_percent FROM catalog_product_channel_listings
 WHERE product_id = $1
 ORDER BY channel_id
 `
@@ -198,6 +202,8 @@ func (q *Queries) ListProductChannelListingsByProduct(ctx context.Context, produ
 			&i.SpecialPrice,
 			&i.SpecialFrom,
 			&i.SpecialTo,
+			&i.BundlePricing,
+			&i.BundleDiscountPercent,
 		); err != nil {
 			return nil, err
 		}
@@ -213,7 +219,7 @@ func (q *Queries) ListProductChannelListingsByProduct(ctx context.Context, produ
 }
 
 const listProductChannelListingsByProductIDs = `-- name: ListProductChannelListingsByProductIDs :many
-SELECT product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to FROM catalog_product_channel_listings
+SELECT product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to, bundle_pricing, bundle_discount_percent FROM catalog_product_channel_listings
 WHERE product_id = ANY($1::uuid[])
 ORDER BY product_id, channel_id
 `
@@ -240,6 +246,8 @@ func (q *Queries) ListProductChannelListingsByProductIDs(ctx context.Context, pr
 			&i.SpecialPrice,
 			&i.SpecialFrom,
 			&i.SpecialTo,
+			&i.BundlePricing,
+			&i.BundleDiscountPercent,
 		); err != nil {
 			return nil, err
 		}
@@ -255,7 +263,7 @@ func (q *Queries) ListProductChannelListingsByProductIDs(ctx context.Context, pr
 }
 
 const listProductChannelListingsByProductIDsForChannel = `-- name: ListProductChannelListingsByProductIDsForChannel :many
-SELECT product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to FROM catalog_product_channel_listings
+SELECT product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to, bundle_pricing, bundle_discount_percent FROM catalog_product_channel_listings
 WHERE product_id = ANY($1::uuid[]) AND channel_id = $2
 ORDER BY product_id
 `
@@ -286,6 +294,8 @@ func (q *Queries) ListProductChannelListingsByProductIDsForChannel(ctx context.C
 			&i.SpecialPrice,
 			&i.SpecialFrom,
 			&i.SpecialTo,
+			&i.BundlePricing,
+			&i.BundleDiscountPercent,
 		); err != nil {
 			return nil, err
 		}
@@ -298,6 +308,138 @@ func (q *Queries) ListProductChannelListingsByProductIDsForChannel(ctx context.C
 		return nil, err
 	}
 	return items, nil
+}
+
+const listSaleCandidates = `-- name: ListSaleCandidates :many
+WITH priced AS (
+  SELECT p.id,
+         p.default_price, p.compare_at_price, p.special_price, p.special_from, p.special_to,
+         l.price AS listing_price, l.compare_at_price AS listing_compare_at, l.special_price AS listing_special,
+         l.special_from AS listing_special_from, l.special_to AS listing_special_to,
+         COALESCE(l.price, p.default_price) AS base,
+         COALESCE(l.compare_at_price, p.compare_at_price) AS compare_at,
+         CASE WHEN l.special_price IS NOT NULL THEN l.special_price ELSE p.special_price END AS special,
+         CASE WHEN l.special_price IS NOT NULL THEN l.special_from ELSE p.special_from END AS special_starts,
+         CASE WHEN l.special_price IS NOT NULL THEN l.special_to ELSE p.special_to END AS special_ends
+  FROM catalog_product_channel_listings l
+  JOIN catalog_products p ON p.id = l.product_id
+  WHERE l.channel_id = $2 AND l.is_published
+    AND (l.compare_at_price IS NOT NULL OR l.special_price IS NOT NULL OR p.compare_at_price IS NOT NULL OR p.special_price IS NOT NULL)
+    AND NOT EXISTS (SELECT 1 FROM catalog_product_children c WHERE c.child_id = p.id)
+), selling AS (
+  SELECT priced.id, priced.default_price, priced.compare_at_price, priced.special_price, priced.special_from, priced.special_to, priced.listing_price, priced.listing_compare_at, priced.listing_special, priced.listing_special_from, priced.listing_special_to, priced.base, priced.compare_at, priced.special, priced.special_starts, priced.special_ends,
+         CASE WHEN special < base AND (special_starts IS NULL OR special_starts <= now()) AND (special_ends IS NULL OR special_ends > now())
+              THEN special ELSE base END AS price
+  FROM priced
+), struck AS (
+  SELECT selling.id, selling.default_price, selling.compare_at_price, selling.special_price, selling.special_from, selling.special_to, selling.listing_price, selling.listing_compare_at, selling.listing_special, selling.listing_special_from, selling.listing_special_to, selling.base, selling.compare_at, selling.special, selling.special_starts, selling.special_ends, selling.price,
+         CASE WHEN compare_at > price THEN compare_at WHEN price < base THEN base END AS strike
+  FROM selling
+)
+SELECT id, default_price, compare_at_price, special_price, special_from, special_to,
+       listing_price, listing_compare_at, listing_special, listing_special_from, listing_special_to
+FROM struck
+WHERE strike > price
+ORDER BY (strike - price)::float8 / strike DESC, strike - price DESC, id
+LIMIT $1
+`
+
+type ListSaleCandidatesParams struct {
+	Lim       int32     `json:"lim"`
+	ChannelID uuid.UUID `json:"channel_id"`
+}
+
+type ListSaleCandidatesRow struct {
+	ID                 uuid.UUID     `json:"id"`
+	DefaultPrice       int64         `json:"default_price"`
+	CompareAtPrice     sql.NullInt64 `json:"compare_at_price"`
+	SpecialPrice       sql.NullInt64 `json:"special_price"`
+	SpecialFrom        sql.NullTime  `json:"special_from"`
+	SpecialTo          sql.NullTime  `json:"special_to"`
+	ListingPrice       sql.NullInt64 `json:"listing_price"`
+	ListingCompareAt   sql.NullInt64 `json:"listing_compare_at"`
+	ListingSpecial     sql.NullInt64 `json:"listing_special"`
+	ListingSpecialFrom sql.NullTime  `json:"listing_special_from"`
+	ListingSpecialTo   sql.NullTime  `json:"listing_special_to"`
+}
+
+// Products published on a store that sell below their strike-through right now - a compare-at above the price, or a special inside its window - deepest cut first, so the cap keeps the biggest sales. The columns come back raw, and catalog.SaleProductIDs re-prices each with pricing.Resolve, which stays the rule the storefront shows. Variants are left to their parent, whose card carries no strike-through of theirs
+func (q *Queries) ListSaleCandidates(ctx context.Context, arg ListSaleCandidatesParams) ([]ListSaleCandidatesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listSaleCandidates, arg.Lim, arg.ChannelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSaleCandidatesRow{}
+	for rows.Next() {
+		var i ListSaleCandidatesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.DefaultPrice,
+			&i.CompareAtPrice,
+			&i.SpecialPrice,
+			&i.SpecialFrom,
+			&i.SpecialTo,
+			&i.ListingPrice,
+			&i.ListingCompareAt,
+			&i.ListingSpecial,
+			&i.ListingSpecialFrom,
+			&i.ListingSpecialTo,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setProductChannelListingBundlePricing = `-- name: SetProductChannelListingBundlePricing :one
+UPDATE catalog_product_channel_listings
+SET bundle_pricing          = $1,
+    bundle_discount_percent = $2,
+    updated_at              = NOW()
+WHERE product_id = $3 AND channel_id = $4
+RETURNING product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to, bundle_pricing, bundle_discount_percent
+`
+
+type SetProductChannelListingBundlePricingParams struct {
+	BundlePricing         CatalogBundlePricing `json:"bundle_pricing"`
+	BundleDiscountPercent int16                `json:"bundle_discount_percent"`
+	ProductID             uuid.UUID            `json:"product_id"`
+	ChannelID             uuid.UUID            `json:"channel_id"`
+}
+
+// Its own statement so the listing upsert, which every listing form drives, never resets a bundle's pricing
+func (q *Queries) SetProductChannelListingBundlePricing(ctx context.Context, arg SetProductChannelListingBundlePricingParams) (ProductChannelListing, error) {
+	row := q.db.QueryRowContext(ctx, setProductChannelListingBundlePricing,
+		arg.BundlePricing,
+		arg.BundleDiscountPercent,
+		arg.ProductID,
+		arg.ChannelID,
+	)
+	var i ProductChannelListing
+	err := row.Scan(
+		&i.ProductID,
+		&i.ChannelID,
+		&i.Price,
+		&i.IsPublished,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Url,
+		&i.CompareAtPrice,
+		&i.SpecialPrice,
+		&i.SpecialFrom,
+		&i.SpecialTo,
+		&i.BundlePricing,
+		&i.BundleDiscountPercent,
+	)
+	return i, err
 }
 
 const upsertProductChannelListing = `-- name: UpsertProductChannelListing :one
@@ -315,7 +457,7 @@ SET price            = EXCLUDED.price,
     special_from     = EXCLUDED.special_from,
     special_to       = EXCLUDED.special_to,
     updated_at       = NOW()
-RETURNING product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to
+RETURNING product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to, bundle_pricing, bundle_discount_percent
 `
 
 type UpsertProductChannelListingParams struct {
@@ -355,6 +497,8 @@ func (q *Queries) UpsertProductChannelListing(ctx context.Context, arg UpsertPro
 		&i.SpecialPrice,
 		&i.SpecialFrom,
 		&i.SpecialTo,
+		&i.BundlePricing,
+		&i.BundleDiscountPercent,
 	)
 	return i, err
 }
@@ -365,7 +509,7 @@ VALUES ($1, $2, $3)
 ON CONFLICT (product_id, channel_id) DO UPDATE
 SET is_published = EXCLUDED.is_published,
     updated_at   = NOW()
-RETURNING product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to
+RETURNING product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to, bundle_pricing, bundle_discount_percent
 `
 
 type UpsertProductChannelListingPublishedParams struct {
@@ -390,6 +534,8 @@ func (q *Queries) UpsertProductChannelListingPublished(ctx context.Context, arg 
 		&i.SpecialPrice,
 		&i.SpecialFrom,
 		&i.SpecialTo,
+		&i.BundlePricing,
+		&i.BundleDiscountPercent,
 	)
 	return i, err
 }

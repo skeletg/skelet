@@ -42,7 +42,7 @@ func devClone(t *testing.T) string {
 	put(t, root, map[string]string{
 		"env/go.env":                      "SIGNALS_SERVICE_SECRET=first\nEMAIL_LINK_SECRET=els\nSIGNALS_SERVICE_SECRET=svc\n",
 		"env/db.env":                      "POSTGRES_USER=skelet\n",
-		"env/signals.env.example":         "JWT_SECRET=old\nSIGNALS_ENCRYPTION_KEY=\nSIGNALS_PORT=8090\n",
+		"env/signals.env.example":         "JWT_SECRET=old\nSIGNALS_PORT=8090\n",
 		"apps/dashboard/package.json":     "{}",
 		"apps/channels/shop/package.json": "{}",
 	})
@@ -102,11 +102,11 @@ esac`)
 		!strings.Contains(calls, "compose --profile dashboard stop dashboard") || strings.Contains(calls, "stop shop") {
 		t.Errorf("leftovers:\n%s", calls)
 	}
-	// env/signals.env from its template: the retired secret gone, its own key made, core's shared values copied as
-	// compose reads them - the last line of a key that's there twice
+	// env/signals.env from its template: the retired secret gone, core's shared values copied as compose reads them -
+	// the last line of a key that's there twice
 	sig := read(t, filepath.Join(root, "env/signals.env"))
 	if strings.Contains(sig, "JWT_SECRET") || !strings.Contains(sig, "SIGNALS_SERVICE_SECRET=svc\n") ||
-		!strings.Contains(sig, "EMAIL_LINK_SECRET=els\n") || strings.Contains(sig, "SIGNALS_ENCRYPTION_KEY=\n") {
+		!strings.Contains(sig, "EMAIL_LINK_SECRET=els\n") {
 		t.Errorf("env/signals.env:\n%s", sig)
 	}
 	if fi, _ := os.Stat(filepath.Join(root, "env/signals.env")); fi.Mode().Perm() != 0o600 {
@@ -126,7 +126,7 @@ esac`)
 func TestUpMakesMountpoints(t *testing.T) {
 	unset(t, "COMPOSE_PROFILES", "SKELET_SIDECARS", "SKELET_TOOLS")
 	root := devClone(t)
-	put(t, root, map[string]string{".skelet-apps": "dashboard,vetrina\n", "templates/vetrina/package.json": "{}"})
+	put(t, root, map[string]string{".env": "COMPOSE_PROFILES=search,dashboard,vetrina\n", "templates/vetrina/package.json": "{}"})
 	d := verbtest.NewDocker(t, `case "$*" in `+config(freePort(t))+` esac`)
 	if _, code := d.Run("up", root); code != 0 {
 		t.Fatalf("exit %d", code)
@@ -154,7 +154,7 @@ func TestUpMakesMountpoints(t *testing.T) {
 func TestUpLean(t *testing.T) {
 	unset(t, "COMPOSE_PROFILES", "SKELET_SIDECARS", "SKELET_TOOLS")
 	root := devClone(t)
-	put(t, root, map[string]string{".skelet-apps": "dashboard\n", ".skelet-tools": "mailpit\n"})
+	put(t, root, map[string]string{".env": "COMPOSE_PROFILES=search,dashboard,mailpit\n"})
 	d := verbtest.NewDocker(t, `case "$*" in `+config(freePort(t))+` esac`)
 	out, code := d.Run("up", root, "--lean")
 	calls := strings.Join(d.Calls(), "\n")
@@ -176,7 +176,7 @@ func TestUpRefusals(t *testing.T) {
 	for _, prof := range []string{"", "SKELET_TARGET=small\n"} {
 		root := t.TempDir()
 		if prof != "" {
-			put(t, root, map[string]string{".skelet-profile": prof})
+			put(t, root, map[string]string{".env": prof})
 		}
 		d := verbtest.NewDocker(t, "")
 		if _, code := d.Run("up", root); code != 1 || len(d.Calls()) != 0 {

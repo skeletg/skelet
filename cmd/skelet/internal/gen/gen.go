@@ -48,6 +48,7 @@ var generated = []string{
 	"docs/permissions.md",
 	"docs/webhooks.md",
 	"docs/settings.md",
+	"docs/tracking-plan.md",
 	"apps/dashboard/src/graphql/schema.types.ts",
 	"apps/dashboard/src/",
 	// Every storefront, template and shared package, not one by name - a broad pathspec costs nothing and can't go stale
@@ -129,6 +130,8 @@ func backend(root string) int {
 		{"remote provider contract", func() error { return goRun(root, "providerschema") }},
 		// Permissions, webhook events and settings, read back out of the registries after every init() has run
 		{"docs reference tables", func() error { return goRun(root, "docsref") }},
+		// The browser tracking plan, from the registry Lens ingest enforces - in the Signals module, which core can't import
+		{"tracking plan", func() error { return goRunIn(root, "signals", "docsref") }},
 		// The nginx and Caddy copies of the CSP and Permissions-Policy, from lib/httpx/securityheaders.go
 		{"security headers", func() error { return goRun(root, "secheadgen") }},
 	}
@@ -142,9 +145,12 @@ func backend(root string) int {
 }
 
 // goRun runs one of core's generators on the host Go
-func goRun(root, generator string) error {
+func goRun(root, generator string) error { return goRunIn(root, "core", generator) }
+
+// goRunIn runs a generator from one of the backend modules on the host Go
+func goRunIn(root, module, generator string) error {
 	cmd := exec.Command("go", "run", "./cmd/"+generator)
-	cmd.Dir = filepath.Join(root, "apps", "backend", "core")
+	cmd.Dir = filepath.Join(root, "apps", "backend", module)
 	cmd.Env = append(sys.Env(), "LC_ALL=C.UTF-8", "LANG=C.UTF-8")
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	return sys.Run(cmd)
@@ -185,7 +191,7 @@ func typescript(root string, check bool) int {
 		fmt.Println("    Skipping dashboard + storefront codegen.")
 		return 0
 	}
-	// Keyed on the source being here, not on .skelet-apps - an app run on the host still wants its bindings fresh
+	// Keyed on the source being here, not on which apps run in Docker - an app run on the host still wants its bindings fresh
 	if _, err := os.Stat(filepath.Join(root, "apps", "dashboard", "package.json")); err == nil {
 		url := os.Getenv("GRAPHQL_CODEGEN_URL")
 		if url == "" {

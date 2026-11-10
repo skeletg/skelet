@@ -1,4 +1,4 @@
-# Per-clone app and dev-tool selection written by skelet setup (compose profiles).
+# Setup files skelet moves into .env on its first run
 .skelet-apps
 .skelet-tools
 .skelet-profile
@@ -58,6 +58,10 @@ packages/.packs/
 # Ad-hoc database dumps (pg_dump output parked in the repo root). Never
 # commit these - they contain real customer data.
 *.dump
+
+# TLS certificates and private keys, like the Signals contract's - they belong on the server
+/certs/
+*.pem
 
 # Local DB backups (skelet db export output)
 backups/

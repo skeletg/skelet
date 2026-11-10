@@ -24,27 +24,17 @@ type written struct {
 	adminSlug      string
 }
 
-// Write turns answers into files: the selection files, the profile, the target's env files with their secrets, the
+// Write turns answers into files: the target's env files with their secrets, the
 // root .env's knobs and plugins.json. It starts nothing and asks nothing. Anything already holding a real value is
 // left alone, so a second run with the same answers changes no file
 func Write(root string, a answers, c catalog, rnd io.Reader, out io.Writer) (written, error) {
 	var w written
 	path := func(rel string) string { return filepath.Join(root, rel) }
 
-	if err := writeLine(path(".skelet-apps"), join(a.dockerApps)); err != nil {
-		return w, err
-	}
 	fmt.Fprintf(out, "==> Apps: %s\n", orNone(a.apps, "backend only"))
-	fmt.Fprintf(out, "    in Docker: %s  (saved to .skelet-apps)\n", orNone(a.dockerApps, "none - they run on the host with `skelet serve <app>`"))
-	if err := writeLine(path(".skelet-tools"), join(a.tools)); err != nil {
-		return w, err
-	}
-	fmt.Fprintf(out, "==> Dev tools: %s  (saved to .skelet-tools; start one ad hoc with skelet up <name>)\n", orNone(a.tools, "none"))
-
-	if err := profile.Write(path(profile.File), a.profile(), profileKeys); err != nil {
-		return w, err
-	}
-	fmt.Fprintf(out, "==> Profile: %s, signals=%t ai=%t, search=%s  (saved to %s)\n", a.target, a.signals, a.ai, a.search, profile.File)
+	fmt.Fprintf(out, "    in Docker: %s\n", orNone(a.dockerApps, "none - they run on the host with `skelet serve <app>`"))
+	fmt.Fprintf(out, "==> Dev tools: %s  (start one ad hoc with skelet up <name>)\n", orNone(a.tools, "none"))
+	fmt.Fprintf(out, "==> Shape: %s, signals=%t ai=%t, search=%s\n", a.target, a.signals, a.ai, a.search)
 
 	backend, files, err := EnvFiles(root, a.target, func(app string) bool { return slices.Contains(a.apps, app) })
 	if err != nil {
@@ -117,7 +107,11 @@ func Write(root string, a answers, c catalog, rnd io.Reader, out io.Writer) (wri
 			e.del(".env", k)
 		}
 	}
-	if a.target != "dev" {
+	e.set(".env", profile.EnvTarget, a.target)
+	e.set(".env", profile.EnvApps, join(a.apps))
+	if a.target == "dev" {
+		e.set(".env", profile.EnvProfiles, profile.DevProfiles(a.dockerApps, a.tools, a.signals))
+	} else {
 		e.deployment(a, c, backend, files)
 	}
 	if e.err != nil {
@@ -178,17 +172,6 @@ func primaryStorefront(a answers, c catalog) string {
 	return ""
 }
 
-func (a answers) profile() profile.Profile {
-	slug := "0"
-	if a.adminSlug {
-		slug = "1"
-	}
-	return profile.Profile{
-		kTarget: a.target, kSignals: strconv.FormatBool(a.signals), kAI: strconv.FormatBool(a.ai), kSearch: a.search,
-		kGates: join(a.gateways), kSlug: slug, kApps: join(a.apps), kDocker: join(a.dockerApps), kTools: join(a.tools),
-	}
-}
-
 var envRef = regexp.MustCompile(`env/[a-z0-9.-]+\.env`)
 
 // EnvFiles is the backend env file for target and every env file it needs. Beyond dev that is whatever the target's
@@ -230,14 +213,6 @@ func fromTemplate(root, file, tmpl string) (bool, error) {
 		return false, fmt.Errorf("%s needs its template: %w", file, err)
 	}
 	return true, envfile.WriteAtomic(filepath.Join(root, file), raw, 0o600)
-}
-
-func writeLine(path, line string) error {
-	data := line + "\n"
-	if old, err := os.ReadFile(path); err == nil && string(old) == data {
-		return nil
-	}
-	return envfile.WriteAtomic(path, []byte(data), 0o644)
 }
 
 // A value setup may overwrite - anything else is the operator's
@@ -296,11 +271,11 @@ func (e *editor) key32() string {
 	return v
 }
 
-// generate makes a value in the encoding key's checks demand: the two AES keys and the Ed25519 seed are base64 of 32
+// generate makes a value in the encoding key's checks demand: the AES key and the Ed25519 seed are base64 of 32
 // bytes, everything else is 32 bytes of hex
 func (e *editor) generate(key string) string {
 	switch key {
-	case "CONFIG_ENCRYPTION_KEY", "SIGNALS_ENCRYPTION_KEY", "CUSTOMER_JWT_PRIVATE_KEY":
+	case "CONFIG_ENCRYPTION_KEY", "CUSTOMER_JWT_PRIVATE_KEY":
 		return e.key32()
 	}
 	return e.hex(32)
@@ -350,7 +325,7 @@ func (e *editor) secrets(backend, target string) {
 	e.del(".env", "JWT_SECRET")
 	shared := []string{"ADMIN_JWT_SECRET", "CUSTOMER_JWT_PRIVATE_KEY", "CUSTOMER_JWT_PUBLIC_KEY", "EMAIL_LINK_SECRET",
 		"REVIEW_VOTER_TOKEN_SECRET", "CONFIG_ENCRYPTION_KEY", "SIGNALS_SERVICE_SECRET", "STOREFRONT_REVALIDATE_SECRET"}
-	for _, k := range append(slices.Clone(shared), "SIGNALS_ENCRYPTION_KEY", "STORAGE_SIGNING_KEY", "DB_PASSWORD",
+	for _, k := range append(slices.Clone(shared), "STORAGE_SIGNING_KEY", "DB_PASSWORD",
 		"SIGNALS_DB_PASSWORD", "VALKEY_PASSWORD", "CLICKHOUSE_PASSWORD") {
 		if !placeholder(e.get(".env", k)) {
 			fmt.Fprintf(e.out, "    .env %s already set, left alone\n", k)

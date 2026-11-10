@@ -12,6 +12,49 @@ export type Scalars = {
   Time: { input: string; output: string; }
 };
 
+export type AiAgentActivity = {
+  __typename?: 'AIAgentActivity';
+  agent: Scalars['String']['output'];
+  calls: Scalars['Int']['output'];
+  emptySearches: Scalars['Int']['output'];
+  searches: Scalars['Int']['output'];
+  tools: Array<AiToolCount>;
+};
+
+export type AiCohort = {
+  __typename?: 'AICohort';
+  buyers: Scalars['Int']['output'];
+  orders: Scalars['Int']['output'];
+  people: Scalars['Int']['output'];
+  returnedOrders: Scalars['Int']['output'];
+  revenue: Scalars['Int64']['output'];
+  revenueOrders: Scalars['Int']['output'];
+};
+
+export type AiInsights = {
+  __typename?: 'AIInsights';
+  agentOrders: Scalars['Int']['output'];
+  agentRevenue: Scalars['Int64']['output'];
+  agents: Array<AiAgentActivity>;
+  cartWindowDays: Scalars['Int']['output'];
+  chatted: AiCohort;
+  currencyCode: Scalars['String']['output'];
+  days: Scalars['Int']['output'];
+  didNotChat: AiCohort;
+  orderWindowDays: Scalars['Int']['output'];
+  products: Array<AiRecommendedProduct>;
+};
+
+export type AiRecommendedProduct = {
+  __typename?: 'AIRecommendedProduct';
+  carted: Scalars['Int']['output'];
+  name?: Maybe<Scalars['String']['output']>;
+  ordered: Scalars['Int']['output'];
+  people: Scalars['Int']['output'];
+  productId: Scalars['ID']['output'];
+  shown: Scalars['Int']['output'];
+};
+
 export type AiSeoSuggestion = {
   __typename?: 'AISeoSuggestion';
   metaDescription: Scalars['String']['output'];
@@ -21,6 +64,12 @@ export type AiSeoSuggestion = {
 export type AiStatus = {
   __typename?: 'AIStatus';
   enabled: Scalars['Boolean']['output'];
+};
+
+export type AiToolCount = {
+  __typename?: 'AIToolCount';
+  calls: Scalars['Int']['output'];
+  tool: Scalars['String']['output'];
 };
 
 export type ActionArgument = {
@@ -64,6 +113,8 @@ export type AddBundleOptionInput = {
 };
 
 export type AddBundleSelectionInput = {
+  customerQuantity?: InputMaybe<Scalars['Boolean']['input']>;
+  discountPercent?: InputMaybe<Scalars['Int']['input']>;
   isDefault?: InputMaybe<Scalars['Boolean']['input']>;
   optionId: Scalars['ID']['input'];
   productId: Scalars['ID']['input'];
@@ -200,6 +251,7 @@ export type AdminCart = {
   kind: CartKind;
   lines: Array<AdminCartLine>;
   offer?: Maybe<AdminCartOffer>;
+  source: Scalars['String']['output'];
   status: Scalars['String']['output'];
   subtotal: Scalars['Int']['output'];
   updatedAt: Scalars['Time']['output'];
@@ -394,6 +446,13 @@ export type AdminLoginInput = {
   totpCode?: InputMaybe<Scalars['String']['input']>;
 };
 
+export type AdminMcp = {
+  __typename?: 'AdminMcp';
+  available: Scalars['Boolean']['output'];
+  path: Scalars['String']['output'];
+  tools: Array<McpTool>;
+};
+
 export type AdminNotification = {
   __typename?: 'AdminNotification';
   actionUrl: Scalars['String']['output'];
@@ -428,6 +487,35 @@ export type AdminProductQuestion = {
   productId: Scalars['ID']['output'];
   question: Scalars['String']['output'];
   status: Scalars['String']['output'];
+};
+
+export type AdminSearchCustomer = {
+  __typename?: 'AdminSearchCustomer';
+  email: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+};
+
+export type AdminSearchOrder = {
+  __typename?: 'AdminSearchOrder';
+  email: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  number: Scalars['String']['output'];
+};
+
+export type AdminSearchProduct = {
+  __typename?: 'AdminSearchProduct';
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  sku: Scalars['String']['output'];
+};
+
+export type AdminSearchResult = {
+  __typename?: 'AdminSearchResult';
+  customers: Array<AdminSearchCustomer>;
+  orders: Array<AdminSearchOrder>;
+  products: Array<AdminSearchProduct>;
 };
 
 export type AdminSession = {
@@ -488,6 +576,20 @@ export type AdminUser = {
   totpEnabled: Scalars['Boolean']['output'];
 };
 
+export type AgenticState =
+  | 'ATTENTION'
+  | 'OFF'
+  | 'ON';
+
+export type AgenticStatus = {
+  __typename?: 'AgenticStatus';
+  detail: Scalars['String']['output'];
+  key: Scalars['String']['output'];
+  label: Scalars['String']['output'];
+  settingsPath: Scalars['String']['output'];
+  state: AgenticState;
+};
+
 export type AppliedPromotion = {
   __typename?: 'AppliedPromotion';
   appliedAt: Scalars['Time']['output'];
@@ -515,12 +617,176 @@ export type AssignReviewQuestionInput = {
   sortOrder: Scalars['Int']['input'];
 };
 
+export type AssistantConversation = {
+  __typename?: 'AssistantConversation';
+  anonId: Scalars['String']['output'];
+  cartChanged: Scalars['Boolean']['output'];
+  checkout: Scalars['Boolean']['output'];
+  customerId?: Maybe<Scalars['ID']['output']>;
+  firstQuestion: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  incomplete: Scalars['Boolean']['output'];
+  lastAt: Scalars['Time']['output'];
+  latestUnanswered?: Maybe<AssistantGap>;
+  startedAt: Scalars['Time']['output'];
+  turns: Scalars['Int']['output'];
+  unanswered: Scalars['Int']['output'];
+};
+
+export type AssistantConversationDetail = {
+  __typename?: 'AssistantConversationDetail';
+  conversation: AssistantConversation;
+  turns: Array<AssistantTranscriptTurn>;
+};
+
+export type AssistantConversationPage = {
+  __typename?: 'AssistantConversationPage';
+  counts: AssistantGapCounts;
+  items: Array<AssistantConversation>;
+  nextCursor?: Maybe<Scalars['String']['output']>;
+};
+
+export type AssistantDay = {
+  __typename?: 'AssistantDay';
+  agentOrders: Scalars['Int']['output'];
+  assistantOrders: Scalars['Int']['output'];
+  cartTurns: Scalars['Int']['output'];
+  checkoutTurns: Scalars['Int']['output'];
+  day: Scalars['String']['output'];
+  failedTurns: Scalars['Int']['output'];
+  turns: Scalars['Int']['output'];
+  unansweredTurns: Scalars['Int']['output'];
+};
+
+export type AssistantGap = {
+  __typename?: 'AssistantGap';
+  question: Scalars['String']['output'];
+  reasons: Array<AssistantGapReason>;
+  turnId: Scalars['ID']['output'];
+};
+
+export type AssistantGapCounts = {
+  __typename?: 'AssistantGapCounts';
+  any: Scalars['Int']['output'];
+  cutShort: Scalars['Int']['output'];
+  foundNothing: Scalars['Int']['output'];
+  noAnswer: Scalars['Int']['output'];
+  unsure: Scalars['Int']['output'];
+};
+
+export type AssistantGapReason =
+  | 'CUT_SHORT'
+  | 'FOUND_NOTHING'
+  | 'NO_ANSWER'
+  | 'UNSURE';
+
+export type AssistantReport = {
+  __typename?: 'AssistantReport';
+  cartTurns: Scalars['Int']['output'];
+  checkoutTurns: Scalars['Int']['output'];
+  daily: Array<AssistantDay>;
+  days: Scalars['Int']['output'];
+  failedTurns: Scalars['Int']['output'];
+  orders: Array<AssistedOrders>;
+  searchOverviews: Scalars['Int']['output'];
+  turns: Scalars['Int']['output'];
+  unansweredTurns: Scalars['Int']['output'];
+  usage: AssistantUsage;
+};
+
+export type AssistantRound = {
+  __typename?: 'AssistantRound';
+  calls: Array<AssistantToolCall>;
+  shown: Scalars['Boolean']['output'];
+  text: Scalars['String']['output'];
+  thinking: Scalars['String']['output'];
+};
+
+export type AssistantShownItem = {
+  __typename?: 'AssistantShownItem';
+  kind: AssistantShownKind;
+  label?: Maybe<Scalars['String']['output']>;
+  name?: Maybe<Scalars['String']['output']>;
+  path?: Maybe<Scalars['String']['output']>;
+  productId?: Maybe<Scalars['ID']['output']>;
+  text?: Maybe<Scalars['String']['output']>;
+};
+
+export type AssistantShownKind =
+  | 'BUTTON'
+  | 'CARD'
+  | 'CART'
+  | 'MOVED'
+  | 'PANEL'
+  | 'TEXT';
+
+export type AssistantToolCall = {
+  __typename?: 'AssistantToolCall';
+  input: Scalars['String']['output'];
+  isError: Scalars['Boolean']['output'];
+  output: Scalars['String']['output'];
+  skipped: Scalars['Boolean']['output'];
+  tool: Scalars['String']['output'];
+};
+
+export type AssistantTranscriptTurn = {
+  __typename?: 'AssistantTranscriptTurn';
+  at: Scalars['Time']['output'];
+  cacheReadTokens: Scalars['Int64']['output'];
+  cacheWriteTokens: Scalars['Int64']['output'];
+  cartChanged: Scalars['Boolean']['output'];
+  checkout: Scalars['Boolean']['output'];
+  followUps: Array<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  incomplete: Scalars['Boolean']['output'];
+  inputTokens: Scalars['Int64']['output'];
+  model: Scalars['String']['output'];
+  outputTokens: Scalars['Int64']['output'];
+  page: Scalars['String']['output'];
+  products: Scalars['Int']['output'];
+  question: Scalars['String']['output'];
+  recap: Scalars['String']['output'];
+  refused: Scalars['Boolean']['output'];
+  reply: Scalars['String']['output'];
+  showed: Array<AssistantShownItem>;
+  steps: Scalars['Int']['output'];
+  thought: Scalars['Boolean']['output'];
+  toolCalls: Scalars['Int']['output'];
+};
+
+export type AssistantUnansweredFilter =
+  | 'ANY'
+  | 'CUT_SHORT'
+  | 'FOUND_NOTHING'
+  | 'NO_ANSWER'
+  | 'UNSURE';
+
+export type AssistantUsage = {
+  __typename?: 'AssistantUsage';
+  cacheReadTokens: Scalars['Int64']['output'];
+  cacheWriteTokens: Scalars['Int64']['output'];
+  estimatedCostUsd?: Maybe<Scalars['Float']['output']>;
+  inputTokens: Scalars['Int64']['output'];
+  outputTokens: Scalars['Int64']['output'];
+};
+
+export type AssistedOrders = {
+  __typename?: 'AssistedOrders';
+  agentOrders: Scalars['Int']['output'];
+  agentRevenue: Scalars['Int64']['output'];
+  assistantOrders: Scalars['Int']['output'];
+  assistantRevenue: Scalars['Int64']['output'];
+  currencyCode: Scalars['String']['output'];
+  orderCount: Scalars['Int']['output'];
+};
+
 export type Attribute = {
   __typename?: 'Attribute';
   autoSegment: Scalars['Boolean']['output'];
   createdAt: Scalars['Time']['output'];
   defaultValue?: Maybe<Scalars['JSON']['output']>;
   descriptions: Array<AttributeContent>;
+  embedded: Scalars['Boolean']['output'];
   facetCollapsed: Scalars['Boolean']['output'];
   filterable: Scalars['Boolean']['output'];
   h1Position: AttributeH1Position;
@@ -533,6 +799,7 @@ export type Attribute = {
   privateMetadata: Array<MetadataItem>;
   relationshipTarget?: Maybe<AttributeReferenceTarget>;
   searchable: Scalars['Boolean']['output'];
+  similarMatch: Scalars['Boolean']['output'];
   slug: Scalars['String']['output'];
   sortOrder: Scalars['Int']['output'];
   synapseTrack: Scalars['Boolean']['output'];
@@ -595,6 +862,7 @@ export type AttributeValue = {
   descriptions: Array<AttributeValueContent>;
   id: Scalars['ID']['output'];
   isIndexable: Scalars['Boolean']['output'];
+  matchesAny: Scalars['Boolean']['output'];
   name: Scalars['String']['output'];
   slug: Scalars['String']['output'];
   sortOrder: Scalars['Int']['output'];
@@ -620,6 +888,7 @@ export type AttributeValueContent = {
 
 export type AttributeValueInput = {
   isIndexable?: InputMaybe<Scalars['Boolean']['input']>;
+  matchesAny?: InputMaybe<Scalars['Boolean']['input']>;
   name: Scalars['String']['input'];
   slug: Scalars['String']['input'];
   sortOrder?: InputMaybe<Scalars['Int']['input']>;
@@ -805,6 +1074,173 @@ export type BlogTagContent = {
   updatedAt: Scalars['Time']['output'];
 };
 
+export type Board = {
+  __typename?: 'Board';
+  access: BoardAccess;
+  accessRequests: Array<BoardAccessRequest>;
+  channelId: Scalars['ID']['output'];
+  draft?: Maybe<BoardDraft>;
+  draftUpdatedAt?: Maybe<Scalars['Time']['output']>;
+  favourite: Scalars['Boolean']['output'];
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  owner?: Maybe<BoardOwner>;
+  reports: Array<BoardReport>;
+  shares: Array<BoardShare>;
+  updatedAt: Scalars['Time']['output'];
+};
+
+export type BoardAccess =
+  | 'EDIT'
+  | 'OWN'
+  | 'VIEW';
+
+export type BoardAccessRequest = {
+  __typename?: 'BoardAccessRequest';
+  adminId: Scalars['ID']['output'];
+  level: BoardShareLevel;
+  name: Scalars['String']['output'];
+  requestedAt: Scalars['Time']['output'];
+};
+
+export type BoardDraft = {
+  __typename?: 'BoardDraft';
+  baseUpdatedAt: Scalars['Time']['output'];
+  name: Scalars['String']['output'];
+  reports: Array<BoardDraftReport>;
+  updatedAt: Scalars['Time']['output'];
+};
+
+export type BoardDraftInput = {
+  name: Scalars['String']['input'];
+  reports: Array<BoardDraftReportInput>;
+};
+
+export type BoardDraftReport = {
+  __typename?: 'BoardDraftReport';
+  from?: Maybe<Scalars['Int']['output']>;
+  report: BoardReport;
+};
+
+export type BoardDraftReportInput = {
+  from?: InputMaybe<Scalars['Int']['input']>;
+  report: BoardReportInput;
+};
+
+export type BoardOwner = {
+  __typename?: 'BoardOwner';
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  removed: Scalars['Boolean']['output'];
+};
+
+export type BoardReport = {
+  __typename?: 'BoardReport';
+  definition: BoardReportDefinition;
+  size?: Maybe<BoardReportSize>;
+  title: Scalars['String']['output'];
+};
+
+export type BoardReportDefinition = {
+  __typename?: 'BoardReportDefinition';
+  breakdown?: Maybe<Scalars['String']['output']>;
+  depth?: Maybe<Scalars['Int']['output']>;
+  event?: Maybe<Scalars['String']['output']>;
+  filters?: Maybe<Array<BoardReportFilter>>;
+  kind: BoardReportKind;
+  measure?: Maybe<Scalars['String']['output']>;
+  periods?: Maybe<Scalars['Int']['output']>;
+  returnEvent?: Maybe<Scalars['String']['output']>;
+  sinceDays?: Maybe<Scalars['Int']['output']>;
+  startEvent?: Maybe<Scalars['String']['output']>;
+  steps?: Maybe<Array<Scalars['String']['output']>>;
+  unit?: Maybe<Scalars['String']['output']>;
+  windowDays?: Maybe<Scalars['Int']['output']>;
+  windowHours?: Maybe<Scalars['Int']['output']>;
+};
+
+export type BoardReportDefinitionInput = {
+  breakdown?: InputMaybe<Scalars['String']['input']>;
+  depth?: InputMaybe<Scalars['Int']['input']>;
+  event?: InputMaybe<Scalars['String']['input']>;
+  filters?: InputMaybe<Array<SynapseFunnelFilterInput>>;
+  kind: BoardReportKind;
+  measure?: InputMaybe<Scalars['String']['input']>;
+  periods?: InputMaybe<Scalars['Int']['input']>;
+  returnEvent?: InputMaybe<Scalars['String']['input']>;
+  sinceDays?: InputMaybe<Scalars['Int']['input']>;
+  startEvent?: InputMaybe<Scalars['String']['input']>;
+  steps?: InputMaybe<Array<Scalars['String']['input']>>;
+  unit?: InputMaybe<Scalars['String']['input']>;
+  windowDays?: InputMaybe<Scalars['Int']['input']>;
+  windowHours?: InputMaybe<Scalars['Int']['input']>;
+};
+
+export type BoardReportFilter = {
+  __typename?: 'BoardReportFilter';
+  key: Scalars['String']['output'];
+  step: Scalars['Int']['output'];
+  value: Scalars['String']['output'];
+};
+
+export type BoardReportInput = {
+  definition: BoardReportDefinitionInput;
+  size?: InputMaybe<BoardReportSize>;
+  title: Scalars['String']['input'];
+};
+
+export type BoardReportKind =
+  | 'FLOW'
+  | 'FUNNEL'
+  | 'INSIGHTS'
+  | 'RETENTION'
+  | 'STICKINESS';
+
+export type BoardReportSize =
+  | 'FULL'
+  | 'MEDIUM'
+  | 'SMALL';
+
+export type BoardShare = {
+  __typename?: 'BoardShare';
+  adminId?: Maybe<Scalars['ID']['output']>;
+  level: BoardShareLevel;
+  name: Scalars['String']['output'];
+  roleId?: Maybe<Scalars['ID']['output']>;
+};
+
+export type BoardShareInput = {
+  adminId?: InputMaybe<Scalars['ID']['input']>;
+  level: BoardShareLevel;
+  roleId?: InputMaybe<Scalars['ID']['input']>;
+};
+
+export type BoardShareLevel =
+  | 'EDIT'
+  | 'VIEW';
+
+export type BoardShareTarget = {
+  __typename?: 'BoardShareTarget';
+  id: Scalars['ID']['output'];
+  kind: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  seesBoards: Scalars['Boolean']['output'];
+  seesData: Scalars['Boolean']['output'];
+};
+
+export type BoardSummary = {
+  __typename?: 'BoardSummary';
+  access: BoardAccess;
+  accessRequestCount: Scalars['Int']['output'];
+  draftUpdatedAt?: Maybe<Scalars['Time']['output']>;
+  favourite: Scalars['Boolean']['output'];
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  owner?: Maybe<BoardOwner>;
+  reportCount: Scalars['Int']['output'];
+  updatedAt: Scalars['Time']['output'];
+};
+
 export type BotAgent = {
   __typename?: 'BotAgent';
   category: Scalars['String']['output'];
@@ -874,6 +1310,7 @@ export type BundleOption = {
   isRequired: Scalars['Boolean']['output'];
   maxSelections?: Maybe<Scalars['Int']['output']>;
   minSelections: Scalars['Int']['output'];
+  rule?: Maybe<BundleOptionRule>;
   selections: Array<BundleSelection>;
   sortOrder: Scalars['Int']['output'];
   title: Scalars['String']['output'];
@@ -886,13 +1323,54 @@ export type BundleOptionContent = {
   title: Scalars['String']['output'];
 };
 
+export type BundleOptionContentInput = {
+  locale: Scalars['String']['input'];
+  optionId: Scalars['ID']['input'];
+  title?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type BundleOptionRule = {
+  __typename?: 'BundleOptionRule';
+  attributeValueIds: Array<Scalars['ID']['output']>;
+  categoryId: Scalars['ID']['output'];
+  quantity: Scalars['Float']['output'];
+};
+
+export type BundleOptionRuleInput = {
+  attributeValueIds?: InputMaybe<Array<Scalars['ID']['input']>>;
+  categoryId?: InputMaybe<Scalars['ID']['input']>;
+  optionId: Scalars['ID']['input'];
+  quantity?: InputMaybe<Scalars['Float']['input']>;
+};
+
+export type BundlePricing =
+  | 'FIXED'
+  | 'SUM'
+  | 'SUM_MINUS_PERCENT';
+
 export type BundleSelection = {
   __typename?: 'BundleSelection';
+  customerQuantity: Scalars['Boolean']['output'];
+  discountPercent: Scalars['Int']['output'];
+  fromRule: Scalars['Boolean']['output'];
   id: Scalars['ID']['output'];
   isDefault: Scalars['Boolean']['output'];
   product: Product;
   quantity: Scalars['Float']['output'];
   sortOrder: Scalars['Int']['output'];
+};
+
+export type BundleStructureOpInput = {
+  addOption?: InputMaybe<AddBundleOptionInput>;
+  addSelection?: InputMaybe<AddBundleSelectionInput>;
+  deleteContent?: InputMaybe<BundleOptionContentInput>;
+  deleteOption?: InputMaybe<Scalars['ID']['input']>;
+  deleteSelection?: InputMaybe<Scalars['ID']['input']>;
+  setRule?: InputMaybe<BundleOptionRuleInput>;
+  tempId?: InputMaybe<Scalars['ID']['input']>;
+  updateOption?: InputMaybe<UpdateBundleOptionInput>;
+  updateSelection?: InputMaybe<UpdateBundleSelectionInput>;
+  upsertContent?: InputMaybe<BundleOptionContentInput>;
 };
 
 export type BusinessIdField = {
@@ -1289,6 +1767,7 @@ export type CartListItem = {
   offerExpiresAt?: Maybe<Scalars['Time']['output']>;
   offerState?: Maybe<CartOfferState>;
   orderId?: Maybe<Scalars['ID']['output']>;
+  source: Scalars['String']['output'];
   status: Scalars['String']['output'];
   subtotal: Scalars['Int']['output'];
   updatedAt: Scalars['Time']['output'];
@@ -1327,6 +1806,7 @@ export type Category = {
   description?: Maybe<Scalars['JSON']['output']>;
   facetOverrides: Array<FacetOverride>;
   id: Scalars['ID']['output'];
+  isAnchor: Scalars['Boolean']['output'];
   isPublished: Scalars['Boolean']['output'];
   level: Scalars['Int']['output'];
   listings: Array<CategoryChannelListing>;
@@ -1393,6 +1873,7 @@ export type Channel = {
   name: Scalars['String']['output'];
   publicUrl: Scalars['String']['output'];
   slug: Scalars['String']['output'];
+  taxInclusivePricing: Scalars['Boolean']['output'];
 };
 
 export type ChannelInventoryLocation = {
@@ -1549,6 +2030,7 @@ export type ConfigValue = {
   isDefault: Scalars['Boolean']['output'];
   isSet: Scalars['Boolean']['output'];
   label: Scalars['String']['output'];
+  maxLength?: Maybe<Scalars['Int']['output']>;
   options?: Maybe<Array<ConfigOption>>;
   path: Scalars['String']['output'];
   public: Scalars['Boolean']['output'];
@@ -1715,6 +2197,7 @@ export type CreateAdminInput = {
 export type CreateAttributeInput = {
   autoSegment?: InputMaybe<Scalars['Boolean']['input']>;
   defaultValue?: InputMaybe<Scalars['JSON']['input']>;
+  embedded?: InputMaybe<Scalars['Boolean']['input']>;
   facetCollapsed?: InputMaybe<Scalars['Boolean']['input']>;
   filterable?: InputMaybe<Scalars['Boolean']['input']>;
   h1Position?: InputMaybe<AttributeH1Position>;
@@ -1726,6 +2209,7 @@ export type CreateAttributeInput = {
   privateMetadata?: InputMaybe<Array<MetadataInput>>;
   relationshipTarget?: InputMaybe<AttributeReferenceTarget>;
   searchable?: InputMaybe<Scalars['Boolean']['input']>;
+  similarMatch?: InputMaybe<Scalars['Boolean']['input']>;
   slug: Scalars['String']['input'];
   sortOrder?: InputMaybe<Scalars['Int']['input']>;
   synapseTrack?: InputMaybe<Scalars['Boolean']['input']>;
@@ -1851,6 +2335,7 @@ export type CreateCmsSnippetInput = {
 
 export type CreateCategoryInput = {
   description?: InputMaybe<Scalars['JSON']['input']>;
+  isAnchor?: InputMaybe<Scalars['Boolean']['input']>;
   isPublished?: InputMaybe<Scalars['Boolean']['input']>;
   locale: Scalars['String']['input'];
   metaDescription?: InputMaybe<Scalars['String']['input']>;
@@ -1874,6 +2359,7 @@ export type CreateChannelInput = {
   name: Scalars['String']['input'];
   publicUrl?: InputMaybe<Scalars['String']['input']>;
   slug: Scalars['String']['input'];
+  taxInclusivePricing?: InputMaybe<Scalars['Boolean']['input']>;
 };
 
 export type CreateCollectionInput = {
@@ -2150,7 +2636,9 @@ export type CreateShippingMethodInput = {
   freeAboveCents?: InputMaybe<Scalars['Int']['input']>;
   isActive?: InputMaybe<Scalars['Boolean']['input']>;
   name?: InputMaybe<Scalars['String']['input']>;
+  rateTiers?: InputMaybe<Array<ShippingRateTierInput>>;
   sortOrder?: InputMaybe<Scalars['Int']['input']>;
+  tableBasis?: InputMaybe<ShippingTableBasis>;
   typeRates?: InputMaybe<Array<ShippingMethodTypeRateInput>>;
   unitsPerCharge?: InputMaybe<Scalars['Int']['input']>;
   zoneId: Scalars['ID']['input'];
@@ -2815,8 +3303,12 @@ export type EmailGroup = {
 
 export type EmailPreview = {
   __typename?: 'EmailPreview';
+  fromAddress?: Maybe<Scalars['String']['output']>;
+  fromName?: Maybe<Scalars['String']['output']>;
   html: Scalars['String']['output'];
+  preheader?: Maybe<Scalars['String']['output']>;
   subject: Scalars['String']['output'];
+  text?: Maybe<Scalars['String']['output']>;
 };
 
 export type EmailRevision = {
@@ -2847,37 +3339,32 @@ export type EmailSuppressionPage = {
   totalCount: Scalars['Int']['output'];
 };
 
+export type EmailTranslation = {
+  __typename?: 'EmailTranslation';
+  blocks: Scalars['JSON']['output'];
+  emailId: Scalars['ID']['output'];
+  locale: Scalars['String']['output'];
+  preheader: Scalars['String']['output'];
+  styles: Scalars['JSON']['output'];
+  subject: Scalars['String']['output'];
+  updatedAt: Scalars['Time']['output'];
+};
+
 export type EmailWarning = {
   __typename?: 'EmailWarning';
   message: Scalars['String']['output'];
   severity: Scalars['String']['output'];
 };
 
-export type EventDestination = {
-  __typename?: 'EventDestination';
-  channelId: Scalars['ID']['output'];
-  createdAt: Scalars['Time']['output'];
-  eventNames: Array<Scalars['String']['output']>;
-  eventSources: Array<Scalars['String']['output']>;
-  id: Scalars['ID']['output'];
-  isActive: Scalars['Boolean']['output'];
-  kind: Scalars['String']['output'];
-  lastError: Scalars['String']['output'];
-  lastForwardedAt?: Maybe<Scalars['Time']['output']>;
-  name: Scalars['String']['output'];
-  targetUrl: Scalars['String']['output'];
-  updatedAt: Scalars['Time']['output'];
-};
-
-export type EventDestinationInput = {
-  channelId: Scalars['ID']['input'];
-  eventNames?: InputMaybe<Array<Scalars['String']['input']>>;
-  eventSources?: InputMaybe<Array<Scalars['String']['input']>>;
-  isActive?: InputMaybe<Scalars['Boolean']['input']>;
-  kind: Scalars['String']['input'];
-  name: Scalars['String']['input'];
-  secret?: InputMaybe<Scalars['String']['input']>;
-  targetUrl: Scalars['String']['input'];
+export type EmbeddingCoverage = {
+  __typename?: 'EmbeddingCoverage';
+  embeddedPages: Scalars['Int']['output'];
+  embeddedProducts: Scalars['Int']['output'];
+  failed: Scalars['String']['output'];
+  model: Scalars['String']['output'];
+  pages: Scalars['Int']['output'];
+  products: Scalars['Int']['output'];
+  queued: Scalars['Int']['output'];
 };
 
 export type Experiment = {
@@ -3242,6 +3729,13 @@ export type KitComponent = {
   updatedAt: Scalars['Time']['output'];
 };
 
+export type LensAiSearchGap = {
+  __typename?: 'LensAISearchGap';
+  agents: Scalars['Int']['output'];
+  assistant: Scalars['Int']['output'];
+  term: Scalars['String']['output'];
+};
+
 export type LensCell = {
   __typename?: 'LensCell';
   count: Scalars['Int']['output'];
@@ -3296,10 +3790,19 @@ export type LensOverview = {
   daily: Array<LensTimePoint>;
   devices: Array<LensLabelCount>;
   interactions: Array<LensLabelCount>;
+  planIssues: Array<LensPlanIssue>;
   referrers: Array<LensLabelCount>;
   topPages: Array<LensPageStat>;
   views: Scalars['Int']['output'];
   visitors: Scalars['Int']['output'];
+};
+
+export type LensOverviewTerm = {
+  __typename?: 'LensOverviewTerm';
+  chats: Scalars['Int']['output'];
+  clicks: Scalars['Int']['output'];
+  shown: Scalars['Int']['output'];
+  term: Scalars['String']['output'];
 };
 
 export type LensPage = {
@@ -3339,6 +3842,20 @@ export type LensPageVitals = {
   ttfb?: Maybe<Scalars['Float']['output']>;
 };
 
+export type LensPlanIssue = {
+  __typename?: 'LensPlanIssue';
+  count: Scalars['Int']['output'];
+  event: Scalars['String']['output'];
+  kind: LensPlanIssueKind;
+  prop: Scalars['String']['output'];
+};
+
+export type LensPlanIssueKind =
+  | 'BAD_TYPE'
+  | 'SERVER_PROP'
+  | 'UNKNOWN_EVENT'
+  | 'UNKNOWN_PROP';
+
 export type LensRageElement = {
   __typename?: 'LensRageElement';
   count: Scalars['Int']['output'];
@@ -3348,8 +3865,15 @@ export type LensRageElement = {
 
 export type LensSearchAnalytics = {
   __typename?: 'LensSearchAnalytics';
+  aiGaps: Array<LensAiSearchGap>;
   daily: Array<LensSearchDay>;
   distinctTerms: Scalars['Int']['output'];
+  meaningOnly: Array<LensSearchTerm>;
+  meaningOnlySearches: Scalars['Int']['output'];
+  overviewChats: Scalars['Int']['output'];
+  overviewClicks: Scalars['Int']['output'];
+  overviews: Array<LensOverviewTerm>;
+  overviewsShown: Scalars['Int']['output'];
   top: Array<LensSearchTerm>;
   totalSearches: Scalars['Int']['output'];
   zeroResult: Array<LensSearchTerm>;
@@ -3359,6 +3883,7 @@ export type LensSearchAnalytics = {
 export type LensSearchDay = {
   __typename?: 'LensSearchDay';
   date: Scalars['String']['output'];
+  meaningOnly: Scalars['Int']['output'];
   searches: Scalars['Int']['output'];
   zeroResults: Scalars['Int']['output'];
 };
@@ -3590,6 +4115,18 @@ export type MasqueradeSession = {
   storefrontUrl: Scalars['String']['output'];
 };
 
+export type McpOverview = {
+  __typename?: 'McpOverview';
+  admin: AdminMcp;
+  storefront: StorefrontMcp;
+};
+
+export type McpTool = {
+  __typename?: 'McpTool';
+  description: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+};
+
 export type MediaAsset = {
   __typename?: 'MediaAsset';
   altText: Scalars['String']['output'];
@@ -3804,6 +4341,7 @@ export type Mutation = {
   createBlogCategory: BlogCategory;
   createBlogPost: BlogPost;
   createBlogTag: BlogTag;
+  createBoard: Board;
   createCMSAttribute: CmsAttribute;
   createCMSAttributeGroup: CmsAttributeGroup;
   createCMSBlockType: CmsBlockType;
@@ -3822,7 +4360,6 @@ export type Mutation = {
   createDraftOrder: Order;
   createEmailCampaign: EmailCampaign;
   createEmailGroup: EmailGroup;
-  createEventDestination: EventDestination;
   createExperiment: Experiment;
   createFlow: Flow;
   createFulfillment: Order;
@@ -3844,7 +4381,9 @@ export type Mutation = {
   createShippingMethod: ShippingMethod;
   createShippingZone: ShippingZone;
   createSignupForm: SignupForm;
+  createStarterBoards: Array<BoardSummary>;
   createTaxRule: TaxRule;
+  createTrackingDestination: TrackingDestination;
   createUrlRewrite: UrlRewrite;
   createUrlRewriteRedirect: UrlRewrite;
   createWebForm: WebForm;
@@ -3864,6 +4403,7 @@ export type Mutation = {
   deleteBlogPostContent: Scalars['Boolean']['output'];
   deleteBlogTag: Scalars['Boolean']['output'];
   deleteBlogTagContent: Scalars['Boolean']['output'];
+  deleteBoard: Scalars['Boolean']['output'];
   deleteBundleOption: Product;
   deleteBundleOptionContent: Product;
   deleteBundleSelection: Product;
@@ -3892,7 +4432,7 @@ export type Mutation = {
   deleteEmailBlock: Scalars['Boolean']['output'];
   deleteEmailCampaign: Scalars['Boolean']['output'];
   deleteEmailGroup: Scalars['Boolean']['output'];
-  deleteEventDestination: Scalars['Boolean']['output'];
+  deleteEmailTranslation: Scalars['Boolean']['output'];
   deleteExperiment: Scalars['Boolean']['output'];
   deleteFlow: Scalars['Boolean']['output'];
   deleteIntegration: Scalars['Boolean']['output'];
@@ -3934,6 +4474,7 @@ export type Mutation = {
   deleteShippingZone: Scalars['Boolean']['output'];
   deleteSignupForm: Scalars['Boolean']['output'];
   deleteTaxRule: Scalars['Boolean']['output'];
+  deleteTrackingDestination: Scalars['Boolean']['output'];
   deleteUrlRewrite: Scalars['Boolean']['output'];
   deleteUrlRewritesForEntity: Scalars['Int']['output'];
   deleteWebForm: Scalars['Boolean']['output'];
@@ -3941,6 +4482,8 @@ export type Mutation = {
   detachOptionTemplate: Product;
   devImpersonate: AdminAuthPayload;
   disableGiftCard: GiftCard;
+  discardBoardDraft: Scalars['Boolean']['output'];
+  dismissBoardAccessRequest: Scalars['Boolean']['output'];
   draftReviewReply: Scalars['String']['output'];
   duplicateProductOption: ProductOptionOwner;
   editOrder: Order;
@@ -3977,6 +4520,7 @@ export type Mutation = {
   receiveReturn: OrderReturn;
   recheckReviewModeration: Review;
   recordOfflinePayment: Order;
+  redeliverTrackingDelivery: TrackingDelivery;
   redeliverWebhookDelivery: WebhookQueueItem;
   refreshSegment: Scalars['Int']['output'];
   refreshToken: AdminAuthPayload;
@@ -4004,6 +4548,7 @@ export type Mutation = {
   reorderPromotionRules: Scalars['Boolean']['output'];
   replyToReview: Review;
   requestAdminPasswordReset: Scalars['Boolean']['output'];
+  requestBoardAccess: Scalars['Boolean']['output'];
   requestCategoryCoverUpload: RequestCoverUploadPayload;
   requestCollectionCoverUpload: RequestCoverUploadPayload;
   requestMediaAssetUpload: RequestMediaAssetUploadPayload;
@@ -4026,15 +4571,19 @@ export type Mutation = {
   runAdminAction: AdminActionResult;
   runChatAction: ChatActionResult;
   runScheduledJobNow: ScheduledJob;
+  saveBoard: Board;
+  saveBoardDraft: Scalars['Time']['output'];
   saveChatConversation: Scalars['ID']['output'];
   saveDeliveryPoints: Array<DeliveryPointAdmin>;
   saveEmailBlock: EmailBlockSnippet;
+  saveEmailTranslation: EmailTranslation;
   saveLibraryEmail: LibraryEmail;
   scheduleBlogPost: BlogPost;
   scheduleCMSPage: CmsPage;
   scheduleEmailCampaign: EmailCampaign;
   seedPulseStarterContent: PulseStarterContent;
   sendCampaignTest: Scalars['Boolean']['output'];
+  sendTrackingTest: TrackingTestResult;
   setAttributeDescription: AttributeContent;
   setAttributeIndexable: CascadeAttributeIndexableResult;
   setAttributeValueChannelSlug: AttributeValueChannelSlug;
@@ -4043,6 +4592,10 @@ export type Mutation = {
   setBlogPostCategories: BlogPost;
   setBlogPostChannelListing: BlogPost;
   setBlogPostTags: BlogPost;
+  setBoardFavourite: Scalars['Boolean']['output'];
+  setBoardShares: Board;
+  setBundlePricing: Product;
+  setBundleStructure: Product;
   setCMSPageChannelListing: CmsPage;
   setCMSPageExperiment: CmsPage;
   setCMSPageRelationships: CmsPage;
@@ -4099,6 +4652,7 @@ export type Mutation = {
   setShippingCarrierEnabled: ShippingCarrierAdmin;
   setShippingCarrierWeekendDelivery: ShippingCarrierAdmin;
   setSubscriptionTerms: Product;
+  setTrackingDestinationEnabled: TrackingDestination;
   setWebhookActive: Webhook;
   signalsChat: SignalsChatReply;
   /** Queues an export - poll the returned job, then download it from /api/admin/data/jobs/{id}/download */
@@ -4110,10 +4664,10 @@ export type Mutation = {
   synapseRefreshSegment: SynapseSegment;
   synapseSaveSegment: SynapseSegment;
   synapseSetSegmentLifecycleWindows: SynapseSegment;
-  syncAudience: Scalars['Int']['output'];
   syncCanonicalUrlRewrite: UrlRewrite;
   syncProductInventory: InventoryItem;
   syncProductInventoryBatch: SyncProductInventoryBatchResult;
+  transferBoard: Scalars['Boolean']['output'];
   translateCMSPage: CmsPage;
   unassignAttribute: ProductType;
   unassignCMSAttribute: CmsPageType;
@@ -4150,7 +4704,6 @@ export type Mutation = {
   updateCustomerSegment: CustomerSegment;
   updateDeliveryOption: DeliveryOption;
   updateEmailCampaign: EmailCampaign;
-  updateEventDestination: EventDestination;
   updateExperiment: Experiment;
   updateFlow: Flow;
   updateGroupedMember: Product;
@@ -4181,6 +4734,7 @@ export type Mutation = {
   updateShippingZone: ShippingZone;
   updateSignupForm: SignupForm;
   updateTaxRule: TaxRule;
+  updateTrackingDestination: TrackingDestination;
   updateUrlRewrite: UrlRewrite;
   updateWebForm: WebForm;
   updateWebhook: Webhook;
@@ -4701,6 +5255,13 @@ export type MutationCreateBlogTagArgs = {
 };
 
 
+export type MutationCreateBoardArgs = {
+  channelId: Scalars['ID']['input'];
+  name: Scalars['String']['input'];
+  reports?: InputMaybe<Array<BoardReportInput>>;
+};
+
+
 export type MutationCreateCmsAttributeArgs = {
   input: CreateCmsAttributeInput;
 };
@@ -4790,11 +5351,6 @@ export type MutationCreateEmailCampaignArgs = {
 
 export type MutationCreateEmailGroupArgs = {
   name: Scalars['String']['input'];
-};
-
-
-export type MutationCreateEventDestinationArgs = {
-  input: EventDestinationInput;
 };
 
 
@@ -4904,8 +5460,20 @@ export type MutationCreateSignupFormArgs = {
 };
 
 
+export type MutationCreateStarterBoardsArgs = {
+  channelId: Scalars['ID']['input'];
+};
+
+
 export type MutationCreateTaxRuleArgs = {
   input: CreateTaxRuleInput;
+};
+
+
+export type MutationCreateTrackingDestinationArgs = {
+  channelId: Scalars['ID']['input'];
+  input: TrackingDestinationInput;
+  kind: Scalars['String']['input'];
 };
 
 
@@ -5008,6 +5576,12 @@ export type MutationDeleteBlogTagArgs = {
 export type MutationDeleteBlogTagContentArgs = {
   locale: Scalars['String']['input'];
   tagId: Scalars['ID']['input'];
+};
+
+
+export type MutationDeleteBoardArgs = {
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
 };
 
 
@@ -5156,8 +5730,9 @@ export type MutationDeleteEmailGroupArgs = {
 };
 
 
-export type MutationDeleteEventDestinationArgs = {
-  id: Scalars['ID']['input'];
+export type MutationDeleteEmailTranslationArgs = {
+  emailId: Scalars['ID']['input'];
+  locale: Scalars['String']['input'];
 };
 
 
@@ -5382,6 +5957,11 @@ export type MutationDeleteTaxRuleArgs = {
 };
 
 
+export type MutationDeleteTrackingDestinationArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
 export type MutationDeleteUrlRewriteArgs = {
   id: Scalars['ID']['input'];
 };
@@ -5415,6 +5995,19 @@ export type MutationDevImpersonateArgs = {
 
 
 export type MutationDisableGiftCardArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type MutationDiscardBoardDraftArgs = {
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
+};
+
+
+export type MutationDismissBoardAccessRequestArgs = {
+  adminId: Scalars['ID']['input'];
+  channelId: Scalars['ID']['input'];
   id: Scalars['ID']['input'];
 };
 
@@ -5616,6 +6209,11 @@ export type MutationRecordOfflinePaymentArgs = {
 };
 
 
+export type MutationRedeliverTrackingDeliveryArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
 export type MutationRedeliverWebhookDeliveryArgs = {
   deliveryId: Scalars['ID']['input'];
 };
@@ -5766,6 +6364,13 @@ export type MutationRequestAdminPasswordResetArgs = {
 };
 
 
+export type MutationRequestBoardAccessArgs = {
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
+  level: BoardShareLevel;
+};
+
+
 export type MutationRequestCategoryCoverUploadArgs = {
   input: RequestCategoryCoverUploadInput;
 };
@@ -5884,6 +6489,23 @@ export type MutationRunScheduledJobNowArgs = {
 };
 
 
+export type MutationSaveBoardArgs = {
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
+  name: Scalars['String']['input'];
+  readAt: Scalars['Time']['input'];
+  reports: Array<BoardReportInput>;
+};
+
+
+export type MutationSaveBoardDraftArgs = {
+  baseUpdatedAt: Scalars['Time']['input'];
+  channelId: Scalars['ID']['input'];
+  draft: BoardDraftInput;
+  id: Scalars['ID']['input'];
+};
+
+
 export type MutationSaveChatConversationArgs = {
   id?: InputMaybe<Scalars['ID']['input']>;
   messages: Array<SignalsChatMessage>;
@@ -5899,6 +6521,11 @@ export type MutationSaveDeliveryPointsArgs = {
 
 export type MutationSaveEmailBlockArgs = {
   input: SaveEmailBlockInput;
+};
+
+
+export type MutationSaveEmailTranslationArgs = {
+  input: SaveEmailTranslationInput;
 };
 
 
@@ -5933,6 +6560,11 @@ export type MutationSeedPulseStarterContentArgs = {
 export type MutationSendCampaignTestArgs = {
   id: Scalars['ID']['input'];
   to: Scalars['String']['input'];
+};
+
+
+export type MutationSendTrackingTestArgs = {
+  id: Scalars['ID']['input'];
 };
 
 
@@ -5985,6 +6617,31 @@ export type MutationSetBlogPostChannelListingArgs = {
 export type MutationSetBlogPostTagsArgs = {
   postId: Scalars['ID']['input'];
   tagIds: Array<Scalars['ID']['input']>;
+};
+
+
+export type MutationSetBoardFavouriteArgs = {
+  channelId: Scalars['ID']['input'];
+  favourite: Scalars['Boolean']['input'];
+  id: Scalars['ID']['input'];
+};
+
+
+export type MutationSetBoardSharesArgs = {
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
+  shares: Array<BoardShareInput>;
+};
+
+
+export type MutationSetBundlePricingArgs = {
+  input: SetBundlePricingInput;
+};
+
+
+export type MutationSetBundleStructureArgs = {
+  ops: Array<BundleStructureOpInput>;
+  productId: Scalars['ID']['input'];
 };
 
 
@@ -6338,6 +6995,12 @@ export type MutationSetSubscriptionTermsArgs = {
 };
 
 
+export type MutationSetTrackingDestinationEnabledArgs = {
+  enabled: Scalars['Boolean']['input'];
+  id: Scalars['ID']['input'];
+};
+
+
 export type MutationSetWebhookActiveArgs = {
   active: Scalars['Boolean']['input'];
   id: Scalars['ID']['input'];
@@ -6401,12 +7064,6 @@ export type MutationSynapseSetSegmentLifecycleWindowsArgs = {
 };
 
 
-export type MutationSyncAudienceArgs = {
-  destinationId: Scalars['ID']['input'];
-  segmentId: Scalars['ID']['input'];
-};
-
-
 export type MutationSyncCanonicalUrlRewriteArgs = {
   input: SyncCanonicalUrlRewriteInput;
 };
@@ -6419,6 +7076,13 @@ export type MutationSyncProductInventoryArgs = {
 
 export type MutationSyncProductInventoryBatchArgs = {
   items: Array<SyncProductInventoryInput>;
+};
+
+
+export type MutationTransferBoardArgs = {
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
+  ownerId?: InputMaybe<Scalars['ID']['input']>;
 };
 
 
@@ -6619,12 +7283,6 @@ export type MutationUpdateEmailCampaignArgs = {
 };
 
 
-export type MutationUpdateEventDestinationArgs = {
-  id: Scalars['ID']['input'];
-  input: EventDestinationInput;
-};
-
-
 export type MutationUpdateExperimentArgs = {
   id: Scalars['ID']['input'];
   input: SaveExperimentInput;
@@ -6780,6 +7438,12 @@ export type MutationUpdateSignupFormArgs = {
 
 export type MutationUpdateTaxRuleArgs = {
   input: UpdateTaxRuleInput;
+};
+
+
+export type MutationUpdateTrackingDestinationArgs = {
+  id: Scalars['ID']['input'];
+  input: TrackingDestinationInput;
 };
 
 
@@ -7010,7 +7674,9 @@ export type Order = {
   id: Scalars['ID']['output'];
   lines: Array<OrderLine>;
   number: Scalars['String']['output'];
+  paymentActionKind?: Maybe<Scalars['String']['output']>;
   paymentClientSecret?: Maybe<Scalars['String']['output']>;
+  paymentFailed?: Maybe<Scalars['Boolean']['output']>;
   paymentProvider: Scalars['String']['output'];
   paymentReference: Scalars['String']['output'];
   paymentStatus: PaymentStatus;
@@ -7026,6 +7692,7 @@ export type Order = {
   storeCreditAmount: Scalars['Int']['output'];
   subtotal: Scalars['Int']['output'];
   taxAmount: Scalars['Int']['output'];
+  taxIncluded: Scalars['Boolean']['output'];
   taxLines: Array<OrderTaxLine>;
   total: Scalars['Int']['output'];
   trackingNumber: Scalars['String']['output'];
@@ -7092,6 +7759,7 @@ export type OrderLineComponent = {
   id: Scalars['ID']['output'];
   name: Scalars['String']['output'];
   quantity: Scalars['Float']['output'];
+  returnable: Scalars['Boolean']['output'];
   sku: Scalars['String']['output'];
   unitPrice: Scalars['Int']['output'];
 };
@@ -7138,6 +7806,7 @@ export type OrderReturn = {
 
 export type OrderReturnLine = {
   __typename?: 'OrderReturnLine';
+  componentId?: Maybe<Scalars['ID']['output']>;
   id: Scalars['ID']['output'];
   orderLineId: Scalars['ID']['output'];
   quantity: Scalars['Float']['output'];
@@ -7274,6 +7943,7 @@ export type Product = ProductOptionOwner & {
   inStock: Scalars['Boolean']['output'];
   kind: ProductKind;
   kitComponents: Array<KitComponent>;
+  kitItemsReturnable: Scalars['Boolean']['output'];
   lengthMm?: Maybe<Scalars['Int']['output']>;
   listings: Array<ProductChannelListing>;
   mainImage?: Maybe<ProductMedia>;
@@ -7373,11 +8043,14 @@ export type ProductAttributeValue = {
 
 export type ProductChannelListing = {
   __typename?: 'ProductChannelListing';
+  bundleDiscountPercent: Scalars['Int']['output'];
+  bundlePricing: BundlePricing;
   channel: Channel;
   channelId: Scalars['ID']['output'];
   compareAtPrice?: Maybe<Scalars['Int']['output']>;
   effectiveCurrency: Scalars['String']['output'];
   effectivePrice?: Maybe<Scalars['Int']['output']>;
+  inStock: Scalars['Boolean']['output'];
   isPublished: Scalars['Boolean']['output'];
   price?: Maybe<Scalars['Int']['output']>;
   productId: Scalars['ID']['output'];
@@ -7891,9 +8564,16 @@ export type Query = {
   adminCartDeliveryPoints: Array<AdminCartDeliveryPoint>;
   adminCartOfferEmailPreview: AdminCartOfferEmailPreview;
   adminCartOfferPaymentMethods: Array<AdminCartOfferPaymentMethod>;
+  adminSearch: AdminSearchResult;
   admins: Array<AdminUser>;
+  agenticStatus: Array<AgenticStatus>;
+  aiInsights: AiInsights;
   aiStatus: AiStatus;
   allMediaDirectories: Array<MediaDirectoryChild>;
+  assistantConversation?: Maybe<AssistantConversationDetail>;
+  assistantConversations: AssistantConversationPage;
+  assistantReport: AssistantReport;
+  assistantTurnRounds: Array<AssistantRound>;
   attribute: Attribute;
   attributeValueChannelSlugs: Array<AttributeValueChannelSlug>;
   attributes: Array<Attribute>;
@@ -7906,6 +8586,9 @@ export type Query = {
   blogPosts: BlogPostList;
   blogTag?: Maybe<BlogTag>;
   blogTags: Array<BlogTag>;
+  board: Board;
+  boardShareTargets: Array<BoardShareTarget>;
+  boards: Array<BoardSummary>;
   botTraffic: BotTraffic;
   cacheRevalidations: Array<CacheRevalidation>;
   cacheSurfaces: Array<CacheSurface>;
@@ -7978,7 +8661,8 @@ export type Query = {
   emailPreflight: Array<EmailWarning>;
   emailRevisions: Array<EmailRevision>;
   emailSuppressions: EmailSuppressionPage;
-  eventDestinations: Array<EventDestination>;
+  emailTranslations: Array<EmailTranslation>;
+  embeddingCoverage: EmbeddingCoverage;
   experiment?: Maybe<Experiment>;
   experimentGoalEvents: Array<Scalars['String']['output']>;
   experimentResults: ExperimentResults;
@@ -8022,6 +8706,7 @@ export type Query = {
   locales: Array<Locale>;
   lowStockLevels: Array<LowStockLevel>;
   loyalty: LoyaltySummary;
+  mcpOverview: McpOverview;
   me: AdminUser;
   mediaAsset: MediaAsset;
   mediaDirectory: MediaDirectory;
@@ -8052,6 +8737,7 @@ export type Query = {
   productTypes: Array<ProductType>;
   products: Array<Product>;
   productsByIds: Array<Product>;
+  productsBySkus: Array<Product>;
   productsPaged: ProductPage;
   promotionActionTypes: Array<PromotionTypeDescriptor>;
   promotionAnalytics: Array<PromotionRuleAnalytics>;
@@ -8086,6 +8772,8 @@ export type Query = {
   scheduledJobs: Array<ScheduledJob>;
   searchMediaAssets: MediaAssetSearchResult;
   searchMerchandising: SearchMerchandising;
+  searchOverviewPreview: SearchOverviewPreview;
+  searchPreview: SearchPreview;
   serverFeatures: ServerFeatures;
   shippingBoxes: Array<ShippingBox>;
   shippingCarriers: Array<ShippingCarrierAdmin>;
@@ -8098,6 +8786,7 @@ export type Query = {
   simulatePromotion: PromotionSimulationResult;
   siteCrawls: Array<SiteCrawl>;
   storeCredit: StoreCreditSummary;
+  storefrontSearchPreview: StorefrontSearchPreview;
   subscription?: Maybe<CustomerSubscription>;
   subscriptions: Array<CustomerSubscription>;
   subscriptionsPaged: SubscriptionPage;
@@ -8116,6 +8805,10 @@ export type Query = {
   taxEffectTypes: Array<TaxTypeDescriptor>;
   taxRule?: Maybe<TaxRule>;
   taxRules: Array<TaxRule>;
+  trackingDeliveries: Array<TrackingDelivery>;
+  trackingDestination?: Maybe<TrackingDestination>;
+  trackingDestinations: Array<TrackingDestination>;
+  trackingPlatforms: Array<TrackingPlatform>;
   transactionalSlots: Array<TransactionalSlot>;
   urlRewrite?: Maybe<UrlRewrite>;
   urlRewrites: UrlRewritePage;
@@ -8159,6 +8852,50 @@ export type QueryAdminCartOfferEmailPreviewArgs = {
 
 export type QueryAdminCartOfferPaymentMethodsArgs = {
   cartId: Scalars['ID']['input'];
+};
+
+
+export type QueryAdminSearchArgs = {
+  term: Scalars['String']['input'];
+};
+
+
+export type QueryAgenticStatusArgs = {
+  channelId: Scalars['ID']['input'];
+};
+
+
+export type QueryAiInsightsArgs = {
+  channelId: Scalars['ID']['input'];
+  days?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type QueryAssistantConversationArgs = {
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryAssistantConversationsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  channelId: Scalars['ID']['input'];
+  customerId?: InputMaybe<Scalars['ID']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  search?: InputMaybe<Scalars['String']['input']>;
+  unanswered?: InputMaybe<AssistantUnansweredFilter>;
+};
+
+
+export type QueryAssistantReportArgs = {
+  channelId: Scalars['ID']['input'];
+  days?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type QueryAssistantTurnRoundsArgs = {
+  channelId: Scalars['ID']['input'];
+  turnId: Scalars['ID']['input'];
 };
 
 
@@ -8215,6 +8952,23 @@ export type QueryBlogPostsArgs = {
 export type QueryBlogTagArgs = {
   id?: InputMaybe<Scalars['ID']['input']>;
   slug?: InputMaybe<Scalars['String']['input']>;
+};
+
+
+export type QueryBoardArgs = {
+  channelId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryBoardShareTargetsArgs = {
+  channelId: Scalars['ID']['input'];
+};
+
+
+export type QueryBoardsArgs = {
+  all?: InputMaybe<Scalars['Boolean']['input']>;
+  channelId: Scalars['ID']['input'];
 };
 
 
@@ -8540,7 +9294,12 @@ export type QueryEmailSuppressionsArgs = {
 };
 
 
-export type QueryEventDestinationsArgs = {
+export type QueryEmailTranslationsArgs = {
+  emailId: Scalars['ID']['input'];
+};
+
+
+export type QueryEmbeddingCoverageArgs = {
   channelId: Scalars['ID']['input'];
 };
 
@@ -8760,6 +9519,11 @@ export type QueryLoyaltyArgs = {
 };
 
 
+export type QueryMcpOverviewArgs = {
+  channelId: Scalars['ID']['input'];
+};
+
+
 export type QueryMediaAssetArgs = {
   id: Scalars['ID']['input'];
 };
@@ -8887,6 +9651,11 @@ export type QueryProductsArgs = {
 
 export type QueryProductsByIdsArgs = {
   ids: Array<Scalars['ID']['input']>;
+};
+
+
+export type QueryProductsBySkusArgs = {
+  skus: Array<Scalars['String']['input']>;
 };
 
 
@@ -9071,6 +9840,24 @@ export type QuerySearchMerchandisingArgs = {
 };
 
 
+export type QuerySearchOverviewPreviewArgs = {
+  channelId: Scalars['ID']['input'];
+  locale?: InputMaybe<Scalars['String']['input']>;
+  mode?: InputMaybe<SearchByMeaningMode>;
+  query: Scalars['String']['input'];
+  strictness?: InputMaybe<SearchByMeaningStrictness>;
+};
+
+
+export type QuerySearchPreviewArgs = {
+  channelId: Scalars['ID']['input'];
+  locale?: InputMaybe<Scalars['String']['input']>;
+  mode?: InputMaybe<SearchByMeaningMode>;
+  query: Scalars['String']['input'];
+  strictness?: InputMaybe<SearchByMeaningStrictness>;
+};
+
+
 export type QueryShippingBoxesArgs = {
   channelId: Scalars['ID']['input'];
 };
@@ -9129,6 +9916,15 @@ export type QueryStoreCreditArgs = {
 };
 
 
+export type QueryStorefrontSearchPreviewArgs = {
+  channelId: Scalars['ID']['input'];
+  locale?: InputMaybe<Scalars['String']['input']>;
+  mode?: InputMaybe<SearchByMeaningMode>;
+  query: Scalars['String']['input'];
+  strictness?: InputMaybe<SearchByMeaningStrictness>;
+};
+
+
 export type QuerySubscriptionArgs = {
   id: Scalars['ID']['input'];
 };
@@ -9157,9 +9953,12 @@ export type QuerySynapseFlowArgs = {
 
 
 export type QuerySynapseFunnelArgs = {
+  breakdown?: InputMaybe<Scalars['String']['input']>;
   channelId: Scalars['ID']['input'];
+  filters?: InputMaybe<Array<SynapseFunnelFilterInput>>;
   sinceDays?: InputMaybe<Scalars['Int']['input']>;
   steps: Array<Scalars['String']['input']>;
+  windowHours?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
@@ -9228,6 +10027,28 @@ export type QueryTaxRuleArgs = {
 
 export type QueryTaxRulesArgs = {
   channelId?: InputMaybe<Scalars['ID']['input']>;
+};
+
+
+export type QueryTrackingDeliveriesArgs = {
+  destinationId: Scalars['ID']['input'];
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  status?: InputMaybe<TrackingDeliveryStatus>;
+};
+
+
+export type QueryTrackingDestinationArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryTrackingDestinationsArgs = {
+  channelId: Scalars['ID']['input'];
+};
+
+
+export type QueryTrackingPlatformsArgs = {
+  channelId: Scalars['ID']['input'];
 };
 
 
@@ -9498,6 +10319,7 @@ export type RetentionCohort = {
 };
 
 export type ReturnLineInput = {
+  componentId?: InputMaybe<Scalars['ID']['input']>;
   orderLineId: Scalars['ID']['input'];
   quantity: Scalars['Float']['input'];
   reason?: InputMaybe<Scalars['String']['input']>;
@@ -9776,6 +10598,15 @@ export type SaveEmailBlockInput = {
   textTemplate?: InputMaybe<Scalars['String']['input']>;
 };
 
+export type SaveEmailTranslationInput = {
+  blocks: Scalars['JSON']['input'];
+  emailId: Scalars['ID']['input'];
+  locale: Scalars['String']['input'];
+  preheader?: InputMaybe<Scalars['String']['input']>;
+  styles?: InputMaybe<Scalars['JSON']['input']>;
+  subject: Scalars['String']['input'];
+};
+
 export type SaveExperimentInput = {
   channelId: Scalars['ID']['input'];
   coverage: Scalars['Int']['input'];
@@ -9888,6 +10719,16 @@ export type SearchBoost = {
   weight: Scalars['Float']['output'];
 };
 
+export type SearchByMeaningMode =
+  | 'ALWAYS'
+  | 'NATURAL'
+  | 'OFF';
+
+export type SearchByMeaningStrictness =
+  | 'BALANCED'
+  | 'BROAD'
+  | 'STRICT';
+
 export type SearchMerchandising = {
   __typename?: 'SearchMerchandising';
   boosts: Array<SearchBoost>;
@@ -9896,12 +10737,86 @@ export type SearchMerchandising = {
   synonyms: Array<SearchSynonym>;
 };
 
+export type SearchOverviewPreview = {
+  __typename?: 'SearchOverviewPreview';
+  products: Array<SearchOverviewPreviewProduct>;
+  status: SearchOverviewStatus;
+  text: Scalars['String']['output'];
+};
+
+export type SearchOverviewPreviewProduct = {
+  __typename?: 'SearchOverviewPreviewProduct';
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  url: Scalars['String']['output'];
+};
+
+export type SearchOverviewStatus =
+  | 'KEYWORDS'
+  | 'NOTHING'
+  | 'UNAVAILABLE'
+  | 'WRITTEN';
+
 export type SearchPin = {
   __typename?: 'SearchPin';
   id: Scalars['ID']['output'];
   position: Scalars['Int']['output'];
   productId: Scalars['ID']['output'];
   query: Scalars['String']['output'];
+};
+
+export type SearchPreview = {
+  __typename?: 'SearchPreview';
+  byMeaning: Array<SearchPreviewNear>;
+  byWords: Array<SearchPreviewProduct>;
+  locales: Array<Scalars['String']['output']>;
+  meaningFailed: Scalars['String']['output'];
+  pagesByWords: Array<SearchPreviewPage>;
+  pagesText: Scalars['String']['output'];
+  passages: Array<SearchPreviewPassage>;
+  productsText: Scalars['String']['output'];
+  shown: Array<SearchPreviewShown>;
+  wordsTotal: Scalars['Int']['output'];
+};
+
+export type SearchPreviewNear = {
+  __typename?: 'SearchPreviewNear';
+  counted: Scalars['Boolean']['output'];
+  distance: Scalars['Float']['output'];
+  product: SearchPreviewProduct;
+};
+
+export type SearchPreviewPage = {
+  __typename?: 'SearchPreviewPage';
+  title: Scalars['String']['output'];
+  url: Scalars['String']['output'];
+};
+
+export type SearchPreviewPassage = {
+  __typename?: 'SearchPreviewPassage';
+  counted: Scalars['Boolean']['output'];
+  distance: Scalars['Float']['output'];
+  text: Scalars['String']['output'];
+  title: Scalars['String']['output'];
+  url: Scalars['String']['output'];
+};
+
+export type SearchPreviewProduct = {
+  __typename?: 'SearchPreviewProduct';
+  currencyCode: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  inStock: Scalars['Boolean']['output'];
+  name: Scalars['String']['output'];
+  price: Scalars['Int64']['output'];
+  sku: Scalars['String']['output'];
+  url: Scalars['String']['output'];
+};
+
+export type SearchPreviewShown = {
+  __typename?: 'SearchPreviewShown';
+  byMeaning: Scalars['Boolean']['output'];
+  byWords: Scalars['Boolean']['output'];
+  product: SearchPreviewProduct;
 };
 
 export type SearchRedirect = {
@@ -10070,6 +10985,13 @@ export type SetBlogPostChannelListingInput = {
   seoNoindex?: InputMaybe<Scalars['Boolean']['input']>;
 };
 
+export type SetBundlePricingInput = {
+  channelId: Scalars['ID']['input'];
+  discountPercent?: InputMaybe<Scalars['Int']['input']>;
+  pricing: BundlePricing;
+  productId: Scalars['ID']['input'];
+};
+
 export type SetCmsPageChannelListingInput = {
   channelId: Scalars['ID']['input'];
   isHomepage?: InputMaybe<Scalars['Boolean']['input']>;
@@ -10144,7 +11066,8 @@ export type ShippingBoxInput = {
 export type ShippingCalcType =
   | 'FLAT'
   | 'FREE'
-  | 'FREE_ABOVE';
+  | 'FREE_ABOVE'
+  | 'TABLE';
 
 export type ShippingCarrierAdmin = {
   __typename?: 'ShippingCarrierAdmin';
@@ -10184,7 +11107,9 @@ export type ShippingMethod = {
   id: Scalars['ID']['output'];
   isActive: Scalars['Boolean']['output'];
   name: Scalars['String']['output'];
+  rateTiers: Array<ShippingRateTier>;
   sortOrder: Scalars['Int']['output'];
+  tableBasis: ShippingTableBasis;
   typeRates: Array<ShippingMethodTypeRate>;
   unitsPerCharge: Scalars['Int']['output'];
   updatedAt: Scalars['Time']['output'];
@@ -10206,6 +11131,24 @@ export type ShippingMethodTypeRateInput = {
   productTypeId: Scalars['ID']['input'];
   unitsPerCharge?: InputMaybe<Scalars['Int']['input']>;
 };
+
+export type ShippingRateTier = {
+  __typename?: 'ShippingRateTier';
+  from: Scalars['Int']['output'];
+  notOffered: Scalars['Boolean']['output'];
+  priceCents: Scalars['Int']['output'];
+};
+
+export type ShippingRateTierInput = {
+  from: Scalars['Int']['input'];
+  notOffered?: InputMaybe<Scalars['Boolean']['input']>;
+  priceCents: Scalars['Int']['input'];
+};
+
+export type ShippingTableBasis =
+  | 'QUANTITY'
+  | 'SUBTOTAL'
+  | 'WEIGHT';
 
 export type ShippingZone = {
   __typename?: 'ShippingZone';
@@ -10377,6 +11320,38 @@ export type StoreCreditSummary = {
   entries: Array<StoreCreditEntry>;
 };
 
+export type StorefrontMcp = {
+  __typename?: 'StorefrontMcp';
+  available: Scalars['Boolean']['output'];
+  enabled: Scalars['Boolean']['output'];
+  tools: Array<McpTool>;
+  url?: Maybe<Scalars['String']['output']>;
+};
+
+export type StorefrontSearchAnswer =
+  | 'BLENDED'
+  | 'MEANING'
+  | 'WORDS';
+
+export type StorefrontSearchPreview = {
+  __typename?: 'StorefrontSearchPreview';
+  answeredBy: StorefrontSearchAnswer;
+  byMeaning: Array<SearchPreviewNear>;
+  byWords: Array<SearchPreviewProduct>;
+  listed: Array<SearchPreviewShown>;
+  margin: Scalars['Float']['output'];
+  meaningFailed: Scalars['String']['output'];
+  reads: StorefrontSearchReading;
+  total: Scalars['Int']['output'];
+  wordsTotal: Scalars['Int']['output'];
+};
+
+export type StorefrontSearchReading =
+  | 'BLENDED'
+  | 'KEYWORDS'
+  | 'SENTENCE'
+  | 'WORDS';
+
 export type Subscription = {
   __typename?: 'Subscription';
   notificationAdded: AdminNotification;
@@ -10460,7 +11435,20 @@ export type SynapseFlowPath = {
 
 export type SynapseFunnel = {
   __typename?: 'SynapseFunnel';
+  breakdown: Array<SynapseFunnelBreakdown>;
   steps: Array<SynapseFunnelStep>;
+};
+
+export type SynapseFunnelBreakdown = {
+  __typename?: 'SynapseFunnelBreakdown';
+  counts: Array<Scalars['Int']['output']>;
+  value: Scalars['String']['output'];
+};
+
+export type SynapseFunnelFilterInput = {
+  key: Scalars['String']['input'];
+  step: Scalars['Int']['input'];
+  value: Scalars['String']['input'];
 };
 
 export type SynapseFunnelStep = {
@@ -10471,6 +11459,7 @@ export type SynapseFunnelStep = {
 
 export type SynapseInsights = {
   __typename?: 'SynapseInsights';
+  aggregate: Scalars['Int']['output'];
   points: Array<InsightPoint>;
   prevTotal: Scalars['Int']['output'];
   prevUniques: Scalars['Int']['output'];
@@ -10680,6 +11669,94 @@ export type TopProduct = {
   unitsSold: Scalars['Int64']['output'];
 };
 
+export type TrackingConfigValue = {
+  __typename?: 'TrackingConfigValue';
+  key: Scalars['String']['output'];
+  value: Scalars['String']['output'];
+};
+
+export type TrackingConfigValueInput = {
+  key: Scalars['String']['input'];
+  value: Scalars['String']['input'];
+};
+
+export type TrackingDelivery = {
+  __typename?: 'TrackingDelivery';
+  attempts: Scalars['Int']['output'];
+  createdAt: Scalars['Time']['output'];
+  eventId: Scalars['String']['output'];
+  eventName: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  lastError: Scalars['String']['output'];
+  nextAttemptAt: Scalars['Time']['output'];
+  status: TrackingDeliveryStatus;
+};
+
+export type TrackingDeliveryStatus =
+  | 'DEAD'
+  | 'PENDING';
+
+export type TrackingDestination = {
+  __typename?: 'TrackingDestination';
+  channelId: Scalars['ID']['output'];
+  config: Array<TrackingConfigValue>;
+  createdAt: Scalars['Time']['output'];
+  effectiveEvents: Array<Scalars['String']['output']>;
+  enabled: Scalars['Boolean']['output'];
+  events: Array<Scalars['String']['output']>;
+  health: TrackingHealth;
+  id: Scalars['ID']['output'];
+  inTestMode: Scalars['Boolean']['output'];
+  kind: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  needsSecret: Scalars['Boolean']['output'];
+  secretSet: Scalars['Boolean']['output'];
+  updatedAt: Scalars['Time']['output'];
+};
+
+export type TrackingDestinationInput = {
+  config: Array<TrackingConfigValueInput>;
+  enabled?: InputMaybe<Scalars['Boolean']['input']>;
+  events?: InputMaybe<Array<Scalars['String']['input']>>;
+  name: Scalars['String']['input'];
+};
+
+export type TrackingField = {
+  __typename?: 'TrackingField';
+  help: Scalars['String']['output'];
+  key: Scalars['String']['output'];
+  label: Scalars['String']['output'];
+  required: Scalars['Boolean']['output'];
+  secret: Scalars['Boolean']['output'];
+  testMode: Scalars['Boolean']['output'];
+};
+
+export type TrackingHealth = {
+  __typename?: 'TrackingHealth';
+  dead24h: Scalars['Int']['output'];
+  lastError: Scalars['String']['output'];
+  lastSentAt?: Maybe<Scalars['Time']['output']>;
+};
+
+export type TrackingPlatform = {
+  __typename?: 'TrackingPlatform';
+  availableOnChannel: Scalars['Boolean']['output'];
+  defaultEvents: Array<Scalars['String']['output']>;
+  fields: Array<TrackingField>;
+  installed: Scalars['Boolean']['output'];
+  kind: Scalars['String']['output'];
+  label: Scalars['String']['output'];
+  necessarySetting?: Maybe<Scalars['String']['output']>;
+  pluginSlug: Scalars['String']['output'];
+  purposes: Array<Scalars['String']['output']>;
+};
+
+export type TrackingTestResult = {
+  __typename?: 'TrackingTestResult';
+  message: Scalars['String']['output'];
+  ok: Scalars['Boolean']['output'];
+};
+
 export type TransactionalSlot = {
   __typename?: 'TransactionalSlot';
   emailId?: Maybe<Scalars['ID']['output']>;
@@ -10708,6 +11785,7 @@ export type UpdateAdminInput = {
 export type UpdateAttributeInput = {
   autoSegment?: InputMaybe<Scalars['Boolean']['input']>;
   defaultValue?: InputMaybe<DefaultValueUpdate>;
+  embedded?: InputMaybe<Scalars['Boolean']['input']>;
   facetCollapsed?: InputMaybe<Scalars['Boolean']['input']>;
   filterable?: InputMaybe<Scalars['Boolean']['input']>;
   h1Position?: InputMaybe<AttributeH1Position>;
@@ -10718,6 +11796,7 @@ export type UpdateAttributeInput = {
   name?: InputMaybe<Scalars['String']['input']>;
   privateMetadata?: InputMaybe<Array<MetadataInput>>;
   searchable?: InputMaybe<Scalars['Boolean']['input']>;
+  similarMatch?: InputMaybe<Scalars['Boolean']['input']>;
   sortOrder?: InputMaybe<Scalars['Int']['input']>;
   synapseTrack?: InputMaybe<Scalars['Boolean']['input']>;
   unit?: InputMaybe<Scalars['String']['input']>;
@@ -10778,6 +11857,8 @@ export type UpdateBundleOptionInput = {
 };
 
 export type UpdateBundleSelectionInput = {
+  customerQuantity?: InputMaybe<Scalars['Boolean']['input']>;
+  discountPercent?: InputMaybe<Scalars['Int']['input']>;
   id: Scalars['ID']['input'];
   isDefault?: InputMaybe<Scalars['Boolean']['input']>;
   quantity?: InputMaybe<Scalars['Float']['input']>;
@@ -10839,6 +11920,7 @@ export type UpdateCmsSnippetInput = {
 export type UpdateCategoryInput = {
   clearParent?: InputMaybe<Scalars['Boolean']['input']>;
   id: Scalars['ID']['input'];
+  isAnchor?: InputMaybe<Scalars['Boolean']['input']>;
   isPublished?: InputMaybe<Scalars['Boolean']['input']>;
   metadata?: InputMaybe<Array<MetadataInput>>;
   parentId?: InputMaybe<Scalars['ID']['input']>;
@@ -10857,6 +11939,7 @@ export type UpdateChannelInput = {
   metadata?: InputMaybe<Array<MetadataInput>>;
   name?: InputMaybe<Scalars['String']['input']>;
   publicUrl?: InputMaybe<Scalars['String']['input']>;
+  taxInclusivePricing?: InputMaybe<Scalars['Boolean']['input']>;
 };
 
 export type UpdateCollectionInput = {
@@ -11022,6 +12105,7 @@ export type UpdateProductInput = {
   defaultPrice?: InputMaybe<Scalars['Int']['input']>;
   heightMm?: InputMaybe<Scalars['Int']['input']>;
   id: Scalars['ID']['input'];
+  kitItemsReturnable?: InputMaybe<Scalars['Boolean']['input']>;
   lengthMm?: InputMaybe<Scalars['Int']['input']>;
   maxOrderQty?: InputMaybe<Scalars['Float']['input']>;
   metadata?: InputMaybe<Array<MetadataInput>>;
@@ -11190,7 +12274,9 @@ export type UpdateShippingMethodInput = {
   id: Scalars['ID']['input'];
   isActive?: InputMaybe<Scalars['Boolean']['input']>;
   name?: InputMaybe<Scalars['String']['input']>;
+  rateTiers?: InputMaybe<Array<ShippingRateTierInput>>;
   sortOrder?: InputMaybe<Scalars['Int']['input']>;
+  tableBasis?: InputMaybe<ShippingTableBasis>;
   typeRates?: InputMaybe<Array<ShippingMethodTypeRateInput>>;
   unitsPerCharge?: InputMaybe<Scalars['Int']['input']>;
 };

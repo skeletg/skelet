@@ -36,6 +36,36 @@ func TestAFullSweepPageOfErasuresFitsClickHousesQueryLimit(t *testing.T) {
 	}
 }
 
+func TestVisitorIdsForABigBatchOfCustomersComeFromEveryChunk(t *testing.T) {
+	ctx := context.Background()
+	st := testStore(t)
+	defer st.Close()
+	ids := make([]uuid.UUID, 2*erasureChunk+5)
+	for i := range ids {
+		ids[i] = uuid.New()
+	}
+	want := map[string]bool{}
+	for _, i := range []int{0, 0, erasureChunk + 1, len(ids) - 1} {
+		anon := "anon-" + uuid.NewString()
+		want[anon] = true
+		if err := st.UpsertIdentity(ctx, anon, ids[i], uuid.New()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := st.Flush(ctx); err != nil {
+		t.Fatal(err)
+	}
+	got, err := st.AnonIDsForCustomers(ctx, ids)
+	if err != nil || len(got) != len(want) {
+		t.Fatalf("visitor ids for %d customers = %v, %v - want the %d stitched across every chunk", len(ids), got, err, len(want))
+	}
+	for _, a := range got {
+		if !want[a] {
+			t.Errorf("an unexpected visitor id %q", a)
+		}
+	}
+}
+
 func TestADetachStillRunningIsNotIssuedTwice(t *testing.T) {
 	ctx := context.Background()
 	st := testStore(t)

@@ -49,12 +49,9 @@ const (
 	kGates   = "SKELET_GATEWAYS"
 	kSlug    = "SKELET_ADMIN_SLUG"
 	kApps    = profile.AppsKey
-	kDocker  = "SKELET_DOCKER_APPS"
-	kTools   = "SKELET_TOOLS_SELECTED"
+	kDocker  = profile.DockerKey
+	kTools   = profile.ToolsKey
 )
-
-// The profile's keys, in the order setup writes them
-var profileKeys = []string{kTarget, kSignals, kAI, kSearch, kGates, kSlug, kApps, kDocker, kTools}
 
 // errRefused is an answer that stops setup before it writes anything; the reason is already printed
 var errRefused = errors.New("refused")
@@ -216,7 +213,7 @@ var optionHints = map[string]string{
 
 func answer(root string, c catalog, f flags, prof profile.Profile, profilePath string, ask prompter, out io.Writer) (answers, error) {
 	a := answers{target: "dev", signals: true, ai: true, search: "opensearch", gateways: c.gateways}
-	if err := defaults(&a, prof); err != nil {
+	if err := defaults(&a, prof, profilePath); err != nil {
 		return a, err
 	}
 	if p := ask.prior; p != nil {
@@ -227,7 +224,7 @@ func answer(root string, c catalog, f flags, prof profile.Profile, profilePath s
 	case f.apps.set:
 		a.apps = f.apps.items
 	case has(prof, kApps):
-		a.apps, a.fromProfile = known(prof[kApps], c.apps(), out), true
+		a.apps, a.fromProfile = known(prof[kApps], c.apps(), profilePath, out), true
 		fmt.Fprintf(out, "==> App selection: %s (from %s; change with skelet setup --apps ...)\n", orNone(a.apps, "backend only"), profilePath)
 	case ask.on && ask.ui != nil:
 		ask.section(out, "Apps", "The Go backend - GraphQL APIs, workers - always runs. The frontends are optional.")
@@ -353,9 +350,9 @@ func answer(root string, c catalog, f flags, prof profile.Profile, profilePath s
 }
 
 // The profile's answers become this run's defaults, so re-running is not an interrogation
-func defaults(a *answers, p profile.Profile) error {
+func defaults(a *answers, p profile.Profile, from string) error {
 	bad := func(k string, want string) error {
-		return fmt.Errorf("the profile says %s=%s - it takes %s", k, p[k], want)
+		return fmt.Errorf("%s says %s=%s - it takes %s", from, k, p[k], want)
 	}
 	if v, ok := p.Get(kTarget); ok {
 		if v != "dev" && v != "small" && v != "prod" {
@@ -459,21 +456,21 @@ func has(p profile.Profile, k string) bool {
 }
 
 // known keeps the apps this checkout has - a profile can outlive a storefront
-func known(v string, apps []string, out io.Writer) []string {
+func known(v string, apps []string, from string, out io.Writer) []string {
 	var keep []string
 	for _, app := range split(v) {
 		if slices.Contains(apps, app) {
 			keep = append(keep, app)
 		} else {
-			fmt.Fprintf(out, "    (the profile names %q, which this checkout doesn't have - skipping it)\n", app)
+			fmt.Fprintf(out, "    (%s names %q, which this checkout doesn't have - skipping it)\n", from, app)
 		}
 	}
 	return keep
 }
 
 func placement(root string) []string {
-	raw, _ := os.ReadFile(filepath.Join(root, ".skelet-apps"))
-	return split(strings.Join(strings.Fields(string(raw)), ""))
+	docker, _ := profile.Current(root).List(kDocker)
+	return docker
 }
 
 func orNone(list []string, none string) string {

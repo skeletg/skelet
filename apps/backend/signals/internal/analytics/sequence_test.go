@@ -157,3 +157,14 @@ func TestRollupInsightsSeries(t *testing.T) {
 		t.Errorf("points sum = %d, want every input total preserved (145)", sum)
 	}
 }
+
+func TestFlowFromPathsTakesItsTotals(t *testing.T) {
+	f := FlowFromPaths([]FlowPathCount{{Path: []string{"cart_add"}, People: 3}, {People: 2}},
+		FlowTotals{Cohort: 9, Continued: 4, Steps: 6}, "page_view", 6)
+	if f.Cohort != 9 || f.Continued != 4 || f.AvgSteps != 1.5 {
+		t.Fatalf("cohort %d continued %d avg %v, want the totals given: 9, 4 and 1.5", f.Cohort, f.Continued, f.AvgSteps)
+	}
+	if len(f.Nodes) != 1 || f.Nodes[0].Count != 3 || len(f.TopPaths) != 1 || f.TopPaths[0].Count != 3 {
+		t.Fatalf("nodes %+v paths %+v, want cart_add taken by 3", f.Nodes, f.TopPaths)
+	}
+}

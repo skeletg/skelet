@@ -32,8 +32,8 @@ func TestUsageGolden(t *testing.T) {
 func TestHelp(t *testing.T) {
 	root := fakeRoot(t)
 	cases := []struct{ verb, want string }{
-		{"add", "skelet add   channel <name> [--template <template> | --from <storefront>] [--tracked]\n\n" + scaffold.AddAbout + "\n"},
-		{"new", "skelet new   channel <name> [--template <template> | --from <storefront>] [--tracked]\n\n" + scaffold.AddAbout + "\n"},
+		{"add", "skelet add   channel <name> [--template <template> | --from <storefront>] [--tracked] [--workspace]\n\n" + scaffold.AddAbout + "\n"},
+		{"new", "skelet new   channel <name> [--template <template> | --from <storefront>] [--tracked] [--workspace]\n\n" + scaffold.AddAbout + "\n"},
 		{"rm", "skelet rm   channel <name> [-y] [--volumes]\n\n" + scaffold.RemoveAbout + "\n"},
 		{"up", stack.UpAbout + "\n"},
 		{"down", stack.DownAbout + "\n"},

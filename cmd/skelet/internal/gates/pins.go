@@ -24,7 +24,8 @@ type pin struct {
 type fileSet struct{ dockerfiles, compose, workflows, packageJSONs []string }
 
 var pins = []pin{
-	{"postgres", `postgres:[0-9][0-9.]*(-alpine)?`, func(f fileSet) []string { return cat(f.compose, f.workflows) }},
+	{"postgres", `(postgres:[0-9][0-9.]*(-alpine)?|pgvector/pgvector:[0-9][0-9.]*-pg[0-9]+)`, func(f fileSet) []string { return cat(f.compose, f.workflows) }},
+	{"pgvector", `pgvector/pgvector:[0-9][0-9.]*`, func(f fileSet) []string { return cat(f.compose, f.workflows) }},
 	{"clickhouse", `clickhouse/clickhouse-server:[0-9][0-9.]*`, func(f fileSet) []string { return cat(f.compose, f.workflows) }},
 	{"dbmate", `amacneil/dbmate/v2@v[0-9][0-9.]*`, func(f fileSet) []string { return cat(f.compose, f.workflows, f.dockerfiles) }},
 	{"golangci", `golangci-lint@v[0-9][0-9.]*`, func(f fileSet) []string { return cat(f.workflows, []string{"cmd/skelet/internal/lint/lint.go"}) }},
@@ -175,6 +176,9 @@ func normalize(m string) string {
 	}
 	if i := strings.Index(m, "-alpine"); i >= 0 {
 		m = m[:i]
+	}
+	if i := strings.Index(m, "-pg"); i >= 0 { // pgvector's tag names its own version, then the Postgres one
+		m = m[i+3:]
 	}
 	return strings.TrimPrefix(strings.TrimPrefix(m, "alpine"), "go ")
 }

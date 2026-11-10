@@ -6,6 +6,7 @@ import (
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/gitx"
 	"github.com/skeletg/skelet/cmd/skelet/internal/plugins"
+	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 )
 
@@ -20,8 +21,7 @@ type catalog struct {
 	plugins []string
 }
 
-// Optional dev tools, each a compose profile of its own name - the stack runs without any of them
-var tools = []string{"mailpit", "webhook-tester", "grafana", "garage-webui"}
+var tools = profile.DevTools
 
 var toolHints = map[string]string{
 	"mailpit":        "Mailpit - catches outgoing email, UI on :8025 (without it, mail prints to the app log)",

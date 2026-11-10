@@ -20,6 +20,7 @@
   --color-midnight: var(--midnight);
   --color-midnight-deep: var(--midnight-deep);
   --color-signal: var(--signal);
+  --color-signal-fill: var(--signal-fill, var(--signal));
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -62,7 +63,9 @@
    no blue cast), near-black ink for text AND buttons, one hot
    `signal` orange for links, eyebrows and badges. Dark surfaces
    (announcement bar, dark mosaic tiles) run `midnight`. */
-:root {
+:root,
+:root:has(.search-overview-slot) .site-header:not([data-scrolled]) .drawer {
+  color-scheme: light;
   --background: oklch(1 0 0);
   --foreground: oklch(0.205 0 0);
   --card: oklch(1 0 0);
@@ -629,5 +632,390 @@ dialog.lightbox:not([open])::backdrop {
   ::view-transition-new(*) {
     animation-duration: 0s !important;
     animation-delay: 0s !important;
+  }
+}
+
+/* The shopping assistant's own light: one iridescent sweep that ends in the store's signal, so it reads as AI
+   without leaving the brand. Only the assistant uses it */
+:root {
+  --assistant-iris: oklch(0.62 0.19 262);
+  --assistant-violet: oklch(0.6 0.22 295);
+  --assistant-orchid: oklch(0.68 0.21 350);
+  /* On a smaller desktop the panel gives way so the page keeps room to work */
+  --assistant-max-share: 45vw;
+}
+
+/* The sweep turns by rotating an oversized square under a mask, so a busy ring only moves a layer and never repaints */
+.assistant-ring {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+.assistant-spin {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 150%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  background: conic-gradient(var(--assistant-iris), var(--assistant-violet), var(--assistant-orchid), var(--signal), var(--assistant-iris));
+}
+.assistant-spin--page {
+  width: 150vmax;
+}
+
+/* Muted text with a band of light running through it while the assistant works */
+.assistant-shimmer {
+  background: linear-gradient(90deg, var(--muted-foreground) 35%, var(--signal) 50%, var(--muted-foreground) 65%) 0 0 / 250% 100%;
+  background-clip: text;
+  color: transparent;
+  animation: assistant-shimmer 1.8s linear infinite;
+}
+
+/* The input's ring: a hairline of the gradient on focus, a turning ring and glow while an answer is on its way */
+.assistant-field__ring {
+  inset: -1px;
+  padding: 1.5px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.assistant-aura {
+  position: absolute;
+  inset: -4px;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  filter: blur(14px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+.assistant-compose:focus-within .assistant-field__ring {
+  opacity: 0.55;
+}
+.assistant-compose:focus-within .assistant-aura {
+  opacity: 0.16;
+}
+.assistant-compose[data-busy] .assistant-field__ring {
+  padding: 2px;
+  opacity: 1;
+}
+.assistant-compose[data-busy] .assistant-aura {
+  inset: -7px;
+  filter: blur(18px);
+  opacity: 0.85;
+}
+.assistant-compose[data-busy] .assistant-spin {
+  animation: assistant-spin 2.4s linear infinite;
+}
+
+.assistant-orb__halo {
+  position: absolute;
+  inset: -15%;
+  border-radius: 9999px;
+  background: radial-gradient(circle, oklch(0.62 0.24 25 / 0.7), oklch(0.66 0.26 0 / 0.35) 45%, transparent 70%);
+  opacity: 0.16;
+  will-change: opacity;
+}
+.assistant-orb__voice {
+  position: absolute;
+  inset: -30%;
+  width: 160%;
+  height: 160%;
+  pointer-events: none;
+}
+
+/* The docked panel on a wide screen wears the dashboard's Skelet dark palette: blue-black surfaces, the Skelet red as
+   the accent. `.dark` comes along so the components' dark: variants apply inside it */
+:root {
+  --assistant-gutter: oklch(0.18 0.012 255);
+}
+.assistant-dark,
+:root:has(.search-overview-slot) :is(.site-header:not([data-scrolled]), .listing-top) {
+  color-scheme: dark;
+  --background: oklch(0.215 0.012 255);
+  --foreground: oklch(0.94 0.006 255);
+  --card: oklch(0.255 0.014 255);
+  --card-foreground: oklch(0.94 0.006 255);
+  --popover: oklch(0.235 0.014 255);
+  --popover-foreground: oklch(0.94 0.006 255);
+  /* Deep enough for white text at 4.6:1 */
+  --primary: oklch(0.58 0.22 25);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.3 0.014 255);
+  --secondary-foreground: oklch(0.94 0.006 255);
+  --muted: oklch(0.285 0.012 255);
+  --muted-foreground: oklch(0.72 0.012 255);
+  --accent: oklch(0.36 0.12 25);
+  --accent-foreground: oklch(0.98 0.004 255);
+  --destructive: oklch(0.62 0.24 25);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.62 0.24 25);
+  /* Lifted from the accent so links and small labels keep their contrast on the dark surface */
+  --signal: oklch(0.68 0.21 25);
+  --signal-fill: oklch(0.58 0.22 25);
+}
+
+/* While the panel is open on a wide screen the page sits in a card beside it. The page steps in by the gutter
+   (layout.tsx, the header, the bottom bars), and a mat the colour of the panel's own gutter covers only that space,
+   so the card keeps its rounded corners at every scroll position without the page becoming a scroller. The gutter
+   and the corner switch at once and each thing that reads them eases its own margin or edge - animating the
+   variables themselves restyled every element on the page on every frame */
+:root {
+  --assistant-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --assistant-speed: 0.45s;
+  --page-gutter: 0px;
+  --page-radius: 0px;
+}
+.assistant-frame {
+  display: none;
+}
+@media (width >= 48rem) {
+  :root[data-assistant-open] {
+    --page-gutter: 0.5rem;
+    --page-radius: 0.75rem;
+  }
+  .assistant-frame {
+    display: block;
+    position: fixed;
+    inset: 0 var(--assistant-inset, 0px) 0 0;
+    z-index: 41;
+    overflow: hidden;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity var(--assistant-speed) var(--assistant-ease),
+      visibility 0s var(--assistant-speed);
+  }
+  :root[data-assistant-open] .assistant-frame {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity var(--assistant-speed) var(--assistant-ease);
+  }
+  .assistant-frame-ease {
+    transition:
+      opacity var(--assistant-speed) var(--assistant-ease),
+      visibility 0s var(--assistant-speed),
+      right var(--assistant-speed) var(--assistant-ease);
+  }
+  :root[data-assistant-open] .assistant-frame-ease {
+    transition:
+      opacity var(--assistant-speed) var(--assistant-ease),
+      right var(--assistant-speed) var(--assistant-ease);
+  }
+  .assistant-frame::before {
+    content: "";
+    position: absolute;
+    inset: var(--page-gutter) 0 var(--page-gutter) var(--page-gutter);
+    border-radius: var(--page-radius);
+    transition:
+      inset var(--assistant-speed) var(--assistant-ease),
+      border-radius var(--assistant-speed) var(--assistant-ease);
+    box-shadow:
+      0 14px 36px -18px oklch(0 0 0 / 0.3),
+      0 0 0 100vmax var(--assistant-gutter);
+  }
+}
+
+/* Bars fixed to the page's edges step aside in time with the panel, and keep up with a drag of its edge */
+@media (width >= 48rem) {
+  .assistant-follow {
+    transition:
+      left var(--assistant-speed) var(--assistant-ease),
+      right var(--assistant-speed) var(--assistant-ease),
+      bottom var(--assistant-speed) var(--assistant-ease);
+  }
+  :root[data-assistant-resizing] .assistant-follow {
+    transition: none;
+  }
+}
+
+/* While the chat is open the page card's edge lights up in the assistant's colours, the way an assistant at work glows:
+   a hairline of the gradient with a soft light bleeding inward from it. At rest the light only breathes - opacity, cheap
+   to run for as long as the panel is open - and while an answer is on its way the colours run round the card */
+.assistant-glow {
+  position: absolute;
+  inset: var(--page-gutter) 0 var(--page-gutter) var(--page-gutter);
+  border-radius: var(--page-radius);
+  overflow: hidden;
+  pointer-events: none;
+  transition:
+    inset var(--assistant-speed) var(--assistant-ease),
+    border-radius var(--assistant-speed) var(--assistant-ease);
+}
+.assistant-glow__line {
+  padding: 1px;
+  opacity: 0.5;
+}
+.assistant-glow__light {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  filter: blur(12px);
+  opacity: 0.22;
+  will-change: opacity;
+  animation: assistant-glow 3.2s ease-in-out infinite alternate;
+}
+.assistant-ring--soft {
+  padding: 8px;
+}
+.assistant-glow[data-busy] .assistant-spin {
+  animation: assistant-spin 3s linear infinite;
+}
+.assistant-glow[data-busy] .assistant-glow__light {
+  opacity: 0.45;
+  animation: none;
+}
+@keyframes assistant-glow {
+  from {
+    opacity: 0.14;
+  }
+  to {
+    opacity: 0.3;
+  }
+}
+
+/* The chat's own scrollbar: a slim pill in the text colour on a clear track, firmer while the pointer is over it.
+   Firefox only knows the standard properties, and Chromium ignores the pseudo-elements once those are set */
+.assistant-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+.assistant-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.assistant-scroll::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 9999px;
+  background: color-mix(in oklch, var(--foreground) 16%, transparent) padding-box;
+}
+.assistant-scroll:hover::-webkit-scrollbar-thumb {
+  background-color: color-mix(in oklch, var(--foreground) 30%, transparent);
+}
+.assistant-scroll::-webkit-scrollbar-thumb:active {
+  background-color: color-mix(in oklch, var(--foreground) 42%, transparent);
+}
+@supports not selector(::-webkit-scrollbar) {
+  .assistant-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--foreground) 22%, transparent) transparent;
+  }
+}
+
+/* A new answer comes into focus rather than popping in */
+.assistant-arrive {
+  animation: assistant-arrive 0.5s ease-out both;
+}
+
+/* A search the store offers an AI overview for darkens the top of its page in the assistant's palette, the header too until
+   the page scrolls - kept even when no overview comes, the band runs edge to edge on a shadow so it never widens the page,
+   and the header's drawers keep the light one */
+.listing-top {
+  transition:
+    background-color 0.4s var(--assistant-ease),
+    box-shadow 0.4s var(--assistant-ease);
+}
+:root:has(.search-overview-slot) .listing-top {
+  position: relative;
+  margin-top: -1.5rem;
+  padding: 1.5rem 0 2.75rem;
+  background-color: var(--background);
+  color: var(--foreground);
+  box-shadow: 0 0 0 100vmax var(--background);
+  clip-path: inset(0 -100vmax);
+}
+:root:has(.search-overview-slot) .site-header:not([data-scrolled]) {
+  border-bottom-color: transparent;
+}
+/* The band ends on a line of the assistant's colours with a glow rising off it - edge to edge, the page shell clips the
+   overhang - drifting slowly, quicker while the overview is being written */
+:root:has(.search-overview-slot) .listing-top::before,
+:root:has(.search-overview-slot) .listing-top::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 100vw;
+  translate: -50% 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, var(--assistant-iris), var(--assistant-violet), var(--assistant-orchid), var(--signal), var(--assistant-iris)) 0 0 / 50% 100% repeat-x;
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  animation: listing-glow 16s linear infinite;
+}
+:root:has(.search-overview-slot) .listing-top::after {
+  height: 2px;
+}
+:root:has(.search-overview-slot) .listing-top::before {
+  height: 1.25rem;
+  opacity: 0.45;
+  filter: blur(10px);
+  mask-image: linear-gradient(to top, #000, transparent), linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  mask-composite: intersect;
+}
+:root:has(.search-overview[data-busy]) .listing-top::before,
+:root:has(.search-overview[data-busy]) .listing-top::after {
+  animation-duration: 4s;
+}
+@keyframes listing-glow {
+  to {
+    background-position: 100% 0;
+  }
+}
+.search-overview-slot {
+  overflow: clip;
+  overflow-clip-margin: 0.5rem;
+  transition: height 0.45s var(--assistant-ease);
+}
+.search-overview__line {
+  border-radius: 9999px;
+  background: linear-gradient(90deg, var(--muted) 30%, color-mix(in oklch, var(--signal) 12%, var(--muted)) 50%, var(--muted) 70%) 0 0 / 250% 100%;
+  animation: assistant-shimmer 1.8s linear infinite;
+}
+
+@keyframes assistant-spin {
+  to {
+    transform: translate(-50%, -50%) rotate(1turn);
+  }
+}
+@keyframes assistant-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -150% 0;
+  }
+}
+@keyframes assistant-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-overview-slot {
+    transition: none;
+  }
+  .assistant-shimmer,
+  .search-overview__line,
+  .listing-top::before,
+  .listing-top::after,
+  .assistant-arrive,
+  .assistant-glow__light,
+  .assistant-glow[data-busy] .assistant-spin,
+  .assistant-compose[data-busy] .assistant-spin {
+    animation: none;
+  }
+  .assistant-frame,
+  .assistant-frame::before,
+  .assistant-glow,
+  .assistant-follow,
+  :root[data-assistant-open] .assistant-frame {
+    transition: none;
   }
 }

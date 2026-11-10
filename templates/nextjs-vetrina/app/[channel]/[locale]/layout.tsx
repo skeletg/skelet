@@ -14,6 +14,7 @@ import { AuthUIProvider } from "@/app/components/AuthUIProvider";
 import { CartUIProvider } from "@/app/components/CartUIProvider";
 import { CartHydrator } from "@/app/components/CartHydrator";
 import { LensGate } from "@/app/components/LensGate";
+import { PageViewBeacon } from "@/app/components/PageViewBeacon";
 import { CustomerProvider } from "@skelet/storefront-next/customer/client";
 import { CartMergeNotice } from "@/app/components/CartMergeNotice";
 import { CartStoreProvider } from "@skelet/storefront-next/cart/store";
@@ -21,12 +22,14 @@ import { CompareTray } from "@/app/components/CompareTray";
 import { CookieConsentBanner } from "@/app/components/CookieConsentBanner";
 import { Footer } from "@/app/components/Footer";
 import { Header } from "@/app/components/Header";
+import { AssistantDock } from "@/app/components/assistant/AssistantDock";
+import { AssistantProvider } from "@/app/components/assistant/AssistantProvider";
 import { SignupForms } from "@/app/components/SignupForms";
 import { ChannelProvider } from "@/app/components/ChannelProvider";
 import { JsonLd } from "@/app/components/JsonLd";
 import { getChannel, getStoreName } from "@skelet/storefront-next/channel/read";
 import { organizationJsonLd, webSiteJsonLd } from "@skelet/storefront-core/json-ld";
-import { getBranding, getSignalsEnabled } from "@skelet/storefront-next/config/read";
+import { getAssistantEnabled, getAssistantName, getBranding, getSignalsEnabled } from "@skelet/storefront-next/config/read";
 import { getCurrentChannelLocales, getCurrentLocale } from "@skelet/storefront-next/locale/read";
 import { BUILD_PROBE_CHANNEL } from "@skelet/storefront-core/channel";
 import { htmlLangTag } from "@skelet/storefront-next/locale/lang";
@@ -97,7 +100,7 @@ export default async function RootLayout({
   // Makes the locale available to every server component below WITHOUT reading a request, which is
   // what lets these pages stay statically rendered
   setRequestLocale(requested);
-  const [channel, storeName, branding, locale, presentment, signalsEnabled, siteUrl] = await Promise.all([
+  const [channel, storeName, branding, locale, presentment, signalsEnabled, siteUrl, assistantEnabled, assistantName] = await Promise.all([
     getChannel(),
     getStoreName(),
     getBranding(),
@@ -105,6 +108,8 @@ export default async function RootLayout({
     getPresentmentOptions(),
     getSignalsEnabled(),
     getSiteUrl(),
+    getAssistantEnabled(),
+    getAssistantName(),
   ]);
   // The palette is already funnelled through two custom properties, so overriding them here is the
   // whole of theming: --primary is the solid fill buttons use, --signal the accent on links, eyebrows
@@ -153,15 +158,24 @@ export default async function RootLayout({
               <CustomerProvider>
               {/* Outside the page slot so a navigation can't fade the thing reporting on it */}
               <NavProgress />
-              <MasqueradeBanner />
-              <CartMergeNotice />
               <CartHydrator />
-              <Header />
-              <PageTransition>{children}</PageTransition>
-              <Footer />
+              <AssistantProvider enabled={assistantEnabled} name={assistantName}>
+              {/* The assistant runs the full height beside the whole page, so opening it narrows the header too */}
+              <div className="flex flex-1">
+                <div className="flex min-w-0 flex-1 flex-col md:my-(--page-gutter) md:ml-(--page-gutter) md:transition-[margin] md:duration-(--assistant-speed) md:ease-(--assistant-ease) motion-reduce:transition-none">
+                  <MasqueradeBanner />
+                  <CartMergeNotice />
+                  <Header />
+                  <PageTransition>{children}</PageTransition>
+                  <Footer />
+                </div>
+                <AssistantDock storeName={storeName} />
+              </div>
+              </AssistantProvider>
               <CompareTray />
               <CookieConsentBanner />
               <LensGate signalsEnabled={signalsEnabled} channelId={channel?.id ?? ""} />
+              <PageViewBeacon />
               {/* Shown regardless of marketing consent - the form is how the store earns it */}
               {signalsEnabled && <SignupForms channelId={channel?.id ?? ""} />}
               </CustomerProvider>

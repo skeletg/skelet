@@ -1,15 +1,20 @@
 package boot
 
 import (
+	"log/slog"
+	"os"
+
 	"go.uber.org/fx"
 	"google.golang.org/grpc"
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/aiactivity"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/assistantlog"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/behavioralsegment"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/board"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/campaign"
-	"github.com/skeletg/skelet/apps/backend/signals/internal/destination"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/emailtemplate"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/experiment"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/flow"
@@ -39,10 +44,12 @@ type contractDeps struct {
 	Channels      *analytics.ChannelRoster
 	Lens          *lens.Service
 	Experiment    *experiment.Service
+	Boards        *board.Service
 	Segment       *segment.Service
 	Behavioral    *behavioralsegment.Service
-	Destination   *destination.Service
 	SendLog       *sendlog.Store
+	Assistant     *assistantlog.Store
+	AIActivity    *aiactivity.Store
 	Suppression   *suppression.Service
 	Flow          *flow.Service
 	Campaign      *campaign.Service
@@ -51,11 +58,18 @@ type contractDeps struct {
 	Contacts      *RosterContacts
 }
 
-func newGRPCServer(d contractDeps) *grpc.Server {
+func newGRPCServer(d contractDeps) (*grpc.Server, error) {
+	creds, err := signalsgrpc.TLSFromEnv(os.Getenv)
+	if err != nil {
+		return nil, err
+	}
+	if creds != nil {
+		slog.Info("signals contract serves TLS", "cert", os.Getenv(signalsgrpc.EnvTLSCert))
+	}
 	return signalsgrpc.NewServer(signalsgrpc.Deps{
 		Experiment:     d.Experiment,
+		Boards:         d.Boards,
 		Lens:           d.Lens,
-		Destination:    d.Destination,
 		Segment:        d.Segment,
 		Analytics:      d.Recorder,
 		CustomerRoster: d.Roster,
@@ -67,6 +81,8 @@ func newGRPCServer(d contractDeps) *grpc.Server {
 		Queue:          d.Stack.Queue,
 		SettingsRepo:   signalsboot.NewSettingsRepository(d.Queries.Queries),
 		SendLog:        d.SendLog,
+		Assistant:      d.Assistant,
+		AIActivity:     d.AIActivity,
 		Suppression:    d.Suppression,
 		Flows:          d.Flow,
 		Campaigns:      d.Campaign,
@@ -76,5 +92,6 @@ func newGRPCServer(d contractDeps) *grpc.Server {
 		ServiceKeys:    d.Config.ServiceKeys,
 		Revocations:    d.Revocations,
 		Dev:            d.Config.IsDev(),
-	})
+		Creds:          creds,
+	}), nil
 }

@@ -2,6 +2,9 @@ package analytics
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"strings"
 	"testing"
 	"time"
 
@@ -52,5 +55,51 @@ func TestBrowserTimesAreHeldToTheServerClock(t *testing.T) {
 		if e.OccurredAt.Year() == 1999 {
 			t.Errorf("%s landed on its browser-claimed day %v", e.EventName, e.OccurredAt)
 		}
+	}
+}
+
+// An aggregate event is stored as nobody, carrying only amounts and items - whatever the caller put in it
+func TestAnAggregateActivityIsStoredAsNobody(t *testing.T) {
+	spine := &appendSpine{}
+	r := NewRecorder(nil, spine)
+	cust := uuid.New()
+	r.SetAggregateKey([]byte("secret"))
+	at := time.Date(2026, 11, 5, 14, 37, 12, 0, time.UTC)
+	props := map[string]any{"total_cents": int64(900), "currency": "EUR", "order_id": "o-1", "email": "a@example.com"}
+	ok, err := r.RecordActivity(context.Background(), ActivitySpec{
+		EventName: "order_placed", Source: SourceAggregate, ChannelID: uuid.New(), CustomerID: &cust, AnonID: "visitor-1", At: at,
+		Props: props, DedupeKey: "act:order_placed:o-1",
+	})
+	if len(props) != 4 {
+		t.Errorf("the caller's props were edited: %v", props)
+	}
+	if err != nil || !ok || len(spine.got) != 1 {
+		t.Fatalf("recorded %v, %v, %d rows", ok, err, len(spine.got))
+	}
+	e := spine.got[0]
+	if e.CustomerID != nil || e.AnonID != "" || e.Source != SourceAggregate {
+		t.Errorf("an aggregate event kept an actor: %+v", e)
+	}
+	if strings.Contains(e.DedupeKey, "o-1") || !e.OccurredAt.Equal(at.Truncate(time.Hour)) {
+		t.Errorf("key %q at %v - want a keyed hash that names no order, and the hour alone", e.DedupeKey, e.OccurredAt)
+	}
+	unkeyed := sha256.Sum256([]byte("act:order_placed:o-1"))
+	if strings.Contains(e.DedupeKey, hex.EncodeToString(unkeyed[:16])) {
+		t.Error("the stored key is a plain hash of the order's id, which anyone holding the id can recompute")
+	}
+	if len(e.Props) != 2 || e.Props["total_cents"] != int64(900) || e.Props["currency"] != "EUR" {
+		t.Errorf("props %v, want only the amount and currency", e.Props)
+	}
+	if ok, _ := r.RecordActivity(context.Background(), ActivitySpec{EventName: "cart_add", Source: SourceCommerce, ChannelID: uuid.New()}); ok || len(spine.got) != 1 {
+		t.Error("an event with no actor that isn't marked aggregate must still be dropped")
+	}
+}
+
+// Without its key, an aggregate event is refused - a plain hash of an order's id is what the key exists to prevent
+func TestAnAggregateActivityNeedsItsKey(t *testing.T) {
+	spine := &appendSpine{}
+	ok, err := NewRecorder(nil, spine).RecordActivity(context.Background(), ActivitySpec{EventName: "order_placed", Source: SourceAggregate, ChannelID: uuid.New(), DedupeKey: "act:order_placed:o-1"})
+	if ok || err == nil || len(spine.got) != 0 {
+		t.Errorf("recorded %v, %v, %d rows - want a refusal", ok, err, len(spine.got))
 	}
 }

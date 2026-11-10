@@ -146,6 +146,34 @@ type FunnelStep struct { // one step of a funnel result - the step's event and h
 	Count     int64
 }
 
+// FunnelQuery is what a funnel counts: the steps in order, what each step's event must carry, how long a person has
+// from the first step to the last, and a property of the first step to split the result by
+type FunnelQuery struct {
+	Steps     []string
+	Filters   []FunnelFilter
+	Window    time.Duration // 0 = anywhere inside the query window
+	Breakdown string        // "" = no breakdown
+}
+
+// FunnelFilter holds one step to events whose property Key has the text Value - numbers and bools compare as written
+type FunnelFilter struct {
+	Step       int // 0-based
+	Key, Value string
+}
+
+type FunnelResult struct {
+	Steps     []FunnelStep
+	Breakdown []FunnelBreakdown // most first-step people first, at most FunnelBreakdownMax values
+}
+
+// One value of the breakdown property and how many people with it reached each step
+type FunnelBreakdown struct {
+	Value  string
+	Counts []int64
+}
+
+const FunnelBreakdownMax = 10
+
 type InsightPoint struct { // one (time bucket, breakdown series, value) cell of an Insights report - InsightSeriesTotal is a series plus its ranked window total
 	Bucket time.Time
 	Key    string
@@ -163,6 +191,7 @@ type Insights struct {
 	Uniques     int64
 	PrevTotal   int64
 	PrevUniques int64
+	Aggregate   int64 // of Total, the events counted as nobody - visitors who hadn't allowed analytics
 }
 
 const insightsTopSeries = 8

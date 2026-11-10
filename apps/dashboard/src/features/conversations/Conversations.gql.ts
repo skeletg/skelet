@@ -1,0 +1,59 @@
+/** Internal type. DO NOT USE DIRECTLY. */
+type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
+/** Internal type. DO NOT USE DIRECTLY. */
+export type Incremental<T> = T | { [P in keyof T]?: P extends ' $fragmentName' | '__typename' ? T[P] : never };
+import type * as Types from '../../graphql/schema.types';
+
+import type { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-node/core';
+export type AssistantGapReason =
+  | 'CUT_SHORT'
+  | 'FOUND_NOTHING'
+  | 'NO_ANSWER'
+  | 'UNSURE';
+
+export type AssistantShownKind =
+  | 'BUTTON'
+  | 'CARD'
+  | 'CART'
+  | 'MOVED'
+  | 'PANEL'
+  | 'TEXT';
+
+export type AssistantUnansweredFilter =
+  | 'ANY'
+  | 'CUT_SHORT'
+  | 'FOUND_NOTHING'
+  | 'NO_ANSWER'
+  | 'UNSURE';
+
+export type AssistantConversationsQueryVariables = Exact<{
+  channelId: string | number;
+  search?: string | null | undefined;
+  unanswered?: Types.AssistantUnansweredFilter | null | undefined;
+  after?: string | null | undefined;
+  limit?: number | null | undefined;
+}>;
+
+
+export type AssistantConversationsQuery = { assistantConversations: { nextCursor: string | null, items: Array<{ id: string, customerId: string | null, anonId: string, firstQuestion: string, turns: number, cartChanged: boolean, checkout: boolean, incomplete: boolean, startedAt: string, lastAt: string, unanswered: number, latestUnanswered: { turnId: string, question: string, reasons: Array<Types.AssistantGapReason> } | null }>, counts: { any: number, noAnswer: number, cutShort: number, foundNothing: number, unsure: number } } };
+
+export type AssistantConversationQueryVariables = Exact<{
+  channelId: string | number;
+  id: string | number;
+}>;
+
+
+export type AssistantConversationQuery = { assistantConversation: { conversation: { id: string, customerId: string | null, anonId: string, firstQuestion: string, turns: number, cartChanged: boolean, checkout: boolean, incomplete: boolean, startedAt: string, lastAt: string }, turns: Array<{ id: string, page: string, question: string, reply: string, recap: string, products: number, cartChanged: boolean, checkout: boolean, incomplete: boolean, model: string, inputTokens: number, outputTokens: number, cacheReadTokens: number, cacheWriteTokens: number, at: string, followUps: Array<string>, steps: number, toolCalls: number, refused: boolean, thought: boolean, showed: Array<{ kind: Types.AssistantShownKind, productId: string | null, name: string | null, label: string | null, path: string | null, text: string | null }> }> } | null };
+
+export type AssistantTurnRoundsQueryVariables = Exact<{
+  channelId: string | number;
+  turnId: string | number;
+}>;
+
+
+export type AssistantTurnRoundsQuery = { assistantTurnRounds: Array<{ thinking: string, text: string, shown: boolean, calls: Array<{ tool: string, input: string, output: string, isError: boolean, skipped: boolean }> }> };
+
+
+export const AssistantConversationsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"AssistantConversations"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"channelId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"search"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"unanswered"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"AssistantUnansweredFilter"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"after"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"limit"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"assistantConversations"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"channelId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"channelId"}}},{"kind":"Argument","name":{"kind":"Name","value":"search"},"value":{"kind":"Variable","name":{"kind":"Name","value":"search"}}},{"kind":"Argument","name":{"kind":"Name","value":"unanswered"},"value":{"kind":"Variable","name":{"kind":"Name","value":"unanswered"}}},{"kind":"Argument","name":{"kind":"Name","value":"after"},"value":{"kind":"Variable","name":{"kind":"Name","value":"after"}}},{"kind":"Argument","name":{"kind":"Name","value":"limit"},"value":{"kind":"Variable","name":{"kind":"Name","value":"limit"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"items"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"customerId"}},{"kind":"Field","name":{"kind":"Name","value":"anonId"}},{"kind":"Field","name":{"kind":"Name","value":"firstQuestion"}},{"kind":"Field","name":{"kind":"Name","value":"turns"}},{"kind":"Field","name":{"kind":"Name","value":"cartChanged"}},{"kind":"Field","name":{"kind":"Name","value":"checkout"}},{"kind":"Field","name":{"kind":"Name","value":"incomplete"}},{"kind":"Field","name":{"kind":"Name","value":"startedAt"}},{"kind":"Field","name":{"kind":"Name","value":"lastAt"}},{"kind":"Field","name":{"kind":"Name","value":"unanswered"}},{"kind":"Field","name":{"kind":"Name","value":"latestUnanswered"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"turnId"}},{"kind":"Field","name":{"kind":"Name","value":"question"}},{"kind":"Field","name":{"kind":"Name","value":"reasons"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"counts"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"any"}},{"kind":"Field","name":{"kind":"Name","value":"noAnswer"}},{"kind":"Field","name":{"kind":"Name","value":"cutShort"}},{"kind":"Field","name":{"kind":"Name","value":"foundNothing"}},{"kind":"Field","name":{"kind":"Name","value":"unsure"}}]}},{"kind":"Field","name":{"kind":"Name","value":"nextCursor"}}]}}]}}]} as unknown as DocumentNode<AssistantConversationsQuery, AssistantConversationsQueryVariables>;
+export const AssistantConversationDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"AssistantConversation"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"channelId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"assistantConversation"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"channelId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"channelId"}}},{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"conversation"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"customerId"}},{"kind":"Field","name":{"kind":"Name","value":"anonId"}},{"kind":"Field","name":{"kind":"Name","value":"firstQuestion"}},{"kind":"Field","name":{"kind":"Name","value":"turns"}},{"kind":"Field","name":{"kind":"Name","value":"cartChanged"}},{"kind":"Field","name":{"kind":"Name","value":"checkout"}},{"kind":"Field","name":{"kind":"Name","value":"incomplete"}},{"kind":"Field","name":{"kind":"Name","value":"startedAt"}},{"kind":"Field","name":{"kind":"Name","value":"lastAt"}}]}},{"kind":"Field","name":{"kind":"Name","value":"turns"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"page"}},{"kind":"Field","name":{"kind":"Name","value":"question"}},{"kind":"Field","name":{"kind":"Name","value":"reply"}},{"kind":"Field","name":{"kind":"Name","value":"recap"}},{"kind":"Field","name":{"kind":"Name","value":"showed"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"kind"}},{"kind":"Field","name":{"kind":"Name","value":"productId"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"label"}},{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"text"}}]}},{"kind":"Field","name":{"kind":"Name","value":"products"}},{"kind":"Field","name":{"kind":"Name","value":"cartChanged"}},{"kind":"Field","name":{"kind":"Name","value":"checkout"}},{"kind":"Field","name":{"kind":"Name","value":"incomplete"}},{"kind":"Field","name":{"kind":"Name","value":"model"}},{"kind":"Field","name":{"kind":"Name","value":"inputTokens"}},{"kind":"Field","name":{"kind":"Name","value":"outputTokens"}},{"kind":"Field","name":{"kind":"Name","value":"cacheReadTokens"}},{"kind":"Field","name":{"kind":"Name","value":"cacheWriteTokens"}},{"kind":"Field","name":{"kind":"Name","value":"at"}},{"kind":"Field","name":{"kind":"Name","value":"followUps"}},{"kind":"Field","name":{"kind":"Name","value":"steps"}},{"kind":"Field","name":{"kind":"Name","value":"toolCalls"}},{"kind":"Field","name":{"kind":"Name","value":"refused"}},{"kind":"Field","name":{"kind":"Name","value":"thought"}}]}}]}}]}}]} as unknown as DocumentNode<AssistantConversationQuery, AssistantConversationQueryVariables>;
+export const AssistantTurnRoundsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"AssistantTurnRounds"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"channelId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"turnId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"assistantTurnRounds"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"channelId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"channelId"}}},{"kind":"Argument","name":{"kind":"Name","value":"turnId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"turnId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"thinking"}},{"kind":"Field","name":{"kind":"Name","value":"text"}},{"kind":"Field","name":{"kind":"Name","value":"shown"}},{"kind":"Field","name":{"kind":"Name","value":"calls"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"tool"}},{"kind":"Field","name":{"kind":"Name","value":"input"}},{"kind":"Field","name":{"kind":"Name","value":"output"}},{"kind":"Field","name":{"kind":"Name","value":"isError"}},{"kind":"Field","name":{"kind":"Name","value":"skipped"}}]}}]}}]}}]} as unknown as DocumentNode<AssistantTurnRoundsQuery, AssistantTurnRoundsQueryVariables>;

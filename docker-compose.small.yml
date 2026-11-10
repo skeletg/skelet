@@ -98,8 +98,9 @@ services:
     restart: unless-stopped
     logging: *logging
 
+  # Postgres with pgvector, for the store's embeddings - see docker-compose.yml on moving a volume from the Alpine image
   db:
-    image: postgres:18-alpine
+    image: pgvector/pgvector:0.8.6-pg18-trixie
     environment:
       POSTGRES_USER: skelet
       # An existing db-data volume keeps the password it was initialized with -

@@ -3,17 +3,14 @@ import { Link } from "@/app/components/LocaleLink";
 import { getLocale, getTranslations } from "next-intl/server";
 import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 import { notFound, redirect } from "next/navigation";
-import { AnalyticsEvent } from "@/app/components/AnalyticsEvent";
+import { StripParam } from "@/app/components/StripParam";
 import { BackButton } from "@/app/components/BackButton";
 import { OrderDetailView } from "@/app/components/OrderDetailView";
-import { getResolvedConsent } from "@skelet/storefront-next/consent/read";
-import { displayName } from "@skelet/storefront-core/display";
 import { getCustomerOrNull } from "@skelet/storefront-next/customer/read";
 import { gqlFetch } from "@skelet/storefront-next/graphql";
 import { GuestOrderDocument } from "@skelet/storefront-core/checkout/operations.gql";
 import { SubmitButton } from "@/app/components/account/SubmitButton";
 import { resendVerificationEmailAction } from "@skelet/storefront-next/auth/actions";
-import { toMajor } from "@skelet/storefront-core/format";
 
 export async function generateMetadata({
   params,
@@ -78,32 +75,10 @@ export default async function GuestOrderPage({
     customer.email.toLowerCase() === email.toLowerCase();
   const resent = Array.isArray(sp.resent) ? sp.resent[0] : sp.resent;
 
-  const consent = justPlaced ? await getResolvedConsent() : null;
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 pt-4 pb-16 sm:px-6">
-      {justPlaced && consent && (
-        <AnalyticsEvent
-          enabled={consent.marketing}
-          event="purchase"
-          stripParam="just_placed"
-          payload={{
-            ecommerce: {
-              transaction_id: order.id,
-              currency: order.currencyCode,
-              value: toMajor(order.total, order.currencyCode),
-              tax: toMajor(order.taxAmount, order.currencyCode),
-              shipping: toMajor(order.shippingAmount, order.currencyCode),
-              items: order.lines.map((line) => ({
-                item_id: line.sku,
-                item_name: displayName(line.name, line.sku),
-                quantity: line.quantity,
-                price: toMajor(line.unitPrice, order.currencyCode),
-              })),
-            },
-          }}
-        />
-      )}
+      {justPlaced && <StripParam name="just_placed" />}
 
       <div className="mb-4">
         <BackButton fallbackHref="/" label={t("continue")} />

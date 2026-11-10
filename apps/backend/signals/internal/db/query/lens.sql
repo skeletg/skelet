@@ -57,6 +57,15 @@ GROUP BY key
 ORDER BY count DESC
 LIMIT sqlc.arg(lim);
 
+-- name: LensPlanIssues :many
+-- What ingest stripped against the tracking plan (dim plan_*, key event or event.prop), for Data health. Rollup-backed.
+SELECT dim AS kind, key, SUM(views)::bigint AS count
+FROM lens_traffic_daily
+WHERE channel_id = sqlc.arg(channel_id) AND day >= sqlc.arg(since)::date AND dim LIKE 'plan\_%'
+GROUP BY dim, key
+ORDER BY count DESC
+LIMIT sqlc.arg(lim);
+
 -- Bot / crawler analytics (rollup-backed) -------------------------------------
 -- Counts are coalesced in-process into analytics_traffic_rollup - dashboards read the rollup and never raw events, so query cost is bounded
 
@@ -286,10 +295,10 @@ GROUP BY key
 ORDER BY count DESC
 LIMIT sqlc.arg(lim);
 
--- name: LensZeroResultSearches :many
+-- name: LensSearchGaps :many
 SELECT key AS term, SUM(views)::bigint AS count
 FROM lens_traffic_daily
-WHERE channel_id = sqlc.arg(channel_id) AND day >= sqlc.arg(since)::date AND dim = 'search_zero'
+WHERE channel_id = sqlc.arg(channel_id) AND day >= sqlc.arg(since)::date AND dim = sqlc.arg(dim)::text
 GROUP BY key
 ORDER BY count DESC
 LIMIT sqlc.arg(lim);
@@ -298,15 +307,38 @@ LIMIT sqlc.arg(lim);
 SELECT
   COALESCE(SUM(views) FILTER (WHERE dim = 'search'), 0)::bigint      AS total_searches,
   COUNT(DISTINCT key) FILTER (WHERE dim = 'search')::bigint          AS distinct_terms,
-  COALESCE(SUM(views) FILTER (WHERE dim = 'search_zero'), 0)::bigint AS zero_result_searches
+  COALESCE(SUM(views) FILTER (WHERE dim = 'search_zero'), 0)::bigint AS zero_result_searches,
+  COALESCE(SUM(views) FILTER (WHERE dim = 'search_meaning'), 0)::bigint AS meaning_only_searches
 FROM lens_traffic_daily
-WHERE channel_id = sqlc.arg(channel_id) AND day >= sqlc.arg(since)::date AND dim IN ('search', 'search_zero');
+WHERE channel_id = sqlc.arg(channel_id) AND day >= sqlc.arg(since)::date AND dim IN ('search', 'search_zero', 'search_meaning');
 
 -- name: LensSearchDaily :many
 SELECT to_char(day, 'YYYY-MM-DD') AS day,
   COALESCE(SUM(views) FILTER (WHERE dim = 'search'), 0)::bigint      AS searches,
-  COALESCE(SUM(views) FILTER (WHERE dim = 'search_zero'), 0)::bigint AS zero_results
+  COALESCE(SUM(views) FILTER (WHERE dim = 'search_zero'), 0)::bigint AS zero_results,
+  COALESCE(SUM(views) FILTER (WHERE dim = 'search_meaning'), 0)::bigint AS meaning_only
 FROM lens_traffic_daily
-WHERE channel_id = sqlc.arg(channel_id) AND day >= sqlc.arg(since)::date AND dim IN ('search', 'search_zero')
+WHERE channel_id = sqlc.arg(channel_id) AND day >= sqlc.arg(since)::date AND dim IN ('search', 'search_zero', 'search_meaning')
 GROUP BY day
 ORDER BY day;
+
+-- The AI overview above search results, over the window
+-- name: LensOverviewTotals :one
+SELECT
+  COALESCE(SUM(views) FILTER (WHERE dim = 'overview_shown'), 0)::bigint AS shown,
+  COALESCE(SUM(views) FILTER (WHERE dim = 'overview_click'), 0)::bigint AS clicks,
+  COALESCE(SUM(views) FILTER (WHERE dim = 'overview_chat'), 0)::bigint AS chats
+FROM lens_traffic_daily
+WHERE channel_id = sqlc.arg(channel_id) AND day >= sqlc.arg(since)::date AND dim IN ('overview_shown', 'overview_click', 'overview_chat');
+
+-- The same per search, the most shown first
+-- name: LensOverviewTerms :many
+SELECT key AS term,
+  COALESCE(SUM(views) FILTER (WHERE dim = 'overview_shown'), 0)::bigint AS shown,
+  COALESCE(SUM(views) FILTER (WHERE dim = 'overview_click'), 0)::bigint AS clicks,
+  COALESCE(SUM(views) FILTER (WHERE dim = 'overview_chat'), 0)::bigint AS chats
+FROM lens_traffic_daily
+WHERE channel_id = sqlc.arg(channel_id) AND day >= sqlc.arg(since)::date AND dim IN ('overview_shown', 'overview_click', 'overview_chat')
+GROUP BY key
+ORDER BY shown DESC, key
+LIMIT sqlc.arg(lim);

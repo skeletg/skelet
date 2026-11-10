@@ -16,10 +16,11 @@ service MaintenanceService {
   // The send log: pre-creates the upcoming month partitions, then drops whole months past
   // send_log_retention_months - archived first under retention_action=archive
   rpc PruneSendLog(PruneSendLogRequest) returns (PruneSendLogResponse);
+  // Assistant conversations whose last turn is past signals/assistant/retention_days - held to the spine's retention when
+  // that's shorter - and the turns that old inside conversations still going
+  rpc PruneAssistantConversations(PruneAssistantConversationsRequest) returns (PruneAssistantConversationsResponse);
   // Per-customer RFM, lifecycle and engagement, across every channel the roster covers
   rpc ComputeTraits(ComputeTraitsRequest) returns (ComputeTraitsResponse);
-  // Drains the spine to the configured external destinations, resuming from durable cursors
-  rpc ForwardDestinations(ForwardDestinationsRequest) returns (ForwardDestinationsResponse);
   // Whether aged data is archived before deletion - core's send-log sweep honours the same operator setting
   rpc GetRetentionAction(GetRetentionActionRequest) returns (GetRetentionActionResponse);
   // Everything core's health page reports about the suite, in one round trip - the page renders them together
@@ -52,6 +53,15 @@ message PruneLensRequest {}
 
 message PruneLensResponse {}
 
+message PruneAssistantConversationsRequest {}
+
+message PruneAssistantConversationsResponse {
+  // whole conversations gone quiet
+  int64 pruned = 1;
+  // old turns inside conversations still going
+  int64 turns = 2;
+}
+
 message PruneSendLogRequest {}
 
 message PruneSendLogResponse {}
@@ -59,10 +69,6 @@ message PruneSendLogResponse {}
 message ComputeTraitsRequest {}
 
 message ComputeTraitsResponse {}
-
-message ForwardDestinationsRequest {}
-
-message ForwardDestinationsResponse {}
 
 message GetRetentionActionRequest {}
 
@@ -84,8 +90,9 @@ message GetHealthResponse {
   int32 pending_erasures = 6;
   string erasures_error = 7;
   QueueHealth queue = 8;
-  repeated DestinationHealth destinations = 9;
-  string destinations_error = 10;
+  // The suite's retired event destinations
+  reserved 9, 10;
+  reserved "destinations", "destinations_error";
 }
 
 // A queue is optional - unconfigured, events are written straight to the engine
@@ -96,12 +103,6 @@ message QueueHealth {
   int64 stream_messages = 4;
   int64 pending = 5;
   int64 redelivering = 6;
-}
-
-message DestinationHealth {
-  string name = 1;
-  string last_error = 2;
-  optional google.protobuf.Timestamp last_forwarded_at = 3;
 }
 
 message ListBrowseAbandonersRequest {

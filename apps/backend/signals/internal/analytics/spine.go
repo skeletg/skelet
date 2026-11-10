@@ -2,7 +2,6 @@ package analytics
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log"
 	"time"
@@ -24,9 +23,10 @@ type SpineStore interface {
 	ArchiveEvents(ctx context.Context, source string, before time.Time, open ArchiveOpen) (int64, error)
 	// Batch ingest - a buffer feed (ClickHouse) or an async publish window (queue) per batch, and every decorator must override this alongside AppendEvent or writes bypass it
 	AppendEvents(ctx context.Context, events []SpineEvent) error
-	// Stitches an anonymous visitor to a customer, last-write-wins
+	// Stitches an anonymous visitor to a customer, first-write-wins - the driver keeps the stored customer when another identifies on the same visitor id
 	UpsertIdentity(ctx context.Context, anonID string, customerID, channelID uuid.UUID) error
 	AnonIDsForCustomer(ctx context.Context, customerID uuid.UUID) ([]string, error)
+	AnonIDsForCustomers(ctx context.Context, customerIDs []uuid.UUID) ([]string, error)
 	// GDPR erasure - a leftover mapping would keep re-linking web events to the scrubbed customer, so it dies on whichever engine holds it - batched because a ClickHouse delete is a mutation and erasures arrive in bursts
 	DeleteCustomerIdentities(ctx context.Context, customerIDs []uuid.UUID) error
 	// Retention twin for the mapping table - a stitch shouldn't outlive its last confirmation by more than the events it stitched
@@ -38,7 +38,7 @@ type SpineStore interface {
 
 	// Event-analytics reads - each returns a domain result, and people resolve across anonymous and identified activity
 
-	Funnel(ctx context.Context, channelID uuid.UUID, steps []string, since time.Time) ([]FunnelStep, error)
+	Funnel(ctx context.Context, channelID uuid.UUID, q FunnelQuery, since time.Time) (FunnelResult, error)
 	Insights(ctx context.Context, channelID uuid.UUID, event, breakdown, measure, unit string, since, now time.Time) (Insights, error)
 	Stickiness(ctx context.Context, channelID uuid.UUID, event string, since, now time.Time, windowDays int) (Stickiness, error)
 	Flow(ctx context.Context, channelID uuid.UUID, focus string, since time.Time, depth, topK int) (FlowResult, error)
@@ -78,12 +78,14 @@ type SpineStore interface {
 	// Every page's grid totals in one scan, for the hub's page list
 	LensPagesGridFromEvents(ctx context.Context, channelID uuid.UUID, since time.Time) (map[string]LensGridTotals, error)
 
+	// The shopping assistant as a seller: people who chatted against those who didn't, with the shoppers' agents' orders,
+	// and the products its turns showed with what came of each
+	AIImpact(ctx context.Context, channelID uuid.UUID, since time.Time, currency string) (AIImpact, error)
+	AIProducts(ctx context.Context, channelID uuid.UUID, since time.Time, limit int) ([]AIProductStat, error)
+
 	// Frontend A/B: pickable goal-event names, and per-variation exposed/converted/revenue for one experiment
 	ExperimentGoalEvents(ctx context.Context, channelID uuid.UUID, since time.Time) ([]string, error)
 	ExperimentResults(ctx context.Context, channelID uuid.UUID, key, goalEvent string, since time.Time) ([]VariationResult, error)
-
-	// A keyset page of raw events for outbound forwarding, ordered by (created_at, id) - the destination service pages through this with its stored cursor
-	EventsForForwarding(ctx context.Context, channelID uuid.UUID, afterCreatedAt time.Time, afterID uuid.UUID, limit int) ([]ForwardEvent, error)
 
 	// Spine primitives for commerce-orchestrated reads - the Recorder joins these with commerce data for segment membership, email_sends and trait projection
 	SegmentAffinitiesForMembers(ctx context.Context, channelID uuid.UUID, memberIDs []uuid.UUID, since time.Time, limit int) ([]SegmentAffinityCount, error)
@@ -140,19 +142,6 @@ type VariationResult struct {
 	Revenue   int64
 }
 
-// One raw spine event on its way to an external destination - CreatedAt is the ingest order the forwarding cursor advances through, which is not OccurredAt
-type ForwardEvent struct {
-	ID         uuid.UUID
-	DedupeKey  string // stable across re-ingests, where ID is per insert
-	Name       string
-	OccurredAt time.Time
-	CustomerID *uuid.UUID
-	AnonID     string
-	Source     string
-	Properties json.RawMessage
-	CreatedAt  time.Time
-}
-
 // One of a customer's recent marketing opens or clicks, best-first by click over open then recency, for conversion attribution
 type EngagementCandidate struct {
 	EventName  string
@@ -197,10 +186,36 @@ type SpineStats struct { // arrival-time bounds of the spine - deliberately no r
 	Newest *time.Time
 }
 
+// People seen on the storefront over a window, on one side of whether they chatted with the assistant - revenue only in the
+// currency asked for, RevenueOrders the orders it adds up
+type AICohort struct {
+	People, Buyers, Orders, RevenueCents, RevenueOrders, ReturnedOrders int64
+}
+
+type AIImpact struct {
+	Chatted, DidNotChat AICohort
+	// Orders from a cart a shopper's own agent filled, in the currency asked for
+	AgentOrders, AgentRevenueCents int64
+}
+
+// What came of a product the assistant showed: people who added it to their cart or ordered it within the contract's windows
+type AIProductStat struct {
+	ProductID                      string
+	Shown, People, Carted, Ordered int64
+}
+
 // --- Recorder delegates to the spine engine - the read bodies live on the driver, these keep the Recorder's public API stable for resolvers ---
 
-func (r *Recorder) Funnel(ctx context.Context, channelID uuid.UUID, steps []string, since time.Time) ([]FunnelStep, error) {
-	return r.spine.Funnel(ctx, channelID, steps, since)
+func (r *Recorder) AIImpact(ctx context.Context, channelID uuid.UUID, since time.Time, currency string) (AIImpact, error) {
+	return r.spine.AIImpact(ctx, channelID, since, currency)
+}
+
+func (r *Recorder) AIProducts(ctx context.Context, channelID uuid.UUID, since time.Time, limit int) ([]AIProductStat, error) {
+	return r.spine.AIProducts(ctx, channelID, since, limit)
+}
+
+func (r *Recorder) Funnel(ctx context.Context, channelID uuid.UUID, q FunnelQuery, since time.Time) (FunnelResult, error) {
+	return r.spine.Funnel(ctx, channelID, q, since)
 }
 
 func (r *Recorder) Insights(ctx context.Context, channelID uuid.UUID, event, breakdown, measure, unit string, since, now time.Time) (Insights, error) {
@@ -323,10 +338,6 @@ func (r *Recorder) ExperimentResults(ctx context.Context, channelID uuid.UUID, k
 	return r.spine.ExperimentResults(ctx, channelID, key, goalEvent, since)
 }
 
-func (r *Recorder) EventsForForwarding(ctx context.Context, channelID uuid.UUID, afterCreatedAt time.Time, afterID uuid.UUID, limit int) ([]ForwardEvent, error) {
-	return r.spine.EventsForForwarding(ctx, channelID, afterCreatedAt, afterID, limit)
-}
-
 // ErrErasureInFlight is an engine still applying an earlier detach, which a second one would only duplicate
 var ErrErasureInFlight = errors.New("an earlier identity erasure is still being applied")
 
@@ -356,6 +367,11 @@ func (r *Recorder) sweepIdentityErasures(ctx context.Context) error {
 		}
 		if len(ids) == 0 {
 			break
+		}
+		if r.beforeErasure != nil {
+			if err := r.beforeErasure(ctx, ids); err != nil {
+				return err
+			}
 		}
 		if err := r.spine.DeleteCustomerIdentities(ctx, ids); errors.Is(err, ErrErasureInFlight) {
 			log.Printf("[analytics] identity erasure: the last sweep's detach is still running, %d stay queued for the next", len(ids))
@@ -393,6 +409,10 @@ func refreshSpineIdentities(ctx context.Context, s SpineStore) { // walks decora
 
 func (r *Recorder) AnonIDsForCustomer(ctx context.Context, customerID uuid.UUID) ([]string, error) {
 	return r.spine.AnonIDsForCustomer(ctx, customerID)
+}
+
+func (r *Recorder) AnonIDsForCustomers(ctx context.Context, customerIDs []uuid.UUID) ([]string, error) {
+	return r.spine.AnonIDsForCustomers(ctx, customerIDs)
 }
 
 func (r *Recorder) PruneEventsBySource(ctx context.Context, source string, before time.Time) (int64, error) {

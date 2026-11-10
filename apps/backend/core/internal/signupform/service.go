@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,8 +24,26 @@ import (
 	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
+	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/internal/locale"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/consentkind"
 )
+
+const EventSubmitted = "signupform.submitted"
+
+// Submitted fires after a storefront visitor sends a signup form, before the address is confirmed - a lead, async.
+// It holds no address: an unconfirmed one may be someone else's
+type Submitted struct {
+	ChannelID uuid.UUID
+	FormID    uuid.UUID
+	// The address hashed with the form, so a replay of one submission collapses without the address leaving the form
+	LeadKey string
+	Shopper *auth.Shopper // the visitor as their consent stood, nil for a caller with no banner
+}
+
+func (*Submitted) Type() string                { return EventSubmitted }
+func (e *Submitted) EventChannelID() uuid.UUID { return e.ChannelID }
 
 // Dependency seams (accept interfaces) - set the customer/consent/segment/flow
 // collaborators via SetHooks so the package stays cycle-free and testable
@@ -66,8 +85,12 @@ type Service struct {
 	flows   flowEnroller
 	mailer  confirmationMailer
 	limiter sendLimiter
+	bus     *events.Bus
 	now     func() time.Time
 }
+
+// SetEventBus is optional and nil-safe
+func (s *Service) SetEventBus(b *events.Bus) { s.bus = b }
 
 func New(q *db.Queries) *Service { return &Service{q: q, now: time.Now} }
 
@@ -299,6 +322,10 @@ func (s *Service) Submit(ctx context.Context, channelID uuid.UUID, formSlugOrID,
 	}); err != nil {
 		log.Printf("[form] record signup submission for %s: %v", f.Slug, err)
 	}
+	if s.bus != nil {
+		key := sha256.Sum256([]byte(f.ID.String() + ":" + em))
+		s.bus.Publish(ctx, &Submitted{ChannelID: channelID, FormID: f.ID, LeadKey: hex.EncodeToString(key[:16]), Shopper: auth.ShopperFromContext(ctx)})
+	}
 	if s.limiter != nil && !s.limiter.Allow(ctx, "signup-confirm:"+channelID.String()+":"+em) {
 		return f.SuccessMessage, nil
 	}
@@ -310,6 +337,7 @@ func (s *Service) Submit(ctx context.Context, channelID uuid.UUID, formSlugOrID,
 	if err := s.q.CreateSignupConfirmation(ctx, db.CreateSignupConfirmationParams{
 		TokenHash: hash, FormID: f.ID, ChannelID: channelID, Email: em, FirstName: first,
 		ConsentKind: orDefault(f.ConsentKind, consentkind.MarketingEmail), ExpiresAt: s.now().Add(ConfirmationTTL),
+		Locale: locale.FromContext(ctx),
 	}); err != nil {
 		return "", fmt.Errorf("record signup confirmation: %w", err)
 	}
@@ -371,7 +399,11 @@ func (s *Service) Confirm(ctx context.Context, token string) error {
 }
 
 func (s *Service) subscribe(ctx context.Context, row db.SignupConfirmation) (uuid.UUID, error) {
-	// The confirmation link reached this inbox, so a contact made here starts verified
+	// The confirmation link reached this inbox, so a contact made here starts verified - and in the language the form was
+	// sent from, since the link itself is opened off the storefront
+	if row.Locale != "" {
+		ctx = locale.WithLocale(ctx, row.Locale)
+	}
 	custID, err := s.contact.EnsureContact(ctx, row.ChannelID, row.Email, row.FirstName, true)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("ensure contact: %w", err)

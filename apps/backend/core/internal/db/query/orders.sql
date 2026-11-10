@@ -9,14 +9,16 @@ INSERT INTO orders (
     shipping_postal_code, shipping_country, shipping_phone,
     subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount,
     currency_code, customer_note, payment_provider, shipping_method_id,
-    shipping_carrier_slug, shipping_method_code, po_number, shipping_tax_amount, anon_id, business_ids
+    shipping_carrier_slug, shipping_method_code, po_number, shipping_tax_amount, anon_id, business_ids, assisted_by, metadata,
+    locale, tax_inclusive
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
     $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
     $27, $28, $29, $30, $31,
     $32, $33, $34, $35,
-    $36, $37, $38, $39, $40, $41
+    $36, $37, $38, $39, $40, $41, $42, $43,
+    $44, $45
 ) RETURNING *;
 
 -- name: GetOrderByID :one
@@ -28,10 +30,10 @@ SELECT * FROM orders WHERE id = $1 LIMIT 1;
 SELECT * FROM orders o
 WHERE  TRUE
   AND  (sqlc.arg(search)::text = '' OR
-        o.number ILIKE '%' || sqlc.arg(search)::text || '%' OR
-        o.email ILIKE '%' || sqlc.arg(search)::text || '%' OR
-        o.shipping_last_name ILIKE '%' || sqlc.arg(search)::text || '%' OR
-        o.billing_last_name ILIKE '%' || sqlc.arg(search)::text || '%')
+        o.number ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%' OR
+        o.email ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%' OR
+        o.shipping_last_name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%' OR
+        o.billing_last_name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%')
   AND  (sqlc.arg(all_statuses)::boolean OR o.status = ANY(sqlc.arg(statuses)::text[]))
   AND  (sqlc.arg(all_payment)::boolean OR o.payment_status = ANY(sqlc.arg(payment_statuses)::text[]))
 ORDER  BY o.created_at DESC
@@ -41,10 +43,10 @@ LIMIT  sqlc.arg(lim) OFFSET sqlc.arg(off);
 SELECT COUNT(*) FROM orders o
 WHERE  TRUE
   AND  (sqlc.arg(search)::text = '' OR
-        o.number ILIKE '%' || sqlc.arg(search)::text || '%' OR
-        o.email ILIKE '%' || sqlc.arg(search)::text || '%' OR
-        o.shipping_last_name ILIKE '%' || sqlc.arg(search)::text || '%' OR
-        o.billing_last_name ILIKE '%' || sqlc.arg(search)::text || '%')
+        o.number ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%' OR
+        o.email ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%' OR
+        o.shipping_last_name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%' OR
+        o.billing_last_name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%')
   AND  (sqlc.arg(all_statuses)::boolean OR o.status = ANY(sqlc.arg(statuses)::text[]))
   AND  (sqlc.arg(all_payment)::boolean OR o.payment_status = ANY(sqlc.arg(payment_statuses)::text[]));
 
@@ -53,10 +55,10 @@ WHERE  TRUE
 SELECT * FROM orders o
 WHERE  o.channel_id = ANY(sqlc.arg(channel_ids)::uuid[])
   AND  (sqlc.arg(search)::text = '' OR
-        o.number ILIKE '%' || sqlc.arg(search)::text || '%' OR
-        o.email ILIKE '%' || sqlc.arg(search)::text || '%' OR
-        o.shipping_last_name ILIKE '%' || sqlc.arg(search)::text || '%' OR
-        o.billing_last_name ILIKE '%' || sqlc.arg(search)::text || '%')
+        o.number ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%' OR
+        o.email ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%' OR
+        o.shipping_last_name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%' OR
+        o.billing_last_name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%')
   AND  (sqlc.arg(all_statuses)::boolean OR o.status = ANY(sqlc.arg(statuses)::text[]))
   AND  (sqlc.arg(all_payment)::boolean OR o.payment_status = ANY(sqlc.arg(payment_statuses)::text[]))
 ORDER  BY o.created_at DESC
@@ -66,10 +68,10 @@ LIMIT  sqlc.arg(lim) OFFSET sqlc.arg(off);
 SELECT COUNT(*) FROM orders o
 WHERE  o.channel_id = ANY(sqlc.arg(channel_ids)::uuid[])
   AND  (sqlc.arg(search)::text = '' OR
-        o.number ILIKE '%' || sqlc.arg(search)::text || '%' OR
-        o.email ILIKE '%' || sqlc.arg(search)::text || '%' OR
-        o.shipping_last_name ILIKE '%' || sqlc.arg(search)::text || '%' OR
-        o.billing_last_name ILIKE '%' || sqlc.arg(search)::text || '%')
+        o.number ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%' OR
+        o.email ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%' OR
+        o.shipping_last_name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%' OR
+        o.billing_last_name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%')
   AND  (sqlc.arg(all_statuses)::boolean OR o.status = ANY(sqlc.arg(statuses)::text[]))
   AND  (sqlc.arg(all_payment)::boolean OR o.payment_status = ANY(sqlc.arg(payment_statuses)::text[]));
 
@@ -183,11 +185,21 @@ RETURNING *;
 SELECT * FROM order_lines WHERE order_id = $1 AND removed_at IS NULL;
 
 -- name: UpdateOrderLineQuantity :one
--- Edit a line's quantity + recomputed line total - guarded to active lines
-UPDATE order_lines
-SET    quantity = $2, total_price = $3
-WHERE  id = $1 AND removed_at IS NULL
-RETURNING *;
+-- Edit a line's quantity + recomputed line total - guarded to active lines. Component rows hold line totals, so a kit
+-- line's items rescale by new/old in the same statement (a bundle line's quantity can't be edited)
+WITH old AS (
+    SELECT ol.id, ol.quantity FROM order_lines ol WHERE ol.id = sqlc.arg(id) AND ol.removed_at IS NULL FOR UPDATE
+), scaled AS (
+    UPDATE order_line_components c
+    SET quantity = ROUND(c.quantity * sqlc.arg(quantity)::numeric / old.quantity, 4)
+    FROM old
+    WHERE c.order_line_id = old.id
+)
+UPDATE order_lines l
+SET    quantity = sqlc.arg(quantity)::numeric, total_price = sqlc.arg(total_price)::bigint
+FROM   old
+WHERE  l.id = old.id
+RETURNING l.*;
 
 -- name: SoftDeleteOrderLine :one
 -- Remove a line from an order without deleting the row (preserves

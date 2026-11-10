@@ -135,7 +135,13 @@ func TestCartOfferMoneyPath(t *testing.T) {
 			t.Fatalf("%s: %v", step, errs)
 		}
 	}
-	data, errs = h.gqlPost(t, ts, chID, fmt.Sprintf(`mutation { placeOrder(cartId: %q, acceptTerms: true) { id total } }`, offerID), link)
+	// Placed by someone else signed in on the browser, who ticks the email opt-in - it must not land under the recipient's address
+	viewer, err := h.D.Customer.Register(h.Ctx, f.Channel.ID, "viewer-"+uuid.NewString()[:8]+"@e2e.test", "password123", "", "", nil)
+	if err != nil {
+		t.Fatalf("register viewer: %v", err)
+	}
+	signedIn := map[string]string{cart.OfferLinkHeader: offer.Offer.LinkToken, "Authorization": "Bearer " + h.customerToken(t, viewer.ID, f.Channel.ID, viewer.Email)}
+	data, errs = h.gqlPost(t, ts, chID, fmt.Sprintf(`mutation { placeOrder(cartId: %q, acceptTerms: true, marketingOptIn: true) { id total } }`, offerID), signedIn)
 	if len(errs) > 0 {
 		t.Fatalf("placeOrder: %v", errs)
 	}
@@ -143,6 +149,11 @@ func TestCartOfferMoneyPath(t *testing.T) {
 	o, err := h.D.Order.GetByID(h.Ctx, orderID)
 	if err != nil {
 		t.Fatalf("order: %v", err)
+	}
+	h.Settle(t)
+	var optIns int
+	if err := h.D.DB.QueryRowContext(h.Ctx, `SELECT count(*) FROM email_opt_ins WHERE email = $1`, recipient).Scan(&optIns); err != nil || optIns != 0 {
+		t.Fatalf("email opt-ins under the recipient = %d (%v), want 0 - the tick was the signed-in viewer's", optIns, err)
 	}
 	// 8000 goods + 500 shipping, 10% tax on both - the custom line has no class of its own and matches the every-product rule
 	if o.SubtotalAmount != 8000 || o.TaxAmount != 850 || o.TotalAmount != 9350 || o.Email != recipient || o.CustomerID != nil {

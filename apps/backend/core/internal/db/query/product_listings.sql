@@ -24,6 +24,15 @@ SET is_published = EXCLUDED.is_published,
     updated_at   = NOW()
 RETURNING *;
 
+-- name: SetProductChannelListingBundlePricing :one
+-- Its own statement so the listing upsert, which every listing form drives, never resets a bundle's pricing
+UPDATE catalog_product_channel_listings
+SET bundle_pricing          = sqlc.arg(bundle_pricing),
+    bundle_discount_percent = sqlc.arg(bundle_discount_percent),
+    updated_at              = NOW()
+WHERE product_id = sqlc.arg(product_id) AND channel_id = sqlc.arg(channel_id)
+RETURNING *;
+
 -- name: GetProductChannelListing :one
 SELECT * FROM catalog_product_channel_listings
 WHERE product_id = $1 AND channel_id = $2;
@@ -70,3 +79,37 @@ WHERE l.product_id = sqlc.arg(product_id)
 SELECT channel_id, COUNT(*)::bigint AS listings
 FROM catalog_product_channel_listings
 GROUP BY channel_id;
+
+-- name: ListSaleCandidates :many
+-- Products published on a store that sell below their strike-through right now - a compare-at above the price, or a special inside its window - deepest cut first, so the cap keeps the biggest sales. The columns come back raw, and catalog.SaleProductIDs re-prices each with pricing.Resolve, which stays the rule the storefront shows. Variants are left to their parent, whose card carries no strike-through of theirs
+WITH priced AS (
+  SELECT p.id,
+         p.default_price, p.compare_at_price, p.special_price, p.special_from, p.special_to,
+         l.price AS listing_price, l.compare_at_price AS listing_compare_at, l.special_price AS listing_special,
+         l.special_from AS listing_special_from, l.special_to AS listing_special_to,
+         COALESCE(l.price, p.default_price) AS base,
+         COALESCE(l.compare_at_price, p.compare_at_price) AS compare_at,
+         CASE WHEN l.special_price IS NOT NULL THEN l.special_price ELSE p.special_price END AS special,
+         CASE WHEN l.special_price IS NOT NULL THEN l.special_from ELSE p.special_from END AS special_starts,
+         CASE WHEN l.special_price IS NOT NULL THEN l.special_to ELSE p.special_to END AS special_ends
+  FROM catalog_product_channel_listings l
+  JOIN catalog_products p ON p.id = l.product_id
+  WHERE l.channel_id = sqlc.arg(channel_id) AND l.is_published
+    AND (l.compare_at_price IS NOT NULL OR l.special_price IS NOT NULL OR p.compare_at_price IS NOT NULL OR p.special_price IS NOT NULL)
+    AND NOT EXISTS (SELECT 1 FROM catalog_product_children c WHERE c.child_id = p.id)
+), selling AS (
+  SELECT priced.*,
+         CASE WHEN special < base AND (special_starts IS NULL OR special_starts <= now()) AND (special_ends IS NULL OR special_ends > now())
+              THEN special ELSE base END AS price
+  FROM priced
+), struck AS (
+  SELECT selling.*,
+         CASE WHEN compare_at > price THEN compare_at WHEN price < base THEN base END AS strike
+  FROM selling
+)
+SELECT id, default_price, compare_at_price, special_price, special_from, special_to,
+       listing_price, listing_compare_at, listing_special, listing_special_from, listing_special_to
+FROM struck
+WHERE strike > price
+ORDER BY (strike - price)::float8 / strike DESC, strike - price DESC, id
+LIMIT sqlc.arg(lim);

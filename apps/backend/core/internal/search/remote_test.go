@@ -59,9 +59,9 @@ func TestRemoteBrowse(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	cat := uuid.New()
+	cat, child := uuid.New(), uuid.New()
 	res, ok := searchSource(t, srv.URL).Browse(context.Background(), uuid.New(), "en", "",
-		BrowseFilter{CategoryID: &cat, AttributeIn: []AttributeIn{{Slug: "color", Values: []string{"red"}}}}, "featured", 24, 0)
+		BrowseFilter{CategoryID: &cat, CategoryIDs: []uuid.UUID{cat, child}, AttributeIn: []AttributeIn{{Slug: "color", Values: []string{"red"}}}}, "featured", 24, 0)
 	if !ok || res.Total != 1 || len(res.IDs) != 1 || res.IDs[0] != pid {
 		t.Fatalf("browse result wrong: ok=%v %+v", ok, res)
 	}
@@ -74,6 +74,10 @@ func TestRemoteBrowse(t *testing.T) {
 	// the filter round-tripped to the provider
 	if gotFilter.CategoryID != cat.String() || len(gotFilter.AttributeIn) != 1 || gotFilter.AttributeIn[0].Slug != "color" {
 		t.Fatalf("filter not sent: %+v", gotFilter)
+	}
+	// an anchor's tree goes along, so a provider can list what's beneath the page too
+	if len(gotFilter.CategoryIDs) != 2 || gotFilter.CategoryIDs[0] != cat.String() || gotFilter.CategoryIDs[1] != child.String() {
+		t.Fatalf("category tree not sent: %+v", gotFilter.CategoryIDs)
 	}
 }
 

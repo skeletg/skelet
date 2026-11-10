@@ -14,6 +14,7 @@ type fakeAudience struct {
 	optedIn  map[uuid.UUID]bool
 	asked    []uuid.UUID
 	pages    int
+	locales  map[uuid.UUID]string
 }
 
 // Pages the way the roster query does - by customer id after the cursor
@@ -36,6 +37,10 @@ func (f *fakeAudience) Get(context.Context, uuid.UUID) (Contact, bool, error) {
 func (f *fakeAudience) OptedInByIDs(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]bool, error) {
 	f.asked = append(f.asked, ids...)
 	return f.optedIn, nil
+}
+
+func (f *fakeAudience) LocalesByIDs(context.Context, []uuid.UUID) (map[uuid.UUID]string, error) {
+	return f.locales, nil
 }
 
 func collectAudience(s *Service, ch uuid.UUID, kind string, id *uuid.UUID) ([]candidate, error) {

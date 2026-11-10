@@ -5,12 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	"log"
 	"reflect"
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -19,7 +19,9 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/internal/locale"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	shippingpkg "github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
@@ -96,6 +98,8 @@ type Service struct {
 // A kit SKU's per-unit components, nil for anything that isn't a kit
 type KitComponentLookup interface {
 	KitComponentsBySKU(ctx context.Context, sku string) ([]cart.CartLineStockPart, error)
+	// The same recipe as items to show on the order and return one at a time - quantities per kit unit, Returnable the kit's setting now, nil for anything that isn't a kit
+	KitItemsBySKU(ctx context.Context, sku string) ([]OrderLineComponent, error)
 }
 
 // Loads a channel for the edit recompute (tax-inclusive, currency) so order doesn't import channel directly
@@ -336,6 +340,8 @@ type PlaceOrderInput struct {
 	Shipments []ShipmentInput
 	// none, physical or mixed - a none order takes no shipping address and pays no shipping, and tax follows the billing address
 	FulfillmentNeed string
+	// The shopper ticked the email opt-in at checkout - only a guest's rides the order, a signed-in shopper's goes straight to their consent
+	MarketingOptIn bool
 }
 
 // Redeems a gift card as a tender in the placement tx, where applied is the cents covered - local so order doesn't import giftcard, which imports order
@@ -382,6 +388,7 @@ type PaymentAuthorizer interface {
 // Converts a cart into a confirmed order, authenticated or guest, where guests pass inline addresses and an explicit cart id
 // The whole create, add-lines, emit and convert-cart sequence is one transaction so a failure leaves no partial state - Plugins hook order.placing (sync, pre-commit, can abort or enrich) and order.placed (async, post-commit), both carrying a nil-able CustomerID
 func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, error) {
+	in.MarketingOptIn = in.MarketingOptIn && in.CustomerID == nil // the guest tick only - an account keeps its own consent
 	// resolveCheckout owns all the input validation and resolution
 	cc, err := s.resolveCheckout(ctx, in, false)
 	if err != nil {
@@ -489,10 +496,9 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 	if ranEngine {
 		placing.DiscountCents += evalResult.Ledger.SubtotalDiscountCents()
 	}
+	shopper, visitor := placedBy(ctx)
 	var orderID uuid.UUID
-	var orderNumber string
-	var orderTotal int64
-	var orderCurrency string
+	var placedEvent *OrderPlaced
 	err = s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
 		// The sync chain joins the placement tx via placing.Tx - webhooks here hold the tx open across their round-trip, so keep them fast
 		placing.Tx = sqlTx
@@ -586,7 +592,11 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			ShippingMethodID:    shipSel.MethodID,
 			ShippingCarrierSlug: ptr.NonZero(shipSel.CarrierSlug),
 			ShippingMethodCode:  ptr.NonZero(shipSel.MethodCode),
-			AnonID:              auth.AnonID(ctx),
+			AnonID:              visitor,
+			Locale:              locale.FromContext(ctx),
+			TaxInclusive:        store.TaxInclusivePricing,
+			AssistedBy:          cartObj.AssistedCredit(time.Now()),
+			Shopper:             shopper,
 		})
 		if err != nil {
 			return fmt.Errorf("create order: %w", err)
@@ -673,26 +683,19 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 				return fmt.Errorf("link offer to order: %w", err)
 			}
 		}
+		placedEvent = &OrderPlaced{
+			OrderID: order.ID, OrderNumber: order.Number, CustomerID: in.CustomerID, Email: in.Email, AnonID: visitor,
+			AssistedBy: order.AssistedBy, AssistTrace: assistTrace(order.AssistedBy, cartObj),
+			ChannelID: store.ID, TotalCents: order.TotalAmount, Currency: order.CurrencyCode, Tags: placing.Tags,
+			MarketingOptIn: in.MarketingOptIn,
+		}
 		// Durable dispatch - OrderPlaced commits with the order and is relayed after commit, so a crash can't lose it
 		if s.outbox != nil {
-			if err := s.outbox.Enqueue(ctx, sqlTx, &OrderPlaced{
-				OrderID:     order.ID,
-				OrderNumber: order.Number,
-				CustomerID:  in.CustomerID,
-				Email:       in.Email,
-				AnonID:      auth.AnonID(ctx),
-				ChannelID:   store.ID,
-				TotalCents:  order.TotalAmount,
-				Currency:    order.CurrencyCode,
-				Tags:        placing.Tags,
-			}); err != nil {
+			if err := s.outbox.Enqueue(ctx, sqlTx, placedEvent); err != nil {
 				return fmt.Errorf("enqueue order.placed: %w", err)
 			}
 		}
 		orderID = order.ID
-		orderNumber = order.Number
-		orderTotal = order.TotalAmount
-		orderCurrency = order.CurrencyCode
 		return nil
 	})
 	if err != nil {
@@ -701,17 +704,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 
 	// Fire-and-forget fallback when there's no outbox
 	if s.outbox == nil && s.bus != nil {
-		s.bus.Publish(ctx, &OrderPlaced{
-			OrderID:     orderID,
-			OrderNumber: orderNumber,
-			CustomerID:  in.CustomerID,
-			Email:       in.Email,
-			AnonID:      auth.AnonID(ctx),
-			ChannelID:   store.ID,
-			TotalCents:  orderTotal,
-			Currency:    orderCurrency,
-			Tags:        placing.Tags,
-		})
+		s.bus.Publish(ctx, placedEvent)
 	}
 
 	placed, err := s.repo.GetOrderByID(ctx, orderID)
@@ -739,9 +732,10 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 
 	// Authorize the amount owed, best-effort post-commit since a gateway failure can't roll the order back - so it logs and emits events rather than returning fatally
 	// A 3DS step hands back the client secret, carried on the placement response only
-	outcome := s.authorizePostPlacement(ctx, in, placed)
+	outcome, failed := s.authorizePostPlacement(ctx, in, placed)
 	placed.PaymentActionKind = outcome.ActionKind
 	placed.PaymentActionSecret = outcome.ActionValue
+	placed.PaymentFailed = failed
 
 	return placed, nil
 }
@@ -1120,4 +1114,22 @@ func normalizeOrderAddress(rules phone.Rules, a OrderAddress, slot string) (Orde
 		return OrderAddress{}, fmt.Errorf("%s address: %w", slot, err)
 	}
 	return a, nil
+}
+
+// Only the assistant's credit has a turn to score - an agent's handoff or a stale credit leaves nothing to send
+func assistTrace(credit string, c cart.Cart) string {
+	if credit != cart.AssistedAssistant {
+		return ""
+	}
+	return c.AssistTrace
+}
+
+// placedBy is who placed an order, read once: the shop's visitor and their id only as far as their consent allows -
+// else, for an admin or an API client with no banner, no snapshot and the id it sent - so the order's column and its
+// snapshot can't disagree
+func placedBy(ctx context.Context) (*auth.Shopper, string) {
+	if s := auth.ShopperFromContext(ctx); s != nil {
+		return s, s.AnonID
+	}
+	return nil, auth.AnonID(ctx)
 }

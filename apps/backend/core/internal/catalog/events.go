@@ -34,6 +34,7 @@ const (
 	EventAttributeDeleted = "attribute.deleted"
 
 	EventProductTypeURLTemplateChanged = "product_type.url_template.changed"
+	EventProductTypeRenamed            = "product_type.renamed"
 	EventAttributeValueSlugChanged     = "attribute.value.slug.changed"
 )
 
@@ -247,6 +248,12 @@ type ProductTypeURLTemplateChanged struct {
 }
 
 func (*ProductTypeURLTemplateChanged) Type() string { return EventProductTypeURLTemplateChanged }
+
+type ProductTypeRenamed struct {
+	ProductTypeID uuid.UUID
+}
+
+func (*ProductTypeRenamed) Type() string { return EventProductTypeRenamed }
 
 type AttributeValueSlugChanged struct {
 	AttributeID uuid.UUID

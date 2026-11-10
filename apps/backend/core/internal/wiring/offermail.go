@@ -37,10 +37,11 @@ type offerMessage struct {
 func (o OfferMail) compose(ctx context.Context, m graphadmin.OfferMail) offerMessage {
 	c := m.Cart
 	out := offerMessage{data: email.CartOfferEmailData{
-		StoreName: ordermail.StoreName(ctx, o.cfg, *m.Channel),
-		Link:      m.Link,
-		Message:   c.Offer.Message,
-		ExpiresAt: c.Offer.ExpiresAt.Format("2 January 2006, 15:04 MST"),
+		StoreName:   ordermail.StoreName(ctx, o.cfg, *m.Channel),
+		Link:        m.Link,
+		Message:     c.Offer.Message,
+		ExpiresAt:   c.Offer.ExpiresAt.Format("2 January 2006, 15:04 MST"),
+		TaxIncluded: m.Channel.TaxInclusivePricing,
 	}}
 	if c.CustomerID != nil {
 		out.customerID = *c.CustomerID

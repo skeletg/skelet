@@ -126,7 +126,6 @@ var channelOwned = []struct {
 	{"email_library", `INSERT INTO email_library (channel_id, name) VALUES ($1, 'Test')`},
 	{"email_blocks", `INSERT INTO email_blocks (channel_id, slug) VALUES ($1, 'test-block')`},
 	{"email_templates", `INSERT INTO email_templates (channel_id, key) VALUES ($1, 'order_confirmation')`},
-	{"event_destinations", `INSERT INTO event_destinations (channel_id, name, target_url) VALUES ($1, 'Test', 'https://hooks.example.test')`},
 	{"experiments", `INSERT INTO experiments (channel_id, key, name) VALUES ($1, 'test', 'Test')`},
 	{"config_values", `INSERT INTO config_values (scope, channel_id, path, value) VALUES ('channel', $1, 'signals/test/key', '1')`},
 	{"lens_sessions", `INSERT INTO lens_sessions (id, channel_id, anon_id, started_at, last_event_at) VALUES (gen_random_uuid(), $1, 'a', now(), now())`},

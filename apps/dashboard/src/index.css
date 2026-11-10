@@ -408,8 +408,14 @@ body[data-sidebar-resizing="true"] [data-slot="sidebar-container"] {
     }
   html {
     @apply font-sans;
-    scrollbar-width: thin;
-    scrollbar-color: color-mix(in oklch, var(--muted-foreground) 40%, transparent) transparent;
+    }
+  /* Firefox has no WebKit scrollbar styling, so it gets the standard thin bar. Kept away from Chrome on purpose:
+     there, setting scrollbar-width or scrollbar-color switches the WebKit rules below off, arrows included */
+  @supports not selector(::-webkit-scrollbar) {
+    html {
+      scrollbar-width: thin;
+      scrollbar-color: color-mix(in oklch, var(--muted-foreground) 40%, transparent) transparent;
+      }
     }
 
   /* Global scrollbars: style the native (page / dialog / <select> / plain
@@ -418,15 +424,15 @@ body[data-sidebar-resizing="true"] [data-slot="sidebar-container"] {
      actually removes the arrows everywhere; .scrollbar-accent still overrides
      the thumb color where it's applied. */
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 6px;
+    height: 6px;
     }
   ::-webkit-scrollbar-track {
     background: transparent;
     }
   ::-webkit-scrollbar-thumb {
     background-color: color-mix(in oklch, var(--muted-foreground) 35%, transparent);
-    border: 2px solid transparent;
+    border: 1px solid transparent;
     background-clip: padding-box;
     border-radius: 9999px;
     }
@@ -709,19 +715,21 @@ body[data-sidebar-resizing="true"] [data-slot="sidebar-container"] {
 }
 
 @utility scrollbar-accent {
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklch, var(--primary) 55%, transparent) transparent;
+  @supports not selector(::-webkit-scrollbar) {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--primary) 55%, transparent) transparent;
+  }
 
   &::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 6px;
+    height: 6px;
   }
   &::-webkit-scrollbar-track {
     background: transparent;
   }
   &::-webkit-scrollbar-thumb {
     background-color: color-mix(in oklch, var(--primary) 50%, transparent);
-    border: 2px solid transparent;
+    border: 1px solid transparent;
     background-clip: padding-box;
     border-radius: 9999px;
   }
@@ -749,4 +757,48 @@ body[data-sidebar-resizing="true"] [data-slot="sidebar-container"] {
     width: 0;
     height: 0;
   }
+}
+
+/* Agentic Commerce - the assistant's presence: a glowing core in pulsing petals of Skelet red. The brand red
+   is fixed rather than the theme's primary, which is near-black in the default palette */
+.aurora-stage,
+.presence,
+.aurora-caret {
+  --skelet-red: oklch(0.62 0.24 25);
+}
+.aurora-stage {
+  background-image:
+    radial-gradient(42rem 22rem at 0% 0%, color-mix(in oklch, var(--skelet-red) 9%, transparent), transparent 70%),
+    radial-gradient(36rem 20rem at 100% 100%, oklch(0.72 0.16 45 / 0.08), transparent 70%);
+}
+.presence__halo {
+  position: absolute;
+  inset: -15%;
+  border-radius: 9999px;
+  background: radial-gradient(circle, color-mix(in oklch, var(--skelet-red) 70%, transparent), oklch(0.66 0.26 0 / 0.35) 45%, transparent 70%);
+  filter: blur(12px);
+  opacity: 0.16;
+}
+.presence__voice {
+  position: absolute;
+  inset: -30%;
+  width: 160%;
+  height: 160%;
+  pointer-events: none;
+}
+.aurora-caret {
+  display: inline-block;
+  width: 0.5ch;
+  height: 1.05em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: var(--skelet-red);
+  border-radius: 1px;
+  animation: aurora-caret-blink 0.9s steps(1) infinite;
+}
+@keyframes aurora-caret-blink {
+  50% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aurora-caret { animation: none; }
 }

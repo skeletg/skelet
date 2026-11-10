@@ -79,6 +79,25 @@ func (q *Queries) DSARDownloadGrants(ctx context.Context, arg DSARDownloadGrants
 	return doc, err
 }
 
+const dSAREmailOptIns = `-- name: DSAREmailOptIns :one
+SELECT COALESCE(jsonb_agg(jsonb_build_object(
+         'kind', o.kind, 'source', o.source, 'reference', o.reference, 'createdAt', o.created_at) ORDER BY o.created_at, o.kind), '[]')::jsonb AS doc
+FROM   email_opt_ins o
+WHERE  $1::text <> '' AND o.channel_id = $2 AND o.email = $1::text
+`
+
+type DSAREmailOptInsParams struct {
+	Email     string    `json:"email"`
+	ChannelID uuid.UUID `json:"channel_id"`
+}
+
+func (q *Queries) DSAREmailOptIns(ctx context.Context, arg DSAREmailOptInsParams) (json.RawMessage, error) {
+	row := q.db.QueryRowContext(ctx, dSAREmailOptIns, arg.Email, arg.ChannelID)
+	var doc json.RawMessage
+	err := row.Scan(&doc)
+	return doc, err
+}
+
 const dSARGiftCards = `-- name: DSARGiftCards :one
 SELECT COALESCE(jsonb_agg(jsonb_build_object(
          'id', id, 'codeLast4', right(code, 4), 'currency', currency_code, 'initialBalance', initial_balance,

@@ -22,7 +22,7 @@ import {
 } from './schemas/channelIdentity'
 
 // IdentityEditor handles the per-channel identity columns that didn't fit the config registry model:
-// name, currency code, public URL, and the is_active toggle - Slug and default locale are
+// name, currency code, public URL, the is_active toggle and whether prices include tax - Slug and default locale are
 // intentionally missing - slug is immutable post-create; default locale lives next to the
 // supported-locales picker in LocalesEditor
 //
@@ -104,7 +104,7 @@ function IdentityForm({ channel }: { channel: NonNullable<ChannelQuery['channel'
 
   return (
     <DetailPageSection
-      description={`Name, currency, URL, and active state for "${channel.name}". Slug (${channel.slug}) is immutable. Apply edits via the header Save button.`}
+      description={`Name, currency, URL, tax-inclusive pricing and active state for "${channel.name}". Slug (${channel.slug}) is immutable. Apply edits via the header Save button.`}
     >
       <fieldset disabled={!canEdit} className="grid gap-4">
         <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
@@ -150,6 +150,17 @@ function IdentityForm({ channel }: { channel: NonNullable<ChannelQuery['channel'
               id="identity-active"
               label="Active"
               description="Inactive channels remain readable but the storefront filters them out of channel-switcher dropdowns."
+              disabled={!canEdit}
+            />
+          )}
+        </form.AppField>
+
+        <form.AppField name="taxInclusivePricing">
+          {(f) => (
+            <f.SwitchField
+              id="identity-tax-inclusive"
+              label="Prices include tax"
+              description="On: the prices you enter already contain tax, and checkout splits it out (typical for EU retail). Off: tax is added on top at checkout. Orders already placed keep the way they were priced, but carts still open reprice at once. Changing it takes settings.manage."
               disabled={!canEdit}
             />
           )}

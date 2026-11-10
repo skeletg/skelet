@@ -18,12 +18,29 @@ const maxResultWindow = 10000
 
 // All fields optional - zero-valued ones are dropped from the query, and the caller clamps limit/offset
 type BrowseFilter struct {
-	CategoryID    *uuid.UUID
+	CategoryID *uuid.UUID
+	// The category and, under an anchor, the published ones beneath it - a product in any of them matches. Empty: CategoryID alone
+	CategoryIDs   []uuid.UUID
 	CollectionID  *uuid.UUID
 	AttributeIn   []AttributeIn // one entry per attribute slug with OR'd values
 	PriceMinCents *int64
 	PriceMaxCents *int64
 	Kinds         []string // e.g. ["SIMPLE", "BUNDLE"] - empty = all
+	ProductIDs    []uuid.UUID
+	// InStockOnly keeps what's in stock where the engine knows stock, and is ignored where it doesn't
+	InStockOnly bool
+	NoFacets    bool
+}
+
+// The categories a product may sit in to match, nil when the filter names none
+func (f BrowseFilter) CategorySet() []uuid.UUID {
+	if len(f.CategoryIDs) > 0 {
+		return f.CategoryIDs
+	}
+	if f.CategoryID != nil {
+		return []uuid.UUID{*f.CategoryID}
+	}
+	return nil
 }
 
 // "attr_<slug>.keyword IN (values…)" - entries AND together, values inside one entry OR together
@@ -60,9 +77,11 @@ type FacetGroup struct {
 
 // Product hydration happens at the GraphQL resolver - returning ids keeps this package decoupled from catalog.Service for reads
 type BrowseResult struct {
-	IDs    []uuid.UUID
-	Total  int64
-	Facets []FacetGroup
+	IDs     []uuid.UUID
+	Total   int64
+	Facets  []FacetGroup
+	Rescued bool
+	Meaning bool // listed by meaning - a sentence, or a rescue
 }
 
 // ApplyFacetOverrides applies one category's filter-presentation rows to a browse result: hidden facets drop, pinned facets sort by their override position ahead of every unpinned one, and unpinned facets keep their incoming relative order. Applied at the resolver seam so every engine tier (OpenSearch, Postgres, remote) gets the same treatment
@@ -128,7 +147,8 @@ func (i *ProductIndexer) BrowseProducts(
 	query = strings.TrimSpace(query)
 
 	// An external engine answers faceted browse when configured, failing open to OpenSearch below - the front resolver enriches its result exactly as it does the native one
-	if i.remoteSearch != nil {
+	// not a narrowed listing though - the provider contract has no way to carry it
+	if i.remoteSearch != nil && len(filter.ProductIDs) == 0 {
 		if res, ok := i.remoteSearch.Browse(ctx, channelID, locale, query, filter, sortSlug, limit, offset); ok {
 			return res, nil
 		}
@@ -158,17 +178,29 @@ func (i *ProductIndexer) BrowseProducts(
 		map[string]any{"term": map[string]any{"is_published": true}},
 	}
 	// "hide" drops out-of-stock from results AND facet counts - it goes in the base filter so the main query and the per-facet aggs stay consistent
-	if oos == oosHide {
+	if oos == oosHide || filter.InStockOnly {
 		storeLocaleFilter = append(storeLocaleFilter, map[string]any{"term": map[string]any{"is_in_stock": true}})
+	}
+	// in the base filter like the stock gate, so the facets count only the narrowed set
+	if len(filter.ProductIDs) > 0 {
+		ids := make([]string, len(filter.ProductIDs))
+		for n, id := range filter.ProductIDs {
+			ids[n] = id.String()
+		}
+		storeLocaleFilter = append(storeLocaleFilter, map[string]any{"terms": map[string]any{"product_id": ids}})
 	}
 
 	// Each clause is tagged with the attribute slug it belongs to (or _category / _collection / _price / _kind) - per-facet aggs exclude the matching tag
 	clauses := make([]taggedFilter, 0)
 
-	if filter.CategoryID != nil {
+	if cats := filter.CategorySet(); len(cats) > 0 {
+		ids := make([]string, len(cats))
+		for i, id := range cats {
+			ids[i] = id.String()
+		}
 		clauses = append(clauses, taggedFilter{
 			tag:    "_category",
-			clause: map[string]any{"term": map[string]any{"category_ids": filter.CategoryID.String()}},
+			clause: map[string]any{"terms": map[string]any{"category_ids": ids}},
 		})
 	}
 	if filter.CollectionID != nil {
@@ -274,12 +306,14 @@ func (i *ProductIndexer) BrowseProducts(
 		// a filter-only browse has a constant score, so they'd be noise
 		"query": browseScoredQuery(ctx, i.cfg, map[string]any{"bool": boolBody}, query, merchBoosts),
 		"sort":  browseSortClause(oos, buildOSSortClause(browseSortOption(ctx, i.cfg, sortSlug, query))),
-		"aggs": map[string]any{
+	}
+	if !filter.NoFacets {
+		body["aggs"] = map[string]any{
 			"facets_global": map[string]any{
 				"global": map[string]any{},
 				"aggs":   buildFacetAggregations(filterable, facetBase, clauses, facetMax),
 			},
-		},
+		}
 	}
 
 	rawResp, err := i.client.SearchRawRouted(ctx, ProductIndex, i.routing(channelID), body)

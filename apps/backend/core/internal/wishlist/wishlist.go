@@ -12,10 +12,12 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
 const (
@@ -27,6 +29,8 @@ const (
 type ItemAdded struct {
 	CustomerID uuid.UUID
 	ProductID  uuid.UUID
+	ChannelID  uuid.UUID     // the shop it was saved on, nil outside a storefront request
+	Shopper    *auth.Shopper // the visitor as their consent stood, nil for a caller with no banner
 }
 
 func (*ItemAdded) Type() string { return EventItemAdded }
@@ -34,6 +38,8 @@ func (*ItemAdded) Type() string { return EventItemAdded }
 type ItemRemoved struct {
 	CustomerID uuid.UUID
 	ProductID  uuid.UUID
+	ChannelID  uuid.UUID     // the shop it was removed on, nil outside a storefront request
+	Shopper    *auth.Shopper // the visitor as their consent stood, nil for a caller with no banner
 }
 
 func (*ItemRemoved) Type() string { return EventItemRemoved }
@@ -79,7 +85,7 @@ func (s *Service) Add(ctx context.Context, customerID, productID uuid.UUID) erro
 			return ErrFull
 		}
 	}
-	s.publish(ctx, &ItemAdded{CustomerID: customerID, ProductID: productID})
+	s.publish(ctx, &ItemAdded{CustomerID: customerID, ProductID: productID, ChannelID: channel.IDFromContext(ctx), Shopper: auth.ShopperFromContext(ctx)})
 	return nil
 }
 
@@ -87,7 +93,7 @@ func (s *Service) Remove(ctx context.Context, customerID, productID uuid.UUID) e
 	if err := s.queries.RemoveWishlistItem(ctx, db.RemoveWishlistItemParams{CustomerID: customerID, ProductID: productID}); err != nil {
 		return fmt.Errorf("remove wishlist item: %w", err)
 	}
-	s.publish(ctx, &ItemRemoved{CustomerID: customerID, ProductID: productID})
+	s.publish(ctx, &ItemRemoved{CustomerID: customerID, ProductID: productID, ChannelID: channel.IDFromContext(ctx), Shopper: auth.ShopperFromContext(ctx)})
 	return nil
 }
 

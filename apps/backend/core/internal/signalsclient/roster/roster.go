@@ -40,7 +40,7 @@ func Register(bus *events.Bus, q *db.Queries, client *signalsclient.Client, jobs
 		}
 		behind, err := client.UpsertRosterCustomer(ctx, signalsclient.RosterCustomer{
 			CustomerID: row.CustomerID, ChannelID: row.ChannelID, Email: row.Email,
-			FirstName: row.FirstName, Phone: row.Phone, IsActive: row.IsActive,
+			FirstName: row.FirstName, Phone: row.Phone, IsActive: row.IsActive, Locale: row.Locale,
 			GroupID:          uuid.NullUUID{UUID: row.CustomerGroupID, Valid: row.CustomerGroupID != uuid.Nil},
 			GroupSlug:        row.CustomerGroupSlug,
 			Consents:         signalsclient.ConsentsFromJSON(row.Consents),

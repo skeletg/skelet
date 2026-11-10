@@ -200,19 +200,6 @@ func (s *Service) DeleteLibraryEmail(ctx context.Context, id uuid.UUID) error {
 	return s.repo.DeleteLibraryEmail(ctx, id)
 }
 
-// RenderLibraryEmail loads a library email + renders it with the caller's merge vars - the shared render path for flow
-// send-email nodes and campaigns that reference a library email
-func (s *Service) RenderLibraryEmail(ctx context.Context, emailID uuid.UUID, vars map[string]string) (subject, html, text string, err error) {
-	e, ok, err := s.repo.GetLibraryEmail(ctx, emailID)
-	if err != nil {
-		return "", "", "", err
-	}
-	if !ok {
-		return "", "", "", fmt.Errorf("library email %s not found", emailID)
-	}
-	return s.RenderContent(ctx, e.ChannelID, e.Subject, e.Preheader, e.Blocks, e.Styles, vars)
-}
-
 func validateLibraryEmail(s *Service, e LibraryEmail) error {
 	if strings.TrimSpace(e.Name) == "" {
 		return fmt.Errorf("email name is required")

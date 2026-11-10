@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
@@ -546,11 +547,12 @@ func (r *postgresRepository) SetReturnExchangeOrder(ctx context.Context, returnI
 
 func (r *postgresRepository) AddReturnLine(ctx context.Context, returnID uuid.UUID, line OrderReturnLine) (OrderReturnLine, error) {
 	row, err := r.queries.AddOrderReturnLine(ctx, db.AddOrderReturnLineParams{
-		ReturnID:        returnID,
-		OrderLineID:     line.OrderLineID,
-		Quantity:        line.Quantity,
-		Reason:          line.Reason,
-		RefundUnitCents: line.RefundUnitCents,
+		ReturnID:             returnID,
+		OrderLineID:          line.OrderLineID,
+		Quantity:             line.Quantity,
+		Reason:               line.Reason,
+		RefundUnitCents:      line.RefundUnitCents,
+		OrderLineComponentID: sqlnull.UUID(line.ComponentID),
 	})
 	if err != nil {
 		return OrderReturnLine{}, fmt.Errorf("add return line: %w", err)
@@ -727,7 +729,20 @@ func toOrderReturnLine(row db.OrderReturnLine) OrderReturnLine {
 		Quantity:        row.Quantity,
 		Reason:          row.Reason,
 		RefundUnitCents: row.RefundUnitCents,
+		ComponentID:     sqlnull.UUIDPtr(row.OrderLineComponentID),
 	}
+}
+
+func (r *postgresRepository) ReturnedByComponent(ctx context.Context, orderID uuid.UUID) (map[uuid.UUID]float64, error) {
+	rows, err := r.queries.SumReturnedQtyByComponent(ctx, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("sum returned by component: %w", err)
+	}
+	out := make(map[uuid.UUID]float64, len(rows))
+	for _, row := range rows {
+		out[row.ComponentID] = row.Returned
+	}
+	return out, nil
 }
 
 func (r *postgresRepository) CreateOrder(ctx context.Context, o Order) (Order, error) {
@@ -785,6 +800,10 @@ func (r *postgresRepository) CreateOrder(ctx context.Context, o Order) (Order, e
 		ShippingCarrierSlug: sqlnull.String(o.ShippingCarrierSlug),
 		ShippingMethodCode:  sqlnull.String(o.ShippingMethodCode),
 		AnonID:              o.AnonID,
+		AssistedBy:          o.AssistedBy,
+		Metadata:            orderMetadataJSON(o.Shopper),
+		Locale:              o.Locale,
+		TaxInclusive:        o.TaxInclusive,
 	})
 	if err != nil {
 		return Order{}, fmt.Errorf("create order: %w", err)
@@ -855,14 +874,15 @@ func (r *postgresRepository) AddOrderLine(ctx context.Context, line OrderLine) (
 func (r *postgresRepository) AddOrderLineComponent(ctx context.Context, c OrderLineComponent) (OrderLineComponent, error) {
 	row, err := r.queries.InsertOrderLineComponent(ctx, db.InsertOrderLineComponentParams{
 		OrderLineID:       c.OrderLineID,
-		BundleOptionID:    c.BundleOptionID,
-		BundleSelectionID: c.BundleSelectionID,
+		BundleOptionID:    uuid.NullUUID{UUID: c.BundleOptionID, Valid: c.BundleOptionID != uuid.Nil},
+		BundleSelectionID: uuid.NullUUID{UUID: c.BundleSelectionID, Valid: c.BundleSelectionID != uuid.Nil},
 		ProductID:         c.ProductID,
 		ProductSku:        c.ProductSku,
 		ProductName:       c.ProductName,
 		UnitPrice:         c.UnitPrice,
 		Quantity:          c.Quantity,
 		SortOrder:         c.SortOrder,
+		Returnable:        c.Returnable,
 	})
 	if err != nil {
 		return OrderLineComponent{}, fmt.Errorf("add order line component: %w", err)
@@ -1259,6 +1279,9 @@ func toOrder(row db.Order) Order {
 		ShippingTaxAmount: row.ShippingTaxAmount,
 		TotalAmount:       row.TotalAmount,
 		AnonID:            row.AnonID,
+		Locale:            row.Locale,
+		TaxInclusive:      row.TaxInclusive,
+		AssistedBy:        row.AssistedBy,
 		GiftCardAmount:    row.GiftCardAmount,
 		StoreCreditAmount: row.StoreCreditAmount,
 		CurrencyCode:      row.CurrencyCode,
@@ -1266,6 +1289,7 @@ func toOrder(row db.Order) Order {
 		PONumber:          row.PoNumber.String,
 		FulfillmentNeed:   row.FulfillmentNeed,
 		BusinessIDs:       decodeBusinessIDs(row.BusinessIds),
+		Shopper:           decodeShopper(row.Metadata),
 		Carrier:           row.Carrier,
 		TrackingNumber:    row.TrackingNumber,
 		CreatedAt:         row.CreatedAt,
@@ -1300,14 +1324,15 @@ func toOrderLineComponent(row db.OrderLineComponent) OrderLineComponent {
 	return OrderLineComponent{
 		ID:                row.ID,
 		OrderLineID:       row.OrderLineID,
-		BundleOptionID:    row.BundleOptionID,
-		BundleSelectionID: row.BundleSelectionID,
+		BundleOptionID:    row.BundleOptionID.UUID,
+		BundleSelectionID: row.BundleSelectionID.UUID,
 		ProductID:         row.ProductID,
 		ProductSku:        row.ProductSku,
 		ProductName:       row.ProductName,
 		UnitPrice:         row.UnitPrice,
 		Quantity:          row.Quantity,
 		SortOrder:         row.SortOrder,
+		Returnable:        row.Returnable,
 		CreatedAt:         row.CreatedAt,
 	}
 }
@@ -1421,6 +1446,25 @@ func businessIDsJSON(ids []BusinessID) json.RawMessage {
 	}
 	b, _ := json.Marshal(ids) // plain strings - can't fail
 	return b
+}
+
+func orderMetadataJSON(t *auth.Shopper) json.RawMessage {
+	if t == nil {
+		return json.RawMessage(`{}`)
+	}
+	b, _ := json.Marshal(map[string]*auth.Shopper{"tracking": t}) // strings and bools - can't fail
+	return b
+}
+
+// An undecodable snapshot reads as none - the order's events then go out as if no shop had placed it
+func decodeShopper(raw json.RawMessage) *auth.Shopper {
+	var m struct {
+		Tracking *auth.Shopper `json:"tracking"`
+	}
+	if json.Unmarshal(raw, &m) != nil {
+		return nil
+	}
+	return m.Tracking
 }
 
 // Only placement writes the column, so an undecodable one reads as none rather than failing the order

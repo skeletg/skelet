@@ -7,7 +7,8 @@ import { DASHBOARD_ORIGIN } from "@skelet/storefront-core/dashboard-origin";
 import { VIDEO_EMBED_ORIGINS } from "@skelet/storefront-core/video-embed";
 
 // App-layer security headers so the storefront ships a CSP even off the prod edge - static, so it caches across all paths, and no HSTS, which is the edge's concern
-// SYNC - narrower on purpose than core's securityheaders.go and the dashboard's nginx template: no gateway SDK runs here, so no host earns a slot
+// SYNC - narrower on purpose than core's securityheaders.go and the dashboard's nginx template: a gateway host gets a slot
+// only when PAYMENT_ORIGINS names it
 
 // Dev media is plain http on localhost which `https:` won't cover - prod media is https
 const imgSrc =
@@ -15,18 +16,31 @@ const imgSrc =
     ? "img-src 'self' data: blob: https:"
     : "img-src 'self' data: blob: https: http:";
 
+// A payment plugin's browser SDK loads its script, frames and API calls from the gateway - PAYMENT_ORIGINS names those
+// hosts at build, separated by spaces or commas, and nothing else gets in. Unset keeps the storefront same-origin.
+// Each has to be a bare https origin: a quote, semicolon or keyword would rewrite the policy itself
+const PAYMENT_ORIGINS = (process.env.PAYMENT_ORIGINS ?? "").split(/[\s,]+/).filter(Boolean);
+for (const origin of PAYMENT_ORIGINS) {
+  if (!/^https:\/\/(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)*(:\d+)?$/i.test(origin)) {
+    throw new Error(`PAYMENT_ORIGINS: "${origin}" isn't an https origin like https://js.stripe.com`);
+  }
+}
+
 // React's dev build evals for fast refresh and error overlays - a prod bundle never does, so it
 // doesn't get the slot
-const scriptSrc =
+const scriptSrc = [
   process.env.NODE_ENV === "production"
     ? "script-src 'self' 'unsafe-inline'"
-    : "script-src 'self' 'unsafe-inline' 'unsafe-eval'";
+    : "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  ...PAYMENT_ORIGINS,
+].join(" ");
 
 // Browser uploads go straight to object storage, a host of its own - UPLOAD_ORIGINS names it at build,
 // and dev adds the local Garage and API ports
 const connectSrc = [
   "connect-src 'self'",
   process.env.UPLOAD_ORIGINS?.trim(),
+  ...PAYMENT_ORIGINS,
   process.env.NODE_ENV === "production" ? "" : "http://localhost:*",
 ]
   .filter(Boolean)
@@ -47,10 +61,11 @@ const CSP_BASE = [
   imgSrc,
   "font-src 'self' data:",
   mediaSrc,
-  `frame-src ${VIDEO_EMBED_ORIGINS.join(" ")}`,
+  `frame-src ${[...VIDEO_EMBED_ORIGINS, ...PAYMENT_ORIGINS].join(" ")}`,
   connectSrc,
   "base-uri 'self'",
-  "form-action 'self'",
+  // A checkout posted without JavaScript is answered with a redirect to a hosted payment page, which form-action governs too
+  ["form-action 'self'", ...PAYMENT_ORIGINS].join(" "),
 ];
 
 // Common to every route, framing aside
@@ -59,7 +74,8 @@ const COMMON_HEADERS = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(self), payment=()",
+    // A gateway's wallet buttons (Apple Pay, Google Pay) need the Payment Request API in its frames
+    value: `camera=(), microphone=(), geolocation=(self), payment=(${PAYMENT_ORIGINS.length > 0 ? ["self", ...PAYMENT_ORIGINS.map((o) => `"${o}"`)].join(" ") : ""})`,
   },
 ];
 

@@ -225,6 +225,7 @@ type SettingsForm = ReturnType<typeof useRecordForm<AttributeSettingsValues>>['f
 function SettingsFields({ form, attribute, canManage }: { form: SettingsForm; attribute: Attribute; canManage: boolean }) {
   const filterable = useStore(form.store, (s) => s.values.filterable)
   const synapseTrack = useStore(form.store, (s) => s.values.synapseTrack)
+  const isPublic = useStore(form.store, (s) => s.values.isPublic)
 
   // The indexable master switch is an action, not a field: flipping it cascades to every value and
   // per-product slug override, so it gets its own confirm and writes the moment that's accepted
@@ -234,7 +235,7 @@ function SettingsFields({ form, attribute, canManage }: { form: SettingsForm; at
     refetchQueries: [{ query: AttributeDocument, variables: { id: attribute.id } }, { query: AttributesDocument }],
   })
 
-  const switchRow = (name: 'valueRequired' | 'filterable' | 'facetCollapsed' | 'searchable' | 'isPublic' | 'synapseTrack', id: string, label: string, description: string) => (
+  const switchRow = (name: 'valueRequired' | 'filterable' | 'facetCollapsed' | 'searchable' | 'isPublic' | 'embedded' | 'similarMatch' | 'synapseTrack', id: string, label: string, description: string) => (
     <form.AppField name={name}>
       {(f) => <f.SwitchField id={id} label={label} description={description} bordered={false} disabled={!canManage} />}
     </form.AppField>
@@ -302,6 +303,20 @@ function SettingsFields({ form, attribute, canManage }: { form: SettingsForm; at
         </form.Field>
         {switchRow('searchable', 's-searchable', 'Searchable', 'Include in full-text product search.')}
         {switchRow('isPublic', 's-visible', 'Visible to customers', 'Display on the product detail page.')}
+        {switchRow(
+          'embedded',
+          's-embedded',
+          'Search by meaning',
+          isPublic
+            ? "Include the values in what the assistant and store search understand a product to be. Turn it off for facts that don't describe the product, like care instructions."
+            : 'Only applies when "Visible to customers" is on.',
+        )}
+        {switchRow(
+          'similarMatch',
+          's-similar-match',
+          'Must match for similar products',
+          'When the shopping assistant or a shopper\'s agent finds products like others, they must share a value on this attribute - like the same gender or brand. With several products, a value any of them has counts.',
+        )}
         {switchRow(
           'synapseTrack',
           's-synapse-track',
@@ -473,11 +488,12 @@ type ValueRow = {
   value: string
   sortOrder: number
   isIndexable: boolean
+  matchesAny: boolean
   // Localised descriptions surfaced from the Attribute query - The ValueEditRow component renders an editor for these alongside the
   // standard fields when editing existing values; new rows render the editor after the initial save so the value id exists
   descriptions?: { locale: string; description: string }[]
 }
-type ValueInput = { slug: string; name: string; value?: string; sortOrder: number; isIndexable: boolean }
+type ValueInput = { slug: string; name: string; value?: string; sortOrder: number; isIndexable: boolean; matchesAny: boolean }
 
 function ValuesCard({
   attributeId,
@@ -508,8 +524,8 @@ function ValuesCard({
   const [adds, setAdds] = useState<ValueInput[]>([])
   const [deletes, setDeletes] = useState<Set<string>>(new Set())
 
-  const rowSummary = (v: { name: string; slug: string; value?: string | null; sortOrder: number; isIndexable: boolean }) =>
-    [v.name, v.slug, v.value || '', String(v.sortOrder), v.isIndexable ? 'indexable' : 'not indexable'].join(' \u00b7 ')
+  const rowSummary = (v: { name: string; slug: string; value?: string | null; sortOrder: number; isIndexable: boolean; matchesAny: boolean }) =>
+    [v.name, v.slug, v.value || '', String(v.sortOrder), v.isIndexable ? 'indexable' : 'not indexable', v.matchesAny ? 'matches any value' : ''].filter(Boolean).join(' \u00b7 ')
 
   const diff = useMemo<SectionDiffEntry[]>(() => {
     const out: SectionDiffEntry[] = []
@@ -704,6 +720,14 @@ function ValueDisplayRow({
           )}
         </div>
       </div>
+      {value.matchesAny && (
+        <span
+          className="shrink-0 rounded border border-info/40 bg-info-soft px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-info"
+          title="Stands for every other value when similar products must match this attribute"
+        >
+          Matches all
+        </span>
+      )}
       {value.isIndexable && (
         <span
           className="shrink-0 rounded border border-success/40 bg-success-soft px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-success"
@@ -770,6 +794,7 @@ function ValueEditRow({
   const [rawValue, setRawValue] = useState(draft?.value ?? initial?.value ?? '')
   const [sortOrder, setSortOrder] = useState(draft?.sortOrder ?? initial?.sortOrder ?? 0)
   const [isIndexable, setIsIndexable] = useState(draft?.isIndexable ?? initial?.isIndexable ?? false)
+  const [matchesAny, setMatchesAny] = useState(draft?.matchesAny ?? initial?.matchesAny ?? false)
 
   // Embedded staged editors (translations, channel slugs) report their pending {dirty, flush} here; this row's Save
   // flushes them together with the row fields so the form has exactly one save action
@@ -788,7 +813,7 @@ function ValueEditRow({
     const pending: EmbeddedPending[] = []
     if (translationsPending.current) pending.push(translationsPending.current)
     if (channelSlugsPending.current) pending.push(channelSlugsPending.current)
-    onStage({ slug, name, value: rawValue || undefined, sortOrder, isIndexable }, pending)
+    onStage({ slug, name, value: rawValue || undefined, sortOrder, isIndexable, matchesAny }, pending)
   }
 
   return (
@@ -856,6 +881,20 @@ function ValueEditRow({
           <span className="ml-2 font-normal text-muted-foreground">
             (renders facet link as &lt;a href&gt;, allows Google to index the
             filtered listing)
+          </span>
+        </Label>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Switch
+          id={`val-matches-any-${initial?.id ?? 'new'}`}
+          checked={matchesAny}
+          onCheckedChange={setMatchesAny}
+        />
+        <Label htmlFor={`val-matches-any-${initial?.id ?? 'new'}`} className="text-xs">
+          Matches every value
+          <span className="ml-2 font-normal text-muted-foreground">
+            (for similar products, when this attribute must match - like Unisex, One size or Multicolour)
           </span>
         </Label>
       </div>

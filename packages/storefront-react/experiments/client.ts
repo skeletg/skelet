@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from "react";
 import { ensureAnonId } from "@skelet/storefront-core/analytics/visitor";
+import { readClientConsent } from "../consent/client";
 import { assign, type Experiment } from "@skelet/storefront-core/experiments/assign";
 import { beaconFetch } from "@skelet/storefront-core/beacons/client";
 import { BEACON } from "@skelet/storefront-core/beacons/paths";
@@ -78,7 +79,7 @@ export function useExperimentAssignment(key: string): ClientAssignment | null {
         }
       }
 
-      const anon = ensureAnonId();
+      const anon = readClientConsent().analytics ? ensureAnonId() : ""; // no analytics consent, no visitor id - the control renders
       if (!anon) return;
       const v = assign(exp, anon);
       if (!v) return;

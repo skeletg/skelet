@@ -12,7 +12,7 @@ import { useTranslations } from "next-intl";
 import { MASQUERADE_COOKIE } from "@skelet/storefront-core/auth/cookies";
 import { useCustomerIdentity } from "@skelet/storefront-next/customer/client";
 
-const noopSubscribe = () => () => {}; // the cookie never pushes - same shape as useMarketingConsent
+const noopSubscribe = () => () => {}; // the cookie never pushes - same shape as useAnalyticsConsent
 
 function readMarker(): boolean {
   if (typeof document === "undefined") return false;

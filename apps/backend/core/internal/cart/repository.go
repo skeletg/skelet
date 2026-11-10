@@ -84,6 +84,7 @@ func (r *postgresRepository) ListCarts(ctx context.Context, f CartFilter) ([]Car
 			ChannelID:         row.ChannelID,
 			Status:            row.Status,
 			Kind:              row.Kind,
+			Source:            row.Source,
 			Email:             row.Email,
 			OfferExpiresAt:    sqlnull.TimePtr(row.OfferExpiresAt),
 			OfferSentAt:       sqlnull.TimePtr(row.OfferSentAt),
@@ -124,7 +125,7 @@ func (r *postgresRepository) ListAbandoned(ctx context.Context, channelID uuid.U
 	}
 	out := make([]AbandonedCart, 0, len(rows))
 	for _, row := range rows {
-		ac := AbandonedCart{ID: row.ID, ChannelID: row.ChannelID, Email: row.Email, LastActivity: row.LastActivity}
+		ac := AbandonedCart{ID: row.ID, ChannelID: row.ChannelID, Email: row.Email, LastActivity: row.LastActivity, AssistedBy: row.AssistedBy}
 		if row.CustomerID.Valid {
 			ac.CustomerID = row.CustomerID.UUID
 		}
@@ -359,11 +360,13 @@ func (r *postgresRepository) UpsertCartLineBySku(ctx context.Context, cartID uui
 // Writes the bundle line then replaces its components, OVERWRITING quantity/price/name on a SKU conflict (the simple upsert sums instead) - several statements, so callers run it in a transaction
 func (r *postgresRepository) UpsertBundleCartLine(ctx context.Context, cartID uuid.UUID, input AddBundleLineInput) (CartLine, error) {
 	row, err := r.queries.UpsertBundleCartLine(ctx, db.UpsertBundleCartLineParams{
-		CartID:      cartID,
-		ProductName: input.ProductName,
-		ProductSku:  input.ProductSku,
-		UnitPrice:   input.UnitPrice,
-		Quantity:    input.Quantity,
+		CartID:           cartID,
+		ProductName:      input.ProductName,
+		ProductSku:       input.ProductSku,
+		UnitPrice:        input.UnitPrice,
+		Quantity:         input.Quantity,
+		BundleHookPriced: input.HookPriced,
+		ConfigKey:        input.ConfigKey,
 	})
 	if err != nil {
 		return CartLine{}, fmt.Errorf("upsert bundle cart line: %w", err)
@@ -512,6 +515,69 @@ func (r *postgresRepository) SetCartOrder(ctx context.Context, cartID, orderID u
 
 // --- offers ---
 
+func (r *postgresRepository) CreateAgentCart(ctx context.Context, channelID uuid.UUID) (Cart, error) {
+	row, err := r.queries.CreateAgentCart(ctx, channelID)
+	if err != nil {
+		return Cart{}, fmt.Errorf("create agent cart: %w", err)
+	}
+	return toCart(row), nil
+}
+
+func (r *postgresRepository) StartHandoff(ctx context.Context, cartID uuid.UUID, expiresAt time.Time) (Cart, error) {
+	row, err := r.queries.StartCartHandoff(ctx, db.StartCartHandoffParams{ID: cartID, ExpiresAt: sql.NullTime{Time: expiresAt, Valid: true}})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Cart{}, ErrCartNotActive
+		}
+		return Cart{}, fmt.Errorf("start handoff: %w", err)
+	}
+	return toCart(row), nil
+}
+
+func (r *postgresRepository) GetCartByHandoffToken(ctx context.Context, token string) (Cart, error) {
+	row, err := r.queries.GetCartByHandoffToken(ctx, token)
+	if err != nil {
+		return Cart{}, fmt.Errorf("load cart by handoff link: %w", err)
+	}
+	return toCart(row), nil
+}
+
+func (r *postgresRepository) RecordHandoffRedemption(ctx context.Context, agentCartID, cartID uuid.UUID) (bool, error) {
+	n, err := r.queries.RecordCartHandoffRedemption(ctx, db.RecordCartHandoffRedemptionParams{AgentCartID: agentCartID, CartID: cartID})
+	if err != nil {
+		return false, fmt.Errorf("record handoff redemption: %w", err)
+	}
+	return n > 0, nil
+}
+
+func (r *postgresRepository) CarryHandoffRedemptions(ctx context.Context, fromCartID, toCartID uuid.UUID) error {
+	if err := r.queries.CarryCartHandoffRedemptions(ctx, db.CarryCartHandoffRedemptionsParams{FromCartID: fromCartID, ToCartID: toCartID}); err != nil {
+		return fmt.Errorf("carry handoff redemptions: %w", err)
+	}
+	return nil
+}
+
+func (r *postgresRepository) MarkCartAssisted(ctx context.Context, cartID uuid.UUID, by, trace string) error {
+	if err := r.queries.MarkCartAssisted(ctx, db.MarkCartAssistedParams{ID: cartID, AssistedBy: by, AssistTrace: trace, StaleBefore: time.Now().Add(-AssistedCreditWindow)}); err != nil {
+		return fmt.Errorf("mark cart assisted: %w", err)
+	}
+	return nil
+}
+
+func (r *postgresRepository) CarryCartAssisted(ctx context.Context, fromCartID, toCartID uuid.UUID) error {
+	if err := r.queries.CarryCartAssisted(ctx, db.CarryCartAssistedParams{FromCartID: fromCartID, ToCartID: toCartID}); err != nil {
+		return fmt.Errorf("carry cart assisted: %w", err)
+	}
+	return nil
+}
+
+func (r *postgresRepository) CarryAppliedCodes(ctx context.Context, fromCartID, toCartID uuid.UUID) error {
+	if err := r.queries.CarryCartAppliedCodes(ctx, db.CarryCartAppliedCodesParams{FromCartID: fromCartID, ToCartID: toCartID}); err != nil {
+		return fmt.Errorf("carry applied codes: %w", err)
+	}
+	return nil
+}
+
 func (r *postgresRepository) GetOfferByToken(ctx context.Context, token string) (Cart, error) {
 	row, err := r.queries.GetCartByOfferToken(ctx, token)
 	if err != nil {
@@ -644,13 +710,17 @@ func toCart(row db.Cart) Cart {
 		customerID = &id
 	}
 	c := Cart{
-		ID:         row.ID,
-		CustomerID: customerID,
-		ChannelID:  row.ChannelID,
-		Status:     row.Status,
-		Kind:       row.Kind,
-		Email:      row.Email,
-		Note:       row.Note,
+		ID:          row.ID,
+		CustomerID:  customerID,
+		ChannelID:   row.ChannelID,
+		Status:      row.Status,
+		Kind:        row.Kind,
+		Source:      row.Source,
+		AssistedBy:  row.AssistedBy,
+		AssistedAt:  sqlnull.TimePtr(row.AssistedAt),
+		AssistTrace: row.AssistTrace,
+		Email:       row.Email,
+		Note:        row.Note,
 		Checkout: Checkout{
 			ShippingAddress:       decodeAddress(row.ShippingAddress),
 			ShippingAddressID:     sqlnull.UUIDPtr(row.ShippingAddressID),
@@ -679,6 +749,9 @@ func toCart(row db.Cart) Cart {
 		CheckoutVersion: row.CheckoutVersion,
 		CreatedAt:       row.CreatedAt,
 		UpdatedAt:       row.UpdatedAt,
+	}
+	if row.HandoffToken != "" {
+		c.Handoff = &Handoff{Token: row.HandoffToken, ExpiresAt: row.HandoffExpiresAt.Time}
 	}
 	if row.Kind == KindOffer {
 		c.Offer = &Offer{
@@ -752,17 +825,19 @@ func decodeAddress(n pqtype.NullRawMessage) *Address {
 
 func toCartLine(row db.CartLine) CartLine {
 	return CartLine{
-		ID:            row.ID,
-		CartID:        row.CartID,
-		ProductName:   row.ProductName,
-		ProductSku:    row.ProductSku,
-		UnitPrice:     row.UnitPrice,
-		Quantity:      row.Quantity,
-		PriceOverride: row.PriceOverride,
-		IsCustom:      row.IsCustom,
-		TaxClass:      row.TaxClass,
-		CreatedAt:     row.CreatedAt,
-		UpdatedAt:     row.UpdatedAt,
+		ID:               row.ID,
+		CartID:           row.CartID,
+		ProductName:      row.ProductName,
+		ProductSku:       row.ProductSku,
+		UnitPrice:        row.UnitPrice,
+		Quantity:         row.Quantity,
+		PriceOverride:    row.PriceOverride,
+		BundleHookPriced: row.BundleHookPriced,
+		ConfigKey:        row.ConfigKey,
+		IsCustom:         row.IsCustom,
+		TaxClass:         row.TaxClass,
+		CreatedAt:        row.CreatedAt,
+		UpdatedAt:        row.UpdatedAt,
 	}
 }
 

@@ -25,6 +25,12 @@ query LensOverview($channelId: ID!, $sinceDays: Int) {
       label
       views
     }
+    planIssues {
+      kind
+      event
+      prop
+      count
+    }
   }
 }
 
@@ -171,10 +177,29 @@ query LensSearchAnalytics($channelId: ID!, $sinceDays: Int) {
       term
       count
     }
+    meaningOnlySearches
+    meaningOnly {
+      term
+      count
+    }
     daily {
       date
       searches
       zeroResults
+    }
+    aiGaps {
+      term
+      assistant
+      agents
+    }
+    overviewsShown
+    overviewClicks
+    overviewChats
+    overviews {
+      term
+      shown
+      clicks
+      chats
     }
   }
 }

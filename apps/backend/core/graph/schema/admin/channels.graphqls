@@ -13,6 +13,8 @@ type Channel {
   currencyCode:        String!
   # Base URL used to build password-reset / verification email links.
   publicUrl:           String!
+  # Prices on this channel already contain tax, so checkout splits the tax out of them instead of adding it on top
+  taxInclusivePricing: Boolean!
   metadata:            [MetadataItem!]!
   createdAt:           Time!
   # Inventory locations assigned to this channel, ordered by priority asc.
@@ -32,6 +34,8 @@ input CreateChannelInput {
   currencyCode:  String
   publicUrl:     String
   metadata:      [MetadataInput!]
+  # Defaults to false - prices exclude tax
+  taxInclusivePricing: Boolean
 }
 
 input UpdateChannelInput {
@@ -44,6 +48,7 @@ input UpdateChannelInput {
   currencyCode:  String
   publicUrl:     String
   metadata:      [MetadataInput!]
+  taxInclusivePricing: Boolean
 }
 
 extend type Query {

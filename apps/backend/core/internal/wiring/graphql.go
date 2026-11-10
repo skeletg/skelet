@@ -29,6 +29,8 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/graphqlx"
 	"github.com/skeletg/skelet/apps/backend/core/internal/health"
+	"github.com/skeletg/skelet/apps/backend/core/internal/search"
+	"github.com/skeletg/skelet/apps/backend/core/internal/shoptools"
 	authpkg "github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/cache"
 	"github.com/skeletg/skelet/apps/backend/core/lib/observability"
@@ -46,9 +48,21 @@ type RateLimiters struct {
 }
 
 type ( // two *handler.Server values, so the graph needs them told apart
-	AdminGQL struct{ *handler.Server }
-	FrontGQL struct{ *handler.Server }
+	AdminGQL struct {
+		*handler.Server
+		resolver *graphadmin.Resolver
+	}
+	FrontGQL struct {
+		*handler.Server
+		resolver *graphfront.Resolver
+	}
 )
+
+// AttachShopAssistant hands the front resolvers the assistant, which runs its tools through this very server - so it can only be built after it
+func (f FrontGQL) AttachShopAssistant(s *shoptools.Service) { f.resolver.ShopAssistant = s }
+
+// AttachShopTools hands the admin resolvers the same tools, for the search preview
+func (a AdminGQL) AttachShopTools(s *shoptools.Service) { a.resolver.ShopTools = s }
 
 type GQL struct { // bundles both surfaces so the entrypoint pulls one value out of the graph
 	Admin AdminGQL
@@ -82,8 +96,10 @@ func newLoginThrottle(client *redis.Client) *authpkg.LoginThrottle { // nil disa
 
 func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, healthReg *health.Registry, tools *agenttools.Service) GQL {
 	dsarBuilder := dsar.New(s.Customer, s.Order, s.Consent, s.Channel, s.StoreCredit, s.Wishlist, infra.Queries)
+	storefrontSearch := search.NewHybrid(s.SearchTier.Engine, storefrontMeaning{s.Meaning}, s.Config)
 	adminResolver := &graphadmin.Resolver{
 		DevMode:           infra.Config.IsDev(),
+		StorefrontSearch:  storefrontSearch,
 		CacheClient:       s.RevalidateCli,
 		CacheQueue:        s.RevalidateQueue,
 		AdminSvc:          s.Admin,
@@ -106,6 +122,8 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 		PrefsSvc:          s.AdminPrefs,
 		Queries:           infra.Queries,
 		WebhookSvc:        s.Webhook,
+		TrackingSvc:       s.Tracking,
+		TrackingClient:    trackingHTTPClient(s.AllowPrivateTargets),
 		RemoteProviderSvc: s.RemoteProvider,
 		CatalogSvc:        s.Catalog,
 		RecommendSvc:      s.Recommend,
@@ -130,6 +148,7 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 		GiftcardSvc:       s.Giftcard,
 		SubscriptionSvc:   s.Subscription,
 		SalesSvc:          s.Sales,
+		AIUsageSvc:        s.AIUsage,
 		AgentTools:        tools,
 		NotificationSvc:   s.Notification,
 		NotificationHub:   s.NotifHub,
@@ -138,6 +157,8 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 		DeliverySvc:       s.Delivery,
 		ChatSvc:           s.Chat,
 		Health:            healthReg,
+		MCP:               mcpEndpoints(),
+		Embeddings:        s.Embeddings,
 		SignalsAPI:        s.SignalsClient,
 		RefreshStore:      s.AdminRefresh.RefreshStore,
 		BlogPreviewStore:  s.BlogPreview.Store,
@@ -283,6 +304,7 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 		URLRewriteSvc:        s.URLRewrite,
 		MenuSvc:              s.Menu,
 		ProductSearch:        s.SearchTier.Engine,
+		ProductBrowse:        storefrontSearch,
 		AttributeCache:       s.SearchTier.Attributes,
 		Metadata:             newFrontMetadataCache(s.Bus),
 		BlogPostSearch:       s.SearchTier.Posts,
@@ -342,7 +364,7 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 	frontSrv.SetErrorPresenter(graphqlx.Presenter(graphqlx.SurfaceFront, graphqlx.WithReporter(tel.Reporter), graphqlx.WithDevDetails(infra.Config.IsDev())))
 	frontSrv.SetRecoverFunc(graphqlx.RecoverFunc(graphqlx.SurfaceFront, graphqlx.WithReporter(tel.Reporter)))
 	frontSrv.Use(graphqlx.OTelMiddleware())
-	return GQL{Admin: AdminGQL{adminSrv}, Front: FrontGQL{frontSrv}}
+	return GQL{Admin: AdminGQL{Server: adminSrv, resolver: adminResolver}, Front: FrontGQL{Server: frontSrv, resolver: frontResolver}}
 }
 
 // operationSelectsAny reports whether a GraphQL operation selects any of the named top-level fields - used to audit the read operations that are really bulk PII egress, without auditing every query on the admin surface
@@ -464,4 +486,9 @@ func newFrontMetadataCache(bus *events.Bus) *graphfront.MetadataCache {
 		})
 	}
 	return c
+}
+
+func mcpEndpoints() graphadmin.MCPEndpoints {
+	admin, storefront := mcpSwitches()
+	return graphadmin.MCPEndpoints{Admin: admin, Storefront: storefront, AdminPath: mcpPath(adminAPIPath())}
 }

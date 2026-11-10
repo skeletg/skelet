@@ -102,6 +102,35 @@ func (q *Queries) DeleteCustomerSignupSubmissions(ctx context.Context, arg Delet
 	return result.RowsAffected()
 }
 
+const deleteCustomerTrackingEvents = `-- name: DeleteCustomerTrackingEvents :execrows
+DELETE FROM tracking_events e
+WHERE  e.channel_id = $1
+  AND  (e.customer_id = $2::uuid
+        OR e.email = $3::text
+        OR e.anon_id IN (
+            SELECT o.anon_id FROM orders o
+            WHERE  o.channel_id = $1 AND o.anon_id <> ''
+              AND  (o.customer_id = $2::uuid
+                    OR (o.customer_id IS NULL AND lower(btrim(o.email)) = $3::text))))
+`
+
+type DeleteCustomerTrackingEventsParams struct {
+	ChannelID  uuid.UUID `json:"channel_id"`
+	CustomerID uuid.UUID `json:"customer_id"`
+	Email      string    `json:"email"`
+}
+
+// Tracking events carry the customer's address, phone, IP and click ids unhashed, and their deliveries go with them - by
+// customer id or address, and by the visitor id their orders were placed under, which a guest's browser events carry
+// alone. Runs before the orders are scrubbed, while they still hold that visitor id
+func (q *Queries) DeleteCustomerTrackingEvents(ctx context.Context, arg DeleteCustomerTrackingEventsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteCustomerTrackingEvents, arg.ChannelID, arg.CustomerID, arg.Email)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteCustomerWebFormSubmissions = `-- name: DeleteCustomerWebFormSubmissions :execrows
 DELETE FROM web_form_submissions
 WHERE  customer_id = $1
@@ -138,6 +167,25 @@ DELETE FROM wishlist_shares WHERE customer_id = $1
 
 func (q *Queries) DeleteCustomerWishlistShares(ctx context.Context, customerID uuid.UUID) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteCustomerWishlistShares, customerID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteEmailOptIns = `-- name: DeleteEmailOptIns :execrows
+DELETE FROM email_opt_ins
+WHERE  channel_id = $1 AND email = $2::text
+`
+
+type DeleteEmailOptInsParams struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	Email     string    `json:"email"`
+}
+
+// A guest's checkout opt-in is stored under the bare address, so it goes by address on the customer's channel
+func (q *Queries) DeleteEmailOptIns(ctx context.Context, arg DeleteEmailOptInsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteEmailOptIns, arg.ChannelID, arg.Email)
 	if err != nil {
 		return 0, err
 	}

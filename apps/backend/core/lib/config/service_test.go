@@ -5,11 +5,13 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/secrets"
 )
 
@@ -223,6 +225,21 @@ func TestSetRejectsInvalidValuesBeforeWriting(t *testing.T) {
 	}
 	if len(repo.rows) != 0 {
 		t.Errorf("repo holds %d rows after a rejected Set, want 0", len(repo.rows))
+	}
+}
+
+func TestSetHoldsAValueToItsLength(t *testing.T) {
+	svc, repo := newTestService(t, Definition{Path: "shop/general/motto", Type: TypeTextarea, Label: "Motto", MaxLen: 5})
+	ctx := context.Background()
+	if _, err := svc.Set(ctx, "shop/general/motto", "héllo", DefaultScope); err != nil {
+		t.Fatalf("five characters, six bytes: %v", err)
+	}
+	_, err := svc.Set(ctx, "shop/general/motto", "hello!", DefaultScope)
+	if e, ok := errors.AsType[*apperr.Error](err); !ok || e.Code != "CONFIG_VALUE_TOO_LONG" || !strings.Contains(e.Error(), "Motto takes at most 5 characters") {
+		t.Fatalf("Set past the cap = %v", err)
+	}
+	if v := repo.rows[scopeKey(DefaultScope, "shop/general/motto")].Value; v != "héllo" {
+		t.Errorf("stored %q - a refused value must not replace the last good one", v)
 	}
 }
 

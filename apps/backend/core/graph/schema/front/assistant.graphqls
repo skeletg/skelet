@@ -1,0 +1,83 @@
+# The storefront's AI shopping assistant. It answers through the store's AI provider with the same tools shoppers' own agents get over MCP, but on the shopper's own cart - the conversation lives in the browser
+
+input AssistantMessage {
+  # "user" or "assistant"
+  role:    String!
+  content: String!
+  # An assistant turn's recap, sent back as the reply gave it
+  recap:   String
+}
+
+type AssistantLinkFilter {
+  slug:   String!
+  values: [String!]!
+}
+
+# A place on the store a reply sends the shopper to: a narrowed product listing, or a page. The storefront builds the address from path, filters, sort and query with its own filter grammar
+type AssistantLink {
+  label:   String!
+  path:    String!
+  query:   String!
+  filters: [AssistantLinkFilter!]!
+  sort:    String!
+  # Products the listing shows; null for a page
+  count:   Int
+}
+
+type AssistantPoint {
+  title:  String!
+  detail: String!
+}
+
+# A product the reply explains, and the explanation laid out for its panel - empty when the reply only looked at it
+type AssistantProductDetail {
+  productId:  ID!
+  summary:    String!
+  highlights: [AssistantPoint!]!
+  goodFor:    [String!]!
+  keepInMind: [String!]!
+}
+
+type AssistantReply {
+  # Empty when the turn has nothing to say in words - the storefront then says so in the shopper's language, unless the turn showed something
+  reply:       String!
+  # The model stopped before it finished - the provider failed or the time ran out. What the turn did to the cart still stands, so the storefront keeps cartId and cartChanged and says the answer was cut short
+  incomplete:  Boolean!
+  # What the reply showed beyond its words - send it back with this turn, so later turns know which products it meant
+  recap:       String!
+  # Two or three things the shopper might say next, in their words, for the storefront to offer
+  followUps:   [String!]!
+  # Products to show under the reply as cards, in order
+  productIds:  [ID!]!
+  # The product the reply explains, for a panel with its details
+  detail:      AssistantProductDetail
+  # Buttons under the reply to a listing or a page
+  links:       [AssistantLink!]!
+  # The product list the shopper is on, refiltered or resorted - the storefront goes there straight away
+  navigate:    AssistantLink
+  # The shopper's cart the turn worked on - a guest's new one when they had none, for the storefront to keep
+  cartId:      ID
+  # The turn changed the cart, so the storefront shows it afresh
+  cartChanged: Boolean!
+  # The shopper is ready to buy: show them the way to their cart
+  checkout:    Boolean!
+}
+
+# What the shopper's page is, for the assistant's opening suggestions: product, listing, search, page, home or other, and the name it goes by
+type AssistantPage {
+  kind:  String!
+  title: String!
+}
+
+extend type Query {
+  # Whether the storefront shows the assistant: switched on for this store, with an AI provider set up that calls tools and a public address to link to. The storefront hides its button otherwise, rather than offering a chat that can only answer ASSISTANT_UNAVAILABLE
+  assistantAvailable: Boolean!
+  # Reads the page without asking the model anything. Refused with ASSISTANT_UNAVAILABLE when the channel doesn't show the assistant
+  assistantPage(page: String!): AssistantPage!
+}
+
+extend type Mutation {
+  # One turn with the shopping assistant: messages is the conversation so far, ending with the shopper's newest, cartId a guest's cart from their cookie (a signed-in customer's own cart is used regardless), and page the storefront path and query they're on. Refused with ASSISTANT_UNAVAILABLE when the channel doesn't show it, ASSISTANT_MESSAGE_INVALID for an empty or overlong message, and ASSISTANT_RATE_LIMITED or ASSISTANT_BUSY when asked too fast
+  # conversationId is the chat the storefront keeps, for a store that keeps transcripts to file the turn under. Send it only for a shopper who's signed in or agreed to analytics - without it nothing is kept
+  askShopAssistant(messages: [AssistantMessage!]!, cartId: ID, page: String, conversationId: ID): AssistantReply!
+}

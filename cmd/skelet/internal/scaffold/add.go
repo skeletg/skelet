@@ -26,12 +26,15 @@ import (
 const AddAbout = `Makes a storefront in apps/channels/<name> from a template - or from a storefront of your own - with
 its own port, volumes and env templates.
 
-  --template  which template to start from (default: nextjs-vetrina, the full one)
-  --from      copy one of your own storefronts instead
-  --tracked   wire it into the tracked compose files instead of the override
+  --template   which template to start from (default: nextjs-vetrina, the full one)
+  --from       copy one of your own storefronts instead
+  --tracked    wire it into the tracked compose files instead of the override
+  --workspace  link the shared packages in packages/ instead of taking them from npm
 
-The copy is yours: upstream keeps improving the templates and the packages they're built on, and
-since you never edit either, merging a release doesn't collide with your storefront. Every compose
+The copy is yours, and it takes the packages it's built on (@skelet/storefront-*) from npm at this
+checkout's release, so merging a later release changes nothing in it until you bump them - skelet
+doctor says when they're behind the backend. A checkout ahead of its last release links packages/
+instead, since npm can't have what it adds yet. Every compose
 block is copied from the source service rather than templated, so a change to its wiring reaches the
 next storefront instead of drifting from a copy kept here. By default the
 dev service goes in docker-compose.override.yml, which is git-ignored and auto-merged - so pulling from
@@ -42,7 +45,7 @@ itself, and it's what makes upstream pulls conflict.
 
 Nothing is written until every generated compose file parses, so a failure leaves the repo untouched.`
 
-const addUsage = "skelet add channel <name> [--template <template> | --from <storefront>] [--tracked]"
+const addUsage = "skelet add channel <name> [--template <template> | --from <storefront>] [--tracked] [--workspace]"
 
 const (
 	devFile      = "docker-compose.yml"
@@ -84,6 +87,7 @@ type addOptions struct {
 	name, src string
 	// template says src was named with --template, which only a template answers to
 	template, tracked bool
+	workspace         bool
 	// quiet leaves the next steps out - setup, making a project's first shop, has its own
 	quiet bool
 }
@@ -122,6 +126,8 @@ func Add(root string, args []string) int {
 			o.src = rest[i]
 		case "--tracked":
 			o.tracked = true
+		case "--workspace":
+			o.workspace = true
 		default:
 			fmt.Fprintf(os.Stderr, "Unknown flag: %s\n", rest[i])
 			fmt.Println(addUsage + "\n\n" + AddAbout)
@@ -244,6 +250,16 @@ func add(root string, o addOptions) int {
 	if err := copyFork(root, m, copied); err != nil {
 		fmt.Fprintln(os.Stderr, "skelet add:", err)
 		return 1
+	}
+	template := ""
+	if from.Template() {
+		template = from.Dir
+	}
+	switch version, kept := pinPackages(root, template, copied, o.workspace); {
+	case version != "":
+		fmt.Printf("==> Taking @skelet/storefront-* %s from npm\n", version)
+	case kept != "":
+		fmt.Printf("==> Linking @skelet/storefront-* to packages/ - %s\n", kept)
 	}
 	for _, f := range targets {
 		if err := writeKeepingMode(filepath.Join(root, f), writes[f]); err != nil {
@@ -525,7 +541,7 @@ func forkFromHead(root string, m move, to string) error {
 }
 
 func previewOrigin(root string, port int) {
-	if p, _ := profile.Load(filepath.Join(root, profile.File)); p[profile.TargetKey] != "" && p[profile.TargetKey] != "dev" {
+	if t := profile.Current(root)[profile.TargetKey]; t != "" && t != "dev" {
 		return
 	}
 	env, origin := filepath.Join(root, ".env"), "http://localhost:"+strconv.Itoa(port)
@@ -558,11 +574,10 @@ func summary(root string, tracked bool, src, name string, dev, small int) {
 		wrote = fmt.Sprintf("docker-compose{,.prod,.small}.yml   service + volumes, dev :%d, small :%d", dev, small)
 		deploy = "The edge serves it once STOREFRONT_UPSTREAM in env/prod-caddy.env names it - skelet setup does that for the storefront you deploy."
 	}
-	// The suggestion adds the new shop to what this clone runs now rather than replacing it - the profile's selection,
+	// The suggestion adds the new shop to what this clone runs now rather than replacing it - .env's SKELET_APPS,
 	// else every app the tree holds, which is what setup picks when it has no answer on record
 	selected := "dashboard"
-	p, _ := profile.Load(filepath.Join(root, profile.File))
-	if v, ok := p.Get(profile.AppsKey); ok {
+	if v, ok := profile.Current(root).Get(profile.AppsKey); ok {
 		selected = v
 	} else {
 		for _, n := range storefronts.Names(root) {

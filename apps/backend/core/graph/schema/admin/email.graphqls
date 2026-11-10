@@ -18,6 +18,11 @@ type EmailBlockSnippet {
 type EmailPreview {
   subject: String!
   html:    String!
+  # The plain-text part, the preheader as an inbox shows it, and the sender - a library preview's only
+  text:        String
+  preheader:   String
+  fromName:    String
+  fromAddress: String
 }
 
 input SaveEmailBlockInput {

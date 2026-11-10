@@ -29,7 +29,7 @@ func checkout(root string, out io.Writer, p probes) int {
 	tools(r, root)
 
 	// Read first - which env files must exist depends on the target this clone was set up for
-	prof, _ := profile.Load(filepath.Join(root, profile.File))
+	prof := profile.Current(root)
 	target := prof["SKELET_TARGET"]
 	if target != "small" && target != "prod" {
 		target = "dev"
@@ -54,16 +54,16 @@ func checkout(root string, out io.Writer, p probes) int {
 
 	r.section("app selection")
 	inDocker := ""
-	if raw, err := os.ReadFile(filepath.Join(root, ".skelet-apps")); err == nil {
-		inDocker = strings.Join(strings.Fields(string(raw)), "")
-		r.pass("in Docker: %s (.skelet-apps; change with skelet setup --docker-apps ...)", or(inDocker, "none - the frontends run on the host"))
+	if docker, ok := prof.List(profile.DockerKey); ok {
+		inDocker = strings.Join(docker, ",")
+		r.pass("in Docker: %s (.env's COMPOSE_PROFILES; change with skelet setup --docker-apps ...)", or(inDocker, "none - the frontends run on the host"))
 	} else {
 		r.pass("none in Docker - the frontends run on the host (skelet setup --docker-apps ... to containerize)")
 	}
 	// A name no storefront goes by - one renamed or removed - starts nothing, quietly
 	for app := range strings.SplitSeq(inDocker, ",") {
 		if app != "" && app != "dashboard" && !slices.Contains(storefronts.Names(root), app) {
-			r.note(".skelet-apps names %q, which isn't an app here - storefronts: %s (skelet setup --docker-apps ...)", app, or(strings.Join(storefronts.Names(root), ", "), "none"))
+			r.note(".env's COMPOSE_PROFILES names %q, which isn't an app here - storefronts: %s (skelet setup --docker-apps ...)", app, or(strings.Join(storefronts.Names(root), ", "), "none"))
 		}
 	}
 	// Storefronts mount the whole workspace at /var/www/skelet - a service of your own on the /var/www/storefront mount
@@ -77,6 +77,7 @@ func checkout(root string, out io.Writer, p probes) int {
 		}
 	}
 	hostFrontends(r, root, strings.Split(inDocker, ","))
+	sharedPackages(r, root)
 
 	shape(r, root, prof, files)
 	pluginSet(r, root)
@@ -157,36 +158,22 @@ var interpolation = regexp.MustCompile(`\$\{([A-Z][A-Z0-9_]*)\}`)
 
 func shape(r *report, root string, prof profile.Profile, files []string) {
 	r.section("shape")
-	if !exists(filepath.Join(root, profile.File)) {
-		r.note("no .skelet-profile - run skelet setup to record what this clone is meant to be")
+	if _, ok := prof.Get(profile.TargetKey); !ok {
+		r.note("no %s in .env - run skelet setup to record what this clone is meant to be", profile.EnvTarget)
 	} else {
-		get := func(k string) string {
-			if v, ok := prof.Get(k); ok {
-				return v
-			}
-			return "(unset)"
-		}
-		r.pass("target=%s signals=%s ai=%s search=%s", get("SKELET_TARGET"), get("SKELET_SIGNALS"), get("SKELET_AI"), get("SKELET_SEARCH"))
-		r.pass("gateways: %s", or(prof["SKELET_GATEWAYS"], "none"))
-		// The env file is what the backend reads - a profile that disagrees with it is the confusing state, since the
-		// dashboard shows one shape and the API serves another
-		for key, answer := range map[string]string{"SIGNALS_ENABLED": "SKELET_SIGNALS", "AI_ENABLED": "SKELET_AI"} {
-			want, ok := prof.Get(answer)
-			if !ok {
-				continue
-			}
-			got := ""
+		switched := func(key string) string {
 			for _, f := range files {
 				if v, found, _ := envfile.Get(filepath.Join(root, f), key); found {
-					got = v
-					break
+					return v
 				}
 			}
-			if got == want || (got == "" && want == "true") {
-				continue
-			}
-			r.note("%s is %s in %s but the profile says %s - re-run skelet setup", key, or(got, "(unset, defaults true)"), files[0], want)
+			return "(unset, on)"
 		}
+		search := "opensearch"
+		if v, ok, _ := envfile.Get(filepath.Join(root, ".env"), "OPENSEARCH_URL"); ok && v == "" {
+			search = "postgres"
+		}
+		r.pass("target=%s signals=%s ai=%s search=%s", prof[profile.TargetKey], switched("SIGNALS_ENABLED"), switched("AI_ENABLED"), search)
 	}
 
 	// Every variable a compose file interpolates without a default has to come from somewhere, or the service quietly
@@ -328,7 +315,7 @@ func ports(r *report, root string, lib compose.Lib, p probes) []string {
 		case lib.Apps == "":
 			r.pass("%s not in Docker - run it on the host (skelet serve %s)", name, name)
 		default:
-			r.note("%s has no published port (not running, or not in .skelet-apps)", name)
+			r.note("%s has no published port (not running, or not in .env's COMPOSE_PROFILES)", name)
 		}
 	}
 	// Only ports this project publishes count as ours. Probing localhost alone can't tell this stack from another

@@ -33,6 +33,10 @@ type Order {
   # Transient: populated only on the storefront placeOrder response when the
   # gateway needs a client-side 3DS step. Always null on admin reads.
   paymentClientSecret: String
+  # Transient like paymentClientSecret - "challenge" or "redirect". Always null on admin reads.
+  paymentActionKind: String
+  # Transient like paymentClientSecret - true when the gateway refused the payment at placement. Always null on admin reads.
+  paymentFailed: Boolean
   # Payment provider slug chosen at checkout (empty when none / gift-card only).
   paymentProvider: String!
   # Gateway handle for the payment (Stripe PaymentIntent id, Braintree txn id);
@@ -55,6 +59,8 @@ type Order {
   shippingAmount:  Int!
   discountAmount:  Int!
   taxAmount:       Int!
+  # taxAmount is already inside the prices rather than added on top
+  taxIncluded:     Boolean!
   # The part of taxAmount charged on shipping. Zero when a remote tax provider or plugin priced the tax.
   shippingTaxAmount: Int!
   # The most a credit memo can refund for shipping - its tax included where tax was added on top.
@@ -164,6 +170,8 @@ type OrderReturnLine {
   quantity:        Float!
   reason:          String!
   refundUnitCents: Int!
+  # Set when one component of a bundle line came back on its own
+  componentId:     ID
 }
 
 # One promotion the engine applied at placement, with the code the shopper typed
@@ -230,6 +238,8 @@ type OrderLineComponent {
   unitPrice:   Int!
   # Already multiplied by the parent line quantity, so it is what actually ships
   quantity:    Float!
+  # Whether it can be returned on its own - always for a bundle pick, a kit's setting at sale for a kit item
+  returnable:  Boolean!
 }
 
 # A single product custom-option pick snapshotted onto an order line.
@@ -347,6 +357,9 @@ input ReturnLineInput {
   orderLineId: ID!
   quantity:    Float!
   reason:      String
+  # One component of a bundle line, from its OrderLine.components - quantity then counts that component's units, the
+  # refund is its share of the line, and only it is restocked. A line is returned whole or by components, not both at once
+  componentId: ID
 }
 
 input CreateDraftOrderInput {

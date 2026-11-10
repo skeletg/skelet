@@ -1,12 +1,16 @@
 package wiring
 
 import (
+	"context"
 	"reflect"
 	"testing"
+
+	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/agenttools"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/mcpserver"
+	"github.com/skeletg/skelet/apps/backend/core/internal/shoptools"
 )
 
 // A field left out here is a nil service the first tool call panics on
@@ -33,5 +37,7 @@ func TestEveryAgentToolRegistersWithTheMCPServer(t *testing.T) {
 	if len(agenttools.Definitions()) == 0 {
 		t.Fatal("the registry is empty")
 	}
-	mcpserver.NewHandler(mcpserver.Config{Tools: agenttools.Definitions()})
+	resolve := mcpserver.Admin(func(context.Context, uuid.UUID, int) mcpserver.ToolSet { return nil }, nil)
+	mcpserver.NewHandler(mcpserver.Config{Tools: agenttools.Definitions(), Resolve: resolve})
+	mcpserver.NewHandler(mcpserver.Config{Tools: shoptools.Definitions(), Resolve: resolve})
 }

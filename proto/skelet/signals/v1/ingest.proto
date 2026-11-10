@@ -4,6 +4,7 @@ syntax = "proto3";
 package skelet.signals.v1;
 
 import "google/protobuf/timestamp.proto";
+import "skelet/signals/v1/assistant.proto";
 
 service IngestService {
   rpc RecordActivity(RecordActivityRequest) returns (RecordActivityResponse);
@@ -29,6 +30,43 @@ service IngestService {
   // Core's active channels, replacing the copy the beacon surface resolves against - a handful of
   // rows that change rarely, so the whole set goes in one call rather than a stream
   rpc SyncChannels(SyncChannelsRequest) returns (SyncChannelsResponse);
+  // One storefront assistant turn as it happened - a turn already held under its id is not written again
+  rpc RecordAssistantTurn(RecordAssistantTurnRequest) returns (RecordAssistantTurnResponse);
+  // What the shopping assistant or a shopper's own AI agent did - tools called and words searched, counted per store and
+  // day, never tied to a person
+  rpc RecordAIActivity(RecordAIActivityRequest) returns (RecordAIActivityResponse);
+}
+
+message AISearch {
+  // The words searched, as the assistant or the agent put them
+  string term = 1;
+  int32 results = 2;
+}
+
+message RecordAIActivityRequest {
+  string channel_id = 1;
+  google.protobuf.Timestamp at = 2;
+  // "assistant" or "agent"
+  string source = 3;
+  // The agent's name for itself from the MCP handshake, empty for the assistant
+  string agent = 4;
+  // Each tool called, once per call
+  repeated string tools = 5;
+  repeated AISearch searches = 6;
+  // The same activity sent again counts once
+  string dedupe_key = 7;
+}
+
+message RecordAIActivityResponse {
+  bool recorded = 1;
+}
+
+message RecordAssistantTurnRequest {
+  AssistantTurnRecord turn = 1;
+}
+
+message RecordAssistantTurnResponse {
+  bool recorded = 1;
 }
 
 message ChannelEntry {
@@ -85,6 +123,8 @@ message RosterEntry {
   int64 monetary_cents = 14;
   google.protobuf.Timestamp first_order_at = 15;
   google.protobuf.Timestamp last_order_at = 16;
+  // The storefront language the customer last signed in with, lowercase - empty when not known yet
+  string locale = 17;
 }
 
 message Consent {
@@ -170,6 +210,7 @@ message RecordActivityRequest {
   string channel_id = 3;
   // One of customer_id or anon_id is required - an action attributable to nobody has no place on a profile
   optional string customer_id = 4;
+  // On a login or registered account event with customer_id too, the visitor signed in as that customer - the suite stitches the two
   string anon_id = 5;
   google.protobuf.Timestamp at = 6;
   // The event's properties as a JSON object, opaque to the wire

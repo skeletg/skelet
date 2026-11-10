@@ -16,23 +16,24 @@ import (
 
 // The triggers are the contract's vocabulary - core raises them by name, and both sides compile the one list
 const (
-	TriggerOrderPlaced        = signalsapi.TriggerOrderPlaced
-	TriggerOrderShipped       = signalsapi.TriggerOrderShipped
-	TriggerCustomerRegistered = signalsapi.TriggerCustomerRegistered
-	TriggerOrderCancelled     = signalsapi.TriggerOrderCancelled
-	TriggerPaymentRefunded    = signalsapi.TriggerPaymentRefunded
-	TriggerCartAbandoned      = signalsapi.TriggerCartAbandoned
-	TriggerBrowseAbandoned    = signalsapi.TriggerBrowseAbandoned
-	TriggerEmailOpened        = signalsapi.TriggerEmailOpened
-	TriggerEmailClicked       = signalsapi.TriggerEmailClicked
-	TriggerSegmentEntered     = signalsapi.TriggerSegmentEntered
-	TriggerBackInStock        = signalsapi.TriggerBackInStock
-	TriggerFormSubmitted      = signalsapi.TriggerFormSubmitted
-	TriggerEmailVerification  = signalsapi.TriggerEmailVerification
-	TriggerPasswordReset      = signalsapi.TriggerPasswordReset
-	TriggerSignupConfirmation = signalsapi.TriggerSignupConfirmation
-	TriggerAccountExists      = signalsapi.TriggerAccountExists
-	TriggerCartOffer          = signalsapi.TriggerCartOffer
+	TriggerOrderPlaced           = signalsapi.TriggerOrderPlaced
+	TriggerOrderShipped          = signalsapi.TriggerOrderShipped
+	TriggerCustomerRegistered    = signalsapi.TriggerCustomerRegistered
+	TriggerOrderCancelled        = signalsapi.TriggerOrderCancelled
+	TriggerPaymentRefunded       = signalsapi.TriggerPaymentRefunded
+	TriggerCartAbandoned         = signalsapi.TriggerCartAbandoned
+	TriggerAssistedCartAbandoned = signalsapi.TriggerAssistedCartAbandoned
+	TriggerBrowseAbandoned       = signalsapi.TriggerBrowseAbandoned
+	TriggerEmailOpened           = signalsapi.TriggerEmailOpened
+	TriggerEmailClicked          = signalsapi.TriggerEmailClicked
+	TriggerSegmentEntered        = signalsapi.TriggerSegmentEntered
+	TriggerBackInStock           = signalsapi.TriggerBackInStock
+	TriggerFormSubmitted         = signalsapi.TriggerFormSubmitted
+	TriggerEmailVerification     = signalsapi.TriggerEmailVerification
+	TriggerPasswordReset         = signalsapi.TriggerPasswordReset
+	TriggerSignupConfirmation    = signalsapi.TriggerSignupConfirmation
+	TriggerAccountExists         = signalsapi.TriggerAccountExists
+	TriggerCartOffer             = signalsapi.TriggerCartOffer
 )
 
 const (

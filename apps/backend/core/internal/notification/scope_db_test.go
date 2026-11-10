@@ -57,3 +57,47 @@ func TestTheInboxQueryAgreesWithCanSeePerPermission(t *testing.T) {
 		t.Errorf("unread badge = %d, %v", n, err)
 	}
 }
+
+// A notice for one admin, such as a request for access to their board, is theirs alone - a superuser's bypass doesn't
+// reach it, and the badge and mark-all skip it the same way, or someone else's request would sit in their count
+func TestANoticeForOneAdminReachesOnlyThem(t *testing.T) {
+	conn := testdb.Require(t)
+	ctx := context.Background()
+	var owner uuid.UUID
+	if err := conn.QueryRow(`INSERT INTO admin_users (email, password_hash, first_name, last_name) VALUES ($1, 'x', 'A', 'B') RETURNING id`,
+		"nt-"+uuid.NewString()[:8]+"@example.com").Scan(&owner); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM admin_users WHERE id = $1`, owner) })
+	svc := New(db.New(conn), nil)
+	title := "asked for access " + uuid.NewString()[:8]
+	if err := svc.Create(ctx, Input{Category: CategoryBoard, RequiredPermission: PermBoards, Title: title, DedupeKey: title, RecipientAdminID: &owner}); err != nil {
+		t.Fatal(err)
+	}
+	has := func(sc Scope) bool {
+		got, err := svc.List(ctx, sc, false, 200)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, n := range got {
+			if n.Title == title {
+				return true
+			}
+		}
+		return false
+	}
+	if !has(Scope{AdminID: owner, Perms: []string{PermBoards}, GlobalPerms: []string{PermBoards}}) {
+		t.Error("the recipient's inbox hid their notice")
+	}
+	other := Scope{AdminID: uuid.New(), Bypass: true}
+	if has(other) {
+		t.Error("a superuser saw a notice meant for someone else")
+	}
+	before, _ := svc.UnreadCount(ctx, other)
+	if err := svc.MarkAllRead(ctx, other); err != nil {
+		t.Fatal(err)
+	}
+	if after, _ := svc.UnreadCount(ctx, other); before < 0 || after != 0 {
+		t.Errorf("unread after mark-all = %d, want 0", after)
+	}
+}

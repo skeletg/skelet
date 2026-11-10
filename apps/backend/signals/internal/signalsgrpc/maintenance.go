@@ -19,8 +19,9 @@ import (
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics/spinequeue"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/assistantlog"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/behavioralsegment"
-	"github.com/skeletg/skelet/apps/backend/signals/internal/destination"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/board"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/lens"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/segment"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/signalsboot"
@@ -30,16 +31,17 @@ type maintenanceServer struct {
 	roster *analytics.Roster
 	traits *analytics.TraitCompute
 	signalsv1.UnimplementedMaintenanceServiceServer
-	rec         *analytics.Recorder
-	lens        *lens.Service
-	destination destinationLister
-	segments    *segment.Service
-	behavioral  *behavioralsegment.Service
-	queue       queueStats
-	settings    signalsboot.Settings
-	sends       sendLogMaintainer // nil in a test server without a log
-	flows       flowEngine        // nil in a test server without Pulse
-	campaigns   campaignPipeline
+	rec        *analytics.Recorder
+	lens       *lens.Service
+	segments   *segment.Service
+	behavioral *behavioralsegment.Service
+	queue      queueStats
+	settings   signalsboot.Settings
+	sends      sendLogMaintainer // nil in a test server without a log
+	flows      flowEngine        // nil in a test server without Pulse
+	campaigns  campaignPipeline
+	assistant  *assistantlog.Store // nil in a test server without one
+	boards     *board.Service      // nil in a test server without boards
 }
 
 // The engine ticks core's scheduler drives - one advance of the runnable runs, one pass over the due campaigns
@@ -59,12 +61,6 @@ type campaignPipeline interface {
 type sendLogMaintainer interface {
 	EnsurePartitions(ctx context.Context) error
 	Prune(ctx context.Context, before time.Time, archive bool) (int64, error)
-}
-
-// The slice of destination.Service this surface drives
-type destinationLister interface {
-	ForwardAll(ctx context.Context) error
-	ListActive(ctx context.Context) ([]destination.Destination, error)
 }
 
 // The queue is optional, so this is nil when none is configured
@@ -101,6 +97,12 @@ func (s *maintenanceServer) PruneSendLog(ctx context.Context, _ *signalsv1.Prune
 	}
 	if err := signalsboot.SendLogRetentionJob(s.settings, s.sends)(ctx); err != nil {
 		return nil, err
+	}
+	// Unsaved board edits nobody came back to go in the same nightly sweep, whatever the send-history window
+	if s.boards != nil {
+		if _, err := s.boards.SweepDrafts(ctx, time.Now()); err != nil {
+			return nil, fmt.Errorf("sweep board drafts: %w", err)
+		}
 	}
 	// The marketing history behind those sends ages out on the same window
 	cutoff, ok, err := signalsboot.SendHistoryCutoff(ctx, s.settings)
@@ -169,16 +171,6 @@ func (s *maintenanceServer) ComputeTraits(ctx context.Context, _ *signalsv1.Comp
 	return &signalsv1.ComputeTraitsResponse{}, nil
 }
 
-func (s *maintenanceServer) ForwardDestinations(ctx context.Context, _ *signalsv1.ForwardDestinationsRequest) (*signalsv1.ForwardDestinationsResponse, error) {
-	if err := requireSystem(ctx); err != nil {
-		return nil, err
-	}
-	if err := s.destination.ForwardAll(ctx); err != nil {
-		return nil, err
-	}
-	return &signalsv1.ForwardDestinationsResponse{}, nil
-}
-
 func (s *maintenanceServer) GetRetentionAction(ctx context.Context, _ *signalsv1.GetRetentionActionRequest) (*signalsv1.GetRetentionActionResponse, error) {
 	if err := requireSystem(ctx); err != nil {
 		return nil, err
@@ -208,15 +200,6 @@ func (s *maintenanceServer) GetHealth(ctx context.Context, _ *signalsv1.GetHealt
 		out.PendingErasures = int32(n)
 	}
 	out.Queue = s.queueHealth(ctx)
-	if dests, err := s.destination.ListActive(ctx); err != nil {
-		out.DestinationsError = err.Error()
-	} else {
-		for _, d := range dests {
-			out.Destinations = append(out.Destinations, &signalsv1.DestinationHealth{
-				Name: d.Name, LastError: d.LastError, LastForwardedAt: timestampOrNil(d.LastForwardedAt),
-			})
-		}
-	}
 	return out, nil
 }
 

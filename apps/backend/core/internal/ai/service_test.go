@@ -103,7 +103,7 @@ func TestTextOnAToolTurnFollowsTheResults(t *testing.T) {
 		t.Fatal(err)
 	}
 	last := mustJSON(cap.bodies[0]["messages"].([]any)[2])
-	if !strings.Contains(last, `"tool_result"`) || !strings.Contains(last, `{"text":"answer now","type":"text"}],"role":"user"`) {
+	if !strings.Contains(last, `"tool_result"`) || !strings.Contains(last, `"text":"answer now","type":"text"}],"role":"user"`) {
 		t.Errorf("anthropic tool turn = %s, want the results then the text", last)
 	}
 
@@ -134,6 +134,7 @@ func TestAnthropicRequestFieldsFollowTheModel(t *testing.T) {
 		{"bedrock-style id", proxy, "anthropic.claude-sonnet-5-5", "low", thinkingMaxTokens, true, false},
 		{"sonnet 4.6 thinks only when asked", anthropicAPI, "claude-sonnet-4-6", "low", 300, true, false},
 		{"haiku 4.5 rejects effort", anthropicAPI, "claude-haiku-4-5", "low", 300, false, false},
+		{"haiku 5.5 thinks by default", anthropicAPI, "claude-haiku-5-5", "low", thinkingMaxTokens, true, false},
 		{"no effort requested", anthropicAPI, "claude-opus-5-5", "", thinkingMaxTokens, false, true},
 	} {
 		t.Run(c.name, func(t *testing.T) {

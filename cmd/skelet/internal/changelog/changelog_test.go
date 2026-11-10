@@ -120,3 +120,16 @@ func TestRelease(t *testing.T) {
 		t.Errorf("a release with no fragments: exit %d, want 1", got)
 	}
 }
+
+func TestLatestIsTheNewestListedRelease(t *testing.T) {
+	root := t.TempDir()
+	if got := Latest(root); got != "" {
+		t.Errorf("no CHANGELOG.md should be no release, got %q", got)
+	}
+	if err := os.WriteFile(filepath.Join(root, "CHANGELOG.md"), []byte("# Changelog\n\n- [0.3.1](changelog/0.3.1.md) - 2026-11-01\n- [0.3.0](changelog/0.3.0.md) - 2026-10-01\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := Latest(root); got != "0.3.1" {
+		t.Errorf("Latest = %q, want 0.3.1", got)
+	}
+}

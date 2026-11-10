@@ -11,12 +11,15 @@ const (
 	TriggerPaymentRefunded    = "payment_refunded"
 	TriggerCustomerRegistered = "customer_registered"
 	TriggerCartAbandoned      = "cart_abandoned"
-	TriggerBrowseAbandoned    = "browse_abandoned"
-	TriggerEmailOpened        = "email_opened"
-	TriggerEmailClicked       = "email_clicked"
-	TriggerSegmentEntered     = "segment_entered"
-	TriggerBackInStock        = "back_in_stock"
-	TriggerFormSubmitted      = "form_submitted"
+	// A cart the shopping assistant filled, left - raised in place of cart_abandoned when a flow takes it, so a store
+	// without one keeps its usual recovery mail
+	TriggerAssistedCartAbandoned = "assisted_cart_abandoned"
+	TriggerBrowseAbandoned       = "browse_abandoned"
+	TriggerEmailOpened           = "email_opened"
+	TriggerEmailClicked          = "email_clicked"
+	TriggerSegmentEntered        = "segment_entered"
+	TriggerBackInStock           = "back_in_stock"
+	TriggerFormSubmitted         = "form_submitted"
 	// The account triggers carry a one-time link and run inside the enrolling call - the mail has to
 	// go out in the request, not on the engine's next tick
 	TriggerEmailVerification = "email_verification"
@@ -34,7 +37,7 @@ func FlowTriggerTypes() []string {
 	return []string{
 		TriggerOrderPlaced, TriggerOrderShipped, TriggerOrderCancelled, TriggerPaymentRefunded,
 		TriggerEmailVerification, TriggerPasswordReset, TriggerSignupConfirmation, TriggerAccountExists, TriggerCartOffer,
-		TriggerCustomerRegistered, TriggerCartAbandoned, TriggerBrowseAbandoned, TriggerBackInStock,
+		TriggerCustomerRegistered, TriggerCartAbandoned, TriggerAssistedCartAbandoned, TriggerBrowseAbandoned, TriggerBackInStock,
 		TriggerFormSubmitted, TriggerEmailOpened, TriggerEmailClicked, TriggerSegmentEntered,
 	}
 }
@@ -63,6 +66,7 @@ const (
 	PayloadOfferExpires   = "offer_expires"
 	PayloadOfferMessage   = "offer_message"
 	PayloadStoreName      = "store_name"
+	PayloadLocale         = "locale" // the storefront language the moment happened in, so its email can go out in it
 	PayloadFirstName      = "first_name"
 	PayloadCartID         = "cart_id"
 	PayloadPageKey        = "page_key"

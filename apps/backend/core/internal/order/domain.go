@@ -7,9 +7,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
 // A confirmed order, prices in cents - CustomerID is nil for guests, and Email is both the receipt address and the second half of the (id, email) bearer credential for unauthenticated detail lookups
+// TaxIncluded is an order whose tax sits inside its prices - the receipt says "includes tax" instead of adding a line
+func (o Order) TaxIncluded() bool { return o.TaxInclusive }
+
 type Order struct {
 	ID              uuid.UUID
 	CustomerID      *uuid.UUID
@@ -32,9 +37,14 @@ type Order struct {
 	ShippingTaxAmount int64 // the part of TaxAmount charged on shipping
 	TotalAmount       int64
 	AnonID            string // the visitor id it was placed under - a guest order's later events reach the profile its placement did
+	Locale            string // the storefront language it was placed in, so its emails can go out in it - empty when not known
+	TaxInclusive      bool   // its prices held their tax, as its channel priced it at placement
+	AssistedBy        string
+	Shopper           *auth.Shopper // the visitor as they placed it, kept in metadata.tracking so an event sent after they change their mind still follows the consent they bought under - nil unless a shop placed it
 	// TRANSIENT and never persisted - set on the placement response for a client-side 3DS step and consumed by the storefront immediately
 	PaymentActionKind   string // "", "redirect" or "challenge" - what the client must do with PaymentActionSecret
 	PaymentActionSecret string
+	PaymentFailed       bool // the gateway refused or never answered the authorization, so the order is placed unpaid
 	// The cents of TotalAmount covered by gift cards - it reduces what's owed to the provider, not TotalAmount, since tax is on the full price
 	GiftCardAmount    int64
 	StoreCreditAmount int64
@@ -133,12 +143,18 @@ type OrderLineOption struct {
 	CreatedAt       time.Time
 }
 
-// One picked component under a bundle line - Quantity is the total, already multiplied by the parent quantity, and the option and selection ids are snapshots rather than FKs
+// A bundle line, as against a kit line whose components are its recipe - only a bundle pick carries an option
+func (l OrderLine) IsBundle() bool {
+	return len(l.Components) > 0 && l.Components[0].BundleOptionID != uuid.Nil
+}
+
+// One picked component under a bundle line, or one item of a kit's recipe - Quantity is the total, already multiplied by the parent quantity, and the option and selection ids are snapshots rather than FKs, Nil on a kit item
 type OrderLineComponent struct {
 	ID                uuid.UUID
 	OrderLineID       uuid.UUID
 	BundleOptionID    uuid.UUID
 	BundleSelectionID uuid.UUID
+	Returnable        bool // whether it can come back on its own - always on a bundle, the kit's setting at sale on a kit
 	ProductID         uuid.UUID
 	ProductSku        string
 	ProductName       string
@@ -246,6 +262,7 @@ type Repository interface {
 	UpdateReturnStatus(ctx context.Context, id uuid.UUID, from, status string) (OrderReturn, error)
 	MarkReturnRefunded(ctx context.Context, id uuid.UUID, refundAmount int64, giftCardID *uuid.UUID) (OrderReturn, error)
 	ReturnedByOrderLine(ctx context.Context, orderID uuid.UUID) (map[uuid.UUID]float64, error)
+	ReturnedByComponent(ctx context.Context, orderID uuid.UUID) (map[uuid.UUID]float64, error)
 
 	// Tax breakdown - replaced wholesale on an edit, since a recompute invalidates the old rows
 	InsertTaxLine(ctx context.Context, orderID uuid.UUID, line TaxLine) error
@@ -400,4 +417,6 @@ type OrderReturnLine struct {
 	Quantity        float64
 	Reason          string
 	RefundUnitCents int64
+	// Set when the line returns one component of a bundle line - Quantity then counts that component's units
+	ComponentID *uuid.UUID
 }

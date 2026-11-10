@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -47,6 +48,23 @@ func TestServiceTokenRoundTripsTheCallerAndTheirGrants(t *testing.T) {
 	}
 	if ok, err := check.HasPermission(ctx, got.AdminID, "experiments.view"); err != nil || !ok {
 		t.Errorf("manage should imply view through the token = (%v, %v)", ok, err)
+	}
+}
+
+// A board shared with a role is checked in the suite, so the token has to say which roles the admin holds
+func TestServiceTokenCarriesTheAdminsRoles(t *testing.T) {
+	want := signalsClaims()
+	want.RoleIDs = []uuid.UUID{uuid.New(), uuid.New()}
+	token, err := GenerateServiceToken(want, "signals", svcKeys, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := ValidateServiceToken(token, "signals", svcKeys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(got.RoleIDs, want.RoleIDs) || !slices.Equal(got.Admin().RoleIDs, want.RoleIDs) {
+		t.Fatalf("roles = %v (admin %v), want %v", got.RoleIDs, got.Admin().RoleIDs, want.RoleIDs)
 	}
 }
 

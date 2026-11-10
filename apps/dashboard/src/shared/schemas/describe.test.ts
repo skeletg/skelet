@@ -7,8 +7,8 @@ import { collectionSchema, type CollectionValues } from '@/features/catalog/sche
 import { newCollectionSchema } from '@/features/catalog/schemas/newCollection'
 import { newProductSchema } from '@/features/catalog/schemas/newProduct'
 import { cmsAttributeDefaultsSchema } from '@/features/cms/schemas/cmsAttribute'
-import { destinationSchema } from '@/features/destinations/schemas/destination'
 import { orderAddressSchema, type OrderAddressValues } from '@/features/orders/schemas/editOrderAddress'
+import { trackingDestinationSchema } from '@/features/tracking/schemas/trackingDestination'
 
 // Every form schema describes itself and each of its fields, so it can double as an AI tool schema
 // (z.toJSONSchema carries the descriptions). A refine leaves nothing in the JSON Schema, which makes
@@ -28,8 +28,8 @@ const FACTORIES: Record<string, () => z.ZodType> = {
   newCollectionSchema: () => newCollectionSchema('en'),
   newProductSchema: () => newProductSchema({ fallbackLocale: 'en', attributes: () => [] }),
   cmsAttributeDefaultsSchema: () => cmsAttributeDefaultsSchema('TEXT'),
-  destinationSchema: () => destinationSchema({ isEdit: false }),
   orderAddressSchema: () => orderAddressSchema({} as OrderAddressValues),
+  trackingDestinationSchema: () => trackingDestinationSchema([], { isEdit: false }),
 }
 
 // Object fields without a description, looking through arrays, records and nullable/optional wrappers

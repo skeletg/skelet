@@ -9,41 +9,60 @@ import type { BlockStyle, EmailBlock, EmailStyles } from './blocks'
 // --- small reusable controls (not exported - keep this file component-only
 //     for react-refresh) ---
 
+const HEX = /^#[0-9a-fA-F]{6}$/
+
 function ColorField({
   label,
   value,
   onChange,
+  fallback,
 }: {
   label: string
   value: string | undefined
   onChange: (v: string | undefined) => void
+  fallback?: string
 }) {
   const fid = useId()
-  // The native picker needs a hex; fall back to black when unset/non-hex
-  const swatch = value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : '#000000'
+  const set = !!value
+  const shown = set ? value : fallback
   return (
     <div className="grid gap-1.5">
       <Label htmlFor={fid} className="text-xs">{label}</Label>
       <div className="flex items-center gap-1.5">
-        <input
-          type="color"
-          value={swatch}
-          onChange={(e) => onChange(e.target.value)}
-          className="size-8 shrink-0 cursor-pointer rounded border bg-background p-0.5"
-          aria-label={`${label} color picker`}
-        />
+        <label
+          className={cn(
+            'relative size-8 shrink-0 cursor-pointer overflow-hidden rounded border p-0.5',
+            !set && 'border-dashed',
+          )}
+          title={set ? value : `Default${fallback ? ` (${fallback})` : ''} - pick a colour to change it`}
+        >
+          <span
+            className={cn('block size-full rounded-sm', !set && 'opacity-50')}
+            style={{ background: shown || 'transparent' }}
+          />
+          {!set ? <span className="absolute inset-0 m-auto h-px w-[140%] -translate-x-[15%] -rotate-45 bg-muted-foreground/70" /> : null}
+          <input
+            type="color"
+            // The native picker needs a hex - it opens on the default, so a tweak starts from what's shown
+            value={shown && HEX.test(shown) ? shown : '#ffffff'}
+            onChange={(e) => onChange(e.target.value)}
+            className="absolute inset-0 size-full cursor-pointer opacity-0"
+            aria-label={`${label} color picker`}
+          />
+        </label>
         <Input id={fid}
           value={value ?? ''}
           onChange={(e) => onChange(e.target.value || undefined)}
-          placeholder="inherit"
+          placeholder={fallback ? `Default (${fallback})` : 'None'}
           className="h-8 font-mono text-xs"
         />
-        {value ? (
+        {set ? (
           <button
             type="button"
             onClick={() => onChange(undefined)}
             className="rounded p-1 text-muted-foreground hover:text-foreground"
-            aria-label={`Clear ${label}`}
+            aria-label={`Reset ${label} to default`}
+            title="Reset to default"
           >
             <XIcon className="size-3.5" />
           </button>
@@ -95,9 +114,11 @@ function NumberField({
 
 function AlignField({
   value,
+  fallback = 'left',
   onChange,
 }: {
   value: BlockStyle['align'] | undefined
+  fallback?: 'left' | 'center' | 'right'
   onChange: (v: BlockStyle['align']) => void
 }) {
   const opts: Array<{ v: 'left' | 'center' | 'right'; icon: typeof AlignLeftIcon }> = [
@@ -116,7 +137,7 @@ function AlignField({
             onClick={() => onChange(v)}
             className={cn(
               'flex h-8 flex-1 items-center justify-center rounded border transition-colors',
-              (value ?? 'left') === v
+              (value ?? fallback) === v
                 ? 'border-primary bg-primary/10 text-primary'
                 : 'bg-background text-muted-foreground hover:bg-accent',
             )}
@@ -130,9 +151,9 @@ function AlignField({
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, first, children }: { title: string; first?: boolean; children: React.ReactNode }) {
   return (
-    <div className="grid gap-2.5 border-t pt-4">
+    <div className={cn('grid gap-2.5', !first && 'border-t pt-4')}>
       <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</h3>
       {children}
     </div>
@@ -141,15 +162,21 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 // --- per-block style controls ---
 
-const ALIGNABLE = new Set(['heading', 'text', 'button', 'image'])
-const COLORABLE = new Set(['heading', 'text', 'divider'])
+const ALIGNABLE = new Set(['heading', 'text', 'button', 'image', 'coupon', 'image_text', 'menu', 'store_footer'])
+const COLORABLE = new Set(['heading', 'text', 'divider', 'coupon', 'image_text', 'menu', 'store_footer'])
+// These sit centred until told otherwise, as the server draws them
+const CENTERED = new Set(['coupon', 'menu', 'store_footer'])
+// The blocks that end on a button take its colours too
+const HAS_BUTTON = new Set(['button', 'coupon', 'image_text'])
 
 export function BlockStyleControls({
   block,
   onChange,
+  theme = {},
 }: {
   block: EmailBlock
   onChange: (b: EmailBlock) => void
+  theme?: EmailStyles
 }) {
   const s = block.style ?? {}
   const patch = (p: Partial<BlockStyle>) => {
@@ -163,30 +190,53 @@ export function BlockStyleControls({
 
   return (
     <Section title="Style">
-      {ALIGNABLE.has(block.type) && <AlignField value={s.align} onChange={(v) => patch({ align: v })} />}
+      {ALIGNABLE.has(block.type) && (
+        <AlignField value={s.align} fallback={CENTERED.has(block.type) ? 'center' : 'left'} onChange={(v) => patch({ align: v })} />
+      )}
 
       {COLORABLE.has(block.type) && (
-        <ColorField label="Text color" value={s.color} onChange={(v) => patch({ color: v })} />
+        <ColorField
+          label={block.type === 'divider' ? 'Line color' : block.type === 'menu' ? 'Link color' : 'Text color'}
+          value={s.color}
+          fallback={
+            block.type === 'divider'
+              ? '#e5e5e5'
+              : block.type === 'store_footer'
+                ? '#888888'
+                : block.type === 'menu'
+                  ? theme.linkColor || '#222222'
+                  : theme.textColor || (block.type === 'heading' || block.type === 'coupon' ? '#222222' : '#333333')
+          }
+          onChange={(v) => patch({ color: v })}
+        />
       )}
       {(block.type === 'heading' || block.type === 'text') && (
-        <NumberField label="Font size" suffix="px" min={8} max={200} value={s.fontSize} onChange={(v) => patch({ fontSize: v })} />
+        <NumberField
+          label="Font size"
+          suffix="px"
+          min={8}
+          max={200}
+          placeholder={block.type === 'heading' ? '20' : 'Default'}
+          value={s.fontSize}
+          onChange={(v) => patch({ fontSize: v })}
+        />
       )}
 
-      {block.type === 'button' && (
+      {HAS_BUTTON.has(block.type) && (
         <>
-          <ColorField label="Button color" value={s.buttonColor} onChange={(v) => patch({ buttonColor: v })} />
-          <ColorField label="Label color" value={s.buttonTextColor} onChange={(v) => patch({ buttonTextColor: v })} />
-          <NumberField label="Corner radius" suffix="px" min={0} max={100} value={s.radius} onChange={(v) => patch({ radius: v })} />
+          <ColorField label="Button color" value={s.buttonColor} fallback={theme.linkColor || '#222222'} onChange={(v) => patch({ buttonColor: v })} />
+          <ColorField label="Label color" value={s.buttonTextColor} fallback="#ffffff" onChange={(v) => patch({ buttonTextColor: v })} />
+          <NumberField label="Corner radius" suffix="px" min={0} max={100} placeholder="4" value={s.radius} onChange={(v) => patch({ radius: v })} />
         </>
       )}
 
       {block.type === 'image' && (
-        <NumberField label="Width" suffix="%" min={1} max={100} value={s.width} onChange={(v) => patch({ width: v })} />
+        <NumberField label="Width" suffix="%" min={1} max={100} placeholder="Natural size" value={s.width} onChange={(v) => patch({ width: v })} />
       )}
 
       <div className="grid grid-cols-2 gap-2">
-        <NumberField label="Padding Y" suffix="px" max={200} value={s.paddingY} onChange={(v) => patch({ paddingY: v })} />
-        <NumberField label="Padding X" suffix="px" max={200} value={s.paddingX} onChange={(v) => patch({ paddingX: v })} />
+        <NumberField label="Padding Y" suffix="px" max={200} placeholder="0" value={s.paddingY} onChange={(v) => patch({ paddingY: v })} />
+        <NumberField label="Padding X" suffix="px" max={200} placeholder="0" value={s.paddingX} onChange={(v) => patch({ paddingX: v })} />
       </div>
       <ColorField label="Background" value={s.background} onChange={(v) => patch({ background: v })} />
 
@@ -220,8 +270,9 @@ export function GlobalStyleControls({
     onChange(next)
   }
   return (
-    <Section title="Theme">
-      <ColorField label="Background" value={value.background} onChange={(v) => patch({ background: v })} />
+    <Section title="Theme" first>
+      <p className="text-xs text-muted-foreground">Applies to the whole email. A block's own style wins over it.</p>
+      <ColorField label="Background" value={value.background} fallback="#f6f6f6" onChange={(v) => patch({ background: v })} />
       <NumberField label="Content width" suffix="px" min={200} max={1000} placeholder="600" value={value.contentWidth} onChange={(v) => patch({ contentWidth: v })} />
       <div className="grid gap-1.5">
         <Label htmlFor={`${fid}-font-family`} className="text-xs">Font family</Label>
@@ -232,8 +283,8 @@ export function GlobalStyleControls({
           className="h-8 text-xs"
         />
       </div>
-      <ColorField label="Text color" value={value.textColor} onChange={(v) => patch({ textColor: v })} />
-      <ColorField label="Link / button color" value={value.linkColor} onChange={(v) => patch({ linkColor: v })} />
+      <ColorField label="Text color" value={value.textColor} fallback="#333333" onChange={(v) => patch({ textColor: v })} />
+      <ColorField label="Link / button color" value={value.linkColor} fallback="#222222" onChange={(v) => patch({ linkColor: v })} />
     </Section>
   )
 }

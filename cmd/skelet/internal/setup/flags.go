@@ -16,7 +16,7 @@ type list struct {
 type flags struct {
 	apps, dockerApps, tools list
 	keepCode, yes, noBoot   bool
-	// profile is the file answers are replayed from; they are always saved to .skelet-profile
+	// profile is the file answers are replayed from
 	profile string
 	// shop and template ask for a storefront of the project's own, copied from a template - either one is enough
 	shop, template string

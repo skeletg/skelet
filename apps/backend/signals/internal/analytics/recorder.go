@@ -4,8 +4,11 @@ package analytics
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"maps"
@@ -28,6 +31,17 @@ const (
 	EventViewItem      = "view_item"      // the three below are storefront funnel events promoted out of the generic "custom" channel, so they're countable and selectable as funnel steps
 	EventBeginCheckout = "begin_checkout"
 	EventPurchase      = "purchase"
+	// Reserved custom-event names the storefront tracker emits, held to the tracking plan
+	EventSearch = "$search"
+	// The AI overview above search results - not $ names, since a storefront built before the plan sends them as they are
+	EventOverviewShown = "search_overview_shown"
+	EventOverviewClick = "search_overview_click"
+	EventOverviewChat  = "search_overview_chat"
+	EventExperiment    = "$experiment"
+	EventJSError       = "$js_error"
+	EventRageClick     = "$rage_click"
+	EventDeadClick     = "$dead_click"
+	EventWebVitals     = "$web_vitals"
 )
 
 const (
@@ -35,12 +49,53 @@ const (
 	SourceCommerce = "commerce" // server-side commerce actions (order/cart/return/review/...)
 	SourceAccount  = "account"  // server-side account actions (auth/registration/profile/...)
 	SourceLens     = "lens"     // heatmap grid increments under the ClickHouse engine - own source so behaviour reads never see them and Lens prunes them on its window
+	// A visitor who hasn't allowed analytics, counted as nobody - in totals only: no actor, so every per-person read (profiles, funnels,
+	// retention, flows, RFM, segments) leaves it out by its empty-actor guard, while event totals and revenue include it
+	SourceAggregate = "aggregate"
 )
+
+// What an aggregate event may carry - amounts and items, never anything that could lead back to a person or an order
+var aggregateProps = map[string]bool{
+	"sku": true, "qty": true, "unit_price": true, "total_cents": true, "amount_cents": true, "currency": true,
+	"path": true, "status": true, "bundle": true,
+}
 
 type Recorder struct {
 	qs      *signalsdb.Queries // the signals database - segments, rosters, traits, the erasure queue
 	spine   SpineStore         // the ClickHouse spine driver, behind the ingest queue when one is configured - ALL spine access goes through it, ingest and every analytical read alike
 	archive ArchiveSink        // optional retention-archive destination (the BACKUP_* bucket) - nil makes retention_action=archive fail closed
+	// Runs on a sweep's customers before their identities go, while those still tie each customer to their visitor ids
+	beforeErasure func(context.Context, []uuid.UUID) error
+	aggKey        []byte // keys an aggregate event's dedupe hash, so the stored key can't be recomputed from an order or line id
+}
+
+func (r *Recorder) OnIdentityErasure(fn func(context.Context, []uuid.UUID) error) {
+	r.beforeErasure = fn
+}
+
+// SetAggregateKey takes a secret neither database holds - boot passes the service secret. Without one, an aggregate
+// event is refused rather than stored under a hash anyone holding the order id could recompute
+func (r *Recorder) SetAggregateKey(k []byte) { r.aggKey = k }
+
+var errNoAggregateKey = errors.New("no key for aggregate events - set SIGNALS_SERVICE_SECRET")
+
+// asNobody is an aggregate event as it may be stored: no actor whatever the caller sent, only amounts and items, the
+// hour, and the dedupe key as a keyed hash - an exact time, or a key hashed from a known id, would match the event
+// back to its order and so to the customer. It builds new props rather than editing the caller's
+func (r *Recorder) asNobody(a ActivitySpec) ActivitySpec {
+	a.CustomerID, a.AnonID = nil, ""
+	a.At = orNow(a.At).Truncate(time.Hour)
+	m := hmac.New(sha256.New, r.aggKey)
+	m.Write([]byte(a.DedupeKey))
+	a.DedupeKey = "agg:" + hex.EncodeToString(m.Sum(nil)[:16])
+	props := make(map[string]any, len(a.Props))
+	for k, v := range a.Props {
+		if aggregateProps[k] {
+			props[k] = v
+		}
+	}
+	a.Props = props
+	return a
 }
 
 // Layers a decorator (the ingest queue) over the engine
@@ -51,6 +106,17 @@ func (r *Recorder) SpineStore() SpineStore { return r.spine } // the queue consu
 // The Recorder reads and writes the signals database and the spine only - it holds no commerce handle
 func NewRecorder(qs *signalsdb.Queries, spine SpineStore) *Recorder {
 	return &Recorder{qs: qs, spine: spine}
+}
+
+// FlagBot marks a bot's web event so human reports leave it out - a bot that renders JS fires the tracker too
+func (h Hit) FlagBot(props map[string]any) {
+	props["is_bot"] = true
+	if h.BotName != "" {
+		props["bot_name"] = h.BotName
+	}
+	if h.BotCat != "" {
+		props["bot_category"] = h.BotCat
+	}
 }
 
 type Hit struct {
@@ -266,15 +332,26 @@ type ActivitySpec struct { // a server-side action, from authenticated flows rat
 	Source     string // SourceCommerce | SourceAccount
 	ChannelID  uuid.UUID
 	CustomerID *uuid.UUID
-	AnonID     string // for guest commerce: attribute to the anon visitor when no customer
+	AnonID     string // the visitor - on guest commerce the one acted as, on a sign-in or sign-up the one stitched to CustomerID
 	At         time.Time
 	Props      map[string]any
 	DedupeKey  string // keeps ingest idempotent against the at-least-once event bus - outbox replays, detached-goroutine retries
 }
 
 func (r *Recorder) RecordActivity(ctx context.Context, a ActivitySpec) (bool, error) { // no-op with neither id - an action we can't attribute to anyone has no place on a profile
-	if a.CustomerID == nil && a.AnonID == "" {
+	if a.Source == SourceAggregate {
+		if len(r.aggKey) == 0 {
+			return false, errNoAggregateKey
+		}
+		a = r.asNobody(a)
+	} else if a.CustomerID == nil && a.AnonID == "" {
 		return false, nil
+	}
+	// A sign-in or sign-up core saw with the visitor's id is proof the two are one person, sent only with analytics consent
+	if a.Source == SourceAccount && (a.EventName == "login" || a.EventName == "registered") && a.CustomerID != nil && a.AnonID != "" {
+		if err := r.Identify(ctx, a.AnonID, *a.CustomerID, a.ChannelID); err != nil {
+			return false, err
+		}
 	}
 	var ch *uuid.UUID
 	if a.ChannelID != uuid.Nil {
@@ -293,7 +370,7 @@ func (r *Recorder) RecordActivity(ctx context.Context, a ActivitySpec) (bool, er
 	})
 }
 
-// Stitches an anonymous visitor to a known customer, upserting last-write-wins on anon_id plus a one-off identify event as a timeline marker - re-firing is idempotent
+// Stitches an anonymous visitor to a known customer, first-write-wins on anon_id (the visitor stays with the customer it was first stitched to), plus a one-off identify event as a timeline marker - re-firing is idempotent
 // No past event is rewritten: profile reads resolve web activity through the mapping, so anonymous activity attributes retroactively
 func (r *Recorder) Identify(ctx context.Context, anonID string, customerID, channelID uuid.UUID) error {
 	if anonID == "" || customerID == uuid.Nil {

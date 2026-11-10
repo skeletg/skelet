@@ -48,9 +48,11 @@ function CouponFormSkeleton() {
 export function CartView({
   freeShipThreshold,
   recommendations,
+  notice,
 }: {
   freeShipThreshold: number;
   recommendations: React.ReactNode;
+  notice?: string;
 }) {
   const { cart, pendingRemovals, removeLine, clear, lineNotices, cartNotice } =
     useCartStore();
@@ -62,6 +64,11 @@ export function CartView({
 
   const items = cart ? mergePendingRemovals(cart.lines, pendingRemovals) : [];
   const hasLines = !!cart && cart.lines.length > 0;
+  const noticeNode = notice ? (
+    <p role="status" className="mt-4 rounded-lg border border-amber-300/60 bg-amber-50 px-4 py-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+      {notice}
+    </p>
+  ) : null;
 
   if (items.length === 0) {
     // Nothing live and nothing pending-undo - but saved-for-later items may still be
@@ -69,6 +76,7 @@ export function CartView({
     return (
       <main className="mx-auto w-full max-w-3xl px-6 pt-6 pb-12">
         <h1 className="text-3xl font-extrabold tracking-tight">{t("title")}</h1>
+        {noticeNode}
         <p className="mt-6 text-muted-foreground">{td("empty")}</p>
         <Link
           href="/products"
@@ -155,6 +163,7 @@ export function CartView({
   return (
     <main className="mx-auto w-full max-w-3xl px-6 pt-6 pb-12">
       <h1 className="text-3xl font-extrabold tracking-tight">{t("title")}</h1>
+      {noticeNode}
 
       {cartNotice ? (
         <p role="alert" className="mt-4 rounded-lg border border-amber-300/60 bg-amber-50 px-4 py-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">

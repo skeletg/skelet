@@ -177,9 +177,11 @@ type ProductRepository interface {
 type ListingRepository interface {
 	CountInheritingListingsWithCurrencyMismatchForProduct(ctx context.Context, productID uuid.UUID, currency string) (int64, error)
 	UpsertProductChannelListingPublished(ctx context.Context, productID, channelID uuid.UUID, published bool) (ProductChannelListing, error)
+	SetProductChannelListingBundlePricing(ctx context.Context, productID, channelID uuid.UUID, mode BundlePricing, discountPercent int16) (ProductChannelListing, error)
 	DeleteProductChannelListing(ctx context.Context, productID, channelID uuid.UUID) error
 	GetProductChannelListing(ctx context.Context, productID, channelID uuid.UUID) (ProductChannelListing, error)
 	ListProductChannelListingsByChannel(ctx context.Context, channelID uuid.UUID) ([]ProductChannelListing, error)
+	ListSaleCandidates(ctx context.Context, channelID uuid.UUID, limit int32) ([]SaleCandidate, error)
 	CountProductChannelListingsByChannel(ctx context.Context) (map[uuid.UUID]int64, error)
 	ListProductChannelListingsByProduct(ctx context.Context, productID uuid.UUID) ([]ProductChannelListing, error)
 	ListProductChannelListingsByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]ProductChannelListing, error)
@@ -266,6 +268,7 @@ type CategoryRepository interface {
 	ListCategoryFacetOverrides(ctx context.Context, categoryID uuid.UUID) ([]FacetOverride, error)
 	ReplaceCategoryFacetOverrides(ctx context.Context, categoryID uuid.UUID, overrides []FacetOverride) error
 	ListCategoryChildren(ctx context.Context, parentID uuid.UUID) ([]Category, error)
+	ListCategoryListingIDs(ctx context.Context, channelID, id uuid.UUID) ([]uuid.UUID, error)
 	ListCategoriesListedOnChannel(ctx context.Context, channelID uuid.UUID) ([]Category, error)
 	ListCategoryChildrenListedOnChannel(ctx context.Context, channelID, parentID uuid.UUID) ([]Category, error)
 	ListCategoryContent(ctx context.Context, categoryID uuid.UUID) ([]CategoryContent, error)
@@ -370,6 +373,7 @@ type OptionRepository interface {
 
 // Bundle options and selections, including localized content
 type BundleRepository interface {
+	SetBundleOptionRule(ctx context.Context, id uuid.UUID, rule *BundleOptionRule) (BundleOption, error)
 	CountBundleSelectionDefaultsForOption(ctx context.Context, optionID uuid.UUID) (int64, error)
 	CreateBundleOption(ctx context.Context, input AddBundleOptionInput) (BundleOption, error)
 	CreateBundleSelection(ctx context.Context, input AddBundleSelectionInput) (BundleSelection, error)
@@ -385,7 +389,7 @@ type BundleRepository interface {
 	ListBundleSelectionLinksByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]BundleSelectionLink, error)
 	ListBundleSelectionsByOptionIDs(ctx context.Context, optionIDs []uuid.UUID) (map[uuid.UUID][]BundleSelection, error)
 	UpdateBundleOption(ctx context.Context, id uuid.UUID, inputType BundleInputType, isRequired bool, sortOrder, minSelections int32, maxSelections *int32) (BundleOption, error)
-	UpdateBundleSelection(ctx context.Context, id uuid.UUID, quantity float64, isDefault bool, sortOrder int32) (BundleSelection, error)
+	UpdateBundleSelection(ctx context.Context, id uuid.UUID, quantity float64, isDefault bool, sortOrder int32, discountPercent int16, customerQuantity bool) (BundleSelection, error)
 	UpsertBundleOptionContent(ctx context.Context, input UpsertBundleOptionContentInput) (BundleOptionContent, error)
 }
 

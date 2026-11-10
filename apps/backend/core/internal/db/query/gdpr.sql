@@ -156,3 +156,22 @@ DELETE FROM customer_payment_methods WHERE customer_id = $1;
 
 -- name: DeleteCustomerWishlistShares :execrows
 DELETE FROM wishlist_shares WHERE customer_id = $1;
+
+-- name: DeleteEmailOptIns :execrows
+-- A guest's checkout opt-in is stored under the bare address, so it goes by address on the customer's channel
+DELETE FROM email_opt_ins
+WHERE  channel_id = sqlc.arg(channel_id) AND email = sqlc.arg(email)::text;
+
+-- name: DeleteCustomerTrackingEvents :execrows
+-- Tracking events carry the customer's address, phone, IP and click ids unhashed, and their deliveries go with them - by
+-- customer id or address, and by the visitor id their orders were placed under, which a guest's browser events carry
+-- alone. Runs before the orders are scrubbed, while they still hold that visitor id
+DELETE FROM tracking_events e
+WHERE  e.channel_id = sqlc.arg(channel_id)
+  AND  (e.customer_id = sqlc.arg(customer_id)::uuid
+        OR e.email = sqlc.arg(email)::text
+        OR e.anon_id IN (
+            SELECT o.anon_id FROM orders o
+            WHERE  o.channel_id = sqlc.arg(channel_id) AND o.anon_id <> ''
+              AND  (o.customer_id = sqlc.arg(customer_id)::uuid
+                    OR (o.customer_id IS NULL AND lower(btrim(o.email)) = sqlc.arg(email)::text))));

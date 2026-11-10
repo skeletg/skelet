@@ -225,8 +225,28 @@ func (r *productResolver) BundleOptions(ctx context.Context, obj *model.Product)
 	return r.productBundleOptions(ctx, obj)
 }
 
+func (r *productResolver) BundlePricing(ctx context.Context, obj *model.Product) (model.BundlePricing, error) {
+	l, err := r.bundleListingOf(ctx, obj)
+	if err != nil || l == nil || l.BundlePricing == "" {
+		return model.BundlePricingSum, err
+	}
+	return model.BundlePricing(strings.ToUpper(string(l.BundlePricing))), nil
+}
+
+func (r *productResolver) BundleDiscountPercent(ctx context.Context, obj *model.Product) (int32, error) {
+	l, err := r.bundleListingOf(ctx, obj)
+	if err != nil || l == nil {
+		return 0, err
+	}
+	return int32(l.BundleDiscountPercent), nil
+}
+
 func (r *productResolver) GroupedMembers(ctx context.Context, obj *model.Product) ([]*model.GroupedMember, error) {
 	return r.productGroupedMembers(ctx, obj)
+}
+
+func (r *productResolver) KitComponents(ctx context.Context, obj *model.Product) ([]*model1.KitItem, error) {
+	return r.productKitComponents(ctx, obj)
 }
 
 func (r *productResolver) Options(ctx context.Context, obj *model.Product) ([]*model1.ProductCustomOption, error) {
@@ -498,8 +518,8 @@ func (r *productMediaResolver) TransformURL(ctx context.Context, obj *model.Prod
 }
 
 func (r *queryResolver) ProductsByIds(ctx context.Context, ids []string) ([]*model.Product, error) {
-	if len(ids) > 24 {
-		ids = ids[:24]
+	if len(ids) > catalog.ProductsPerLookup {
+		ids = ids[:catalog.ProductsPerLookup]
 	}
 	parsed := make([]uuid.UUID, 0, len(ids))
 	for _, raw := range ids {
@@ -511,8 +531,8 @@ func (r *queryResolver) ProductsByIds(ctx context.Context, ids []string) ([]*mod
 }
 
 func (r *queryResolver) ProductsBySkus(ctx context.Context, skus []string) ([]*model.Product, error) {
-	if len(skus) > 24 {
-		skus = skus[:24]
+	if len(skus) > catalog.ProductsPerLookup {
+		skus = skus[:catalog.ProductsPerLookup]
 	}
 	bySKU, err := r.CatalogSvc.GetProductsBySKUs(ctx, skus)
 	if err != nil {
@@ -810,6 +830,7 @@ func (r *queryResolver) BrowseProducts(ctx context.Context, query *string, filte
 		if filter.CategoryID != nil {
 			if id, err := uuid.Parse(*filter.CategoryID); err == nil {
 				indexerFilter.CategoryID = &id
+				indexerFilter.CategoryIDs = r.categoryListingIDs(ctx, *storeID, id)
 			}
 		}
 		if filter.CollectionID != nil {
@@ -867,6 +888,7 @@ func (r *queryResolver) BrowseProducts(ctx context.Context, query *string, filte
 	if query != nil {
 		queryStr = *query
 	}
+	typed := queryStr
 
 	// Same merchandising the search box applies (synonym expansion widens the query, boosts reorder) - without it the /search page ranked differently from the typeahead the shopper just clicked out of
 	var browseBoosts map[uuid.UUID]float64
@@ -875,7 +897,8 @@ func (r *queryResolver) BrowseProducts(ctx context.Context, query *string, filte
 		queryStr = r.SearchMerchSvc.ExpandQuery(ctx, *storeID, queryStr)
 	}
 	// The tier handles primary-then-backup and reports degradation itself, so an error here means BOTH engines failed
-	res, err := r.ProductSearch.BrowseProducts(ctx, *storeID, locale, queryStr, indexerFilter, sortSlug, lim, off, browseBoosts)
+	res, err := r.browse(ctx, search.BrowseRequest{ChannelID: *storeID, Locale: locale, Locales: r.meaningLocales(ctx, locale),
+		Query: typed, Words: queryStr, Filter: indexerFilter, Sort: sortSlug, Limit: lim, Offset: off, Boosts: browseBoosts})
 	if err != nil {
 		if !errors.Is(err, search.ErrFallbackSaturated) {
 			log.Printf("[search:error] browse failed on every tier for store %s: %v", *storeID, err)
@@ -992,9 +1015,11 @@ func (r *queryResolver) BrowseProducts(ctx context.Context, query *string, filte
 	}
 
 	return &model1.BrowseProductsResult{
-		Items:      items,
-		TotalCount: int32(res.Total),
-		Facets:     facets,
+		Items:         items,
+		TotalCount:    int32(res.Total),
+		Facets:        facets,
+		ByMeaningOnly: res.Rescued,
+		AiOverview:    res.Meaning && off == 0 && sortSlug == "" && unfiltered(filter) && r.overviewOffered(ctx),
 	}, nil
 }
 

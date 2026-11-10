@@ -9,3 +9,7 @@ export const BACKEND_INTERNAL_URL =
 export const FRONT_API_URL = `${BACKEND_INTERNAL_URL}${
   process.env.FRONT_API_SLUG ? `/api/front/${process.env.FRONT_API_SLUG}/graphql` : "/api/front/graphql"
 }`;
+
+export const FRONT_MCP_URL = FRONT_API_URL.replace(/\/graphql$/, "/mcp");
+
+export const FRONT_ASSISTANT_URL = FRONT_API_URL.replace(/\/graphql$/, "/assistant");

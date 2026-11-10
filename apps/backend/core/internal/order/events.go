@@ -176,10 +176,15 @@ type OrderPlaced struct {
 	Email      string
 	// AnonID is the visitor's lens_aid - lets a GUEST order attach to their browsing on the Synapse profile - Empty for admin/draft
 	AnonID     string
-	ChannelID  uuid.UUID
-	TotalCents int64
-	Currency   string
-	Tags       []string
+	AssistedBy string `json:",omitempty"`
+	// The AI trace of the assistant turn that filled the cart, when the assistant has the credit - its outcome scores it
+	AssistTrace string `json:",omitempty"`
+	ChannelID   uuid.UUID
+	TotalCents  int64
+	Currency    string
+	Tags        []string
+	// A guest ticked the email opt-in at checkout - kept under their address until someone proves they own it
+	MarketingOptIn bool
 }
 
 func (*OrderPlaced) Type() string { return EventPlaced }
@@ -333,6 +338,7 @@ func (o *OrderFulfillmentCreated) EventChannelID() uuid.UUID { return o.ChannelI
 type ReturnLineQty struct {
 	OrderLineID uuid.UUID
 	Quantity    float64
+	ProductID   *uuid.UUID `json:",omitempty"` // one component of a bundle line - only it is restocked, Quantity in its units
 }
 
 // Fires post-commit through the outbox when a restock-flagged return's goods are received, so inventory adds the quantities back - non-restock returns don't emit it
@@ -352,6 +358,8 @@ type OrderEdited struct {
 	ChannelID    uuid.UUID
 	OldAmountDue int64
 	NewAmountDue int64
+	// The lines and their net sales before a line edit, empty for an address edit - what changed is them against now
+	Before []EditedLine `json:",omitempty"`
 }
 
 func (*OrderEdited) Type() string                { return EventEdited }

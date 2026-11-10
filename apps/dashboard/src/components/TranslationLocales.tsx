@@ -17,6 +17,7 @@ export function TranslationLocales({
   entityLabel,
   canManage,
   defaultLocaleLocked = false,
+  staged = false,
   onRemove,
   className,
 }: {
@@ -29,6 +30,8 @@ export function TranslationLocales({
   canManage: boolean
   /** Backend refuses to drop the default locale while translations exist (posts + catalog categories) */
   defaultLocaleLocked?: boolean
+  /** onRemove only stages the removal for the page's Save - the confirm says so instead of warning it can't be undone */
+  staged?: boolean
   /** Runs the delete mutation - resolve only once the refetch has landed */
   onRemove: () => Promise<void>
   className?: string
@@ -105,11 +108,11 @@ export function TranslationLocales({
         description={
           <>
             This deletes the {locale} content of this {entityLabel} - other locales stay as they
-            are. This action cannot be undone.
+            are. {staged ? 'It is removed when you save the page.' : 'This action cannot be undone.'}
           </>
         }
-        confirmLabel="Remove translation"
-        busyLabel="Removing…"
+        confirmLabel={staged ? 'Stage remove' : 'Remove translation'}
+        busyLabel={staged ? 'Staging…' : 'Removing…'}
         destructive
         onConfirm={onRemove}
       />

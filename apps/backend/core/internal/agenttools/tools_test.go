@@ -17,7 +17,7 @@ import (
 // Configured but never dialled - grpc.NewClient connects lazily, so this stands in for a reachable suite
 func dialableSignals(t *testing.T) *signalsclient.Client {
 	t.Helper()
-	c, err := signalsclient.New("127.0.0.1:1", auth.MustServiceKeys("test-secret"), time.Minute, nil)
+	c, err := signalsclient.New("127.0.0.1:1", signalsclient.Transport{}, auth.MustServiceKeys("test-secret"), time.Minute, nil)
 	if err != nil {
 		t.Fatalf("signalsclient.New: %v", err)
 	}
@@ -236,5 +236,14 @@ func TestNoSignalsToolIsOfferedWithTheSuiteOff(t *testing.T) {
 	res := callTool(ctx, &Deps{}, off, uuid.New(), 30, ai.ToolCall{ID: "x", Name: "get_customer_behaviour"})
 	if !res.IsError {
 		t.Errorf("a suite tool called with the switch off should be refused, got %+v", res)
+	}
+}
+
+// The admin endpoint promises read-only access, and MCP clients decide what to confirm from these hints
+func TestEveryAdminToolIsAnnouncedAsARead(t *testing.T) {
+	for _, d := range Definitions() {
+		if d.Effect != ai.Reads || !d.Idempotent {
+			t.Errorf("%s is not announced as a read", d.Name)
+		}
 	}
 }

@@ -151,6 +151,9 @@ func (b *Builder) sections(ctx context.Context, id, ch uuid.UUID, addr string, e
 		{"signupFormSubmissions", func() (json.RawMessage, error) {
 			return b.q.DSARSignupSubmissions(ctx, db.DSARSignupSubmissionsParams{CustomerID: nid, ChannelID: ch, Email: addr})
 		}},
+		{"emailOptIns", func() (json.RawMessage, error) {
+			return b.q.DSAREmailOptIns(ctx, db.DSAREmailOptInsParams{ChannelID: ch, Email: addr})
+		}},
 		{"webFormSubmissions", func() (json.RawMessage, error) {
 			return b.q.DSARWebFormSubmissions(ctx, db.DSARWebFormSubmissionsParams{CustomerID: nid, ChannelID: ch, Email: addr})
 		}},

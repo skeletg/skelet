@@ -33,8 +33,9 @@ func (f fakeGuardRepo) ListLevelsByItems(context.Context, []uuid.UUID) ([]Level,
 }
 
 type stubProducts struct {
-	id  uuid.UUID
-	err error
+	id    uuid.UUID
+	err   error
+	comps []KitComponentRef
 }
 
 func (s stubProducts) GetProductIDBySKU(context.Context, string) (uuid.UUID, error) {
@@ -42,7 +43,21 @@ func (s stubProducts) GetProductIDBySKU(context.Context, string) (uuid.UUID, err
 }
 
 func (s stubProducts) KitComponents(context.Context, uuid.UUID) ([]KitComponentRef, error) {
-	return nil, nil
+	return s.comps, nil
+}
+
+// A kit owns no stock, so the gate checks each component at the kit quantity times its per-kit count
+func TestGuardCartStockChecksAKitsComponents(t *testing.T) {
+	item := tracked(false)
+	s, ch := guardSvc(item, 10, 7) // 3 salable of the component
+	s.SetProductLookup(stubProducts{id: uuid.New(), comps: []KitComponentRef{{ProductID: item.ProductID, Quantity: 2}}})
+
+	if err := s.guardCartStock(context.Background(), ch, "kit", 1); err != nil {
+		t.Errorf("one kit takes 2 of 3 salable = %v, want nil", err)
+	}
+	if err := s.guardCartStock(context.Background(), ch, "kit", 2); apperr.CodeOf(err) != "CART_INSUFFICIENT_STOCK" {
+		t.Errorf("two kits take 4 of 3 salable = %v, want CART_INSUFFICIENT_STOCK", err)
+	}
 }
 
 // guardSvc wires the gate with stock at one location the channel serves

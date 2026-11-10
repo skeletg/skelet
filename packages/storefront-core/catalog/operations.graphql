@@ -242,12 +242,16 @@ query Product($id: ID!) {
         }
       }
     }
+    bundlePricing
+    bundleDiscountPercent
     bundleOptions {
       id
       title
       inputType
       isRequired
       sortOrder
+      minSelections
+      maxSelections
       selections {
         id
         quantity
@@ -402,6 +406,8 @@ query BrowseProducts(
 ) {
   browseProducts(query: $query, filter: $filter, sort: $sort, limit: $limit, offset: $offset) {
     totalCount
+    byMeaningOnly
+    aiOverview
     items {
       ...ProductSummaryFields
     }
@@ -441,6 +447,21 @@ query BrowseProductsSlim(
   }
 }
 
+
+# A kit's fixed contents for "In the box" - its own query, since the Product query sits at the front surface's complexity
+# cap. A component this store doesn't sell has no url
+query ProductKitContents($id: ID!) {
+  product(id: $id) {
+    id
+    kitComponents {
+      id
+      quantity
+      url
+      sku
+      name
+    }
+  }
+}
 
 query ProductRecommendations($id: ID!) {
   product(id: $id) {
@@ -536,6 +557,32 @@ query ProductConfigurator($id: ID!) {
           ...ProductCustomOptionRuleFields
         }
         options { ...ProductConfiguratorPictures }
+      }
+    }
+  }
+}
+
+# What a bundle's selections carry beyond the Product query - a configurable's variants to pick from, add-on deals and
+# customer-set quantities - a query of its own because the Product query sits at the front surface's complexity cap
+query BundleSelectionExtras($id: ID!) {
+  product(id: $id) {
+    id
+    bundleOptions {
+      id
+      selections {
+        id
+        discountPercent
+        customerQuantity
+        product {
+          id
+          children {
+            id
+            sku
+            name
+            inStock
+            price
+          }
+        }
       }
     }
   }

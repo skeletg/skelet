@@ -252,7 +252,9 @@ func Definitions() []ai.Tool {
 	all := allTools()
 	out := make([]ai.Tool, 0, len(all))
 	for _, t := range all {
-		out = append(out, t.def)
+		def := t.def
+		def.Effect, def.Idempotent = ai.Reads, true
+		out = append(out, def)
 	}
 	return out
 }

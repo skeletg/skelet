@@ -410,7 +410,7 @@ func (s *Service) resolveShippingCents(ctx context.Context, in PlaceOrderInput, 
 func rateRequestFromCheckout(cc *checkoutContext, discount int64) shippingpkg.RateRequest {
 	items := make([]shippingpkg.RateItem, 0, len(cc.cart.Lines))
 	for _, l := range cc.cart.Lines {
-		items = append(items, shippingpkg.RateItem{SKU: l.ProductSku, Quantity: l.Quantity, UnitPriceCents: l.UnitPrice})
+		items = append(items, shippingpkg.LineItems(shippingpkg.RateItem{SKU: l.ProductSku, Quantity: l.Quantity, UnitPriceCents: l.UnitPrice}, l.Quantity, cartLineParts(l))...)
 	}
 	region := ""
 	if cc.shipping.State != nil {
@@ -478,11 +478,15 @@ func (s *Service) persistOrderLines(ctx context.Context, orderR Repository, orde
 				UnitPrice:         c.UnitPrice,
 				Quantity:          c.Quantity,
 				SortOrder:         c.SortOrder,
+				Returnable:        true,
 			}); err != nil {
 				return fmt.Errorf("add order line component: %w", err)
 			}
 		}
 		if err := orderR.AddOrderLineStockParts(ctx, orderLine.ID, orderStockParts(l.StockParts)); err != nil {
+			return err
+		}
+		if err := s.addKitItems(ctx, orderR, orderLine.ID, l.ProductSku, l.Quantity, l.StockParts); err != nil {
 			return err
 		}
 		for _, o := range l.Options {
@@ -525,6 +529,26 @@ func (s *Service) stampStockParts(ctx context.Context, lines []cart.CartLine) ([
 		l.StockParts = append(l.StockParts, cart.OptionStockParts(l.Options)...)
 	}
 	return out, nil
+}
+
+// Snapshots a kit line's items onto the order as its components, so they show and can come back one at a time - only for
+// a line stamped with a kit recipe, and with the kit's return setting as it stands at sale
+func (s *Service) addKitItems(ctx context.Context, orderR Repository, lineID uuid.UUID, sku string, qty float64, parts []cart.CartLineStockPart) error {
+	if s.kits == nil || !slices.ContainsFunc(parts, func(p cart.CartLineStockPart) bool { return p.Source == cart.StockPartKit }) {
+		return nil
+	}
+	items, err := s.kits.KitItemsBySKU(ctx, sku)
+	if err != nil {
+		return fmt.Errorf("kit items for %q: %w", sku, err)
+	}
+	for _, it := range items {
+		it.OrderLineID = lineID
+		it.Quantity *= qty
+		if _, err := orderR.AddOrderLineComponent(ctx, it); err != nil {
+			return fmt.Errorf("add kit item: %w", err)
+		}
+	}
+	return nil
 }
 
 func orderStockParts(in []cart.CartLineStockPart) []OrderLineStockPart {
@@ -681,13 +705,13 @@ func (s *Service) redeemPromotions(ctx context.Context, sqlTx *sql.Tx, cc *check
 
 // Authorizes the amount owed after the order commits - best-effort, since a gateway failure can't roll a placed order back, so it records a visible "authorization failed" event and logs, leaving the order unpaid for retry
 // The result settles payment_status asynchronously through the payment-to-order bridge
-func (s *Service) authorizePostPlacement(ctx context.Context, in PlaceOrderInput, placed Order) PaymentAuthorizeOutcome {
+func (s *Service) authorizePostPlacement(ctx context.Context, in PlaceOrderInput, placed Order) (PaymentAuthorizeOutcome, bool) {
 	if s.paymentAuthorizer == nil || placed.PaymentProvider == "" {
-		return PaymentAuthorizeOutcome{}
+		return PaymentAuthorizeOutcome{}, false
 	}
 	amountDue := placed.AmountDue()
 	if amountDue <= 0 {
-		return PaymentAuthorizeOutcome{}
+		return PaymentAuthorizeOutcome{}, false
 	}
 	token := ""
 	if in.PaymentToken != nil {
@@ -713,7 +737,7 @@ func (s *Service) authorizePostPlacement(ctx context.Context, in PlaceOrderInput
 		}); evErr != nil {
 			log.Printf("[order] record authorization-failure event for order %s: %v", placed.ID, evErr)
 		}
-		return PaymentAuthorizeOutcome{}
+		return PaymentAuthorizeOutcome{}, true
 	}
 	// The hold is real once the gateway confirms it - record it, or every later capture is rejected against a zero authorized total. Offline providers return a zero outcome and correctly record nothing
 	if outcome.Authorized {
@@ -755,9 +779,30 @@ func (s *Service) authorizePostPlacement(ctx context.Context, in PlaceOrderInput
 			log.Printf("[order] record payment-action event for order %s: %v", placed.ID, evErr)
 		}
 	}
-	return outcome
+	return outcome, false
 }
 
 type lineValidator interface { // bundle availability plus each line's min/max/step
 	ValidateCheckoutLines(context.Context, cart.Cart) error
+}
+
+// A cart line's components as shipping parts - empty on anything but a bundle line
+func cartLineParts(l cart.CartLine) []shippingpkg.Part {
+	parts := make([]shippingpkg.Part, len(l.Components))
+	for i, c := range l.Components {
+		parts[i] = shippingpkg.Part{SKU: c.ProductSku, Quantity: c.Quantity, UnitPriceCents: c.UnitPrice}
+	}
+	return parts
+}
+
+// An order line's components as shipping parts - a kit ships as its own SKU, so only a bundle has any
+func orderLineParts(l OrderLine) []shippingpkg.Part {
+	if !l.IsBundle() {
+		return nil
+	}
+	parts := make([]shippingpkg.Part, len(l.Components))
+	for i, c := range l.Components {
+		parts[i] = shippingpkg.Part{SKU: c.ProductSku, Quantity: c.Quantity, UnitPriceCents: c.UnitPrice}
+	}
+	return parts
 }

@@ -22,6 +22,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	"github.com/skeletg/skelet/apps/backend/core/internal/datajob"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/embedding"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
 	"github.com/skeletg/skelet/apps/backend/core/internal/linkgraph"
 	"github.com/skeletg/skelet/apps/backend/core/internal/medialibrary"
@@ -85,6 +86,7 @@ type jobDeps struct {
 	Order         *order.Service
 	Payment       *paymentpkg.Service
 	Form          *signupform.Service
+	Embeddings    *embedding.Indexer
 
 	SignalsEnabled SignalsEnabled
 }
@@ -280,8 +282,6 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 	// maintained on a server with Signals off and on one that hands its Signals jobs to cmd/signals
 	retentionJob("send-log-retention", "@every 24h", "Pre-create the email send log's upcoming month partitions and drop whole months past the retention window - deleted, or exported to the archive destination first under retention_action=archive.",
 		d.SignalsClient.PruneSendLog)
-	signalsJob("event-destinations-forward", "@every 1m", "Forward analytics-spine events to configured external destinations (webhooks, GA4, Meta CAPI) with durable per-destination cursors.",
-		d.SignalsClient.ForwardDestinations)
 	// Order-count, spend, recency, consent and group rules are plain commerce facts, but the suite is what materializes them into memberships
 	retentionJob("segment-refresh", "@every 6h", "Re-materialize dynamic customer-segment memberships from their rules (segments needing Synapse traits are skipped while Signals is off).",
 		func(ctx context.Context) error {
@@ -327,7 +327,7 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 				for i, c := range rows {
 					out.Customers[i] = signalsclient.RosterCustomer{
 						CustomerID: c.CustomerID, ChannelID: c.ChannelID, Email: c.Email,
-						FirstName: c.FirstName, Phone: c.Phone, IsActive: c.IsActive,
+						FirstName: c.FirstName, Phone: c.Phone, IsActive: c.IsActive, Locale: c.Locale,
 						GroupID:          uuid.NullUUID{UUID: c.CustomerGroupID, Valid: c.CustomerGroupID != uuid.Nil},
 						GroupSlug:        c.CustomerGroupSlug,
 						Consents:         signalsclient.ConsentsFromJSON(c.Consents),
@@ -349,9 +349,13 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 		})
 	signalsJob("trait-compute", "@every 12h", "Recompute per-customer RFM / lifecycle / engagement traits (Synapse → shared across Signals).",
 		d.SignalsClient.ComputeTraits)
+	retentionJob("assistant-prune", "@every 24h", "Delete shopping assistant messages past signals/assistant/retention_days, and conversations left with none.",
+		d.SignalsClient.PruneAssistantConversations)
 	retentionJob("lens-prune", "@every 24h", "Age out Lens web-analytics events + heatmap grids + page snapshots past the retention window (replay and per-day rollups run their own windows).",
 		d.SignalsClient.PruneLens)
 	if d.AI.Enabled() {
+		jobScheduler.Register("embeddings", "@every 1m", "Embed the products and pages that changed, and any never embedded, with the model under Settings, AI, Embeddings - does nothing while none is set.",
+			d.Embeddings.Run)
 		jobScheduler.Register("chat-prune", "@every 24h", "Delete chat conversations untouched past the retention window (0 days = keep forever).",
 			func(ctx context.Context) error {
 				days, err := d.Config.GetInt(ctx, ai.HistoryRetentionPath, config.DefaultScope)

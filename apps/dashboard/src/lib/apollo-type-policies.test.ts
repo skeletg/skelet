@@ -96,3 +96,42 @@ describe('product type attribute rows in the cache', () => {
     expect(cache.readQuery({ query: PAGE })).toEqual(productType([attr('a2', 'g2')]))
   })
 })
+
+describe('an order address in the cache', () => {
+  const FULL = gql`
+    query Full {
+      order(id: "o1") {
+        id
+        shippingAddress {
+          firstName
+          lastName
+          city
+        }
+      }
+    }
+  `
+  const NARROW = gql`
+    query Narrow {
+      order(id: "o1") {
+        id
+        shippingAddress {
+          firstName
+          lastName
+        }
+      }
+    }
+  `
+  const order = (shippingAddress: object) => ({ order: { __typename: 'Order', id: 'o1', shippingAddress: { __typename: 'OrderAddress', ...shippingAddress } } })
+
+  it('keeps the fields a narrower query did not select', () => {
+    const cache = new InMemoryCache({ typePolicies })
+    cache.writeQuery({ query: FULL, data: order({ firstName: 'Ada', lastName: 'Astro', city: 'New York' }) })
+    cache.writeQuery({ query: NARROW, data: order({ firstName: 'Ada', lastName: 'Astro' }) })
+    expect(cache.readQuery<{ order: { shippingAddress: object } }>({ query: FULL })?.order.shippingAddress).toEqual({
+      __typename: 'OrderAddress',
+      firstName: 'Ada',
+      lastName: 'Astro',
+      city: 'New York',
+    })
+  })
+})

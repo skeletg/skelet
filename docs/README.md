@@ -34,7 +34,14 @@ A new doc gets a row here rather than a link buried in a section, or nobody find
 | [permissions.md](permissions.md) | Configuring roles, plus the generated slug reference |
 | [import-export.md](import-export.md) | Bulk data in and out: the resource registry, the job model, and how to add a resource or a format |
 | [settings.md](settings.md) | Every configurable knob, its scope and default |
+| [tracking-plan.md](tracking-plan.md) | The browser events Signals accepts, their properties, and what ingest strips |
+| [design/boards-cases.md](design/boards-cases.md) | Design in progress: boards as owned, shareable cases built in place |
+| [tracking.md](tracking.md) | Server-side tracking: how events reach GA4, GTM, ad, affiliate and marketing platforms, and setting up a destination |
+| [privacy.md](privacy.md) | Cookie consent, what each order and destination records under which choice, counting visitors who decline analytics, and privacy-notice text |
 | [webhooks.md](webhooks.md) | Subscribing to events: async vs sync, signing, retries, the event catalogue |
 | [remote-providers.md](remote-providers.md) | Writing a remote provider: the signed envelope, limits, per-kind schemas |
 | [mcp.md](mcp.md) | Letting an AI agent read the store over MCP: connecting one, the channel it reads, which tools it gets |
+| [storefront-mcp.md](storefront-mcp.md) | Shoppers' own AI agents on the storefront's `/api/mcp`: the tools, and the cart handoff link |
+| [embeddings.md](embeddings.md) | Vectors for products and pages, so the store can be searched by meaning: the provider, what's embedded, how it keeps up |
+| [langfuse.md](langfuse.md) | Sending AI calls to Langfuse: turning it on, what each trace holds, and what's never sent |
 | [backups.md](backups.md) | What needs backing up, and the tools to do it with |

@@ -1,30 +1,19 @@
 import { useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useUnsavedFields } from '@/lib/unsaved-changes'
 import { duringCommit } from '@/lib/nav-guard'
 import { useMutation, useQuery } from '@apollo/client/react'
-import {
-  DndContext,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  type DragOverEvent,
-} from '@dnd-kit/core'
+import { DndContext } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
 import {
   HistoryIcon,
-  MonitorIcon,
-  MoonIcon,
   Redo2Icon,
-  SmartphoneIcon,
   SparklesIcon,
-  SunIcon,
   Undo2Icon,
 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -44,20 +33,28 @@ import {
 } from '@/components/ui/dialog'
 import { DetailPageHeader, DetailPageLayout } from '@/components/layout/detail-page'
 import { LoadingState } from '@/components/ui/loading-state'
-import { cn } from '@/lib/utils'
 import { useConfigScope } from '@/lib/config-scope'
 import { CampaignMergeTagsDocument } from '@/features/campaigns/Campaigns.gql'
 import { FlowMergeTagsDocument } from '@/features/flows/Flows.gql'
 import { BlockPalette } from '@/features/email/BlockPalette'
-import { EmailCanvas, END_DROP, type CanvasItem } from '@/features/email/EmailCanvas'
+import { PreviewDialog } from './PreviewDialog'
+import { EmailSizeMeter } from './EmailSizeMeter'
+import { EmailCanvas, type CanvasItem } from '@/features/email/EmailCanvas'
 import { BlockInspector, type AiRewriteFn } from '@/features/email/BlockInspector'
 import { BlockStyleControls, GlobalStyleControls } from '@/features/email/StyleControls'
 import { RowInspector } from '@/features/email/RowInspector'
+import { FLOATING_PANEL, PANEL_BACKDROP, PANEL_TITLE } from '@/features/email/panel'
+import { MergeTagMenu } from '@/features/email/MergeTagMenu'
+import { ShortcutsHelp } from '@/features/email/ShortcutsHelp'
+import { insertAtCaret } from '@/features/email/caret'
+import { useCanvasShortcuts } from '@/features/email/shortcuts'
+import { useCanvasDnd } from '@/features/email/canvasDnd'
 import {
-  addToColumn,
+  childSel,
   duplicateBlock,
   findBlock,
   moveChild,
+  parseSel,
   removeBlock,
   replaceBlock,
 } from '@/features/email/treeops'
@@ -73,23 +70,27 @@ import {
 import { EmailBlocksDocument, SaveEmailBlockDocument } from '@/features/email/Email.gql'
 import { toComponent } from '@/features/blocks/model'
 import {
+  DeleteEmailTranslationDocument,
   EmailGroupsDocument,
   EmailPreflightDocument,
+  EmailTranslationsDocument,
   EmailRevisionsDocument,
   EmailsAiStatusDocument,
   LibraryEmailDocument,
-  PreviewCustomersDocument,
-  RenderLibraryPreviewDocument,
   RestoreEmailRevisionDocument,
   RewriteEmailTextDocument,
+  SaveEmailTranslationDocument,
   SaveLibraryEmailDocument,
   SuggestEmailSubjectsDocument,
 } from './Emails.gql'
 import { LoadError } from '@/shared/errors/LoadError'
+import { useConfirmDialog } from '@/shared/dialogs/useConfirmDialog'
 import { NotFound } from '@/shared/errors/NotFound'
 
+// A hot reload restarts the counter, not the open editor - the prefix keeps new ids off old ones, which select together
+const LOAD = Math.random().toString(36).slice(2, 7)
 let uid = 0
-const nextId = () => `le_${++uid}`
+const nextId = () => `le_${LOAD}_${++uid}`
 
 // The sentinel Select value for "no group" - Radix Select forbids ""
 const NO_GROUP = '__none__'
@@ -138,10 +139,15 @@ function itemsFromBlocks(blocks: EmailBlock[]): CanvasItem[] {
 export function EmailLibraryDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { effectiveChannelId, isChannel } = useConfigScope()
+  const [params, setParams] = useSearchParams()
+  const { effectiveChannelId, isChannel, channels } = useConfigScope()
   const isNew = !id || id === 'new'
+  // The language being edited - '' is the email itself, a locale its version in that language
+  const lang = isNew ? '' : (params.get('lang') ?? '')
 
   const { data, loading, error, refetch } = useQuery(LibraryEmailDocument, { variables: { id: id ?? '' }, skip: isNew, fetchPolicy: 'cache-and-network' })
+  const translationsQuery = useQuery(EmailTranslationsDocument, { variables: { emailId: id ?? '' }, skip: isNew, fetchPolicy: 'cache-and-network' })
+  const translations = translationsQuery.data?.emailTranslations ?? []
   const { data: groupsData } = useQuery(EmailGroupsDocument, { fetchPolicy: 'cache-and-network' })
   const groups: GroupOption[] = groupsData?.emailGroups ?? []
   // New emails default to the Marketing group; the operator can retag as needed
@@ -165,7 +171,8 @@ export function EmailLibraryDetail() {
     return <LoadError title="Couldn't load this email" message={error.message} onRetry={() => void refetch()} retrying={loading} />
   }
   if (!isNew && !data?.libraryEmail && !loading) return <NotFound />
-  if (!isNew && !data?.libraryEmail) {
+  // A language's version has to be known before the canvas opens, or edits made while it loads are lost to the remount
+  if (!isNew && (!data?.libraryEmail || (lang && !translationsQuery.data && !translationsQuery.error))) {
     return (
       <DetailPageLayout>
         <DetailPageHeader title="Email" backTo="/emails" />
@@ -187,18 +194,87 @@ export function EmailLibraryDetail() {
         groupId: data!.libraryEmail!.groupId ?? null,
       }
 
-  // Remount the editor once the default group resolves (new) or per email (edit)
-  // so the initial group is applied without setState-in-effect
-  const editorKey = isNew ? `new-${defaultGroupId ?? 'none'}` : (initial.id ?? 'new')
+  // A language with no version yet starts from a copy of the email, to translate in place
+  const translation = lang ? translations.find((t) => t.locale === lang) : undefined
+  const content: Loaded = translation
+    ? {
+        ...initial,
+        subject: translation.subject,
+        preheader: translation.preheader,
+        blocks: (translation.blocks as EmailBlock[] | null) ?? [],
+        styles: (translation.styles as EmailStyles | null) ?? {},
+      }
+    : initial
+  const channel = channels.find((c) => c.id === initial.channelId)
+  const emailUpdatedAt = data?.libraryEmail?.updatedAt ?? ''
+  // A version saved before its channel dropped the language still exists, so it stays reachable to edit or delete
+  const languages: Languages | undefined =
+    isNew || !channel
+      ? undefined
+      : {
+          current: lang,
+          defaultLocale: channel.defaultLocale,
+          others: [...new Set([...channel.locales.map((l) => l.code), ...translations.map((t) => t.locale)])].filter(
+            (c) => c !== channel.defaultLocale,
+          ),
+          translated: translations.map((t) => t.locale),
+          outdated: translations.filter((t) => emailUpdatedAt !== '' && t.updatedAt < emailUpdatedAt).map((t) => t.locale),
+          offChannel: translations.map((t) => t.locale).filter((c) => !channel.locales.some((l) => l.code === c)),
+          exists: translation !== undefined,
+          onSwitch: (code) => setParams(code ? { lang: code } : {}),
+          onChanged: () => void translationsQuery.refetch(),
+        }
 
-  return <Editor key={editorKey} initial={initial} groups={groups} onCreated={(nid) => void duringCommit(() => navigate(`/emails/${nid}`))} />
+  // Remount the editor once the default group resolves (new) or per email and language (edit)
+  // so the initial group is applied without setState-in-effect
+  const editorKey = isNew
+    ? `new-${defaultGroupId ?? 'none'}`
+    : `${initial.id ?? 'new'}:${lang}:${translation?.updatedAt ?? ''}`
+
+  return (
+    <Editor
+      key={editorKey}
+      initial={content}
+      groups={groups}
+      locale={lang}
+      languages={languages}
+      onCreated={(nid) => void duringCommit(() => navigate(`/emails/${nid}`))}
+    />
+  )
+}
+
+// The languages an email can be written in - its channel's locales, the default being the email itself
+type Languages = {
+  current: string
+  defaultLocale: string
+  others: string[]
+  translated: string[]
+  outdated: string[] // versions saved before the email last changed
+  offChannel: string[] // versions of a language the channel no longer sells in
+  exists: boolean
+  onSwitch: (locale: string) => void
+  onChanged: () => void
 }
 
 // Undo/redo state - present doc plus bounded past/future stacks
 type Hist = { past: Doc[]; present: Doc; future: Doc[] }
 const HISTORY_LIMIT = 100
 
-function Editor({ initial, groups, onCreated }: { initial: Loaded; groups: GroupOption[]; onCreated: (id: string) => void }) {
+function Editor({
+  initial,
+  groups,
+  locale,
+  languages,
+  onCreated,
+}: {
+  initial: Loaded
+  groups: GroupOption[]
+  // The language being edited, straight from the URL - '' is the email itself. Never read off languages, which is
+  // missing while the channel isn't in scope, so a version could otherwise save over the email
+  locale: string
+  languages?: Languages
+  onCreated: (id: string) => void
+}) {
   const mergeTags = useMergeTags()
   const [hist, setHist] = useState<Hist>(() => ({
     past: [],
@@ -242,7 +318,6 @@ function Editor({ initial, groups, onCreated }: { initial: Loaded; groups: Group
   }
 
   const [sel, setSel] = useState<string | null>(null)
-  const [dropBefore, setDropBefore] = useState<string | null>(null)
   const [emailId, setEmailId] = useState<string | null>(initial.id)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -259,7 +334,6 @@ function Editor({ initial, groups, onCreated }: { initial: Loaded; groups: Group
   const { data: aiStatusData } = useQuery(EmailsAiStatusDocument, { fetchPolicy: 'cache-first' })
   const aiEnabled = aiStatusData?.aiStatus.enabled ?? false
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
   const selectedBlock = findBlock(doc.items, sel)
   const selectedIsRow = !!selectedBlock && selectedBlock.type === 'row' && !!sel && !sel.includes('::')
 
@@ -277,60 +351,68 @@ function Editor({ initial, groups, onCreated }: { initial: Loaded; groups: Group
   function duplicateSel(target: string) {
     setItems((prev) => duplicateBlock(prev, target, nextId))
   }
+  function editBlock(target: string, next: EmailBlock) {
+    setItems((prev) => replaceBlock(prev, target, next), `block:${target}`)
+  }
   function updateSelected(next: EmailBlock) {
-    if (sel) setItems((prev) => replaceBlock(prev, sel, next), `block:${sel}`)
+    if (sel) editBlock(sel, next)
   }
   function onMoveChild(rowId: string, col: number, idx: number, dir: -1 | 1) {
     setItems((prev) => moveChild(prev, rowId, col, idx, dir))
   }
-  // Track where a dragged palette block will land, to draw the insertion line
-  function onDragOver(e: DragOverEvent) {
-    const ad = e.active.data.current
-    if (!ad?.fromPalette) {
-      if (dropBefore !== null) setDropBefore(null)
-      return
-    }
-    const overId = e.over ? String(e.over.id) : null
-    if (!overId || overId.startsWith('col:')) {
-      setDropBefore(null) // over a column drop-zone (it highlights itself) or nothing
-      return
-    }
-    setDropBefore(overId === 'canvas' ? END_DROP : overId)
+  function insertAt(index: number, type: string) {
+    const item = { id: nextId(), block: makeBlock(type) }
+    setItems((prev) => {
+      const next = [...prev]
+      next.splice(Math.max(0, Math.min(index, prev.length)), 0, item)
+      return next
+    })
+    setSel(item.id)
   }
-  function onDragEnd(e: DragEndEvent) {
-    setDropBefore(null)
-    const { active, over } = e
-    if (!over) return
-    const overId = String(over.id)
-    const ad = active.data.current
-    if (ad?.fromPalette) {
-      const type = String(ad.blockType)
-      // Components (dropped as refs) + rows can't nest inside a column
-      if (overId.startsWith('col:') && type !== 'row' && type !== 'ref' && !compMap[type]) {
-        const [, rowId, colStr] = overId.split(':')
-        setItems((prev) => addToColumn(prev, rowId, Number(colStr), makeBlock(type)))
-        return
-      }
-      const item = { id: nextId(), block: makeBlock(type) }
-      setItems((prev) => {
-        const overIdx = prev.findIndex((i) => i.id === overId)
-        if (overIdx === -1) return [...prev, item]
-        const next = [...prev]
-        next.splice(overIdx, 0, item)
-        return next
-      })
-      setSel(item.id)
+  // A palette click lands after the selected block - after its row when it sits in a column - or at the end
+  function addBlock(type: string) {
+    const at = sel ? doc.items.findIndex((i) => i.id === parseSel(sel).id) : -1
+    insertAt(at === -1 ? doc.items.length : at + 1, type)
+  }
+  function startFrom(starter: EmailBlock[]) {
+    setItems(() => itemsFromBlocks(structuredClone(starter)))
+    setSel(null)
+  }
+  function moveSel(target: string, dir: -1 | 1) {
+    const p = parseSel(target)
+    if (p.col !== undefined) {
+      const count = findBlock(doc.items, p.id)?.columns?.[p.col]?.blocks?.length ?? 0
+      const to = (p.idx ?? 0) + dir
+      if (to < 0 || to >= count) return
+      onMoveChild(p.id, p.col, p.idx ?? 0, dir)
+      setSel(childSel(p.id, p.col, to))
       return
     }
-    if (active.id !== over.id) {
-      setItems((prev) => {
-        const from = prev.findIndex((i) => i.id === active.id)
-        const to = prev.findIndex((i) => i.id === overId)
-        if (from === -1 || to === -1) return prev
-        return arrayMove(prev, from, to)
-      })
-    }
+    setItems((prev) => {
+      const from = prev.findIndex((i) => i.id === p.id)
+      const to = from + dir
+      if (from === -1 || to < 0 || to >= prev.length) return prev
+      return arrayMove(prev, from, to)
+    })
   }
+  useCanvasShortcuts({
+    sel,
+    order: doc.items.map((i) => i.id),
+    select: setSel,
+    remove: deleteSel,
+    duplicate: duplicateSel,
+    move: moveSel,
+    undo,
+    redo,
+  })
+  const { dropBefore, dndProps } = useCanvasDnd({
+    items: doc.items,
+    setItems: (update) => setItems(update),
+    makeBlock,
+    canNest: (type) => type !== 'row' && type !== 'ref' && !compMap[type],
+    nextId,
+    onPlaced: (placed) => placed && setSel(placed),
+  })
 
   // Pre-send checklist (deliverability + quality warnings) - only for a saved
   // email - Refetched after each successful save so the list reflects edits
@@ -342,10 +424,42 @@ function Editor({ initial, groups, onCreated }: { initial: Loaded; groups: Group
   const warnings = preflightData?.emailPreflight ?? []
 
   const [saveEmail] = useMutation(SaveLibraryEmailDocument)
+  const [saveTranslation] = useMutation(SaveEmailTranslationDocument)
+  const [deleteTranslation] = useMutation(DeleteEmailTranslationDocument)
+
+  async function onDeleteTranslation() {
+    if (!emailId || !locale) return
+    setError(null)
+    try {
+      await deleteTranslation({ variables: { emailId, locale } })
+      languages?.onChanged()
+      languages?.onSwitch('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Delete failed.')
+    }
+  }
   // hist.present is the live design - the undo stacks around it are not unsaved work
   useUnsavedFields([hist.present])
+  const [savedDoc, setSavedDoc] = useState(() => JSON.stringify(hist.present))
+  const dirty = JSON.stringify(doc) !== savedDoc
 
   async function onSave() {
+    if (locale && emailId) {
+      setError(null)
+      setSaving(true)
+      try {
+        await saveTranslation({
+          variables: { input: { emailId, locale, subject: doc.subject, preheader: doc.preheader, blocks, styles: doc.styles } },
+        })
+        setSavedDoc(JSON.stringify(doc))
+        languages?.onChanged()
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Save failed.')
+      } finally {
+        setSaving(false)
+      }
+      return
+    }
     if (!doc.name.trim()) {
       setError('Give the email a name.')
       return
@@ -357,6 +471,7 @@ function Editor({ initial, groups, onCreated }: { initial: Loaded; groups: Group
         variables: { input: { id: emailId, channelId: initial.channelId, name: doc.name.trim(), subject: doc.subject, preheader: doc.preheader, blocks, styles: doc.styles, groupId: doc.groupId } },
       })
       const nid = res.data?.saveLibraryEmail?.id ?? null
+      setSavedDoc(JSON.stringify(doc))
       if (nid && !emailId) {
         setEmailId(nid)
         onCreated(nid)
@@ -415,7 +530,7 @@ function Editor({ initial, groups, onCreated }: { initial: Loaded; groups: Group
         <Button type="button" variant="outline" size="icon" className="size-8 shrink-0" aria-label="Redo" disabled={hist.future.length === 0} onClick={redo}>
           <Redo2Icon className="size-4" />
         </Button>
-        {emailId && (
+        {emailId && !locale && (
           <Button type="button" variant="outline" size="icon" className="size-8 shrink-0" aria-label="Version history" onClick={() => setHistoryOpen(true)}>
             <HistoryIcon className="size-4" />
           </Button>
@@ -431,20 +546,15 @@ function Editor({ initial, groups, onCreated }: { initial: Loaded; groups: Group
   )
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragOver={onDragOver}
-      onDragEnd={onDragEnd}
-      onDragCancel={() => setDropBefore(null)}
-    >
+    <DndContext {...dndProps}>
       <DetailPageLayout
-        leftSidebar={<BlockPalette allowData={false} components={components} />}
+        className={cn('@container/editor', PANEL_BACKDROP)}
+        leftSidebar={<BlockPalette components={components} onAdd={addBlock} />}
         rightSidebar={
           selectedIsRow && selectedBlock ? (
-            <aside className="flex w-80 shrink-0 flex-col border-l bg-card">
-              <div className="border-b px-4 py-3">
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Edit Columns</h2>
+            <aside className={cn(FLOATING_PANEL, 'ml-0 w-72 @min-[1200px]/editor:w-80')}>
+              <div className="border-b px-4 py-3.5">
+                <h2 className={PANEL_TITLE}>Columns</h2>
               </div>
               <div className="flex-1 overflow-y-auto p-4">
                 <RowInspector block={selectedBlock} onChange={updateSelected} />
@@ -454,6 +564,8 @@ function Editor({ initial, groups, onCreated }: { initial: Loaded; groups: Group
           ) : (
             <BlockInspector
               block={selectedBlock}
+              blockKey={sel}
+              inlineText
               onChangeBlock={updateSelected}
               subject={doc.subject}
               onSubjectChange={(s) => commit((d) => ({ ...d, subject: s }), 'subject')}
@@ -465,7 +577,7 @@ function Editor({ initial, groups, onCreated }: { initial: Loaded; groups: Group
               styleControls={
                 selectedBlock ? (
                   <>
-                    <BlockStyleControls block={selectedBlock} onChange={updateSelected} />
+                    <BlockStyleControls block={selectedBlock} onChange={updateSelected} theme={doc.styles} />
                     {sel && !sel.includes('::') && selectedBlock.type !== 'ref' && (
                       <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => setSaveBlockFor(selectedBlock)}>
                         Save as reusable block
@@ -476,6 +588,9 @@ function Editor({ initial, groups, onCreated }: { initial: Loaded; groups: Group
               }
               emailSettings={
                 <div className="grid gap-4">
+                  {languages && (languages.others.length > 0 || languages.current) ? (
+                    <LanguagePicker languages={languages} dirty={dirty} onDelete={onDeleteTranslation} />
+                  ) : null}
                   {aiEnabled && (
                     <SubjectAssist
                       subject={doc.subject}
@@ -486,24 +601,43 @@ function Editor({ initial, groups, onCreated }: { initial: Loaded; groups: Group
                     />
                   )}
                   <div className="grid gap-1.5">
-                    <Label htmlFor="email-preheader">Preheader</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="email-preheader">Preheader</Label>
+                      <MergeTagMenu
+                        tags={mergeTags}
+                        onPick={(tag) => {
+                          const next = insertAtCaret('email-preheader', doc.preheader, tag)
+                          commit((d) => ({ ...d, preheader: next.value }))
+                          next.restore()
+                        }}
+                      />
+                    </div>
                     <Input
                       id="email-preheader"
                       value={doc.preheader}
                       onChange={(e) => commit((d) => ({ ...d, preheader: e.target.value }), 'preheader')}
                       placeholder="Inbox-preview snippet"
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Shown after the subject in the inbox preview. Supports merge tags.
-                    </p>
+                    <p className="text-xs text-muted-foreground">Shown after the subject in the inbox preview.</p>
                   </div>
                   <div className="grid gap-1.5">
                     <Label htmlFor="email-name">Email name</Label>
-                    <Input id="email-name" value={doc.name} onChange={(e) => commit((d) => ({ ...d, name: e.target.value }), 'name')} placeholder="Welcome hero" />
+                    <Input
+                      id="email-name"
+                      value={doc.name}
+                      disabled={locale !== ''}
+                      onChange={(e) => commit((d) => ({ ...d, name: e.target.value }), 'name')}
+                      placeholder="Welcome hero"
+                    />
+                    {locale ? <p className="text-xs text-muted-foreground">The name and group are shared by every language.</p> : null}
                   </div>
                   <div className="grid gap-1.5">
                     <Label htmlFor="email-group">Group</Label>
-                    <Select value={doc.groupId ?? NO_GROUP} onValueChange={(v) => commit((d) => ({ ...d, groupId: v === NO_GROUP ? null : v }))}>
+                    <Select
+                      value={doc.groupId ?? NO_GROUP}
+                      disabled={locale !== ''}
+                      onValueChange={(v) => commit((d) => ({ ...d, groupId: v === NO_GROUP ? null : v }))}
+                    >
                       <SelectTrigger id="email-group">
                         <SelectValue placeholder="No group" />
                       </SelectTrigger>
@@ -517,10 +651,10 @@ function Editor({ initial, groups, onCreated }: { initial: Loaded; groups: Group
                       </SelectContent>
                     </Select>
                   </div>
-                  {emailId && <PreflightPanel warnings={warnings} />}
-                  <GlobalStyleControls value={doc.styles} onChange={(s) => commit((d) => ({ ...d, styles: s }))} />
+                  {emailId && !locale && <PreflightPanel warnings={warnings} />}
                 </div>
               }
+              themeSettings={<GlobalStyleControls value={doc.styles} onChange={(s) => commit((d) => ({ ...d, styles: s }), 'styles')} />}
               footer={actionsFooter}
             />
           )
@@ -533,6 +667,17 @@ function Editor({ initial, groups, onCreated }: { initial: Loaded; groups: Group
           onDelete={deleteSel}
           onDuplicate={duplicateSel}
           onMoveChild={onMoveChild}
+          onEdit={editBlock}
+          onInsertAt={insertAt}
+          onStart={startFrom}
+          mergeTags={mergeTags}
+          canAdd
+          toolbar={
+            <>
+              <EmailSizeMeter channelId={initial.channelId} subject={doc.subject} preheader={doc.preheader} blocks={blocks} styles={doc.styles} />
+              <ShortcutsHelp />
+            </>
+          }
           theme={doc.styles}
           components={compMap}
           subject={doc.subject}
@@ -556,6 +701,90 @@ function Editor({ initial, groups, onCreated }: { initial: Loaded; groups: Group
       <SaveAsBlockDialog block={saveBlockFor} channelId={initial.channelId} onClose={() => setSaveBlockFor(null)} />
     </DndContext>
   )
+}
+
+// LanguagePicker switches the canvas between the email and its version in each of the channel's other languages. A
+// shopper whose storefront language has a version gets it, everyone else the email itself
+function LanguagePicker({ languages, dirty, onDelete }: { languages: Languages; dirty: boolean; onDelete: () => void }) {
+  const { current, defaultLocale, others, translated, outdated, offChannel, exists } = languages
+  const [confirm, confirmDialog] = useConfirmDialog()
+  // Switching reloads the canvas, and the router lets a same-page change through without its unsaved-changes prompt
+  function choose(value: string) {
+    const code = value === DEFAULT_LANGUAGE ? '' : value
+    if (code === current) return
+    if (!dirty) return languages.onSwitch(code)
+    confirm({
+      title: 'Discard your changes?',
+      description: `Switching to ${languageName(code || defaultLocale)} drops what you haven't saved here.`,
+      confirmLabel: 'Discard and switch',
+      destructive: true,
+      onConfirm: () => languages.onSwitch(code),
+    })
+  }
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor="email-language">Language</Label>
+      <Select value={current || DEFAULT_LANGUAGE} onValueChange={choose}>
+        <SelectTrigger id="email-language">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={DEFAULT_LANGUAGE}>{languageName(defaultLocale)} (default)</SelectItem>
+          {others.map((code) => (
+            <SelectItem key={code} value={code}>
+              {languageName(code)}
+              {!translated.includes(code)
+                ? ' - not translated yet'
+                : offChannel.includes(code)
+                  ? ' - no longer on the channel'
+                  : outdated.includes(code)
+                    ? ' - older than the default'
+                    : ''}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">
+        {current === ''
+          ? 'Shoppers in a language with its own version get that one, everyone else this email.'
+          : exists
+            ? `Shoppers browsing in ${languageName(current)} get this version.${outdated.includes(current) ? ' The default changed after it was saved, so check it still matches.' : ''}`
+            : `Starts as a copy of the default - translate it and save, and shoppers browsing in ${languageName(current)} get it.`}
+      </p>
+      {current !== '' && exists ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="justify-self-start text-destructive"
+          onClick={() =>
+            confirm({
+              title: `Delete the ${current} version?`,
+              description: `Shoppers browsing in ${current} get the default email again.`,
+              confirmLabel: 'Delete version',
+              destructive: true,
+              onConfirm: onDelete,
+            })
+          }
+        >
+          Delete the {current} version
+        </Button>
+      ) : null}
+      {confirmDialog}
+    </div>
+  )
+}
+
+const DEFAULT_LANGUAGE = '__default__'
+
+// "German (de)" for a locale code, or the code alone when the browser can't name it
+function languageName(code: string): string {
+  try {
+    const name = new Intl.DisplayNames(['en'], { type: 'language' }).of(code)
+    return name && name !== code ? `${name} (${code})` : code
+  } catch {
+    return code
+  }
 }
 
 // PreflightPanel renders the pre-send checklist: warn findings in a destructive
@@ -656,102 +885,6 @@ function SubjectAssist({
         </ul>
       )}
     </div>
-  )
-}
-
-// PreviewDialog renders the email server-side, with device (desktop/mobile),
-// dark-mode approximation, and optional real-customer merge-tag data
-function PreviewDialog({
-  open,
-  onOpenChange,
-  channelId,
-  subject,
-  preheader,
-  blocks,
-  styles,
-}: {
-  open: boolean
-  onOpenChange: (o: boolean) => void
-  channelId: string
-  subject: string
-  preheader: string
-  blocks: EmailBlock[]
-  styles: EmailStyles
-}) {
-  const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop')
-  const [dark, setDark] = useState(false)
-  const [customerId, setCustomerId] = useState<string | null>(null)
-
-  const { data: custData } = useQuery(PreviewCustomersDocument, { variables: { channelId }, skip: !open, fetchPolicy: 'cache-first' })
-  const customers = custData?.customersPaged.items ?? []
-
-  const { data, loading } = useQuery(RenderLibraryPreviewDocument, {
-    variables: { channelId, customerId, subject, preheader, blocks, styles },
-    skip: !open,
-    fetchPolicy: 'no-cache',
-  })
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>Preview</DialogTitle>
-          <DialogDescription>Rendered server-side. Choose a device, dark mode, or a real customer’s data.</DialogDescription>
-        </DialogHeader>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-md border p-0.5">
-            <button
-              type="button"
-              onClick={() => setDevice('desktop')}
-              className={cn('flex items-center gap-1 rounded px-2 py-1 text-xs', device === 'desktop' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground')}
-            >
-              <MonitorIcon className="size-3.5" /> Desktop
-            </button>
-            <button
-              type="button"
-              onClick={() => setDevice('mobile')}
-              className={cn('flex items-center gap-1 rounded px-2 py-1 text-xs', device === 'mobile' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground')}
-            >
-              <SmartphoneIcon className="size-3.5" /> Mobile
-            </button>
-          </div>
-          <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => setDark((d) => !d)}>
-            {dark ? <SunIcon className="mr-1 size-3.5" /> : <MoonIcon className="mr-1 size-3.5" />}
-            {dark ? 'Light' : 'Dark'}
-          </Button>
-          <Select value={customerId ?? NO_GROUP} onValueChange={(v) => setCustomerId(v === NO_GROUP ? null : v)}>
-            <SelectTrigger className="h-8 w-56 text-xs">
-              <SelectValue placeholder="Sample data" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NO_GROUP}>Sample data</SelectItem>
-              {customers.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {[c.firstName, c.lastName].filter(Boolean).join(' ') || c.email}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className={cn('rounded-md p-3', dark ? 'bg-neutral-900' : 'bg-muted/40')}>
-          <div className="mb-2 text-xs" style={{ color: dark ? '#ddd' : undefined }}>
-            <span className="font-medium">Subject:</span> {loading ? '…' : data?.renderLibraryPreview.subject || '-'}
-          </div>
-          <div className="mx-auto overflow-hidden rounded border bg-white" style={{ maxWidth: device === 'mobile' ? 390 : '100%' }}>
-            <iframe
-              title="Email preview"
-              sandbox=""
-              className="h-[440px] w-full bg-white"
-              style={dark ? { filter: 'invert(1) hue-rotate(180deg)' } : undefined}
-              srcDoc={data?.renderLibraryPreview.html ?? ''}
-            />
-          </div>
-          {dark && <p className="mt-2 text-center text-[11px]" style={{ color: '#999' }}>Dark mode is an approximation (color inversion).</p>}
-        </div>
-      </DialogContent>
-    </Dialog>
   )
 }
 

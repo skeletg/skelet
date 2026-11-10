@@ -21,6 +21,7 @@ WHERE ($2::bool OR n.required_permission = ANY($3::text[]))
   AND ($2::bool OR n.channel_id IS NULL OR n.required_permission = ANY($4::text[])
        OR (n.required_permission || '|' || n.channel_id::text) = ANY($5::text[]))
   AND NOT (n.category = ANY(COALESCE($6::text[], '{}')))
+  AND (n.recipient_admin_id IS NULL OR n.recipient_admin_id = $1)
   AND r.read_at IS NULL
 `
 
@@ -51,11 +52,12 @@ const createNotification = `-- name: CreateNotification :one
 
 INSERT INTO admin_notifications (
     category, severity, title, body, required_permission, channel_id,
-    entity_type, entity_id, action_url, dedupe_key
+    entity_type, entity_id, action_url, dedupe_key, recipient_admin_id
 ) VALUES (
     $1, $2, $3, $4,
     $5, $6,
-    $7, $8, $9, $10
+    $7, $8, $9, $10,
+    $11
 )
 ON CONFLICT (dedupe_key) DO NOTHING
 RETURNING id, created_at
@@ -72,6 +74,7 @@ type CreateNotificationParams struct {
 	EntityID           string        `json:"entity_id"`
 	ActionUrl          string        `json:"action_url"`
 	DedupeKey          string        `json:"dedupe_key"`
+	RecipientAdminID   uuid.NullUUID `json:"recipient_admin_id"`
 }
 
 type CreateNotificationRow struct {
@@ -79,7 +82,7 @@ type CreateNotificationRow struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// Admin inbox queries - visibility filter is shared across list/count/mark-all: a notification is visible to an admin when (a) they bypass scope (superuser / all-channel), OR (b) they hold its required_permission AND it's global (channel_id IS NULL) or in one of their permitted channels On top of that, categories the admin muted are excluded from all three - the badge is counted here, so a mute the count didn't honour would be a badge that lies COALESCE, because an empty mute list arrives as NULL and `= ANY(NULL)` is NULL, so NOT of it drops every row - "nothing muted" would have emptied the whole inbox
+// Admin inbox queries - visibility filter is shared across list/count/mark-all: a notification is visible to an admin when (a) they bypass scope (superuser / all-channel), OR (b) they hold its required_permission AND it's global (channel_id IS NULL) or in one of their permitted channels A notice with a recipient is theirs alone, superusers included. On top of that, categories the admin muted are excluded from all three - the badge is counted here, so a mute the count didn't honour would be a badge that lies COALESCE, because an empty mute list arrives as NULL and `= ANY(NULL)` is NULL, so NOT of it drops every row - "nothing muted" would have emptied the whole inbox
 // Idempotent: dedupe_key collapses repeat events / re-scans of the same condition - RETURNING feeds the live-push fan-out; a dedupe hit returns no row (sql.ErrNoRows), which the service treats as "already notified"
 func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotificationParams) (CreateNotificationRow, error) {
 	row := q.db.QueryRowContext(ctx, createNotification,
@@ -93,6 +96,7 @@ func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotification
 		arg.EntityID,
 		arg.ActionUrl,
 		arg.DedupeKey,
+		arg.RecipientAdminID,
 	)
 	var i CreateNotificationRow
 	err := row.Scan(&i.ID, &i.CreatedAt)
@@ -133,13 +137,14 @@ func (q *Queries) ListFailingScheduledJobs(ctx context.Context) ([]ListFailingSc
 }
 
 const listNotifications = `-- name: ListNotifications :many
-SELECT n.id, n.category, n.severity, n.title, n.body, n.required_permission, n.channel_id, n.entity_type, n.entity_id, n.action_url, n.dedupe_key, n.created_at, (r.read_at IS NOT NULL) AS is_read
+SELECT n.id, n.category, n.severity, n.title, n.body, n.required_permission, n.channel_id, n.entity_type, n.entity_id, n.action_url, n.dedupe_key, n.created_at, n.recipient_admin_id, (r.read_at IS NOT NULL) AS is_read
 FROM admin_notifications n
 LEFT JOIN notification_reads r ON r.notification_id = n.id AND r.admin_id = $1
 WHERE ($2::bool OR n.required_permission = ANY($3::text[]))
   AND ($2::bool OR n.channel_id IS NULL OR n.required_permission = ANY($4::text[])
        OR (n.required_permission || '|' || n.channel_id::text) = ANY($5::text[]))
   AND NOT (n.category = ANY(COALESCE($6::text[], '{}')))
+  AND (n.recipient_admin_id IS NULL OR n.recipient_admin_id = $1)
   AND (NOT $7::bool OR r.read_at IS NULL)
 ORDER BY n.created_at DESC
 LIMIT $8
@@ -169,6 +174,7 @@ type ListNotificationsRow struct {
 	ActionUrl          string        `json:"action_url"`
 	DedupeKey          string        `json:"dedupe_key"`
 	CreatedAt          time.Time     `json:"created_at"`
+	RecipientAdminID   uuid.NullUUID `json:"recipient_admin_id"`
 	IsRead             interface{}   `json:"is_read"`
 }
 
@@ -203,6 +209,7 @@ func (q *Queries) ListNotifications(ctx context.Context, arg ListNotificationsPa
 			&i.ActionUrl,
 			&i.DedupeKey,
 			&i.CreatedAt,
+			&i.RecipientAdminID,
 			&i.IsRead,
 		); err != nil {
 			return nil, err
@@ -227,6 +234,7 @@ WHERE ($2::bool OR n.required_permission = ANY($3::text[]))
   AND ($2::bool OR n.channel_id IS NULL OR n.required_permission = ANY($4::text[])
        OR (n.required_permission || '|' || n.channel_id::text) = ANY($5::text[]))
   AND NOT (n.category = ANY(COALESCE($6::text[], '{}')))
+  AND (n.recipient_admin_id IS NULL OR n.recipient_admin_id = $1)
   AND r.read_at IS NULL
 ON CONFLICT DO NOTHING
 `

@@ -30,7 +30,7 @@ INSERT INTO catalog_product_bundle_options (
     product_id, input_type, is_required, sort_order, min_selections, max_selections
 )
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, product_id, input_type, is_required, sort_order, created_at, updated_at, min_selections, max_selections
+RETURNING id, product_id, input_type, is_required, sort_order, created_at, updated_at, min_selections, max_selections, rule_category_id, rule_attribute_value_ids, rule_quantity
 `
 
 type CreateBundleOptionParams struct {
@@ -62,24 +62,29 @@ func (q *Queries) CreateBundleOption(ctx context.Context, arg CreateBundleOption
 		&i.UpdatedAt,
 		&i.MinSelections,
 		&i.MaxSelections,
+		&i.RuleCategoryID,
+		pq.Array(&i.RuleAttributeValueIds),
+		&i.RuleQuantity,
 	)
 	return i, err
 }
 
 const createBundleSelection = `-- name: CreateBundleSelection :one
 INSERT INTO catalog_product_bundle_selections (
-    option_id, product_id, quantity, is_default, sort_order
+    option_id, product_id, quantity, is_default, sort_order, discount_percent, customer_quantity
 )
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, option_id, product_id, quantity, is_default, sort_order
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, option_id, product_id, quantity, is_default, sort_order, discount_percent, customer_quantity
 `
 
 type CreateBundleSelectionParams struct {
-	OptionID  uuid.UUID `json:"option_id"`
-	ProductID uuid.UUID `json:"product_id"`
-	Quantity  float64   `json:"quantity"`
-	IsDefault bool      `json:"is_default"`
-	SortOrder int32     `json:"sort_order"`
+	OptionID         uuid.UUID `json:"option_id"`
+	ProductID        uuid.UUID `json:"product_id"`
+	Quantity         float64   `json:"quantity"`
+	IsDefault        bool      `json:"is_default"`
+	SortOrder        int32     `json:"sort_order"`
+	DiscountPercent  int16     `json:"discount_percent"`
+	CustomerQuantity bool      `json:"customer_quantity"`
 }
 
 func (q *Queries) CreateBundleSelection(ctx context.Context, arg CreateBundleSelectionParams) (CatalogProductBundleSelection, error) {
@@ -89,6 +94,8 @@ func (q *Queries) CreateBundleSelection(ctx context.Context, arg CreateBundleSel
 		arg.Quantity,
 		arg.IsDefault,
 		arg.SortOrder,
+		arg.DiscountPercent,
+		arg.CustomerQuantity,
 	)
 	var i CatalogProductBundleSelection
 	err := row.Scan(
@@ -98,6 +105,8 @@ func (q *Queries) CreateBundleSelection(ctx context.Context, arg CreateBundleSel
 		&i.Quantity,
 		&i.IsDefault,
 		&i.SortOrder,
+		&i.DiscountPercent,
+		&i.CustomerQuantity,
 	)
 	return i, err
 }
@@ -136,7 +145,7 @@ func (q *Queries) DeleteBundleSelection(ctx context.Context, id uuid.UUID) error
 }
 
 const getBundleOptionByID = `-- name: GetBundleOptionByID :one
-SELECT id, product_id, input_type, is_required, sort_order, created_at, updated_at, min_selections, max_selections FROM catalog_product_bundle_options WHERE id = $1
+SELECT id, product_id, input_type, is_required, sort_order, created_at, updated_at, min_selections, max_selections, rule_category_id, rule_attribute_value_ids, rule_quantity FROM catalog_product_bundle_options WHERE id = $1
 `
 
 func (q *Queries) GetBundleOptionByID(ctx context.Context, id uuid.UUID) (CatalogProductBundleOption, error) {
@@ -152,12 +161,15 @@ func (q *Queries) GetBundleOptionByID(ctx context.Context, id uuid.UUID) (Catalo
 		&i.UpdatedAt,
 		&i.MinSelections,
 		&i.MaxSelections,
+		&i.RuleCategoryID,
+		pq.Array(&i.RuleAttributeValueIds),
+		&i.RuleQuantity,
 	)
 	return i, err
 }
 
 const getBundleOptionByIDForUpdate = `-- name: GetBundleOptionByIDForUpdate :one
-SELECT id, product_id, input_type, is_required, sort_order, created_at, updated_at, min_selections, max_selections FROM catalog_product_bundle_options WHERE id = $1 FOR UPDATE
+SELECT id, product_id, input_type, is_required, sort_order, created_at, updated_at, min_selections, max_selections, rule_category_id, rule_attribute_value_ids, rule_quantity FROM catalog_product_bundle_options WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetBundleOptionByIDForUpdate(ctx context.Context, id uuid.UUID) (CatalogProductBundleOption, error) {
@@ -173,12 +185,15 @@ func (q *Queries) GetBundleOptionByIDForUpdate(ctx context.Context, id uuid.UUID
 		&i.UpdatedAt,
 		&i.MinSelections,
 		&i.MaxSelections,
+		&i.RuleCategoryID,
+		pq.Array(&i.RuleAttributeValueIds),
+		&i.RuleQuantity,
 	)
 	return i, err
 }
 
 const getBundleSelectionByID = `-- name: GetBundleSelectionByID :one
-SELECT id, option_id, product_id, quantity, is_default, sort_order FROM catalog_product_bundle_selections WHERE id = $1
+SELECT id, option_id, product_id, quantity, is_default, sort_order, discount_percent, customer_quantity FROM catalog_product_bundle_selections WHERE id = $1
 `
 
 func (q *Queries) GetBundleSelectionByID(ctx context.Context, id uuid.UUID) (CatalogProductBundleSelection, error) {
@@ -191,6 +206,8 @@ func (q *Queries) GetBundleSelectionByID(ctx context.Context, id uuid.UUID) (Cat
 		&i.Quantity,
 		&i.IsDefault,
 		&i.SortOrder,
+		&i.DiscountPercent,
+		&i.CustomerQuantity,
 	)
 	return i, err
 }
@@ -254,7 +271,7 @@ func (q *Queries) ListBundleOptionContentByOptionIDs(ctx context.Context, option
 }
 
 const listBundleOptionsByProductID = `-- name: ListBundleOptionsByProductID :many
-SELECT id, product_id, input_type, is_required, sort_order, created_at, updated_at, min_selections, max_selections FROM catalog_product_bundle_options
+SELECT id, product_id, input_type, is_required, sort_order, created_at, updated_at, min_selections, max_selections, rule_category_id, rule_attribute_value_ids, rule_quantity FROM catalog_product_bundle_options
 WHERE product_id = $1
 ORDER BY sort_order, created_at
 `
@@ -278,6 +295,9 @@ func (q *Queries) ListBundleOptionsByProductID(ctx context.Context, productID uu
 			&i.UpdatedAt,
 			&i.MinSelections,
 			&i.MaxSelections,
+			&i.RuleCategoryID,
+			pq.Array(&i.RuleAttributeValueIds),
+			&i.RuleQuantity,
 		); err != nil {
 			return nil, err
 		}
@@ -342,7 +362,7 @@ func (q *Queries) ListBundleSelectionLinksByProductIDs(ctx context.Context, prod
 }
 
 const listBundleSelectionsByOptionIDs = `-- name: ListBundleSelectionsByOptionIDs :many
-SELECT id, option_id, product_id, quantity, is_default, sort_order FROM catalog_product_bundle_selections
+SELECT id, option_id, product_id, quantity, is_default, sort_order, discount_percent, customer_quantity FROM catalog_product_bundle_selections
 WHERE option_id = ANY($1::uuid[])
 ORDER BY option_id, sort_order, id
 `
@@ -363,6 +383,8 @@ func (q *Queries) ListBundleSelectionsByOptionIDs(ctx context.Context, optionIds
 			&i.Quantity,
 			&i.IsDefault,
 			&i.SortOrder,
+			&i.DiscountPercent,
+			&i.CustomerQuantity,
 		); err != nil {
 			return nil, err
 		}
@@ -377,6 +399,49 @@ func (q *Queries) ListBundleSelectionsByOptionIDs(ctx context.Context, optionIds
 	return items, nil
 }
 
+const setBundleOptionRule = `-- name: SetBundleOptionRule :one
+UPDATE catalog_product_bundle_options
+SET rule_category_id         = $1,
+    rule_attribute_value_ids = $2::uuid[],
+    rule_quantity            = $3,
+    updated_at               = NOW()
+WHERE id = $4
+RETURNING id, product_id, input_type, is_required, sort_order, created_at, updated_at, min_selections, max_selections, rule_category_id, rule_attribute_value_ids, rule_quantity
+`
+
+type SetBundleOptionRuleParams struct {
+	RuleCategoryID        uuid.NullUUID `json:"rule_category_id"`
+	RuleAttributeValueIds []uuid.UUID   `json:"rule_attribute_value_ids"`
+	RuleQuantity          float64       `json:"rule_quantity"`
+	ID                    uuid.UUID     `json:"id"`
+}
+
+// A null category drops the rule
+func (q *Queries) SetBundleOptionRule(ctx context.Context, arg SetBundleOptionRuleParams) (CatalogProductBundleOption, error) {
+	row := q.db.QueryRowContext(ctx, setBundleOptionRule,
+		arg.RuleCategoryID,
+		pq.Array(arg.RuleAttributeValueIds),
+		arg.RuleQuantity,
+		arg.ID,
+	)
+	var i CatalogProductBundleOption
+	err := row.Scan(
+		&i.ID,
+		&i.ProductID,
+		&i.InputType,
+		&i.IsRequired,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.MinSelections,
+		&i.MaxSelections,
+		&i.RuleCategoryID,
+		pq.Array(&i.RuleAttributeValueIds),
+		&i.RuleQuantity,
+	)
+	return i, err
+}
+
 const updateBundleOption = `-- name: UpdateBundleOption :one
 UPDATE catalog_product_bundle_options
 SET input_type     = $2,
@@ -386,7 +451,7 @@ SET input_type     = $2,
     max_selections = $6,
     updated_at     = NOW()
 WHERE id = $1
-RETURNING id, product_id, input_type, is_required, sort_order, created_at, updated_at, min_selections, max_selections
+RETURNING id, product_id, input_type, is_required, sort_order, created_at, updated_at, min_selections, max_selections, rule_category_id, rule_attribute_value_ids, rule_quantity
 `
 
 type UpdateBundleOptionParams struct {
@@ -418,24 +483,31 @@ func (q *Queries) UpdateBundleOption(ctx context.Context, arg UpdateBundleOption
 		&i.UpdatedAt,
 		&i.MinSelections,
 		&i.MaxSelections,
+		&i.RuleCategoryID,
+		pq.Array(&i.RuleAttributeValueIds),
+		&i.RuleQuantity,
 	)
 	return i, err
 }
 
 const updateBundleSelection = `-- name: UpdateBundleSelection :one
 UPDATE catalog_product_bundle_selections
-SET quantity   = $2,
-    is_default = $3,
-    sort_order = $4
+SET quantity          = $2,
+    is_default        = $3,
+    sort_order        = $4,
+    discount_percent  = $5,
+    customer_quantity = $6
 WHERE id = $1
-RETURNING id, option_id, product_id, quantity, is_default, sort_order
+RETURNING id, option_id, product_id, quantity, is_default, sort_order, discount_percent, customer_quantity
 `
 
 type UpdateBundleSelectionParams struct {
-	ID        uuid.UUID `json:"id"`
-	Quantity  float64   `json:"quantity"`
-	IsDefault bool      `json:"is_default"`
-	SortOrder int32     `json:"sort_order"`
+	ID               uuid.UUID `json:"id"`
+	Quantity         float64   `json:"quantity"`
+	IsDefault        bool      `json:"is_default"`
+	SortOrder        int32     `json:"sort_order"`
+	DiscountPercent  int16     `json:"discount_percent"`
+	CustomerQuantity bool      `json:"customer_quantity"`
 }
 
 func (q *Queries) UpdateBundleSelection(ctx context.Context, arg UpdateBundleSelectionParams) (CatalogProductBundleSelection, error) {
@@ -444,6 +516,8 @@ func (q *Queries) UpdateBundleSelection(ctx context.Context, arg UpdateBundleSel
 		arg.Quantity,
 		arg.IsDefault,
 		arg.SortOrder,
+		arg.DiscountPercent,
+		arg.CustomerQuantity,
 	)
 	var i CatalogProductBundleSelection
 	err := row.Scan(
@@ -453,6 +527,8 @@ func (q *Queries) UpdateBundleSelection(ctx context.Context, arg UpdateBundleSel
 		&i.Quantity,
 		&i.IsDefault,
 		&i.SortOrder,
+		&i.DiscountPercent,
+		&i.CustomerQuantity,
 	)
 	return i, err
 }

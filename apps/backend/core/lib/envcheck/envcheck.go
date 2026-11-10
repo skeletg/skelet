@@ -148,12 +148,6 @@ func ConfigEncryptionKey(getenv Getenv) (errs, warnings []string) {
 	return aesKey(getenv, "CONFIG_ENCRYPTION_KEY", "secret config values"), nil
 }
 
-// SignalsEncryptionKey guards cmd/signals, which stores the destination credentials it forwards with
-func SignalsEncryptionKey(getenv Getenv) (errs, warnings []string) {
-	errs = aesKey(getenv, "SIGNALS_ENCRYPTION_KEY", "destination credentials")
-	return append(errs, distinct(getenv, "SIGNALS_ENCRYPTION_KEY", "CONFIG_ENCRYPTION_KEY")...), nil
-}
-
 func aesKey(getenv Getenv, name, what string) []string {
 	s := strings.TrimSpace(getenv(name))
 	switch {

@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
@@ -24,9 +23,10 @@ import (
 // ErrUnavailable is a caller not reaching the service at all, as against the service answering "no"
 var ErrUnavailable = errors.New("the Signals service is unavailable")
 
-// Grants resolves a caller's Signals permissions, satisfied by *admin.Service
+// Grants resolves a caller's Signals permissions and roles, satisfied by *admin.Service
 type Grants interface {
 	Grants(ctx context.Context, adminID uuid.UUID) ([]auth.Grant, error)
+	RoleIDs(ctx context.Context, adminID uuid.UUID) ([]uuid.UUID, error)
 }
 
 type adminStanding interface {
@@ -44,12 +44,13 @@ type Client struct {
 	segments segmentGuard
 
 	Ingest       signalsv1.IngestServiceClient
+	Assistant    signalsv1.AssistantServiceClient
 	Prism        signalsv1.PrismServiceClient
+	Boards       signalsv1.BoardServiceClient
 	Lens         signalsv1.LensServiceClient
 	Synapse      signalsv1.SynapseServiceClient
 	Segments     signalsv1.SegmentServiceClient
 	Pulse        signalsv1.PulseServiceClient
-	Destination  signalsv1.DestinationServiceClient
 	Maintenance  signalsv1.MaintenanceServiceClient
 	Settings     signalsv1.SettingsServiceClient
 	Suppressions signalsv1.SuppressionServiceClient
@@ -61,14 +62,17 @@ type Client struct {
 
 // Dialling is lazy, so this never blocks on a service that is not up yet
 // keys sign the tokens this client mints
-func New(addr string, keys auth.ServiceKeys, ttl time.Duration, grants Grants) (*Client, error) {
+func New(addr string, tr Transport, keys auth.ServiceKeys, ttl time.Duration, grants Grants) (*Client, error) {
 	if addr == "" || !keys.Configured() {
 		return nil, nil
 	}
+	creds, err := tr.credentials()
+	if err != nil {
+		return nil, err
+	}
 	// dns re-resolves the name on every reconnect and balances across every address it answers, so a suite scaled to several replicas behind one name shares the load
 	conn, err := grpc.NewClient("dns:///"+addr,
-		// Plaintext - the contract runs on a private network, or one encrypted underneath (docs/env.md)
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithTransportCredentials(creds),
 		grpc.WithDefaultServiceConfig(`{"loadBalancingConfig":[{"round_robin":{}}]}`),
 		grpc.WithChainUnaryInterceptor(deadlineUnary()),
 		grpc.WithChainStreamInterceptor(deadlineStream()),
@@ -81,12 +85,13 @@ func New(addr string, keys auth.ServiceKeys, ttl time.Duration, grants Grants) (
 		conn: conn, keys: keys, ttl: ttl, grants: grants,
 		segments:     newSegmentGuard(),
 		Ingest:       signalsv1.NewIngestServiceClient(conn),
+		Assistant:    signalsv1.NewAssistantServiceClient(conn),
 		Prism:        signalsv1.NewPrismServiceClient(conn),
+		Boards:       signalsv1.NewBoardServiceClient(conn),
 		Lens:         signalsv1.NewLensServiceClient(conn),
 		Synapse:      signalsv1.NewSynapseServiceClient(conn),
 		Segments:     signalsv1.NewSegmentServiceClient(conn),
 		Pulse:        signalsv1.NewPulseServiceClient(conn),
-		Destination:  signalsv1.NewDestinationServiceClient(conn),
 		Maintenance:  signalsv1.NewMaintenanceServiceClient(conn),
 		Settings:     signalsv1.NewSettingsServiceClient(conn),
 		Suppressions: signalsv1.NewSuppressionServiceClient(conn),
@@ -182,6 +187,14 @@ func (c *Client) Authed(ctx context.Context) (context.Context, error) {
 		}
 		sc.Grants = auth.FilterGrants(grants, signalsapi.Slugs)
 	}
+	// Roles go for a superuser too: what's shared with a role they hold shows as shared with them
+	if c.grants != nil {
+		roles, err := c.grants.RoleIDs(ctx, claims.AdminID)
+		if err != nil {
+			return nil, err
+		}
+		sc.RoleIDs = roles
+	}
 	token, err := auth.GenerateServiceToken(sc, signalsapi.Audience, c.keys, c.ttl)
 	if err != nil {
 		return nil, err
@@ -241,6 +254,14 @@ func (c *Client) AsAdmin(ctx context.Context, adminID uuid.UUID) (context.Contex
 			return nil, err
 		}
 		sc.Grants = auth.FilterGrants(grants, signalsapi.Slugs)
+	}
+	// Roles go for a superuser too: what's shared with a role they hold shows as shared with them
+	if c.grants != nil {
+		roles, err := c.grants.RoleIDs(ctx, adminID)
+		if err != nil {
+			return nil, err
+		}
+		sc.RoleIDs = roles
 	}
 	token, err := auth.GenerateServiceToken(sc, signalsapi.Audience, c.keys, c.ttl)
 	if err != nil {

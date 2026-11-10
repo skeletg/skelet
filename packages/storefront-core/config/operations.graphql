@@ -3,6 +3,7 @@ query PublicConfig {
     path
     value
   }
+  assistantAvailable
 }
 
 query StoreFeatures {

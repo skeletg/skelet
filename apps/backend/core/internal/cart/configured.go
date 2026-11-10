@@ -109,6 +109,7 @@ func (s *Service) addConfiguredLine(ctx context.Context, cart Cart, input AddCon
 			ChannelID:  cart.ChannelID,
 			CustomerID: cart.CustomerID,
 			AnonID:     auth.AnonID(ctx),
+			Shopper:    auth.ShopperFromContext(ctx),
 			LineID:     line.ID,
 			ProductSku: input.ProductSku,
 			UnitPrice:  unitPrice,

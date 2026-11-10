@@ -30,7 +30,7 @@ The applications, and the only place product code lives.
 | `apps/backend/signals/` | The Signals suite as its own Go module - the `signals` and `ingest` processes. It requires core by relative path, never the other way round |
 | `apps/backend/sdk/` | The plugin SDK as its own Go module - what plugin repositories build against, beside core's gqlgen model packages for the resolvers they add |
 | `apps/dashboard/` | The React admin panel (Vite) |
-| `apps/channels/` | One directory per shop of the project's own, each forked from a template with `skelet add channel <name>`. Empty in skelet itself |
+| `apps/channels/` | One directory per shop of the project's own, each forked from a template with `skelet add channel <name>` and built on the `@skelet/storefront-*` packages from npm. Empty in skelet itself |
 
 Two of these are optional: `skelet setup` asks which apps you want and removes the
 rest from your working tree via sparse-checkout, so a clone that brings its own
@@ -53,7 +53,8 @@ shop in `apps/channels/`, so merging a skelet release never collides with it.
 
 TypeScript every storefront shares, as source - Next and Vite compile workspace
 packages themselves, so there's no build step here. Each release also publishes
-them to npm, compiled, for a shop outside a Skelet checkout - see
+them to npm, compiled, and that's what a shop in `apps/channels/` builds on - pinned
+to the checkout's release, bumped when you choose to. See
 [releasing](releasing.md#the-storefront-packages-on-npm). `storefront-core` is a
 storefront's logic with no framework in it - the GraphQL client and operations,
 auth, cart, checkout, channel and locale - and a template builds its design on

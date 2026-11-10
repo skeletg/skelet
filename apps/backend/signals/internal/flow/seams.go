@@ -18,6 +18,7 @@ type Contact struct {
 	Phone        string
 	EmailOptedIn bool
 	SMSOptedIn   bool
+	Locale       string // the storefront language they last signed in with - empty when not known
 }
 
 type contactReader interface {

@@ -6,3 +6,9 @@ d6c20f0f98d1b0f868dcfd65ab5657a04d15896b:apps/backend/internal/config/service_te
 d6c20f0f98d1b0f868dcfd65ab5657a04d15896b:apps/backend/internal/config/service_test.go:stripe-access-token:303
 d6c20f0f98d1b0f868dcfd65ab5657a04d15896b:apps/backend/internal/config/service_test.go:stripe-access-token:314
 d6c20f0f98d1b0f868dcfd65ab5657a04d15896b:env/garage.toml:generic-api-key:20
+
+# A delivery test's fake Destination secret on the tracking stack (#180-#184), reviewed 2026-11-01 - stale once rebased
+994a6bf70660512b654b27a20945cdc8feee8dbc:apps/backend/core/internal/tracking/tracking_test.go:generic-api-key:297
+
+# The Mixpanel replay test's placeholder token (0123..cdef), removed with Mixpanel, reviewed 2026-11-05
+e528836663ffd826b7ad70eb4acfc634379bbfb7:apps/channels/vetrina-demo/app/lib/analytics/mixpanel.test.ts:generic-api-key:5

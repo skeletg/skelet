@@ -3,12 +3,11 @@ import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 
 import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
-import { AnalyticsEvent } from "@/app/components/AnalyticsEvent";
+import { StripParam } from "@/app/components/StripParam";
 import { BackButton } from "@/app/components/BackButton";
 import { OrderDetailView } from "@/app/components/OrderDetailView";
-import { getResolvedConsent } from "@skelet/storefront-next/consent/read";
 import { displayName } from "@skelet/storefront-core/display";
-import { formatPrice, toMajor } from "@skelet/storefront-core/format";
+import { formatPrice } from "@skelet/storefront-core/format";
 import { getCurrentCustomer } from "@skelet/storefront-next/customer/read";
 import { gqlFetch, isBackendFailure } from "@skelet/storefront-next/graphql";
 import { MyOrderDocument } from "@skelet/storefront-core/checkout/operations.gql";
@@ -50,7 +49,6 @@ export default async function OrderDetailPage({
     notFound();
   }
 
-  const consent = justPlaced ? await getResolvedConsent() : null;
 
   const returnableByLine = new Map(
     order.returnableLines.map((rl) => [rl.orderLineId, rl.quantity]),
@@ -66,28 +64,7 @@ export default async function OrderDetailPage({
 
   return (
     <div className="max-w-3xl">
-      {justPlaced && consent && (
-        <AnalyticsEvent
-          enabled={consent.marketing}
-          event="purchase"
-          stripParam="just_placed"
-          payload={{
-            ecommerce: {
-              transaction_id: order.id,
-              currency: order.currencyCode,
-              value: toMajor(order.total, order.currencyCode),
-              tax: toMajor(order.taxAmount, order.currencyCode),
-              shipping: toMajor(order.shippingAmount, order.currencyCode),
-              items: order.lines.map((line) => ({
-                item_id: line.sku,
-                item_name: displayName(line.name, line.sku),
-                quantity: line.quantity,
-                price: toMajor(line.unitPrice, order.currencyCode),
-              })),
-            },
-          }}
-        />
-      )}
+      {justPlaced && <StripParam name="just_placed" />}
 
       <div className="mb-4">
         <BackButton fallbackHref="/account/orders" label={t("allOrders")} />

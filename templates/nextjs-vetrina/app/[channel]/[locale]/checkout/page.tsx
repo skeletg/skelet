@@ -22,14 +22,13 @@ import {
 } from "@skelet/storefront-next/checkout/read";
 import { businessIdFieldsFor, companyCountry } from "@skelet/storefront-core/checkout/business-ids";
 import { activeStep, arrivalLabels, businessComplete, progressOf, stepsFor, stepStatus } from "@skelet/storefront-core/checkout/step";
-import { getResolvedConsent } from "@skelet/storefront-next/consent/read";
 import { getCountries, getCountrySettings, getRegionsByCountry, getPhoneSettings } from "@skelet/storefront-next/countries/read";
 import { getCheckoutSettings, getGuestCheckoutAllowed } from "@skelet/storefront-next/config/read";
 import { displayName } from "@skelet/storefront-core/display";
 import { getCurrentCustomer } from "@skelet/storefront-next/customer/read";
 import { getMyPaymentMethods } from "@skelet/storefront-next/payment-methods/actions";
 import { getChannel } from "@skelet/storefront-next/channel/read";
-import { toMajor } from "@skelet/storefront-core/format";
+import { ga4CartEcommerce } from "@skelet/storefront-core/track/items";
 
 import { DeliveryStep, type LineInfo } from "./delivery-step";
 import { DetailsStep } from "./details-step";
@@ -63,12 +62,11 @@ export default async function CheckoutPage({
   const to = await getTranslations({ locale, namespace: "offer" });
   const format = await getFormatter({ locale });
 
-  const [customer, cart, channel, consent, countries, countrySettings, guestAllowed, settings, freeShipThreshold, phoneSettings] =
+  const [customer, cart, channel, countries, countrySettings, guestAllowed, settings, freeShipThreshold, phoneSettings] =
     await Promise.all([
       getCurrentCustomer(),
       getCheckoutCart(offerId),
       getChannel(),
-      getResolvedConsent(),
       getCountries(),
       getCountrySettings(),
       getGuestCheckoutAllowed(),
@@ -161,20 +159,8 @@ export default async function CheckoutPage({
     <CheckoutCartProvider cartId={cart.id} offerId={offer ? cart.id : undefined}>
     <main className="mx-auto grid w-full max-w-8xl gap-10 px-4 pt-6 pb-12 sm:px-6 md:grid-cols-[1fr_22rem] md:px-10">
       <AnalyticsEvent
-        enabled={consent.marketing}
         event="begin_checkout"
-        payload={{
-          ecommerce: {
-            currency: typeof currency === "string" ? currency : currency.code,
-            value: toMajor(checkout.totals.totalCents, currency),
-            items: cart.lines.map((line) => ({
-              item_id: line.sku,
-              item_name: displayName(line.name, line.sku),
-              quantity: line.quantity,
-              price: toMajor(line.unitPrice, currency),
-            })),
-          },
-        }}
+        payload={{ ecommerce: ga4CartEcommerce(cart.lines, checkout.totals.totalCents, currency) }}
       />
       <div className="min-w-0">
         <h1 className="text-3xl font-extrabold tracking-tight">{t("title")}</h1>
@@ -307,6 +293,7 @@ export default async function CheckoutPage({
                 savedCards={savedCards}
                 storeCreditBalance={customer?.storeCreditBalance ?? 0}
                 signedIn={!!customer}
+                emailOptIn={!(customer && offer?.isGuest)}
                 consent={settings.termsConsent}
                 currency={currency}
               />

@@ -19,8 +19,23 @@ type ProductChannelListing struct { // per-(product, channel) commerce row - a l
 	SpecialPrice   *int64  // setting this replaces the product-level special trio wholesale - nil = inherit
 	SpecialFrom    *time.Time
 	SpecialTo      *time.Time
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	// How a bundle is priced on this channel - every other kind ignores both
+	BundlePricing         BundlePricing
+	BundleDiscountPercent int16 // whole percent, 0-100, read by BundlePricingSumMinusPercent only
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+}
+
+type BundlePricing string
+
+const (
+	BundlePricingSum             BundlePricing = "sum"   // the picked components' channel prices, as before pricing modes existed
+	BundlePricingFixed           BundlePricing = "fixed" // the bundle listing's own effective price, whatever is picked
+	BundlePricingSumMinusPercent BundlePricing = "sum_minus_percent"
+)
+
+func (m BundlePricing) Valid() bool {
+	return m == BundlePricingSum || m == BundlePricingFixed || m == BundlePricingSumMinusPercent
 }
 
 type ProductChannelListingInput struct {
@@ -38,6 +53,7 @@ type ProductChannelListingInput struct {
 var (
 	ErrListingNotFound         = errors.New("product store listing not found")
 	ErrListingCurrencyMismatch = errors.New("listing cannot inherit price: store currency differs from product default currency")
+	ErrInvalidBundlePricing    = errors.New("bundle pricing must be sum, fixed or sum_minus_percent, with a discount of 0-100 percent")
 )
 
 // Listing price overrides the base, a listing that sets SpecialPrice replaces the product-level special trio wholesale, and a listing CompareAtPrice overrides independently - every consumer of "what does this cost on this channel" (cart pricing, front render, merchant feed, admin effectivePrice) folds through here

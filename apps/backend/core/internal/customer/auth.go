@@ -15,6 +15,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/internal/locale"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/consentkind"
 	"github.com/skeletg/skelet/apps/backend/core/lib/email"
@@ -70,7 +71,7 @@ func (s *Service) Register(ctx context.Context, channelID uuid.UUID, emailAddr, 
 		var err error
 		c, err = r.Create(ctx, CreateCustomerInput{
 			ChannelID: channelID, Email: emailAddr, PasswordHash: string(hash),
-			FirstName: firstName, LastName: lastName, GroupID: group,
+			FirstName: firstName, LastName: lastName, GroupID: group, Locale: locale.FromContext(ctx),
 		})
 		if err != nil {
 			return nil, err
@@ -78,7 +79,7 @@ func (s *Service) Register(ctx context.Context, channelID uuid.UUID, emailAddr, 
 		// Tags from the pre-commit chain carry forward so enrichers can influence async subscribers
 		return []events.Event{&CustomerRegistered{
 			CustomerID: c.ID, ChannelID: c.ChannelID, Email: c.Email, FirstName: c.FirstName, LastName: c.LastName,
-			Source: SourceSelf, Tags: ing.Tags,
+			Source: SourceSelf, Tags: ing.Tags, Shopper: auth.ShopperFromContext(ctx),
 		}}, nil
 	})
 	if errors.Is(err, ErrEmailTaken) {
@@ -160,9 +161,27 @@ func (s *Service) Authenticate(ctx context.Context, channelID uuid.UUID, email, 
 			IP:        ip,
 			UserAgent: ua,
 			ChannelID: channelID,
+			Shopper:   auth.ShopperFromContext(ctx),
 		})
 	}
+	if lang := locale.FromContext(ctx); lang != "" && lang != c.Locale {
+		if err := s.keepLocale(ctx, c, lang); err != nil {
+			slog.WarnContext(ctx, "customer: keep sign-in language", "customer", c.ID, "err", err)
+		}
+	}
 	return c, nil
+}
+
+// The language they signed in with is the one their marketing email goes out in - the profile event pushes it to Signals
+// now rather than on the next roster sweep
+func (s *Service) keepLocale(ctx context.Context, c Customer, lang string) error {
+	return s.atomically(ctx, func(r *postgresRepository) ([]events.Event, error) {
+		changed, err := r.SetLocale(ctx, c.ID, lang)
+		if err != nil || !changed {
+			return nil, err
+		}
+		return []events.Event{&CustomerProfileUpdated{CustomerID: c.ID, ChannelID: c.ChannelID, ChangedFields: []string{"locale"}, Source: SourceSelf}}, nil
+	})
 }
 
 func (s *Service) publishLoginFailed(ctx context.Context, email, ip, ua string, channelID uuid.UUID, reason string) {
@@ -221,6 +240,7 @@ func (s *Service) EnsureContactFrom(ctx context.Context, channelID uuid.UUID, em
 		var err error
 		c, err = r.Create(ctx, CreateCustomerInput{
 			ChannelID: channelID, Email: email, PasswordHash: string(hash), FirstName: firstName, EmailVerified: verified,
+			Locale: contactLocale(ctx, source),
 		})
 		if err != nil {
 			return nil, err
@@ -243,6 +263,24 @@ func (s *Service) EnsureContactFrom(ctx context.Context, channelID uuid.UUID, em
 		return Customer{}, false, err
 	}
 	return c, true, nil
+}
+
+// An account mail goes out in the language of the storefront the shopper is on, and when nothing says which, in the one
+// they last signed in with
+func inTheirLanguage(ctx context.Context, c Customer) context.Context {
+	if locale.FromContext(ctx) == "" && c.Locale != "" {
+		return locale.WithLocale(ctx, c.Locale)
+	}
+	return ctx
+}
+
+// A subscriber's language is the storefront's they signed up on - an import runs in the admin's request, whose language
+// is the dashboard's and says nothing about the contact
+func contactLocale(ctx context.Context, source string) string {
+	if source == SourceImport {
+		return ""
+	}
+	return locale.FromContext(ctx)
 }
 
 func (s *Service) ChangePassword(ctx context.Context, id uuid.UUID, currentPassword, newPassword string) error {
@@ -311,7 +349,7 @@ func (s *Service) sendAccountExists(ctx context.Context, channelID uuid.UUID, ad
 	storefront := strings.TrimRight(store.PublicURL, "/")
 	signIn, forgot := storefront+SignInPath, storefront+ForgotPasswordPath
 	name := s.storeName(ctx, store)
-	if s.authFlows != nil && s.authFlows.OnAccountExists(ctx, channelID, c.ID, signIn, forgot, name, c.FirstName) > 0 {
+	if s.authFlows != nil && s.authFlows.OnAccountExists(inTheirLanguage(ctx, c), channelID, c.ID, signIn, forgot, name, c.FirstName) > 0 {
 		return nil
 	}
 	if s.authFallback == nil {
@@ -352,7 +390,7 @@ func (s *Service) sendVerificationEmail(ctx context.Context, c Customer) error {
 	link := storefront + VerifyEmailPath + token
 	// A flow on the email_verification trigger delivers this when one is active, so operators can edit the journey
 	name := s.storeName(ctx, store)
-	if s.authFlows != nil && s.authFlows.OnEmailVerification(ctx, c.ChannelID, c.ID, link, name, c.FirstName) > 0 {
+	if s.authFlows != nil && s.authFlows.OnEmailVerification(inTheirLanguage(ctx, c), c.ChannelID, c.ID, link, name, c.FirstName) > 0 {
 		return nil
 	}
 	// Nothing handled it - send directly rather than let a missing or paused flow silently swallow a verification
@@ -501,7 +539,7 @@ func (s *Service) sendPasswordReset(ctx context.Context, c Customer) error {
 	expiresIn := humanDuration(s.resetStore.TTL())
 	// A flow on the password_reset trigger delivers this when one is active, sent synchronously
 	name := s.storeName(ctx, store)
-	if s.authFlows != nil && s.authFlows.OnPasswordReset(ctx, c.ChannelID, c.ID, link, expiresIn, name, c.FirstName) > 0 {
+	if s.authFlows != nil && s.authFlows.OnPasswordReset(inTheirLanguage(ctx, c), c.ChannelID, c.ID, link, expiresIn, name, c.FirstName) > 0 {
 		return nil
 	}
 	// Nothing handled it - send directly, or a paused flow locks the customer out of their own account

@@ -128,3 +128,46 @@ func TestCarrierSettingsOnAChannelWithNoRow(t *testing.T) {
 		t.Errorf("a refused write changed the countries: %v", got.Config.AllowedCountries)
 	}
 }
+
+// A table method keeps its tiers in order whatever order they were typed in, quotes the tier a shipment's weight
+// reaches, and drops out of the quote for a shipment its first tier doesn't cover - placement refuses it the same way
+func TestATableMethodQuotesByItsTiers(t *testing.T) {
+	svc, ch := newShippingDB(t)
+	ctx := context.Background()
+	zone, err := svc.Repo().CreateZone(ctx, Zone{ChannelID: ch, Code: "z", Name: "Z", IsActive: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Repo().AddCountryToZone(ctx, zone.ID, "DE"); err != nil {
+		t.Fatal(err)
+	}
+	table := Method{ZoneID: zone.ID, Code: "parcel", Name: "Parcel", CalcType: CalcTable, TableBasis: BasisWeight, IsActive: true,
+		RateTiers: []RateTier{{From: 5000, PriceCents: 1290}, {From: 500, PriceCents: 690}}}
+	saved, err := svc.SaveMethod(ctx, table, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(saved.RateTiers) != 2 || saved.RateTiers[0].From != 500 || saved.RateTiers[1].From != 5000 || saved.TableBasis != BasisWeight {
+		t.Fatalf("saved %+v - want both tiers back ascending", saved.RateTiers)
+	}
+	quote := func(grams int32) []Quote {
+		t.Helper()
+		q, err := svc.Quote(ctx, QuoteInput{ChannelID: ch, CountryCode: "DE", Items: []PricedItem{{Quantity: 2, WeightGrams: grams}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return q
+	}
+	if q := quote(400); len(q) != 1 || q[0].PriceCents != 690 {
+		t.Errorf("two 400 g items quote %+v, want the 0.5 kg tier at 690", q)
+	}
+	if q := quote(3000); len(q) != 1 || q[0].PriceCents != 1290 {
+		t.Errorf("two 3 kg items quote %+v, want the 5 kg tier at 1290", q)
+	}
+	if q := quote(100); len(q) != 0 {
+		t.Errorf("a 200 g shipment was offered %+v, below the first tier", q)
+	}
+	if _, _, err := svc.ComputeForOrder(ctx, "parcel", QuoteInput{ChannelID: ch, CountryCode: "DE", Items: []PricedItem{{Quantity: 1, WeightGrams: 100}}}); !errors.Is(err, ErrMethodUnavailable) {
+		t.Errorf("placing below the first tier = %v, want %v", err, ErrMethodUnavailable)
+	}
+}

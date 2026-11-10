@@ -5,6 +5,9 @@ can answer questions about your store from its own data: how sales are trending,
 stock, what a given order looks like. It's read-only. Nothing an agent does through it changes the
 store.
 
+This one is for your own team. Shoppers' agents get a separate, public endpoint on the storefront -
+see [storefront-mcp.md](storefront-mcp.md).
+
 The tools are the ones the dashboard's AI chat uses, gated the same way, so an agent sees exactly
 what the credential it connects with may see. The endpoint sits beside admin GraphQL:
 
@@ -18,6 +21,9 @@ the API host. The app prints the exact URL at boot as `admin MCP endpoint`. `MCP
 takes the endpoint away entirely.
 
 ## Connecting an agent
+
+**Agentic Commerce, MCP** in the dashboard gives this server's address and a ready-made command for the
+store you have selected, along with every tool an agent can call.
 
 1. In the dashboard, open **Developer → Integrations** and create a token. Give it the `.view`
    permissions you want the agent to have and nothing else, and pin it to the channel it should

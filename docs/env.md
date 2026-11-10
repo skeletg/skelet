@@ -17,7 +17,7 @@ most a one-line hint. Everything that needs a paragraph lives here.
 |---|---|---|
 | `../.env.example` | `../.env` | docker compose itself (prod and small) - see below |
 | `go.env.example` | `go.env` | core in dev (`app`, `worker`, `media`, `migrate`) |
-| `signals.env.example` | `signals.env` | the Signals processes in dev (`signals`, `ingest`) - `skelet up` writes it and copies `CUSTOMER_JWT_PUBLIC_KEY` / `EMAIL_LINK_SECRET` / `SIGNALS_SERVICE_SECRET` over from `go.env`, and generates its own `SIGNALS_ENCRYPTION_KEY` |
+| `signals.env.example` | `signals.env` | the Signals processes in dev (`signals`, `ingest`) - `skelet up` writes it and copies `CUSTOMER_JWT_PUBLIC_KEY` / `EMAIL_LINK_SECRET` / `SIGNALS_SERVICE_SECRET` over from `go.env` |
 | `db.env.example` | `db.env` | the dev Postgres container |
 | `prod.env.example` | `prod.env` | `app`, `worker`, `media`, `signals`, `ingest`, `migrate` - one shared file |
 | `prod-signals.env.example` | `prod-signals.env` | `signals` only, on top of `prod.env` - the retention archive's bucket and `CORE_FRONT_API_URL`; optional |
@@ -69,6 +69,15 @@ One gotcha on a machine that runs both stacks: the root `.env` is shared
 between `docker-compose.yml` and `docker-compose.prod.yml`, so dev values
 there apply to prod commands too.
 
+It also says what the clone is for, which `skelet setup` writes and every
+`skelet` command reads - there's no separate settings file:
+
+| Variable | Holds |
+| --- | --- |
+| `SKELET_TARGET` | `dev`, `small` or `prod` - which stack this clone runs |
+| `SKELET_APPS` | the frontends this clone runs, wherever they run |
+| `COMPOSE_PROFILES` | what compose starts. On dev: the apps in Docker, the dev tools and the sidecars `skelet up` adds, so a bare `docker compose up` starts the same stack. On a server: `bundled` and the storefront it serves |
+
 ### Dev host ports
 
 The dev stack publishes its datastores on `127.0.0.1` only, and nothing on
@@ -119,7 +128,6 @@ silent default in production is worse than a refusal to start.
 | `REVIEW_VOTER_TOKEN_SECRET` | `openssl rand -hex 32`, in the root `.env`. Signs anonymous review votes, shared by core and the storefront. |
 | `SIGNALS_SERVICE_SECRET` | `openssl rand -hex 32`, in the root `.env`. Core signs every call on the Signals wire contract with it and the suite verifies with the same value - core and the Signals processes alone. |
 | `CONFIG_ENCRYPTION_KEY` | `openssl rand -base64 32`, in the root `.env`. Keep it stable - rotating it orphans every stored secret. |
-| `SIGNALS_ENCRYPTION_KEY` | `openssl rand -base64 32`, in the root `.env`, and different from `CONFIG_ENCRYPTION_KEY`. The `signals` process seals the destination secrets with it (webhook signing keys, the GA4 API secret, the Meta access token). Keep it stable for the same reason. Dev without it stores them in plaintext. |
 | `CORS_ALLOWED_ORIGINS` | Storefront + dashboard origins, comma-separated. Empty in dev means localhost defaults. |
 | `DB_PASSWORD` | Commerce Postgres. `DATABASE_URL` derives from it, or set that directly for an external database. |
 | `SIGNALS_DB_PASSWORD` | Signals Postgres, same deal via `SIGNALS_DB_URL`. Only the Signals processes read it - see below. |
@@ -170,12 +178,25 @@ minutes, so the previous value can go once both sides run the new one.
 
 ### The Signals connection
 
-Core calls the suite over gRPC in plaintext. Every call carries a short-lived
-bearer token and customer data, so keep the link on a network nothing else can
-see: one compose network on one host is that by default. When core and Signals
-run on different machines, encrypt the network underneath - a WireGuard or
-Tailscale overlay between the hosts, or a service mesh on Kubernetes - rather
-than leaving the traffic on a shared or public network.
+Core calls the suite over gRPC, and every call carries a short-lived bearer
+token and customer data, so the link has to stay private. It's plaintext by
+default, which is fine on one compose network on one host. When core and Signals
+run on different machines, either encrypt the network underneath - a WireGuard
+or Tailscale overlay between the hosts, or a service mesh on Kubernetes - or put
+TLS on the contract itself:
+
+| Variable | File | What it does |
+| --- | --- | --- |
+| `SIGNALS_GRPC_TLS_CERT`, `SIGNALS_GRPC_TLS_KEY` | `env/prod-signals.env` | The suite's certificate and key, both PEM. Set both and the contract serves TLS only. A renewed pair is picked up on the next connection with no restart, and one that doesn't load leaves the previous pair serving |
+| `SIGNALS_GRPC_TLS` | `env/prod.env` | `true` makes core dial with TLS and check the suite's certificate |
+| `SIGNALS_GRPC_TLS_CA` | `env/prod.env` | A PEM bundle core trusts instead of the system roots, for a private CA. Needs `SIGNALS_GRPC_TLS=true` |
+
+The certificate has to name the host in `SIGNALS_GRPC_ADDR` (`signals` in
+compose, or the name your replicas share), and the files have to be in the
+containers: mount the certificate and key read-only into `signals`, and the CA
+into `app`, `worker` and `media`. Switch both ends together - a plaintext core
+can't reach a TLS suite, or the other way round. Core still signs every call, so
+there's no client certificate to manage.
 
 `SIGNALS_GRPC_ADDR` can name several replicas behind one DNS name: core
 resolves it and spreads calls across every address it answers with.
@@ -333,6 +354,10 @@ is missing.
 The spine and its migrations share one URL, `SIGNALS_CH_URL` - dbmate reads the
 same `clickhouse://user:password@host:port/db` the app does.
 
+Every query runs under `max_execution_time` 60 seconds and `max_memory_usage` 4 GiB
+unless the URL sets them, for example `?max_execution_time=120`, so one runaway
+report can't starve the others. The archive export is exempt from the time limit.
+
 Set `CLICKHOUSE_PASSWORD` in the root `.env`; the server credentials and
 the ClickHouse URL derive from it. Backing the spine up is
 `BACKUP DATABASE` on a schedule of your own, see [backups.md](backups.md).
@@ -396,6 +421,15 @@ The dashboard and Caddy read it when they start; the storefront bakes it in
 at build, so `skelet release` passes it through. Without it uploads fail
 with a CSP error in the browser console. Dev needs nothing - its local hosts
 are already allowed.
+
+A card gateway's fields load from the gateway's own hosts, which the Next
+storefront's CSP blocks until `PAYMENT_ORIGINS` names them - separated by spaces
+or commas, baked in at build like `UPLOAD_ORIGINS`, and read from the root `.env`
+in dev too. Each one has to be a bare https origin, and anything else fails the
+build rather than loosening the policy. Use the hosts the gateway plugin lists in
+its manifest's `SecurityOrigins` (Stripe: `https://js.stripe.com
+https://api.stripe.com`). The backend, dashboard and Caddy CSPs pick those up
+from the compiled-in plugin on `skelet gen`, so only the storefront needs this.
 
 ### S3
 
@@ -539,6 +573,10 @@ rather keep the key out of the database, and they are read in this order:
 
 All three are OPTIONAL. With no key from any source the assistant stays off.
 
+A key from the environment only ever goes to the provider's own address. Point `ai/llm/base_url` somewhere else and
+the key has to be entered in the settings for that address. The same goes for a key saved in the settings: one
+saved before the address last moved isn't sent to the new one.
+
 ## Storefront links
 
 `STOREFRONT_URL` is where customer email links land, `DASHBOARD_URL` where
@@ -572,6 +610,12 @@ shop's own origin: `/media/t/*` thumbnails, `/download/*`, `/unsubscribe/*`,
 the `/subscribe/confirm/*` signup confirmations, the `/e/*` email pixels and clicks, and the `/t/*` beacons. Left unset it
 falls back to `http://localhost:8080`, which only fits `pnpm run dev` on the
 host.
+
+`STOREFRONT_COOKIE_DOMAIN` is the domain the ad click-id cookies
+(`_fbc`, `sk_gclid` and the rest) are set on. Left empty, a
+`www.` host sets them on the bare domain and any other host on itself. Set it,
+for example to `shop.example`, when checkout runs on a different subdomain
+from the pages shoppers land on, so a click still counts there.
 
 A purge reaches one storefront process, since the page cache lives in it. Run
 a single replica unless you've configured a shared cache handler; see
@@ -731,6 +775,14 @@ Setting one of these does NOT turn the layer on - `RATE_LIMIT_ENABLED`
 gates all of them, so a knob left over in an old env file can't quietly
 start refusing traffic.
 
+`MCP_FRONT_MAX_IN_FLIGHT` (32) caps the storefront MCP calls one client address runs at once. Unlike the
+budgets above it's always on, `RATE_LIMIT_ENABLED` or not.
+
+Everything on the storefront that reaches an AI provider is limited per store in the settings instead, on
+whatever `RATE_LIMIT_ENABLED` says, since each call is paid for: `sales/agents/assistant_per_minute`,
+`search/products/meaning_per_minute` and `sales/agents/mcp_per_minute` ([settings.md](settings.md),
+[storefront-mcp.md](storefront-mcp.md)).
+
 The lockout is separate, in case you want brute-force protection without
 per-IP budgets: `LOGIN_LOCKOUT_ENABLED` (defaults to whatever
 `RATE_LIMIT_ENABLED` is) and `LOGIN_LOCKOUT_THRESHOLD` (10 failures, then a
@@ -739,7 +791,7 @@ per-IP budgets: `LOGIN_LOCKOUT_ENABLED` (defaults to whatever
 Two limits are per-feature and stay off by default on their own terms,
 independent of all of the above:
 
-- **Catalog query throttle** - Settings > General > Security, a per-IP soft
+- **Catalog query throttle** - Settings > All settings > General > Security, a per-IP soft
   budget for storefront catalog reads. Past the budget requests are
   *slowed*, past 3x refused. Meant to be flipped on mid-attack with no
   deploy, which is why `RATE_LIMIT_ENABLED` doesn't gate it. 0 = off.
@@ -753,8 +805,9 @@ All default to true.
 | Var | Off means |
 |---|---|
 | `SIGNALS_ENABLED` | no Signals suite (Pulse campaigns/flows/the email builder, Lens, Synapse, Prism, spine ingestion, forwarding). Transactional email keeps sending from core's own templates. This is core's switch: it decides whether core dials the suite at all. The Signals processes have none of their own, so a deployed suite is on and cannot quietly drop writes while core keeps sending them. |
-| `AI_ENABLED` | no LLM integrations, including the Settings > AI section |
+| `AI_ENABLED` | no LLM integrations, including the AI section of Settings > All settings |
 | `MCP_ENABLED` | no MCP endpoint for AI agents ([mcp.md](mcp.md)). It doesn't use the store's own AI provider, so `AI_ENABLED` doesn't switch it off |
+| `MCP_FRONT_ENABLED` | no storefront MCP endpoint for shoppers' agents ([storefront-mcp.md](storefront-mcp.md)) |
 
 `GEOIP_DB_PATH` points at a MaxMind GeoLite2 `.mmdb` for geo on web
 events. A bad path is logged, not fatal - geo just doesn't appear.

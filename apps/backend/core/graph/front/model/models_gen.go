@@ -12,16 +12,28 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 )
 
+type AddBundleQuantityInput struct {
+	SelectionID string  `json:"selectionId"`
+	Quantity    float64 `json:"quantity"`
+}
+
 type AddBundleToCartInput struct {
 	CartID     string                           `json:"cartId"`
 	Sku        string                           `json:"sku"`
 	Quantity   float64                          `json:"quantity"`
 	Selections []*AddBundleToCartSelectionInput `json:"selections"`
+	Variants   []*AddBundleVariantPickInput     `json:"variants,omitempty"`
+	Quantities []*AddBundleQuantityInput        `json:"quantities,omitempty"`
 }
 
 type AddBundleToCartSelectionInput struct {
 	OptionID     string   `json:"optionId"`
 	SelectionIds []string `json:"selectionIds"`
+}
+
+type AddBundleVariantPickInput struct {
+	SelectionID string `json:"selectionId"`
+	VariantID   string `json:"variantId"`
 }
 
 type AddConfiguredToCartInput struct {
@@ -56,6 +68,58 @@ type AppliedPromotionCode struct {
 	InvalidatedReason string               `json:"invalidatedReason"`
 	RequiresCode      bool                 `json:"requiresCode"`
 	FreeGifts         []*PromotionFreeGift `json:"freeGifts"`
+}
+
+type AssistantLink struct {
+	Label   string                 `json:"label"`
+	Path    string                 `json:"path"`
+	Query   string                 `json:"query"`
+	Filters []*AssistantLinkFilter `json:"filters"`
+	Sort    string                 `json:"sort"`
+	Count   *int32                 `json:"count,omitempty"`
+}
+
+type AssistantLinkFilter struct {
+	Slug   string   `json:"slug"`
+	Values []string `json:"values"`
+}
+
+type AssistantMessage struct {
+	Role    string  `json:"role"`
+	Content string  `json:"content"`
+	Recap   *string `json:"recap,omitempty"`
+}
+
+type AssistantPage struct {
+	Kind  string `json:"kind"`
+	Title string `json:"title"`
+}
+
+type AssistantPoint struct {
+	Title  string `json:"title"`
+	Detail string `json:"detail"`
+}
+
+type AssistantProductDetail struct {
+	ProductID  string            `json:"productId"`
+	Summary    string            `json:"summary"`
+	Highlights []*AssistantPoint `json:"highlights"`
+	GoodFor    []string          `json:"goodFor"`
+	KeepInMind []string          `json:"keepInMind"`
+}
+
+type AssistantReply struct {
+	Reply       string                  `json:"reply"`
+	Incomplete  bool                    `json:"incomplete"`
+	Recap       string                  `json:"recap"`
+	FollowUps   []string                `json:"followUps"`
+	ProductIds  []string                `json:"productIds"`
+	Detail      *AssistantProductDetail `json:"detail,omitempty"`
+	Links       []*AssistantLink        `json:"links"`
+	Navigate    *AssistantLink          `json:"navigate,omitempty"`
+	CartID      *string                 `json:"cartId,omitempty"`
+	CartChanged bool                    `json:"cartChanged"`
+	Checkout    bool                    `json:"checkout"`
 }
 
 type AttributeFilterInput struct {
@@ -105,9 +169,11 @@ type BrowseProductsFilter struct {
 }
 
 type BrowseProductsResult struct {
-	Items      []*model.Product `json:"items"`
-	TotalCount int32            `json:"totalCount"`
-	Facets     []*BrowseFacet   `json:"facets"`
+	Items         []*model.Product `json:"items"`
+	TotalCount    int32            `json:"totalCount"`
+	Facets        []*BrowseFacet   `json:"facets"`
+	ByMeaningOnly bool             `json:"byMeaningOnly"`
+	AiOverview    bool             `json:"aiOverview"`
 }
 
 type BusinessIDValue struct {
@@ -185,6 +251,11 @@ type CartGiftCard struct {
 	Code         string `json:"code"`
 	AppliedCents int32  `json:"appliedCents"`
 	BalanceCents int32  `json:"balanceCents"`
+}
+
+type CartHandoffRedemption struct {
+	Cart      *Cart `json:"cart"`
+	GuestCart bool  `json:"guestCart"`
 }
 
 type CartLine struct {
@@ -374,6 +445,15 @@ type GiftCardBalance struct {
 	BalanceCents int32  `json:"balanceCents"`
 	CurrencyCode string `json:"currencyCode"`
 	Active       bool   `json:"active"`
+}
+
+type KitItem struct {
+	ID        string  `json:"id"`
+	Sku       string  `json:"sku"`
+	Name      *string `json:"name,omitempty"`
+	URL       string  `json:"url"`
+	Quantity  float64 `json:"quantity"`
+	SortOrder int32   `json:"sortOrder"`
 }
 
 type LoyaltyRedeemResult struct {
@@ -690,6 +770,18 @@ type SavedPaymentMethod struct {
 	ExpYear      int32  `json:"expYear"`
 }
 
+type SearchOverview struct {
+	Text     string                   `json:"text"`
+	Products []*SearchOverviewProduct `json:"products"`
+	Recap    string                   `json:"recap"`
+}
+
+type SearchOverviewProduct struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
 type ShippingQuote struct {
 	CarrierSlug      string  `json:"carrierSlug"`
 	CarrierName      string  `json:"carrierName"`
@@ -713,6 +805,12 @@ type SitemapEntry struct {
 
 type StoreFeatures struct {
 	Signals bool `json:"signals"`
+}
+
+type StorePromotion struct {
+	Label  string     `json:"label"`
+	Terms  string     `json:"terms"`
+	EndsAt *time.Time `json:"endsAt,omitempty"`
 }
 
 type SubmitReviewInput struct {

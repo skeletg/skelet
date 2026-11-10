@@ -1,0 +1,116 @@
+fragment TrackingDestinationFields on TrackingDestination {
+  id
+  channelId
+  kind
+  name
+  enabled
+  events
+  effectiveEvents
+  config {
+    key
+    value
+  }
+  secretSet
+  needsSecret
+  inTestMode
+  health {
+    lastSentAt
+    lastError
+    dead24h
+  }
+  createdAt
+  updatedAt
+}
+
+fragment TrackingPlatformFields on TrackingPlatform {
+  kind
+  label
+  pluginSlug
+  installed
+  availableOnChannel
+  purposes
+  defaultEvents
+  necessarySetting
+  fields {
+    key
+    label
+    help
+    required
+    secret
+    testMode
+  }
+}
+
+query TrackingOverview($channelId: ID!) {
+  trackingPlatforms(channelId: $channelId) {
+    ...TrackingPlatformFields
+  }
+  trackingDestinations(channelId: $channelId) {
+    ...TrackingDestinationFields
+  }
+}
+
+query TrackingDestination($id: ID!) {
+  trackingDestination(id: $id) {
+    ...TrackingDestinationFields
+  }
+}
+
+query TrackingPlatforms($channelId: ID!) {
+  trackingPlatforms(channelId: $channelId) {
+    ...TrackingPlatformFields
+  }
+}
+
+query TrackingDeliveries($destinationId: ID!, $status: TrackingDeliveryStatus, $limit: Int) {
+  trackingDeliveries(destinationId: $destinationId, status: $status, limit: $limit) {
+    id
+    eventName
+    eventId
+    status
+    attempts
+    lastError
+    nextAttemptAt
+    createdAt
+  }
+}
+
+mutation CreateTrackingDestination($channelId: ID!, $kind: String!, $input: TrackingDestinationInput!) {
+  createTrackingDestination(channelId: $channelId, kind: $kind, input: $input) {
+    ...TrackingDestinationFields
+  }
+}
+
+mutation UpdateTrackingDestination($id: ID!, $input: TrackingDestinationInput!) {
+  updateTrackingDestination(id: $id, input: $input) {
+    ...TrackingDestinationFields
+  }
+}
+
+mutation SetTrackingDestinationEnabled($id: ID!, $enabled: Boolean!) {
+  setTrackingDestinationEnabled(id: $id, enabled: $enabled) {
+    ...TrackingDestinationFields
+  }
+}
+
+mutation DeleteTrackingDestination($id: ID!) {
+  deleteTrackingDestination(id: $id)
+}
+
+mutation SendTrackingTest($id: ID!) {
+  sendTrackingTest(id: $id) {
+    ok
+    message
+  }
+}
+
+mutation RedeliverTrackingDelivery($id: ID!) {
+  redeliverTrackingDelivery(id: $id) {
+    id
+    status
+    attempts
+    lastError
+    nextAttemptAt
+  }
+}
+

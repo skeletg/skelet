@@ -146,7 +146,7 @@ func (s *Service) sendConfirmation(ctx context.Context, o order.Order, ch channe
 	subject, htmlBody, textBody, err := s.render.RenderOrderConfirmation(ctx, ch.ID, email.OrderConfirmationData{
 		StoreName: StoreName(ctx, s.config, ch), OrderNumber: o.Number, FirstName: FirstName(o), Currency: o.CurrencyCode,
 		Lines: Lines(o), Subtotal: o.SubtotalAmount, Discount: o.DiscountAmount,
-		Shipping: o.ShippingAmount, Tax: o.TaxAmount, Total: o.TotalAmount,
+		Shipping: o.ShippingAmount, Tax: o.TaxAmount, TaxIncluded: o.TaxInclusive, Total: o.TotalAmount,
 		ShipTo: AddressLines(o.ShippingAddress), StorefrontURL: StorefrontURL(ch),
 	})
 	if err != nil {

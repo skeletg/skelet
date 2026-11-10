@@ -37,6 +37,8 @@ export type ConfigFieldData = {
   // is configured server-side
   isSet: boolean
   options?: { label: string; value: string }[] | null
+  /** The most characters the value takes - the backend refuses more */
+  maxLength?: number | null
   isDefault: boolean
   public: boolean
   scoping: ConfigScoping
@@ -169,8 +171,9 @@ export function ConfigField({
             disabled={disabled || locked}
             invalid={jsonInvalid}
             path={field.path}
+            maxLength={field.maxLength ?? undefined}
           />
-          <div className="mt-1 flex min-h-4 flex-wrap items-center gap-2 text-[10px]">
+          <div className={cn('mt-1 flex min-h-4 flex-wrap items-center gap-2 text-[10px]', field.maxLength && (field.type === 'TEXTAREA' ? W.block : W.text))}>
             {locked ? (
               lockNote ? <span className="text-muted-foreground">{lockNote}</span> : null
             ) : jsonInvalid ? (
@@ -184,6 +187,11 @@ export function ConfigField({
                 )}
               >
                 {provenance.note}
+              </span>
+            ) : null}
+            {field.maxLength && !locked ? (
+              <span className="ml-auto tabular-nums text-muted-foreground">
+                {[...current].length.toLocaleString()} / {field.maxLength.toLocaleString()}
               </span>
             ) : null}
           </div>
@@ -255,6 +263,7 @@ function FieldEditor({
   disabled,
   invalid,
   path,
+  maxLength,
 }: {
   id: string
   type: ConfigType
@@ -265,6 +274,7 @@ function FieldEditor({
   disabled?: boolean
   invalid?: boolean
   path?: string
+  maxLength?: number
 }) {
   switch (type) {
     case 'SECRET':
@@ -340,8 +350,9 @@ function FieldEditor({
           value={value}
           onChange={textChange(value, onChange)}
           disabled={disabled}
+          maxLength={maxLength}
           rows={3}
-          className={W.block}
+          className={cn(W.block, maxLength && maxLength > 1000 && 'min-h-56')}
         />
       )
 
@@ -418,6 +429,7 @@ function FieldEditor({
           value={value}
           onChange={textChange(value, onChange)}
           disabled={disabled}
+          maxLength={maxLength}
           className={W.text}
         />
       )

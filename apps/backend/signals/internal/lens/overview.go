@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	signalsdb "github.com/skeletg/skelet/apps/backend/signals/internal/db/sqlc"
 )
 
@@ -39,6 +40,13 @@ type Overview struct {
 	Devices      []LabelCount
 	Referrers    []LabelCount
 	Interactions []LabelCount
+	PlanIssues   []PlanIssue
+}
+
+// What ingest stripped against the tracking plan, for Data health, and how often in the window
+type PlanIssue struct {
+	analytics.PlanIssue
+	Count int64
 }
 
 // Reads the daily rollup and visitor seen-table, never raw spine events - per-page unique visitors aren't in the rollup yet, so PageStat.Visitors is 0
@@ -108,6 +116,13 @@ func (s *Service) Overview(ctx context.Context, channelID uuid.UUID, since time.
 	}
 	for _, r := range ix {
 		out.Interactions = append(out.Interactions, LabelCount{Label: r.Name, Views: r.Count})
+	}
+	issues, err := s.read().LensPlanIssues(ctx, signalsdb.LensPlanIssuesParams{ChannelID: channelID, Since: since, Lim: 50})
+	if err != nil {
+		return Overview{}, err
+	}
+	for _, r := range issues {
+		out.PlanIssues = append(out.PlanIssues, PlanIssue{analytics.ParsePlanIssue(r.Kind, r.Key), r.Count})
 	}
 	return out, nil
 }

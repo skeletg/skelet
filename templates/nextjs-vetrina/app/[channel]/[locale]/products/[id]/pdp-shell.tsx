@@ -8,6 +8,7 @@ import type { ProductDetail } from "@skelet/storefront-next/catalog/read";
 import { displayName } from "@skelet/storefront-core/display";
 import { formatPrice } from "@skelet/storefront-core/format";
 import { CompareButton } from "@/app/components/CompareButton";
+import { AskAboutButton } from "@/app/components/assistant/AskAboutButton";
 import { QtySelector } from "@/app/components/QtySelector";
 import { RatingStars } from "@/app/components/RatingStars";
 import { WishlistButton } from "@/app/components/WishlistButton";
@@ -69,7 +70,7 @@ export function PdpShell({
   );
 }
 
-// Star row (links to the reviews below), SKU, wishlist and compare
+// Star row (links to the reviews below), SKU, wishlist, compare, and asking the assistant about it
 export function PdpMetaRow({
   product,
   sku = product.sku,
@@ -94,6 +95,7 @@ export function PdpMetaRow({
       <p className="text-sm text-muted-foreground">SKU {sku}</p>
       <WishlistButton productId={product.id} size="sm" />
       <CompareButton productId={product.id} />
+      <AskAboutButton name={displayName(product.name, product.sku)} />
     </div>
   );
 }

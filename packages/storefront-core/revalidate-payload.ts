@@ -50,7 +50,7 @@ function slash(p: string): string {
   return p.startsWith("/") ? p : `/${p}`;
 }
 
-async function boundedText(req: Request, max: number): Promise<string | null> {
+export async function boundedText(req: Request, max: number): Promise<string | null> {
   if (Number(req.headers.get("content-length") ?? 0) > max) return null;
   if (!req.body) return "";
   const reader = req.body.getReader();

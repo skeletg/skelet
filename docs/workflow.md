@@ -59,6 +59,7 @@ It can only see what Go and vitest can trace. A test that depends on the date, o
 | `skelet cli integration list` | List API integrations |
 | `skelet cli config list/get/set/reset/orphans/prune` | Config registry management |
 | `skelet cli customer group list` | List customer groups |
+| `skelet cli signals backfill-orders` | Replay past orders into Signals at their placement time - safe to re-run |
 
 ## Docker setup
 
@@ -103,7 +104,7 @@ edge behind `--profile edge`; leave the profile off to put your own proxy in fro
 
 None of these are needed, and nothing in the apps knows about them. Each is a compose
 profile of its own name: pick them in `skelet setup` (or `--tools LIST|none`), which
-saves the list to git-ignored `.skelet-tools`, or start one for a single session with
+adds them to `COMPOSE_PROFILES` in your `.env`, or start one for a single session with
 `skelet up <name>`.
 
 - `mailpit` - SMTP catcher; SMTP at `:1025`, web UI at <http://localhost:8025>.
@@ -116,11 +117,11 @@ saves the list to git-ignored `.skelet-tools`, or start one for a single session
   container's stdout into Loki.
 - `garage-webui` - Garage's web console at <http://localhost:9901>.
 
-`skelet up` wires the env files to match `.skelet-tools`: picking `mailpit` points
+`skelet up` wires the env files to match the tools in `COMPOSE_PROFILES`: picking `mailpit` points
 `SMTP_HOST` at it, picking `grafana` points the `OTEL_*` vars at it, and dropping either
 blanks them again. Values you set to something else (a real relay, your own collector)
-are left alone. A tool started ad hoc with `skelet up <name>` is not wired - add it to
-`.skelet-tools` for that.
+are left alone. A tool started ad hoc with `skelet up <name>` is not wired - pick it in
+`skelet setup` for that.
 
 ### Looking at another channel
 
@@ -152,7 +153,7 @@ lockfile, reinstalling and restarting its dev server when either changes (`watch
 Dockerfile's CMD). What still needs you is a Dockerfile change - `skelet up` rebuilds the
 images. A new migration doesn't: the app applies it the next time it rebuilds or restarts.
 
-Where the frontends run is your choice, recorded in `.skelet-apps`. Listed
+Where the frontends run is your choice, recorded in `COMPOSE_PROFILES` in your `.env`. Listed
 there, `skelet up` starts them in Docker on <http://localhost:5173> and
 <http://localhost:3000>; left out, they stay on the host and `skelet serve
 dashboard` runs one - the default, because the dev server and the gates then
@@ -220,8 +221,8 @@ found in a template first:
 
 | Question | Writes |
 | --- | --- |
-| Which apps | `SKELET_APPS_SELECTED` in the profile, plus sparse-checkout of the rest |
-| Where the frontends run | `.skelet-apps` - empty means the host, which is the default |
+| Which apps | `SKELET_APPS` in the root `.env`, plus sparse-checkout of the rest |
+| Where the frontends run | `COMPOSE_PROFILES` in the root `.env` - an app left out runs on the host, which is the default |
 | Deployment target - dev / small / prod | materializes only that target's env files |
 | Suites - Signals, AI | `SIGNALS_ENABLED` / `AI_ENABLED` |
 | Search tier | `OPENSEARCH_URL` in the root `.env` |
@@ -230,14 +231,20 @@ found in a template first:
 
 Secrets are generated, never prompted, and an existing non-placeholder value is left alone -
 so re-running is safe and never rotates a key. Setup is part of the Go CLI, so generating them
-needs nothing on the host - no OpenSSL. The env files it creates are readable by you alone. The answers land in git-ignored
-`.skelet-profile`, which becomes the defaults next time and which `skelet doctor` reads back to
-tell you what this clone is meant to be.
+needs nothing on the host - no OpenSSL. The env files it creates are readable by you alone. There's no separate record of
+the answers: what this clone is for lives in the root `.env` with the rest of its settings -
+`SKELET_TARGET`, `SKELET_APPS`, and on dev `COMPOSE_PROFILES` (the apps in Docker and the dev
+tools, plus the sidecars `skelet up` adds, so a bare `docker compose up` starts the same stack) -
+and the next run takes its defaults from what the files say now. `skelet doctor` reads the same
+files back to tell you what this clone is meant to be. A clone set up by an older version kept
+`.skelet-profile`, `.skelet-apps` and `.skelet-tools` in its root, and the first `skelet` run
+after updating moves them into `.env`.
 
 Non-interactive: `skelet setup --yes` takes the defaults; `skelet setup --profile <file>` replays a
-saved profile, which is what CI and a second clone want. The file is only read - the answers are
-saved to this clone's `.skelet-profile` like any other run's. Where the profile has no answer for
-where the frontends run, `.skelet-apps` keeps what it holds rather than being emptied.
+file of answers (`SKELET_TARGET=prod`, `SKELET_APPS_SELECTED=dashboard`, ...), which is what a
+second clone wants. The file is only read - the answers land in this clone's `.env` like any other
+run's. Where it has no answer for where the frontends run, the clone keeps the placement its `.env`
+already has rather than emptying it.
 
 ## Which apps run
 
@@ -252,8 +259,8 @@ keeps the source without running it.
 
 Where they run is a second, independent answer, and the default is the host - there
 the dev server and the gates share one `node_modules`, so a lint run checks the tree
-vite is actually serving. `.skelet-apps` lists only the ones you asked to containerize,
-so an empty file means every frontend runs on the host with `skelet serve <app>`.
+vite is actually serving. `COMPOSE_PROFILES` lists only the ones you asked to containerize,
+so with none listed every frontend runs on the host with `skelet serve <app>`.
 
 When the project has no storefront of its own yet, setup offers one: pick a template and a
 name, and it's copied into `apps/channels/<name>` the way `skelet add channel` copies one,
@@ -264,7 +271,7 @@ make it without asking - and since `skelet new` hands setup its flags, `skelet n
 Non-interactive variants: `skelet setup --all` (templates too), `--backend-only`, or
 `skelet setup --apps dashboard,nextjs-vetrina` (comma list), with `--docker-apps LIST|none` for the placement and
 `--tools LIST|none` for the optional dev tools.
-Both answers are saved per-clone in the git-ignored `.skelet-profile`; re-run
+Both answers live in the clone's git-ignored `.env`; re-run
 `skelet setup --apps ...` then `skelet down && skelet up` to change them. Selecting an app
 again restores its source.
 
@@ -328,9 +335,19 @@ git merge v0.4.0
 ```
 
 Read that release's changelog first - while Skelet is `0.x`, a minor version can
-break things. Migrations run when the app boots, so `skelet up` afterwards is the
-whole upgrade. Your own remote, once you add one, is `origin`; `upstream` stays
-Skelet's.
+break things. Migrations run when the app boots, so `skelet up` afterwards brings the
+backend and the dashboard up to date. Your shops keep the `@skelet/storefront-*` they
+were pinned to until you bump them, so a release never changes one behind your back -
+`skelet doctor` lists each shop that's behind the backend, with the command that bumps
+it:
+
+```bash
+skelet pnpm <your-shop> add @skelet/storefront-core@0.4.0 @skelet/storefront-next@0.4.0 @skelet/storefront-react@0.4.0
+```
+
+Bump in the same sitting as the merge: the packages carry the shop's GraphQL
+operations, and a backend a minor version ahead may have changed what they ask for.
+Your own remote, once you add one, is `origin`; `upstream` stays Skelet's.
 
 Leave the core's dependency bumps to the releases. The `.github/renovate.json5` you
 inherit covers the whole tree, so Renovate turned on in a project would bump the backend,
@@ -344,19 +361,25 @@ does nothing outside Skelet's own repository, so tagging your project publishes 
 One directory per shop under `apps/channels/<name>/`; the directory name
 doubles as the compose service and profile name. A shop starts as a copy of a
 template under `templates/`, and the copy is yours to change. The templates and
-the `packages/` they build on stay upstream's - leave them as they are, and
-merging a skelet release brings their fixes without touching your shop.
+the `packages/` they build on stay upstream's - leave them as they are. A template
+links `packages/` directly, but your copy takes the same packages from npm, pinned
+to your checkout's release, so merging a skelet release brings the templates' fixes
+without touching your shop, and you take the packages' when you bump them.
 
 `skelet add channel <your-shop>` does steps 1 and 2 for you - it copies a
 template (`--template <name>`, by default `nextjs-vetrina`, the full one) or a
-shop of your own (`--from <name>`), points every path in it at its new home, gives
-it the first free ports, copies the compose service out of the source's (so it
+shop of your own (`--from <name>`), points every path in it at its new home, pins its `@skelet/storefront-*`
+to your checkout's release on npm, gives it the first free ports, copies the compose service out of the source's (so it
 inherits changes to the template's wiring rather than a snapshot taken once), adds
 it to the workspace lockfile, and writes nothing until the result parses - the copy is made aside and moved into
 place last, so a failure leaves nothing half-made. A template setup left out of your working tree is copied from git,
 so it never has to be checked out. The lockfile refresh runs in a throwaway container over the workspace's manifests -
 one setup left out comes from git too, so the lockfile keeps it - and if it can't run, `skelet pnpm --lockfile`
-finishes the job once the cause is fixed. `--tracked` puts the
+finishes the job once the cause is fixed. A checkout ahead of its last
+release - source in `packages/` or the template changed since its tag, as on Skelet's own `develop` - links `packages/`
+instead, since npm can't have those changes yet, and so does `--workspace`, for working on the packages against a
+shop. Regenerated GraphQL types don't count: a plugin that adds to the schema changes what `skelet gen` writes, not
+what the packages ask the backend for. `--tracked` puts the
 service in the tracked compose files instead, which is for adding a storefront to
 skelet itself and gives up the conflict-free property below. `skelet rm channel
 <your-shop>` reverses it, keeping the Docker volumes unless you pass `--volumes`.
@@ -366,7 +389,8 @@ By hand:
 
 1. Create `apps/channels/<your-shop>/` - a copy of `templates/nextjs-vetrina` with its
    `templates/nextjs-vetrina` paths (the Dockerfiles, their `.dockerignore`) pointed at
-   `apps/channels/<your-shop>`, or from scratch - then `skelet pnpm --lockfile`, so the
+   `apps/channels/<your-shop>` and its `@skelet/storefront-*` set from `workspace:*` to
+   your checkout's release, or from scratch - then `skelet pnpm --lockfile`, so the
    lockfile knows it.
 2. Declare its compose service in `docker-compose.override.yml` (git-ignored,
    auto-merged by docker compose) with `profiles: ["<your-shop>"]`. Never edit

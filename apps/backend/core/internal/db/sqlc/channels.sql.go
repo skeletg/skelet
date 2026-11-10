@@ -32,24 +32,25 @@ func (q *Queries) CountInheritingListingsForChannel(ctx context.Context, channel
 const createChannel = `-- name: CreateChannel :one
 INSERT INTO channels (
     slug, name, default_locale,
-    currency_code,
+    currency_code, tax_inclusive_pricing,
     public_url, storefront_host, metadata
 ) VALUES (
     $1, $2, $3,
-    $4,
-    $5, $6, $7
+    $4, $5,
+    $6, $7, $8
 )
 RETURNING id, slug, name, default_locale, is_active, created_at, currency_code, public_url, metadata, is_default, tax_inclusive_pricing, storefront_host
 `
 
 type CreateChannelParams struct {
-	Slug           string          `json:"slug"`
-	Name           string          `json:"name"`
-	DefaultLocale  string          `json:"default_locale"`
-	CurrencyCode   string          `json:"currency_code"`
-	PublicUrl      string          `json:"public_url"`
-	StorefrontHost string          `json:"storefront_host"`
-	Metadata       json.RawMessage `json:"metadata"`
+	Slug                string          `json:"slug"`
+	Name                string          `json:"name"`
+	DefaultLocale       string          `json:"default_locale"`
+	CurrencyCode        string          `json:"currency_code"`
+	TaxInclusivePricing bool            `json:"tax_inclusive_pricing"`
+	PublicUrl           string          `json:"public_url"`
+	StorefrontHost      string          `json:"storefront_host"`
+	Metadata            json.RawMessage `json:"metadata"`
 }
 
 func (q *Queries) CreateChannel(ctx context.Context, arg CreateChannelParams) (Channel, error) {
@@ -58,6 +59,7 @@ func (q *Queries) CreateChannel(ctx context.Context, arg CreateChannelParams) (C
 		arg.Name,
 		arg.DefaultLocale,
 		arg.CurrencyCode,
+		arg.TaxInclusivePricing,
 		arg.PublicUrl,
 		arg.StorefrontHost,
 		arg.Metadata,
@@ -495,20 +497,22 @@ SET name            = $2,
     currency_code   = $5,
     public_url      = $6,
     storefront_host = $7,
-    metadata        = COALESCE($8::jsonb, metadata)
+    tax_inclusive_pricing = $8,
+    metadata        = COALESCE($9::jsonb, metadata)
 WHERE id = $1
 RETURNING id, slug, name, default_locale, is_active, created_at, currency_code, public_url, metadata, is_default, tax_inclusive_pricing, storefront_host
 `
 
 type UpdateChannelParams struct {
-	ID             uuid.UUID             `json:"id"`
-	Name           string                `json:"name"`
-	DefaultLocale  string                `json:"default_locale"`
-	IsActive       bool                  `json:"is_active"`
-	CurrencyCode   string                `json:"currency_code"`
-	PublicUrl      string                `json:"public_url"`
-	StorefrontHost string                `json:"storefront_host"`
-	Metadata       pqtype.NullRawMessage `json:"metadata"`
+	ID                  uuid.UUID             `json:"id"`
+	Name                string                `json:"name"`
+	DefaultLocale       string                `json:"default_locale"`
+	IsActive            bool                  `json:"is_active"`
+	CurrencyCode        string                `json:"currency_code"`
+	PublicUrl           string                `json:"public_url"`
+	StorefrontHost      string                `json:"storefront_host"`
+	TaxInclusivePricing bool                  `json:"tax_inclusive_pricing"`
+	Metadata            pqtype.NullRawMessage `json:"metadata"`
 }
 
 func (q *Queries) UpdateChannel(ctx context.Context, arg UpdateChannelParams) (Channel, error) {
@@ -520,6 +524,7 @@ func (q *Queries) UpdateChannel(ctx context.Context, arg UpdateChannelParams) (C
 		arg.CurrencyCode,
 		arg.PublicUrl,
 		arg.StorefrontHost,
+		arg.TaxInclusivePricing,
 		arg.Metadata,
 	)
 	var i Channel

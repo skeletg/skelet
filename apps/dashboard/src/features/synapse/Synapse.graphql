@@ -232,11 +232,29 @@ query VisitorProfile($channelId: ID!, $anonId: String!, $sinceDays: Int) {
 }
 
 # Ordered conversion funnel over event-name steps for the channel.
-query SynapseFunnel($channelId: ID!, $steps: [String!]!, $sinceDays: Int) {
-  synapseFunnel(channelId: $channelId, steps: $steps, sinceDays: $sinceDays) {
+query SynapseFunnel(
+  $channelId: ID!
+  $steps: [String!]!
+  $sinceDays: Int
+  $windowHours: Int
+  $filters: [SynapseFunnelFilterInput!]
+  $breakdown: String
+) {
+  synapseFunnel(
+    channelId: $channelId
+    steps: $steps
+    sinceDays: $sinceDays
+    windowHours: $windowHours
+    filters: $filters
+    breakdown: $breakdown
+  ) {
     steps {
       eventName
       count
+    }
+    breakdown {
+      value
+      counts
     }
   }
 }
@@ -475,6 +493,7 @@ query SynapseInsights($channelId: ID!, $event: String, $breakdown: String, $meas
     uniques
     prevTotal
     prevUniques
+    aggregate
   }
 }
 

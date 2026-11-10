@@ -6,6 +6,11 @@ packages:
   - packages/*
   - templates/*
 
+# pnpm holds back any version under a day old, but Skelet's own packages come from this repo's release workflow, so a
+# shop can take a release the day it's cut
+minimumReleaseAgeExclude:
+  - "@skelet/*"
+
 # One version of each of these across the workspace - a package and the storefront importing it resolve to the same
 # copy, which React's context and cache(), next/headers and next-intl's request config all depend on
 catalog:

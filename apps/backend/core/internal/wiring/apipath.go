@@ -42,7 +42,16 @@ func apiPath(base, envName, slug string) (string, error) {
 	return base + "/" + slug + "/graphql", nil
 }
 
-func mcpPath(adminPath string) string { return strings.TrimSuffix(adminPath, "/graphql") + "/mcp" }
+func mcpPath(graphqlPath string) string { return strings.TrimSuffix(graphqlPath, "/graphql") + "/mcp" }
+
+// The MCP endpoints switch by environment, read here alone so the mount and the dashboard's MCP page can't disagree
+func mcpSwitches() (admin, storefront bool) {
+	return EnvBool("MCP_ENABLED", true), EnvBool("MCP_FRONT_ENABLED", true)
+}
+
+func assistantPath(graphqlPath string) string {
+	return strings.TrimSuffix(graphqlPath, "/graphql") + "/assistant"
+}
 
 func adminAPIPath() string { // for the boot log and the dev playground - the mount resolves its own
 	p, _, err := APIPaths(os.Getenv)

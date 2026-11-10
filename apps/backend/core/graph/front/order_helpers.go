@@ -1,6 +1,7 @@
 package front
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"strings"
@@ -13,16 +14,21 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/delivery"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
+	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
 	"github.com/skeletg/skelet/apps/backend/core/internal/paymentvault"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
 
 func toOrderModel(o order.Order) *model.Order {
-	var paymentClientSecret *string // PaymentActionSecret is transient - it only ever rides the placement response
+	var paymentClientSecret, paymentActionKind *string // PaymentActionSecret is transient - it only ever rides the placement response
 	if o.PaymentActionSecret != "" {
-		v := o.PaymentActionSecret
-		paymentClientSecret = &v
+		v, kind := o.PaymentActionSecret, cmp.Or(o.PaymentActionKind, string(payment.ActionChallenge))
+		paymentClientSecret, paymentActionKind = &v, &kind
+	}
+	var paymentFailed *bool
+	if o.PaymentFailed {
+		paymentFailed = &o.PaymentFailed
 	}
 
 	lines := make([]*model.OrderLine, len(o.Lines))
@@ -40,6 +46,8 @@ func toOrderModel(o order.Order) *model.Order {
 		PaymentStatus:       model.PaymentStatus(strings.ToUpper(o.PaymentStatus)),
 		PaymentProvider:     o.PaymentProvider,
 		PaymentClientSecret: paymentClientSecret,
+		PaymentActionKind:   paymentActionKind,
+		PaymentFailed:       paymentFailed,
 		BillingAddress:      toOrderAddressModel(o.BillingAddress),
 		ShippingAddress:     toOrderAddressModel(o.ShippingAddress),
 		Lines:               lines,
@@ -48,6 +56,7 @@ func toOrderModel(o order.Order) *model.Order {
 		ShippingAmount:      int32(o.ShippingAmount),
 		DiscountAmount:      int32(o.DiscountAmount),
 		TaxAmount:           int32(o.TaxAmount),
+		TaxIncluded:         o.TaxIncluded(),
 		Total:               int32(o.TotalAmount),
 		GiftCardAmount:      int32(o.GiftCardAmount),
 		StoreCreditAmount:   int32(o.StoreCreditAmount),
@@ -74,6 +83,10 @@ func toOrderReturnModel(r order.OrderReturn) *model.OrderReturn {
 			Quantity:        l.Quantity,
 			Reason:          l.Reason,
 			RefundUnitCents: int32(l.RefundUnitCents),
+		}
+		if l.ComponentID != nil {
+			id := l.ComponentID.String()
+			lines[i].ComponentID = &id
 		}
 	}
 	return &model.OrderReturn{
@@ -118,8 +131,14 @@ func reorderConfiguredInput(line order.OrderLine) cart.AddConfiguredToCartInput 
 // Name/price ride along but AddToCart overwrites both from the current catalog row, so the stale order-snapshot price never sticks
 func reorderBundleInput(line order.OrderLine) cart.AddBundleToCartInput {
 	byOption := map[uuid.UUID][]uuid.UUID{}
+	variants := map[uuid.UUID]uuid.UUID{} // a configurable pick's variant is the component's product
+	quantities := map[uuid.UUID]float64{} // and a customer-quantity pick's amount is the component's, per bundle
 	var optionOrder []uuid.UUID
 	for _, c := range line.Components {
+		variants[c.BundleSelectionID] = c.ProductID
+		if line.Quantity > 0 {
+			quantities[c.BundleSelectionID] = c.Quantity / line.Quantity
+		}
 		if _, seen := byOption[c.BundleOptionID]; !seen {
 			optionOrder = append(optionOrder, c.BundleOptionID)
 		}
@@ -129,7 +148,7 @@ func reorderBundleInput(line order.OrderLine) cart.AddBundleToCartInput {
 	for _, optID := range optionOrder {
 		sels = append(sels, cart.AddBundleSelectionInput{OptionID: optID, SelectionIDs: byOption[optID]})
 	}
-	return cart.AddBundleToCartInput{ProductSku: line.ProductSku, Quantity: line.Quantity, Selections: sels}
+	return cart.AddBundleToCartInput{ProductSku: line.ProductSku, Quantity: line.Quantity, Selections: sels, Variants: variants, Quantities: quantities}
 }
 
 func toSavedPaymentMethod(m paymentvault.Method) *frontmodel.SavedPaymentMethod {

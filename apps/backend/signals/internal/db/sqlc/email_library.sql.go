@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const assignLibraryEmailSlot = `-- name: AssignLibraryEmailSlot :exec
@@ -132,6 +133,23 @@ DELETE FROM email_groups WHERE id = $1
 // email_library.group_id ON DELETE SET NULL keeps the emails, just untagged
 func (q *Queries) DeleteEmailGroup(ctx context.Context, id uuid.UUID) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteEmailGroup, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteEmailTranslation = `-- name: DeleteEmailTranslation :execrows
+DELETE FROM email_library_translations WHERE email_id = $1 AND locale = $2
+`
+
+type DeleteEmailTranslationParams struct {
+	EmailID uuid.UUID `json:"email_id"`
+	Locale  string    `json:"locale"`
+}
+
+func (q *Queries) DeleteEmailTranslation(ctx context.Context, arg DeleteEmailTranslationParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteEmailTranslation, arg.EmailID, arg.Locale)
 	if err != nil {
 		return 0, err
 	}
@@ -352,6 +370,82 @@ func (q *Queries) ListEmailRevisions(ctx context.Context, arg ListEmailRevisions
 	return items, nil
 }
 
+const listEmailTranslations = `-- name: ListEmailTranslations :many
+SELECT email_id, locale, subject, preheader, blocks, styles, updated_at FROM email_library_translations WHERE email_id = $1 ORDER BY locale
+`
+
+func (q *Queries) ListEmailTranslations(ctx context.Context, emailID uuid.UUID) ([]EmailLibraryTranslation, error) {
+	rows, err := q.db.QueryContext(ctx, listEmailTranslations, emailID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EmailLibraryTranslation{}
+	for rows.Next() {
+		var i EmailLibraryTranslation
+		if err := rows.Scan(
+			&i.EmailID,
+			&i.Locale,
+			&i.Subject,
+			&i.Preheader,
+			&i.Blocks,
+			&i.Styles,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEmailTranslationsIn = `-- name: ListEmailTranslationsIn :many
+SELECT email_id, locale, subject, preheader, blocks, styles, updated_at FROM email_library_translations WHERE email_id = $1 AND locale = ANY($2::text[])
+`
+
+type ListEmailTranslationsInParams struct {
+	EmailID uuid.UUID `json:"email_id"`
+	Locales []string  `json:"locales"`
+}
+
+// The versions a shopper's locale could read - its own and its language's - so a send loads one or two rows, not all
+func (q *Queries) ListEmailTranslationsIn(ctx context.Context, arg ListEmailTranslationsInParams) ([]EmailLibraryTranslation, error) {
+	rows, err := q.db.QueryContext(ctx, listEmailTranslationsIn, arg.EmailID, pq.Array(arg.Locales))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EmailLibraryTranslation{}
+	for rows.Next() {
+		var i EmailLibraryTranslation
+		if err := rows.Scan(
+			&i.EmailID,
+			&i.Locale,
+			&i.Subject,
+			&i.Preheader,
+			&i.Blocks,
+			&i.Styles,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listLibraryEmails = `-- name: ListLibraryEmails :many
 SELECT id, channel_id, name, subject, blocks, styles, created_at, updated_at, group_id, slot, preheader FROM email_library
 WHERE channel_id = $1
@@ -476,4 +570,44 @@ func (q *Queries) UpdateLibraryEmail(ctx context.Context, arg UpdateLibraryEmail
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const upsertEmailTranslation = `-- name: UpsertEmailTranslation :one
+INSERT INTO email_library_translations (email_id, locale, subject, preheader, blocks, styles, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, now())
+ON CONFLICT (email_id, locale) DO UPDATE
+    SET subject = EXCLUDED.subject, preheader = EXCLUDED.preheader, blocks = EXCLUDED.blocks,
+        styles = EXCLUDED.styles, updated_at = now()
+RETURNING email_id, locale, subject, preheader, blocks, styles, updated_at
+`
+
+type UpsertEmailTranslationParams struct {
+	EmailID   uuid.UUID       `json:"email_id"`
+	Locale    string          `json:"locale"`
+	Subject   string          `json:"subject"`
+	Preheader string          `json:"preheader"`
+	Blocks    json.RawMessage `json:"blocks"`
+	Styles    json.RawMessage `json:"styles"`
+}
+
+func (q *Queries) UpsertEmailTranslation(ctx context.Context, arg UpsertEmailTranslationParams) (EmailLibraryTranslation, error) {
+	row := q.db.QueryRowContext(ctx, upsertEmailTranslation,
+		arg.EmailID,
+		arg.Locale,
+		arg.Subject,
+		arg.Preheader,
+		arg.Blocks,
+		arg.Styles,
+	)
+	var i EmailLibraryTranslation
+	err := row.Scan(
+		&i.EmailID,
+		&i.Locale,
+		&i.Subject,
+		&i.Preheader,
+		&i.Blocks,
+		&i.Styles,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

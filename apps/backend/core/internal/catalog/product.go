@@ -88,6 +88,8 @@ type Product struct {
 	MinOrderQty  *float64
 	MaxOrderQty  *float64
 	CostCents    *int64
+	// Kit only - whether its items can be returned one at a time, or only the whole kit
+	KitItemsReturnable bool
 	// Required on wrappers and variants alike - "configurable" is derived from child rows, not from the SKU
 	SKU          string
 	TaxClass     string
@@ -214,6 +216,8 @@ type UpdateProductInput struct {
 	MaxOrderQty    *float64
 	CostCents      *int64 // 0 is a real cost (a free sample) - clearing is ClearCostCents
 	ClearCostCents bool
+	// Kit only - read for nothing else
+	KitItemsReturnable *bool
 }
 
 type Dimensions struct {

@@ -115,16 +115,16 @@ describe('token model', () => {
 
 describe('the shipped default', () => {
   // what the user asked the app to look like out of the box
-  it('is white content as an inset sheet on a dark tuned rail', () => {
-    expect(DEFAULT_APPEARANCE.mode).toBe('light')
+  it('follows the system light or dark, docked to a dark tuned rail', () => {
+    expect(DEFAULT_APPEARANCE.mode).toBe('system')
     expect(DEFAULT_APPEARANCE.palette).toBe('tuned')
     expect(DEFAULT_APPEARANCE.sidebarPalette).toBeNull()
     expect(DEFAULT_APPEARANCE.sidebarMode).toBe('dark')
-    expect(DEFAULT_APPEARANCE.frame).toBe('inset')
+    expect(DEFAULT_APPEARANCE.frame).toBe('docked')
   })
 
-  it('rounds corners at the medium step', () => {
-    expect(DEFAULT_APPEARANCE.radius).toBe('default')
+  it('rounds corners at the subtle step', () => {
+    expect(DEFAULT_APPEARANCE.radius).toBe('subtle')
   })
 
   // the ids are stored in preferences, so each step has to keep its id or every admin who picked

@@ -118,8 +118,9 @@ the PATCH. There is no compatibility promise until `1.0.0`.
 ## The storefront packages on npm
 
 `@skelet/storefront-core`, `-next`, `-astro` and `-react` publish to npm from
-`release.yml`, at the release's version, so a shop in a repo of its own can
-install what a Skelet checkout reads from `packages/`. They're MIT, each with its
+`release.yml`, at the release's version. Every shop `skelet add channel` makes
+installs them from there, pinned to its checkout's release, and so can a shop in a
+repo of its own. They're MIT, each with its
 own `LICENSE`, unlike the GPL rest of the repo. Inside the workspace
 nothing changes: the templates import the TypeScript source, and only a packed
 tarball points at the compiled `dist/`.

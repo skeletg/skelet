@@ -1,8 +1,9 @@
-// Package mcpserver serves the admin tool menu over MCP's streamable HTTP - read-only, one channel per connection, and it knows tools only through ToolSet, so what a caller may read stays decided in one place
+// Package mcpserver serves a tool menu over MCP's streamable HTTP - one channel per connection, and it knows tools only through ToolSet, so what a caller may do stays decided in one place
 package mcpserver
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -24,12 +25,13 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/observability"
 	"github.com/skeletg/skelet/apps/backend/core/lib/ratelimit"
+	"github.com/skeletg/skelet/apps/backend/core/signalsapi"
 )
 
 const (
-	callTimeout = time.Minute
-	maxInFlight = 4
-	version     = "1"
+	defaultCallTimeout = time.Minute
+	defaultMaxInFlight = 4
+	version            = "1"
 )
 
 type ToolSet interface {
@@ -44,20 +46,44 @@ type Channels interface {
 	GetByID(ctx context.Context, id uuid.UUID) (channel.Channel, error)
 }
 
+// Scope is what one request may do - the channel it acts on, the tools it's offered, the key its budget counts against and the log attributes naming the caller
+type Scope struct {
+	Channel channel.Channel
+	Tools   ToolSet
+	Key     string
+	Caller  []any
+	// set, the store's own budget a minute in place of the limiter's - 0 for none
+	PerMinute *int
+}
+
+type Limiter interface {
+	Allow(ctx context.Context, key string) bool
+	AllowN(ctx context.Context, key string, rate int) bool
+}
+
+// Refusal answers a request before the protocol starts
+type Refusal struct {
+	Status  int
+	Message string
+}
+
+// Resolver decides a request's scope once the transport has accepted it
+type Resolver func(r *http.Request) (Scope, *Refusal)
+
 type Config struct {
-	Tools    []ai.Tool
-	Source   ToolSource
-	Channels Channels
-	Limiter  ratelimit.Limiter
-	Reporter observability.Reporter
+	Name, Title  string
+	Tools        []ai.Tool
+	Resolve      Resolver
+	Instructions func(channel.Channel) string
+	Limiter      Limiter
+	Reporter     observability.Reporter
+	MaxInFlight  int           // calls one budget key may run at once, 4 when unset
+	CallTimeout  time.Duration // a minute when unset
 }
 
 type scope struct {
-	ch      channel.Channel
-	tools   ToolSet
+	Scope
 	offered map[string]bool
-	actor   auth.Actor
-	key     string
 }
 
 type scopeKey struct{}
@@ -71,23 +97,22 @@ type handler struct {
 }
 
 func NewHandler(cfg Config) http.Handler {
+	if cfg.Resolve == nil {
+		panic("mcpserver: Config.Resolve is required")
+	}
+	cfg.MaxInFlight = cmp.Or(cfg.MaxInFlight, defaultMaxInFlight)
+	cfg.CallTimeout = cmp.Or(cfg.CallTimeout, defaultCallTimeout)
 	h := &handler{cfg: cfg, inflight: map[string]int{}}
-	srv := mcp.NewServer(&mcp.Implementation{Name: "skelet", Title: "Skelet", Version: version}, &mcp.ServerOptions{
+	srv := mcp.NewServer(&mcp.Implementation{Name: cmp.Or(cfg.Name, "skelet"), Title: cmp.Or(cfg.Title, "Skelet"), Version: version}, &mcp.ServerOptions{
 		Capabilities: &mcp.ServerCapabilities{Tools: &mcp.ToolCapabilities{}},
 		SetCacheable: func(_ context.Context, _ mcp.Request, c *mcp.Cacheable) { c.CacheScope = "private" }, // the list depends on who's asking
 	})
-	openWorld := false
 	for _, t := range cfg.Tools {
 		schema := t.Schema
 		if schema == nil {
 			schema = map[string]any{"type": "object", "properties": map[string]any{}}
 		}
-		srv.AddTool(&mcp.Tool{
-			Name:        t.Name,
-			Description: t.Description,
-			InputSchema: schema,
-			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &openWorld},
-		}, h.call)
+		srv.AddTool(&mcp.Tool{Name: t.Name, Description: t.Description, InputSchema: schema, Annotations: annotations(t)}, h.call)
 	}
 	srv.AddReceivingMiddleware(h.scoped)
 	h.sdk = mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return srv }, &mcp.StreamableHTTPOptions{
@@ -98,13 +123,17 @@ func NewHandler(cfg Config) http.Handler {
 	return h
 }
 
-func (h *handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	ctx := req.Context()
-	actor, ok := auth.ActorFromContext(ctx)
-	if !ok {
-		http.Error(w, "send an integration token in the X-Api-Token header, or an admin session as a Bearer token", http.StatusUnauthorized)
-		return
+func annotations(t ai.Tool) *mcp.ToolAnnotations {
+	closed := false
+	a := &mcp.ToolAnnotations{ReadOnlyHint: t.Effect == ai.Reads, IdempotentHint: t.Idempotent, OpenWorldHint: &closed}
+	if t.Effect != ai.Reads {
+		destroys := t.Effect == ai.Destroys
+		a.DestructiveHint = &destroys
 	}
+	return a
+}
+
+func (h *handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
 		http.Error(w, "this endpoint takes POST only", http.StatusMethodNotAllowed)
@@ -125,48 +154,96 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 	req.Body = io.NopCloser(bytes.NewReader(body))
 
-	ch, status, msg := h.channel(ctx, req)
-	if status != 0 {
-		http.Error(w, msg, status)
+	sc, refused := h.cfg.Resolve(req)
+	if refused != nil {
+		http.Error(w, refused.Message, refused.Status)
 		return
 	}
-	ctx = channel.WithChannel(ctx, &ch)
-	tools := h.cfg.Source(ctx, ch.ID, ai.DefaultWindowDays)
+	ctx := channel.WithChannel(req.Context(), &sc.Channel)
 	offered := map[string]bool{}
-	for _, t := range tools.Tools() {
+	for _, t := range sc.Tools.Tools() {
 		offered[t.Name] = true
 	}
-	if len(offered) == 0 {
-		http.Error(w, "this credential can't read anything on that channel", http.StatusForbidden)
-		return
-	}
-	sc := &scope{ch: ch, tools: tools, offered: offered, actor: actor, key: fmt.Sprintf("mcp:%s:%s", actor.Kind, actor.ID)}
-	h.sdk.ServeHTTP(w, req.WithContext(context.WithValue(ctx, scopeKey{}, sc)))
+	h.sdk.ServeHTTP(w, req.WithContext(context.WithValue(ctx, scopeKey{}, &scope{Scope: sc, offered: offered})))
 }
 
-// A channel nobody may read and one that doesn't exist answer the same, so the endpoint can't be used to probe for channels
-func (h *handler) channel(ctx context.Context, req *http.Request) (channel.Channel, int, string) {
+// Admin scopes a signed-in admin or an integration token to one channel. A channel nobody may read and one that doesn't exist answer the same, so the endpoint can't be used to probe for channels
+func Admin(source ToolSource, channels Channels) Resolver {
+	return func(req *http.Request) (Scope, *Refusal) {
+		ctx := req.Context()
+		actor, ok := auth.ActorFromContext(ctx)
+		if !ok {
+			return Scope{}, &Refusal{http.StatusUnauthorized, "send an integration token in the X-Api-Token header, or an admin session as a Bearer token"}
+		}
+		ch, refused := adminChannel(ctx, req, channels)
+		if refused != nil {
+			return Scope{}, refused
+		}
+		tools := source(channel.WithChannel(ctx, &ch), ch.ID, ai.DefaultWindowDays)
+		if len(tools.Tools()) == 0 {
+			return Scope{}, &Refusal{http.StatusForbidden, "this credential can't read anything on that channel"}
+		}
+		return Scope{Channel: ch, Tools: tools, Key: fmt.Sprintf("mcp:%s:%s", actor.Kind, actor.ID), Caller: []any{"actor_kind", actor.Kind, "actor", actor.ID}}, nil
+	}
+}
+
+func adminChannel(ctx context.Context, req *http.Request, channels Channels) (channel.Channel, *Refusal) {
 	var id uuid.UUID
 	if raw := strings.TrimSpace(req.Header.Get(channel.HeaderChannelID)); raw != "" {
 		parsed, err := uuid.Parse(raw)
 		if err != nil {
-			return channel.Channel{}, http.StatusBadRequest, "X-Channel-Id isn't a channel id"
+			return channel.Channel{}, &Refusal{http.StatusBadRequest, "X-Channel-Id isn't a channel id"}
 		}
 		id = parsed
 	} else if tok, ok := auth.ApiTokenFromContext(ctx); ok && tok.ChannelID != nil {
 		id = *tok.ChannelID
 	} else {
-		return channel.Channel{}, http.StatusBadRequest, "name a channel with the X-Channel-Id header"
+		return channel.Channel{}, &Refusal{http.StatusBadRequest, "name a channel with the X-Channel-Id header"}
 	}
-	ch, err := h.cfg.Channels.GetByID(ctx, id)
+	ch, err := channels.GetByID(ctx, id)
 	switch {
 	case errors.Is(err, channel.ErrChannelNotFound):
-		return channel.Channel{}, http.StatusForbidden, "this credential can't read anything on that channel"
+		return channel.Channel{}, &Refusal{http.StatusForbidden, "this credential can't read anything on that channel"}
 	case err != nil:
 		slog.ErrorContext(ctx, "mcp: channel lookup failed", "err", err)
-		return channel.Channel{}, http.StatusInternalServerError, "could not load the channel"
+		return channel.Channel{}, &Refusal{http.StatusInternalServerError, "could not load the channel"}
 	}
-	return ch, 0, ""
+	return ch, nil
+}
+
+// Storefront scopes an anonymous shopper's agent to the channel the front middleware resolved, budgeted per client address
+// at the store's own rate - source refuses a channel that keeps agents out
+func Storefront(source func(ctx context.Context, ch channel.Channel, agent string) (ToolSet, *Refusal), perMinute func(ctx context.Context, ch channel.Channel) int) Resolver {
+	return func(req *http.Request) (Scope, *Refusal) {
+		ch, ok := channel.FromContext(req.Context())
+		if !ok || ch == nil {
+			return Scope{}, &Refusal{http.StatusBadRequest, "name an active storefront channel with the X-Channel-Id header"}
+		}
+		tools, refused := source(req.Context(), *ch, AgentName(req.UserAgent()))
+		if refused != nil {
+			return Scope{}, refused
+		}
+		ip := auth.ClientIP(req)
+		rate := perMinute(req.Context(), *ch)
+		return Scope{Channel: *ch, Tools: tools, Key: "mcp:front:" + ch.ID.String() + ":" + auth.AddressKey(ip), Caller: []any{"client_ip", ip}, PerMinute: &rate}, nil
+	}
+}
+
+// AgentName is what an agent's HTTP client calls itself - the first product in its User-Agent, as "ShopBot" in
+// "ShopBot/1.0 (+https://...)" - since a stateless server never sees the handshake's client name on a tool call
+func AgentName(userAgent string) string {
+	name, _, _ := strings.Cut(strings.TrimSpace(userAgent), " ")
+	name, _, _ = strings.Cut(name, "/")
+	name = strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f {
+			return -1
+		}
+		return r
+	}, name)
+	if r := []rune(name); len(r) > signalsapi.AIMaxAgentName {
+		name = string(r[:signalsapi.AIMaxAgentName])
+	}
+	return cmp.Or(name, signalsapi.AIUnknownAgent)
 }
 
 func (h *handler) scoped(next mcp.MethodHandler) mcp.MethodHandler {
@@ -190,14 +267,21 @@ func (h *handler) scoped(next mcp.MethodHandler) mcp.MethodHandler {
 		}
 		switch r := res.(type) {
 		case *mcp.InitializeResult:
-			r.Instructions = instructions(sc.ch)
+			r.Instructions = h.instructions(sc.Channel)
 		case *mcp.DiscoverResult:
-			r.Instructions = instructions(sc.ch)
+			r.Instructions = h.instructions(sc.Channel)
 		case *mcp.ListToolsResult:
 			r.Tools = slices.DeleteFunc(slices.Clone(r.Tools), func(t *mcp.Tool) bool { return !sc.offered[t.Name] })
 		}
 		return res, nil
 	}
+}
+
+func (h *handler) allow(ctx context.Context, sc Scope) bool {
+	if sc.PerMinute != nil {
+		return h.cfg.Limiter.AllowN(ctx, sc.Key, *sc.PerMinute)
+	}
+	return h.cfg.Limiter.Allow(ctx, sc.Key)
 }
 
 func (h *handler) call(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -207,18 +291,18 @@ func (h *handler) call(ctx context.Context, req *mcp.CallToolRequest) (*mcp.Call
 	switch {
 	case sc == nil || !sc.offered[name]:
 		res = ai.ToolResult{IsError: true, Content: fmt.Sprintf("Unknown tool %q.", name)}
-	case h.cfg.Limiter != nil && !h.cfg.Limiter.Allow(ctx, sc.key):
+	case h.cfg.Limiter != nil && !h.allow(ctx, sc.Scope):
 		res = ai.ToolResult{IsError: true, Content: "Rate limit reached - slow down and try again shortly."}
-	case !h.acquire(sc.key):
-		res = ai.ToolResult{IsError: true, Content: fmt.Sprintf("Too many tool calls in flight - this credential can run %d at once.", maxInFlight)}
+	case !h.acquire(sc.Key):
+		res = ai.ToolResult{IsError: true, Content: fmt.Sprintf("Too many tool calls in flight - you can run %d at once.", h.cfg.MaxInFlight)}
 	default:
-		defer h.release(sc.key)
-		callCtx, cancel := context.WithTimeout(ctx, callTimeout)
+		defer h.release(sc.Key)
+		callCtx, cancel := context.WithTimeout(ratelimit.Counted(ctx), h.cfg.CallTimeout)
 		defer cancel()
-		res = sc.tools.Call(callCtx, name, req.Params.Arguments)
+		res = sc.Tools.Call(callCtx, name, req.Params.Arguments)
 	}
 	if sc != nil {
-		slog.InfoContext(ctx, "mcp: tool", "tool", name, "actor_kind", sc.actor.Kind, "actor", sc.actor.ID, "channel", sc.ch.ID, "failed", res.IsError)
+		slog.InfoContext(ctx, "mcp: tool", append([]any{"tool", name, "channel", sc.Channel.ID, "failed", res.IsError}, sc.Caller...)...)
 	}
 	return textResult(res), nil
 }
@@ -226,7 +310,7 @@ func (h *handler) call(ctx context.Context, req *mcp.CallToolRequest) (*mcp.Call
 func (h *handler) acquire(key string) bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if h.inflight[key] >= maxInFlight {
+	if h.inflight[key] >= h.cfg.MaxInFlight {
 		return false
 	}
 	h.inflight[key]++
@@ -252,7 +336,14 @@ func textResult(res ai.ToolResult) *mcp.CallToolResult {
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: res.Content}}, IsError: res.IsError}
 }
 
-func instructions(ch channel.Channel) string {
+func (h *handler) instructions(ch channel.Channel) string {
+	if h.cfg.Instructions == nil {
+		return ""
+	}
+	return h.cfg.Instructions(ch)
+}
+
+func AdminInstructions(ch channel.Channel) string {
 	name := ch.ID.String()
 	if ch.Name != "" {
 		name = fmt.Sprintf("%s (%s)", ch.Name, ch.ID)

@@ -63,7 +63,7 @@ func TestABundleOnlySellsWhereItAndItsComponentsAreListed(t *testing.T) {
 		t.Fatalf("a component not sold on this channel was added at its catalog default: %v", err)
 	}
 
-	line := Cart{ChannelID: home, Lines: []CartLine{{ProductSku: "set", Components: []CartLineComponent{{ProductSku: "comp"}}}}}
+	line := Cart{ChannelID: home, Lines: []CartLine{{ProductSku: "set", Components: []CartLineComponent{{BundleOptionID: optID, BundleSelectionID: selID, ProductSku: "comp"}}}}}
 	if err := NewService(&mergeRepo{}, nil, listed).ValidateCheckoutLines(ctx, line); err != nil {
 		t.Fatalf("a still-listed bundle line failed placement: %v", err)
 	}

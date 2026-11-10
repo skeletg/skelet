@@ -9,6 +9,7 @@ import { getCheckoutCart } from "../cart/offer";
 import { decodeOfferSession, OFFER_CHECKOUT_COOKIE, OFFER_COOKIE } from "../cart/offer-cookie";
 import {
   ApplyCheckoutGiftCardDocument,
+  FinalizeOrderPaymentDocument,
   PlaceOrderDocument,
   RemoveCheckoutGiftCardDocument,
   SetCheckoutDeliveryDocument,
@@ -41,6 +42,8 @@ import { getCountries } from "../countries/read";
 import { getCustomerOrNull } from "../customer/read";
 import { errorMessage } from "../forms/reply";
 import { parseForm, replyReset, type FormResult } from "../forms/schema";
+import { SetConsentDocument } from "../auth/operations.gql";
+import { ConsentDefinitionsDocument } from "../customer/operations.gql";
 import { gqlFetch, GraphQLRequestError } from "../graphql";
 import { withLocalePrefix } from "../locale/path";
 import { formatCouponError } from "../cart/coupon-errors";
@@ -84,6 +87,9 @@ const CODE_KEYS: Record<string, string> = {
   PHONE_COUNTRY_NOT_ALLOWED: "phoneCountryNotAllowed",
   ADDRESS_INVALID: "addressInvalid",
   INSUFFICIENT_STOCK: "insufficientStock",
+  BUNDLE_CHANGED: "bundleChanged",
+  PRODUCT_NOT_PUBLISHED: "productUnavailable",
+  PRODUCT_NOT_PURCHASABLE: "productUnavailable",
   ORDER_MINIMUM_NOT_MET: "orderMinimumNotMet",
   GUEST_CHECKOUT_DISABLED: "guestCheckoutDisabled",
   CART_OFFER_PAYMENT_NOT_ALLOWED: "offerPaymentNotAllowed",
@@ -320,10 +326,15 @@ export async function setStoreCreditAction(formData: FormData): Promise<void> {
   request().refresh();
 }
 
+// A placed order whose gateway wants an in-page step (3DS) before the payment counts - the page runs it with the
+// secret, then finalizePlacedPaymentAction asks the gateway how it went
+export type PendingPayment = { orderId: string; clientSecret: string; email: string; cartId: string; offer: boolean };
+export type PlaceOrderResult = FormResult & { payment?: PendingPayment };
+
 export async function placeOrderAction(
-  _prev: FormResult | undefined,
+  _prev: PlaceOrderResult | undefined,
   formData: FormData,
-): Promise<FormResult> {
+): Promise<PlaceOrderResult> {
   const cart = await submittedCart(formData);
   const cartId = cart?.id ?? null;
   const offer = cart?.offer ?? null;
@@ -347,7 +358,8 @@ export async function placeOrderAction(
   }
 
   let orderId: string;
-  let needsAction: boolean;
+  let action: { kind: string; value: string } | null;
+  let failed: boolean;
   try {
     // The payment step's own choices land on the cart first, so a refused placement keeps them for the retry
     if (v.providerSlug) {
@@ -357,36 +369,82 @@ export async function placeOrderAction(
     const res = await gqlFetch(PlaceOrderDocument, {
       cartId,
       savedPaymentMethodId: v.savedPaymentMethodId,
+      // A saved card is the provider's own token, so the two never travel together
+      paymentToken: v.savedPaymentMethodId ? null : v.paymentToken,
       // The backend holds a checkbox store to the same tick the form asked for
       acceptTerms: v.tos === true,
+      // Kept for a guest under the order's email until they prove they own it - the backend ignores it on a customer's order
+      marketingOptIn: v.marketingOptIn === true,
     });
     orderId = res.data.placeOrder.id;
-    needsAction = !!res.data.placeOrder.paymentClientSecret;
+    const secret = res.data.placeOrder.paymentClientSecret;
+    action = secret ? { kind: res.data.placeOrder.paymentActionKind ?? "challenge", value: secret } : null;
+    failed = res.data.placeOrder.paymentFailed === true;
   } catch (err) {
     request().refresh(); // a step the backend says is missing reopens once the page re-reads the cart
     return checkoutError(submission, err, "placeOrderFailed");
   }
 
   const cookieStore = await request().cookies();
+  // A guest offer places a guest order for its recipient, whoever is signed in on this browser
+  const signedIn = cookieStore.get(ACCESS_TOKEN_COOKIE) !== undefined && !offer?.isGuest;
+  if (signedIn && v.marketingOptIn) await optInToMarketing();
+  const email = signedIn ? "" : checkout.email;
+  // An in-page step goes back to a page that can run it, cart cookies untouched - clearing them re-renders checkout
+  // without the card fields the step runs in, so finalizing clears them instead
+  if (action && action.kind !== "redirect" && v.paymentUi) {
+    const payment = { orderId, clientSecret: action.value, email, cartId, offer: offer !== null };
+    return { ...submission.reply(), status: "success", payment };
+  }
+  await leaveCheckout(cartId, offer !== null);
+  // A hosted checkout takes the shopper to the gateway, which settles the order when they come back
+  if (action?.kind === "redirect" && isHttpsURL(action.value)) redirect(action.value);
+  // A refused card, or a step with no page to run it - no gateway UI, or no JavaScript - shows the order as created but
+  // unpaid, without the purchase event or thank-you a just-placed order gets
+  redirect(await placedOrderPath(orderId, email, action || failed ? "payment=incomplete" : "just_placed=1"));
+}
+
+// Only a gateway's https page gets the browser - a plugin handing back anything else never sends the shopper there
+function isHttpsURL(value: string): boolean {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+// The placed cart is history - an offer's session goes, and the shopper's own cart takes over again
+async function leaveCheckout(cartId: string, offer: boolean): Promise<void> {
+  const cookieStore = await request().cookies();
   if (offer) {
-    // The offer is history - the shopper's own cart is untouched and takes over again
     if (decodeOfferSession(cookieStore.get(OFFER_COOKIE)?.value)?.cartId === cartId) {
       cookieStore.delete(OFFER_COOKIE);
       cookieStore.delete(OFFER_CHECKOUT_COOKIE);
     }
-  } else {
-    if (cookieStore.get(CART_COOKIE)?.value === cartId) cookieStore.delete(CART_COOKIE);
+  } else if (cookieStore.get(CART_COOKIE)?.value === cartId) {
+    cookieStore.delete(CART_COOKIE);
   }
   request().refresh();
+}
 
-  // A guest offer places a guest order for its recipient, whoever is signed in on this browser
-  const signedIn = cookieStore.get(ACCESS_TOKEN_COOKIE) !== undefined && !offer?.isGuest;
-  const orderPath = signedIn
-    ? `/account/orders/${orderId}?`
-    : `/orders/${orderId}?email=${encodeURIComponent(checkout.email)}&`;
-  // A payment action needs a gateway SDK this demo doesn't ship, so nothing finalizes it here: the order is shown as
-  // created but unpaid, without the purchase event or thank-you a just-placed order gets
-  redirect(await withLocalePrefix(`${orderPath}${needsAction ? "payment=incomplete" : "just_placed=1"}`, await getCurrentLocale()));
+// After the page ran the gateway's step, the gateway itself says whether the payment went through - never the page
+export async function finalizePlacedPaymentAction(payment: Omit<PendingPayment, "clientSecret">): Promise<void> {
+  const { orderId, email } = payment;
+  if (!/^[0-9a-f-]{36}$/i.test(orderId)) return;
+  await leaveCheckout(payment.cartId, payment.offer);
+  let paid = false;
+  try {
+    paid = (await gqlFetch(FinalizeOrderPaymentDocument, { orderId })).data.finalizeOrderPayment;
+  } catch {
+    paid = false; // the gateway's own webhook and the sync sweep still settle it
+  }
+  redirect(await placedOrderPath(orderId, email, paid ? "just_placed=1" : "payment=incomplete"));
+}
+
+// A guest's order opens with its email, a signed-in shopper's from their account
+async function placedOrderPath(orderId: string, email: string, flag: string): Promise<string> {
+  const path = email ? `/orders/${orderId}?email=${encodeURIComponent(email)}&${flag}` : `/account/orders/${orderId}?${flag}`;
+  return withLocalePrefix(path, await getCurrentLocale());
 }
 
 
@@ -403,4 +461,18 @@ export async function applyCheckoutCouponAction(_prev: FormResult | undefined, f
   }
   request().refresh();
   return replyReset(submission);
+}
+
+// Ticks every marketing purpose the store defines - the order is already placed, so a failure here is logged, never surfaced
+async function optInToMarketing() {
+  try {
+    const { data } = await gqlFetch(ConsentDefinitionsDocument);
+    await Promise.all(
+      data.consentDefinitions
+        .filter((d) => d.purpose === "MARKETING")
+        .map((d) => gqlFetch(SetConsentDocument, { kind: d.slug, optedIn: true })),
+    );
+  } catch (err) {
+    console.error("checkout marketing opt-in failed", err);
+  }
 }

@@ -96,6 +96,12 @@ func TestEveryTriggerWeOfferCanBeSaved(t *testing.T) {
 	}
 }
 
+func TestAnAssistedCartIsAMarketingTriggerLikeAnyAbandonedCart(t *testing.T) {
+	if !validTrigger(TriggerAssistedCartAbandoned) || transactionalTrigger(TriggerAssistedCartAbandoned) || transactionalTrigger(TriggerCartAbandoned) {
+		t.Error("the assistant's abandoned cart must save like cart_abandoned and stay marketing, under consent and suppression")
+	}
+}
+
 func TestNextRefusesToFallThroughALabelledBranch(t *testing.T) {
 	// A split's yes/no edges are decisions - walking one as the default "out" path would send the
 	// branch's mail to everyone the condition excluded

@@ -48,6 +48,10 @@ func (s *Service) Create(ctx context.Context, in Input) error {
 	if in.ChannelID != nil {
 		ch = uuid.NullUUID{UUID: *in.ChannelID, Valid: true}
 	}
+	var to uuid.NullUUID
+	if in.RecipientAdminID != nil {
+		to = uuid.NullUUID{UUID: *in.RecipientAdminID, Valid: true}
+	}
 	row, err := s.q.CreateNotification(ctx, db.CreateNotificationParams{
 		Category:           in.Category,
 		Severity:           sev,
@@ -59,6 +63,7 @@ func (s *Service) Create(ctx context.Context, in Input) error {
 		EntityID:           in.EntityID,
 		ActionUrl:          in.ActionURL,
 		DedupeKey:          in.DedupeKey,
+		RecipientAdminID:   to,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil // dedupe hit: already in the inbox, no re-push
@@ -71,6 +76,7 @@ func (s *Service) Create(ctx context.Context, in Input) error {
 		ChannelID: in.ChannelID, EntityType: in.EntityType, EntityID: in.EntityID,
 		ActionURL: in.ActionURL, CreatedAt: row.CreatedAt,
 		RequiredPermission: in.RequiredPermission,
+		RecipientAdminID:   in.RecipientAdminID,
 	})
 	return nil
 }

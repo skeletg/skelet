@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -95,5 +96,22 @@ func TestKnownFollowsSparseCheckout(t *testing.T) {
 	}
 	if plain := t.TempDir(); len(Known(plain)) != 0 || len(Excluded(plain)) != 0 {
 		t.Error("an empty directory outside git knows storefronts")
+	}
+}
+
+func TestPinTakesOnlyTheWorkspaceLinks(t *testing.T) {
+	in := `{
+  "dependencies": {
+    "@skelet/storefront-core": "workspace:*",
+    "@skelet/storefront-react": "0.3.0",
+    "react": "catalog:"
+  },
+  "devDependencies": { "@skelet/storefront-next":"workspace:^" }
+}`
+	got := Pin(in, "0.3.1")
+	for _, want := range []string{`"@skelet/storefront-core": "0.3.1"`, `"@skelet/storefront-react": "0.3.0"`, `"react": "catalog:"`, `"@skelet/storefront-next":"0.3.1"`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("want %s in:\n%s", want, got)
+		}
 	}
 }

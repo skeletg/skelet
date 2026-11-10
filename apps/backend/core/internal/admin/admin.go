@@ -134,6 +134,7 @@ type Repository interface { // implementations must be safe for concurrent use
 	ListPermissionGroups(ctx context.Context) ([]PermissionGroup, error)
 
 	GetRoles(ctx context.Context, adminID uuid.UUID) ([]Role, error)
+	RoleIDs(ctx context.Context, adminID uuid.UUID) ([]uuid.UUID, error)
 	SetRoles(ctx context.Context, adminID uuid.UUID, slugs []string) error
 
 	CreateRole(ctx context.Context, input CreateRoleInput) (Role, error)
