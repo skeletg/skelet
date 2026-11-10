@@ -40,9 +40,9 @@ type SpineStore interface {
 
 	Funnel(ctx context.Context, channelID uuid.UUID, q FunnelQuery, since time.Time) (FunnelResult, error)
 	Insights(ctx context.Context, channelID uuid.UUID, q InsightsQuery, since, now time.Time) (Insights, error)
-	Stickiness(ctx context.Context, channelID uuid.UUID, event string, filters []PropertyFilter, since, now time.Time, windowDays int) (Stickiness, error)
-	Flow(ctx context.Context, channelID uuid.UUID, focus string, focusFilters []PropertyFilter, excl *FlowExclusion, since time.Time, depth, topK int) (FlowResult, error)
-	Retention(ctx context.Context, channelID uuid.UUID, startEvent string, startFilters []PropertyFilter, returnEvent string, returnFilters []PropertyFilter, since, now time.Time, periods int, unit time.Duration) (Retention, error)
+	Stickiness(ctx context.Context, channelID uuid.UUID, q StickinessQuery, since, now time.Time) (Stickiness, error)
+	Flow(ctx context.Context, channelID uuid.UUID, q FlowQuery, since time.Time) (FlowResult, error)
+	Retention(ctx context.Context, channelID uuid.UUID, q RetentionQuery, since, now time.Time) (Retention, error)
 
 	// Pulse engagement, the Synapse overview, per-profile and affinity reads, and segment actor lists - all pure-spine, since identity resolution lives there too - Commerce-coupled reads stay on the Recorder
 	Engagement(ctx context.Context, channelID uuid.UUID, since time.Time) (Engagement, error)
@@ -222,16 +222,16 @@ func (r *Recorder) Insights(ctx context.Context, channelID uuid.UUID, q Insights
 	return r.spine.Insights(ctx, channelID, q, since, now)
 }
 
-func (r *Recorder) Stickiness(ctx context.Context, channelID uuid.UUID, event string, filters []PropertyFilter, since, now time.Time, windowDays int) (Stickiness, error) {
-	return r.spine.Stickiness(ctx, channelID, event, filters, since, now, windowDays)
+func (r *Recorder) Stickiness(ctx context.Context, channelID uuid.UUID, q StickinessQuery, since, now time.Time) (Stickiness, error) {
+	return r.spine.Stickiness(ctx, channelID, q, since, now)
 }
 
-func (r *Recorder) Flow(ctx context.Context, channelID uuid.UUID, focus string, focusFilters []PropertyFilter, excl *FlowExclusion, since time.Time, depth, topK int) (FlowResult, error) {
-	return r.spine.Flow(ctx, channelID, focus, focusFilters, excl, since, depth, topK)
+func (r *Recorder) Flow(ctx context.Context, channelID uuid.UUID, q FlowQuery, since time.Time) (FlowResult, error) {
+	return r.spine.Flow(ctx, channelID, q, since)
 }
 
-func (r *Recorder) Retention(ctx context.Context, channelID uuid.UUID, startEvent string, startFilters []PropertyFilter, returnEvent string, returnFilters []PropertyFilter, since, now time.Time, periods int, unit time.Duration) (Retention, error) {
-	return r.spine.Retention(ctx, channelID, startEvent, startFilters, returnEvent, returnFilters, since, now, periods, unit)
+func (r *Recorder) Retention(ctx context.Context, channelID uuid.UUID, q RetentionQuery, since, now time.Time) (Retention, error) {
+	return r.spine.Retention(ctx, channelID, q, since, now)
 }
 
 func (r *Recorder) Engagement(ctx context.Context, channelID uuid.UUID, since time.Time) (Engagement, error) {

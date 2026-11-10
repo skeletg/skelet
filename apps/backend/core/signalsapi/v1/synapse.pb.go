@@ -2894,7 +2894,7 @@ type InsightPoint struct {
 	// The breakdown series this value belongs to
 	Key   string `protobuf:"bytes,2,opt,name=key,proto3" json:"key,omitempty"`
 	Value int32  `protobuf:"varint,3,opt,name=value,proto3" json:"value,omitempty"`
-	// On a sum, the value unclamped - money in cents passes int32
+	// The value unclamped - a sum in cents passes int32
 	Amount        int64 `protobuf:"varint,4,opt,name=amount,proto3" json:"amount,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3024,7 +3024,7 @@ type GetInsightsRequest struct {
 	Event     string                 `protobuf:"bytes,2,opt,name=event,proto3" json:"event,omitempty"`
 	// Event-property key to split into series
 	Breakdown string `protobuf:"bytes,3,opt,name=breakdown,proto3" json:"breakdown,omitempty"`
-	// count | unique | sum (of sum_key)
+	// total (count reads the same) | unique | sum (of sum_key)
 	Measure string `protobuf:"bytes,4,opt,name=measure,proto3" json:"measure,omitempty"`
 	// day | week
 	Unit      string `protobuf:"bytes,5,opt,name=unit,proto3" json:"unit,omitempty"`
@@ -3144,7 +3144,7 @@ type GetInsightsResponse struct {
 	PrevUniques int32 `protobuf:"varint,6,opt,name=prev_uniques,json=prevUniques,proto3" json:"prev_uniques,omitempty"`
 	// Of total, the events counted as nobody - visitors who hadn't allowed analytics
 	Aggregate int32 `protobuf:"varint,7,opt,name=aggregate,proto3" json:"aggregate,omitempty"`
-	// On a sum, total and prev_total unclamped
+	// total and prev_total unclamped
 	TotalAmount     int64 `protobuf:"varint,8,opt,name=total_amount,json=totalAmount,proto3" json:"total_amount,omitempty"`
 	PrevTotalAmount int64 `protobuf:"varint,9,opt,name=prev_total_amount,json=prevTotalAmount,proto3" json:"prev_total_amount,omitempty"`
 	unknownFields   protoimpl.UnknownFields

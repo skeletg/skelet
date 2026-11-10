@@ -93,12 +93,12 @@ func TestNetSalesIsASumOverOrderAndRefundLines(t *testing.T) {
 func TestStickinessAndRetentionFollowTheirFilters(t *testing.T) {
 	e := seedSales(t)
 	defer e.st.Close()
-	st, err := e.st.Stickiness(context.Background(), e.ch, "view_item", []analytics.PropertyFilter{eq("sku", "X")}, e.now.Add(-14*24*time.Hour), e.now, 30)
+	st, err := e.st.Stickiness(context.Background(), e.ch, analytics.StickinessQuery{Event: "view_item", Filters: []analytics.PropertyFilter{eq("sku", "X")}, WindowDays: 30}, e.now.Add(-14*24*time.Hour), e.now)
 	if err != nil || st.ActiveNow != 2 {
 		t.Fatalf("people active on X = %d, %v, want a and b", st.ActiveNow, err)
 	}
 	// Buyers of X who came back to any order: a is the only buyer of X, and came back
-	ret, err := e.st.Retention(context.Background(), e.ch, "order_line", []analytics.PropertyFilter{eq("sku", "X")}, "order_placed", nil, e.now.Add(-14*24*time.Hour), e.now, 2, 7*24*time.Hour)
+	ret, err := e.st.Retention(context.Background(), e.ch, analytics.RetentionQuery{StartEvent: "order_line", StartFilters: []analytics.PropertyFilter{eq("sku", "X")}, ReturnEvent: "order_placed", Periods: 2, Unit: 7 * 24 * time.Hour}, e.now.Add(-14*24*time.Hour), e.now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,11 +112,11 @@ func TestFlowFollowsOnlyThePeopleWhoDroppedOff(t *testing.T) {
 	e := seedSales(t)
 	defer e.st.Close()
 	since := e.now.Add(-14 * 24 * time.Hour)
-	all, err := e.st.Flow(context.Background(), e.ch, "view_item", []analytics.PropertyFilter{eq("sku", "X")}, nil, since, 3, 3)
+	all, err := e.st.Flow(context.Background(), e.ch, analytics.FlowQuery{Focus: "view_item", Filters: []analytics.PropertyFilter{eq("sku", "X")}, Depth: 3, TopK: 3}, since)
 	if err != nil || all.Cohort != 2 {
 		t.Fatalf("viewers of X = %d, %v, want a and b", all.Cohort, err)
 	}
-	dropped, err := e.st.Flow(context.Background(), e.ch, "view_item", []analytics.PropertyFilter{eq("sku", "X")}, &analytics.FlowExclusion{Event: "cart_add", Within: 24 * time.Hour}, since, 3, 3)
+	dropped, err := e.st.Flow(context.Background(), e.ch, analytics.FlowQuery{Focus: "view_item", Filters: []analytics.PropertyFilter{eq("sku", "X")}, NotThen: &analytics.FlowExclusion{Event: "cart_add", Within: 24 * time.Hour}, Depth: 3, TopK: 3}, since)
 	if err != nil || dropped.Cohort != 1 {
 		t.Fatalf("viewers of X who didn't add it = %d, %v, want a alone - b added it within the day", dropped.Cohort, err)
 	}

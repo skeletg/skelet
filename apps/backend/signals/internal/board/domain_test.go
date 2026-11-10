@@ -1,17 +1,20 @@
 package board
 
 import (
+	"encoding/json"
 	"errors"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 )
 
 func TestDefinitionRefusesWhatItsKindCantRun(t *testing.T) {
 	for name, d := range map[string]Definition{
 		"unknown kind":       {Kind: "pie"},
 		"one-step funnel":    {Kind: "funnel", Steps: []string{"page_view"}},
-		"filter off a step":  {Kind: "funnel", Steps: []string{"a", "b"}, Filters: []Filter{{Step: 2, Key: "device", Value: "x"}}},
+		"filter off a step":  {Kind: "funnel", Steps: []string{"a", "b"}, Filters: []Filter{{Step: 2, PropertyFilter: analytics.StepFilter("device", "", "x", nil)}}},
 		"retention, no end":  {Kind: "retention", StartEvent: "order_placed"},
 		"flow without focus": {Kind: "flow"},
 		"bad unit":           {Kind: "insights", Unit: "hour"},
@@ -25,7 +28,7 @@ func TestDefinitionRefusesWhatItsKindCantRun(t *testing.T) {
 			t.Errorf("%s: err = %v, want ErrInvalid", name, err)
 		}
 	}
-	funnel := Definition{Kind: "funnel", Steps: []string{"page_view", "order_placed"}, Filters: []Filter{{Step: 0, Key: "device", Value: "mobile"}}, WindowHours: 24, Breakdown: "device"}
+	funnel := Definition{Kind: "funnel", Steps: []string{"page_view", "order_placed"}, Filters: []Filter{{Step: 0, PropertyFilter: analytics.StepFilter("device", "", "mobile", nil)}}, WindowHours: 24, Breakdown: "device"}
 	if err := funnel.validate(); err != nil {
 		t.Fatalf("a valid funnel: %v", err)
 	}
@@ -74,5 +77,24 @@ func TestReportSizeIsSmallMediumOrFull(t *testing.T) {
 		if _, err := board(size).normalized(); err != nil {
 			t.Errorf("size %q: %v", size, err)
 		}
+	}
+}
+
+// A funnel filter saved before operators reads as the eq it meant, and one saved since keeps its operator
+func TestAFunnelFilterReadsInEitherShape(t *testing.T) {
+	var d Definition
+	if err := json.Unmarshal([]byte(`{"kind":"funnel","steps":["a","b"],"filters":[{"step":1,"key":"sku","value":"X"},{"step":0,"key":"sku","op":"in","values":["X","Y"]}]}`), &d); err != nil {
+		t.Fatal(err)
+	}
+	want := []Filter{
+		{Step: 1, Key: "sku", Op: "eq", Values: []string{"X"}},
+		{Step: 0, Key: "sku", Op: "in", Values: []string{"X", "Y"}},
+	}
+	if !reflect.DeepEqual(d.Filters, want) {
+		t.Fatalf("filters = %+v, want %+v", d.Filters, want)
+	}
+	out, _ := json.Marshal(d.Filters[0])
+	if string(out) != `{"step":1,"key":"sku","op":"eq","values":["X"]}` {
+		t.Fatalf("stored as %s", out)
 	}
 }

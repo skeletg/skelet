@@ -15,7 +15,7 @@ func TestABoardReportKeepsItsFiltersSumAndDropOff(t *testing.T) {
 		Where:       []board.Condition{{Key: "sku", Op: "in", Values: []string{"X", "Y"}}},
 		StartWhere:  []board.Condition{{Key: "device", Op: "eq", Values: []string{"mobile"}}},
 		ReturnWhere: []board.Condition{{Key: "country", Op: "neq", Values: []string{"RS"}}},
-		Filters:     []board.Filter{{Step: 1, Key: "sku", Value: "X", Op: "in", Values: []string{"X", "Y"}}},
+		Filters:     []board.Filter{{Step: 1, Key: "sku", Op: "in", Values: []string{"X", "Y"}}},
 		NotThen:     "cart_add", NotThenWithinHours: 24,
 	}}
 	got := reportsFrom([]*signalsv1.BoardReport{reportProto(in)})

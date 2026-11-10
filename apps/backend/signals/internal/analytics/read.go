@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -156,22 +158,22 @@ type FunnelQuery struct {
 	Breakdown string        // "" = no breakdown
 }
 
-// FunnelFilter holds one step to events whose property Key compares to Value (or Values) by Op - eq when unset, as
-// funnels saved before the other operators read
+// FunnelFilter holds one step to events whose property compares as the filter says
 type FunnelFilter struct {
-	Step       int // 0-based
-	Key, Value string
-	Op         string
-	Values     []string
+	Step int // 0-based
+	PropertyFilter
 }
 
-// Property is the filter as the other engines take it
-func (f FunnelFilter) Property() PropertyFilter {
-	vals := f.Values
-	if len(vals) == 0 {
-		vals = []string{f.Value}
+// StepFilter reads a funnel step's filter as it may still arrive or be stored: from before operators, a lone value
+// compared with eq. The one place that older shape is understood
+func StepFilter(key, op, value string, values []string) PropertyFilter {
+	if op == "" {
+		op = FilterEq
 	}
-	return PropertyFilter{Key: f.Key, Op: f.Op, Values: vals}
+	if len(values) == 0 {
+		values = []string{value}
+	}
+	return PropertyFilter{Key: key, Op: op, Values: values}
 }
 
 type FunnelResult struct {
@@ -496,12 +498,12 @@ func SummarizeProps(eventName string, raw json.RawMessage) string {
 // event without the property passes) or in (one of up to MaxFilterValues). Values compare as text, numbers and bools
 // as written, the same way a funnel step's filter does
 type PropertyFilter struct {
-	Key    string
-	Op     string
-	Values []string
+	Key    string   `json:"key"`
+	Op     string   `json:"op"`
+	Values []string `json:"values"`
 }
 
-// ErrBadFilter is a filter an engine can't run - the contract answers it as an invalid argument
+// ErrBadFilter is a query an engine can't run - the contract answers it as an invalid argument
 var ErrBadFilter = errors.New("bad filter")
 
 const (
@@ -510,17 +512,90 @@ const (
 	FilterIn        = "in"
 	MaxFilterValues = 50
 	MaxFilters      = 10
+	MaxEvents       = 8 // insights reads at most this many events together
 )
+
+// Validate is the one statement of what a filter may be - the engines run only these, and a board saves only these
+func (f PropertyFilter) Validate() error {
+	if strings.TrimSpace(f.Key) == "" {
+		return fmt.Errorf("%w: a filter needs a property", ErrBadFilter)
+	}
+	switch f.Op {
+	case FilterEq, FilterNeq:
+		if len(f.Values) != 1 {
+			return fmt.Errorf("%w: %s %s takes one value", ErrBadFilter, f.Key, f.Op)
+		}
+	case FilterIn:
+		if len(f.Values) == 0 || len(f.Values) > MaxFilterValues {
+			return fmt.Errorf("%w: %s is one of 1 to %d values", ErrBadFilter, f.Key, MaxFilterValues)
+		}
+	default:
+		return fmt.Errorf("%w: unknown filter operator %q", ErrBadFilter, f.Op)
+	}
+	return nil
+}
+
+func ValidateFilters(fs []PropertyFilter) error {
+	if len(fs) > MaxFilters {
+		return fmt.Errorf("%w: at most %d filters", ErrBadFilter, MaxFilters)
+	}
+	for _, f := range fs {
+		if err := f.Validate(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 // InsightsQuery is one Insights read: the events counted (any event when empty), split by Breakdown, measured as a
 // count, as distinct people, or as the sum of SumKey - and held to Filters
 type InsightsQuery struct {
 	Events    []string
 	Breakdown string
-	Measure   string // total | unique | sum
+	Measure   string // total (or count) | unique | sum
 	Unit      string // day | week
 	SumKey    string // the integer property summed when Measure is sum, e.g. net_base_cents
 	Filters   []PropertyFilter
+}
+
+func (q InsightsQuery) Validate() error {
+	switch {
+	case len(q.Events) > MaxEvents:
+		return fmt.Errorf("%w: insights reads at most %d events together", ErrBadFilter, MaxEvents)
+	case q.Measure != "" && q.Measure != "total" && q.Measure != "count" && q.Measure != "unique" && q.Measure != "sum":
+		return fmt.Errorf("%w: measure is total, unique or sum", ErrBadFilter) // count is the contract's older name for total
+	case q.Measure == "sum" && q.SumKey == "":
+		return fmt.Errorf("%w: a sum needs the property it adds up", ErrBadFilter)
+	}
+	return ValidateFilters(q.Filters)
+}
+
+// StickinessQuery is one return-rate read: who came back on Event (any activity when empty) held to Filters, within a
+// return window of WindowDays
+type StickinessQuery struct {
+	Event      string
+	Filters    []PropertyFilter
+	WindowDays int
+}
+
+// FlowQuery is one flow read: what people did next after Focus, held to Filters, Depth steps deep and TopK wide at each -
+// and, with NotThen, only the people who didn't go on to that event
+type FlowQuery struct {
+	Focus       string
+	Filters     []PropertyFilter
+	NotThen     *FlowExclusion
+	Depth, TopK int
+}
+
+// RetentionQuery is one cohort read: who did StartEvent, and of them who came back on ReturnEvent, each held to its own
+// filters, over Periods of Unit
+type RetentionQuery struct {
+	StartEvent    string
+	StartFilters  []PropertyFilter
+	ReturnEvent   string
+	ReturnFilters []PropertyFilter
+	Periods       int
+	Unit          time.Duration
 }
 
 // FlowExclusion narrows a flow's people to those who did the focus event and NOT this one within the window after it -

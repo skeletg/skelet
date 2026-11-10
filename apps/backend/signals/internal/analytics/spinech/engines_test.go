@@ -120,7 +120,7 @@ func TestInsightsTotalsUniquesAndBreakdown(t *testing.T) {
 func TestStickinessActiveAndReturning(t *testing.T) {
 	e := seedEngines(t)
 	defer e.st.Close()
-	st, err := e.st.Stickiness(context.Background(), e.ch, "page_view", nil, e.now.Add(-30*24*time.Hour), e.now, 7)
+	st, err := e.st.Stickiness(context.Background(), e.ch, analytics.StickinessQuery{Event: "page_view", WindowDays: 7}, e.now.Add(-30*24*time.Hour), e.now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +154,7 @@ func TestFunnelWindowFiltersAndBreakdown(t *testing.T) {
 		t.Errorf("90 minute window = %v, want [4 3 0]", got)
 	}
 	// only mobile page views start it: a, c and d
-	if got := counts(run(analytics.FunnelQuery{Filters: []analytics.FunnelFilter{{Step: 0, Key: "device", Value: "mobile"}}}).Steps); got != [3]int64{3, 2, 2} {
+	if got := counts(run(analytics.FunnelQuery{Filters: []analytics.FunnelFilter{{Step: 0, PropertyFilter: analytics.StepFilter("device", "", "mobile", nil)}}}).Steps); got != [3]int64{3, 2, 2} {
 		t.Errorf("mobile start = %v, want [3 2 2]", got)
 	}
 	res := run(analytics.FunnelQuery{Breakdown: "device"})

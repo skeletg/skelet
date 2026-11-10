@@ -54,7 +54,7 @@ func TestAggregateEventsCountInTotalsButAreNobody(t *testing.T) {
 	if len(steps) != 2 || steps[0].Count != 2 || steps[1].Count != 2 {
 		t.Errorf("funnel %+v - aggregate events must not walk it as a phantom person", steps)
 	}
-	sticky, err := st.Stickiness(ctx, ch, "", nil, since, now, 7)
+	sticky, err := st.Stickiness(ctx, ch, analytics.StickinessQuery{Event: "", WindowDays: 7}, since, now)
 	if err != nil {
 		t.Fatal(err)
 	}

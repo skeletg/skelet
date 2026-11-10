@@ -11,6 +11,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/board"
 )
 
@@ -238,7 +239,7 @@ func reportsFrom(in []*signalsv1.BoardReport) []board.Report {
 		d := r.GetDefinition()
 		filters := make([]board.Filter, 0, len(d.GetFilters()))
 		for _, f := range d.GetFilters() {
-			filters = append(filters, board.Filter{Step: int(f.GetStep()), Key: f.GetKey(), Value: f.GetValue(), Op: f.GetOp(), Values: f.GetValues()})
+			filters = append(filters, board.Filter{Step: int(f.GetStep()), PropertyFilter: analytics.StepFilter(f.GetKey(), f.GetOp(), f.GetValue(), f.GetValues())})
 		}
 		out = append(out, board.Report{Title: r.GetTitle(), Size: r.GetSize(), Definition: board.Definition{
 			Kind: d.GetKind(), SinceDays: int(d.GetSinceDays()), Event: d.GetEvent(), Measure: d.GetMeasure(), Unit: d.GetUnit(),
@@ -317,7 +318,7 @@ func reportProto(r board.Report) *signalsv1.BoardReport {
 	d := r.Definition
 	filters := make([]*signalsv1.FunnelFilter, 0, len(d.Filters))
 	for _, f := range d.Filters {
-		filters = append(filters, &signalsv1.FunnelFilter{Step: count32(f.Step), Key: f.Key, Value: f.Value, Op: f.Op, Values: f.Values})
+		filters = append(filters, &signalsv1.FunnelFilter{Step: count32(f.Step), Key: f.Key, Value: f.Values[0], Op: f.Op, Values: f.Values}) // value for readers from before operators
 	}
 	return &signalsv1.BoardReport{Title: r.Title, Size: r.Size, Definition: &signalsv1.BoardReportDefinition{
 		Kind: d.Kind, SinceDays: count32(d.SinceDays), Event: d.Event, Measure: d.Measure, Unit: d.Unit,

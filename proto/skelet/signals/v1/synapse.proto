@@ -419,7 +419,7 @@ message InsightPoint {
   // The breakdown series this value belongs to
   string key = 2;
   int32 value = 3;
-  // On a sum, the value unclamped - money in cents passes int32
+  // The value unclamped - a sum in cents passes int32
   int64 amount = 4;
 }
 
@@ -434,7 +434,7 @@ message GetInsightsRequest {
   string event = 2;
   // Event-property key to split into series
   string breakdown = 3;
-  // count | unique | sum (of sum_key)
+  // total (count reads the same) | unique | sum (of sum_key)
   string measure = 4;
   // day | week
   string unit = 5;
@@ -458,7 +458,7 @@ message GetInsightsResponse {
   int32 prev_uniques = 6;
   // Of total, the events counted as nobody - visitors who hadn't allowed analytics
   int32 aggregate = 7;
-  // On a sum, total and prev_total unclamped
+  // total and prev_total unclamped
   int64 total_amount = 8;
   int64 prev_total_amount = 9;
 }

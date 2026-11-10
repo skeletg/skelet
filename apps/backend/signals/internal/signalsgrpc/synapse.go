@@ -72,7 +72,7 @@ func (s *synapseServer) GetFunnel(ctx context.Context, req *signalsv1.GetFunnelR
 		if key == "" || f.GetStep() < 0 || int(f.GetStep()) >= len(steps) {
 			return nil, invalidArgument("a funnel filter needs a property and one of the funnel's steps")
 		}
-		q.Filters = append(q.Filters, analytics.FunnelFilter{Step: int(f.GetStep()), Key: key, Value: f.GetValue(), Op: f.GetOp(), Values: f.GetValues()})
+		q.Filters = append(q.Filters, analytics.FunnelFilter{Step: int(f.GetStep()), PropertyFilter: analytics.StepFilter(key, f.GetOp(), f.GetValue(), f.GetValues())})
 	}
 	res, err := s.rec.Funnel(ctx, cid, q, since(req.GetSinceDays(), 30))
 	if err != nil {
@@ -109,7 +109,7 @@ func (s *synapseServer) GetFlow(ctx context.Context, req *signalsv1.GetFlowReque
 	if req.GetNotThen() != "" {
 		excl = &analytics.FlowExclusion{Event: req.GetNotThen(), Within: time.Duration(max(req.GetNotThenWithinSeconds(), 0)) * time.Second}
 	}
-	fl, err := s.rec.Flow(ctx, cid, req.GetEvent(), propertyFilters(req.GetFilters()), excl, since(req.GetSinceDays(), 30), depth, 6)
+	fl, err := s.rec.Flow(ctx, cid, analytics.FlowQuery{Focus: req.GetEvent(), Filters: propertyFilters(req.GetFilters()), NotThen: excl, Depth: depth, TopK: 6}, since(req.GetSinceDays(), 30))
 	if err != nil {
 		return nil, engineErr(err)
 	}
@@ -140,7 +140,10 @@ func (s *synapseServer) GetRetention(ctx context.Context, req *signalsv1.GetRete
 		unit = 7 * 24 * time.Hour
 	}
 	periods := int(topN(req.GetPeriods(), 8, 12))
-	res, err := s.rec.Retention(ctx, cid, req.GetStartEvent(), propertyFilters(req.GetStartFilters()), req.GetReturnEvent(), propertyFilters(req.GetReturnFilters()), since(req.GetSinceDays(), 30), time.Now(), periods, unit)
+	res, err := s.rec.Retention(ctx, cid, analytics.RetentionQuery{
+		StartEvent: req.GetStartEvent(), StartFilters: propertyFilters(req.GetStartFilters()), ReturnEvent: req.GetReturnEvent(), ReturnFilters: propertyFilters(req.GetReturnFilters()),
+		Periods: periods, Unit: unit,
+	}, since(req.GetSinceDays(), 30), time.Now())
 	if err != nil {
 		return nil, engineErr(err)
 	}
@@ -156,7 +159,7 @@ func (s *synapseServer) GetStickiness(ctx context.Context, req *signalsv1.GetSti
 	if err != nil {
 		return nil, err
 	}
-	st, err := s.rec.Stickiness(ctx, cid, req.GetEvent(), propertyFilters(req.GetFilters()), since(req.GetSinceDays(), 30), time.Now(), int(windowDays(req.GetWindowDays(), 30)))
+	st, err := s.rec.Stickiness(ctx, cid, analytics.StickinessQuery{Event: req.GetEvent(), Filters: propertyFilters(req.GetFilters()), WindowDays: int(windowDays(req.GetWindowDays(), 30))}, since(req.GetSinceDays(), 30), time.Now())
 	if err != nil {
 		return nil, engineErr(err)
 	}
@@ -180,34 +183,30 @@ func (s *synapseServer) GetInsights(ctx context.Context, req *signalsv1.GetInsig
 	if len(events) == 0 && req.GetEvent() != "" {
 		events = []string{req.GetEvent()}
 	}
-	if len(events) > 8 {
-		return nil, invalidArgument("insights reads at most 8 events together")
-	}
 	q := analytics.InsightsQuery{Events: events, Breakdown: req.GetBreakdown(), Measure: req.GetMeasure(), Unit: req.GetUnit(), SumKey: req.GetSumKey(), Filters: propertyFilters(req.GetFilters())}
 	ins, err := s.rec.Insights(ctx, cid, q, since(req.GetSinceDays(), 30), time.Now())
 	if err != nil {
 		return nil, engineErr(err)
 	}
-	sum := q.Measure == "sum" // amounts go unclamped beside the clamped counts, which a sum in cents would overflow
-	amount := func(n int64) int64 {
-		if sum {
-			return n
-		}
-		return 0
-	}
+	return insightsResponse(ins), nil
+}
+
+func insightsResponse(ins analytics.Insights) *signalsv1.GetInsightsResponse {
+	// Each measure goes twice: clamped to int32 for the fields that always were, and whole as an amount - which a sum in
+	// cents needs, and a count past 2^31 would too
 	points := make([]*signalsv1.InsightPoint, 0, len(ins.Points))
 	for _, p := range ins.Points {
-		points = append(points, &signalsv1.InsightPoint{Bucket: ts(p.Bucket), Key: p.Key, Value: count32(p.Value), Amount: amount(p.Value)})
+		points = append(points, &signalsv1.InsightPoint{Bucket: ts(p.Bucket), Key: p.Key, Value: count32(p.Value), Amount: p.Value})
 	}
 	series := make([]*signalsv1.InsightSeries, 0, len(ins.Series))
 	for _, sr := range ins.Series {
-		series = append(series, &signalsv1.InsightSeries{Key: sr.Key, Total: count32(sr.Total), Amount: amount(sr.Total)})
+		series = append(series, &signalsv1.InsightSeries{Key: sr.Key, Total: count32(sr.Total), Amount: sr.Total})
 	}
 	return &signalsv1.GetInsightsResponse{
 		Points: points, Series: series, Total: count32(ins.Total), Uniques: count32(ins.Uniques),
 		PrevTotal: count32(ins.PrevTotal), PrevUniques: count32(ins.PrevUniques), Aggregate: count32(ins.Aggregate),
-		TotalAmount: amount(ins.Total), PrevTotalAmount: amount(ins.PrevTotal),
-	}, nil
+		TotalAmount: ins.Total, PrevTotalAmount: ins.PrevTotal,
+	}
 }
 
 func (s *synapseServer) GetCustomerProfile(ctx context.Context, req *signalsv1.GetCustomerProfileRequest) (*signalsv1.GetCustomerProfileResponse, error) {

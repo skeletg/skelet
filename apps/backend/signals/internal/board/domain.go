@@ -4,6 +4,7 @@
 package board
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -11,6 +12,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 )
 
 const (
@@ -87,44 +90,27 @@ type Definition struct {
 	NotThenWithinHours int         `json:"notThenWithinHours,omitempty"` // flow: how long after, 0 = anywhere in the period
 }
 
-// Condition holds a report's events to those whose property Key compares to Values: eq (one value), neq or in
-type Condition struct {
-	Key    string   `json:"key"`
-	Op     string   `json:"op"`
-	Values []string `json:"values"`
-}
+// Condition holds a report's events to those whose property compares to its values - the engines' own filter
+type Condition = analytics.PropertyFilter
 
-func (c Condition) valid() bool {
-	if strings.TrimSpace(c.Key) == "" {
-		return false
-	}
-	switch c.Op {
-	case "eq", "neq":
-		return len(c.Values) == 1
-	case "in":
-		return len(c.Values) >= 1 && len(c.Values) <= 50
-	}
-	return false
-}
-
-func conditionsValid(cs []Condition) bool {
-	if len(cs) > 10 {
-		return false
-	}
-	for _, c := range cs {
-		if !c.valid() {
-			return false
-		}
-	}
-	return true
-}
-
+// Filter holds one funnel step to a condition
 type Filter struct {
-	Step   int      `json:"step"`
-	Key    string   `json:"key"`
-	Value  string   `json:"value"`
-	Op     string   `json:"op,omitempty"`     // eq when unset
-	Values []string `json:"values,omitempty"` // for in
+	Step int `json:"step"`
+	analytics.PropertyFilter
+}
+
+// UnmarshalJSON reads a funnel filter saved before operators too - {"value": ...}, compared with eq
+func (f *Filter) UnmarshalJSON(b []byte) error {
+	var raw struct {
+		Step           int
+		Key, Op, Value string
+		Values         []string
+	}
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	*f = Filter{Step: raw.Step, PropertyFilter: analytics.StepFilter(raw.Key, raw.Op, raw.Value, raw.Values)}
+	return nil
 }
 
 func (d Definition) validate() error {
@@ -132,19 +118,15 @@ func (d Definition) validate() error {
 	if d.SinceDays < 0 || d.SinceDays > 365 {
 		return bad("the period is 1 to 365 days")
 	}
-	if !conditionsValid(d.Where) || !conditionsValid(d.StartWhere) || !conditionsValid(d.ReturnWhere) {
-		return bad("a condition is a property, an operator (eq, neq or in) and its values - at most 10")
+	for _, cs := range [][]Condition{d.Where, d.StartWhere, d.ReturnWhere} {
+		if err := analytics.ValidateFilters(cs); err != nil {
+			return bad(err.Error())
+		}
 	}
 	switch d.Kind {
 	case "insights":
-		if d.Measure != "" && d.Measure != "total" && d.Measure != "unique" && d.Measure != "sum" {
-			return bad("measure is total, unique or sum")
-		}
-		if d.Measure == "sum" && d.SumKey == "" {
-			return bad("a sum needs the property it adds up")
-		}
-		if len(d.Events) > 8 {
-			return bad("at most 8 events together")
+		if err := (analytics.InsightsQuery{Events: d.Events, Measure: d.Measure, SumKey: d.SumKey}).Validate(); err != nil {
+			return bad(err.Error())
 		}
 	case "stickiness":
 		if d.WindowDays < 0 || d.WindowDays > 365 {
@@ -155,8 +137,11 @@ func (d Definition) validate() error {
 			return bad("a funnel has 2 to 8 steps")
 		}
 		for _, f := range d.Filters {
-			if f.Step < 0 || f.Step >= len(d.Steps) || strings.TrimSpace(f.Key) == "" {
-				return bad("a filter needs a property and one of the funnel's steps")
+			if f.Step < 0 || f.Step >= len(d.Steps) {
+				return bad("a filter needs one of the funnel's steps")
+			}
+			if err := f.Validate(); err != nil {
+				return bad(err.Error())
 			}
 		}
 		if d.WindowHours < 0 {
