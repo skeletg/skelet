@@ -1,3 +1,0 @@
-- Email editor keyboard shortcuts apply only to the active workspace tab, so deleting or undoing cannot change a background email.
-- Reordering or removing products keeps the email block's Max products limit; choosing additional products still raises it.
-- Formatted email variables keep their bold, italic, underline and strikethrough through edits and reopening the text editor.
