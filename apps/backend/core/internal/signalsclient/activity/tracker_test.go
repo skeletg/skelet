@@ -17,6 +17,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
@@ -67,12 +68,26 @@ func (f *fakeRecorder) RecordActivity(_ context.Context, a signalsclient.Activit
 }
 
 type fakeOrders struct {
-	o   order.Order
-	err error
+	o     order.Order
+	err   error
+	memo  order.CreditMemo
+	loads int
 }
 
 func (f *fakeOrders) GetByID(_ context.Context, _ uuid.UUID) (order.Order, error) {
+	f.loads++
 	return f.o, f.err
+}
+
+func (f *fakeOrders) GetCreditMemo(context.Context, uuid.UUID) (order.CreditMemo, error) {
+	return f.memo, nil
+}
+
+// rate converts every currency into the base at a fixed rate - 0 knows no rate at all
+type rate int64
+
+func (r rate) From(context.Context, string) currency.ToBase {
+	return func(c int64) (int64, bool) { return c * int64(r), r > 0 }
 }
 
 // countsNobody is a shop's aggregate_counts setting, the same everywhere
@@ -84,7 +99,7 @@ func (c countsNobody) GetBool(context.Context, string, config.Scope) (bool, erro
 
 func newTracker(o order.Order) (*Tracker, *fakeRecorder) {
 	fr := &fakeRecorder{}
-	return NewTracker(fr, &fakeOrders{o: o}, countsNobody(true), nil), fr
+	return NewTracker(fr, &fakeOrders{o: o}, countsNobody(true), nil, rate(0)), fr
 }
 
 func TestASignInCarriesTheVisitorOnlyWithAnalyticsConsent(t *testing.T) {
@@ -445,7 +460,7 @@ func TestAnUnreachableSuiteHandsActivityBackToTheOutbox(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			bus := events.NewBus()
 			fr := &fakeRecorder{err: tc.err}
-			NewTracker(fr, &fakeOrders{o: order.Order{CustomerID: &cid, GiftCardAmount: 500}}, countsNobody(true), nil).Subscribe(bus)
+			NewTracker(fr, &fakeOrders{o: order.Order{CustomerID: &cid, GiftCardAmount: 500}}, countsNobody(true), nil, rate(0)).Subscribe(bus)
 			err := bus.DispatchAsyncNow(context.Background(), &order.OrderPlaced{OrderID: uuid.New(), CustomerID: &cid, ChannelID: uuid.New()})
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("dispatch err = %v, want error %v", err, tc.wantErr)
@@ -519,7 +534,7 @@ func TestAnOrderThatWontLoadGoesBackToTheOutbox(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			fr := &fakeRecorder{}
-			tr := NewTracker(fr, &fakeOrders{o: order.Order{CustomerID: &cid}, err: tc.err}, countsNobody(true), nil)
+			tr := NewTracker(fr, &fakeOrders{o: order.Order{CustomerID: &cid}, err: tc.err}, countsNobody(true), nil, rate(0))
 			err := tr.onOrderShipped(context.Background(), &order.OrderFulfillmentCreated{OrderID: uuid.New(), FulfillmentID: uuid.New()})
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("err = %v, want error %v", err, tc.wantErr)
@@ -582,7 +597,7 @@ func TestAGiftCardLookupThatFailsGoesBackToTheOutbox(t *testing.T) {
 		"order gone":    {fmt.Errorf("get order: %w", sql.ErrNoRows), false},
 	} {
 		t.Run(name, func(t *testing.T) {
-			tr := NewTracker(&fakeRecorder{}, &fakeOrders{err: tc.err}, countsNobody(true), nil)
+			tr := NewTracker(&fakeRecorder{}, &fakeOrders{err: tc.err}, countsNobody(true), nil, rate(0))
 			err := tr.onOrderPlaced(context.Background(), &order.OrderPlaced{OrderID: uuid.New(), CustomerID: &cid, ChannelID: uuid.New()})
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("err = %v, want error %v", err, tc.wantErr)
@@ -599,12 +614,12 @@ func TestARefusedWriteIsLogged(t *testing.T) {
 	cid := uuid.New()
 	refused := status.Error(codes.PermissionDenied, "bad token")
 
-	tr := NewTracker(&fakeRecorder{err: refused}, &fakeOrders{}, countsNobody(true), nil)
+	tr := NewTracker(&fakeRecorder{err: refused}, &fakeOrders{}, countsNobody(true), nil, rate(0))
 	if err := tr.onRegistered(context.Background(), &customer.CustomerRegistered{CustomerID: cid, ChannelID: uuid.New()}); err != nil {
 		t.Fatal(err)
 	}
 	bus := events.NewBus()
-	RegisterConversionAttribution(bus, &fakeConversions{err: refused}, nil)
+	RegisterConversionAttribution(bus, &fakeConversions{err: refused}, rate(0))
 	if err := bus.DispatchAsyncNow(context.Background(), &order.OrderPlaced{OrderID: uuid.New(), CustomerID: &cid}); err != nil {
 		t.Fatal(err)
 	}
@@ -661,7 +676,7 @@ func TestCartsAndOrdersNameTheProductsBehindTheirSKUs(t *testing.T) {
 	tee, red := uuid.New(), uuid.New()
 	refs := fakeProducts{"TEE-RED": {{Sku: "TEE-RED", ID: red, ParentID: uuid.NullUUID{UUID: tee, Valid: true}}}, "MUG": {{Sku: "MUG", ID: uuid.New()}}}
 	fr := &fakeRecorder{}
-	tr := &Tracker{rec: fr, orders: &fakeOrders{o: order.Order{CustomerID: &cid, ChannelID: ch, Lines: []order.OrderLine{{ProductSku: "TEE-RED"}, {ProductSku: "MUG"}}}}, products: refs}
+	tr := &Tracker{rec: fr, orders: &fakeOrders{o: order.Order{CustomerID: &cid, ChannelID: ch, Lines: []order.OrderLine{{ProductSku: "TEE-RED"}, {ProductSku: "MUG"}}}}, products: refs, base: rate(0)}
 	_ = tr.onCartAdd(context.Background(), &cart.LineAdded{ChannelID: ch, CustomerID: &cid, LineID: uuid.New(), ProductSku: "TEE-RED"})
 	if ids, _ := fr.calls[0].Props["product_ids"].([]string); len(ids) != 2 || ids[0] != red.String() || ids[1] != tee.String() {
 		t.Errorf("cart_add product_ids = %v - want the variant and the product it's sold through", fr.calls[0].Props["product_ids"])
@@ -791,12 +806,6 @@ func TestCartActivityWithAnalyticsRefusedCountsAsNobody(t *testing.T) {
 	}
 }
 
-type fakeMemos struct{ m order.CreditMemo }
-
-func (f fakeMemos) GetCreditMemo(context.Context, uuid.UUID) (order.CreditMemo, error) {
-	return f.m, nil
-}
-
 func byName(calls []signalsclient.ActivitySpec, name string) []signalsclient.ActivitySpec {
 	var out []signalsclient.ActivitySpec
 	for _, c := range calls {
@@ -818,12 +827,10 @@ func salesOrder() (order.Order, uuid.UUID, uuid.UUID) {
 	return o, shirt, mug
 }
 
-func noRate(context.Context, int64, string) (int64, bool) { return 0, false }
-
 func TestAnOrderRecordsEachLineAtItsNetSales(t *testing.T) {
 	o, shirt, _ := salesOrder()
 	tr, fr := newTracker(o)
-	tr.SetSales(nil, func(_ context.Context, c int64, _ string) (int64, bool) { return c * 2, true }) // a rate of 2 to the base
+	tr.base = rate(2)
 	if err := tr.onOrderPlaced(context.Background(), &order.OrderPlaced{OrderID: o.ID, CustomerID: o.CustomerID, ChannelID: o.ChannelID, TotalCents: o.TotalAmount, Currency: "EUR"}); err != nil {
 		t.Fatal(err)
 	}
@@ -847,9 +854,13 @@ func TestARefundBooksItsLinesAsNegativeNetSalesOnTheDay(t *testing.T) {
 	o, shirt, _ := salesOrder()
 	tr, fr := newTracker(o)
 	memoLine := uuid.New()
-	tr.SetSales(fakeMemos{order.CreditMemo{Lines: []order.CreditMemoLine{{ID: memoLine, OrderLineID: shirt, Quantity: 1, TotalCents: 2160}}}}, noRate)
+	orders := &fakeOrders{o: o, memo: order.CreditMemo{Lines: []order.CreditMemoLine{{ID: memoLine, OrderLineID: shirt, Quantity: 1, TotalCents: 2160}}}}
+	tr.orders = orders
 	if err := tr.onOrderRefunded(context.Background(), &order.OrderRefunded{OrderID: o.ID, ChannelID: o.ChannelID, CreditMemoID: uuid.New()}); err != nil {
 		t.Fatal(err)
+	}
+	if orders.loads != 1 {
+		t.Errorf("the order loaded %d times, want once for the refund and its lines", orders.loads)
 	}
 	got := byName(fr.calls, "refund_line")
 	if len(got) != 1 {
@@ -908,7 +919,7 @@ func TestCartChangesSayWhichProduct(t *testing.T) {
 func TestABackfillLeavesOrdersPlacedWithoutConsentAlone(t *testing.T) {
 	o := order.Order{ID: uuid.New(), Number: "1300", ChannelID: uuid.New(), TotalAmount: 900, CurrencyCode: "EUR", Shopper: &auth.Shopper{}}
 	fr := &fakeRecorder{}
-	if err := NewTracker(fr, nil, countsNobody(true), nil).BackfillOrder(context.Background(), o, time.Now()); err != nil {
+	if err := NewTracker(fr, nil, countsNobody(true), nil, rate(0)).BackfillOrder(context.Background(), o, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	if len(fr.calls) != 0 {

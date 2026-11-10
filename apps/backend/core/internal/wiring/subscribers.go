@@ -2,7 +2,6 @@ package wiring
 
 import (
 	"context"
-	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	"log"
 
 	"github.com/google/uuid"
@@ -15,6 +14,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
+	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
@@ -158,11 +158,10 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 		resync = d.Jobs
 	}
 	roster.Register(bus, d.Queries, d.SignalsClient, resync) // keeps the suite's copy current between the 6-hourly sweeps
-	activity.RegisterConversionAttribution(bus, d.SignalsClient, activity.BaseConverter(d.Config, d.Currency))
-	tracker := activity.NewTracker(d.SignalsClient, d.Order, d.Config, d.Queries)
-	tracker.SetSales(d.Order, activity.BaseConverter(d.Config, d.Currency))
-	tracker.Subscribe(bus)      // every customer-facing action onto the analytics spine, so the profile timeline reflects the whole journey
-	d.BackInStock.Register(bus) // on restock, resolved customers enrol into the back_in_stock flow and guests get a direct mail
+	base := currency.NewBaseRates(d.Config, d.Currency)
+	activity.RegisterConversionAttribution(bus, d.SignalsClient, base)
+	activity.NewTracker(d.SignalsClient, d.Order, d.Config, d.Queries, base).Subscribe(bus) // every customer-facing action onto the analytics spine, so the profile timeline reflects the whole journey
+	d.BackInStock.Register(bus)                                                             // on restock, resolved customers enrol into the back_in_stock flow and guests get a direct mail
 }
 
 // Everything reacting to an order's lifecycle - all outbox-durable, so every handler here has to tolerate a replay
