@@ -137,3 +137,14 @@ func TestAFunnelStepTakesTheOtherOperators(t *testing.T) {
 	}
 }
 
+// A headline counts what landed in the second the read ends in - the bound goes to the millisecond, not the second
+func TestAWindowEndingNowCountsTheCurrentSecond(t *testing.T) {
+	e := newEngineSpine(t)
+	e.now = e.now.Truncate(time.Second).Add(900 * time.Millisecond) // late in its second, so an event 300ms ago shares it
+	e.add("order_line", "a", nil, 300*time.Millisecond, map[string]any{"sku": "X", "net_base_cents": int64(1200)})
+	e.flush()
+	sales := analytics.InsightsQuery{Events: []string{"order_line"}, Measure: "sum", SumKey: "net_base_cents", Unit: "day"}
+	if got := e.insights(sales).Total; got != 1200 {
+		t.Fatalf("net sales = %d, want 1200 - the event 300ms before the read", got)
+	}
+}

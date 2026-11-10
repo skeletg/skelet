@@ -28,6 +28,9 @@ const (
 	// "we know who this is" - the sentinel compare is safe on a plain column, unsafe on a dictGet
 	hasCustomer = "(e.customer_id != " + zeroUUID + " OR " + dictHit + ")"
 	notBot      = "NOT e.is_bot"
+	// [lo, hi) to the millisecond, bound as Unix ms - the driver binds a time.Time to whole seconds, which would drop the
+	// current second's events from a window ending now
+	inWindow = "e.occurred_at >= fromUnixTimestamp64Milli(?) AND e.occurred_at < fromUnixTimestamp64Milli(?)"
 )
 
 // The analytical reads, implemented with native ClickHouse functions (windowFunnel / uniqExact / ARRAY JOIN JSONExtractKeysAndValues / window functions) - the post-processing (Retention cohorts, Flow path-tree, Insights fold) lives in the analytics.*FromEvents helpers
@@ -199,9 +202,9 @@ func (s *Store) Insights(ctx context.Context, channelID uuid.UUID, q analytics.I
 	out.Points, out.Series = analytics.RollupInsightsSeries(in, measure == "unique")
 
 	// window-level measures (headline + prior equal-length window) - errors are swallowed, since the series is the primary result
-	wm := "SELECT " + total + ", " + uniq + ", toInt64(countIf(e.source = 'aggregate')) " + from + " WHERE e.channel_id = ? AND e.occurred_at >= ? AND e.occurred_at < ? AND " + notBot + evCond
+	wm := "SELECT " + total + ", " + uniq + ", toInt64(countIf(e.source = 'aggregate')) " + from + " WHERE e.channel_id = ? AND " + inWindow + " AND " + notBot + evCond
 	window := func(lo, hi time.Time) []any {
-		return append(append(append([]any{}, totalArgs...), channelID, lo, hi), evArg...)
+		return append(append(append([]any{}, totalArgs...), channelID, lo.UnixMilli(), hi.UnixMilli()), evArg...)
 	}
 	_ = s.conn.QueryRow(ctx, wm, window(since, now)...).Scan(&out.Total, &out.Uniques, &out.Aggregate)
 	prevStart := since.Add(-now.Sub(since))
@@ -257,8 +260,8 @@ func (s *Store) Stickiness(ctx context.Context, channelID uuid.UUID, event strin
 
 	// return window: prior = [now-2W, now-W), current = [now-W, now)
 	win := func(lo, hi time.Time) (string, []any) {
-		w := " WHERE e.channel_id = ? AND e.occurred_at >= ? AND e.occurred_at < ? AND " + notBot + evCond + " AND " + resolvedActor + " != ''"
-		return "SELECT DISTINCT " + resolvedActor + " AS a " + from + w, append([]any{channelID, lo, hi}, evArg...)
+		w := " WHERE e.channel_id = ? AND " + inWindow + " AND " + notBot + evCond + " AND " + resolvedActor + " != ''"
+		return "SELECT DISTINCT " + resolvedActor + " AS a " + from + w, append([]any{channelID, lo.UnixMilli(), hi.UnixMilli()}, evArg...)
 	}
 	prevSQL, prevArgs := win(now.AddDate(0, 0, -2*windowDays), now.AddDate(0, 0, -windowDays))
 	curSQL, curArgs := win(now.AddDate(0, 0, -windowDays), now)
