@@ -27,3 +27,11 @@ var Slugs = []string{
 	"campaigns.view",
 	"campaigns.manage",
 }
+
+// A product's net sales is the sum of net_cents over these three: the lines as placed, what an edit moved, and what a
+// refund took back - each carrying sku, qty, net_cents and, when a rate was known, net_base_cents
+const (
+	EventOrderLine         = "order_line"
+	EventOrderLineAdjusted = "order_line_adjusted"
+	EventRefundLine        = "refund_line"
+)
