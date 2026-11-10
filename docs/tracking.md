@@ -33,15 +33,15 @@ recorded requests, but not yet run against a production account. Verify one agai
 it in production:
 
 ```bash
-skelet cli plugin add github.com/skeletg/tracking-ga4    # then rebuild the backend
+skelet cli plugin add github.com/skeletg/skelet-tracking-ga4    # then rebuild the backend
 ```
 
 | Kind | Plugin | Platform | Needs |
 |---|---|---|---|
-| `ga4` | [`tracking-ga4`](https://github.com/skeletg/tracking-ga4) | Google Analytics 4, Measurement Protocol | analytics |
-| `google_ads` | [`tracking-google-ads`](https://github.com/skeletg/tracking-google-ads) | Google Ads conversions, Data Manager API | ads |
-| `google_ads_audience` | [`tracking-google-ads`](https://github.com/skeletg/tracking-google-ads) | Google Ads Customer Match list | ads and personalization, plus the account's marketing opt-in; removals need none |
-| `meta_capi` | [`tracking-meta`](https://github.com/skeletg/tracking-meta) | Meta Conversions API | ads |
+| `ga4` | [`skelet-tracking-ga4`](https://github.com/skeletg/skelet-tracking-ga4) | Google Analytics 4, Measurement Protocol | analytics |
+| `google_ads` | [`skelet-tracking-google-ads`](https://github.com/skeletg/skelet-tracking-google-ads) | Google Ads conversions, Data Manager API | ads |
+| `google_ads_audience` | [`skelet-tracking-google-ads`](https://github.com/skeletg/skelet-tracking-google-ads) | Google Ads Customer Match list | ads and personalization, plus the account's marketing opt-in; removals need none |
+| `meta_capi` | [`skelet-tracking-meta`](https://github.com/skeletg/skelet-tracking-meta) | Meta Conversions API | ads |
 
 Any other platform is a plugin you write against the SDK's `RegisterDestination` - see [plugins.md](plugins.md).
 
@@ -127,7 +127,7 @@ Setting one up:
 4. Add the destination, checking it first with `validate_only`, which records nothing:
 
 ```bash
-skelet cli plugin add github.com/skeletg/tracking-google-ads   # then rebuild the backend
+skelet cli plugin add github.com/skeletg/skelet-tracking-google-ads   # then rebuild the backend
 TRACKING_SECRET="$(cat service-account.json)" skelet cli tracking add --channel <id> --kind google_ads \
   --name "Google Ads" --set customer_id=1234567890 --set conversion_action_id=<id> --set validate_only=true
 skelet cli tracking test <destination-id>

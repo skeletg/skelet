@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { destinationStatus, platformStatus, type Destination, type Platform } from './status'
 
 const platform = (over: Partial<Platform> = {}): Platform => ({
-  kind: 'ga4', label: 'Google Analytics 4', pluginSlug: 'tracking-ga4', installed: true, availableOnChannel: true,
+  kind: 'ga4', label: 'Google Analytics 4', pluginSlug: 'skelet-tracking-ga4', installed: true, availableOnChannel: true,
   purposes: ['analytics'], defaultEvents: [], necessarySetting: null, fields: [], ...over,
 })
 const dest = (over: Partial<Destination> = {}): Destination => ({

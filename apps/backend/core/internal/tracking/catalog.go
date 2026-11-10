@@ -10,8 +10,8 @@ type CatalogEntry struct {
 
 // FirstParty lists the destinations of the plugins skelet publishes, each in its own repository
 var FirstParty = []CatalogEntry{
-	{Kind: "ga4", Label: "Google Analytics 4", Plugin: "tracking-ga4"},
-	{Kind: "google_ads", Label: "Google Ads conversions", Plugin: "tracking-google-ads"},
-	{Kind: "google_ads_audience", Label: "Google Ads Customer Match", Plugin: "tracking-google-ads"},
-	{Kind: "meta_capi", Label: "Meta (Facebook, Instagram)", Plugin: "tracking-meta"},
+	{Kind: "ga4", Label: "Google Analytics 4", Plugin: "skelet-tracking-ga4"},
+	{Kind: "google_ads", Label: "Google Ads conversions", Plugin: "skelet-tracking-google-ads"},
+	{Kind: "google_ads_audience", Label: "Google Ads Customer Match", Plugin: "skelet-tracking-google-ads"},
+	{Kind: "meta_capi", Label: "Meta (Facebook, Instagram)", Plugin: "skelet-tracking-meta"},
 }
