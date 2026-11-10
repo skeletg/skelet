@@ -991,9 +991,9 @@ type BoardReport struct {
 }
 
 type BoardReportCondition struct {
-	Key    string   `json:"key"`
-	Op     string   `json:"op"`
-	Values []string `json:"values"`
+	Key    string           `json:"key"`
+	Op     PropertyFilterOp `json:"op"`
+	Values []string         `json:"values"`
 }
 
 type BoardReportDefinition struct {
@@ -1045,11 +1045,11 @@ type BoardReportDefinitionInput struct {
 }
 
 type BoardReportFilter struct {
-	Step   int32    `json:"step"`
-	Key    string   `json:"key"`
-	Value  string   `json:"value"`
-	Op     *string  `json:"op,omitempty"`
-	Values []string `json:"values,omitempty"`
+	Step   int32             `json:"step"`
+	Key    string            `json:"key"`
+	Value  string            `json:"value"`
+	Op     *PropertyFilterOp `json:"op,omitempty"`
+	Values []string          `json:"values,omitempty"`
 }
 
 type BoardReportInput struct {
@@ -3164,13 +3164,13 @@ type InsightPoint struct {
 	Bucket time.Time `json:"bucket"`
 	Key    string    `json:"key"`
 	Value  int32     `json:"value"`
-	Amount float64   `json:"amount"`
+	Amount int       `json:"amount"`
 }
 
 type InsightSeries struct {
-	Key    string  `json:"key"`
-	Total  int32   `json:"total"`
-	Amount float64 `json:"amount"`
+	Key    string `json:"key"`
+	Total  int32  `json:"total"`
+	Amount int    `json:"amount"`
 }
 
 type Integration struct {
@@ -5567,11 +5567,11 @@ type SynapseFunnelBreakdown struct {
 }
 
 type SynapseFunnelFilterInput struct {
-	Step   int32    `json:"step"`
-	Key    string   `json:"key"`
-	Value  string   `json:"value"`
-	Op     *string  `json:"op,omitempty"`
-	Values []string `json:"values,omitempty"`
+	Step   int32             `json:"step"`
+	Key    string            `json:"key"`
+	Op     *PropertyFilterOp `json:"op,omitempty"`
+	Values []string          `json:"values,omitempty"`
+	Value  *string           `json:"value,omitempty"`
 }
 
 type SynapseFunnelStep struct {
@@ -5587,8 +5587,8 @@ type SynapseInsights struct {
 	PrevTotal       int32            `json:"prevTotal"`
 	PrevUniques     int32            `json:"prevUniques"`
 	Aggregate       int32            `json:"aggregate"`
-	TotalAmount     float64          `json:"totalAmount"`
-	PrevTotalAmount float64          `json:"prevTotalAmount"`
+	TotalAmount     int              `json:"totalAmount"`
+	PrevTotalAmount int              `json:"prevTotalAmount"`
 	BaseCurrency    string           `json:"baseCurrency"`
 }
 
@@ -5605,9 +5605,9 @@ type SynapseOverview struct {
 }
 
 type SynapsePropertyFilterInput struct {
-	Key    string   `json:"key"`
-	Op     string   `json:"op"`
-	Values []string `json:"values"`
+	Key    string           `json:"key"`
+	Op     PropertyFilterOp `json:"op"`
+	Values []string         `json:"values"`
 }
 
 type SynapseRetention struct {
@@ -9910,6 +9910,63 @@ func (e *PromotionStopMode) UnmarshalJSON(b []byte) error {
 }
 
 func (e PromotionStopMode) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type PropertyFilterOp string
+
+const (
+	PropertyFilterOpEq  PropertyFilterOp = "EQ"
+	PropertyFilterOpNeq PropertyFilterOp = "NEQ"
+	PropertyFilterOpIn  PropertyFilterOp = "IN"
+)
+
+var AllPropertyFilterOp = []PropertyFilterOp{
+	PropertyFilterOpEq,
+	PropertyFilterOpNeq,
+	PropertyFilterOpIn,
+}
+
+func (e PropertyFilterOp) IsValid() bool {
+	switch e {
+	case PropertyFilterOpEq, PropertyFilterOpNeq, PropertyFilterOpIn:
+		return true
+	}
+	return false
+}
+
+func (e PropertyFilterOp) String() string {
+	return string(e)
+}
+
+func (e *PropertyFilterOp) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = PropertyFilterOp(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid PropertyFilterOp", str)
+	}
+	return nil
+}
+
+func (e PropertyFilterOp) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *PropertyFilterOp) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e PropertyFilterOp) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

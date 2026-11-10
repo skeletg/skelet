@@ -29,14 +29,10 @@ func boardReportsIn(in []*model.BoardReportInput) []*signalsv1.BoardReport {
 
 func reportIn(r *model.BoardReportInput) *signalsv1.BoardReport {
 	d := r.Definition
-	filters := make([]*signalsv1.FunnelFilter, 0, len(d.Filters))
-	for _, f := range d.Filters {
-		filters = append(filters, &signalsv1.FunnelFilter{Step: f.Step, Key: f.Key, Value: f.Value, Op: ptrOr(f.Op, ""), Values: f.Values})
-	}
 	return &signalsv1.BoardReport{Title: r.Title, Size: strings.ToLower(string(ptrOr(r.Size, ""))), Definition: &signalsv1.BoardReportDefinition{
 		Kind: strings.ToLower(string(d.Kind)), SinceDays: ptrOr(d.SinceDays, 0), Event: ptrOr(d.Event, ""),
 		Measure: ptrOr(d.Measure, ""), Unit: ptrOr(d.Unit, ""), Breakdown: ptrOr(d.Breakdown, ""), Steps: d.Steps,
-		Filters: filters, WindowHours: ptrOr(d.WindowHours, 0), StartEvent: ptrOr(d.StartEvent, ""),
+		Filters: funnelFiltersIn(d.Filters), WindowHours: ptrOr(d.WindowHours, 0), StartEvent: ptrOr(d.StartEvent, ""),
 		ReturnEvent: ptrOr(d.ReturnEvent, ""), Periods: ptrOr(d.Periods, 0), Depth: ptrOr(d.Depth, 0),
 		WindowDays: ptrOr(d.WindowDays, 0), Events: d.Events, SumKey: ptrOr(d.SumKey, ""),
 		Where: propertyFiltersIn(d.Where), StartWhere: propertyFiltersIn(d.StartWhere), ReturnWhere: propertyFiltersIn(d.ReturnWhere),
@@ -158,7 +154,7 @@ func reportOut(r *signalsv1.BoardReport) *model.BoardReport {
 	d := r.GetDefinition()
 	var filters []*model.BoardReportFilter
 	for _, f := range d.GetFilters() {
-		filters = append(filters, &model.BoardReportFilter{Step: f.GetStep(), Key: f.GetKey(), Value: f.GetValue(), Op: nilIfZero(f.GetOp()), Values: f.GetValues()})
+		filters = append(filters, &model.BoardReportFilter{Step: f.GetStep(), Key: f.GetKey(), Value: f.GetValue(), Op: nilIfZero(opOut(f.GetOp())), Values: f.GetValues()})
 	}
 	return &model.BoardReport{Title: r.GetTitle(), Size: nilIfZero(model.BoardReportSize(strings.ToUpper(r.GetSize()))), Definition: &model.BoardReportDefinition{
 		Kind: model.BoardReportKind(strings.ToUpper(d.GetKind())), SinceDays: nilIfZero(d.GetSinceDays()), Event: nilIfZero(d.GetEvent()),
@@ -174,7 +170,7 @@ func reportOut(r *signalsv1.BoardReport) *model.BoardReport {
 func conditionsOut(in []*signalsv1.PropertyFilter) []*model.BoardReportCondition {
 	var out []*model.BoardReportCondition
 	for _, c := range in {
-		out = append(out, &model.BoardReportCondition{Key: c.GetKey(), Op: c.GetOp(), Values: c.GetValues()})
+		out = append(out, &model.BoardReportCondition{Key: c.GetKey(), Op: opOut(c.GetOp()), Values: c.GetValues()})
 	}
 	return out
 }
@@ -286,10 +282,23 @@ func deref(s *string) string {
 func propertyFiltersIn(in []*model.SynapsePropertyFilterInput) []*signalsv1.PropertyFilter {
 	out := make([]*signalsv1.PropertyFilter, 0, len(in))
 	for _, f := range in {
-		out = append(out, &signalsv1.PropertyFilter{Key: strings.TrimSpace(f.Key), Op: f.Op, Values: f.Values})
+		out = append(out, &signalsv1.PropertyFilter{Key: strings.TrimSpace(f.Key), Op: opIn(f.Op), Values: f.Values})
 	}
 	return out
 }
+
+// funnelFiltersIn relays a funnel's step filters - Signals reads a lone value as the EQ it meant
+func funnelFiltersIn(in []*model.SynapseFunnelFilterInput) []*signalsv1.FunnelFilter {
+	out := make([]*signalsv1.FunnelFilter, 0, len(in))
+	for _, f := range in {
+		out = append(out, &signalsv1.FunnelFilter{Step: f.Step, Key: strings.TrimSpace(f.Key), Op: opIn(ptrOr(f.Op, "")), Values: f.Values, Value: ptrOr(f.Value, "")})
+	}
+	return out
+}
+
+// The contract spells the operators in lower case, GraphQL's enum in upper
+func opIn(op model.PropertyFilterOp) string  { return strings.ToLower(string(op)) }
+func opOut(op string) model.PropertyFilterOp { return model.PropertyFilterOp(strings.ToUpper(op)) }
 
 func nilIfZero[T comparable](v T) *T {
 	var zero T

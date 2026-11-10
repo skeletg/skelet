@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
@@ -239,9 +240,7 @@ func (r *queryResolver) SynapseFunnel(ctx context.Context, channelID string, ste
 	if breakdown != nil {
 		req.Breakdown = *breakdown
 	}
-	for _, f := range filters {
-		req.Filters = append(req.Filters, &signalsv1.FunnelFilter{Step: f.Step, Key: f.Key, Value: f.Value, Op: deref(f.Op), Values: f.Values})
-	}
+	req.Filters = funnelFiltersIn(filters)
 	res, err := r.SignalsAPI.Synapse.GetFunnel(authed, req)
 	if err != nil {
 		return nil, signalsErr(err)
@@ -355,17 +354,17 @@ func (r *queryResolver) SynapseInsights(ctx context.Context, channelID string, e
 	out := &model.SynapseInsights{
 		Points: make([]*model.InsightPoint, 0, len(ins.GetPoints())), Series: make([]*model.InsightSeries, 0, len(ins.GetSeries())),
 		Total: ins.GetTotal(), Uniques: ins.GetUniques(), PrevTotal: ins.GetPrevTotal(), PrevUniques: ins.GetPrevUniques(), Aggregate: ins.GetAggregate(),
-		TotalAmount: float64(ins.GetTotalAmount()), PrevTotalAmount: float64(ins.GetPrevTotalAmount()),
-		BaseCurrency: config.DefaultBaseCurrency,
+		TotalAmount: int(ins.GetTotalAmount()), PrevTotalAmount: int(ins.GetPrevTotalAmount()),
 	}
-	if base, err := r.ConfigSvc.GetString(ctx, config.BaseCurrencyPath, config.DefaultScope); err == nil && base != "" {
-		out.BaseCurrency = base
+	// The currency the amounts were converted into as they happened - unreadable, the sums can't say what they're in
+	if out.BaseCurrency, err = currency.BaseCode(ctx, r.ConfigSvc); err != nil {
+		return nil, err
 	}
 	for _, p := range ins.GetPoints() {
-		out.Points = append(out.Points, &model.InsightPoint{Bucket: p.GetBucket().AsTime(), Key: p.GetKey(), Value: p.GetValue(), Amount: float64(p.GetAmount())})
+		out.Points = append(out.Points, &model.InsightPoint{Bucket: p.GetBucket().AsTime(), Key: p.GetKey(), Value: p.GetValue(), Amount: int(p.GetAmount())})
 	}
 	for _, s := range ins.GetSeries() {
-		out.Series = append(out.Series, &model.InsightSeries{Key: s.GetKey(), Total: s.GetTotal(), Amount: float64(s.GetAmount())})
+		out.Series = append(out.Series, &model.InsightSeries{Key: s.GetKey(), Total: s.GetTotal(), Amount: int(s.GetAmount())})
 	}
 	return out, nil
 }

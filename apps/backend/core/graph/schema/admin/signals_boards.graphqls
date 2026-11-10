@@ -149,14 +149,14 @@ type BoardReportFilter {
   step:   Int!   # 0-based
   key:    String!
   value:  String!
-  op:     String     # eq (unset) | neq | in
-  values: [String!]  # for in
+  op:     PropertyFilterOp
+  values: [String!]
 }
 
 # Holds a report's events to those whose property compares to the values: eq (one value), neq or in
 type BoardReportCondition {
   key:    String!
-  op:     String!
+  op:     PropertyFilterOp!
   values: [String!]!
 }
 

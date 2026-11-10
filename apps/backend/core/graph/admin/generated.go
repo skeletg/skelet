@@ -42707,14 +42707,14 @@ type BoardReportFilter {
   step:   Int!   # 0-based
   key:    String!
   value:  String!
-  op:     String     # eq (unset) | neq | in
-  values: [String!]  # for in
+  op:     PropertyFilterOp
+  values: [String!]
 }
 
 # Holds a report's events to those whose property compares to the values: eq (one value), neq or in
 type BoardReportCondition {
   key:    String!
-  op:     String!
+  op:     PropertyFilterOp!
   values: [String!]!
 }
 
@@ -43172,16 +43172,22 @@ type SynapseFunnelBreakdown {
 input SynapseFunnelFilterInput {
   step:   Int!   # 0-based
   key:    String!
-  value:  String!
-  op:     String     # eq (unset) | neq | in
-  values: [String!]  # for in; neq and eq take value
+  op:     PropertyFilterOp  # unset = EQ
+  values: [String!]
+  value:  String            # a filter from before operators - the one value, compared with EQ
+}
+
+enum PropertyFilterOp {
+  EQ   # the one value
+  NEQ  # not it - an event without the property passes
+  IN   # one of up to 50
 }
 
 # Holds a report's events to those whose property compares to the values: eq (one value), neq (an event without the
 # property passes) or in (up to 50). Compared as text - numbers and bools as written
 input SynapsePropertyFilterInput {
   key:    String!
-  op:     String!
+  op:     PropertyFilterOp!
   values: [String!]!
 }
 
@@ -43189,12 +43195,12 @@ type InsightPoint {
   bucket: Time!
   key:    String!   # breakdown series this value belongs to
   value:  Int!
-  amount: Float!    # on a sum, the value unclamped
+  amount: Int64!    # the measure unclamped - value stops at Int, which a sum in cents passes
 }
 type InsightSeries {
   key:    String!
   total:  Int!
-  amount: Float!    # on a sum, the total unclamped
+  amount: Int64!    # the total unclamped
 }
 
 # Ad-hoc breakdown: a measure over time, split by a property.
@@ -43208,8 +43214,8 @@ type SynapseInsights {
   prevUniques: Int!
   aggregate:   Int!   # of total, events counted as nobody - visitors who hadn't allowed analytics
   # On a sum, total and prevTotal unclamped - money in cents passes Int's range
-  totalAmount:     Float!
-  prevTotalAmount: Float!
+  totalAmount:     Int64!
+  prevTotalAmount: Int64!
   # The currency a *_base_cents sum is in - the platform's base currency
   baseCurrency:    String!
 }
@@ -80422,15 +80428,15 @@ func (ec *executionContext) _BoardReportCondition_op(ctx context.Context, field 
 			return obj.Op, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v model.PropertyFilterOp) graphql.Marshaler {
+			return ec.marshalNPropertyFilterOp2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPropertyFilterOp(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
 func (ec *executionContext) fieldContext_BoardReportCondition_op(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("BoardReportCondition", field, false, false, errors.New("field of type String does not have child fields"))
+	return graphql.NewScalarFieldContext("BoardReportCondition", field, false, false, errors.New("field of type PropertyFilterOp does not have child fields"))
 }
 
 func (ec *executionContext) _BoardReportCondition_values(ctx context.Context, field graphql.CollectedField, obj *model.BoardReportCondition) (ret graphql.Marshaler) {
@@ -81056,15 +81062,15 @@ func (ec *executionContext) _BoardReportFilter_op(ctx context.Context, field gra
 			return obj.Op, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
-			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v *model.PropertyFilterOp) graphql.Marshaler {
+			return ec.marshalOPropertyFilterOp2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPropertyFilterOp(ctx, selections, v)
 		},
 		true,
 		false,
 	)
 }
 func (ec *executionContext) fieldContext_BoardReportFilter_op(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("BoardReportFilter", field, false, false, errors.New("field of type String does not have child fields"))
+	return graphql.NewScalarFieldContext("BoardReportFilter", field, false, false, errors.New("field of type PropertyFilterOp does not have child fields"))
 }
 
 func (ec *executionContext) _BoardReportFilter_values(ctx context.Context, field graphql.CollectedField, obj *model.BoardReportFilter) (ret graphql.Marshaler) {
@@ -105158,15 +105164,15 @@ func (ec *executionContext) _InsightPoint_amount(ctx context.Context, field grap
 			return obj.Amount, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
-			return ec.marshalNFloat2float64(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt642int(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
 func (ec *executionContext) fieldContext_InsightPoint_amount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("InsightPoint", field, false, false, errors.New("field of type Float does not have child fields"))
+	return graphql.NewScalarFieldContext("InsightPoint", field, false, false, errors.New("field of type Int64 does not have child fields"))
 }
 
 func (ec *executionContext) _InsightSeries_key(ctx context.Context, field graphql.CollectedField, obj *model.InsightSeries) (ret graphql.Marshaler) {
@@ -105227,15 +105233,15 @@ func (ec *executionContext) _InsightSeries_amount(ctx context.Context, field gra
 			return obj.Amount, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
-			return ec.marshalNFloat2float64(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt642int(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
 func (ec *executionContext) fieldContext_InsightSeries_amount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("InsightSeries", field, false, false, errors.New("field of type Float does not have child fields"))
+	return graphql.NewScalarFieldContext("InsightSeries", field, false, false, errors.New("field of type Int64 does not have child fields"))
 }
 
 func (ec *executionContext) _Integration_id(ctx context.Context, field graphql.CollectedField, obj *model.Integration) (ret graphql.Marshaler) {
@@ -171195,15 +171201,15 @@ func (ec *executionContext) _SynapseInsights_totalAmount(ctx context.Context, fi
 			return obj.TotalAmount, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
-			return ec.marshalNFloat2float64(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt642int(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
 func (ec *executionContext) fieldContext_SynapseInsights_totalAmount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("SynapseInsights", field, false, false, errors.New("field of type Float does not have child fields"))
+	return graphql.NewScalarFieldContext("SynapseInsights", field, false, false, errors.New("field of type Int64 does not have child fields"))
 }
 
 func (ec *executionContext) _SynapseInsights_prevTotalAmount(ctx context.Context, field graphql.CollectedField, obj *model.SynapseInsights) (ret graphql.Marshaler) {
@@ -171218,15 +171224,15 @@ func (ec *executionContext) _SynapseInsights_prevTotalAmount(ctx context.Context
 			return obj.PrevTotalAmount, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
-			return ec.marshalNFloat2float64(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt642int(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
 func (ec *executionContext) fieldContext_SynapseInsights_prevTotalAmount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("SynapseInsights", field, false, false, errors.New("field of type Float does not have child fields"))
+	return graphql.NewScalarFieldContext("SynapseInsights", field, false, false, errors.New("field of type Int64 does not have child fields"))
 }
 
 func (ec *executionContext) _SynapseInsights_baseCurrency(ctx context.Context, field graphql.CollectedField, obj *model.SynapseInsights) (ret graphql.Marshaler) {
@@ -188449,7 +188455,7 @@ func (ec *executionContext) unmarshalInputSynapseFunnelFilterInput(ctx context.C
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"step", "key", "value", "op", "values"}
+	fieldsInOrder := [...]string{"step", "key", "op", "values", "value"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -188470,16 +188476,9 @@ func (ec *executionContext) unmarshalInputSynapseFunnelFilterInput(ctx context.C
 				return it, err
 			}
 			it.Key = data
-		case "value":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("value"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Value = data
 		case "op":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("op"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			data, err := ec.unmarshalOPropertyFilterOp2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPropertyFilterOp(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -188491,6 +188490,13 @@ func (ec *executionContext) unmarshalInputSynapseFunnelFilterInput(ctx context.C
 				return it, err
 			}
 			it.Values = data
+		case "value":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("value"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Value = data
 		}
 	}
 	return it, nil
@@ -188523,7 +188529,7 @@ func (ec *executionContext) unmarshalInputSynapsePropertyFilterInput(ctx context
 			it.Key = data
 		case "op":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("op"))
-			data, err := ec.unmarshalNString2string(ctx, v)
+			data, err := ec.unmarshalNPropertyFilterOp2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPropertyFilterOp(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -245310,6 +245316,16 @@ func (ec *executionContext) marshalNPromotionTypeDescriptor2ᚖgithubᚗcomᚋsk
 	return ec._PromotionTypeDescriptor(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNPropertyFilterOp2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPropertyFilterOp(ctx context.Context, v any) (model.PropertyFilterOp, error) {
+	var res model.PropertyFilterOp
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNPropertyFilterOp2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPropertyFilterOp(ctx context.Context, sel ast.SelectionSet, v model.PropertyFilterOp) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) marshalNPulseEngagement2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPulseEngagement(ctx context.Context, sel ast.SelectionSet, v model.PulseEngagement) graphql.Marshaler {
 	return ec._PulseEngagement(ctx, sel, &v)
 }
@@ -250757,6 +250773,22 @@ func (ec *executionContext) unmarshalOPromotionStopMode2ᚖgithubᚗcomᚋskelet
 }
 
 func (ec *executionContext) marshalOPromotionStopMode2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPromotionStopMode(ctx context.Context, sel ast.SelectionSet, v *model.PromotionStopMode) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
+func (ec *executionContext) unmarshalOPropertyFilterOp2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPropertyFilterOp(ctx context.Context, v any) (*model.PropertyFilterOp, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.PropertyFilterOp)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOPropertyFilterOp2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPropertyFilterOp(ctx context.Context, sel ast.SelectionSet, v *model.PropertyFilterOp) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}

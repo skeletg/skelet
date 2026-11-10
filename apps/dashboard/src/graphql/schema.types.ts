@@ -1144,7 +1144,7 @@ export type BoardReport = {
 export type BoardReportCondition = {
   __typename?: 'BoardReportCondition';
   key: Scalars['String']['output'];
-  op: Scalars['String']['output'];
+  op: PropertyFilterOp;
   values: Array<Scalars['String']['output']>;
 };
 
@@ -1200,7 +1200,7 @@ export type BoardReportDefinitionInput = {
 export type BoardReportFilter = {
   __typename?: 'BoardReportFilter';
   key: Scalars['String']['output'];
-  op?: Maybe<Scalars['String']['output']>;
+  op?: Maybe<PropertyFilterOp>;
   step: Scalars['Int']['output'];
   value: Scalars['String']['output'];
   values?: Maybe<Array<Scalars['String']['output']>>;
@@ -3624,7 +3624,7 @@ export type HealthStatus =
 
 export type InsightPoint = {
   __typename?: 'InsightPoint';
-  amount: Scalars['Float']['output'];
+  amount: Scalars['Int64']['output'];
   bucket: Scalars['Time']['output'];
   key: Scalars['String']['output'];
   value: Scalars['Int']['output'];
@@ -3632,7 +3632,7 @@ export type InsightPoint = {
 
 export type InsightSeries = {
   __typename?: 'InsightSeries';
-  amount: Scalars['Float']['output'];
+  amount: Scalars['Int64']['output'];
   key: Scalars['String']['output'];
   total: Scalars['Int']['output'];
 };
@@ -8564,6 +8564,11 @@ export type PromotionTypeDescriptor = {
   slug: Scalars['String']['output'];
 };
 
+export type PropertyFilterOp =
+  | 'EQ'
+  | 'IN'
+  | 'NEQ';
+
 export type PulseEngagement = {
   __typename?: 'PulseEngagement';
   clicks: Scalars['Int']['output'];
@@ -11481,9 +11486,9 @@ export type SynapseFunnelBreakdown = {
 
 export type SynapseFunnelFilterInput = {
   key: Scalars['String']['input'];
-  op?: InputMaybe<Scalars['String']['input']>;
+  op?: InputMaybe<PropertyFilterOp>;
   step: Scalars['Int']['input'];
-  value: Scalars['String']['input'];
+  value?: InputMaybe<Scalars['String']['input']>;
   values?: InputMaybe<Array<Scalars['String']['input']>>;
 };
 
@@ -11499,11 +11504,11 @@ export type SynapseInsights = {
   baseCurrency: Scalars['String']['output'];
   points: Array<InsightPoint>;
   prevTotal: Scalars['Int']['output'];
-  prevTotalAmount: Scalars['Float']['output'];
+  prevTotalAmount: Scalars['Int64']['output'];
   prevUniques: Scalars['Int']['output'];
   series: Array<InsightSeries>;
   total: Scalars['Int']['output'];
-  totalAmount: Scalars['Float']['output'];
+  totalAmount: Scalars['Int64']['output'];
   uniques: Scalars['Int']['output'];
 };
 
@@ -11522,7 +11527,7 @@ export type SynapseOverview = {
 
 export type SynapsePropertyFilterInput = {
   key: Scalars['String']['input'];
-  op: Scalars['String']['input'];
+  op: PropertyFilterOp;
   values: Array<Scalars['String']['input']>;
 };
 
