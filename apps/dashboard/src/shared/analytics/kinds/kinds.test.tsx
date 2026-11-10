@@ -118,12 +118,18 @@ describe('conditions', () => {
 })
 
 describe('net sales', () => {
-  it('is one choice in the event list that sets the events and the sum', () => {
+  it('is a measure of its own that sets the events and the sum, and back to a count drops them', () => {
     const onChange = controls(KINDS.INSIGHTS.start)
-    fireEvent.change(screen.getByRole('combobox', { name: 'Event' }), { target: { value: '__net_sales' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Net sales' }))
     const d = onChange.mock.lastCall![0]
     expect(isNetSales(d)).toBe(true)
     expect(KINDS.INSIGHTS.describe(d)).toBe('Net sales')
+  })
+  it('back to a count drops the net sales events', () => {
+    const onChange = controls({ kind: 'INSIGHTS', events: ['order_line', 'order_line_adjusted', 'refund_line'], measure: 'sum', sumKey: 'net_base_cents' })
+    expect(screen.queryByRole('combobox', { name: 'Event' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Total' }))
+    expect(onChange).toHaveBeenLastCalledWith({ kind: 'INSIGHTS', measure: 'total', sumKey: undefined, events: undefined })
   })
 })
 

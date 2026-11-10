@@ -9,7 +9,7 @@ import { eventLabel } from '@/features/synapse/eventLabel'
 import { aggregateNote } from '@/features/synapse/aggregateNote'
 import { SynapseInsightsDocument } from '@/features/synapse/Synapse.gql'
 import { ConditionsEditor } from './conditions'
-import { Bars, Field, Headline, Note, State, StatTile, Toggle, pct, useTopEvents } from './ui'
+import { Bars, EventSelect, Field, Headline, Note, State, StatTile, Toggle, pct, useTopEvents } from './ui'
 import { NET_SALES, describeConditions, isNetSales, readyConditions, type ControlsProps, type Kind, type ReportDefinition, type ResultProps } from './definition'
 
 // What a sum can add up - integer properties the spine's commerce events carry
@@ -19,7 +19,6 @@ export const SUM_KEYS: { key: string; label: string }[] = [
   { key: 'revenue_base_cents', label: 'Attributed revenue (base currency)' },
   { key: 'qty', label: 'Units' },
 ]
-const NET = '__net_sales'
 const eventsOf = (d: ReportDefinition) => d.events ?? (d.event ? [d.event] : [])
 
 // Breakdown properties the spine's events carry. '' = none
@@ -41,43 +40,32 @@ const DEFAULTS = { measure: 'total', unit: 'day' } as const
 function InsightsControls({ channelId, value: d, onChange }: ControlsProps) {
   const events = useTopEvents(channelId)
   const net = isNetSales(d)
-  const current = net ? NET : (d.event ?? '')
-  const options = !current || current === NET || events.includes(current) ? events : [current, ...events]
+  // Net sales is a measure of its own: the sum of every line's net over the lines placed, edited and refunded
+  const setMeasure = (m: string) =>
+    onChange(
+      m === 'net'
+        ? { ...d, event: undefined, events: [...NET_SALES.events], measure: NET_SALES.measure, sumKey: NET_SALES.sumKey }
+        : { ...d, measure: m, sumKey: m === 'sum' ? (net ? SUM_KEYS[0].key : (d.sumKey ?? SUM_KEYS[0].key)) : undefined, ...(net ? { events: undefined } : {}) },
+    )
   return (
     <div className="space-y-3">
     <div className="flex flex-wrap items-end gap-3 text-sm">
-      <Field label="Event">
-        <select
-          aria-label="Event"
-          value={current}
-          onChange={(e) => {
-            const v = e.target.value
-            if (v === NET) onChange({ ...d, event: undefined, events: [...NET_SALES.events], measure: 'sum', sumKey: NET_SALES.sumKey })
-            else onChange({ ...d, event: v, events: undefined, ...(net ? { measure: 'total', sumKey: undefined } : {}) })
-          }}
-          className="rounded border bg-background px-2 py-1.5 text-sm"
-        >
-          <option value={NET}>Net sales</option>
-          <option value="">Any event</option>
-          {options.map((e) => (
-            <option key={e} value={e}>
-              {eventLabel(e)}
-            </option>
-          ))}
-        </select>
+      <Field label="Measure">
+        <Toggle
+          label="Measure"
+          options={[
+            { v: 'total', l: 'Total' },
+            { v: 'unique', l: 'Unique' },
+            { v: 'sum', l: 'Sum' },
+            { v: 'net', l: 'Net sales' },
+          ]}
+          value={net ? 'net' : (d.measure ?? DEFAULTS.measure)}
+          onChange={setMeasure}
+        />
       </Field>
       {!net && (
-        <Field label="Measure">
-          <Toggle
-            label="Measure"
-            options={[
-              { v: 'total', l: 'Total' },
-              { v: 'unique', l: 'Unique' },
-              { v: 'sum', l: 'Sum' },
-            ]}
-            value={d.measure ?? DEFAULTS.measure}
-            onChange={(measure) => onChange({ ...d, measure, sumKey: measure === 'sum' ? (d.sumKey ?? SUM_KEYS[0].key) : undefined })}
-          />
+        <Field label="Event">
+          <EventSelect label="Event" value={d.event ?? ''} onChange={(event) => onChange({ ...d, event })} events={events} anyLabel="Any event" />
         </Field>
       )}
       {!net && d.measure === 'sum' && (
