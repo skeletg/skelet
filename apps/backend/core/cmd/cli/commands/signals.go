@@ -2,9 +2,6 @@ package commands
 
 import (
 	"fmt"
-	"github.com/skeletg/skelet/apps/backend/core/internal/configstore"
-	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
-	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"os"
 	"strings"
 	"time"
@@ -12,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/configstore"
+	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
