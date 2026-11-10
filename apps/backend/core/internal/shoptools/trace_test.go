@@ -86,6 +86,7 @@ func (l langfuseSettings) GetString(_ context.Context, path string, _ config.Sco
 // A stand-in for Langfuse that keeps every score request it's sent
 func fakeLangfuse(t *testing.T) (*aitrace.Sink, func() string) {
 	t.Helper()
+	t.Setenv("ALLOW_PRIVATE_WEBHOOK_TARGETS", "true")
 	var mu sync.Mutex
 	var scores []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
