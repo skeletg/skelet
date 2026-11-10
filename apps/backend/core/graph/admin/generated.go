@@ -802,27 +802,42 @@ type ComplexityRoot struct {
 		Title      func(childComplexity int) int
 	}
 
+	BoardReportCondition struct {
+		Key    func(childComplexity int) int
+		Op     func(childComplexity int) int
+		Values func(childComplexity int) int
+	}
+
 	BoardReportDefinition struct {
-		Breakdown   func(childComplexity int) int
-		Depth       func(childComplexity int) int
-		Event       func(childComplexity int) int
-		Filters     func(childComplexity int) int
-		Kind        func(childComplexity int) int
-		Measure     func(childComplexity int) int
-		Periods     func(childComplexity int) int
-		ReturnEvent func(childComplexity int) int
-		SinceDays   func(childComplexity int) int
-		StartEvent  func(childComplexity int) int
-		Steps       func(childComplexity int) int
-		Unit        func(childComplexity int) int
-		WindowDays  func(childComplexity int) int
-		WindowHours func(childComplexity int) int
+		Breakdown          func(childComplexity int) int
+		Depth              func(childComplexity int) int
+		Event              func(childComplexity int) int
+		Events             func(childComplexity int) int
+		Filters            func(childComplexity int) int
+		Kind               func(childComplexity int) int
+		Measure            func(childComplexity int) int
+		NotThen            func(childComplexity int) int
+		NotThenWithinHours func(childComplexity int) int
+		Periods            func(childComplexity int) int
+		ReturnEvent        func(childComplexity int) int
+		ReturnWhere        func(childComplexity int) int
+		SinceDays          func(childComplexity int) int
+		StartEvent         func(childComplexity int) int
+		StartWhere         func(childComplexity int) int
+		Steps              func(childComplexity int) int
+		SumKey             func(childComplexity int) int
+		Unit               func(childComplexity int) int
+		Where              func(childComplexity int) int
+		WindowDays         func(childComplexity int) int
+		WindowHours        func(childComplexity int) int
 	}
 
 	BoardReportFilter struct {
-		Key   func(childComplexity int) int
-		Step  func(childComplexity int) int
-		Value func(childComplexity int) int
+		Key    func(childComplexity int) int
+		Op     func(childComplexity int) int
+		Step   func(childComplexity int) int
+		Value  func(childComplexity int) int
+		Values func(childComplexity int) int
 	}
 
 	BoardShare struct {
@@ -2231,14 +2246,16 @@ type ComplexityRoot struct {
 	}
 
 	InsightPoint struct {
+		Amount func(childComplexity int) int
 		Bucket func(childComplexity int) int
 		Key    func(childComplexity int) int
 		Value  func(childComplexity int) int
 	}
 
 	InsightSeries struct {
-		Key   func(childComplexity int) int
-		Total func(childComplexity int) int
+		Amount func(childComplexity int) int
+		Key    func(childComplexity int) int
+		Total  func(childComplexity int) int
 	}
 
 	Integration struct {
@@ -4166,15 +4183,15 @@ type ComplexityRoot struct {
 		Subscription                 func(childComplexity int, id string) int
 		Subscriptions                func(childComplexity int, status *model.SubscriptionStatus, limit *int32, offset *int32) int
 		SubscriptionsPaged           func(childComplexity int, status *model.SubscriptionStatus, limit *int32, offset *int32) int
-		SynapseFlow                  func(childComplexity int, channelID string, event string, sinceDays *int32, depth *int32) int
+		SynapseFlow                  func(childComplexity int, channelID string, event string, sinceDays *int32, depth *int32, filters []*model.SynapsePropertyFilterInput, notThen *string, notThenWithinHours *int32) int
 		SynapseFunnel                func(childComplexity int, channelID string, steps []string, sinceDays *int32, windowHours *int32, filters []*model.SynapseFunnelFilterInput, breakdown *string) int
-		SynapseInsights              func(childComplexity int, channelID string, event *string, breakdown *string, measure *string, unit *string, sinceDays *int32) int
+		SynapseInsights              func(childComplexity int, channelID string, event *string, breakdown *string, measure *string, unit *string, sinceDays *int32, events []string, sumKey *string, filters []*model.SynapsePropertyFilterInput) int
 		SynapseOverview              func(childComplexity int, channelID string, sinceDays *int32) int
-		SynapseRetention             func(childComplexity int, channelID string, startEvent string, returnEvent string, sinceDays *int32, periods *int32, unit *string) int
+		SynapseRetention             func(childComplexity int, channelID string, startEvent string, returnEvent string, sinceDays *int32, periods *int32, unit *string, startFilters []*model.SynapsePropertyFilterInput, returnFilters []*model.SynapsePropertyFilterInput) int
 		SynapseSegment               func(childComplexity int, id string) int
 		SynapseSegmentPreview        func(childComplexity int, channelID string, root *model.SegmentNodeInput, conditions []*model.SegmentConditionInput, trait *model.SegmentTraitInput, affinity *model.SegmentAffinityInput) int
 		SynapseSegments              func(childComplexity int, channelID string) int
-		SynapseStickiness            func(childComplexity int, channelID string, event *string, sinceDays *int32, windowDays *int32) int
+		SynapseStickiness            func(childComplexity int, channelID string, event *string, sinceDays *int32, windowDays *int32, filters []*model.SynapsePropertyFilterInput) int
 		SynapseTrackedAttributes     func(childComplexity int, channelID string) int
 		SystemHealth                 func(childComplexity int) int
 		TaxConditionTypes            func(childComplexity int) int
@@ -4970,13 +4987,16 @@ type ComplexityRoot struct {
 	}
 
 	SynapseInsights struct {
-		Aggregate   func(childComplexity int) int
-		Points      func(childComplexity int) int
-		PrevTotal   func(childComplexity int) int
-		PrevUniques func(childComplexity int) int
-		Series      func(childComplexity int) int
-		Total       func(childComplexity int) int
-		Uniques     func(childComplexity int) int
+		Aggregate       func(childComplexity int) int
+		BaseCurrency    func(childComplexity int) int
+		Points          func(childComplexity int) int
+		PrevTotal       func(childComplexity int) int
+		PrevTotalAmount func(childComplexity int) int
+		PrevUniques     func(childComplexity int) int
+		Series          func(childComplexity int) int
+		Total           func(childComplexity int) int
+		TotalAmount     func(childComplexity int) int
+		Uniques         func(childComplexity int) int
 	}
 
 	SynapseOverview struct {
@@ -6184,10 +6204,10 @@ type QueryResolver interface {
 	SynapseSegments(ctx context.Context, channelID string) ([]*model.SynapseSegment, error)
 	SynapseSegmentPreview(ctx context.Context, channelID string, root *model.SegmentNodeInput, conditions []*model.SegmentConditionInput, trait *model.SegmentTraitInput, affinity *model.SegmentAffinityInput) (int32, error)
 	SynapseFunnel(ctx context.Context, channelID string, steps []string, sinceDays *int32, windowHours *int32, filters []*model.SynapseFunnelFilterInput, breakdown *string) (*model.SynapseFunnel, error)
-	SynapseFlow(ctx context.Context, channelID string, event string, sinceDays *int32, depth *int32) (*model.SynapseFlow, error)
-	SynapseStickiness(ctx context.Context, channelID string, event *string, sinceDays *int32, windowDays *int32) (*model.SynapseStickiness, error)
-	SynapseInsights(ctx context.Context, channelID string, event *string, breakdown *string, measure *string, unit *string, sinceDays *int32) (*model.SynapseInsights, error)
-	SynapseRetention(ctx context.Context, channelID string, startEvent string, returnEvent string, sinceDays *int32, periods *int32, unit *string) (*model.SynapseRetention, error)
+	SynapseFlow(ctx context.Context, channelID string, event string, sinceDays *int32, depth *int32, filters []*model.SynapsePropertyFilterInput, notThen *string, notThenWithinHours *int32) (*model.SynapseFlow, error)
+	SynapseStickiness(ctx context.Context, channelID string, event *string, sinceDays *int32, windowDays *int32, filters []*model.SynapsePropertyFilterInput) (*model.SynapseStickiness, error)
+	SynapseInsights(ctx context.Context, channelID string, event *string, breakdown *string, measure *string, unit *string, sinceDays *int32, events []string, sumKey *string, filters []*model.SynapsePropertyFilterInput) (*model.SynapseInsights, error)
+	SynapseRetention(ctx context.Context, channelID string, startEvent string, returnEvent string, sinceDays *int32, periods *int32, unit *string, startFilters []*model.SynapsePropertyFilterInput, returnFilters []*model.SynapsePropertyFilterInput) (*model.SynapseRetention, error)
 	VisitorProfile(ctx context.Context, channelID string, anonID string, sinceDays *int32) (*model.CustomerProfile, error)
 	CustomerAudiences(ctx context.Context, customerID string) ([]*model.SignalSegment, error)
 	Subscriptions(ctx context.Context, status *model.SubscriptionStatus, limit *int32, offset *int32) ([]*model.CustomerSubscription, error)
@@ -9355,6 +9375,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.BoardReport.Title(childComplexity), true
 
+	case "BoardReportCondition.key":
+		if e.ComplexityRoot.BoardReportCondition.Key == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardReportCondition.Key(childComplexity), true
+	case "BoardReportCondition.op":
+		if e.ComplexityRoot.BoardReportCondition.Op == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardReportCondition.Op(childComplexity), true
+	case "BoardReportCondition.values":
+		if e.ComplexityRoot.BoardReportCondition.Values == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardReportCondition.Values(childComplexity), true
+
 	case "BoardReportDefinition.breakdown":
 		if e.ComplexityRoot.BoardReportDefinition.Breakdown == nil {
 			break
@@ -9373,6 +9412,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.BoardReportDefinition.Event(childComplexity), true
+	case "BoardReportDefinition.events":
+		if e.ComplexityRoot.BoardReportDefinition.Events == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardReportDefinition.Events(childComplexity), true
 	case "BoardReportDefinition.filters":
 		if e.ComplexityRoot.BoardReportDefinition.Filters == nil {
 			break
@@ -9391,6 +9436,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.BoardReportDefinition.Measure(childComplexity), true
+	case "BoardReportDefinition.notThen":
+		if e.ComplexityRoot.BoardReportDefinition.NotThen == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardReportDefinition.NotThen(childComplexity), true
+	case "BoardReportDefinition.notThenWithinHours":
+		if e.ComplexityRoot.BoardReportDefinition.NotThenWithinHours == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardReportDefinition.NotThenWithinHours(childComplexity), true
 	case "BoardReportDefinition.periods":
 		if e.ComplexityRoot.BoardReportDefinition.Periods == nil {
 			break
@@ -9403,6 +9460,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.BoardReportDefinition.ReturnEvent(childComplexity), true
+	case "BoardReportDefinition.returnWhere":
+		if e.ComplexityRoot.BoardReportDefinition.ReturnWhere == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardReportDefinition.ReturnWhere(childComplexity), true
 	case "BoardReportDefinition.sinceDays":
 		if e.ComplexityRoot.BoardReportDefinition.SinceDays == nil {
 			break
@@ -9415,18 +9478,36 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.BoardReportDefinition.StartEvent(childComplexity), true
+	case "BoardReportDefinition.startWhere":
+		if e.ComplexityRoot.BoardReportDefinition.StartWhere == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardReportDefinition.StartWhere(childComplexity), true
 	case "BoardReportDefinition.steps":
 		if e.ComplexityRoot.BoardReportDefinition.Steps == nil {
 			break
 		}
 
 		return e.ComplexityRoot.BoardReportDefinition.Steps(childComplexity), true
+	case "BoardReportDefinition.sumKey":
+		if e.ComplexityRoot.BoardReportDefinition.SumKey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardReportDefinition.SumKey(childComplexity), true
 	case "BoardReportDefinition.unit":
 		if e.ComplexityRoot.BoardReportDefinition.Unit == nil {
 			break
 		}
 
 		return e.ComplexityRoot.BoardReportDefinition.Unit(childComplexity), true
+	case "BoardReportDefinition.where":
+		if e.ComplexityRoot.BoardReportDefinition.Where == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardReportDefinition.Where(childComplexity), true
 	case "BoardReportDefinition.windowDays":
 		if e.ComplexityRoot.BoardReportDefinition.WindowDays == nil {
 			break
@@ -9446,6 +9527,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.BoardReportFilter.Key(childComplexity), true
+	case "BoardReportFilter.op":
+		if e.ComplexityRoot.BoardReportFilter.Op == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardReportFilter.Op(childComplexity), true
 	case "BoardReportFilter.step":
 		if e.ComplexityRoot.BoardReportFilter.Step == nil {
 			break
@@ -9458,6 +9545,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.BoardReportFilter.Value(childComplexity), true
+	case "BoardReportFilter.values":
+		if e.ComplexityRoot.BoardReportFilter.Values == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BoardReportFilter.Values(childComplexity), true
 
 	case "BoardShare.adminId":
 		if e.ComplexityRoot.BoardShare.AdminID == nil {
@@ -15531,6 +15624,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.HealthGroup.Label(childComplexity), true
 
+	case "InsightPoint.amount":
+		if e.ComplexityRoot.InsightPoint.Amount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InsightPoint.Amount(childComplexity), true
 	case "InsightPoint.bucket":
 		if e.ComplexityRoot.InsightPoint.Bucket == nil {
 			break
@@ -15550,6 +15649,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.InsightPoint.Value(childComplexity), true
 
+	case "InsightSeries.amount":
+		if e.ComplexityRoot.InsightSeries.Amount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InsightSeries.Amount(childComplexity), true
 	case "InsightSeries.key":
 		if e.ComplexityRoot.InsightSeries.Key == nil {
 			break
@@ -28643,7 +28748,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.SynapseFlow(childComplexity, args["channelId"].(string), args["event"].(string), args["sinceDays"].(*int32), args["depth"].(*int32)), true
+		return e.ComplexityRoot.Query.SynapseFlow(childComplexity, args["channelId"].(string), args["event"].(string), args["sinceDays"].(*int32), args["depth"].(*int32), args["filters"].([]*model.SynapsePropertyFilterInput), args["notThen"].(*string), args["notThenWithinHours"].(*int32)), true
 	case "Query.synapseFunnel":
 		if e.ComplexityRoot.Query.SynapseFunnel == nil {
 			break
@@ -28665,7 +28770,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.SynapseInsights(childComplexity, args["channelId"].(string), args["event"].(*string), args["breakdown"].(*string), args["measure"].(*string), args["unit"].(*string), args["sinceDays"].(*int32)), true
+		return e.ComplexityRoot.Query.SynapseInsights(childComplexity, args["channelId"].(string), args["event"].(*string), args["breakdown"].(*string), args["measure"].(*string), args["unit"].(*string), args["sinceDays"].(*int32), args["events"].([]string), args["sumKey"].(*string), args["filters"].([]*model.SynapsePropertyFilterInput)), true
 	case "Query.synapseOverview":
 		if e.ComplexityRoot.Query.SynapseOverview == nil {
 			break
@@ -28687,7 +28792,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.SynapseRetention(childComplexity, args["channelId"].(string), args["startEvent"].(string), args["returnEvent"].(string), args["sinceDays"].(*int32), args["periods"].(*int32), args["unit"].(*string)), true
+		return e.ComplexityRoot.Query.SynapseRetention(childComplexity, args["channelId"].(string), args["startEvent"].(string), args["returnEvent"].(string), args["sinceDays"].(*int32), args["periods"].(*int32), args["unit"].(*string), args["startFilters"].([]*model.SynapsePropertyFilterInput), args["returnFilters"].([]*model.SynapsePropertyFilterInput)), true
 	case "Query.synapseSegment":
 		if e.ComplexityRoot.Query.SynapseSegment == nil {
 			break
@@ -28731,7 +28836,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.SynapseStickiness(childComplexity, args["channelId"].(string), args["event"].(*string), args["sinceDays"].(*int32), args["windowDays"].(*int32)), true
+		return e.ComplexityRoot.Query.SynapseStickiness(childComplexity, args["channelId"].(string), args["event"].(*string), args["sinceDays"].(*int32), args["windowDays"].(*int32), args["filters"].([]*model.SynapsePropertyFilterInput)), true
 	case "Query.synapseTrackedAttributes":
 		if e.ComplexityRoot.Query.SynapseTrackedAttributes == nil {
 			break
@@ -32010,6 +32115,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SynapseInsights.Aggregate(childComplexity), true
+	case "SynapseInsights.baseCurrency":
+		if e.ComplexityRoot.SynapseInsights.BaseCurrency == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SynapseInsights.BaseCurrency(childComplexity), true
 	case "SynapseInsights.points":
 		if e.ComplexityRoot.SynapseInsights.Points == nil {
 			break
@@ -32022,6 +32133,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SynapseInsights.PrevTotal(childComplexity), true
+	case "SynapseInsights.prevTotalAmount":
+		if e.ComplexityRoot.SynapseInsights.PrevTotalAmount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SynapseInsights.PrevTotalAmount(childComplexity), true
 	case "SynapseInsights.prevUniques":
 		if e.ComplexityRoot.SynapseInsights.PrevUniques == nil {
 			break
@@ -32040,6 +32157,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SynapseInsights.Total(childComplexity), true
+	case "SynapseInsights.totalAmount":
+		if e.ComplexityRoot.SynapseInsights.TotalAmount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SynapseInsights.TotalAmount(childComplexity), true
 	case "SynapseInsights.uniques":
 		if e.ComplexityRoot.SynapseInsights.Uniques == nil {
 			break
@@ -33722,6 +33845,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputStartDataExportInput,
 		ec.unmarshalInputStartSiteCrawlInput,
 		ec.unmarshalInputSynapseFunnelFilterInput,
+		ec.unmarshalInputSynapsePropertyFilterInput,
 		ec.unmarshalInputSyncCanonicalUrlRewriteInput,
 		ec.unmarshalInputSyncProductInventoryInput,
 		ec.unmarshalInputTaxConditionInput,
@@ -42559,7 +42683,7 @@ type BoardReportDefinition {
   kind:        BoardReportKind!
   sinceDays:   Int                   # unset = the board's period
   event:       String                # insights, stickiness, the flow's focus
-  measure:     String                # insights: total | unique
+  measure:     String                # insights: total | unique | sum
   unit:        String                # insights and retention: day | week
   breakdown:   String                # insights, funnel
   steps:       [String!]             # funnel
@@ -42570,12 +42694,28 @@ type BoardReportDefinition {
   periods:     Int                   # retention
   depth:       Int                   # flow
   windowDays:  Int                   # stickiness: the return window, unset = the shop's default
+  events:      [String!]             # insights: several events counted together, in place of event
+  sumKey:      String                # insights with measure sum: the integer property added up
+  where:       [BoardReportCondition!] # what the events must carry: insights, stickiness, the flow's focus
+  startWhere:  [BoardReportCondition!] # retention's start
+  returnWhere: [BoardReportCondition!] # retention's return
+  notThen:     String                # flow: only the people who didn't do this after the focus
+  notThenWithinHours: Int            # flow: how long after, unset = anywhere in the period
 }
 
 type BoardReportFilter {
-  step:  Int!   # 0-based
-  key:   String!
-  value: String!
+  step:   Int!   # 0-based
+  key:    String!
+  value:  String!
+  op:     PropertyFilterOp
+  values: [String!]
+}
+
+# Holds a report's events to those whose property compares to the values: eq (one value), neq or in
+type BoardReportCondition {
+  key:    String!
+  op:     PropertyFilterOp!
+  values: [String!]!
 }
 
 input BoardReportDefinitionInput {
@@ -42593,6 +42733,13 @@ input BoardReportDefinitionInput {
   periods:     Int
   depth:       Int
   windowDays:  Int
+  events:      [String!]
+  sumKey:      String
+  where:       [SynapsePropertyFilterInput!]
+  startWhere:  [SynapsePropertyFilterInput!]
+  returnWhere: [SynapsePropertyFilterInput!]
+  notThen:     String
+  notThenWithinHours: Int
 }
 
 input BoardReportInput {
@@ -43023,19 +43170,37 @@ type SynapseFunnelBreakdown {
 
 # A step's events must carry property ` + "`" + `key` + "`" + ` with the text ` + "`" + `value` + "`" + ` (numbers and bools as written).
 input SynapseFunnelFilterInput {
-  step:  Int!   # 0-based
-  key:   String!
-  value: String!
+  step:   Int!   # 0-based
+  key:    String!
+  op:     PropertyFilterOp  # unset = EQ
+  values: [String!]
+  value:  String            # a filter from before operators - the one value, compared with EQ
+}
+
+enum PropertyFilterOp {
+  EQ   # the one value
+  NEQ  # not it - an event without the property passes
+  IN   # one of up to 50
+}
+
+# Holds a report's events to those whose property compares to the values: eq (one value), neq (an event without the
+# property passes) or in (up to 50). Compared as text - numbers and bools as written
+input SynapsePropertyFilterInput {
+  key:    String!
+  op:     PropertyFilterOp!
+  values: [String!]!
 }
 
 type InsightPoint {
   bucket: Time!
   key:    String!   # breakdown series this value belongs to
   value:  Int!
+  amount: Int64!    # the measure unclamped - value stops at Int, which a sum in cents passes
 }
 type InsightSeries {
-  key:   String!
-  total: Int!
+  key:    String!
+  total:  Int!
+  amount: Int64!    # the total unclamped
 }
 
 # Ad-hoc breakdown: a measure over time, split by a property.
@@ -43048,6 +43213,11 @@ type SynapseInsights {
   prevTotal:   Int!
   prevUniques: Int!
   aggregate:   Int!   # of total, events counted as nobody - visitors who hadn't allowed analytics
+  # On a sum, total and prevTotal unclamped - money in cents passes Int's range
+  totalAmount:     Int64!
+  prevTotalAmount: Int64!
+  # The currency a *_base_cents sum is in - the platform's base currency
+  baseCurrency:    String!
 }
 
 type ActivePoint {
@@ -43307,14 +43477,17 @@ extend type Query {
   synapseFunnel(channelId: ID!, steps: [String!]!, sinceDays: Int, windowHours: Int, filters: [SynapseFunnelFilterInput!], breakdown: String): SynapseFunnel!
   # Forward path tree from a focus event over the last ` + "`" + `sinceDays` + "`" + ` days (default
   # 30), ` + "`" + `depth` + "`" + ` steps deep (default 3). Gated customers.view.
-  synapseFlow(channelId: ID!, event: String!, sinceDays: Int, depth: Int): SynapseFlow!
+  # filters hold the focus event; notThen keeps only the people who didn't do that event within notThenWithinHours after it
+  synapseFlow(channelId: ID!, event: String!, sinceDays: Int, depth: Int, filters: [SynapsePropertyFilterInput!], notThen: String, notThenWithinHours: Int): SynapseFlow!
   # Commerce engagement: return rate over a window + daily-active trend. Optional ` + "`" + `event` + "`" + ` ("" = any activity), ` + "`" + `sinceDays` + "`" + ` (trend length, default 30), and ` + "`" + `windowDays` + "`" + ` (return cadence; defaults to the channel's configured value).
-  synapseStickiness(channelId: ID!, event: String, sinceDays: Int, windowDays: Int): SynapseStickiness!
+  synapseStickiness(channelId: ID!, event: String, sinceDays: Int, windowDays: Int, filters: [SynapsePropertyFilterInput!]): SynapseStickiness!
   # Ad-hoc breakdown: ` + "`" + `measure` + "`" + ` ("total"|"unique") of ` + "`" + `event` + "`" + ` ("" = any) over ` + "`" + `unit` + "`" + ` ("day"|"week") buckets for the last ` + "`" + `sinceDays` + "`" + ` (default 30), split by the ` + "`" + `breakdown` + "`" + ` property key ("" = none). Gated customers.view.
-  synapseInsights(channelId: ID!, event: String, breakdown: String, measure: String, unit: String, sinceDays: Int): SynapseInsights!
+  # measure "sum" adds up sumKey (net_base_cents, say); events counts several together (net sales is order_line,
+  # order_line_adjusted and refund_line) in place of event
+  synapseInsights(channelId: ID!, event: String, breakdown: String, measure: String, unit: String, sinceDays: Int, events: [String!], sumKey: String, filters: [SynapsePropertyFilterInput!]): SynapseInsights!
   # Cohort retention: startEvent → returnEvent over ` + "`" + `periods` + "`" + ` buckets of ` + "`" + `unit` + "`" + `
   # ("day"|"week"), cohort window = last ` + "`" + `sinceDays` + "`" + ` days. Gated customers.view.
-  synapseRetention(channelId: ID!, startEvent: String!, returnEvent: String!, sinceDays: Int, periods: Int, unit: String): SynapseRetention!
+  synapseRetention(channelId: ID!, startEvent: String!, returnEvent: String!, sinceDays: Int, periods: Int, unit: String, startFilters: [SynapsePropertyFilterInput!], returnFilters: [SynapsePropertyFilterInput!]): SynapseRetention!
   # A single anonymous visitor's behavioural profile (same shape as customerProfile), keyed by the anon visitor id. Gated customers.view on the channel the operator is browsing (anon activity itself is channel-agnostic).
   visitorProfile(channelId: ID!, anonId: String!, sinceDays: Int): CustomerProfile!
   # The audiences a customer belongs to, shown on their profile beside the commerce panels
@@ -45607,6 +45780,18 @@ func (ec *executionContext) childFields_BoardReport(ctx context.Context, field g
 	return nil, fmt.Errorf("no field named %q was found under type BoardReport", field.Name)
 }
 
+func (ec *executionContext) childFields_BoardReportCondition(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "key":
+		return ec.fieldContext_BoardReportCondition_key(ctx, field)
+	case "op":
+		return ec.fieldContext_BoardReportCondition_op(ctx, field)
+	case "values":
+		return ec.fieldContext_BoardReportCondition_values(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type BoardReportCondition", field.Name)
+}
+
 func (ec *executionContext) childFields_BoardReportDefinition(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "kind":
@@ -45637,6 +45822,20 @@ func (ec *executionContext) childFields_BoardReportDefinition(ctx context.Contex
 		return ec.fieldContext_BoardReportDefinition_depth(ctx, field)
 	case "windowDays":
 		return ec.fieldContext_BoardReportDefinition_windowDays(ctx, field)
+	case "events":
+		return ec.fieldContext_BoardReportDefinition_events(ctx, field)
+	case "sumKey":
+		return ec.fieldContext_BoardReportDefinition_sumKey(ctx, field)
+	case "where":
+		return ec.fieldContext_BoardReportDefinition_where(ctx, field)
+	case "startWhere":
+		return ec.fieldContext_BoardReportDefinition_startWhere(ctx, field)
+	case "returnWhere":
+		return ec.fieldContext_BoardReportDefinition_returnWhere(ctx, field)
+	case "notThen":
+		return ec.fieldContext_BoardReportDefinition_notThen(ctx, field)
+	case "notThenWithinHours":
+		return ec.fieldContext_BoardReportDefinition_notThenWithinHours(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type BoardReportDefinition", field.Name)
 }
@@ -45649,6 +45848,10 @@ func (ec *executionContext) childFields_BoardReportFilter(ctx context.Context, f
 		return ec.fieldContext_BoardReportFilter_key(ctx, field)
 	case "value":
 		return ec.fieldContext_BoardReportFilter_value(ctx, field)
+	case "op":
+		return ec.fieldContext_BoardReportFilter_op(ctx, field)
+	case "values":
+		return ec.fieldContext_BoardReportFilter_values(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type BoardReportFilter", field.Name)
 }
@@ -48457,6 +48660,8 @@ func (ec *executionContext) childFields_InsightPoint(ctx context.Context, field 
 		return ec.fieldContext_InsightPoint_key(ctx, field)
 	case "value":
 		return ec.fieldContext_InsightPoint_value(ctx, field)
+	case "amount":
+		return ec.fieldContext_InsightPoint_amount(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type InsightPoint", field.Name)
 }
@@ -48467,6 +48672,8 @@ func (ec *executionContext) childFields_InsightSeries(ctx context.Context, field
 		return ec.fieldContext_InsightSeries_key(ctx, field)
 	case "total":
 		return ec.fieldContext_InsightSeries_total(ctx, field)
+	case "amount":
+		return ec.fieldContext_InsightSeries_amount(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type InsightSeries", field.Name)
 }
@@ -52355,6 +52562,12 @@ func (ec *executionContext) childFields_SynapseInsights(ctx context.Context, fie
 		return ec.fieldContext_SynapseInsights_prevUniques(ctx, field)
 	case "aggregate":
 		return ec.fieldContext_SynapseInsights_aggregate(ctx, field)
+	case "totalAmount":
+		return ec.fieldContext_SynapseInsights_totalAmount(ctx, field)
+	case "prevTotalAmount":
+		return ec.fieldContext_SynapseInsights_prevTotalAmount(ctx, field)
+	case "baseCurrency":
+		return ec.fieldContext_SynapseInsights_baseCurrency(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type SynapseInsights", field.Name)
 }
@@ -67064,6 +67277,30 @@ func (ec *executionContext) field_Query_synapseFlow_args(ctx context.Context, ra
 		return nil, err
 	}
 	args["depth"] = arg3
+	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "filters",
+		func(ctx context.Context, v any) ([]*model.SynapsePropertyFilterInput, error) {
+			return ec.unmarshalOSynapsePropertyFilterInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSynapsePropertyFilterInputᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["filters"] = arg4
+	arg5, err := graphql.ProcessArgField(ctx, rawArgs, "notThen",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["notThen"] = arg5
+	arg6, err := graphql.ProcessArgField(ctx, rawArgs, "notThenWithinHours",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["notThenWithinHours"] = arg6
 	return args, nil
 }
 
@@ -67172,6 +67409,30 @@ func (ec *executionContext) field_Query_synapseInsights_args(ctx context.Context
 		return nil, err
 	}
 	args["sinceDays"] = arg5
+	arg6, err := graphql.ProcessArgField(ctx, rawArgs, "events",
+		func(ctx context.Context, v any) ([]string, error) {
+			return ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["events"] = arg6
+	arg7, err := graphql.ProcessArgField(ctx, rawArgs, "sumKey",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["sumKey"] = arg7
+	arg8, err := graphql.ProcessArgField(ctx, rawArgs, "filters",
+		func(ctx context.Context, v any) ([]*model.SynapsePropertyFilterInput, error) {
+			return ec.unmarshalOSynapsePropertyFilterInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSynapsePropertyFilterInputᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["filters"] = arg8
 	return args, nil
 }
 
@@ -67248,6 +67509,22 @@ func (ec *executionContext) field_Query_synapseRetention_args(ctx context.Contex
 		return nil, err
 	}
 	args["unit"] = arg5
+	arg6, err := graphql.ProcessArgField(ctx, rawArgs, "startFilters",
+		func(ctx context.Context, v any) ([]*model.SynapsePropertyFilterInput, error) {
+			return ec.unmarshalOSynapsePropertyFilterInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSynapsePropertyFilterInputᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["startFilters"] = arg6
+	arg7, err := graphql.ProcessArgField(ctx, rawArgs, "returnFilters",
+		func(ctx context.Context, v any) ([]*model.SynapsePropertyFilterInput, error) {
+			return ec.unmarshalOSynapsePropertyFilterInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSynapsePropertyFilterInputᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["returnFilters"] = arg7
 	return args, nil
 }
 
@@ -67360,6 +67637,14 @@ func (ec *executionContext) field_Query_synapseStickiness_args(ctx context.Conte
 		return nil, err
 	}
 	args["windowDays"] = arg3
+	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "filters",
+		func(ctx context.Context, v any) ([]*model.SynapsePropertyFilterInput, error) {
+			return ec.unmarshalOSynapsePropertyFilterInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSynapsePropertyFilterInputᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["filters"] = arg4
 	return args, nil
 }
 
@@ -80108,6 +80393,75 @@ func (ec *executionContext) fieldContext_BoardReport_definition(_ context.Contex
 	return fc, nil
 }
 
+func (ec *executionContext) _BoardReportCondition_key(ctx context.Context, field graphql.CollectedField, obj *model.BoardReportCondition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardReportCondition_key(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Key, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BoardReportCondition_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardReportCondition", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _BoardReportCondition_op(ctx context.Context, field graphql.CollectedField, obj *model.BoardReportCondition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardReportCondition_op(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Op, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.PropertyFilterOp) graphql.Marshaler {
+			return ec.marshalNPropertyFilterOp2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPropertyFilterOp(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BoardReportCondition_op(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardReportCondition", field, false, false, errors.New("field of type PropertyFilterOp does not have child fields"))
+}
+
+func (ec *executionContext) _BoardReportCondition_values(ctx context.Context, field graphql.CollectedField, obj *model.BoardReportCondition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardReportCondition_values(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Values, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BoardReportCondition_values(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardReportCondition", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _BoardReportDefinition_kind(ctx context.Context, field graphql.CollectedField, obj *model.BoardReportDefinition) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -80439,6 +80793,194 @@ func (ec *executionContext) fieldContext_BoardReportDefinition_windowDays(_ cont
 	return graphql.NewScalarFieldContext("BoardReportDefinition", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _BoardReportDefinition_events(ctx context.Context, field graphql.CollectedField, obj *model.BoardReportDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardReportDefinition_events(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Events, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalOString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_BoardReportDefinition_events(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardReportDefinition", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _BoardReportDefinition_sumKey(ctx context.Context, field graphql.CollectedField, obj *model.BoardReportDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardReportDefinition_sumKey(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SumKey, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_BoardReportDefinition_sumKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardReportDefinition", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _BoardReportDefinition_where(ctx context.Context, field graphql.CollectedField, obj *model.BoardReportDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardReportDefinition_where(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Where, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.BoardReportCondition) graphql.Marshaler {
+			return ec.marshalOBoardReportCondition2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardReportConditionᚄ(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_BoardReportDefinition_where(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BoardReportDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BoardReportCondition(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BoardReportDefinition_startWhere(ctx context.Context, field graphql.CollectedField, obj *model.BoardReportDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardReportDefinition_startWhere(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StartWhere, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.BoardReportCondition) graphql.Marshaler {
+			return ec.marshalOBoardReportCondition2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardReportConditionᚄ(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_BoardReportDefinition_startWhere(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BoardReportDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BoardReportCondition(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BoardReportDefinition_returnWhere(ctx context.Context, field graphql.CollectedField, obj *model.BoardReportDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardReportDefinition_returnWhere(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ReturnWhere, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.BoardReportCondition) graphql.Marshaler {
+			return ec.marshalOBoardReportCondition2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardReportConditionᚄ(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_BoardReportDefinition_returnWhere(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BoardReportDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BoardReportCondition(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BoardReportDefinition_notThen(ctx context.Context, field graphql.CollectedField, obj *model.BoardReportDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardReportDefinition_notThen(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NotThen, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_BoardReportDefinition_notThen(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardReportDefinition", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _BoardReportDefinition_notThenWithinHours(ctx context.Context, field graphql.CollectedField, obj *model.BoardReportDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardReportDefinition_notThenWithinHours(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NotThenWithinHours, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int32) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint32(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_BoardReportDefinition_notThenWithinHours(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardReportDefinition", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
 func (ec *executionContext) _BoardReportFilter_step(ctx context.Context, field graphql.CollectedField, obj *model.BoardReportFilter) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -80505,6 +81047,52 @@ func (ec *executionContext) _BoardReportFilter_value(ctx context.Context, field 
 	)
 }
 func (ec *executionContext) fieldContext_BoardReportFilter_value(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardReportFilter", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _BoardReportFilter_op(ctx context.Context, field graphql.CollectedField, obj *model.BoardReportFilter) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardReportFilter_op(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Op, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.PropertyFilterOp) graphql.Marshaler {
+			return ec.marshalOPropertyFilterOp2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPropertyFilterOp(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_BoardReportFilter_op(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BoardReportFilter", field, false, false, errors.New("field of type PropertyFilterOp does not have child fields"))
+}
+
+func (ec *executionContext) _BoardReportFilter_values(ctx context.Context, field graphql.CollectedField, obj *model.BoardReportFilter) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BoardReportFilter_values(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Values, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalOString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_BoardReportFilter_values(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("BoardReportFilter", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -104564,6 +105152,29 @@ func (ec *executionContext) fieldContext_InsightPoint_value(_ context.Context, f
 	return graphql.NewScalarFieldContext("InsightPoint", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _InsightPoint_amount(ctx context.Context, field graphql.CollectedField, obj *model.InsightPoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InsightPoint_amount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Amount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt642int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InsightPoint_amount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InsightPoint", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
 func (ec *executionContext) _InsightSeries_key(ctx context.Context, field graphql.CollectedField, obj *model.InsightSeries) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -104608,6 +105219,29 @@ func (ec *executionContext) _InsightSeries_total(ctx context.Context, field grap
 }
 func (ec *executionContext) fieldContext_InsightSeries_total(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("InsightSeries", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _InsightSeries_amount(ctx context.Context, field graphql.CollectedField, obj *model.InsightSeries) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InsightSeries_amount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Amount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt642int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InsightSeries_amount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InsightSeries", field, false, false, errors.New("field of type Int64 does not have child fields"))
 }
 
 func (ec *executionContext) _Integration_id(ctx context.Context, field graphql.CollectedField, obj *model.Integration) (ret graphql.Marshaler) {
@@ -157216,7 +157850,7 @@ func (ec *executionContext) _Query_synapseFlow(ctx context.Context, field graphq
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().SynapseFlow(ctx, fc.Args["channelId"].(string), fc.Args["event"].(string), fc.Args["sinceDays"].(*int32), fc.Args["depth"].(*int32))
+			return ec.Resolvers.Query().SynapseFlow(ctx, fc.Args["channelId"].(string), fc.Args["event"].(string), fc.Args["sinceDays"].(*int32), fc.Args["depth"].(*int32), fc.Args["filters"].([]*model.SynapsePropertyFilterInput), fc.Args["notThen"].(*string), fc.Args["notThenWithinHours"].(*int32))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.SynapseFlow) graphql.Marshaler {
@@ -157260,7 +157894,7 @@ func (ec *executionContext) _Query_synapseStickiness(ctx context.Context, field 
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().SynapseStickiness(ctx, fc.Args["channelId"].(string), fc.Args["event"].(*string), fc.Args["sinceDays"].(*int32), fc.Args["windowDays"].(*int32))
+			return ec.Resolvers.Query().SynapseStickiness(ctx, fc.Args["channelId"].(string), fc.Args["event"].(*string), fc.Args["sinceDays"].(*int32), fc.Args["windowDays"].(*int32), fc.Args["filters"].([]*model.SynapsePropertyFilterInput))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.SynapseStickiness) graphql.Marshaler {
@@ -157304,7 +157938,7 @@ func (ec *executionContext) _Query_synapseInsights(ctx context.Context, field gr
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().SynapseInsights(ctx, fc.Args["channelId"].(string), fc.Args["event"].(*string), fc.Args["breakdown"].(*string), fc.Args["measure"].(*string), fc.Args["unit"].(*string), fc.Args["sinceDays"].(*int32))
+			return ec.Resolvers.Query().SynapseInsights(ctx, fc.Args["channelId"].(string), fc.Args["event"].(*string), fc.Args["breakdown"].(*string), fc.Args["measure"].(*string), fc.Args["unit"].(*string), fc.Args["sinceDays"].(*int32), fc.Args["events"].([]string), fc.Args["sumKey"].(*string), fc.Args["filters"].([]*model.SynapsePropertyFilterInput))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.SynapseInsights) graphql.Marshaler {
@@ -157348,7 +157982,7 @@ func (ec *executionContext) _Query_synapseRetention(ctx context.Context, field g
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().SynapseRetention(ctx, fc.Args["channelId"].(string), fc.Args["startEvent"].(string), fc.Args["returnEvent"].(string), fc.Args["sinceDays"].(*int32), fc.Args["periods"].(*int32), fc.Args["unit"].(*string))
+			return ec.Resolvers.Query().SynapseRetention(ctx, fc.Args["channelId"].(string), fc.Args["startEvent"].(string), fc.Args["returnEvent"].(string), fc.Args["sinceDays"].(*int32), fc.Args["periods"].(*int32), fc.Args["unit"].(*string), fc.Args["startFilters"].([]*model.SynapsePropertyFilterInput), fc.Args["returnFilters"].([]*model.SynapsePropertyFilterInput))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.SynapseRetention) graphql.Marshaler {
@@ -170555,6 +171189,75 @@ func (ec *executionContext) fieldContext_SynapseInsights_aggregate(_ context.Con
 	return graphql.NewScalarFieldContext("SynapseInsights", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _SynapseInsights_totalAmount(ctx context.Context, field graphql.CollectedField, obj *model.SynapseInsights) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SynapseInsights_totalAmount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TotalAmount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt642int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SynapseInsights_totalAmount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SynapseInsights", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _SynapseInsights_prevTotalAmount(ctx context.Context, field graphql.CollectedField, obj *model.SynapseInsights) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SynapseInsights_prevTotalAmount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PrevTotalAmount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt642int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SynapseInsights_prevTotalAmount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SynapseInsights", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _SynapseInsights_baseCurrency(ctx context.Context, field graphql.CollectedField, obj *model.SynapseInsights) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SynapseInsights_baseCurrency(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BaseCurrency, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SynapseInsights_baseCurrency(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SynapseInsights", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _SynapseOverview_totalEvents(ctx context.Context, field graphql.CollectedField, obj *model.SynapseOverview) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -179204,7 +179907,7 @@ func (ec *executionContext) unmarshalInputBoardReportDefinitionInput(ctx context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"kind", "sinceDays", "event", "measure", "unit", "breakdown", "steps", "filters", "windowHours", "startEvent", "returnEvent", "periods", "depth", "windowDays"}
+	fieldsInOrder := [...]string{"kind", "sinceDays", "event", "measure", "unit", "breakdown", "steps", "filters", "windowHours", "startEvent", "returnEvent", "periods", "depth", "windowDays", "events", "sumKey", "where", "startWhere", "returnWhere", "notThen", "notThenWithinHours"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -179309,6 +180012,55 @@ func (ec *executionContext) unmarshalInputBoardReportDefinitionInput(ctx context
 				return it, err
 			}
 			it.WindowDays = data
+		case "events":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("events"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Events = data
+		case "sumKey":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sumKey"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SumKey = data
+		case "where":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("where"))
+			data, err := ec.unmarshalOSynapsePropertyFilterInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSynapsePropertyFilterInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Where = data
+		case "startWhere":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("startWhere"))
+			data, err := ec.unmarshalOSynapsePropertyFilterInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSynapsePropertyFilterInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.StartWhere = data
+		case "returnWhere":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("returnWhere"))
+			data, err := ec.unmarshalOSynapsePropertyFilterInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSynapsePropertyFilterInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ReturnWhere = data
+		case "notThen":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("notThen"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NotThen = data
+		case "notThenWithinHours":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("notThenWithinHours"))
+			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NotThenWithinHours = data
 		}
 	}
 	return it, nil
@@ -187703,7 +188455,7 @@ func (ec *executionContext) unmarshalInputSynapseFunnelFilterInput(ctx context.C
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"step", "key", "value"}
+	fieldsInOrder := [...]string{"step", "key", "op", "values", "value"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -187724,13 +188476,71 @@ func (ec *executionContext) unmarshalInputSynapseFunnelFilterInput(ctx context.C
 				return it, err
 			}
 			it.Key = data
+		case "op":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("op"))
+			data, err := ec.unmarshalOPropertyFilterOp2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPropertyFilterOp(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Op = data
+		case "values":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("values"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Values = data
 		case "value":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("value"))
-			data, err := ec.unmarshalNString2string(ctx, v)
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
 			if err != nil {
 				return it, err
 			}
 			it.Value = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputSynapsePropertyFilterInput(ctx context.Context, obj any) (model.SynapsePropertyFilterInput, error) {
+	var it model.SynapsePropertyFilterInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"key", "op", "values"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "key":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("key"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Key = data
+		case "op":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("op"))
+			data, err := ec.unmarshalNPropertyFilterOp2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPropertyFilterOp(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Op = data
+		case "values":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("values"))
+			data, err := ec.unmarshalNString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Values = data
 		}
 	}
 	return it, nil
@@ -198085,6 +198895,54 @@ func (ec *executionContext) _BoardReport(ctx context.Context, sel ast.SelectionS
 	return out
 }
 
+var boardReportConditionImplementors = []string{"BoardReportCondition"}
+
+func (ec *executionContext) _BoardReportCondition(ctx context.Context, sel ast.SelectionSet, obj *model.BoardReportCondition) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, boardReportConditionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("BoardReportCondition")
+		case "key":
+			out.Values[i] = ec._BoardReportCondition_key(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "op":
+			out.Values[i] = ec._BoardReportCondition_op(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "values":
+			out.Values[i] = ec._BoardReportCondition_values(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var boardReportDefinitionImplementors = []string{"BoardReportDefinition"}
 
 func (ec *executionContext) _BoardReportDefinition(ctx context.Context, sel ast.SelectionSet, obj *model.BoardReportDefinition) graphql.Marshaler {
@@ -198167,6 +199025,41 @@ func (ec *executionContext) _BoardReportDefinition(ctx context.Context, sel ast.
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
+		case "events":
+			out.Values[i] = ec._BoardReportDefinition_events(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "sumKey":
+			out.Values[i] = ec._BoardReportDefinition_sumKey(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "where":
+			out.Values[i] = ec._BoardReportDefinition_where(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "startWhere":
+			out.Values[i] = ec._BoardReportDefinition_startWhere(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "returnWhere":
+			out.Values[i] = ec._BoardReportDefinition_returnWhere(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "notThen":
+			out.Values[i] = ec._BoardReportDefinition_notThen(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "notThenWithinHours":
+			out.Values[i] = ec._BoardReportDefinition_notThenWithinHours(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -198213,6 +199106,16 @@ func (ec *executionContext) _BoardReportFilter(ctx context.Context, sel ast.Sele
 		case "value":
 			out.Values[i] = ec._BoardReportFilter_value(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "op":
+			out.Values[i] = ec._BoardReportFilter_op(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "values":
+			out.Values[i] = ec._BoardReportFilter_values(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:
@@ -208252,6 +209155,11 @@ func (ec *executionContext) _InsightPoint(ctx context.Context, sel ast.Selection
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "amount":
+			out.Values[i] = ec._InsightPoint_amount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -208292,6 +209200,11 @@ func (ec *executionContext) _InsightSeries(ctx context.Context, sel ast.Selectio
 			}
 		case "total":
 			out.Values[i] = ec._InsightSeries_total(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "amount":
+			out.Values[i] = ec._InsightSeries_amount(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -232335,6 +233248,21 @@ func (ec *executionContext) _SynapseInsights(ctx context.Context, sel ast.Select
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "totalAmount":
+			out.Values[i] = ec._SynapseInsights_totalAmount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "prevTotalAmount":
+			out.Values[i] = ec._SynapseInsights_prevTotalAmount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "baseCurrency":
+			out.Values[i] = ec._SynapseInsights_baseCurrency(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -237286,6 +238214,16 @@ func (ec *executionContext) marshalNBoardReport2ᚖgithubᚗcomᚋskeletgᚋskel
 		return graphql.Null
 	}
 	return ec._BoardReport(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNBoardReportCondition2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardReportCondition(ctx context.Context, sel ast.SelectionSet, v *model.BoardReportCondition) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._BoardReportCondition(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNBoardReportDefinition2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardReportDefinition(ctx context.Context, sel ast.SelectionSet, v *model.BoardReportDefinition) graphql.Marshaler {
@@ -244378,6 +245316,16 @@ func (ec *executionContext) marshalNPromotionTypeDescriptor2ᚖgithubᚗcomᚋsk
 	return ec._PromotionTypeDescriptor(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNPropertyFilterOp2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPropertyFilterOp(ctx context.Context, v any) (model.PropertyFilterOp, error) {
+	var res model.PropertyFilterOp
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNPropertyFilterOp2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPropertyFilterOp(ctx context.Context, sel ast.SelectionSet, v model.PropertyFilterOp) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) marshalNPulseEngagement2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPulseEngagement(ctx context.Context, sel ast.SelectionSet, v model.PulseEngagement) graphql.Marshaler {
 	return ec._PulseEngagement(ctx, sel, &v)
 }
@@ -246953,6 +247901,11 @@ func (ec *executionContext) marshalNSynapseOverview2ᚖgithubᚗcomᚋskeletgᚋ
 	return ec._SynapseOverview(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNSynapsePropertyFilterInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSynapsePropertyFilterInput(ctx context.Context, v any) (*model.SynapsePropertyFilterInput, error) {
+	res, err := ec.unmarshalInputSynapsePropertyFilterInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNSynapseRetention2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSynapseRetention(ctx context.Context, sel ast.SelectionSet, v model.SynapseRetention) graphql.Marshaler {
 	return ec._SynapseRetention(ctx, sel, &v)
 }
@@ -248671,6 +249624,25 @@ func (ec *executionContext) marshalOBoardOwner2ᚖgithubᚗcomᚋskeletgᚋskele
 	return ec._BoardOwner(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalOBoardReportCondition2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardReportConditionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BoardReportCondition) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNBoardReportCondition2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardReportCondition(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) marshalOBoardReportFilter2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBoardReportFilterᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BoardReportFilter) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -249807,6 +250779,22 @@ func (ec *executionContext) marshalOPromotionStopMode2ᚖgithubᚗcomᚋskeletg�
 	return v
 }
 
+func (ec *executionContext) unmarshalOPropertyFilterOp2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPropertyFilterOp(ctx context.Context, v any) (*model.PropertyFilterOp, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.PropertyFilterOp)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOPropertyFilterOp2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPropertyFilterOp(ctx context.Context, sel ast.SelectionSet, v *model.PropertyFilterOp) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
 func (ec *executionContext) unmarshalORemoteProviderFailurePolicy2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐRemoteProviderFailurePolicy(ctx context.Context, v any) (*model.RemoteProviderFailurePolicy, error) {
 	if v == nil {
 		return nil, nil
@@ -250244,6 +251232,23 @@ func (ec *executionContext) unmarshalOSynapseFunnelFilterInput2ᚕᚖgithubᚗco
 	for i := range vSlice {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
 		res[i], err = ec.unmarshalNSynapseFunnelFilterInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSynapseFunnelFilterInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalOSynapsePropertyFilterInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSynapsePropertyFilterInputᚄ(ctx context.Context, v any) ([]*model.SynapsePropertyFilterInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]*model.SynapsePropertyFilterInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNSynapsePropertyFilterInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSynapsePropertyFilterInput(ctx, vSlice[i])
 		if err != nil {
 			return nil, err
 		}

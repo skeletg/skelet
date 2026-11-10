@@ -4,6 +4,7 @@
 package board
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -11,6 +12,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 )
 
 const (
@@ -77,12 +80,37 @@ type Definition struct {
 	Periods     int      `json:"periods,omitempty"`     // retention
 	Depth       int      `json:"depth,omitempty"`       // flow
 	WindowDays  int      `json:"windowDays,omitempty"`  // stickiness: the return window, 0 = the shop's default
+	Events      []string `json:"events,omitempty"`      // insights: several events counted together, in place of event
+	SumKey      string   `json:"sumKey,omitempty"`      // insights with measure sum: the integer property added up
+	// What the report's events must carry: insights, stickiness and the flow's focus - and retention's start and return
+	Where              []Condition `json:"where,omitempty"`
+	StartWhere         []Condition `json:"startWhere,omitempty"`
+	ReturnWhere        []Condition `json:"returnWhere,omitempty"`
+	NotThen            string      `json:"notThen,omitempty"`            // flow: only the people who didn't do this after the focus
+	NotThenWithinHours int         `json:"notThenWithinHours,omitempty"` // flow: how long after, 0 = anywhere in the period
 }
 
+// Condition holds a report's events to those whose property compares to its values - the engines' own filter
+type Condition = analytics.PropertyFilter
+
+// Filter holds one funnel step to a condition
 type Filter struct {
-	Step  int    `json:"step"`
-	Key   string `json:"key"`
-	Value string `json:"value"`
+	Step int `json:"step"`
+	analytics.PropertyFilter
+}
+
+// UnmarshalJSON reads a funnel filter saved before operators too - {"value": ...}, compared with eq
+func (f *Filter) UnmarshalJSON(b []byte) error {
+	var raw struct {
+		Step           int
+		Key, Op, Value string
+		Values         []string
+	}
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	*f = Filter{Step: raw.Step, PropertyFilter: analytics.StepFilter(raw.Key, raw.Op, raw.Value, raw.Values)}
+	return nil
 }
 
 func (d Definition) validate() error {
@@ -90,10 +118,15 @@ func (d Definition) validate() error {
 	if d.SinceDays < 0 || d.SinceDays > 365 {
 		return bad("the period is 1 to 365 days")
 	}
+	for _, cs := range [][]Condition{d.Where, d.StartWhere, d.ReturnWhere} {
+		if err := analytics.ValidateFilters(cs); err != nil {
+			return bad(err.Error())
+		}
+	}
 	switch d.Kind {
 	case "insights":
-		if d.Measure != "" && d.Measure != "total" && d.Measure != "unique" {
-			return bad("measure is total or unique")
+		if err := (analytics.InsightsQuery{Events: d.Events, Measure: d.Measure, SumKey: d.SumKey}).Validate(); err != nil {
+			return bad(err.Error())
 		}
 	case "stickiness":
 		if d.WindowDays < 0 || d.WindowDays > 365 {
@@ -104,8 +137,11 @@ func (d Definition) validate() error {
 			return bad("a funnel has 2 to 8 steps")
 		}
 		for _, f := range d.Filters {
-			if f.Step < 0 || f.Step >= len(d.Steps) || strings.TrimSpace(f.Key) == "" {
-				return bad("a filter needs a property and one of the funnel's steps")
+			if f.Step < 0 || f.Step >= len(d.Steps) {
+				return bad("a filter needs one of the funnel's steps")
+			}
+			if err := f.Validate(); err != nil {
+				return bad(err.Error())
 			}
 		}
 		if d.WindowHours < 0 {
@@ -118,6 +154,9 @@ func (d Definition) validate() error {
 	case "flow":
 		if d.Event == "" {
 			return bad("a flow needs its focus event")
+		}
+		if d.NotThenWithinHours < 0 {
+			return bad("the drop-off window can't be negative")
 		}
 	default:
 		return fmt.Errorf("%w: unknown report kind %q", ErrInvalid, d.Kind)

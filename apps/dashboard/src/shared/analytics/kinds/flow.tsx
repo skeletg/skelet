@@ -5,8 +5,16 @@ import { cn } from '@/lib/utils'
 import { formatNumber } from '@/lib/format'
 import { eventLabel } from '@/features/synapse/eventLabel'
 import { type SynapseFlowQuery, SynapseFlowDocument } from '@/features/synapse/Synapse.gql'
+import { ConditionsEditor } from './conditions'
 import { EventSelect, Field, Headline, Note, State, pct, useTopEvents } from './ui'
-import type { ControlsProps, Kind, ResultProps } from './definition'
+import { describeConditions, readyConditions, type ControlsProps, type Kind, type ResultProps } from './definition'
+
+const WITHIN = [
+  { l: 'Any time after', h: 0 },
+  { l: 'Within 1 hour', h: 1 },
+  { l: 'Within 1 day', h: 24 },
+  { l: 'Within 7 days', h: 24 * 7 },
+]
 
 type FlowNode = { id: string; parentId: string; event: string; depth: number; count: number }
 const TOP = 12 // show the busiest next steps; rarer ones fold into "show more"
@@ -16,16 +24,35 @@ function FlowControls({ channelId, value: d, onChange }: ControlsProps) {
   // The opaque "custom" bucket can't be a starting point - the flow keys custom events by their real name
   const events = useTopEvents(channelId).filter((e) => e !== 'custom')
   return (
-    <Field label="Path from">
-      <EventSelect label="Starting event" value={d.event ?? ''} onChange={(event) => onChange({ ...d, event })} events={events} />
-    </Field>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-end gap-3 text-sm">
+        <Field label="Path from">
+          <EventSelect label="Starting event" value={d.event ?? ''} onChange={(event) => onChange({ ...d, event })} events={events} />
+        </Field>
+        <Field label="Only people who didn't then">
+          <EventSelect label="Didn't then do" value={d.notThen ?? ''} onChange={(notThen) => onChange({ ...d, notThen: notThen || undefined })} events={events} anyLabel="(everyone)" />
+        </Field>
+        {d.notThen && (
+          <Field label="Within">
+            <select aria-label="Within" value={d.notThenWithinHours ?? 0} onChange={(e) => onChange({ ...d, notThenWithinHours: Number(e.target.value) || undefined })} className="rounded border bg-background px-2 py-1.5 text-sm">
+              {WITHIN.map((w) => (
+                <option key={w.h} value={w.h}>
+                  {w.l}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
+      </div>
+      <ConditionsEditor channelId={channelId} events={d.event ? [d.event] : []} label="Where the starting event" value={d.where} onChange={(where) => onChange({ ...d, where })} />
+    </div>
   )
 }
 
 function FlowResult({ channelId, d, sinceDays, compact }: ResultProps) {
   const focus = d.event ?? ''
   const { data, loading, error } = useQuery(SynapseFlowDocument, {
-    variables: { channelId, event: focus, sinceDays, depth: d.depth ?? DEPTH },
+    variables: { channelId, event: focus, sinceDays, depth: d.depth ?? DEPTH, filters: readyConditions(d.where), notThen: d.notThen ?? null, notThenWithinHours: d.notThenWithinHours ?? null },
     skip: !channelId || !focus,
     fetchPolicy: 'cache-and-network',
   })
@@ -279,9 +306,10 @@ function NextSteps({ steps, cohort, byParent, onDrill }: { steps: FlowNode[]; co
 }
 
 export const flow: Kind = {
+  page: '/synapse/flows',
   label: 'Flow',
   menu: { label: 'Flow', hint: 'What people did next' },
-  describe: (d) => `After ${d.event}`,
+  describe: (d) => `After ${d.event}${d.where?.length ? ` where ${describeConditions(d.where)}` : ''}${d.notThen ? `, not then ${d.notThen}` : ''}`,
   title: (d) => `After ${eventLabel(d.event ?? '')}`,
   start: { kind: 'FLOW', event: 'page_view', depth: DEPTH },
   Controls: FlowControls,

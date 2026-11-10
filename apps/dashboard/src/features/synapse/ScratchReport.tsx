@@ -1,4 +1,4 @@
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { InfoIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -8,7 +8,7 @@ import { AddToBoard } from '@/features/boards/AddToBoard'
 import { ChannelRequired } from '@/shared/analytics/ChannelRequired'
 import { PERIODS, PeriodPicker } from '@/shared/analytics/PeriodPicker'
 import { KINDS, ReportControls, ReportResult, builderOf } from '@/shared/analytics/kinds'
-import { cleanDefinition, type ReportDefinition, type ReportKind } from '@/shared/analytics/kinds/definition'
+import type { ReportDefinition, ReportKind } from '@/shared/analytics/kinds/definition'
 
 // The report is kept in the URL (?q=<definition>&days=<period>), so a reload, the back button or a pasted link opens
 // the same report. A link is only text someone may have edited, so anything this page's builder doesn't make, or whose
@@ -32,13 +32,14 @@ export function ScratchReport({ builder, start, title, description, what, defaul
   const { effectiveChannelId, isChannel, selectedChannel } = useConfigScope()
   const channelId = effectiveChannelId ?? ''
   const [params, setParams] = useSearchParams()
+  const navigate = useNavigate()
   const d = readReport(params, builder, start)
   const days = Number(params.get('days'))
   const sinceDays = (PERIODS as readonly number[]).includes(days) ? days : defaultDays
   const update = (next: ReportDefinition, nextDays = sinceDays) =>
     setParams(
       (p) => {
-        p.set('q', JSON.stringify(cleanDefinition(next)))
+        p.set('q', JSON.stringify(next)) // as staged - a condition still being typed stays; cleaning is for saving
         p.set('days', String(nextDays))
         return p
       },
@@ -83,7 +84,12 @@ export function ScratchReport({ builder, start, title, description, what, defaul
               <ReportControls channelId={channelId} value={d} onChange={(next) => update(next)} />
             </DetailPageSection>
             <DetailPageSection title="Result">
-              <ReportResult channelId={channelId} d={d} sinceDays={sinceDays} />
+              <ReportResult
+                channelId={channelId}
+                d={d}
+                sinceDays={sinceDays}
+                onAddReport={(_title, next) => navigate(`${KINDS[next.kind].page}?q=${encodeURIComponent(JSON.stringify(next))}&days=${sinceDays}`)}
+              />
             </DetailPageSection>
           </>
         )}

@@ -7,7 +7,7 @@ const report = (title: string) => ({
   __typename: 'BoardReport' as const,
   title,
   size: null,
-  definition: { __typename: 'BoardReportDefinition' as const, kind: 'INSIGHTS' as const, event: 'page_view', sinceDays: null, measure: null, unit: null, breakdown: null, steps: null, filters: null, windowHours: null, startEvent: null, returnEvent: null, periods: null, depth: null, windowDays: null },
+  definition: { __typename: 'BoardReportDefinition' as const, kind: 'INSIGHTS' as const, event: 'page_view', sinceDays: null, measure: null, unit: null, breakdown: null, steps: null, filters: null, windowHours: null, startEvent: null, returnEvent: null, periods: null, depth: null, windowDays: null, events: null, sumKey: null, where: null, startWhere: null, returnWhere: null, notThen: null, notThenWithinHours: null },
 })
 const board = { id: 'b1', name: 'Weekly', updatedAt: 't1', draft: null, reports: [report('A'), report('B')] } as unknown as BoardFullFragment
 const saved = board.reports.map(cleanReport)

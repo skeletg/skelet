@@ -586,23 +586,31 @@ func (x *BoardReport) GetSize() string {
 // One saved report - which engine and its settings, the arguments that engine's Synapse read takes. A zero value is
 // unset; Signals checks the fields its kind needs
 type BoardReportDefinition struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`                                   // insights | funnel | retention | stickiness | flow
-	SinceDays     int32                  `protobuf:"varint,2,opt,name=since_days,json=sinceDays,proto3" json:"since_days,omitempty"`       // 0 = the board's period
-	Event         string                 `protobuf:"bytes,3,opt,name=event,proto3" json:"event,omitempty"`                                 // insights, stickiness, the flow's focus
-	Measure       string                 `protobuf:"bytes,4,opt,name=measure,proto3" json:"measure,omitempty"`                             // insights: total | unique
-	Unit          string                 `protobuf:"bytes,5,opt,name=unit,proto3" json:"unit,omitempty"`                                   // insights and retention: day | week
-	Breakdown     string                 `protobuf:"bytes,6,opt,name=breakdown,proto3" json:"breakdown,omitempty"`                         // insights, funnel
-	Steps         []string               `protobuf:"bytes,7,rep,name=steps,proto3" json:"steps,omitempty"`                                 // funnel
-	Filters       []*FunnelFilter        `protobuf:"bytes,8,rep,name=filters,proto3" json:"filters,omitempty"`                             // funnel
-	WindowHours   int32                  `protobuf:"varint,9,opt,name=window_hours,json=windowHours,proto3" json:"window_hours,omitempty"` // funnel
-	StartEvent    string                 `protobuf:"bytes,10,opt,name=start_event,json=startEvent,proto3" json:"start_event,omitempty"`    // retention
-	ReturnEvent   string                 `protobuf:"bytes,11,opt,name=return_event,json=returnEvent,proto3" json:"return_event,omitempty"` // retention
-	Periods       int32                  `protobuf:"varint,12,opt,name=periods,proto3" json:"periods,omitempty"`                           // retention
-	Depth         int32                  `protobuf:"varint,13,opt,name=depth,proto3" json:"depth,omitempty"`                               // flow
-	WindowDays    int32                  `protobuf:"varint,14,opt,name=window_days,json=windowDays,proto3" json:"window_days,omitempty"`   // stickiness: the return window, 0 = the shop's default
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Kind        string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`                                   // insights | funnel | retention | stickiness | flow
+	SinceDays   int32                  `protobuf:"varint,2,opt,name=since_days,json=sinceDays,proto3" json:"since_days,omitempty"`       // 0 = the board's period
+	Event       string                 `protobuf:"bytes,3,opt,name=event,proto3" json:"event,omitempty"`                                 // insights, stickiness, the flow's focus
+	Measure     string                 `protobuf:"bytes,4,opt,name=measure,proto3" json:"measure,omitempty"`                             // insights: total | unique | sum
+	Unit        string                 `protobuf:"bytes,5,opt,name=unit,proto3" json:"unit,omitempty"`                                   // insights and retention: day | week
+	Breakdown   string                 `protobuf:"bytes,6,opt,name=breakdown,proto3" json:"breakdown,omitempty"`                         // insights, funnel
+	Steps       []string               `protobuf:"bytes,7,rep,name=steps,proto3" json:"steps,omitempty"`                                 // funnel
+	Filters     []*FunnelFilter        `protobuf:"bytes,8,rep,name=filters,proto3" json:"filters,omitempty"`                             // funnel
+	WindowHours int32                  `protobuf:"varint,9,opt,name=window_hours,json=windowHours,proto3" json:"window_hours,omitempty"` // funnel
+	StartEvent  string                 `protobuf:"bytes,10,opt,name=start_event,json=startEvent,proto3" json:"start_event,omitempty"`    // retention
+	ReturnEvent string                 `protobuf:"bytes,11,opt,name=return_event,json=returnEvent,proto3" json:"return_event,omitempty"` // retention
+	Periods     int32                  `protobuf:"varint,12,opt,name=periods,proto3" json:"periods,omitempty"`                           // retention
+	Depth       int32                  `protobuf:"varint,13,opt,name=depth,proto3" json:"depth,omitempty"`                               // flow
+	WindowDays  int32                  `protobuf:"varint,14,opt,name=window_days,json=windowDays,proto3" json:"window_days,omitempty"`   // stickiness: the return window, 0 = the shop's default
+	Events      []string               `protobuf:"bytes,15,rep,name=events,proto3" json:"events,omitempty"`                              // insights: several events counted together, in place of event
+	SumKey      string                 `protobuf:"bytes,16,opt,name=sum_key,json=sumKey,proto3" json:"sum_key,omitempty"`                // insights with measure sum: the integer property added up
+	// What the report's events must carry: insights, stickiness and the flow's focus - and retention's start and return
+	Where              []*PropertyFilter `protobuf:"bytes,17,rep,name=where,proto3" json:"where,omitempty"`
+	StartWhere         []*PropertyFilter `protobuf:"bytes,18,rep,name=start_where,json=startWhere,proto3" json:"start_where,omitempty"`
+	ReturnWhere        []*PropertyFilter `protobuf:"bytes,19,rep,name=return_where,json=returnWhere,proto3" json:"return_where,omitempty"`
+	NotThen            string            `protobuf:"bytes,20,opt,name=not_then,json=notThen,proto3" json:"not_then,omitempty"`                                       // flow: only the people who didn't do this after the focus
+	NotThenWithinHours int32             `protobuf:"varint,21,opt,name=not_then_within_hours,json=notThenWithinHours,proto3" json:"not_then_within_hours,omitempty"` // flow: how long after, 0 = anywhere in the period
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *BoardReportDefinition) Reset() {
@@ -729,6 +737,55 @@ func (x *BoardReportDefinition) GetDepth() int32 {
 func (x *BoardReportDefinition) GetWindowDays() int32 {
 	if x != nil {
 		return x.WindowDays
+	}
+	return 0
+}
+
+func (x *BoardReportDefinition) GetEvents() []string {
+	if x != nil {
+		return x.Events
+	}
+	return nil
+}
+
+func (x *BoardReportDefinition) GetSumKey() string {
+	if x != nil {
+		return x.SumKey
+	}
+	return ""
+}
+
+func (x *BoardReportDefinition) GetWhere() []*PropertyFilter {
+	if x != nil {
+		return x.Where
+	}
+	return nil
+}
+
+func (x *BoardReportDefinition) GetStartWhere() []*PropertyFilter {
+	if x != nil {
+		return x.StartWhere
+	}
+	return nil
+}
+
+func (x *BoardReportDefinition) GetReturnWhere() []*PropertyFilter {
+	if x != nil {
+		return x.ReturnWhere
+	}
+	return nil
+}
+
+func (x *BoardReportDefinition) GetNotThen() string {
+	if x != nil {
+		return x.NotThen
+	}
+	return ""
+}
+
+func (x *BoardReportDefinition) GetNotThenWithinHours() int32 {
+	if x != nil {
+		return x.NotThenWithinHours
 	}
 	return 0
 }
@@ -2100,7 +2157,7 @@ const file_skelet_signals_v1_boards_proto_rawDesc = "" +
 	"\n" +
 	"definition\x18\x02 \x01(\v2(.skelet.signals.v1.BoardReportDefinitionR\n" +
 	"definition\x12\x12\n" +
-	"\x04size\x18\x03 \x01(\tR\x04size\"\xb5\x03\n" +
+	"\x04size\x18\x03 \x01(\tR\x04size\"\xf7\x05\n" +
 	"\x15BoardReportDefinition\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x1d\n" +
 	"\n" +
@@ -2119,7 +2176,15 @@ const file_skelet_signals_v1_boards_proto_rawDesc = "" +
 	"\aperiods\x18\f \x01(\x05R\aperiods\x12\x14\n" +
 	"\x05depth\x18\r \x01(\x05R\x05depth\x12\x1f\n" +
 	"\vwindow_days\x18\x0e \x01(\x05R\n" +
-	"windowDays\"D\n" +
+	"windowDays\x12\x16\n" +
+	"\x06events\x18\x0f \x03(\tR\x06events\x12\x17\n" +
+	"\asum_key\x18\x10 \x01(\tR\x06sumKey\x127\n" +
+	"\x05where\x18\x11 \x03(\v2!.skelet.signals.v1.PropertyFilterR\x05where\x12B\n" +
+	"\vstart_where\x18\x12 \x03(\v2!.skelet.signals.v1.PropertyFilterR\n" +
+	"startWhere\x12D\n" +
+	"\freturn_where\x18\x13 \x03(\v2!.skelet.signals.v1.PropertyFilterR\vreturnWhere\x12\x19\n" +
+	"\bnot_then\x18\x14 \x01(\tR\anotThen\x121\n" +
+	"\x15not_then_within_hours\x18\x15 \x01(\x05R\x12notThenWithinHours\"D\n" +
 	"\x11ListBoardsRequest\x12\x1d\n" +
 	"\n" +
 	"channel_id\x18\x01 \x01(\tR\tchannelId\x12\x10\n" +
@@ -2275,6 +2340,7 @@ var file_skelet_signals_v1_boards_proto_goTypes = []any{
 	(*DismissBoardAccessRequestResponse)(nil), // 33: skelet.signals.v1.DismissBoardAccessRequestResponse
 	(*timestamppb.Timestamp)(nil),             // 34: google.protobuf.Timestamp
 	(*FunnelFilter)(nil),                      // 35: skelet.signals.v1.FunnelFilter
+	(*PropertyFilter)(nil),                    // 36: skelet.signals.v1.PropertyFilter
 }
 var file_skelet_signals_v1_boards_proto_depIdxs = []int32{
 	34, // 0: skelet.signals.v1.BoardSummary.updated_at:type_name -> google.protobuf.Timestamp
@@ -2292,50 +2358,53 @@ var file_skelet_signals_v1_boards_proto_depIdxs = []int32{
 	6,  // 12: skelet.signals.v1.BoardDraftReport.report:type_name -> skelet.signals.v1.BoardReport
 	7,  // 13: skelet.signals.v1.BoardReport.definition:type_name -> skelet.signals.v1.BoardReportDefinition
 	35, // 14: skelet.signals.v1.BoardReportDefinition.filters:type_name -> skelet.signals.v1.FunnelFilter
-	0,  // 15: skelet.signals.v1.ListBoardsResponse.boards:type_name -> skelet.signals.v1.BoardSummary
-	1,  // 16: skelet.signals.v1.GetBoardResponse.board:type_name -> skelet.signals.v1.Board
-	6,  // 17: skelet.signals.v1.CreateBoardRequest.reports:type_name -> skelet.signals.v1.BoardReport
-	1,  // 18: skelet.signals.v1.CreateBoardResponse.board:type_name -> skelet.signals.v1.Board
-	6,  // 19: skelet.signals.v1.SaveBoardRequest.reports:type_name -> skelet.signals.v1.BoardReport
-	34, // 20: skelet.signals.v1.SaveBoardRequest.read_at:type_name -> google.protobuf.Timestamp
-	1,  // 21: skelet.signals.v1.SaveBoardResponse.board:type_name -> skelet.signals.v1.Board
-	0,  // 22: skelet.signals.v1.CreateStarterBoardsResponse.boards:type_name -> skelet.signals.v1.BoardSummary
-	3,  // 23: skelet.signals.v1.SetBoardSharesRequest.shares:type_name -> skelet.signals.v1.BoardShare
-	1,  // 24: skelet.signals.v1.SetBoardSharesResponse.board:type_name -> skelet.signals.v1.Board
-	34, // 25: skelet.signals.v1.SaveBoardDraftRequest.base_updated_at:type_name -> google.protobuf.Timestamp
-	5,  // 26: skelet.signals.v1.SaveBoardDraftRequest.reports:type_name -> skelet.signals.v1.BoardDraftReport
-	34, // 27: skelet.signals.v1.SaveBoardDraftResponse.updated_at:type_name -> google.protobuf.Timestamp
-	8,  // 28: skelet.signals.v1.BoardService.ListBoards:input_type -> skelet.signals.v1.ListBoardsRequest
-	10, // 29: skelet.signals.v1.BoardService.GetBoard:input_type -> skelet.signals.v1.GetBoardRequest
-	12, // 30: skelet.signals.v1.BoardService.CreateBoard:input_type -> skelet.signals.v1.CreateBoardRequest
-	14, // 31: skelet.signals.v1.BoardService.SaveBoard:input_type -> skelet.signals.v1.SaveBoardRequest
-	16, // 32: skelet.signals.v1.BoardService.DeleteBoard:input_type -> skelet.signals.v1.DeleteBoardRequest
-	18, // 33: skelet.signals.v1.BoardService.CreateStarterBoards:input_type -> skelet.signals.v1.CreateStarterBoardsRequest
-	20, // 34: skelet.signals.v1.BoardService.SetBoardShares:input_type -> skelet.signals.v1.SetBoardSharesRequest
-	22, // 35: skelet.signals.v1.BoardService.TransferBoard:input_type -> skelet.signals.v1.TransferBoardRequest
-	24, // 36: skelet.signals.v1.BoardService.SetBoardFavourite:input_type -> skelet.signals.v1.SetBoardFavouriteRequest
-	26, // 37: skelet.signals.v1.BoardService.SaveBoardDraft:input_type -> skelet.signals.v1.SaveBoardDraftRequest
-	28, // 38: skelet.signals.v1.BoardService.DiscardBoardDraft:input_type -> skelet.signals.v1.DiscardBoardDraftRequest
-	30, // 39: skelet.signals.v1.BoardService.RequestBoardAccess:input_type -> skelet.signals.v1.RequestBoardAccessRequest
-	32, // 40: skelet.signals.v1.BoardService.DismissBoardAccessRequest:input_type -> skelet.signals.v1.DismissBoardAccessRequestRequest
-	9,  // 41: skelet.signals.v1.BoardService.ListBoards:output_type -> skelet.signals.v1.ListBoardsResponse
-	11, // 42: skelet.signals.v1.BoardService.GetBoard:output_type -> skelet.signals.v1.GetBoardResponse
-	13, // 43: skelet.signals.v1.BoardService.CreateBoard:output_type -> skelet.signals.v1.CreateBoardResponse
-	15, // 44: skelet.signals.v1.BoardService.SaveBoard:output_type -> skelet.signals.v1.SaveBoardResponse
-	17, // 45: skelet.signals.v1.BoardService.DeleteBoard:output_type -> skelet.signals.v1.DeleteBoardResponse
-	19, // 46: skelet.signals.v1.BoardService.CreateStarterBoards:output_type -> skelet.signals.v1.CreateStarterBoardsResponse
-	21, // 47: skelet.signals.v1.BoardService.SetBoardShares:output_type -> skelet.signals.v1.SetBoardSharesResponse
-	23, // 48: skelet.signals.v1.BoardService.TransferBoard:output_type -> skelet.signals.v1.TransferBoardResponse
-	25, // 49: skelet.signals.v1.BoardService.SetBoardFavourite:output_type -> skelet.signals.v1.SetBoardFavouriteResponse
-	27, // 50: skelet.signals.v1.BoardService.SaveBoardDraft:output_type -> skelet.signals.v1.SaveBoardDraftResponse
-	29, // 51: skelet.signals.v1.BoardService.DiscardBoardDraft:output_type -> skelet.signals.v1.DiscardBoardDraftResponse
-	31, // 52: skelet.signals.v1.BoardService.RequestBoardAccess:output_type -> skelet.signals.v1.RequestBoardAccessResponse
-	33, // 53: skelet.signals.v1.BoardService.DismissBoardAccessRequest:output_type -> skelet.signals.v1.DismissBoardAccessRequestResponse
-	41, // [41:54] is the sub-list for method output_type
-	28, // [28:41] is the sub-list for method input_type
-	28, // [28:28] is the sub-list for extension type_name
-	28, // [28:28] is the sub-list for extension extendee
-	0,  // [0:28] is the sub-list for field type_name
+	36, // 15: skelet.signals.v1.BoardReportDefinition.where:type_name -> skelet.signals.v1.PropertyFilter
+	36, // 16: skelet.signals.v1.BoardReportDefinition.start_where:type_name -> skelet.signals.v1.PropertyFilter
+	36, // 17: skelet.signals.v1.BoardReportDefinition.return_where:type_name -> skelet.signals.v1.PropertyFilter
+	0,  // 18: skelet.signals.v1.ListBoardsResponse.boards:type_name -> skelet.signals.v1.BoardSummary
+	1,  // 19: skelet.signals.v1.GetBoardResponse.board:type_name -> skelet.signals.v1.Board
+	6,  // 20: skelet.signals.v1.CreateBoardRequest.reports:type_name -> skelet.signals.v1.BoardReport
+	1,  // 21: skelet.signals.v1.CreateBoardResponse.board:type_name -> skelet.signals.v1.Board
+	6,  // 22: skelet.signals.v1.SaveBoardRequest.reports:type_name -> skelet.signals.v1.BoardReport
+	34, // 23: skelet.signals.v1.SaveBoardRequest.read_at:type_name -> google.protobuf.Timestamp
+	1,  // 24: skelet.signals.v1.SaveBoardResponse.board:type_name -> skelet.signals.v1.Board
+	0,  // 25: skelet.signals.v1.CreateStarterBoardsResponse.boards:type_name -> skelet.signals.v1.BoardSummary
+	3,  // 26: skelet.signals.v1.SetBoardSharesRequest.shares:type_name -> skelet.signals.v1.BoardShare
+	1,  // 27: skelet.signals.v1.SetBoardSharesResponse.board:type_name -> skelet.signals.v1.Board
+	34, // 28: skelet.signals.v1.SaveBoardDraftRequest.base_updated_at:type_name -> google.protobuf.Timestamp
+	5,  // 29: skelet.signals.v1.SaveBoardDraftRequest.reports:type_name -> skelet.signals.v1.BoardDraftReport
+	34, // 30: skelet.signals.v1.SaveBoardDraftResponse.updated_at:type_name -> google.protobuf.Timestamp
+	8,  // 31: skelet.signals.v1.BoardService.ListBoards:input_type -> skelet.signals.v1.ListBoardsRequest
+	10, // 32: skelet.signals.v1.BoardService.GetBoard:input_type -> skelet.signals.v1.GetBoardRequest
+	12, // 33: skelet.signals.v1.BoardService.CreateBoard:input_type -> skelet.signals.v1.CreateBoardRequest
+	14, // 34: skelet.signals.v1.BoardService.SaveBoard:input_type -> skelet.signals.v1.SaveBoardRequest
+	16, // 35: skelet.signals.v1.BoardService.DeleteBoard:input_type -> skelet.signals.v1.DeleteBoardRequest
+	18, // 36: skelet.signals.v1.BoardService.CreateStarterBoards:input_type -> skelet.signals.v1.CreateStarterBoardsRequest
+	20, // 37: skelet.signals.v1.BoardService.SetBoardShares:input_type -> skelet.signals.v1.SetBoardSharesRequest
+	22, // 38: skelet.signals.v1.BoardService.TransferBoard:input_type -> skelet.signals.v1.TransferBoardRequest
+	24, // 39: skelet.signals.v1.BoardService.SetBoardFavourite:input_type -> skelet.signals.v1.SetBoardFavouriteRequest
+	26, // 40: skelet.signals.v1.BoardService.SaveBoardDraft:input_type -> skelet.signals.v1.SaveBoardDraftRequest
+	28, // 41: skelet.signals.v1.BoardService.DiscardBoardDraft:input_type -> skelet.signals.v1.DiscardBoardDraftRequest
+	30, // 42: skelet.signals.v1.BoardService.RequestBoardAccess:input_type -> skelet.signals.v1.RequestBoardAccessRequest
+	32, // 43: skelet.signals.v1.BoardService.DismissBoardAccessRequest:input_type -> skelet.signals.v1.DismissBoardAccessRequestRequest
+	9,  // 44: skelet.signals.v1.BoardService.ListBoards:output_type -> skelet.signals.v1.ListBoardsResponse
+	11, // 45: skelet.signals.v1.BoardService.GetBoard:output_type -> skelet.signals.v1.GetBoardResponse
+	13, // 46: skelet.signals.v1.BoardService.CreateBoard:output_type -> skelet.signals.v1.CreateBoardResponse
+	15, // 47: skelet.signals.v1.BoardService.SaveBoard:output_type -> skelet.signals.v1.SaveBoardResponse
+	17, // 48: skelet.signals.v1.BoardService.DeleteBoard:output_type -> skelet.signals.v1.DeleteBoardResponse
+	19, // 49: skelet.signals.v1.BoardService.CreateStarterBoards:output_type -> skelet.signals.v1.CreateStarterBoardsResponse
+	21, // 50: skelet.signals.v1.BoardService.SetBoardShares:output_type -> skelet.signals.v1.SetBoardSharesResponse
+	23, // 51: skelet.signals.v1.BoardService.TransferBoard:output_type -> skelet.signals.v1.TransferBoardResponse
+	25, // 52: skelet.signals.v1.BoardService.SetBoardFavourite:output_type -> skelet.signals.v1.SetBoardFavouriteResponse
+	27, // 53: skelet.signals.v1.BoardService.SaveBoardDraft:output_type -> skelet.signals.v1.SaveBoardDraftResponse
+	29, // 54: skelet.signals.v1.BoardService.DiscardBoardDraft:output_type -> skelet.signals.v1.DiscardBoardDraftResponse
+	31, // 55: skelet.signals.v1.BoardService.RequestBoardAccess:output_type -> skelet.signals.v1.RequestBoardAccessResponse
+	33, // 56: skelet.signals.v1.BoardService.DismissBoardAccessRequest:output_type -> skelet.signals.v1.DismissBoardAccessRequestResponse
+	44, // [44:57] is the sub-list for method output_type
+	31, // [31:44] is the sub-list for method input_type
+	31, // [31:31] is the sub-list for extension type_name
+	31, // [31:31] is the sub-list for extension extendee
+	0,  // [0:31] is the sub-list for field type_name
 }
 
 func init() { file_skelet_signals_v1_boards_proto_init() }

@@ -3,7 +3,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { SLOW, globalScope, meMock, renderPage } from '@/test/page-harness'
 import type { ConfigScopeContextValue } from '@/lib/config-scope'
-import { SynapseInsightsDocument, SynapseOverviewDocument, SynapseStickinessDocument } from '@/features/synapse/Synapse.gql'
+import { SynapseFlowDocument, SynapseFunnelDocument, SynapseInsightsDocument, SynapseOverviewDocument, SynapseStickinessDocument } from '@/features/synapse/Synapse.gql'
 import { BoardDocument, BoardShareTargetsDocument, CreateBoardDocument, DiscardBoardDraftDocument, RequestBoardAccessDocument, TransferBoardDocument, SaveBoardDocument, SaveBoardDraftDocument, SetBoardSharesDocument } from './Boards.gql'
 import { BoardPage, copyName } from './BoardPage'
 import { cleanReport } from './report'
@@ -37,6 +37,13 @@ const report = (title: string, event: string) => ({
     periods: null,
     depth: null,
     windowDays: null,
+    events: null,
+    sumKey: null,
+    where: null,
+    startWhere: null,
+    returnWhere: null,
+    notThen: null,
+    notThenWithinHours: null,
   },
   size: null,
 })
@@ -377,6 +384,27 @@ describe('BoardPage', () => {
     await waitFor(() => expect(handed).toEqual({ channelId: 'c1', id: 'b1', ownerId: 'admin-9' }), SLOW)
     expect(shared).toEqual({ channelId: 'c1', id: 'b1', shares: [] }) // the new owner isn't also a share
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Share' })).toBeNull(), SLOW) // an editor now, not the owner
+  })
+
+  it('puts the people who dropped off a funnel step on the board as a flow, beside the funnel', async () => {
+    const base = report('Product to cart', 'view_item')
+    const funnel = { ...base, size: 'FULL', definition: { ...base.definition, kind: 'FUNNEL', event: null, steps: ['view_item', 'cart_add'] } }
+    const counts = { __typename: 'SynapseFunnel', breakdown: [], steps: [{ __typename: 'SynapseFunnelStep', eventName: 'view_item', count: 200 }, { __typename: 'SynapseFunnelStep', eventName: 'cart_add', count: 118 }] }
+    renderPage({
+      path: '/synapse/boards/b1',
+      routes: { '/synapse/boards/:id': <BoardPage /> },
+      adminId: 'admin-1',
+      scope: channelScope,
+      mocks: [
+        meMock({ superuser: true }),
+        ...boardMocks(() => {}, { ...board, reports: [funnel] }),
+        { request: { query: SynapseFunnelDocument, variables: () => true }, result: { data: { synapseFunnel: counts } }, maxUsageCount: 10 },
+        { request: { query: SynapseFlowDocument, variables: () => true }, error: new Error('not in this test'), maxUsageCount: 10 },
+      ],
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'See where the 82 went' }, SLOW))
+    expect(await screen.findByRole('region', { name: 'After View item, not Added to cart' })).toBeTruthy()
+    expect(screen.getByRole('complementary', { name: 'Edit After View item, not Added to cart' })).toBeTruthy()
   })
 })
 

@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
@@ -239,9 +240,7 @@ func (r *queryResolver) SynapseFunnel(ctx context.Context, channelID string, ste
 	if breakdown != nil {
 		req.Breakdown = *breakdown
 	}
-	for _, f := range filters {
-		req.Filters = append(req.Filters, &signalsv1.FunnelFilter{Step: f.Step, Key: f.Key, Value: f.Value})
-	}
+	req.Filters = funnelFiltersIn(filters)
 	res, err := r.SignalsAPI.Synapse.GetFunnel(authed, req)
 	if err != nil {
 		return nil, signalsErr(err)
@@ -259,7 +258,7 @@ func (r *queryResolver) SynapseFunnel(ctx context.Context, channelID string, ste
 	return out, nil
 }
 
-func (r *queryResolver) SynapseFlow(ctx context.Context, channelID string, event string, sinceDays *int32, depth *int32) (*model.SynapseFlow, error) {
+func (r *queryResolver) SynapseFlow(ctx context.Context, channelID string, event string, sinceDays *int32, depth *int32, filters []*model.SynapsePropertyFilterInput, notThen *string, notThenWithinHours *int32) (*model.SynapseFlow, error) {
 	authed, err := r.signalsChannel(ctx, "customers.view", channelID)
 	if err != nil {
 		return nil, err
@@ -275,9 +274,11 @@ func (r *queryResolver) SynapseFlow(ctx context.Context, channelID string, event
 		d = 6
 	}
 	// The walker streams every event of every focus-event actor, and paths beyond 90 days are rarely meaningful
-	res, err := r.SignalsAPI.Synapse.GetFlow(authed, &signalsv1.GetFlowRequest{
-		ChannelId: channelID, Event: event, SinceDays: synapseWindow(sinceDays, 30, 90), Depth: d,
-	})
+	req := &signalsv1.GetFlowRequest{ChannelId: channelID, Event: event, SinceDays: synapseWindow(sinceDays, 30, 90), Depth: d, Filters: propertyFiltersIn(filters), NotThen: deref(notThen)}
+	if notThenWithinHours != nil && *notThenWithinHours > 0 {
+		req.NotThenWithinSeconds = int64(*notThenWithinHours) * 3600
+	}
+	res, err := r.SignalsAPI.Synapse.GetFlow(authed, req)
 	if err != nil {
 		return nil, signalsErr(err)
 	}
@@ -296,7 +297,7 @@ func (r *queryResolver) SynapseFlow(ctx context.Context, channelID string, event
 	return out, nil
 }
 
-func (r *queryResolver) SynapseStickiness(ctx context.Context, channelID string, event *string, sinceDays *int32, windowDays *int32) (*model.SynapseStickiness, error) {
+func (r *queryResolver) SynapseStickiness(ctx context.Context, channelID string, event *string, sinceDays *int32, windowDays *int32, filters []*model.SynapsePropertyFilterInput) (*model.SynapseStickiness, error) {
 	authed, err := r.signalsChannel(ctx, "customers.view", channelID)
 	if err != nil {
 		return nil, err
@@ -315,7 +316,7 @@ func (r *queryResolver) SynapseStickiness(ctx context.Context, channelID string,
 		}
 	}
 	s, err := r.SignalsAPI.Synapse.GetStickiness(authed, &signalsv1.GetStickinessRequest{
-		ChannelId: channelID, Event: ev, SinceDays: synapseWindow(sinceDays, 30, 365), WindowDays: window,
+		ChannelId: channelID, Event: ev, SinceDays: synapseWindow(sinceDays, 30, 365), WindowDays: window, Filters: propertyFiltersIn(filters),
 	})
 	if err != nil {
 		return nil, signalsErr(err)
@@ -331,7 +332,7 @@ func (r *queryResolver) SynapseStickiness(ctx context.Context, channelID string,
 	return out, nil
 }
 
-func (r *queryResolver) SynapseInsights(ctx context.Context, channelID string, event *string, breakdown *string, measure *string, unit *string, sinceDays *int32) (*model.SynapseInsights, error) {
+func (r *queryResolver) SynapseInsights(ctx context.Context, channelID string, event *string, breakdown *string, measure *string, unit *string, sinceDays *int32, events []string, sumKey *string, filters []*model.SynapsePropertyFilterInput) (*model.SynapseInsights, error) {
 	authed, err := r.signalsChannel(ctx, "customers.view", channelID)
 	if err != nil {
 		return nil, err
@@ -345,6 +346,7 @@ func (r *queryResolver) SynapseInsights(ctx context.Context, channelID string, e
 	ins, err := r.SignalsAPI.Synapse.GetInsights(authed, &signalsv1.GetInsightsRequest{
 		ChannelId: channelID, Event: deref(event), Breakdown: deref(breakdown),
 		Measure: deref(measure), Unit: deref(unit), SinceDays: synapseWindow(sinceDays, 30, 365),
+		Events: events, SumKey: deref(sumKey), Filters: propertyFiltersIn(filters),
 	})
 	if err != nil {
 		return nil, signalsErr(err)
@@ -352,17 +354,22 @@ func (r *queryResolver) SynapseInsights(ctx context.Context, channelID string, e
 	out := &model.SynapseInsights{
 		Points: make([]*model.InsightPoint, 0, len(ins.GetPoints())), Series: make([]*model.InsightSeries, 0, len(ins.GetSeries())),
 		Total: ins.GetTotal(), Uniques: ins.GetUniques(), PrevTotal: ins.GetPrevTotal(), PrevUniques: ins.GetPrevUniques(), Aggregate: ins.GetAggregate(),
+		TotalAmount: int(ins.GetTotalAmount()), PrevTotalAmount: int(ins.GetPrevTotalAmount()),
+	}
+	// The currency the amounts were converted into as they happened - unreadable, the sums can't say what they're in
+	if out.BaseCurrency, err = currency.BaseCode(ctx, r.ConfigSvc); err != nil {
+		return nil, err
 	}
 	for _, p := range ins.GetPoints() {
-		out.Points = append(out.Points, &model.InsightPoint{Bucket: p.GetBucket().AsTime(), Key: p.GetKey(), Value: p.GetValue()})
+		out.Points = append(out.Points, &model.InsightPoint{Bucket: p.GetBucket().AsTime(), Key: p.GetKey(), Value: p.GetValue(), Amount: int(p.GetAmount())})
 	}
 	for _, s := range ins.GetSeries() {
-		out.Series = append(out.Series, &model.InsightSeries{Key: s.GetKey(), Total: s.GetTotal()})
+		out.Series = append(out.Series, &model.InsightSeries{Key: s.GetKey(), Total: s.GetTotal(), Amount: int(s.GetAmount())})
 	}
 	return out, nil
 }
 
-func (r *queryResolver) SynapseRetention(ctx context.Context, channelID string, startEvent string, returnEvent string, sinceDays *int32, periods *int32, unit *string) (*model.SynapseRetention, error) {
+func (r *queryResolver) SynapseRetention(ctx context.Context, channelID string, startEvent string, returnEvent string, sinceDays *int32, periods *int32, unit *string, startFilters []*model.SynapsePropertyFilterInput, returnFilters []*model.SynapsePropertyFilterInput) (*model.SynapseRetention, error) {
 	authed, err := r.signalsChannel(ctx, "customers.view", channelID)
 	if err != nil {
 		return nil, err
@@ -384,6 +391,7 @@ func (r *queryResolver) SynapseRetention(ctx context.Context, channelID string, 
 	ret, err := r.SignalsAPI.Synapse.GetRetention(authed, &signalsv1.GetRetentionRequest{
 		ChannelId: channelID, StartEvent: startEvent, ReturnEvent: returnEvent,
 		SinceDays: synapseWindow(sinceDays, 30, 365), Periods: n, Unit: step,
+		StartFilters: propertyFiltersIn(startFilters), ReturnFilters: propertyFiltersIn(returnFilters),
 	})
 	if err != nil {
 		return nil, signalsErr(err)
