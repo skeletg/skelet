@@ -303,6 +303,7 @@ function StickinessResult({ channelId, d, sinceDays, compact }: ResultProps) {
 }
 
 export const retention: Kind = {
+  page: '/synapse/retention',
   label: 'Retention by cohort',
   menu: { label: 'Retention', hint: 'Whether people come back' },
   describe: (d) =>
@@ -314,6 +315,7 @@ export const retention: Kind = {
 }
 
 export const stickiness: Kind = {
+  page: '/synapse/stickiness',
   label: 'Return rate',
   builder: 'RETENTION',
   describe: (d) => `Returning on ${d.event || 'any activity'}${d.where?.length ? ` where ${describeConditions(d.where)}` : ''}`,

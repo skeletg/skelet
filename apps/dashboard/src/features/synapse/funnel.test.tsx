@@ -52,7 +52,7 @@ describe('SynapseFunnel', () => {
     fireEvent.change(screen.getByRole('combobox', { name: 'Property for step 1' }), { target: { value: 'device' } })
     fireEvent.change(screen.getByRole('textbox', { name: 'Value for step 1' }), { target: { value: 'mobile' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add filter' }))
-    await waitFor(() => expect(asked.some((v) => JSON.stringify(v.filters) === JSON.stringify([{ step: 0, key: 'device', value: 'mobile', op: 'eq' }]))).toBe(true), SLOW)
+    await waitFor(() => expect(asked.some((v) => JSON.stringify(v.filters) === JSON.stringify([{ step: 0, key: 'device', op: 'EQ', values: ['mobile'] }]))).toBe(true), SLOW)
 
     const by = screen.getByRole('textbox', { name: /Break down by/ })
     fireEvent.change(by, { target: { value: 'device' } })

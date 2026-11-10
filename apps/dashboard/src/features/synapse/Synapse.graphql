@@ -537,17 +537,13 @@ query SynapseInsights(
     points {
       bucket
       key
-      value
       amount
     }
     series {
       key
-      total
       amount
     }
-    total
     uniques
-    prevTotal
     prevUniques
     aggregate
     totalAmount

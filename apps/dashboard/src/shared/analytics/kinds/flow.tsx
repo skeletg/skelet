@@ -306,6 +306,7 @@ function NextSteps({ steps, cohort, byParent, onDrill }: { steps: FlowNode[]; co
 }
 
 export const flow: Kind = {
+  page: '/synapse/flows',
   label: 'Flow',
   menu: { label: 'Flow', hint: 'What people did next' },
   describe: (d) => `After ${d.event}${d.where?.length ? ` where ${describeConditions(d.where)}` : ''}${d.notThen ? `, not then ${d.notThen}` : ''}`,

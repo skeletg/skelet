@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { BoardReportDefinitionInput, BoardReportKind } from '@/graphql/schema.types'
+import type { BoardReportDefinitionInput, BoardReportKind, PropertyFilterOp, SynapseFunnelFilterInput, SynapsePropertyFilterInput } from '@/graphql/schema.types'
 
 // A report - which Synapse engine and its settings. A report page keeps one in its URL and a board stores one per tile
 export type ReportKind = BoardReportKind
@@ -16,33 +16,38 @@ export type ResultProps = {
   onAddReport?: (title: string, d: ReportDefinition) => void
 }
 
-export type ConditionOp = 'eq' | 'neq' | 'in'
+export type ConditionOp = PropertyFilterOp
 // Holds a report's events to those whose property compares to the values - the same shape every engine takes
-export type Condition = { key: string; op: ConditionOp; values: string[] }
+export type Condition = SynapsePropertyFilterInput
 
-export const CONDITION_OP_LABEL: Record<ConditionOp, string> = { eq: '=', neq: '≠', in: 'is one of' }
+export const CONDITION_OP_LABEL: Record<ConditionOp, string> = { EQ: '=', NEQ: '≠', IN: 'is one of' }
 
 // Net sales: what every line sold, edited and refunded comes to, in the base currency - refunds and removals are negative
 export const NET_SALES = { events: ['order_line', 'order_line_adjusted', 'refund_line'], measure: 'sum', sumKey: 'net_base_cents' } as const
 export const isNetSales = (d: ReportDefinition) => d.measure === 'sum' && d.sumKey === NET_SALES.sumKey && (d.events ?? []).join() === NET_SALES.events.join()
 
-// A condition as a definition holds it - the API's op is a plain string
-type Cond = { key: string; op: string; values: string[] }
-
-export const describeConditions = (cs: readonly Cond[] | null | undefined) =>
-  (cs ?? []).map((c) => `${c.key} ${CONDITION_OP_LABEL[c.op as ConditionOp] ?? c.op} ${c.values.join(', ')}`).join(' and ')
+export const describeConditions = (cs: readonly Condition[] | null | undefined) =>
+  (cs ?? []).map((c) => `${c.key} ${CONDITION_OP_LABEL[c.op]} ${c.values.join(', ')}`).join(' and ')
 
 // A condition with no value yet holds nothing back, so it neither runs nor saves until it has one - and one read back
 // loses its __typename, which an input refuses
-export const readyConditions = (cs: readonly Cond[] | null | undefined): Condition[] =>
+export const readyConditions = (cs: readonly Condition[] | null | undefined): Condition[] =>
   (cs ?? [])
     .filter((c) => c.key.trim() && c.values.some((v) => v.trim()))
-    .map((c) => ({ key: c.key.trim(), op: c.op as ConditionOp, values: c.values.map((v) => v.trim()).filter(Boolean) }))
+    .map((c) => ({ key: c.key.trim(), op: c.op, values: c.values.map((v) => v.trim()).filter(Boolean) }))
+
+type ReadFilter = Omit<SynapseFunnelFilterInput, 'op' | 'values' | 'value'> & { op?: ConditionOp | null; values?: string[] | null; value?: string | null }
+
+// A funnel's step filters as an operator and its values - one saved before operators held a lone value, which is EQ.
+// The one place that older shape is read
+export const funnelFilters = (fs: readonly ReadFilter[] | null | undefined) =>
+  (fs ?? []).map(({ step, key, op, values, value }) => ({ step, key, op: op ?? 'EQ', values: values?.length ? values : [value ?? ''] }))
 
 // One report kind, whole: what it's called, what it counts, what a new one starts as, and how it's built and shown.
 // A kind is either on "+ Add report" itself (menu) or a view inside another kind's builder (Return rate is Retention's)
 export type Kind = {
   label: string
+  page: string // its report page, where a report one page leads to opens
   describe: (d: ReportDefinition) => string // one line saying what it counts
   title: (d: ReportDefinition) => string // a title for a report nobody has named yet
   start: ReportDefinition
@@ -59,7 +64,7 @@ export function cleanDefinition(d: Read): ReportDefinition {
   const { filters, where, startWhere, returnWhere, ...rest } = d
   const fields = {
     ...rest,
-    filters: filters?.map(({ step, key, value, op, values }) => ({ step, key, value, op: op ?? undefined, values: values?.length ? values : undefined })),
+    filters: funnelFilters(filters),
     where: readyConditions(where),
     startWhere: readyConditions(startWhere),
     returnWhere: readyConditions(returnWhere),

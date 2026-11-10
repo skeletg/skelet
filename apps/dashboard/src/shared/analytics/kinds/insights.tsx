@@ -120,12 +120,12 @@ function InsightsResult({ channelId, d, sinceDays, compact }: ResultProps) {
   })
   const ins = data?.synapseInsights
   const unique = measure === 'unique'
-  const sum = measure === 'sum' // amounts ride beside the clamped counts, which a sum in cents would overflow
-  const cur = sum ? (ins?.totalAmount ?? 0) : unique ? (ins?.uniques ?? 0) : (ins?.total ?? 0)
-  const prev = sum ? (ins?.prevTotalAmount ?? 0) : unique ? (ins?.prevUniques ?? 0) : (ins?.prevTotal ?? 0)
+  const sum = measure === 'sum'
+  // Every figure reads the measure's amount, which no sum in cents outgrows - unique people have their own headline
+  const cur = unique ? (ins?.uniques ?? 0) : (ins?.totalAmount ?? 0)
+  const prev = unique ? (ins?.prevUniques ?? 0) : (ins?.prevTotalAmount ?? 0)
   const money = sum && (d.sumKey ?? '').endsWith('_cents')
   const fmt = (n: number) => (money ? formatCents(n, ins?.baseCurrency ?? 'USD') : formatNumber(n))
-  const valueOf = (p: { value: number; amount: number }) => (sum ? p.amount : p.value)
   const measureLabel = sum ? (isNetSales(d) ? 'Net sales' : `Sum of ${d.sumKey}`) : unique ? 'Unique people' : 'Total events'
   const delta = prev > 0 ? pct(cur - prev, prev) : null
   const seriesKeys = useMemo(() => (ins?.series ?? []).map((s) => s.key), [ins])
@@ -136,7 +136,7 @@ function InsightsResult({ channelId, d, sinceDays, compact }: ResultProps) {
     for (const p of ins?.points ?? []) {
       const label = formatShortDay(p.bucket)
       const row = byBucket.get(label) ?? { bucket: label }
-      row[p.key] = valueOf(p)
+      row[p.key] = p.amount
       byBucket.set(label, row)
     }
     const rows = [...byBucket.values()]
@@ -156,7 +156,7 @@ function InsightsResult({ channelId, d, sinceDays, compact }: ResultProps) {
               {ins!.series.slice(0, 5).map((s) => (
                 <li key={s.key} className="flex justify-between py-1">
                   <span className="font-mono">{s.key}</span>
-                  <span className="tabular-nums">{fmt(sum ? s.amount : s.total)}</span>
+                  <span className="tabular-nums">{fmt(s.amount)}</span>
                 </li>
               ))}
             </ul>
@@ -170,7 +170,7 @@ function InsightsResult({ channelId, d, sinceDays, compact }: ResultProps) {
   const note = aggregateNote(measure, ins?.aggregate ?? 0)
   const avgPerUnit = chartData.length ? Math.round(bucketTotals.reduce((a, b) => a + b, 0) / chartData.length) : 0
   const peakIdx = bucketTotals.reduce((bi, v, i, arr) => (v > arr[bi] ? i : bi), 0)
-  const seriesTotal = (ins?.series ?? []).reduce((s, x) => s + (sum ? x.amount : x.total), 0) || 1
+  const seriesTotal = (ins?.series ?? []).reduce((s, x) => s + x.amount, 0) || 1
   const seriesLabel = (k: string) => (breakdown ? k : measureLabel)
 
   return (
@@ -228,14 +228,14 @@ function InsightsResult({ channelId, d, sinceDays, compact }: ResultProps) {
                 </thead>
                 <tbody>
                   {ins!.series.map((s, i) => {
-                    const share = Math.round(((sum ? s.amount : s.total) / seriesTotal) * 100)
+                    const share = Math.round((s.amount / seriesTotal) * 100)
                     return (
                       <tr key={s.key} className="border-b last:border-0">
                         <td className="px-3 py-1.5">
                           <span className="mr-2 inline-block size-2 rounded-full align-middle" style={{ background: COLORS[i % COLORS.length] }} />
                           {s.key}
                         </td>
-                        <td className="px-3 py-1.5 text-right tabular-nums">{fmt(sum ? s.amount : s.total)}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">{fmt(s.amount)}</td>
                         <td className="px-3 py-1.5">
                           <div className="flex items-center gap-2">
                             <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
@@ -264,6 +264,7 @@ function InsightsResult({ channelId, d, sinceDays, compact }: ResultProps) {
 }
 
 export const insights: Kind = {
+  page: '/synapse/insights',
   label: 'Insights',
   menu: { label: 'Insights', hint: 'Count any event over time' },
   describe: (d) => {

@@ -25,15 +25,6 @@ export function readReport(params: URLSearchParams, builder: ReportKind, start: 
   return KINDS[start].start
 }
 
-// Where each kind's report page is, for a report one page leads to on another
-const REPORT_PAGE: Record<ReportKind, string> = {
-  INSIGHTS: '/synapse/insights',
-  FUNNEL: '/synapse/funnels',
-  FLOW: '/synapse/flows',
-  RETENTION: '/synapse/retention',
-  STICKINESS: '/synapse/stickiness',
-}
-
 // ScratchReport is a report page: build a report with nothing to save, and put it on a board when it's worth keeping.
 // The board's sheet renders the same controls and result
 // builder is the kind this page builds in, start the kind it opens on when the URL holds no report
@@ -97,7 +88,7 @@ export function ScratchReport({ builder, start, title, description, what, defaul
                 channelId={channelId}
                 d={d}
                 sinceDays={sinceDays}
-                onAddReport={(_title, next) => navigate(`${REPORT_PAGE[next.kind]}?q=${encodeURIComponent(JSON.stringify(next))}&days=${sinceDays}`)}
+                onAddReport={(_title, next) => navigate(`${KINDS[next.kind].page}?q=${encodeURIComponent(JSON.stringify(next))}&days=${sinceDays}`)}
               />
             </DetailPageSection>
           </>

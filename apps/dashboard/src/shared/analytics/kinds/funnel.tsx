@@ -5,14 +5,14 @@ import { cn } from '@/lib/utils'
 import { formatNumber } from '@/lib/format'
 import { eventLabel } from '@/features/synapse/eventLabel'
 import { SynapseFunnelDocument } from '@/features/synapse/Synapse.gql'
-import { CONDITION_OP_LABEL, type ConditionOp, type ControlsProps, type Kind, type ReportDefinition, type ResultProps } from './definition'
+import { CONDITION_OP_LABEL, funnelFilters, type ConditionOp, type ControlsProps, type Kind, type ReportDefinition, type ResultProps } from './definition'
 import { KNOWN_KEYS, keyLabel } from './conditions'
 import { Note, State, pct, useTopEvents } from './ui'
 
 // The Flow report that follows a step's drop-offs: who did step i and didn't go on to step i+1, held to step i's filters
 export function dropOffFlow(d: ReportDefinition, i: number): ReportDefinition {
   const steps = d.steps ?? []
-  const where = (d.filters ?? []).filter((f) => f.step === i).map((f) => ({ key: f.key, op: f.op ?? 'eq', values: f.values?.length ? f.values : [f.value] }))
+  const where = funnelFilters(d.filters).filter((f) => f.step === i).map(({ key, op, values }) => ({ key, op, values }))
   return { kind: 'FLOW', event: steps[i], depth: 4, notThen: steps[i + 1], notThenWithinHours: d.windowHours, where: where.length ? where : undefined }
 }
 
@@ -42,7 +42,7 @@ export function removeStep(d: ReportDefinition, i: number): ReportDefinition {
 function FunnelControls({ channelId, value: d, onChange }: ControlsProps) {
   const available = useTopEvents(channelId)
   const steps = d.steps ?? []
-  const filters = d.filters ?? []
+  const filters = funnelFilters(d.filters)
   const [filtering, setFiltering] = useState<number | null>(null) // the step whose filter form is open
   const [breakdownDraft, setBreakdownDraft] = useState(d.breakdown ?? '')
   const set = (next: ReportDefinition) => {
@@ -76,7 +76,7 @@ function FunnelControls({ channelId, value: d, onChange }: ControlsProps) {
               {filters.map((f, j) =>
                 f.step !== i ? null : (
                   <span key={`${f.key}-${j}`} className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-xs">
-                    <span>{keyLabel(f.key)}</span> {CONDITION_OP_LABEL[(f.op ?? 'eq') as ConditionOp]} <span className="font-mono">{f.values?.length ? f.values.join(', ') : f.value}</span>
+                    <span>{keyLabel(f.key)}</span> {CONDITION_OP_LABEL[f.op]} <span className="font-mono">{f.values.join(', ')}</span>
                     <button type="button" aria-label={`Remove filter ${f.key} from step ${i + 1}`} onClick={() => set({ ...d, filters: filters.filter((_, n) => n !== j) })} className="text-muted-foreground hover:text-foreground">
                       <XIcon className="size-3" />
                     </button>
@@ -146,9 +146,9 @@ function FunnelControls({ channelId, value: d, onChange }: ControlsProps) {
 
 // StepFilterForm holds one step to events whose property compares to a value - the property picked, not typed, since a
 // typo would quietly filter everything out
-function StepFilterForm({ step, onAdd }: { step: number; onAdd: (f: { key: string; value: string; op: ConditionOp; values?: string[] }) => void }) {
+function StepFilterForm({ step, onAdd }: { step: number; onAdd: (f: { key: string; op: ConditionOp; values: string[] }) => void }) {
   const [key, setKey] = useState(KNOWN_KEYS[0].key)
-  const [op, setOp] = useState<ConditionOp>('eq')
+  const [op, setOp] = useState<ConditionOp>('EQ')
   const [value, setValue] = useState('')
   return (
     <form
@@ -157,7 +157,7 @@ function StepFilterForm({ step, onAdd }: { step: number; onAdd: (f: { key: strin
         e.preventDefault()
         if (!key.trim() || !value.trim()) return
         const values = value.split(',').map((v) => v.trim()).filter(Boolean)
-        onAdd(op === 'in' ? { key: key.trim(), value: values[0], op, values } : { key: key.trim(), value: value.trim(), op })
+        onAdd({ key: key.trim(), op, values: op === 'IN' ? values : [value.trim()] })
       }}
     >
       <select aria-label={`Property for step ${step}`} value={key} onChange={(e) => setKey(e.target.value)} className="rounded border bg-background px-2 py-1 text-xs">
@@ -174,7 +174,7 @@ function StepFilterForm({ step, onAdd }: { step: number; onAdd: (f: { key: strin
           </option>
         ))}
       </select>
-      <input aria-label={`Value for step ${step}`} value={value} onChange={(e) => setValue(e.target.value)} placeholder={op === 'in' ? 'values, comma separated' : 'value'} className="w-36 rounded border bg-background px-2 py-1 text-xs" />
+      <input aria-label={`Value for step ${step}`} value={value} onChange={(e) => setValue(e.target.value)} placeholder={op === 'IN' ? 'values, comma separated' : 'value'} className="w-36 rounded border bg-background px-2 py-1 text-xs" />
       <button type="submit" disabled={!key.trim() || !value.trim()} className="rounded border px-2 py-1 text-xs hover:bg-muted disabled:opacity-40">
         Add filter
       </button>
@@ -186,7 +186,7 @@ function FunnelResult({ channelId, d, sinceDays, compact, onAddReport }: ResultP
   const steps = d.steps ?? []
   const breakdown = d.breakdown ?? ''
   const { data, loading, error } = useQuery(SynapseFunnelDocument, {
-    variables: { channelId, steps, sinceDays, windowHours: d.windowHours ?? null, filters: d.filters ?? [], breakdown: breakdown || null },
+    variables: { channelId, steps, sinceDays, windowHours: d.windowHours ?? null, filters: funnelFilters(d.filters), breakdown: breakdown || null },
     skip: !channelId || steps.length < 2,
     fetchPolicy: 'cache-and-network',
   })
@@ -279,6 +279,7 @@ function FunnelResult({ channelId, d, sinceDays, compact, onAddReport }: ResultP
 }
 
 export const funnel: Kind = {
+  page: '/synapse/funnels',
   label: 'Funnel',
   menu: { label: 'Funnel', hint: 'Conversion through steps, in order' },
   describe: (d) => (d.steps ?? []).join(' → ') + (d.windowHours ? ` within ${d.windowHours} h` : ''),
