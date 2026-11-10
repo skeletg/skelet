@@ -16,7 +16,8 @@ type conversionRecorder interface {
 	RecordConversion(ctx context.Context, cs signalsclient.ConversionSpec) error
 }
 
-func RegisterConversionAttribution(bus *events.Bus, rec conversionRecorder) {
+// base stamps the revenue in the base currency as the order is placed, for boards that add it up across currencies
+func RegisterConversionAttribution(bus *events.Bus, rec conversionRecorder, base baseRates) {
 	bus.Subscribe(order.EventPlaced, func(ctx context.Context, e events.Event) error { // credits an order to the customer's recent marketing email engagement - last touch within the window, marketing only, one per order
 		evt, ok := e.(*order.OrderPlaced)
 		if !ok || evt.CustomerID == nil {
@@ -24,10 +25,14 @@ func RegisterConversionAttribution(bus *events.Bus, rec conversionRecorder) {
 		}
 		cctx, cancel := context.WithTimeout(ctx, signalsWriteTimeout)
 		defer cancel()
-		err := rec.RecordConversion(cctx, signalsclient.ConversionSpec{
+		spec := signalsclient.ConversionSpec{
 			CustomerID: *evt.CustomerID, ChannelID: evt.ChannelID, OrderID: evt.OrderID,
 			RevenueCents: evt.TotalCents, Currency: evt.Currency, At: events.EmittedAtOr(ctx, time.Now()), // outbox stamp keeps At stable across redeliveries so the replay collapses
-		})
+		}
+		if b, ok := base.From(ctx, evt.Currency)(evt.TotalCents); ok {
+			spec.RevenueBaseCents = &b
+		}
+		err := rec.RecordConversion(cctx, spec)
 		// An unreachable suite hands the order back to the outbox, whose replay the conversion:<order> key collapses - a refusal is final
 		if signalsclient.Unreachable(err) {
 			return fmt.Errorf("record conversion for order %s: %w", evt.OrderID, err)

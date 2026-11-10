@@ -17,6 +17,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
@@ -67,12 +68,26 @@ func (f *fakeRecorder) RecordActivity(_ context.Context, a signalsclient.Activit
 }
 
 type fakeOrders struct {
-	o   order.Order
-	err error
+	o     order.Order
+	err   error
+	memo  order.CreditMemo
+	loads int
 }
 
 func (f *fakeOrders) GetByID(_ context.Context, _ uuid.UUID) (order.Order, error) {
+	f.loads++
 	return f.o, f.err
+}
+
+func (f *fakeOrders) GetCreditMemo(context.Context, uuid.UUID) (order.CreditMemo, error) {
+	return f.memo, nil
+}
+
+// rate converts every currency into the base at a fixed rate - 0 knows no rate at all
+type rate int64
+
+func (r rate) From(context.Context, string) currency.ToBase {
+	return func(c int64) (int64, bool) { return c * int64(r), r > 0 }
 }
 
 // countsNobody is a shop's aggregate_counts setting, the same everywhere
@@ -84,7 +99,7 @@ func (c countsNobody) GetBool(context.Context, string, config.Scope) (bool, erro
 
 func newTracker(o order.Order) (*Tracker, *fakeRecorder) {
 	fr := &fakeRecorder{}
-	return NewTracker(fr, &fakeOrders{o: o}, countsNobody(true), nil), fr
+	return NewTracker(fr, &fakeOrders{o: o}, countsNobody(true), nil, rate(0)), fr
 }
 
 func TestASignInCarriesTheVisitorOnlyWithAnalyticsConsent(t *testing.T) {
@@ -445,7 +460,7 @@ func TestAnUnreachableSuiteHandsActivityBackToTheOutbox(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			bus := events.NewBus()
 			fr := &fakeRecorder{err: tc.err}
-			NewTracker(fr, &fakeOrders{o: order.Order{CustomerID: &cid, GiftCardAmount: 500}}, countsNobody(true), nil).Subscribe(bus)
+			NewTracker(fr, &fakeOrders{o: order.Order{CustomerID: &cid, GiftCardAmount: 500}}, countsNobody(true), nil, rate(0)).Subscribe(bus)
 			err := bus.DispatchAsyncNow(context.Background(), &order.OrderPlaced{OrderID: uuid.New(), CustomerID: &cid, ChannelID: uuid.New()})
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("dispatch err = %v, want error %v", err, tc.wantErr)
@@ -519,7 +534,7 @@ func TestAnOrderThatWontLoadGoesBackToTheOutbox(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			fr := &fakeRecorder{}
-			tr := NewTracker(fr, &fakeOrders{o: order.Order{CustomerID: &cid}, err: tc.err}, countsNobody(true), nil)
+			tr := NewTracker(fr, &fakeOrders{o: order.Order{CustomerID: &cid}, err: tc.err}, countsNobody(true), nil, rate(0))
 			err := tr.onOrderShipped(context.Background(), &order.OrderFulfillmentCreated{OrderID: uuid.New(), FulfillmentID: uuid.New()})
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("err = %v, want error %v", err, tc.wantErr)
@@ -582,7 +597,7 @@ func TestAGiftCardLookupThatFailsGoesBackToTheOutbox(t *testing.T) {
 		"order gone":    {fmt.Errorf("get order: %w", sql.ErrNoRows), false},
 	} {
 		t.Run(name, func(t *testing.T) {
-			tr := NewTracker(&fakeRecorder{}, &fakeOrders{err: tc.err}, countsNobody(true), nil)
+			tr := NewTracker(&fakeRecorder{}, &fakeOrders{err: tc.err}, countsNobody(true), nil, rate(0))
 			err := tr.onOrderPlaced(context.Background(), &order.OrderPlaced{OrderID: uuid.New(), CustomerID: &cid, ChannelID: uuid.New()})
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("err = %v, want error %v", err, tc.wantErr)
@@ -599,12 +614,12 @@ func TestARefusedWriteIsLogged(t *testing.T) {
 	cid := uuid.New()
 	refused := status.Error(codes.PermissionDenied, "bad token")
 
-	tr := NewTracker(&fakeRecorder{err: refused}, &fakeOrders{}, countsNobody(true), nil)
+	tr := NewTracker(&fakeRecorder{err: refused}, &fakeOrders{}, countsNobody(true), nil, rate(0))
 	if err := tr.onRegistered(context.Background(), &customer.CustomerRegistered{CustomerID: cid, ChannelID: uuid.New()}); err != nil {
 		t.Fatal(err)
 	}
 	bus := events.NewBus()
-	RegisterConversionAttribution(bus, &fakeConversions{err: refused})
+	RegisterConversionAttribution(bus, &fakeConversions{err: refused}, rate(0))
 	if err := bus.DispatchAsyncNow(context.Background(), &order.OrderPlaced{OrderID: uuid.New(), CustomerID: &cid}); err != nil {
 		t.Fatal(err)
 	}
@@ -661,7 +676,7 @@ func TestCartsAndOrdersNameTheProductsBehindTheirSKUs(t *testing.T) {
 	tee, red := uuid.New(), uuid.New()
 	refs := fakeProducts{"TEE-RED": {{Sku: "TEE-RED", ID: red, ParentID: uuid.NullUUID{UUID: tee, Valid: true}}}, "MUG": {{Sku: "MUG", ID: uuid.New()}}}
 	fr := &fakeRecorder{}
-	tr := &Tracker{rec: fr, orders: &fakeOrders{o: order.Order{CustomerID: &cid, ChannelID: ch, Lines: []order.OrderLine{{ProductSku: "TEE-RED"}, {ProductSku: "MUG"}}}}, products: refs}
+	tr := &Tracker{rec: fr, orders: &fakeOrders{o: order.Order{CustomerID: &cid, ChannelID: ch, Lines: []order.OrderLine{{ProductSku: "TEE-RED"}, {ProductSku: "MUG"}}}}, products: refs, base: rate(0)}
 	_ = tr.onCartAdd(context.Background(), &cart.LineAdded{ChannelID: ch, CustomerID: &cid, LineID: uuid.New(), ProductSku: "TEE-RED"})
 	if ids, _ := fr.calls[0].Props["product_ids"].([]string); len(ids) != 2 || ids[0] != red.String() || ids[1] != tee.String() {
 		t.Errorf("cart_add product_ids = %v - want the variant and the product it's sold through", fr.calls[0].Props["product_ids"])
@@ -791,12 +806,120 @@ func TestCartActivityWithAnalyticsRefusedCountsAsNobody(t *testing.T) {
 	}
 }
 
+func byName(calls []signalsclient.ActivitySpec, name string) []signalsclient.ActivitySpec {
+	var out []signalsclient.ActivitySpec
+	for _, c := range calls {
+		if c.EventName == name {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// The worked example in docs/design/boards-cases.md: 2 shirts and a mug with a 10% coupon, prices without tax
+func salesOrder() (order.Order, uuid.UUID, uuid.UUID) {
+	cid, shirt, mug := uuid.New(), uuid.New(), uuid.New()
+	o := order.Order{
+		ID: uuid.New(), CustomerID: &cid, Number: "1001", ChannelID: uuid.New(), CurrencyCode: "EUR",
+		Lines:          []order.OrderLine{{ID: shirt, ProductSku: "SHIRT", UnitPrice: 2000, Quantity: 2}, {ID: mug, ProductSku: "MUG", UnitPrice: 1000, Quantity: 1}},
+		SubtotalAmount: 5000, DiscountAmount: 500, TaxAmount: 900, ShippingAmount: 490, TotalAmount: 5890,
+	}
+	return o, shirt, mug
+}
+
+func TestAnOrderRecordsEachLineAtItsNetSales(t *testing.T) {
+	o, shirt, _ := salesOrder()
+	tr, fr := newTracker(o)
+	tr.base = rate(2)
+	if err := tr.onOrderPlaced(context.Background(), &order.OrderPlaced{OrderID: o.ID, CustomerID: o.CustomerID, ChannelID: o.ChannelID, TotalCents: o.TotalAmount, Currency: "EUR"}); err != nil {
+		t.Fatal(err)
+	}
+	if placed := byName(fr.calls, "order_placed"); len(placed) != 1 || placed[0].Props["total_base_cents"] != int64(11780) {
+		t.Fatalf("order_placed = %+v, want the total in the base currency too", placed)
+	}
+	lines := byName(fr.calls, "order_line")
+	if len(lines) != 2 {
+		t.Fatalf("order lines = %d, want one per line", len(lines))
+	}
+	p := lines[0].Props
+	if p["sku"] != "SHIRT" || p["qty"] != 2.0 || p["gross_cents"] != int64(4000) || p["net_cents"] != int64(3600) || p["net_base_cents"] != int64(7200) {
+		t.Fatalf("the shirt line = %+v, want gross 4000, net 3600 after its coupon share, 7200 in base", p)
+	}
+	if lines[0].DedupeKey != "act:order_line:"+shirt.String() {
+		t.Fatalf("dedupe = %q, want one per line so a replay or a backfill collapses", lines[0].DedupeKey)
+	}
+}
+
+func TestARefundBooksItsLinesAsNegativeNetSalesOnTheDay(t *testing.T) {
+	o, shirt, _ := salesOrder()
+	tr, fr := newTracker(o)
+	memoLine := uuid.New()
+	orders := &fakeOrders{o: o, memo: order.CreditMemo{Lines: []order.CreditMemoLine{{ID: memoLine, OrderLineID: shirt, Quantity: 1, TotalCents: 2160}}}}
+	tr.orders = orders
+	if err := tr.onOrderRefunded(context.Background(), &order.OrderRefunded{OrderID: o.ID, ChannelID: o.ChannelID, CreditMemoID: uuid.New()}); err != nil {
+		t.Fatal(err)
+	}
+	if orders.loads != 1 {
+		t.Errorf("the order loaded %d times, want once for the refund and its lines", orders.loads)
+	}
+	got := byName(fr.calls, "refund_line")
+	if len(got) != 1 {
+		t.Fatalf("refund lines = %+v", fr.calls)
+	}
+	if p := got[0].Props; p["sku"] != "SHIRT" || p["qty"] != -1.0 || p["net_cents"] != int64(-1800) || p["refund_cents"] != int64(2160) {
+		t.Fatalf("refund line = %+v, want one shirt's -1800 net (its refund 2160 included tax)", p)
+	}
+	if _, ok := got[0].Props["net_base_cents"]; ok {
+		t.Fatal("a refund without a known rate claimed a base amount")
+	}
+	if got[0].DedupeKey != "act:refund_line:"+memoLine.String() {
+		t.Fatalf("dedupe = %q", got[0].DedupeKey)
+	}
+}
+
+func TestAnEditBooksWhatItChangedOnEachLine(t *testing.T) {
+	before, shirt, mug := salesOrder()
+	after := before
+	after.Lines = []order.OrderLine{{ID: shirt, ProductSku: "SHIRT", UnitPrice: 2000, Quantity: 2}} // the mug removed, the coupon held
+	after.SubtotalAmount, after.TaxAmount = 4000, 700
+	after.TotalAmount = 4000 - 500 + 700 + 490 // tax still added on top
+	tr, fr := newTracker(after)
+	err := tr.onOrderEdited(context.Background(), &order.OrderEdited{
+		OrderID: before.ID, ChannelID: before.ChannelID,
+		Before: []order.EditedLine{{LineID: shirt, ProductSku: "SHIRT", Quantity: 2, NetCents: 3600}, {LineID: mug, ProductSku: "MUG", Quantity: 1, NetCents: 900}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	adj := map[string]map[string]any{}
+	for _, c := range byName(fr.calls, "order_line_adjusted") {
+		adj[c.Props["sku"].(string)] = c.Props
+	}
+	// With only the shirts left the whole €5 coupon is theirs: 4000 - 500 = 3500, so the shirts lose 100 and the mug all 900
+	if adj["SHIRT"]["net_cents"] != int64(-100) || adj["MUG"]["net_cents"] != int64(-900) || adj["MUG"]["removed"] != true || adj["MUG"]["qty"] != -1.0 {
+		t.Fatalf("adjustments = %+v", adj)
+	}
+	if len(byName(fr.calls, "order_edited")) != 1 {
+		t.Fatal("the edit itself should still be on the timeline")
+	}
+}
+
+func TestCartChangesSayWhichProduct(t *testing.T) {
+	cid := uuid.New()
+	tr, fr := newTracker(order.Order{})
+	_ = tr.onCartUpdate(context.Background(), &cart.LineUpdated{ChannelID: uuid.New(), CustomerID: &cid, LineID: uuid.New(), ProductSku: "SHIRT", Quantity: 3})
+	_ = tr.onCartRemove(context.Background(), &cart.LineRemoved{ChannelID: uuid.New(), CustomerID: &cid, LineID: uuid.New(), ProductSku: "MUG", Quantity: 1})
+	if fr.calls[0].Props["sku"] != "SHIRT" || fr.calls[1].Props["sku"] != "MUG" || fr.calls[1].Props["qty"] != 1.0 {
+		t.Fatalf("cart changes = %+v %+v", fr.calls[0].Props, fr.calls[1].Props)
+	}
+}
+
 // A backfill skips an order placed without analytics consent: it already counted - under an order-only id before such
 // orders counted as nobody, as nobody since - and the key a replay would get now matches neither
 func TestABackfillLeavesOrdersPlacedWithoutConsentAlone(t *testing.T) {
 	o := order.Order{ID: uuid.New(), Number: "1300", ChannelID: uuid.New(), TotalAmount: 900, CurrencyCode: "EUR", Shopper: &auth.Shopper{}}
 	fr := &fakeRecorder{}
-	if err := NewTracker(fr, nil, countsNobody(true), nil).BackfillOrder(context.Background(), o, time.Now()); err != nil {
+	if err := NewTracker(fr, nil, countsNobody(true), nil, rate(0)).BackfillOrder(context.Background(), o, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	if len(fr.calls) != 0 {
@@ -840,5 +963,32 @@ func TestRefundsWishlistsCheckoutChoicesAndLeadsLand(t *testing.T) {
 	}
 	if fr.calls[3].Props["choice"] != "cod" || fr.calls[0].Props["fully_refunded"] != true {
 		t.Errorf("props: %v %v", fr.calls[3].Props, fr.calls[0].Props)
+	}
+}
+
+// Its lines are another matter: they never went out under an older key, so a backfill books them as nobody - else a
+// refund replayed for the same order would leave the product with only the negative half of its net sales
+func TestABackfillStillBooksTheLinesOfAnOrderPlacedWithoutConsent(t *testing.T) {
+	o, shirt, _ := salesOrder()
+	o.Shopper = &auth.Shopper{}
+	fr := &fakeRecorder{}
+	tr := NewTracker(fr, nil, countsNobody(true), nil, rate(0))
+	if err := tr.BackfillOrder(context.Background(), o, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.BackfillRefund(context.Background(), o, order.CreditMemo{ID: uuid.New(), Lines: []order.CreditMemoLine{{ID: uuid.New(), OrderLineID: shirt, Quantity: 1}}}); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(byName(fr.calls, "order_placed")); n != 0 {
+		t.Errorf("order_placed replayed %d times, want 0 - it already counted", n)
+	}
+	lines, refunds := byName(fr.calls, "order_line"), byName(fr.calls, "refund_line")
+	if len(lines) != 2 || len(refunds) != 1 {
+		t.Fatalf("order lines %d, refund lines %d, want 2 and 1", len(lines), len(refunds))
+	}
+	for _, c := range append(lines, refunds...) {
+		if c.Source != sourceAggregate || c.CustomerID != nil || c.AnonID != "" {
+			t.Errorf("%s went out as %+v, want nobody", c.EventName, c)
+		}
 	}
 }

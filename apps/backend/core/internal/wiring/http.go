@@ -311,7 +311,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 		Config: s.Config, Limiter: ingestLimiter, Customers: infra.Config.CustomerKeys.Verifier(),
 	})
 	if bool(s.SignalsEnabled) {
-		counter := activity.NewTracker(s.SignalsClient, nil, s.Config, nil) // a counted view loads no order or product
+		counter := activity.NewTracker(s.SignalsClient, nil, s.Config, nil, nil) // a counted view loads no order or product
 		mux.Handle(activity.CountPath, otelx.WrapHTTP(channel.Middleware(s.Channel)(counter.CountHandler(ingestLimiter)), "signals.count"))
 	}
 	mux.Handle(tracking.TrackPath, otelx.WrapHTTP(channel.Middleware(s.Channel)(s.Tracking.BrowserHandler(ingestLimiter, infra.Config.CustomerKeys.Verifier())), "tracking.collect"))

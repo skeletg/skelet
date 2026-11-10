@@ -1514,15 +1514,17 @@ func (x *RecordActivityResponse) GetRecorded() bool {
 }
 
 type RecordConversionRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	CustomerId    string                 `protobuf:"bytes,1,opt,name=customer_id,json=customerId,proto3" json:"customer_id,omitempty"`
-	ChannelId     string                 `protobuf:"bytes,2,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
-	OrderId       string                 `protobuf:"bytes,3,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
-	RevenueCents  int64                  `protobuf:"varint,4,opt,name=revenue_cents,json=revenueCents,proto3" json:"revenue_cents,omitempty"`
-	Currency      string                 `protobuf:"bytes,5,opt,name=currency,proto3" json:"currency,omitempty"`
-	At            *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=at,proto3" json:"at,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	CustomerId   string                 `protobuf:"bytes,1,opt,name=customer_id,json=customerId,proto3" json:"customer_id,omitempty"`
+	ChannelId    string                 `protobuf:"bytes,2,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
+	OrderId      string                 `protobuf:"bytes,3,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	RevenueCents int64                  `protobuf:"varint,4,opt,name=revenue_cents,json=revenueCents,proto3" json:"revenue_cents,omitempty"`
+	Currency     string                 `protobuf:"bytes,5,opt,name=currency,proto3" json:"currency,omitempty"`
+	At           *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=at,proto3" json:"at,omitempty"`
+	// revenue_cents in the platform's base currency at the rate of the day - unset when no rate was known
+	RevenueBaseCents *int64 `protobuf:"varint,7,opt,name=revenue_base_cents,json=revenueBaseCents,proto3,oneof" json:"revenue_base_cents,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *RecordConversionRequest) Reset() {
@@ -1595,6 +1597,13 @@ func (x *RecordConversionRequest) GetAt() *timestamppb.Timestamp {
 		return x.At
 	}
 	return nil
+}
+
+func (x *RecordConversionRequest) GetRevenueBaseCents() int64 {
+	if x != nil && x.RevenueBaseCents != nil {
+		return *x.RevenueBaseCents
+	}
+	return 0
 }
 
 type RecordConversionResponse struct {
@@ -2217,7 +2226,7 @@ const file_skelet_signals_v1_ingest_proto_rawDesc = "" +
 	"dedupe_key\x18\b \x01(\tR\tdedupeKeyB\x0e\n" +
 	"\f_customer_id\"4\n" +
 	"\x16RecordActivityResponse\x12\x1a\n" +
-	"\brecorded\x18\x01 \x01(\bR\brecorded\"\xe1\x01\n" +
+	"\brecorded\x18\x01 \x01(\bR\brecorded\"\xab\x02\n" +
 	"\x17RecordConversionRequest\x12\x1f\n" +
 	"\vcustomer_id\x18\x01 \x01(\tR\n" +
 	"customerId\x12\x1d\n" +
@@ -2226,7 +2235,9 @@ const file_skelet_signals_v1_ingest_proto_rawDesc = "" +
 	"\border_id\x18\x03 \x01(\tR\aorderId\x12#\n" +
 	"\rrevenue_cents\x18\x04 \x01(\x03R\frevenueCents\x12\x1a\n" +
 	"\bcurrency\x18\x05 \x01(\tR\bcurrency\x12*\n" +
-	"\x02at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\x02at\"6\n" +
+	"\x02at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\x02at\x121\n" +
+	"\x12revenue_base_cents\x18\a \x01(\x03H\x00R\x10revenueBaseCents\x88\x01\x01B\x15\n" +
+	"\x13_revenue_base_cents\"6\n" +
 	"\x18RecordConversionResponse\x12\x1a\n" +
 	"\brecorded\x18\x01 \x01(\bR\brecorded\"M\n" +
 	"\x16RecordEmailSentRequest\x123\n" +
@@ -2387,6 +2398,7 @@ func file_skelet_signals_v1_ingest_proto_init() {
 	file_skelet_signals_v1_ingest_proto_msgTypes[5].OneofWrappers = []any{}
 	file_skelet_signals_v1_ingest_proto_msgTypes[18].OneofWrappers = []any{}
 	file_skelet_signals_v1_ingest_proto_msgTypes[20].OneofWrappers = []any{}
+	file_skelet_signals_v1_ingest_proto_msgTypes[22].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
