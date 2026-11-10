@@ -11,7 +11,7 @@ vi.mock("../customer/read", () => ({ getCustomerOrNull: vi.fn() }));
 vi.mock("../locale/read", () => ({ getCurrentLocale: async () => "en" }));
 vi.mock("../locale/path", () => ({ withLocalePrefix: async (path: string, locale: string) => `/${locale}${path}` }));
 vi.mock("./read", () => ({ getCheckoutState: mocks.checkout, checkoutPaymentMethods: mocks.methods }));
-const { placeOrderAction, applyCheckoutCouponAction, saveDestinationStep, saveGroupDeliveryAction, saveDeliveryPointAction, saveSplitDeliveryAction } = await import("./actions");
+const { placeOrderAction, finalizePlacedPaymentAction, applyCheckoutCouponAction, saveDestinationStep, saveGroupDeliveryAction, saveDeliveryPointAction, saveSplitDeliveryAction } = await import("./actions");
 beforeEach(() => { vi.clearAllMocks(); mocks.signedIn = false; mocks.gqlFetch.mockResolvedValue({ data: {} }); mocks.checkoutCart.mockImplementation(async (id: string) => id === "offer-1" ? { id, offer: { isGuest: true } } : id === "cart-1" ? { id, offer: null } : null); mocks.settings.mockResolvedValue({ termsConsent: "notice" }); mocks.checkout.mockResolvedValue({ email: "guest@example.com", totals: { amountDueCents: 0 } }); });
 it.each([
   [saveDestinationStep, { countryCode: "RS", postalCode: "11000" }],
@@ -131,6 +131,72 @@ describe("placing an order that owes money", () => {
     await expect(submit("cod")).rejects.toThrow("redirect");
     expect(mocks.redirect).toHaveBeenCalledWith("/en/orders/order-1?email=guest%40example.com&payment=incomplete");
     expect(mocks.gqlFetch).toHaveBeenCalledTimes(3); // payment method, note, placeOrder - nothing after
+  });
+});
+
+describe("paying through a gateway", () => {
+  const ORDER = "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b";
+  const placeVars = () => mocks.gqlFetch.mock.calls.find(([, vars]) => vars && "acceptTerms" in vars)?.[1];
+  const submit = (fields: Record<string, string>) => {
+    const data = new FormData(); data.set("cartId", "cart-1"); data.set("locale", "en"); data.set("providerSlug", "card");
+    for (const [k, val] of Object.entries(fields)) data.set(k, val);
+    return placeOrderAction(undefined, data);
+  };
+  beforeEach(() => {
+    mocks.checkout.mockResolvedValue({ email: "guest@example.com", totals: { amountDueCents: 500 } });
+    mocks.methods.mockResolvedValue([{ providerSlug: "card", isOffline: false }]);
+  });
+
+  it("places with the token the card fields made, and never alongside a saved card", async () => {
+    mocks.gqlFetch.mockResolvedValue({ data: { placeOrder: { id: ORDER, paymentClientSecret: null } } });
+    await expect(submit({ paymentToken: "pm_123" })).rejects.toThrow("redirect");
+    expect(placeVars()).toEqual(expect.objectContaining({ paymentToken: "pm_123", savedPaymentMethodId: null }));
+    mocks.gqlFetch.mockClear();
+    await expect(submit({ paymentToken: "pm_123", savedPaymentMethodId: "saved-1" })).rejects.toThrow("redirect");
+    expect(placeVars()).toEqual(expect.objectContaining({ paymentToken: null, savedPaymentMethodId: "saved-1" }));
+  });
+
+  it("hands a challenge back to a page that can run it, without leaving checkout", async () => {
+    mocks.gqlFetch.mockResolvedValue({ data: { placeOrder: { id: ORDER, paymentClientSecret: "pi_secret", paymentActionKind: "challenge" } } });
+    const result = await submit({ paymentToken: "pm_123", paymentUi: "on" });
+    expect(result.payment).toEqual({ orderId: ORDER, clientSecret: "pi_secret", email: "guest@example.com", cartId: "cart-1", offer: false });
+    expect(mocks.redirect).not.toHaveBeenCalled();
+    // the cart stays until the gateway answers, or checkout re-renders without the card fields
+    expect(mocks.deleteCookie).not.toHaveBeenCalled();
+    expect(mocks.refresh).not.toHaveBeenCalled();
+  });
+
+  it("sends a hosted checkout to the gateway", async () => {
+    mocks.gqlFetch.mockResolvedValue({ data: { placeOrder: { id: ORDER, paymentClientSecret: "https://pay.example/checkout/1", paymentActionKind: "redirect" } } });
+    await expect(submit({ paymentUi: "on" })).rejects.toThrow("redirect");
+    expect(mocks.redirect).toHaveBeenCalledWith("https://pay.example/checkout/1");
+  });
+
+  it.each(["javascript:alert(1)", "http://pay.example/checkout/1", "/relative"])("never sends the browser to %s", async (value) => {
+    mocks.gqlFetch.mockResolvedValue({ data: { placeOrder: { id: ORDER, paymentClientSecret: value, paymentActionKind: "redirect" } } });
+    await expect(submit({ paymentUi: "on" })).rejects.toThrow("redirect");
+    expect(mocks.redirect).toHaveBeenCalledOnce();
+    expect(mocks.redirect).toHaveBeenCalledWith(`/en/orders/${ORDER}?email=guest%40example.com&payment=incomplete`);
+  });
+
+  it("shows a refused card as an unpaid order, not a thank-you", async () => {
+    mocks.gqlFetch.mockResolvedValue({ data: { placeOrder: { id: ORDER, paymentClientSecret: null, paymentFailed: true } } });
+    await expect(submit({ paymentToken: "pm_123", paymentUi: "on" })).rejects.toThrow("redirect");
+    expect(mocks.redirect).toHaveBeenCalledWith(`/en/orders/${ORDER}?email=guest%40example.com&payment=incomplete`);
+  });
+
+  it("asks the gateway after the challenge, and lands on the order either way", async () => {
+    mocks.gqlFetch.mockResolvedValue({ data: { finalizeOrderPayment: true } });
+    const pending = { orderId: ORDER, email: "guest@example.com", cartId: "cart-1", offer: false };
+    await expect(finalizePlacedPaymentAction(pending)).rejects.toThrow("redirect");
+    expect(mocks.redirect).toHaveBeenLastCalledWith(`/en/orders/${ORDER}?email=guest%40example.com&just_placed=1`);
+    expect(mocks.refresh).toHaveBeenCalled();
+    mocks.gqlFetch.mockResolvedValue({ data: { finalizeOrderPayment: false } });
+    await expect(finalizePlacedPaymentAction({ ...pending, email: "" })).rejects.toThrow("redirect");
+    expect(mocks.redirect).toHaveBeenLastCalledWith(`/en/account/orders/${ORDER}?payment=incomplete`);
+    mocks.redirect.mockClear();
+    await finalizePlacedPaymentAction({ ...pending, orderId: "../../evil" });
+    expect(mocks.redirect).not.toHaveBeenCalled();
   });
 });
 

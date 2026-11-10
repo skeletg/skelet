@@ -40,7 +40,7 @@ func run() error {
 
 	// The contract verifies core's calls with the service secret, /t the customer sessions with the public key alone
 	if err := envcheck.Report(envcheck.Production(os.Getenv,
-		envcheck.SignalsSessionKeys, envcheck.SignalsServiceSecret, envcheck.SignalsEncryptionKey, envcheck.SignalsDatabase, envcheck.RateLimiting,
+		envcheck.SignalsSessionKeys, envcheck.SignalsServiceSecret, envcheck.SignalsDatabase, envcheck.RateLimiting,
 		envcheck.TrustedProxies, // /t and /e arrive through core's proxy, so the shopper's IP is in X-Forwarded-For
 	)); err != nil {
 		return err
@@ -92,7 +92,7 @@ func run() error {
 		}
 	}()
 
-	// Retention, trait compute and destination forwarding arrive on the contract - core's scheduler
+	// Retention and trait compute arrive on the contract - core's scheduler
 	// owns their cadence, their run history and the operator's run-now button
 	var wg sync.WaitGroup
 	if queue := d.Stack.Queue; queue != nil { // this process never wraps its spine, so the recorder's store is the engine itself

@@ -12,7 +12,7 @@ fragment TrackingDestinationFields on TrackingDestination {
   }
   secretSet
   needsSecret
-  importedFrom
+  inTestMode
   health {
     lastSentAt
     lastError
@@ -37,6 +37,7 @@ fragment TrackingPlatformFields on TrackingPlatform {
     help
     required
     secret
+    testMode
   }
 }
 
@@ -61,7 +62,7 @@ query TrackingPlatforms($channelId: ID!) {
   }
 }
 
-query TrackingDeliveries($destinationId: ID!, $status: String, $limit: Int) {
+query TrackingDeliveries($destinationId: ID!, $status: TrackingDeliveryStatus, $limit: Int) {
   trackingDeliveries(destinationId: $destinationId, status: $status, limit: $limit) {
     id
     eventName
@@ -71,23 +72,6 @@ query TrackingDeliveries($destinationId: ID!, $status: String, $limit: Int) {
     lastError
     nextAttemptAt
     createdAt
-  }
-}
-
-query SignalsImportCandidates($channelId: ID!) {
-  signalsImportCandidates(channelId: $channelId) {
-    legacyId
-    name
-    legacyKind
-    targetKind
-    config {
-      key
-      value
-    }
-    signalsActive
-    importedAs
-    droppedFilters
-    problem
   }
 }
 
@@ -130,8 +114,3 @@ mutation RedeliverTrackingDelivery($id: ID!) {
   }
 }
 
-mutation ImportSignalsDestinations($channelId: ID!, $legacyIds: [ID!]!) {
-  importSignalsDestinations(channelId: $channelId, legacyIds: $legacyIds) {
-    ...TrackingDestinationFields
-  }
-}

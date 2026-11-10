@@ -1,0 +1,53 @@
+query AgenticReport($channelId: ID!, $days: Int!) {
+  assistantReport(channelId: $channelId, days: $days) {
+    days
+    turns
+    failedTurns
+    unansweredTurns
+    cartTurns
+    checkoutTurns
+    searchOverviews
+    usage {
+      inputTokens
+      outputTokens
+      cacheReadTokens
+      cacheWriteTokens
+      estimatedCostUsd
+    }
+    orders {
+      currencyCode
+      orderCount
+      assistantOrders
+      assistantRevenue
+      agentOrders
+      agentRevenue
+    }
+    daily {
+      day
+      turns
+      failedTurns
+      unansweredTurns
+      cartTurns
+      checkoutTurns
+      assistantOrders
+      agentOrders
+    }
+  }
+}
+
+query AgenticStatus($channelId: ID!) {
+  agenticStatus(channelId: $channelId) {
+    key
+    label
+    state
+    detail
+    settingsPath
+  }
+}
+
+query AssistantName($scope: ConfigScopeInput) {
+  configValue(path: "sales/assistant/name", scope: $scope) {
+    path
+    value
+  }
+}

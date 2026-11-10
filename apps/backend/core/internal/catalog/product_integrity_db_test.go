@@ -249,6 +249,16 @@ func TestATemplateChangeRecomputesAndAnnouncesItsProducts(t *testing.T) {
 	if got := r.productURL(p.ID); got != "lamps/lamp-"+r.sfx {
 		t.Errorf("UpdateProductType changed the template without recomputing: url = %q", got)
 	}
+
+	r.reset()
+	r.listen(EventProductTypeRenamed)
+	name, again := "Lighting "+r.sfx, "shades/{name}"
+	if _, err := r.svc.UpdateProductType(ctx, UpdateProductTypeInput{ID: pt.ID, Name: &name, URLTemplate: &again}); err != nil {
+		t.Fatal(err)
+	}
+	if got := eventsOf[*ProductTypeRenamed](r.published()); len(got) != 1 || got[0].ProductTypeID != pt.ID {
+		t.Errorf("renamed with a new template too = %v - want the rename announced, so its products' words are read again", got)
+	}
 }
 
 func TestAttributeChangesAnnounceTheProductsCarryingThem(t *testing.T) {
@@ -316,7 +326,7 @@ func TestProductTypeHydrationKeepsEveryAttributeField(t *testing.T) {
 	pt := r.ptype("", false)
 	a := r.dropdown("full", "x")
 	r.exec(`UPDATE catalog_attributes SET unit = 'cm', value_required = TRUE, filterable = TRUE, searchable = TRUE, is_public = TRUE,
-		facet_collapsed = TRUE, is_indexable = TRUE, h1_position = 'after', synapse_track = TRUE, auto_segment = TRUE, sort_order = 7,
+		facet_collapsed = TRUE, is_indexable = TRUE, h1_position = 'after', synapse_track = TRUE, auto_segment = TRUE, similar_match = TRUE, sort_order = 7,
 		metadata = '{"k":"v"}', private_metadata = '{"p":"q"}', default_value = to_jsonb($2::text), relationship_target = NULL WHERE id = $1`, a.ID, valueID(a, "x").String())
 	if _, err := r.svc.AssignAttribute(ctx, AssignAttributeInput{ProductTypeID: pt.ID, AttributeID: a.ID}); err != nil {
 		t.Fatal(err)
@@ -711,5 +721,40 @@ func TestSideWritesAnnounceTheProduct(t *testing.T) {
 		}) {
 			t.Errorf("%s write published no product.updated", name)
 		}
+	}
+}
+
+func TestTheSimilarMatchSwitchStartsOffAndKeepsWhatWasSet(t *testing.T) {
+	r := newCatalogRig(t)
+	ctx := context.Background()
+	a, err := r.svc.CreateAttribute(ctx, CreateAttributeInput{Slug: "fit-" + r.sfx, Name: "fit", InputType: InputTypePlainText})
+	if err != nil || a.SimilarMatch || !a.Embedded {
+		t.Fatalf("created = %+v, %v - want it off for similar products and on for search by meaning", a, err)
+	}
+	on := true
+	if a, err = r.svc.UpdateAttribute(ctx, UpdateAttributeInput{ID: a.ID, SimilarMatch: &on}); err != nil || !a.SimilarMatch {
+		t.Fatalf("switched on = %+v, %v", a, err)
+	}
+	name := "Fit"
+	if a, err = r.svc.UpdateAttribute(ctx, UpdateAttributeInput{ID: a.ID, Name: &name}); err != nil || !a.SimilarMatch || a.Name != "Fit" {
+		t.Errorf("renamed = %+v, %v - want the switch left as it was", a, err)
+	}
+}
+
+func TestAValueThatStandsForAllKeepsItsSwitchThroughAnEdit(t *testing.T) {
+	r := newCatalogRig(t)
+	ctx := context.Background()
+	a := r.dropdown("sex", "women")
+	on := true
+	unisex, err := r.svc.AddAttributeValue(ctx, a.ID, AttributeValueInput{Slug: "unisex-" + r.sfx, Name: "Unisex", MatchesAny: &on})
+	if err != nil || !unisex.MatchesAny {
+		t.Fatalf("added = %+v, %v", unisex, err)
+	}
+	if v, err := r.svc.UpdateAttributeValue(ctx, unisex.ID, AttributeValueInput{Slug: unisex.Slug, Name: "Unisex fit"}); err != nil || !v.MatchesAny || v.Name != "Unisex fit" {
+		t.Errorf("renamed without naming the switch = %+v, %v - want it kept", v, err)
+	}
+	off := false
+	if v, err := r.svc.UpdateAttributeValue(ctx, unisex.ID, AttributeValueInput{Slug: unisex.Slug, Name: "Unisex fit", MatchesAny: &off}); err != nil || v.MatchesAny {
+		t.Errorf("switched off = %+v, %v", v, err)
 	}
 }

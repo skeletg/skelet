@@ -46,6 +46,7 @@ func (r *postgresRepository) Create(ctx context.Context, input CreateCustomerInp
 		LastName:        input.LastName,
 		IsEmailVerified: input.EmailVerified,
 		CustomerGroupID: sqlnull.UUID(input.GroupID),
+		Locale:          input.Locale,
 	})
 	if err != nil {
 		// the (channel, email) unique index firing means "already registered", not a server fault
@@ -55,6 +56,12 @@ func (r *postgresRepository) Create(ctx context.Context, input CreateCustomerInp
 		return Customer{}, fmt.Errorf("create customer: %w", err)
 	}
 	return toCustomer(row), nil
+}
+
+// SetLocale keeps the language a customer last signed in with - the one their marketing email goes out in
+func (r *postgresRepository) SetLocale(ctx context.Context, id uuid.UUID, locale string) (bool, error) {
+	n, err := r.queries.SetCustomerLocale(ctx, db.SetCustomerLocaleParams{ID: id, Locale: locale})
+	return n > 0, err
 }
 
 func (r *postgresRepository) GetByStoreAndEmail(ctx context.Context, channelID uuid.UUID, email string) (Customer, error) {
@@ -388,6 +395,7 @@ func toCustomer(row db.Customer) Customer {
 		ID:               row.ID,
 		ChannelID:        row.ChannelID,
 		Email:            row.Email,
+		Locale:           row.Locale,
 		PasswordHash:     row.PasswordHash,
 		FirstName:        row.FirstName,
 		LastName:         row.LastName,

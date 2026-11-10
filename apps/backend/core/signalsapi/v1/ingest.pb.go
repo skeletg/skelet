@@ -24,6 +24,287 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type AISearch struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The words searched, as the assistant or the agent put them
+	Term          string `protobuf:"bytes,1,opt,name=term,proto3" json:"term,omitempty"`
+	Results       int32  `protobuf:"varint,2,opt,name=results,proto3" json:"results,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AISearch) Reset() {
+	*x = AISearch{}
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AISearch) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AISearch) ProtoMessage() {}
+
+func (x *AISearch) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AISearch.ProtoReflect.Descriptor instead.
+func (*AISearch) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *AISearch) GetTerm() string {
+	if x != nil {
+		return x.Term
+	}
+	return ""
+}
+
+func (x *AISearch) GetResults() int32 {
+	if x != nil {
+		return x.Results
+	}
+	return 0
+}
+
+type RecordAIActivityRequest struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	ChannelId string                 `protobuf:"bytes,1,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
+	At        *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=at,proto3" json:"at,omitempty"`
+	// "assistant" or "agent"
+	Source string `protobuf:"bytes,3,opt,name=source,proto3" json:"source,omitempty"`
+	// The agent's name for itself from the MCP handshake, empty for the assistant
+	Agent string `protobuf:"bytes,4,opt,name=agent,proto3" json:"agent,omitempty"`
+	// Each tool called, once per call
+	Tools    []string    `protobuf:"bytes,5,rep,name=tools,proto3" json:"tools,omitempty"`
+	Searches []*AISearch `protobuf:"bytes,6,rep,name=searches,proto3" json:"searches,omitempty"`
+	// The same activity sent again counts once
+	DedupeKey     string `protobuf:"bytes,7,opt,name=dedupe_key,json=dedupeKey,proto3" json:"dedupe_key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordAIActivityRequest) Reset() {
+	*x = RecordAIActivityRequest{}
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordAIActivityRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordAIActivityRequest) ProtoMessage() {}
+
+func (x *RecordAIActivityRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordAIActivityRequest.ProtoReflect.Descriptor instead.
+func (*RecordAIActivityRequest) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *RecordAIActivityRequest) GetChannelId() string {
+	if x != nil {
+		return x.ChannelId
+	}
+	return ""
+}
+
+func (x *RecordAIActivityRequest) GetAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.At
+	}
+	return nil
+}
+
+func (x *RecordAIActivityRequest) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *RecordAIActivityRequest) GetAgent() string {
+	if x != nil {
+		return x.Agent
+	}
+	return ""
+}
+
+func (x *RecordAIActivityRequest) GetTools() []string {
+	if x != nil {
+		return x.Tools
+	}
+	return nil
+}
+
+func (x *RecordAIActivityRequest) GetSearches() []*AISearch {
+	if x != nil {
+		return x.Searches
+	}
+	return nil
+}
+
+func (x *RecordAIActivityRequest) GetDedupeKey() string {
+	if x != nil {
+		return x.DedupeKey
+	}
+	return ""
+}
+
+type RecordAIActivityResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Recorded      bool                   `protobuf:"varint,1,opt,name=recorded,proto3" json:"recorded,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordAIActivityResponse) Reset() {
+	*x = RecordAIActivityResponse{}
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordAIActivityResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordAIActivityResponse) ProtoMessage() {}
+
+func (x *RecordAIActivityResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordAIActivityResponse.ProtoReflect.Descriptor instead.
+func (*RecordAIActivityResponse) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *RecordAIActivityResponse) GetRecorded() bool {
+	if x != nil {
+		return x.Recorded
+	}
+	return false
+}
+
+type RecordAssistantTurnRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Turn          *AssistantTurnRecord   `protobuf:"bytes,1,opt,name=turn,proto3" json:"turn,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordAssistantTurnRequest) Reset() {
+	*x = RecordAssistantTurnRequest{}
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordAssistantTurnRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordAssistantTurnRequest) ProtoMessage() {}
+
+func (x *RecordAssistantTurnRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordAssistantTurnRequest.ProtoReflect.Descriptor instead.
+func (*RecordAssistantTurnRequest) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *RecordAssistantTurnRequest) GetTurn() *AssistantTurnRecord {
+	if x != nil {
+		return x.Turn
+	}
+	return nil
+}
+
+type RecordAssistantTurnResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Recorded      bool                   `protobuf:"varint,1,opt,name=recorded,proto3" json:"recorded,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordAssistantTurnResponse) Reset() {
+	*x = RecordAssistantTurnResponse{}
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordAssistantTurnResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordAssistantTurnResponse) ProtoMessage() {}
+
+func (x *RecordAssistantTurnResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordAssistantTurnResponse.ProtoReflect.Descriptor instead.
+func (*RecordAssistantTurnResponse) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *RecordAssistantTurnResponse) GetRecorded() bool {
+	if x != nil {
+		return x.Recorded
+	}
+	return false
+}
+
 type ChannelEntry struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	ChannelId string                 `protobuf:"bytes,1,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
@@ -44,7 +325,7 @@ type ChannelEntry struct {
 
 func (x *ChannelEntry) Reset() {
 	*x = ChannelEntry{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[0]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56,7 +337,7 @@ func (x *ChannelEntry) String() string {
 func (*ChannelEntry) ProtoMessage() {}
 
 func (x *ChannelEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[0]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -69,7 +350,7 @@ func (x *ChannelEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChannelEntry.ProtoReflect.Descriptor instead.
 func (*ChannelEntry) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{0}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ChannelEntry) GetChannelId() string {
@@ -138,7 +419,7 @@ type SyncChannelsRequest struct {
 
 func (x *SyncChannelsRequest) Reset() {
 	*x = SyncChannelsRequest{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[1]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -150,7 +431,7 @@ func (x *SyncChannelsRequest) String() string {
 func (*SyncChannelsRequest) ProtoMessage() {}
 
 func (x *SyncChannelsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[1]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -163,7 +444,7 @@ func (x *SyncChannelsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncChannelsRequest.ProtoReflect.Descriptor instead.
 func (*SyncChannelsRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{1}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *SyncChannelsRequest) GetChannels() []*ChannelEntry {
@@ -183,7 +464,7 @@ type SyncChannelsResponse struct {
 
 func (x *SyncChannelsResponse) Reset() {
 	*x = SyncChannelsResponse{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[2]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -195,7 +476,7 @@ func (x *SyncChannelsResponse) String() string {
 func (*SyncChannelsResponse) ProtoMessage() {}
 
 func (x *SyncChannelsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[2]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -208,7 +489,7 @@ func (x *SyncChannelsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncChannelsResponse.ProtoReflect.Descriptor instead.
 func (*SyncChannelsResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{2}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *SyncChannelsResponse) GetSynced() int32 {
@@ -255,13 +536,15 @@ type RosterEntry struct {
 	MonetaryCents int64                  `protobuf:"varint,14,opt,name=monetary_cents,json=monetaryCents,proto3" json:"monetary_cents,omitempty"`
 	FirstOrderAt  *timestamppb.Timestamp `protobuf:"bytes,15,opt,name=first_order_at,json=firstOrderAt,proto3" json:"first_order_at,omitempty"`
 	LastOrderAt   *timestamppb.Timestamp `protobuf:"bytes,16,opt,name=last_order_at,json=lastOrderAt,proto3" json:"last_order_at,omitempty"`
+	// The storefront language the customer last signed in with, lowercase - empty when not known yet
+	Locale        string `protobuf:"bytes,17,opt,name=locale,proto3" json:"locale,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RosterEntry) Reset() {
 	*x = RosterEntry{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[3]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -273,7 +556,7 @@ func (x *RosterEntry) String() string {
 func (*RosterEntry) ProtoMessage() {}
 
 func (x *RosterEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[3]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -286,7 +569,7 @@ func (x *RosterEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RosterEntry.ProtoReflect.Descriptor instead.
 func (*RosterEntry) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{3}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *RosterEntry) GetCustomerId() string {
@@ -401,6 +684,13 @@ func (x *RosterEntry) GetLastOrderAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *RosterEntry) GetLocale() string {
+	if x != nil {
+		return x.Locale
+	}
+	return ""
+}
+
 type Consent struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
@@ -411,7 +701,7 @@ type Consent struct {
 
 func (x *Consent) Reset() {
 	*x = Consent{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[4]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -423,7 +713,7 @@ func (x *Consent) String() string {
 func (*Consent) ProtoMessage() {}
 
 func (x *Consent) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[4]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -436,7 +726,7 @@ func (x *Consent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Consent.ProtoReflect.Descriptor instead.
 func (*Consent) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{4}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *Consent) GetKind() string {
@@ -463,7 +753,7 @@ type SyncCustomerRosterRequest struct {
 
 func (x *SyncCustomerRosterRequest) Reset() {
 	*x = SyncCustomerRosterRequest{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[5]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -475,7 +765,7 @@ func (x *SyncCustomerRosterRequest) String() string {
 func (*SyncCustomerRosterRequest) ProtoMessage() {}
 
 func (x *SyncCustomerRosterRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[5]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -488,7 +778,7 @@ func (x *SyncCustomerRosterRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncCustomerRosterRequest.ProtoReflect.Descriptor instead.
 func (*SyncCustomerRosterRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{5}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *SyncCustomerRosterRequest) GetCustomers() []*RosterEntry {
@@ -507,7 +797,7 @@ type UpsertRosterEntryRequest struct {
 
 func (x *UpsertRosterEntryRequest) Reset() {
 	*x = UpsertRosterEntryRequest{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[6]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -519,7 +809,7 @@ func (x *UpsertRosterEntryRequest) String() string {
 func (*UpsertRosterEntryRequest) ProtoMessage() {}
 
 func (x *UpsertRosterEntryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[6]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -532,7 +822,7 @@ func (x *UpsertRosterEntryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpsertRosterEntryRequest.ProtoReflect.Descriptor instead.
 func (*UpsertRosterEntryRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{6}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *UpsertRosterEntryRequest) GetCustomer() *RosterEntry {
@@ -552,7 +842,7 @@ type UpsertRosterEntryResponse struct {
 
 func (x *UpsertRosterEntryResponse) Reset() {
 	*x = UpsertRosterEntryResponse{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[7]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -564,7 +854,7 @@ func (x *UpsertRosterEntryResponse) String() string {
 func (*UpsertRosterEntryResponse) ProtoMessage() {}
 
 func (x *UpsertRosterEntryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[7]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -577,7 +867,7 @@ func (x *UpsertRosterEntryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpsertRosterEntryResponse.ProtoReflect.Descriptor instead.
 func (*UpsertRosterEntryResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{7}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *UpsertRosterEntryResponse) GetRosterVersion() int32 {
@@ -602,7 +892,7 @@ type RosterStatusRequest struct {
 
 func (x *RosterStatusRequest) Reset() {
 	*x = RosterStatusRequest{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[8]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -614,7 +904,7 @@ func (x *RosterStatusRequest) String() string {
 func (*RosterStatusRequest) ProtoMessage() {}
 
 func (x *RosterStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[8]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -627,7 +917,7 @@ func (x *RosterStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RosterStatusRequest.ProtoReflect.Descriptor instead.
 func (*RosterStatusRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{8}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{13}
 }
 
 type RosterStatusResponse struct {
@@ -642,7 +932,7 @@ type RosterStatusResponse struct {
 
 func (x *RosterStatusResponse) Reset() {
 	*x = RosterStatusResponse{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[9]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -654,7 +944,7 @@ func (x *RosterStatusResponse) String() string {
 func (*RosterStatusResponse) ProtoMessage() {}
 
 func (x *RosterStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[9]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -667,7 +957,7 @@ func (x *RosterStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RosterStatusResponse.ProtoReflect.Descriptor instead.
 func (*RosterStatusResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{9}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *RosterStatusResponse) GetRosterVersion() int32 {
@@ -707,7 +997,7 @@ type DeleteRosterEntryRequest struct {
 
 func (x *DeleteRosterEntryRequest) Reset() {
 	*x = DeleteRosterEntryRequest{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[10]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -719,7 +1009,7 @@ func (x *DeleteRosterEntryRequest) String() string {
 func (*DeleteRosterEntryRequest) ProtoMessage() {}
 
 func (x *DeleteRosterEntryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[10]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -732,7 +1022,7 @@ func (x *DeleteRosterEntryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRosterEntryRequest.ProtoReflect.Descriptor instead.
 func (*DeleteRosterEntryRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{10}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *DeleteRosterEntryRequest) GetCustomerId() string {
@@ -750,7 +1040,7 @@ type DeleteRosterEntryResponse struct {
 
 func (x *DeleteRosterEntryResponse) Reset() {
 	*x = DeleteRosterEntryResponse{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[11]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -762,7 +1052,7 @@ func (x *DeleteRosterEntryResponse) String() string {
 func (*DeleteRosterEntryResponse) ProtoMessage() {}
 
 func (x *DeleteRosterEntryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[11]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -775,7 +1065,7 @@ func (x *DeleteRosterEntryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRosterEntryResponse.ProtoReflect.Descriptor instead.
 func (*DeleteRosterEntryResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{11}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{16}
 }
 
 type SyncCustomerRosterResponse struct {
@@ -790,7 +1080,7 @@ type SyncCustomerRosterResponse struct {
 
 func (x *SyncCustomerRosterResponse) Reset() {
 	*x = SyncCustomerRosterResponse{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[12]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -802,7 +1092,7 @@ func (x *SyncCustomerRosterResponse) String() string {
 func (*SyncCustomerRosterResponse) ProtoMessage() {}
 
 func (x *SyncCustomerRosterResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[12]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -815,7 +1105,7 @@ func (x *SyncCustomerRosterResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncCustomerRosterResponse.ProtoReflect.Descriptor instead.
 func (*SyncCustomerRosterResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{12}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *SyncCustomerRosterResponse) GetSynced() int32 {
@@ -869,7 +1159,7 @@ type EmailSendRef struct {
 
 func (x *EmailSendRef) Reset() {
 	*x = EmailSendRef{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[13]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -881,7 +1171,7 @@ func (x *EmailSendRef) String() string {
 func (*EmailSendRef) ProtoMessage() {}
 
 func (x *EmailSendRef) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[13]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -894,7 +1184,7 @@ func (x *EmailSendRef) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EmailSendRef.ProtoReflect.Descriptor instead.
 func (*EmailSendRef) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{13}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *EmailSendRef) GetSendId() string {
@@ -1010,7 +1300,7 @@ type EmailHit struct {
 
 func (x *EmailHit) Reset() {
 	*x = EmailHit{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[14]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1022,7 +1312,7 @@ func (x *EmailHit) String() string {
 func (*EmailHit) ProtoMessage() {}
 
 func (x *EmailHit) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[14]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1035,7 +1325,7 @@ func (x *EmailHit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EmailHit.ProtoReflect.Descriptor instead.
 func (*EmailHit) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{14}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *EmailHit) GetUserAgent() string {
@@ -1080,9 +1370,10 @@ type RecordActivityRequest struct {
 	Source    string `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
 	ChannelId string `protobuf:"bytes,3,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
 	// One of customer_id or anon_id is required - an action attributable to nobody has no place on a profile
-	CustomerId *string                `protobuf:"bytes,4,opt,name=customer_id,json=customerId,proto3,oneof" json:"customer_id,omitempty"`
-	AnonId     string                 `protobuf:"bytes,5,opt,name=anon_id,json=anonId,proto3" json:"anon_id,omitempty"`
-	At         *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=at,proto3" json:"at,omitempty"`
+	CustomerId *string `protobuf:"bytes,4,opt,name=customer_id,json=customerId,proto3,oneof" json:"customer_id,omitempty"`
+	// On a login or registered account event with customer_id too, the visitor signed in as that customer - the suite stitches the two
+	AnonId string                 `protobuf:"bytes,5,opt,name=anon_id,json=anonId,proto3" json:"anon_id,omitempty"`
+	At     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=at,proto3" json:"at,omitempty"`
 	// The event's properties as a JSON object, opaque to the wire
 	PropsJson string `protobuf:"bytes,7,opt,name=props_json,json=propsJson,proto3" json:"props_json,omitempty"`
 	// Keeps the write idempotent against an at-least-once bus - an outbox replay collapses on it
@@ -1093,7 +1384,7 @@ type RecordActivityRequest struct {
 
 func (x *RecordActivityRequest) Reset() {
 	*x = RecordActivityRequest{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[15]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1105,7 +1396,7 @@ func (x *RecordActivityRequest) String() string {
 func (*RecordActivityRequest) ProtoMessage() {}
 
 func (x *RecordActivityRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[15]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1118,7 +1409,7 @@ func (x *RecordActivityRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordActivityRequest.ProtoReflect.Descriptor instead.
 func (*RecordActivityRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{15}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *RecordActivityRequest) GetEventName() string {
@@ -1187,7 +1478,7 @@ type RecordActivityResponse struct {
 
 func (x *RecordActivityResponse) Reset() {
 	*x = RecordActivityResponse{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[16]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1199,7 +1490,7 @@ func (x *RecordActivityResponse) String() string {
 func (*RecordActivityResponse) ProtoMessage() {}
 
 func (x *RecordActivityResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[16]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1212,7 +1503,7 @@ func (x *RecordActivityResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordActivityResponse.ProtoReflect.Descriptor instead.
 func (*RecordActivityResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{16}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *RecordActivityResponse) GetRecorded() bool {
@@ -1223,22 +1514,20 @@ func (x *RecordActivityResponse) GetRecorded() bool {
 }
 
 type RecordConversionRequest struct {
-	state        protoimpl.MessageState `protogen:"open.v1"`
-	CustomerId   string                 `protobuf:"bytes,1,opt,name=customer_id,json=customerId,proto3" json:"customer_id,omitempty"`
-	ChannelId    string                 `protobuf:"bytes,2,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
-	OrderId      string                 `protobuf:"bytes,3,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
-	RevenueCents int64                  `protobuf:"varint,4,opt,name=revenue_cents,json=revenueCents,proto3" json:"revenue_cents,omitempty"`
-	Currency     string                 `protobuf:"bytes,5,opt,name=currency,proto3" json:"currency,omitempty"`
-	At           *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=at,proto3" json:"at,omitempty"`
-	// revenue_cents in the platform's base currency at the rate of the day - unset when no rate was known
-	RevenueBaseCents *int64 `protobuf:"varint,7,opt,name=revenue_base_cents,json=revenueBaseCents,proto3,oneof" json:"revenue_base_cents,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CustomerId    string                 `protobuf:"bytes,1,opt,name=customer_id,json=customerId,proto3" json:"customer_id,omitempty"`
+	ChannelId     string                 `protobuf:"bytes,2,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
+	OrderId       string                 `protobuf:"bytes,3,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	RevenueCents  int64                  `protobuf:"varint,4,opt,name=revenue_cents,json=revenueCents,proto3" json:"revenue_cents,omitempty"`
+	Currency      string                 `protobuf:"bytes,5,opt,name=currency,proto3" json:"currency,omitempty"`
+	At            *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=at,proto3" json:"at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RecordConversionRequest) Reset() {
 	*x = RecordConversionRequest{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[17]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1250,7 +1539,7 @@ func (x *RecordConversionRequest) String() string {
 func (*RecordConversionRequest) ProtoMessage() {}
 
 func (x *RecordConversionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[17]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1263,7 +1552,7 @@ func (x *RecordConversionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordConversionRequest.ProtoReflect.Descriptor instead.
 func (*RecordConversionRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{17}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *RecordConversionRequest) GetCustomerId() string {
@@ -1308,13 +1597,6 @@ func (x *RecordConversionRequest) GetAt() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *RecordConversionRequest) GetRevenueBaseCents() int64 {
-	if x != nil && x.RevenueBaseCents != nil {
-		return *x.RevenueBaseCents
-	}
-	return 0
-}
-
 type RecordConversionResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Recorded      bool                   `protobuf:"varint,1,opt,name=recorded,proto3" json:"recorded,omitempty"`
@@ -1324,7 +1606,7 @@ type RecordConversionResponse struct {
 
 func (x *RecordConversionResponse) Reset() {
 	*x = RecordConversionResponse{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[18]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1336,7 +1618,7 @@ func (x *RecordConversionResponse) String() string {
 func (*RecordConversionResponse) ProtoMessage() {}
 
 func (x *RecordConversionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[18]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1349,7 +1631,7 @@ func (x *RecordConversionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordConversionResponse.ProtoReflect.Descriptor instead.
 func (*RecordConversionResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{18}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *RecordConversionResponse) GetRecorded() bool {
@@ -1370,7 +1652,7 @@ type RecordEmailSentRequest struct {
 
 func (x *RecordEmailSentRequest) Reset() {
 	*x = RecordEmailSentRequest{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[19]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1382,7 +1664,7 @@ func (x *RecordEmailSentRequest) String() string {
 func (*RecordEmailSentRequest) ProtoMessage() {}
 
 func (x *RecordEmailSentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[19]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1395,7 +1677,7 @@ func (x *RecordEmailSentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordEmailSentRequest.ProtoReflect.Descriptor instead.
 func (*RecordEmailSentRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{19}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *RecordEmailSentRequest) GetSend() *EmailSendRef {
@@ -1414,7 +1696,7 @@ type RecordEmailSentResponse struct {
 
 func (x *RecordEmailSentResponse) Reset() {
 	*x = RecordEmailSentResponse{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[20]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1426,7 +1708,7 @@ func (x *RecordEmailSentResponse) String() string {
 func (*RecordEmailSentResponse) ProtoMessage() {}
 
 func (x *RecordEmailSentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[20]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1439,7 +1721,7 @@ func (x *RecordEmailSentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordEmailSentResponse.ProtoReflect.Descriptor instead.
 func (*RecordEmailSentResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{20}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *RecordEmailSentResponse) GetRecorded() bool {
@@ -1461,7 +1743,7 @@ type RecordEmailOpenRequest struct {
 
 func (x *RecordEmailOpenRequest) Reset() {
 	*x = RecordEmailOpenRequest{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[21]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1473,7 +1755,7 @@ func (x *RecordEmailOpenRequest) String() string {
 func (*RecordEmailOpenRequest) ProtoMessage() {}
 
 func (x *RecordEmailOpenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[21]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1486,7 +1768,7 @@ func (x *RecordEmailOpenRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordEmailOpenRequest.ProtoReflect.Descriptor instead.
 func (*RecordEmailOpenRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{21}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *RecordEmailOpenRequest) GetSend() *EmailSendRef {
@@ -1516,7 +1798,7 @@ type RecordEmailOpenResponse struct {
 
 func (x *RecordEmailOpenResponse) Reset() {
 	*x = RecordEmailOpenResponse{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[22]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1528,7 +1810,7 @@ func (x *RecordEmailOpenResponse) String() string {
 func (*RecordEmailOpenResponse) ProtoMessage() {}
 
 func (x *RecordEmailOpenResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[22]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1541,7 +1823,7 @@ func (x *RecordEmailOpenResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordEmailOpenResponse.ProtoReflect.Descriptor instead.
 func (*RecordEmailOpenResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{22}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *RecordEmailOpenResponse) GetRecorded() bool {
@@ -1578,7 +1860,7 @@ type RecordEmailClickRequest struct {
 
 func (x *RecordEmailClickRequest) Reset() {
 	*x = RecordEmailClickRequest{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[23]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1590,7 +1872,7 @@ func (x *RecordEmailClickRequest) String() string {
 func (*RecordEmailClickRequest) ProtoMessage() {}
 
 func (x *RecordEmailClickRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[23]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1603,7 +1885,7 @@ func (x *RecordEmailClickRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordEmailClickRequest.ProtoReflect.Descriptor instead.
 func (*RecordEmailClickRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{23}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *RecordEmailClickRequest) GetSend() *EmailSendRef {
@@ -1645,7 +1927,7 @@ type RecordEmailClickResponse struct {
 
 func (x *RecordEmailClickResponse) Reset() {
 	*x = RecordEmailClickResponse{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[24]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1657,7 +1939,7 @@ func (x *RecordEmailClickResponse) String() string {
 func (*RecordEmailClickResponse) ProtoMessage() {}
 
 func (x *RecordEmailClickResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[24]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1670,7 +1952,7 @@ func (x *RecordEmailClickResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordEmailClickResponse.ProtoReflect.Descriptor instead.
 func (*RecordEmailClickResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{24}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *RecordEmailClickResponse) GetRecorded() bool {
@@ -1708,7 +1990,7 @@ type EraseCustomerIdentitiesRequest struct {
 
 func (x *EraseCustomerIdentitiesRequest) Reset() {
 	*x = EraseCustomerIdentitiesRequest{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[25]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1720,7 +2002,7 @@ func (x *EraseCustomerIdentitiesRequest) String() string {
 func (*EraseCustomerIdentitiesRequest) ProtoMessage() {}
 
 func (x *EraseCustomerIdentitiesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[25]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1733,7 +2015,7 @@ func (x *EraseCustomerIdentitiesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EraseCustomerIdentitiesRequest.ProtoReflect.Descriptor instead.
 func (*EraseCustomerIdentitiesRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{25}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *EraseCustomerIdentitiesRequest) GetCustomerId() string {
@@ -1765,7 +2047,7 @@ type EraseCustomerIdentitiesResponse struct {
 
 func (x *EraseCustomerIdentitiesResponse) Reset() {
 	*x = EraseCustomerIdentitiesResponse{}
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[26]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1777,7 +2059,7 @@ func (x *EraseCustomerIdentitiesResponse) String() string {
 func (*EraseCustomerIdentitiesResponse) ProtoMessage() {}
 
 func (x *EraseCustomerIdentitiesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[26]
+	mi := &file_skelet_signals_v1_ingest_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1790,14 +2072,33 @@ func (x *EraseCustomerIdentitiesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EraseCustomerIdentitiesResponse.ProtoReflect.Descriptor instead.
 func (*EraseCustomerIdentitiesResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{26}
+	return file_skelet_signals_v1_ingest_proto_rawDescGZIP(), []int{31}
 }
 
 var File_skelet_signals_v1_ingest_proto protoreflect.FileDescriptor
 
 const file_skelet_signals_v1_ingest_proto_rawDesc = "" +
 	"\n" +
-	"\x1eskelet/signals/v1/ingest.proto\x12\x11skelet.signals.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x8a\x02\n" +
+	"\x1eskelet/signals/v1/ingest.proto\x12\x11skelet.signals.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!skelet/signals/v1/assistant.proto\"8\n" +
+	"\bAISearch\x12\x12\n" +
+	"\x04term\x18\x01 \x01(\tR\x04term\x12\x18\n" +
+	"\aresults\x18\x02 \x01(\x05R\aresults\"\x80\x02\n" +
+	"\x17RecordAIActivityRequest\x12\x1d\n" +
+	"\n" +
+	"channel_id\x18\x01 \x01(\tR\tchannelId\x12*\n" +
+	"\x02at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x02at\x12\x16\n" +
+	"\x06source\x18\x03 \x01(\tR\x06source\x12\x14\n" +
+	"\x05agent\x18\x04 \x01(\tR\x05agent\x12\x14\n" +
+	"\x05tools\x18\x05 \x03(\tR\x05tools\x127\n" +
+	"\bsearches\x18\x06 \x03(\v2\x1b.skelet.signals.v1.AISearchR\bsearches\x12\x1d\n" +
+	"\n" +
+	"dedupe_key\x18\a \x01(\tR\tdedupeKey\"6\n" +
+	"\x18RecordAIActivityResponse\x12\x1a\n" +
+	"\brecorded\x18\x01 \x01(\bR\brecorded\"X\n" +
+	"\x1aRecordAssistantTurnRequest\x12:\n" +
+	"\x04turn\x18\x01 \x01(\v2&.skelet.signals.v1.AssistantTurnRecordR\x04turn\"9\n" +
+	"\x1bRecordAssistantTurnResponse\x12\x1a\n" +
+	"\brecorded\x18\x01 \x01(\bR\brecorded\"\x8a\x02\n" +
 	"\fChannelEntry\x12\x1d\n" +
 	"\n" +
 	"channel_id\x18\x01 \x01(\tR\tchannelId\x12\x1d\n" +
@@ -1816,7 +2117,7 @@ const file_skelet_signals_v1_ingest_proto_rawDesc = "" +
 	"\bchannels\x18\x01 \x03(\v2\x1f.skelet.signals.v1.ChannelEntryR\bchannels\"F\n" +
 	"\x14SyncChannelsResponse\x12\x16\n" +
 	"\x06synced\x18\x01 \x01(\x05R\x06synced\x12\x16\n" +
-	"\x06pruned\x18\x02 \x01(\x05R\x06pruned\"\x98\x05\n" +
+	"\x06pruned\x18\x02 \x01(\x05R\x06pruned\"\xb0\x05\n" +
 	"\vRosterEntry\x12\x1f\n" +
 	"\vcustomer_id\x18\x01 \x01(\tR\n" +
 	"customerId\x12\x1d\n" +
@@ -1839,7 +2140,8 @@ const file_skelet_signals_v1_ingest_proto_rawDesc = "" +
 	"orderCount\x12%\n" +
 	"\x0emonetary_cents\x18\x0e \x01(\x03R\rmonetaryCents\x12@\n" +
 	"\x0efirst_order_at\x18\x0f \x01(\v2\x1a.google.protobuf.TimestampR\ffirstOrderAt\x12>\n" +
-	"\rlast_order_at\x18\x10 \x01(\v2\x1a.google.protobuf.TimestampR\vlastOrderAt\"8\n" +
+	"\rlast_order_at\x18\x10 \x01(\v2\x1a.google.protobuf.TimestampR\vlastOrderAt\x12\x16\n" +
+	"\x06locale\x18\x11 \x01(\tR\x06locale\"8\n" +
 	"\aConsent\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bopted_in\x18\x02 \x01(\bR\aoptedIn\"Y\n" +
@@ -1915,7 +2217,7 @@ const file_skelet_signals_v1_ingest_proto_rawDesc = "" +
 	"dedupe_key\x18\b \x01(\tR\tdedupeKeyB\x0e\n" +
 	"\f_customer_id\"4\n" +
 	"\x16RecordActivityResponse\x12\x1a\n" +
-	"\brecorded\x18\x01 \x01(\bR\brecorded\"\xab\x02\n" +
+	"\brecorded\x18\x01 \x01(\bR\brecorded\"\xe1\x01\n" +
 	"\x17RecordConversionRequest\x12\x1f\n" +
 	"\vcustomer_id\x18\x01 \x01(\tR\n" +
 	"customerId\x12\x1d\n" +
@@ -1924,9 +2226,7 @@ const file_skelet_signals_v1_ingest_proto_rawDesc = "" +
 	"\border_id\x18\x03 \x01(\tR\aorderId\x12#\n" +
 	"\rrevenue_cents\x18\x04 \x01(\x03R\frevenueCents\x12\x1a\n" +
 	"\bcurrency\x18\x05 \x01(\tR\bcurrency\x12*\n" +
-	"\x02at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\x02at\x121\n" +
-	"\x12revenue_base_cents\x18\a \x01(\x03H\x00R\x10revenueBaseCents\x88\x01\x01B\x15\n" +
-	"\x13_revenue_base_cents\"6\n" +
+	"\x02at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\x02at\"6\n" +
 	"\x18RecordConversionResponse\x12\x1a\n" +
 	"\brecorded\x18\x01 \x01(\bR\brecorded\"M\n" +
 	"\x16RecordEmailSentRequest\x123\n" +
@@ -1955,7 +2255,7 @@ const file_skelet_signals_v1_ingest_proto_rawDesc = "" +
 	"customerId\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x127\n" +
 	"\terased_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\berasedAt\"!\n" +
-	"\x1fEraseCustomerIdentitiesResponse2\xbe\t\n" +
+	"\x1fEraseCustomerIdentitiesResponse2\xa1\v\n" +
 	"\rIngestService\x12e\n" +
 	"\x0eRecordActivity\x12(.skelet.signals.v1.RecordActivityRequest\x1a).skelet.signals.v1.RecordActivityResponse\x12k\n" +
 	"\x10RecordConversion\x12*.skelet.signals.v1.RecordConversionRequest\x1a+.skelet.signals.v1.RecordConversionResponse\x12h\n" +
@@ -1967,7 +2267,9 @@ const file_skelet_signals_v1_ingest_proto_rawDesc = "" +
 	"\x11DeleteRosterEntry\x12+.skelet.signals.v1.DeleteRosterEntryRequest\x1a,.skelet.signals.v1.DeleteRosterEntryResponse\x12_\n" +
 	"\fRosterStatus\x12&.skelet.signals.v1.RosterStatusRequest\x1a'.skelet.signals.v1.RosterStatusResponse\x12\x80\x01\n" +
 	"\x17EraseCustomerIdentities\x121.skelet.signals.v1.EraseCustomerIdentitiesRequest\x1a2.skelet.signals.v1.EraseCustomerIdentitiesResponse\x12_\n" +
-	"\fSyncChannels\x12&.skelet.signals.v1.SyncChannelsRequest\x1a'.skelet.signals.v1.SyncChannelsResponseB\xcf\x01\n" +
+	"\fSyncChannels\x12&.skelet.signals.v1.SyncChannelsRequest\x1a'.skelet.signals.v1.SyncChannelsResponse\x12t\n" +
+	"\x13RecordAssistantTurn\x12-.skelet.signals.v1.RecordAssistantTurnRequest\x1a..skelet.signals.v1.RecordAssistantTurnResponse\x12k\n" +
+	"\x10RecordAIActivity\x12*.skelet.signals.v1.RecordAIActivityRequest\x1a+.skelet.signals.v1.RecordAIActivityResponseB\xcf\x01\n" +
 	"\x15com.skelet.signals.v1B\vIngestProtoP\x01ZCgithub.com/skeletg/skelet/apps/backend/core/signalsapi/v1;signalsv1\xa2\x02\x03SSX\xaa\x02\x11Skelet.Signals.V1\xca\x02\x11Skelet\\Signals\\V1\xe2\x02\x1dSkelet\\Signals\\V1\\GPBMetadata\xea\x02\x13Skelet::Signals::V1b\x06proto3"
 
 var (
@@ -1982,85 +2284,98 @@ func file_skelet_signals_v1_ingest_proto_rawDescGZIP() []byte {
 	return file_skelet_signals_v1_ingest_proto_rawDescData
 }
 
-var file_skelet_signals_v1_ingest_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
+var file_skelet_signals_v1_ingest_proto_msgTypes = make([]protoimpl.MessageInfo, 32)
 var file_skelet_signals_v1_ingest_proto_goTypes = []any{
-	(*ChannelEntry)(nil),                    // 0: skelet.signals.v1.ChannelEntry
-	(*SyncChannelsRequest)(nil),             // 1: skelet.signals.v1.SyncChannelsRequest
-	(*SyncChannelsResponse)(nil),            // 2: skelet.signals.v1.SyncChannelsResponse
-	(*RosterEntry)(nil),                     // 3: skelet.signals.v1.RosterEntry
-	(*Consent)(nil),                         // 4: skelet.signals.v1.Consent
-	(*SyncCustomerRosterRequest)(nil),       // 5: skelet.signals.v1.SyncCustomerRosterRequest
-	(*UpsertRosterEntryRequest)(nil),        // 6: skelet.signals.v1.UpsertRosterEntryRequest
-	(*UpsertRosterEntryResponse)(nil),       // 7: skelet.signals.v1.UpsertRosterEntryResponse
-	(*RosterStatusRequest)(nil),             // 8: skelet.signals.v1.RosterStatusRequest
-	(*RosterStatusResponse)(nil),            // 9: skelet.signals.v1.RosterStatusResponse
-	(*DeleteRosterEntryRequest)(nil),        // 10: skelet.signals.v1.DeleteRosterEntryRequest
-	(*DeleteRosterEntryResponse)(nil),       // 11: skelet.signals.v1.DeleteRosterEntryResponse
-	(*SyncCustomerRosterResponse)(nil),      // 12: skelet.signals.v1.SyncCustomerRosterResponse
-	(*EmailSendRef)(nil),                    // 13: skelet.signals.v1.EmailSendRef
-	(*EmailHit)(nil),                        // 14: skelet.signals.v1.EmailHit
-	(*RecordActivityRequest)(nil),           // 15: skelet.signals.v1.RecordActivityRequest
-	(*RecordActivityResponse)(nil),          // 16: skelet.signals.v1.RecordActivityResponse
-	(*RecordConversionRequest)(nil),         // 17: skelet.signals.v1.RecordConversionRequest
-	(*RecordConversionResponse)(nil),        // 18: skelet.signals.v1.RecordConversionResponse
-	(*RecordEmailSentRequest)(nil),          // 19: skelet.signals.v1.RecordEmailSentRequest
-	(*RecordEmailSentResponse)(nil),         // 20: skelet.signals.v1.RecordEmailSentResponse
-	(*RecordEmailOpenRequest)(nil),          // 21: skelet.signals.v1.RecordEmailOpenRequest
-	(*RecordEmailOpenResponse)(nil),         // 22: skelet.signals.v1.RecordEmailOpenResponse
-	(*RecordEmailClickRequest)(nil),         // 23: skelet.signals.v1.RecordEmailClickRequest
-	(*RecordEmailClickResponse)(nil),        // 24: skelet.signals.v1.RecordEmailClickResponse
-	(*EraseCustomerIdentitiesRequest)(nil),  // 25: skelet.signals.v1.EraseCustomerIdentitiesRequest
-	(*EraseCustomerIdentitiesResponse)(nil), // 26: skelet.signals.v1.EraseCustomerIdentitiesResponse
-	(*timestamppb.Timestamp)(nil),           // 27: google.protobuf.Timestamp
+	(*AISearch)(nil),                        // 0: skelet.signals.v1.AISearch
+	(*RecordAIActivityRequest)(nil),         // 1: skelet.signals.v1.RecordAIActivityRequest
+	(*RecordAIActivityResponse)(nil),        // 2: skelet.signals.v1.RecordAIActivityResponse
+	(*RecordAssistantTurnRequest)(nil),      // 3: skelet.signals.v1.RecordAssistantTurnRequest
+	(*RecordAssistantTurnResponse)(nil),     // 4: skelet.signals.v1.RecordAssistantTurnResponse
+	(*ChannelEntry)(nil),                    // 5: skelet.signals.v1.ChannelEntry
+	(*SyncChannelsRequest)(nil),             // 6: skelet.signals.v1.SyncChannelsRequest
+	(*SyncChannelsResponse)(nil),            // 7: skelet.signals.v1.SyncChannelsResponse
+	(*RosterEntry)(nil),                     // 8: skelet.signals.v1.RosterEntry
+	(*Consent)(nil),                         // 9: skelet.signals.v1.Consent
+	(*SyncCustomerRosterRequest)(nil),       // 10: skelet.signals.v1.SyncCustomerRosterRequest
+	(*UpsertRosterEntryRequest)(nil),        // 11: skelet.signals.v1.UpsertRosterEntryRequest
+	(*UpsertRosterEntryResponse)(nil),       // 12: skelet.signals.v1.UpsertRosterEntryResponse
+	(*RosterStatusRequest)(nil),             // 13: skelet.signals.v1.RosterStatusRequest
+	(*RosterStatusResponse)(nil),            // 14: skelet.signals.v1.RosterStatusResponse
+	(*DeleteRosterEntryRequest)(nil),        // 15: skelet.signals.v1.DeleteRosterEntryRequest
+	(*DeleteRosterEntryResponse)(nil),       // 16: skelet.signals.v1.DeleteRosterEntryResponse
+	(*SyncCustomerRosterResponse)(nil),      // 17: skelet.signals.v1.SyncCustomerRosterResponse
+	(*EmailSendRef)(nil),                    // 18: skelet.signals.v1.EmailSendRef
+	(*EmailHit)(nil),                        // 19: skelet.signals.v1.EmailHit
+	(*RecordActivityRequest)(nil),           // 20: skelet.signals.v1.RecordActivityRequest
+	(*RecordActivityResponse)(nil),          // 21: skelet.signals.v1.RecordActivityResponse
+	(*RecordConversionRequest)(nil),         // 22: skelet.signals.v1.RecordConversionRequest
+	(*RecordConversionResponse)(nil),        // 23: skelet.signals.v1.RecordConversionResponse
+	(*RecordEmailSentRequest)(nil),          // 24: skelet.signals.v1.RecordEmailSentRequest
+	(*RecordEmailSentResponse)(nil),         // 25: skelet.signals.v1.RecordEmailSentResponse
+	(*RecordEmailOpenRequest)(nil),          // 26: skelet.signals.v1.RecordEmailOpenRequest
+	(*RecordEmailOpenResponse)(nil),         // 27: skelet.signals.v1.RecordEmailOpenResponse
+	(*RecordEmailClickRequest)(nil),         // 28: skelet.signals.v1.RecordEmailClickRequest
+	(*RecordEmailClickResponse)(nil),        // 29: skelet.signals.v1.RecordEmailClickResponse
+	(*EraseCustomerIdentitiesRequest)(nil),  // 30: skelet.signals.v1.EraseCustomerIdentitiesRequest
+	(*EraseCustomerIdentitiesResponse)(nil), // 31: skelet.signals.v1.EraseCustomerIdentitiesResponse
+	(*timestamppb.Timestamp)(nil),           // 32: google.protobuf.Timestamp
+	(*AssistantTurnRecord)(nil),             // 33: skelet.signals.v1.AssistantTurnRecord
 }
 var file_skelet_signals_v1_ingest_proto_depIdxs = []int32{
-	0,  // 0: skelet.signals.v1.SyncChannelsRequest.channels:type_name -> skelet.signals.v1.ChannelEntry
-	4,  // 1: skelet.signals.v1.RosterEntry.consents:type_name -> skelet.signals.v1.Consent
-	27, // 2: skelet.signals.v1.RosterEntry.read_at:type_name -> google.protobuf.Timestamp
-	27, // 3: skelet.signals.v1.RosterEntry.first_order_at:type_name -> google.protobuf.Timestamp
-	27, // 4: skelet.signals.v1.RosterEntry.last_order_at:type_name -> google.protobuf.Timestamp
-	3,  // 5: skelet.signals.v1.SyncCustomerRosterRequest.customers:type_name -> skelet.signals.v1.RosterEntry
-	3,  // 6: skelet.signals.v1.UpsertRosterEntryRequest.customer:type_name -> skelet.signals.v1.RosterEntry
-	27, // 7: skelet.signals.v1.RosterStatusResponse.filled_at:type_name -> google.protobuf.Timestamp
-	27, // 8: skelet.signals.v1.EmailSendRef.sent_at:type_name -> google.protobuf.Timestamp
-	27, // 9: skelet.signals.v1.EmailHit.at:type_name -> google.protobuf.Timestamp
-	27, // 10: skelet.signals.v1.RecordActivityRequest.at:type_name -> google.protobuf.Timestamp
-	27, // 11: skelet.signals.v1.RecordConversionRequest.at:type_name -> google.protobuf.Timestamp
-	13, // 12: skelet.signals.v1.RecordEmailSentRequest.send:type_name -> skelet.signals.v1.EmailSendRef
-	13, // 13: skelet.signals.v1.RecordEmailOpenRequest.send:type_name -> skelet.signals.v1.EmailSendRef
-	14, // 14: skelet.signals.v1.RecordEmailOpenRequest.hit:type_name -> skelet.signals.v1.EmailHit
-	13, // 15: skelet.signals.v1.RecordEmailOpenResponse.send:type_name -> skelet.signals.v1.EmailSendRef
-	13, // 16: skelet.signals.v1.RecordEmailClickRequest.send:type_name -> skelet.signals.v1.EmailSendRef
-	14, // 17: skelet.signals.v1.RecordEmailClickRequest.hit:type_name -> skelet.signals.v1.EmailHit
-	13, // 18: skelet.signals.v1.RecordEmailClickResponse.send:type_name -> skelet.signals.v1.EmailSendRef
-	27, // 19: skelet.signals.v1.EraseCustomerIdentitiesRequest.erased_at:type_name -> google.protobuf.Timestamp
-	15, // 20: skelet.signals.v1.IngestService.RecordActivity:input_type -> skelet.signals.v1.RecordActivityRequest
-	17, // 21: skelet.signals.v1.IngestService.RecordConversion:input_type -> skelet.signals.v1.RecordConversionRequest
-	19, // 22: skelet.signals.v1.IngestService.RecordEmailSent:input_type -> skelet.signals.v1.RecordEmailSentRequest
-	21, // 23: skelet.signals.v1.IngestService.RecordEmailOpen:input_type -> skelet.signals.v1.RecordEmailOpenRequest
-	23, // 24: skelet.signals.v1.IngestService.RecordEmailClick:input_type -> skelet.signals.v1.RecordEmailClickRequest
-	5,  // 25: skelet.signals.v1.IngestService.SyncCustomerRoster:input_type -> skelet.signals.v1.SyncCustomerRosterRequest
-	6,  // 26: skelet.signals.v1.IngestService.UpsertRosterEntry:input_type -> skelet.signals.v1.UpsertRosterEntryRequest
-	10, // 27: skelet.signals.v1.IngestService.DeleteRosterEntry:input_type -> skelet.signals.v1.DeleteRosterEntryRequest
-	8,  // 28: skelet.signals.v1.IngestService.RosterStatus:input_type -> skelet.signals.v1.RosterStatusRequest
-	25, // 29: skelet.signals.v1.IngestService.EraseCustomerIdentities:input_type -> skelet.signals.v1.EraseCustomerIdentitiesRequest
-	1,  // 30: skelet.signals.v1.IngestService.SyncChannels:input_type -> skelet.signals.v1.SyncChannelsRequest
-	16, // 31: skelet.signals.v1.IngestService.RecordActivity:output_type -> skelet.signals.v1.RecordActivityResponse
-	18, // 32: skelet.signals.v1.IngestService.RecordConversion:output_type -> skelet.signals.v1.RecordConversionResponse
-	20, // 33: skelet.signals.v1.IngestService.RecordEmailSent:output_type -> skelet.signals.v1.RecordEmailSentResponse
-	22, // 34: skelet.signals.v1.IngestService.RecordEmailOpen:output_type -> skelet.signals.v1.RecordEmailOpenResponse
-	24, // 35: skelet.signals.v1.IngestService.RecordEmailClick:output_type -> skelet.signals.v1.RecordEmailClickResponse
-	12, // 36: skelet.signals.v1.IngestService.SyncCustomerRoster:output_type -> skelet.signals.v1.SyncCustomerRosterResponse
-	7,  // 37: skelet.signals.v1.IngestService.UpsertRosterEntry:output_type -> skelet.signals.v1.UpsertRosterEntryResponse
-	11, // 38: skelet.signals.v1.IngestService.DeleteRosterEntry:output_type -> skelet.signals.v1.DeleteRosterEntryResponse
-	9,  // 39: skelet.signals.v1.IngestService.RosterStatus:output_type -> skelet.signals.v1.RosterStatusResponse
-	26, // 40: skelet.signals.v1.IngestService.EraseCustomerIdentities:output_type -> skelet.signals.v1.EraseCustomerIdentitiesResponse
-	2,  // 41: skelet.signals.v1.IngestService.SyncChannels:output_type -> skelet.signals.v1.SyncChannelsResponse
-	31, // [31:42] is the sub-list for method output_type
-	20, // [20:31] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	32, // 0: skelet.signals.v1.RecordAIActivityRequest.at:type_name -> google.protobuf.Timestamp
+	0,  // 1: skelet.signals.v1.RecordAIActivityRequest.searches:type_name -> skelet.signals.v1.AISearch
+	33, // 2: skelet.signals.v1.RecordAssistantTurnRequest.turn:type_name -> skelet.signals.v1.AssistantTurnRecord
+	5,  // 3: skelet.signals.v1.SyncChannelsRequest.channels:type_name -> skelet.signals.v1.ChannelEntry
+	9,  // 4: skelet.signals.v1.RosterEntry.consents:type_name -> skelet.signals.v1.Consent
+	32, // 5: skelet.signals.v1.RosterEntry.read_at:type_name -> google.protobuf.Timestamp
+	32, // 6: skelet.signals.v1.RosterEntry.first_order_at:type_name -> google.protobuf.Timestamp
+	32, // 7: skelet.signals.v1.RosterEntry.last_order_at:type_name -> google.protobuf.Timestamp
+	8,  // 8: skelet.signals.v1.SyncCustomerRosterRequest.customers:type_name -> skelet.signals.v1.RosterEntry
+	8,  // 9: skelet.signals.v1.UpsertRosterEntryRequest.customer:type_name -> skelet.signals.v1.RosterEntry
+	32, // 10: skelet.signals.v1.RosterStatusResponse.filled_at:type_name -> google.protobuf.Timestamp
+	32, // 11: skelet.signals.v1.EmailSendRef.sent_at:type_name -> google.protobuf.Timestamp
+	32, // 12: skelet.signals.v1.EmailHit.at:type_name -> google.protobuf.Timestamp
+	32, // 13: skelet.signals.v1.RecordActivityRequest.at:type_name -> google.protobuf.Timestamp
+	32, // 14: skelet.signals.v1.RecordConversionRequest.at:type_name -> google.protobuf.Timestamp
+	18, // 15: skelet.signals.v1.RecordEmailSentRequest.send:type_name -> skelet.signals.v1.EmailSendRef
+	18, // 16: skelet.signals.v1.RecordEmailOpenRequest.send:type_name -> skelet.signals.v1.EmailSendRef
+	19, // 17: skelet.signals.v1.RecordEmailOpenRequest.hit:type_name -> skelet.signals.v1.EmailHit
+	18, // 18: skelet.signals.v1.RecordEmailOpenResponse.send:type_name -> skelet.signals.v1.EmailSendRef
+	18, // 19: skelet.signals.v1.RecordEmailClickRequest.send:type_name -> skelet.signals.v1.EmailSendRef
+	19, // 20: skelet.signals.v1.RecordEmailClickRequest.hit:type_name -> skelet.signals.v1.EmailHit
+	18, // 21: skelet.signals.v1.RecordEmailClickResponse.send:type_name -> skelet.signals.v1.EmailSendRef
+	32, // 22: skelet.signals.v1.EraseCustomerIdentitiesRequest.erased_at:type_name -> google.protobuf.Timestamp
+	20, // 23: skelet.signals.v1.IngestService.RecordActivity:input_type -> skelet.signals.v1.RecordActivityRequest
+	22, // 24: skelet.signals.v1.IngestService.RecordConversion:input_type -> skelet.signals.v1.RecordConversionRequest
+	24, // 25: skelet.signals.v1.IngestService.RecordEmailSent:input_type -> skelet.signals.v1.RecordEmailSentRequest
+	26, // 26: skelet.signals.v1.IngestService.RecordEmailOpen:input_type -> skelet.signals.v1.RecordEmailOpenRequest
+	28, // 27: skelet.signals.v1.IngestService.RecordEmailClick:input_type -> skelet.signals.v1.RecordEmailClickRequest
+	10, // 28: skelet.signals.v1.IngestService.SyncCustomerRoster:input_type -> skelet.signals.v1.SyncCustomerRosterRequest
+	11, // 29: skelet.signals.v1.IngestService.UpsertRosterEntry:input_type -> skelet.signals.v1.UpsertRosterEntryRequest
+	15, // 30: skelet.signals.v1.IngestService.DeleteRosterEntry:input_type -> skelet.signals.v1.DeleteRosterEntryRequest
+	13, // 31: skelet.signals.v1.IngestService.RosterStatus:input_type -> skelet.signals.v1.RosterStatusRequest
+	30, // 32: skelet.signals.v1.IngestService.EraseCustomerIdentities:input_type -> skelet.signals.v1.EraseCustomerIdentitiesRequest
+	6,  // 33: skelet.signals.v1.IngestService.SyncChannels:input_type -> skelet.signals.v1.SyncChannelsRequest
+	3,  // 34: skelet.signals.v1.IngestService.RecordAssistantTurn:input_type -> skelet.signals.v1.RecordAssistantTurnRequest
+	1,  // 35: skelet.signals.v1.IngestService.RecordAIActivity:input_type -> skelet.signals.v1.RecordAIActivityRequest
+	21, // 36: skelet.signals.v1.IngestService.RecordActivity:output_type -> skelet.signals.v1.RecordActivityResponse
+	23, // 37: skelet.signals.v1.IngestService.RecordConversion:output_type -> skelet.signals.v1.RecordConversionResponse
+	25, // 38: skelet.signals.v1.IngestService.RecordEmailSent:output_type -> skelet.signals.v1.RecordEmailSentResponse
+	27, // 39: skelet.signals.v1.IngestService.RecordEmailOpen:output_type -> skelet.signals.v1.RecordEmailOpenResponse
+	29, // 40: skelet.signals.v1.IngestService.RecordEmailClick:output_type -> skelet.signals.v1.RecordEmailClickResponse
+	17, // 41: skelet.signals.v1.IngestService.SyncCustomerRoster:output_type -> skelet.signals.v1.SyncCustomerRosterResponse
+	12, // 42: skelet.signals.v1.IngestService.UpsertRosterEntry:output_type -> skelet.signals.v1.UpsertRosterEntryResponse
+	16, // 43: skelet.signals.v1.IngestService.DeleteRosterEntry:output_type -> skelet.signals.v1.DeleteRosterEntryResponse
+	14, // 44: skelet.signals.v1.IngestService.RosterStatus:output_type -> skelet.signals.v1.RosterStatusResponse
+	31, // 45: skelet.signals.v1.IngestService.EraseCustomerIdentities:output_type -> skelet.signals.v1.EraseCustomerIdentitiesResponse
+	7,  // 46: skelet.signals.v1.IngestService.SyncChannels:output_type -> skelet.signals.v1.SyncChannelsResponse
+	4,  // 47: skelet.signals.v1.IngestService.RecordAssistantTurn:output_type -> skelet.signals.v1.RecordAssistantTurnResponse
+	2,  // 48: skelet.signals.v1.IngestService.RecordAIActivity:output_type -> skelet.signals.v1.RecordAIActivityResponse
+	36, // [36:49] is the sub-list for method output_type
+	23, // [23:36] is the sub-list for method input_type
+	23, // [23:23] is the sub-list for extension type_name
+	23, // [23:23] is the sub-list for extension extendee
+	0,  // [0:23] is the sub-list for field type_name
 }
 
 func init() { file_skelet_signals_v1_ingest_proto_init() }
@@ -2068,17 +2383,17 @@ func file_skelet_signals_v1_ingest_proto_init() {
 	if File_skelet_signals_v1_ingest_proto != nil {
 		return
 	}
-	file_skelet_signals_v1_ingest_proto_msgTypes[0].OneofWrappers = []any{}
-	file_skelet_signals_v1_ingest_proto_msgTypes[13].OneofWrappers = []any{}
-	file_skelet_signals_v1_ingest_proto_msgTypes[15].OneofWrappers = []any{}
-	file_skelet_signals_v1_ingest_proto_msgTypes[17].OneofWrappers = []any{}
+	file_skelet_signals_v1_assistant_proto_init()
+	file_skelet_signals_v1_ingest_proto_msgTypes[5].OneofWrappers = []any{}
+	file_skelet_signals_v1_ingest_proto_msgTypes[18].OneofWrappers = []any{}
+	file_skelet_signals_v1_ingest_proto_msgTypes[20].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_skelet_signals_v1_ingest_proto_rawDesc), len(file_skelet_signals_v1_ingest_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   27,
+			NumMessages:   32,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

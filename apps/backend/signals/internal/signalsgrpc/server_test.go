@@ -139,6 +139,25 @@ func TestMalformedIdsAreInvalidArgument(t *testing.T) {
 	}
 }
 
+// The suite is the only place a funnel request is checked - core relays it as the admin sent it
+func TestAMalformedFunnelIsInvalidArgument(t *testing.T) {
+	c := signalsv1.NewSynapseServiceClient(testConn(t))
+	ctx := tokenCtx(t)
+	two := []string{"page_view", "cart_add"}
+	for name, req := range map[string]*signalsv1.GetFunnelRequest{
+		"one step":            {Steps: two[:1]},
+		"an empty step":       {Steps: []string{"page_view", "", "cart_add"}},
+		"a filter past steps": {Steps: two, Filters: []*signalsv1.FunnelFilter{{Step: 2, Key: "device"}}},
+		"a negative step":     {Steps: two, Filters: []*signalsv1.FunnelFilter{{Step: -1, Key: "device"}}},
+		"a blank filter key":  {Steps: two, Filters: []*signalsv1.FunnelFilter{{Step: 0, Key: "  "}}},
+	} {
+		req.ChannelId = uuid.New().String()
+		if got := status.Code(mustErr(c.GetFunnel(ctx, req))); got != codes.InvalidArgument {
+			t.Errorf("%s answered %s, want InvalidArgument", name, got)
+		}
+	}
+}
+
 func TestWindowDaysClampsRatherThanRefuses(t *testing.T) {
 	for _, tc := range []struct{ in, want int32 }{{0, 30}, {-5, 30}, {7, 7}, {365, 365}, {10_000, 365}} {
 		if got := windowDays(tc.in, 30); got != tc.want {
@@ -354,6 +373,10 @@ func TestTheIngestMethodsRefuseAnAdminToken(t *testing.T) {
 			_, e := c.RecordEmailClick(ctx, &signalsv1.RecordEmailClickRequest{Send: &signalsv1.EmailSendRef{SendId: id}})
 			return e
 		},
+		"RecordAssistantTurn": func(ctx context.Context) error {
+			_, e := c.RecordAssistantTurn(ctx, &signalsv1.RecordAssistantTurnRequest{Turn: &signalsv1.AssistantTurnRecord{Id: id, ConversationId: id, ChannelId: id, AnonId: "a"}})
+			return e
+		},
 	} {
 		if got := status.Code(call(admin)); got != codes.PermissionDenied {
 			t.Errorf("%s answered a superuser admin token with %s, want PermissionDenied", name, got)
@@ -527,17 +550,16 @@ func callSlugs(c signalsv1.SegmentServiceClient, ctx context.Context, id uuid.UU
 }
 
 // Core's scheduler drives the suite's upkeep, so these take the system token - a scheduled run has
-// no admin behind it, and refusing one would age out nothing and forward nothing, silently
+// no admin behind it, and refusing one would age out nothing, silently
 func TestASystemTokenAuthorizesTheMaintenanceMethods(t *testing.T) {
 	c := signalsv1.NewMaintenanceServiceClient(testConn(t))
 	sys := systemCtx(t)
 
 	for name, call := range map[string]func() error{
-		"PruneSpine":          func() error { _, e := c.PruneSpine(sys, &signalsv1.PruneSpineRequest{}); return e },
-		"PruneLens":           func() error { _, e := c.PruneLens(sys, &signalsv1.PruneLensRequest{}); return e },
-		"ComputeTraits":       func() error { _, e := c.ComputeTraits(sys, &signalsv1.ComputeTraitsRequest{}); return e },
-		"ForwardDestinations": func() error { _, e := c.ForwardDestinations(sys, &signalsv1.ForwardDestinationsRequest{}); return e },
-		"GetRetentionAction":  func() error { _, e := c.GetRetentionAction(sys, &signalsv1.GetRetentionActionRequest{}); return e },
+		"PruneSpine":         func() error { _, e := c.PruneSpine(sys, &signalsv1.PruneSpineRequest{}); return e },
+		"PruneLens":          func() error { _, e := c.PruneLens(sys, &signalsv1.PruneLensRequest{}); return e },
+		"ComputeTraits":      func() error { _, e := c.ComputeTraits(sys, &signalsv1.ComputeTraitsRequest{}); return e },
+		"GetRetentionAction": func() error { _, e := c.GetRetentionAction(sys, &signalsv1.GetRetentionActionRequest{}); return e },
 		"GetCustomerTraits": func() error {
 			_, e := c.GetCustomerTraits(sys, &signalsv1.GetCustomerTraitsRequest{CustomerId: uuid.NewString()})
 			return e
@@ -559,7 +581,6 @@ func TestAnAdminTokenCannotDriveMaintenance(t *testing.T) {
 		"PruneSpine":           func() error { _, e := c.PruneSpine(adm, &signalsv1.PruneSpineRequest{}); return e },
 		"PruneLens":            func() error { _, e := c.PruneLens(adm, &signalsv1.PruneLensRequest{}); return e },
 		"ComputeTraits":        func() error { _, e := c.ComputeTraits(adm, &signalsv1.ComputeTraitsRequest{}); return e },
-		"ForwardDestinations":  func() error { _, e := c.ForwardDestinations(adm, &signalsv1.ForwardDestinationsRequest{}); return e },
 		"GetRetentionAction":   func() error { _, e := c.GetRetentionAction(adm, &signalsv1.GetRetentionActionRequest{}); return e },
 		"GetHealth":            func() error { _, e := c.GetHealth(adm, &signalsv1.GetHealthRequest{}); return e },
 		"ListBrowseAbandoners": func() error { _, e := c.ListBrowseAbandoners(adm, &signalsv1.ListBrowseAbandonersRequest{}); return e },
@@ -574,6 +595,10 @@ func TestAnAdminTokenCannotDriveMaintenance(t *testing.T) {
 		},
 		"GetCustomerTraits": func() error {
 			_, e := c.GetCustomerTraits(adm, &signalsv1.GetCustomerTraitsRequest{CustomerId: uuid.NewString()})
+			return e
+		},
+		"PruneAssistantConversations": func() error {
+			_, e := c.PruneAssistantConversations(adm, &signalsv1.PruneAssistantConversationsRequest{})
 			return e
 		},
 	} {

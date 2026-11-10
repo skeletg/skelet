@@ -42,6 +42,8 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
 	"github.com/skeletg/skelet/apps/backend/core/internal/shoptools"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/activity"
+	"github.com/skeletg/skelet/apps/backend/core/internal/tracking"
 	authpkg "github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/cache"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
@@ -50,6 +52,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/observability"
 	"github.com/skeletg/skelet/apps/backend/core/lib/otelx"
 	"github.com/skeletg/skelet/apps/backend/core/lib/ratelimit"
+	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 	"github.com/skeletg/skelet/apps/backend/core/signalsapi"
 )
 
@@ -249,7 +252,8 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	// SVG can't use the GraphQL presign path - see media_svg_http.go for why the bytes come here first
 	mux.Handle(mediaSVGPath, otelx.WrapHTTP(adminAuth(mediaSVGHandler(s.MediaLibrary, s.Admin)), "media.svg"))
 
-	if EnvBool("MCP_ENABLED", true) {
+	adminMCPOn, frontMCPOn := mcpSwitches()
+	if adminMCPOn {
 		mcpHandler := mcpserver.NewHandler(mcpserver.Config{
 			Tools: agenttools.Definitions(),
 			Resolve: mcpserver.Admin(func(ctx context.Context, cid uuid.UUID, days int) mcpserver.ToolSet {
@@ -261,19 +265,37 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 		})
 		mux.Handle(mcpPath(adminPath), otelx.WrapHTTP(devDebug(maxBody(1<<20)(adminAuth(locale.Middleware()(mcpHandler)))), "mcp.admin"))
 	}
-	if EnvBool("MCP_FRONT_ENABLED", true) {
-		shop := shoptools.New(shoptools.Deps{
-			GraphQL:  frontGraphQL{h: dataloaders.Middleware(dataloaderDeps)(remoteprovider.RequestCacheMiddleware(graphfront.RenderCacheMiddleware(frontSrv)))},
-			Carts:    s.Cart,
-			Settings: s.Config,
-		})
+	shopDeps := shoptools.Deps{
+		GraphQL:    frontGraphQL{h: dataloaders.Middleware(dataloaderDeps)(remoteprovider.RequestCacheMiddleware(graphfront.RenderCacheMiddleware(frontSrv)))},
+		Carts:      s.Cart,
+		Settings:   s.Config,
+		Pace:       ratelimit.NewRedis(infra.Limits.Client, 0, time.Minute),
+		Budget:     ratelimit.NewRedis(infra.Limits.Client, 0, 24*time.Hour),
+		Usage:      s.AIUsage,
+		Overviews:  cache.New(infra.Cache.Client, "searchoverview"),
+		Bus:        s.Bus,
+		SignalsOff: !bool(s.SignalsEnabled),
+	}
+	if s.AI != nil { // a nil service in the interface would read as a provider and panic on first use
+		shopDeps.Model = s.AI
+	}
+	if s.Meaning != nil {
+		shopDeps.Meaning = s.Meaning
+	}
+	shop := shoptools.New(shopDeps)
+	shop.SetOutbox(s.Outbox, txrunner.New(infra.DB))
+	g.Front.AttachShopAssistant(shop)
+	g.Admin.AttachShopTools(shop)
+	assistant := devDebug(maxBody(256 << 10)(authpkg.CustomerMiddleware(infra.Config.CustomerKeys.Verifier())(authpkg.CustomerSessionGuard(s.Customer.IsActive)(channel.Middleware(s.Channel)(locale.Middleware()(channel.LocaleClampMiddleware()(graphfront.AssistantStream(shop))))))))
+	mux.Handle(assistantPath(frontPath), otelx.WrapHTTP(frontRateLimit(rl.Front, infra.Config.SignalsServiceKeys)(assistant), "assistant.front"))
+	if frontMCPOn {
 		frontMCP := mcpserver.NewHandler(mcpserver.Config{
 			Name:         "skelet-storefront",
 			Title:        "Storefront",
 			Tools:        shoptools.Definitions(),
-			Resolve:      mcpserver.Storefront(storefrontTools(shop)),
+			Resolve:      mcpserver.Storefront(storefrontTools(shop), shop.MCPPerMinute),
 			Instructions: shoptools.Instructions,
-			Limiter:      ratelimit.NewRedis(infra.Limits.Client, RateLimitPerMin("MCP_FRONT_RATE_LIMIT_PER_MIN", 600), time.Minute),
+			Limiter:      ratelimit.NewRedis(infra.Limits.Client, 0, time.Minute),
 			Reporter:     tel.Reporter,
 			MaxInFlight:  EnvInt("MCP_FRONT_MAX_IN_FLIGHT", frontMCPMaxInFlight),
 			CallTimeout:  frontMCPCallTimeout,
@@ -289,9 +311,10 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 		Config: s.Config, Limiter: ingestLimiter, Customers: infra.Config.CustomerKeys.Verifier(),
 	})
 	if bool(s.SignalsEnabled) {
-		mux.Handle(countPath, otelx.WrapHTTP(countHandler(s.SignalsClient, s.Config, s.Channel, ingestLimiter), "signals.count"))
+		counter := activity.NewTracker(s.SignalsClient, nil, s.Config, nil) // a counted view loads no order or product
+		mux.Handle(activity.CountPath, otelx.WrapHTTP(channel.Middleware(s.Channel)(counter.CountHandler(ingestLimiter)), "signals.count"))
 	}
-	mux.Handle(trackPath, otelx.WrapHTTP(trackHandler(s.Tracking, s.Channel, ingestLimiter, infra.Config.CustomerKeys.Verifier()), "tracking.collect"))
+	mux.Handle(tracking.TrackPath, otelx.WrapHTTP(channel.Middleware(s.Channel)(s.Tracking.BrowserHandler(ingestLimiter, infra.Config.CustomerKeys.Verifier())), "tracking.collect"))
 	// The beacon surface is the suite's, so this is a proxy - one public entry point for a simple
 	// install, and a storefront that would rather skip the hop can point at the tier directly
 	if beacons := beaconProxy(bool(s.SignalsEnabled)); beacons != nil {

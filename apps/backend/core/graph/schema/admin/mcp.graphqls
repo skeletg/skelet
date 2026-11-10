@@ -1,0 +1,33 @@
+type McpTool {
+  name:        String!
+  description: String!
+}
+
+# The public endpoint shoppers' AI agents shop a channel through
+type StorefrontMcp {
+  # MCP_FRONT_ENABLED - off takes the endpoint away from every channel
+  available: Boolean!
+  # The channel's own switch, sales/agents/mcp_enabled
+  enabled:   Boolean!
+  # The channel's public URL with /api/mcp - null while the channel has none, and agents can't use it until it does
+  url:       String
+  tools:     [McpTool!]!
+}
+
+# The token-gated endpoint your own team's agents read the store through
+type AdminMcp {
+  # MCP_ENABLED
+  available: Boolean!
+  # On the dashboard's host, which forwards /api/* to the API
+  path:      String!
+  tools:     [McpTool!]!
+}
+
+type McpOverview {
+  storefront: StorefrontMcp!
+  admin:      AdminMcp!
+}
+
+extend type Query {
+  mcpOverview(channelId: ID!): McpOverview!
+}

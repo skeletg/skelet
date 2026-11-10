@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react'
+
 // Typed-block model shared by the email-template editor and the reusable block library - Mirrors the server-side block
 // registry in internal/emailtemplate/blocks.go - keep the type list + fields in sync
 
@@ -19,6 +21,9 @@ export type BlockStyle = {
 /** One entry of a `social` block - Mirrors server-side emailtemplate.SocialLink */
 export type SocialLink = { platform: string; url: string }
 
+/** One entry of a `menu` block - Mirrors server-side emailtemplate.MenuLink */
+export type MenuLink = { label: string; url: string }
+
 /** Social platforms the `social` block knows how to label */
 export const SOCIAL_PLATFORMS = [
   'facebook',
@@ -39,6 +44,8 @@ export type EmailBlock = {
   type: string
   text?: string
   content?: string
+  // 'rich' when content is the editor's small HTML subset (see richtext.ts) - absent on a plain-text block written before
+  format?: 'rich'
   label?: string
   url?: string
   alt?: string
@@ -58,6 +65,13 @@ export type EmailBlock = {
   poster?: string
   /** Target time text for a `countdown` block, where label is the prefix */
   deadline?: string
+  code?: string
+  links?: MenuLink[]
+  /** An `image_text` block's picture (its url is the button's) and which side it sits on */
+  image?: string
+  side?: 'left' | 'right'
+  /** The order blocks' own words, so each language's version can say them - a missing key keeps the English default */
+  labels?: Record<string, string>
 }
 
 export type EmailStyles = {
@@ -79,11 +93,16 @@ export type BlockField = {
   placeholder?: string
 }
 
+// One word an order block prints, which a language's version of the email can replace
+export type BlockLabel = { key: string; label: string; fallback: string }
+
 export type BlockDescriptor = {
   type: string
   label: string
   hint: string
   fields: BlockField[]
+  /** The words a data block prints, editable per block */
+  labels?: BlockLabel[]
   /** Group the block falls under in the "Add block" menu */
   group: 'content' | 'data' | 'layout' | 'reusable'
 }
@@ -116,6 +135,19 @@ export const BLOCK_TYPES: BlockDescriptor[] = [
     ],
   },
   {
+    type: 'coupon',
+    label: 'Discount code',
+    hint: 'A highlighted coupon code, with a note and a button.',
+    group: 'content',
+    fields: [
+      { key: 'text', label: 'Heading', kind: 'text', supportsTags: true },
+      { key: 'code', label: 'Code', kind: 'text', supportsTags: true, placeholder: 'WELCOME10' },
+      { key: 'content', label: 'Note', kind: 'text', supportsTags: true, placeholder: 'Valid until July 5' },
+      { key: 'label', label: 'Button label', kind: 'text', supportsTags: true, placeholder: 'Leave empty for no button' },
+      { key: 'url', label: 'Button link', kind: 'url', supportsTags: true, placeholder: 'https://…' },
+    ],
+  },
+  {
     type: 'image',
     label: 'Image',
     hint: 'An inline image referenced by URL.',
@@ -123,6 +155,20 @@ export const BLOCK_TYPES: BlockDescriptor[] = [
     fields: [
       { key: 'url', label: 'Image', kind: 'image', supportsTags: true, placeholder: 'https://… or {{store.logoUrl}}' },
       { key: 'alt', label: 'Alt text', kind: 'text', supportsTags: true },
+    ],
+  },
+  {
+    type: 'image_text',
+    label: 'Image + text',
+    hint: 'A picture beside a heading, text and a button. Stacks on phones.',
+    group: 'content',
+    fields: [
+      { key: 'image', label: 'Image', kind: 'image', supportsTags: true, placeholder: 'https://…' },
+      { key: 'alt', label: 'Alt text', kind: 'text', supportsTags: true },
+      { key: 'text', label: 'Heading', kind: 'text', supportsTags: true },
+      { key: 'content', label: 'Text', kind: 'textarea', supportsTags: true },
+      { key: 'label', label: 'Button label', kind: 'text', supportsTags: true, placeholder: 'Leave empty for no button' },
+      { key: 'url', label: 'Button link', kind: 'url', supportsTags: true, placeholder: 'https://…' },
     ],
   },
   {
@@ -136,6 +182,13 @@ export const BLOCK_TYPES: BlockDescriptor[] = [
     type: 'social',
     label: 'Social links',
     hint: 'A row of icon links to your social profiles.',
+    group: 'content',
+    fields: [],
+  },
+  {
+    type: 'menu',
+    label: 'Menu links',
+    hint: 'A row of text links, like Shop · New in · Sale.',
     group: 'content',
     fields: [],
   },
@@ -176,11 +229,27 @@ export const BLOCK_TYPES: BlockDescriptor[] = [
     fields: [{ key: 'size', label: 'Height (px)', kind: 'number', placeholder: '16' }],
   },
   {
+    // Not 'footer' - that's the starter content's reusable block, and the two share one set of names
+    type: 'store_footer',
+    label: 'Footer',
+    hint: 'Your store details, with the unsubscribe link filled in on every marketing send.',
+    group: 'content',
+    fields: [
+      { key: 'content', label: 'Store details', kind: 'textarea', supportsTags: true, placeholder: 'Company name, address' },
+      { key: 'label', label: 'Unsubscribe link text', kind: 'text', placeholder: 'Unsubscribe' },
+    ],
+  },
+  {
     type: 'order_items',
     label: 'Order items',
     hint: 'The order line-item table. Renders only in order emails.',
     group: 'data',
     fields: [],
+    labels: [
+      { key: 'item', label: 'Item column', fallback: 'Item' },
+      { key: 'qty', label: 'Quantity column', fallback: 'Qty' },
+      { key: 'total', label: 'Total column', fallback: 'Total' },
+    ],
   },
   {
     type: 'order_totals',
@@ -188,6 +257,14 @@ export const BLOCK_TYPES: BlockDescriptor[] = [
     hint: 'Subtotal / shipping / tax / total. Order emails only.',
     group: 'data',
     fields: [],
+    labels: [
+      { key: 'subtotal', label: 'Subtotal', fallback: 'Subtotal' },
+      { key: 'discount', label: 'Discount', fallback: 'Discount' },
+      { key: 'shipping', label: 'Shipping', fallback: 'Shipping' },
+      { key: 'tax', label: 'Tax added', fallback: 'Tax' },
+      { key: 'taxIncluded', label: 'Tax included in prices', fallback: 'Includes tax' },
+      { key: 'total', label: 'Total', fallback: 'Total' },
+    ],
   },
   {
     type: 'shipping_address',
@@ -195,6 +272,7 @@ export const BLOCK_TYPES: BlockDescriptor[] = [
     hint: 'The order shipping address. Order emails only.',
     group: 'data',
     fields: [],
+    labels: [{ key: 'shippingTo', label: 'Heading', fallback: 'Shipping to' }],
   },
   {
     type: 'tracking',
@@ -202,6 +280,10 @@ export const BLOCK_TYPES: BlockDescriptor[] = [
     hint: 'Carrier + tracking number. Shipment emails only.',
     group: 'data',
     fields: [],
+    labels: [
+      { key: 'carrier', label: 'Carrier', fallback: 'Carrier' },
+      { key: 'tracking', label: 'Tracking number', fallback: 'Tracking' },
+    ],
   },
   {
     type: 'refund_amount',
@@ -209,6 +291,7 @@ export const BLOCK_TYPES: BlockDescriptor[] = [
     hint: 'The refunded total. Refund emails only.',
     group: 'data',
     fields: [],
+    labels: [{ key: 'refund', label: 'Refund line', fallback: 'Refund issued' }],
   },
   {
     type: 'row',
@@ -299,7 +382,7 @@ export function newBlock(type: string): EmailBlock {
     case 'heading':
       return { type, text: 'Heading' }
     case 'text':
-      return { type, content: 'Your message here.' }
+      return { type, format: 'rich', content: '<p>Your message here.</p>' }
     case 'button':
       return { type, label: 'View order', url: '{{storefront.url}}' }
     case 'image':
@@ -320,6 +403,21 @@ export function newBlock(type: string): EmailBlock {
       return { type, label: 'Offer ends', deadline: '' }
     case 'html':
       return { type, content: '<!-- your HTML -->' }
+    case 'coupon':
+      return { type, text: 'A little something for you', code: 'WELCOME10', content: 'Use it at checkout.', label: 'Shop now', url: '{{storefront.url}}' }
+    case 'image_text':
+      return { type, image: '', alt: '', text: 'Made to last', content: 'Tell the story behind the product.', label: 'Shop now', url: '{{storefront.url}}', side: 'left' }
+    case 'menu':
+      return {
+        type,
+        links: [
+          { label: 'Shop', url: '{{storefront.url}}' },
+          { label: 'New in', url: '{{storefront.url}}/new' },
+          { label: 'Sale', url: '{{storefront.url}}/sale' },
+        ],
+      }
+    case 'store_footer':
+      return { type, content: '{{store.name}}\nYou get these emails because you signed up at our store.', label: 'Unsubscribe' }
     default:
       return { type }
   }
@@ -385,7 +483,7 @@ export function shortPreview(b: EmailBlock): string {
     case 'heading':
       return b.text ?? ''
     case 'text':
-      return (b.content ?? '').replace(/\s+/g, ' ').slice(0, 80)
+      return (b.format === 'rich' ? (b.content ?? '').replace(/<[^>]*>/g, ' ') : (b.content ?? '')).replace(/\s+/g, ' ').trim().slice(0, 80)
     case 'button':
       return `${b.label ?? ''} → ${b.url ?? ''}`
     case 'image':
@@ -411,7 +509,72 @@ export function shortPreview(b: EmailBlock): string {
       return `${b.label ?? ''} ${b.deadline ?? ''}`.trim()
     case 'html':
       return (b.content ?? '').replace(/\s+/g, ' ').slice(0, 80)
+    case 'coupon':
+      return b.code ?? ''
+    case 'image_text':
+      return b.text ?? ''
+    case 'menu':
+      return (b.links ?? []).map((l) => l.label).join(' · ')
+    case 'store_footer':
+      return (b.content ?? '').split('\n')[0] ?? ''
     default:
       return ''
   }
+}
+
+// The word a block prints for key - its own label when set, else the English default
+export function blockWord(block: EmailBlock, key: string): string {
+  const own = block.labels?.[key]?.trim()
+  if (own) return own
+  return blockDescriptor(block.type)?.labels?.find((l) => l.key === key)?.fallback ?? key
+}
+
+const MERGE_TAG_LABELS: Record<string, string> = {
+  'store.name': 'Store name',
+  'store.logoUrl': 'Store logo',
+  'storefront.url': 'Storefront link',
+  'customer.firstName': 'First name',
+  'customer.lastName': 'Last name',
+  'customer.email': 'Email address',
+  'customer.group': 'Customer group',
+  'unsubscribe.link': 'Unsubscribe link',
+  'cart.recoveryUrl': 'Cart recovery link',
+  'order.number': 'Order number',
+  'order.total': 'Order total',
+}
+
+export function mergeTagLabel(tag: string): string {
+  const known = MERGE_TAG_LABELS[tag]
+  if (known) return known
+  const last = tag.split('.').pop() ?? tag
+  const words = last.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').toLowerCase()
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
+export function mergeTagGroup(tag: string): string {
+  if (!tag.includes('.')) return 'Fields'
+  const head = tag.split('.')[0] ?? ''
+  return head.charAt(0).toUpperCase() + head.slice(1)
+}
+
+export const RICH_TEXT_CLASSES = '[&_p]:mb-3 [&_p:last-child]:mb-0 [&_ul]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:mb-3 [&_ol]:list-decimal [&_ol]:pl-5'
+
+// Shared by the view and the inline editor, so a click to edit moves nothing
+export function headingStyle(block: EmailBlock, theme: EmailStyles): CSSProperties {
+  const s = block.style ?? {}
+  return { margin: '0 0 8px', fontSize: s.fontSize || 20, fontWeight: 700, lineHeight: 1.25, textAlign: s.align ?? 'left', color: s.color || theme.textColor || '#222' }
+}
+
+export function textBlockStyle(block: EmailBlock, theme: EmailStyles): CSSProperties {
+  const s = block.style ?? {}
+  return { lineHeight: 1.5, textAlign: s.align ?? 'left', color: s.color || theme.textColor || '#333', fontSize: s.fontSize || undefined }
+}
+
+export function buttonStyle(block: EmailBlock, theme: EmailStyles): CSSProperties {
+  const s = block.style ?? {}
+  return { display: 'inline-block', background: s.buttonColor || theme.linkColor || '#222', color: s.buttonTextColor || '#fff', padding: '10px 18px', borderRadius: s.radius ?? 4, fontSize: 14 }
+}
+
+export function isInlineEditable(b: EmailBlock): boolean {
+  return b.type === 'heading' || b.type === 'text' || b.type === 'button'
 }

@@ -7,7 +7,6 @@ import { collectionSchema, type CollectionValues } from '@/features/catalog/sche
 import { newCollectionSchema } from '@/features/catalog/schemas/newCollection'
 import { newProductSchema } from '@/features/catalog/schemas/newProduct'
 import { cmsAttributeDefaultsSchema } from '@/features/cms/schemas/cmsAttribute'
-import { destinationSchema } from '@/features/destinations/schemas/destination'
 import { orderAddressSchema, type OrderAddressValues } from '@/features/orders/schemas/editOrderAddress'
 import { trackingDestinationSchema } from '@/features/tracking/schemas/trackingDestination'
 
@@ -29,7 +28,6 @@ const FACTORIES: Record<string, () => z.ZodType> = {
   newCollectionSchema: () => newCollectionSchema('en'),
   newProductSchema: () => newProductSchema({ fallbackLocale: 'en', attributes: () => [] }),
   cmsAttributeDefaultsSchema: () => cmsAttributeDefaultsSchema('TEXT'),
-  destinationSchema: () => destinationSchema({ isEdit: false }),
   orderAddressSchema: () => orderAddressSchema({} as OrderAddressValues),
   trackingDestinationSchema: () => trackingDestinationSchema([], { isEdit: false }),
 }

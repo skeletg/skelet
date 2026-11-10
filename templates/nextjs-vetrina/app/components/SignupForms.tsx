@@ -177,7 +177,7 @@ function FormCard({
     return <div className="mx-auto my-6 px-4">{inner}</div>;
   }
   if (form.type === "flyout") {
-    return <div className="fixed bottom-4 right-4 z-50 max-w-sm">{inner}</div>;
+    return <div className="assistant-follow fixed bottom-4 right-4 z-50 max-w-sm md:right-[calc(var(--assistant-inset,0px)+1rem)]">{inner}</div>;
   }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onDismiss}>

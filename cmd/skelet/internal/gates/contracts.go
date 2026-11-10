@@ -20,7 +20,8 @@ const ContractsAbout = `The SYNC comments name contracts that span two or three 
 fails a build: every path a SYNC comment names still exists, the CMS block types agree across the
 backend, the dashboard and each storefront, the anonymous-cacheable operations match, every lexical
 node the dashboard authors has a storefront renderer, the conditional-option evaluators are the same
-code, the security headers match across the copies that must, every x-widget a Go schema asks for is
+code, the consent cookie's format and the click ids it forwards agree between the backend and the storefront,
+the security headers match across the copies that must, every x-widget a Go schema asks for is
 registered, and the core-to-Signals proto stays compatible with main. Each extractor fails when it
 finds nothing, so a moved file can't turn it into a no-op.`
 
@@ -37,8 +38,13 @@ const (
 	// The storefront logic every template shares - checked once, here, rather than per storefront
 	storefrontPkg = "packages/storefront-core"
 	publicOps     = storefrontPkg + "/public-ops.ts"
+	assistantPage = storefrontPkg + "/assistant/page.ts"
+	assistantGo   = "apps/backend/core/internal/shoptools/assistant.go"
 	reactPkg      = "packages/storefront-react"
 	pkgOptVis     = storefrontPkg + "/optionVisibility.ts"
+	goConsent     = "apps/backend/core/lib/auth/consent.go"
+	tsConsent     = storefrontPkg + "/consent/categories.ts"
+	tsClickIDs    = storefrontPkg + "/consent/click-ids.ts"
 	// This gate's own source talks about SYNC comments, so it stays out of the scan for them
 	self = "cmd/skelet/internal/gates"
 )
@@ -55,8 +61,11 @@ func contractCheck(root string, out io.Writer) int {
 	c.syncPaths()
 	c.blockTypes()
 	c.cacheableOps()
+	c.privatePages()
 	c.lexicalNodes()
 	c.evaluators()
+	c.consentFormat()
+	c.clickIDs()
 	c.frameworkFree()
 	c.headers()
 	c.widgets()
@@ -295,6 +304,43 @@ func (c contracts) cacheableOps() {
 		c.r.bad("storefront-core PUBLIC_OPS != frontCacheableOps")
 		c.sides(ops, sf)
 	}
+}
+
+var (
+	privateGo  = regexp.MustCompile(`var privatePages = \[\]string\{(.*)\}`)
+	privateTS  = regexp.MustCompile(`const PRIVATE_PAGES = new Set\(\[(.*)\]\)`)
+	quotedPage = regexp.MustCompile(`"([a-z-]+)"`)
+)
+
+// privatePages - the storefront keeps these pages from the assistant and the backend cuts them again, so one the other
+// side doesn't know reaches a transcript whole
+func (c contracts) privatePages() {
+	c.r.section("the pages the assistant keeps private agree")
+	goSide := set(lineMatch(c.read(assistantGo), privateGo), quotedPage)
+	if len(goSide) == 0 {
+		c.r.bad("privatePages extraction came back empty - %s changed shape", assistantGo)
+		return
+	}
+	if !c.inPackage(assistantPage) {
+		return
+	}
+	sf := set(lineMatch(c.read(assistantPage), privateTS), quotedPage)
+	switch {
+	case len(sf) == 0:
+		c.r.bad("PRIVATE_PAGES extraction came back empty - %s changed shape", assistantPage)
+	case slices.Equal(goSide, sf):
+		c.r.pass("storefront-core PRIVATE_PAGES == privatePages (%d pages)", len(sf))
+	default:
+		c.r.bad("storefront-core PRIVATE_PAGES != privatePages")
+		c.sides(goSide, sf)
+	}
+}
+
+func lineMatch(text string, re *regexp.Regexp) []string {
+	if m := re.FindStringSubmatch(text); m != nil {
+		return []string{m[1]}
+	}
+	return nil
 }
 
 // inPackage says the storefront package holds f. A checkout without the package - a backend-only sparse clone - has
@@ -648,3 +694,60 @@ func (c contracts) proto() {
 	}
 	c.r.pass("no breaking changes against %s", baseline)
 }
+
+var (
+	goConsentRe = regexp.MustCompile("consentValue = regexp.MustCompile\\(`([^`]+)`\\)")
+	tsConsentRe = regexp.MustCompile(`const V2 = /(.+)/;`)
+	goKeyList   = func(name string) *regexp.Regexp {
+		return regexp.MustCompile(`var ` + name + ` = \[\]string\{([^}]*)\}`)
+	}
+	tsClickID = regexp.MustCompile(`\{ key: "([a-z]+)".*\}`)
+)
+
+// consentFormat - the storefront writes the consent cookie and core parses the header it becomes, so a format one side
+// changes alone reads as no consent at all
+func (c contracts) consentFormat() {
+	c.r.section("the consent cookie's format agrees")
+	if !c.inPackage(tsConsent) {
+		return
+	}
+	g, t := goConsentRe.FindStringSubmatch(c.read(goConsent)), tsConsentRe.FindStringSubmatch(c.read(tsConsent))
+	switch {
+	case g == nil || t == nil:
+		c.r.bad("consent pattern extraction came back empty - %s or %s changed shape", goConsent, tsConsent)
+	case g[1] == t[1]:
+		c.r.pass("core's ParseConsent and storefront-core's parseConsent read %s", g[1])
+	default:
+		c.r.bad("consent patterns differ:\n          < %s\n          > %s", g[1], t[1])
+	}
+}
+
+// clickIDs - core keeps only the click ids it knows, so an id the storefront stores and core doesn't list is dropped
+func (c contracts) clickIDs() {
+	c.r.section("the click ids agree")
+	if !c.inPackage(tsClickIDs) {
+		return
+	}
+	var goIDs []string
+	if m := goKeyList("clickIDKeys").FindStringSubmatch(c.read(goConsent)); m != nil {
+		goIDs = set([]string{m[1]}, quotedKey)
+	}
+	var tsIDs []string
+	for line := range strings.SplitSeq(c.read(tsClickIDs), "\n") {
+		if m := tsClickID.FindStringSubmatch(line); m != nil {
+			tsIDs = append(tsIDs, m[1])
+		}
+	}
+	slices.Sort(tsIDs)
+	switch {
+	case len(goIDs) == 0 || len(tsIDs) == 0:
+		c.r.bad("click id extraction came back empty - %s or %s changed shape", goConsent, tsClickIDs)
+	case slices.Equal(goIDs, tsIDs):
+		c.r.pass("%d click ids on both sides", len(goIDs))
+	default:
+		c.r.bad("click ids differ")
+		c.sides(goIDs, tsIDs)
+	}
+}
+
+var quotedKey = regexp.MustCompile(`"([a-z]+)"`)

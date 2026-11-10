@@ -96,11 +96,11 @@ func channelIDs(ctx context.Context, one string) ([]uuid.UUID, error) {
 }
 
 // 500k, 10m or a plain number
-func count(s string) (int, error) {
-	if s == "" {
+func count(in string) (int, error) {
+	if in == "" {
 		return 0, nil
 	}
-	mult := 1
+	s, mult := strings.ToLower(in), 1
 	switch {
 	case strings.HasSuffix(s, "k"):
 		mult, s = 1_000, strings.TrimSuffix(s, "k")
@@ -109,7 +109,7 @@ func count(s string) (int, error) {
 	}
 	n, err := strconv.Atoi(s)
 	if err != nil || n <= 0 {
-		return 0, fmt.Errorf("--events %q: want a positive count like 500k or 10m", s)
+		return 0, fmt.Errorf("--events %q: want a positive count like 500k or 10m", in)
 	}
 	return n * mult, nil
 }

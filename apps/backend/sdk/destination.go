@@ -37,9 +37,10 @@ type ShopEvent struct {
 	Ecommerce  *ShopEcommerce    `json:"ecommerce,omitempty"`
 	User       ShopUser          `json:"user"`
 	Context    ShopContext       `json:"context"`
-	ClickIDs   map[string]string `json:"click_ids,omitempty"` // gclid, gbraid, wbraid, msclkid, ttclid, fbc, fbp, awc, cjevent
-	Consent    *ShopConsent      `json:"consent,omitempty"`   // nil: placed with no banner, by an admin or an API client
-	Source     string            `json:"source"`              // browser | server
+	ClickIDs   map[string]string `json:"click_ids,omitempty"`   // gclid, gbraid, wbraid, msclkid, ttclid, fbc, fbp, oppref, obref
+	Consent    *ShopConsent      `json:"consent,omitempty"`     // nil: placed with no banner, by an admin or an API client
+	Source     string            `json:"source"`                // browser | server
+	SearchTerm string            `json:"search_term,omitempty"` // search only
 }
 
 type ShopEcommerce struct {
@@ -50,20 +51,34 @@ type ShopEcommerce struct {
 	Shipping      float64    `json:"shipping,omitempty"`
 	Coupon        string     `json:"coupon,omitempty"`
 	Items         []ShopItem `json:"items,omitempty"`
+	ItemListID    string     `json:"item_list_id,omitempty"`   // view_item_list, select_item
+	ItemListName  string     `json:"item_list_name,omitempty"` // view_item_list, select_item
+	PaymentType   string     `json:"payment_type,omitempty"`   // add_payment_info: the payment provider
+	ShippingTier  string     `json:"shipping_tier,omitempty"`  // add_shipping_info: the shipping method
+	PromotionID   string     `json:"promotion_id,omitempty"`   // view_promotion, select_promotion
+	PromotionName string     `json:"promotion_name,omitempty"`
+	CreativeName  string     `json:"creative_name,omitempty"`
+	CreativeSlot  string     `json:"creative_slot,omitempty"`
 	// On a refund or cancellation: what the order is worth after it, tax and shipping in, after every refund so far.
 	// For a platform that restates a conversion's value rather than subtracting a refund. Nil elsewhere
 	ValueAfter *float64 `json:"value_after,omitempty"`
 }
 
 type ShopItem struct {
-	ItemID       string  `json:"item_id"` // the SKU
-	ItemName     string  `json:"item_name,omitempty"`
-	ItemBrand    string  `json:"item_brand,omitempty"`
-	ItemCategory string  `json:"item_category,omitempty"`
-	ItemVariant  string  `json:"item_variant,omitempty"`
-	Price        float64 `json:"price,omitempty"`
-	Quantity     float64 `json:"quantity,omitempty"`
-	Discount     float64 `json:"discount,omitempty"`
+	ItemID        string  `json:"item_id"` // the SKU
+	ItemName      string  `json:"item_name,omitempty"`
+	ItemBrand     string  `json:"item_brand,omitempty"`
+	ItemCategory  string  `json:"item_category,omitempty"`
+	ItemVariant   string  `json:"item_variant,omitempty"`
+	Price         float64 `json:"price,omitempty"`
+	Quantity      float64 `json:"quantity,omitempty"`
+	Discount      float64 `json:"discount,omitempty"`
+	Coupon        string  `json:"coupon,omitempty"`
+	Index         *int    `json:"index,omitempty"` // position in the list it was shown in, from 0
+	ItemListID    string  `json:"item_list_id,omitempty"`
+	ItemListName  string  `json:"item_list_name,omitempty"`
+	PromotionID   string  `json:"promotion_id,omitempty"`
+	PromotionName string  `json:"promotion_name,omitempty"`
 }
 
 type ShopUser struct {
@@ -93,13 +108,16 @@ type ShopConsent struct {
 }
 
 // DestinationField is one setting on the admin form for a configured destination. A Secret field is stored encrypted,
-// never shown back, and arrives in DestinationConfig.Secret - a destination has at most one
+// never shown back, and arrives in DestinationConfig.Secret - a destination has at most one. A TestMode field keeps
+// sends out of the platform's live reports while it holds a value other than "false" - the dashboard warns before a
+// test send without it, and clears it when the destination goes live. A destination has at most one
 type DestinationField struct {
 	Key      string
 	Label    string
 	Help     string
 	Required bool
 	Secret   bool
+	TestMode bool
 }
 
 // DestinationConfig is one configured account: what the admin entered, with the secret decrypted

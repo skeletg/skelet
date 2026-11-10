@@ -2,6 +2,7 @@ package emailtemplate
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 
@@ -68,6 +69,8 @@ type fakeRepo struct {
 	blocks    map[string]Snippet  // slug -> reusable block (component)
 	library   map[uuid.UUID]LibraryEmail
 	slots     map[string]LibraryEmail // slot -> assigned email (per this fake's single channel)
+	// email -> its versions in other languages
+	translations map[uuid.UUID][]Translation
 }
 
 func (f fakeRepo) Get(_ context.Context, key string, channelID *uuid.UUID) (Template, bool, error) {
@@ -130,6 +133,22 @@ func (f fakeRepo) ListRevisions(context.Context, uuid.UUID, int32) ([]EmailRevis
 func (f fakeRepo) GetRevision(context.Context, uuid.UUID) (EmailRevision, bool, error) {
 	return EmailRevision{}, false, nil
 }
+func (f fakeRepo) ListTranslations(_ context.Context, emailID uuid.UUID) ([]Translation, error) {
+	return f.translations[emailID], nil
+}
+func (f fakeRepo) TranslationsIn(_ context.Context, emailID uuid.UUID, locales []string) ([]Translation, error) {
+	var out []Translation
+	for _, t := range f.translations[emailID] {
+		if slices.Contains(locales, t.Locale) {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}
+func (f fakeRepo) UpsertTranslation(_ context.Context, t Translation) (Translation, error) {
+	return t, nil
+}
+func (f fakeRepo) DeleteTranslation(context.Context, uuid.UUID, string) error { return nil }
 
 func sampleConfirmation() email.OrderConfirmationData {
 	return email.OrderConfirmationData{
@@ -140,12 +159,10 @@ func sampleConfirmation() email.OrderConfirmationData {
 	}
 }
 
-func TestRenderLibraryEmail(t *testing.T) {
-	id := uuid.New()
-	svc := NewService(fakeRepo{library: map[uuid.UUID]LibraryEmail{
-		id: {ID: id, Name: "Welcome", Subject: "Hi {{customer.firstName}}", Blocks: []Block{{Type: "heading", Text: "Welcome {{customer.firstName}}!"}}},
-	}}, nil)
-	subj, html, _, err := svc.RenderLibraryEmail(context.Background(), id, map[string]string{"customer.firstName": "Sam"})
+func TestRenderContentFillsTheMergeVars(t *testing.T) {
+	svc := NewService(fakeRepo{}, nil)
+	e := LibraryEmail{ID: uuid.New(), Name: "Welcome", Subject: "Hi {{customer.firstName}}", Blocks: []Block{{Type: "heading", Text: "Welcome {{customer.firstName}}!"}}}
+	subj, html, _, err := svc.RenderContent(context.Background(), e.ChannelID, e.Subject, e.Preheader, e.Blocks, e.Styles, map[string]string{"customer.firstName": "Sam"})
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -154,9 +171,6 @@ func TestRenderLibraryEmail(t *testing.T) {
 	}
 	if !strings.Contains(html, "Welcome Sam!") {
 		t.Errorf("html missing interpolated heading:\n%s", html)
-	}
-	if _, _, _, err := svc.RenderLibraryEmail(context.Background(), uuid.New(), nil); err == nil {
-		t.Error("expected error for missing library email")
 	}
 }
 

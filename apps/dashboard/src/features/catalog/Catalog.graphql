@@ -125,6 +125,8 @@ query Attribute($id: ID!) {
     filterable
     searchable
     isPublic
+    embedded
+    similarMatch
     facetCollapsed
     isIndexable
     h1Position
@@ -144,6 +146,7 @@ query Attribute($id: ID!) {
       value
       sortOrder
       isIndexable
+      matchesAny
       descriptions {
         locale
         name
@@ -224,6 +227,8 @@ mutation UpdateAttribute($input: UpdateAttributeInput!) {
     filterable
     searchable
     isPublic
+    embedded
+    similarMatch
     facetCollapsed
     isIndexable
     h1Position
@@ -270,6 +275,7 @@ mutation AddAttributeValue($attributeId: ID!, $input: AttributeValueInput!) {
     value
     sortOrder
     isIndexable
+    matchesAny
   }
 }
 
@@ -281,6 +287,7 @@ mutation UpdateAttributeValue($id: ID!, $input: AttributeValueInput!) {
     value
     sortOrder
     isIndexable
+    matchesAny
   }
 }
 

@@ -38,7 +38,17 @@ type bufEvent struct {
 
 type pendingIdentity struct {
 	customerID, channelID uuid.UUID
-	lastSeen              time.Time
+	firstSeen, lastSeen   time.Time
+}
+
+// absorb folds a later identify into the one it follows: first wins on customer and first sighting, so someone signing in
+// on a shared device later can't take the earlier customer's anonymous history - the later stamp, and any channel it has, win
+func (earlier pendingIdentity) absorb(later pendingIdentity) pendingIdentity {
+	if later.channelID != uuid.Nil {
+		earlier.channelID = later.channelID
+	}
+	earlier.lastSeen = later.lastSeen
+	return earlier
 }
 
 type Store struct { // ingest is batched by a background flusher, and Close drains it
@@ -430,7 +440,7 @@ func (s *Store) deleteSourceBefore(ctx context.Context, source string, before ti
 }
 
 // Buffered like events - identify fires on every logged-in page view
-// Repeats within a flush collapse to the newest, and a zero channel never replaces a real one; the flusher carries first_seen and channel forward from the stored row
+// Repeats within a flush fold together through absorb, and the flusher folds them into the stored row the same way
 func (s *Store) UpsertIdentity(_ context.Context, anonID string, customerID, channelID uuid.UUID) error {
 	s.idMu.Lock()
 	prev, had := s.ids[anonID]
@@ -438,13 +448,12 @@ func (s *Store) UpsertIdentity(_ context.Context, anonID string, customerID, cha
 		s.idMu.Unlock()
 		return errBufferFull
 	}
-	if channelID == uuid.Nil {
-		channelID = prev.channelID
-	}
+	now := time.Now().UTC()
+	p := pendingIdentity{customerID: customerID, channelID: channelID, firstSeen: now, lastSeen: now}
 	if had {
-		customerID = prev.customerID // first wins, here as in storage
+		p = prev.absorb(p)
 	}
-	s.ids[anonID] = pendingIdentity{customerID: customerID, channelID: channelID, lastSeen: time.Now().UTC()}
+	s.ids[anonID] = p
 	full := len(s.ids) >= chFlushBatch
 	s.idMu.Unlock()
 	if full {
@@ -472,12 +481,8 @@ func (s *Store) flushIdentities(ctx context.Context) error {
 			if p.lastSeen.Before(stale) { // the next page view re-sends it, and an erasure waits out this window
 				continue
 			}
-			if cur, newer := s.ids[anon]; newer { // a newer identify wins but keeps a channel it lacks
-				if cur.channelID == uuid.Nil {
-					cur.channelID = p.channelID
-					s.ids[anon] = cur
-				}
-				continue
+			if cur, newer := s.ids[anon]; newer { // the re-buffered one came first
+				p = p.absorb(cur)
 			}
 			s.ids[anon] = p
 		}
@@ -492,12 +497,7 @@ func (s *Store) writeIdentities(ctx context.Context, pending map[string]pendingI
 	for anon := range pending {
 		anons = append(anons, anon)
 	}
-	type stored struct {
-		first    time.Time
-		channel  uuid.UUID
-		customer uuid.UUID
-	}
-	prior := make(map[string]stored, len(anons))
+	prior := make(map[string]pendingIdentity, len(anons))
 	for start := 0; start < len(anons); start += 1000 {
 		rows, err := s.conn.Query(ctx, "SELECT anon_id, first_seen, channel_id, customer_id FROM analytics_identities FINAL WHERE anon_id IN ?", anons[start:min(start+1000, len(anons))])
 		if err != nil {
@@ -505,8 +505,8 @@ func (s *Store) writeIdentities(ctx context.Context, pending map[string]pendingI
 		}
 		for rows.Next() {
 			var anon string
-			var st stored
-			if err := rows.Scan(&anon, &st.first, &st.channel, &st.customer); err != nil {
+			var st pendingIdentity
+			if err := rows.Scan(&anon, &st.firstSeen, &st.channelID, &st.customerID); err != nil {
 				rows.Close()
 				return err
 			}
@@ -523,16 +523,10 @@ func (s *Store) writeIdentities(ctx context.Context, pending map[string]pendingI
 		return err
 	}
 	for anon, p := range pending {
-		first, channel, customer := p.lastSeen, p.channelID, p.customerID
 		if st, ok := prior[anon]; ok {
-			// First wins: a visitor id stays with the customer it was first stitched to, so
-			// someone signing in on a shared device later can't take the earlier customer's anonymous history
-			first, customer = st.first, st.customer
-			if channel == uuid.Nil {
-				channel = st.channel
-			}
+			p = st.absorb(p)
 		}
-		if err := b.Append(anon, customer, channel, first, now); err != nil {
+		if err := b.Append(anon, p.customerID, p.channelID, p.firstSeen, now); err != nil {
 			_ = b.Abort()
 			return err
 		}
@@ -658,19 +652,32 @@ func (s *Store) CustomersForAnonIDs(ctx context.Context, anonIDs []string) (map[
 	return out, rows.Err()
 }
 
-func (s *Store) AnonIDsForCustomer(ctx context.Context, customerID uuid.UUID) ([]string, error) { // the anon ids stitched to a customer - FINAL collapses the ReplacingMergeTree duplicates to the latest row per anon_id
-	rows, err := s.conn.Query(ctx, "SELECT anon_id FROM analytics_identities FINAL WHERE customer_id = ?", customerID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+func (s *Store) AnonIDsForCustomer(ctx context.Context, customerID uuid.UUID) ([]string, error) {
+	return s.AnonIDsForCustomers(ctx, []uuid.UUID{customerID})
+}
+
+// FINAL keeps the latest stitch per anon_id, so a visitor who later signed in as someone else is theirs
+func (s *Store) AnonIDsForCustomers(ctx context.Context, customerIDs []uuid.UUID) ([]string, error) {
 	var out []string
-	for rows.Next() {
-		var a string
-		if err := rows.Scan(&a); err != nil {
+	for start := 0; start < len(customerIDs); start += erasureChunk {
+		chunk := customerIDs[start:min(start+erasureChunk, len(customerIDs))]
+		rows, err := s.conn.Query(ctx, "SELECT anon_id FROM analytics_identities FINAL WHERE customer_id IN ?", chunk)
+		if err != nil {
 			return nil, err
 		}
-		out = append(out, a)
+		for rows.Next() {
+			var a string
+			if err := rows.Scan(&a); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			out = append(out, a)
+		}
+		err = rows.Err()
+		rows.Close()
+		if err != nil {
+			return nil, err
+		}
 	}
-	return out, rows.Err()
+	return out, nil
 }

@@ -8,6 +8,8 @@ import { ArrowUp, Check, RotateCcw, ShieldCheck, Truck } from "lucide-react";
 
 import type { ProductAttributeValue } from "@skelet/storefront-next/catalog/read";
 import { renderJsonText } from "@skelet/storefront-core/json-text";
+import { lexicalHasContent } from "@skelet/storefront-core/lexical";
+import { LexicalRichText } from "@/app/lib/lexical-render";
 
 // Interactive gallery lives in a "use client" file so the SSR'd server components can
 // still import + render it as a child
@@ -45,16 +47,24 @@ export function Description({
   value: unknown;
   className?: string;
 }) {
-  const rendered = renderJsonText(value);
-  if (!rendered) return null;
+  // The dashboard writes Lexical, so headings and lists draw as such - anything else is plain copy
+  const rich = typeof value === "object" && lexicalHasContent(value);
+  const rendered = rich ? null : renderJsonText(value);
+  if (!rich && !rendered) return null;
   return (
     <section className={className}>
       <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
         {label}
       </h2>
-      <div className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-        {rendered}
-      </div>
+      {rich ? (
+        <div className="mt-2 space-y-3 text-sm leading-relaxed text-foreground">
+          <LexicalRichText value={value} />
+        </div>
+      ) : (
+        <div className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+          {rendered}
+        </div>
+      )}
     </section>
   );
 }
@@ -67,14 +77,21 @@ export function AttributeList({
   className?: string;
 }) {
   const t = useTranslations("product");
-  if (values.length === 0) return null;
+  // The product type's other attributes are blank on this product - a row of dashes says nothing
+  const shown = values.filter(
+    (av) =>
+      av.selectedValues.length > 0 ||
+      (av.references?.length ?? 0) > 0 ||
+      (av.scalarValue != null && av.scalarValue !== ""),
+  );
+  if (shown.length === 0) return null;
   return (
     <section className={className}>
       <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
         {t("specifications")}
       </h2>
       <dl className="mt-3 overflow-hidden rounded-xl border border-border/60 text-sm">
-        {values.map((av, i) => (
+        {shown.map((av, i) => (
           <div
             key={av.attribute.id}
             className={`grid grid-cols-3 gap-4 px-4 py-2.5 ${

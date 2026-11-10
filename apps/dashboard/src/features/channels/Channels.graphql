@@ -16,6 +16,7 @@ query Channels {
     isDefault
     currencyCode
     publicUrl
+    taxInclusivePricing
     metadata {
       key
       value
@@ -42,6 +43,7 @@ query Channel($id: ID!) {
     isDefault
     currencyCode
     publicUrl
+    taxInclusivePricing
     metadata {
       key
       value
@@ -87,6 +89,7 @@ mutation UpdateChannel($input: UpdateChannelInput!) {
     isDefault
     currencyCode
     publicUrl
+    taxInclusivePricing
     metadata {
       key
       value

@@ -5,6 +5,8 @@
 
 import { useCallback, useEffect, useRef, type ReactNode } from "react";
 
+import { isPhone } from "@/app/lib/use-phone";
+
 // Past this it closes on release, under it it springs back
 const DISMISS_PX = 110;
 // A flick closes even from a short drag
@@ -73,7 +75,7 @@ export function Modal({
   const onPointerDown = (e: React.PointerEvent<HTMLDialogElement>) => {
     const el = ref.current;
     if (!dragDismiss || !el || e.pointerType === "mouse") return;
-    if (!window.matchMedia("(max-width: 767px)").matches) return;
+    if (!isPhone()) return;
     const target = e.target as HTMLElement;
     // Declared, not inferred: touch-action must be set before the gesture starts
     if (!target.closest("[data-drawer-handle]")) return;

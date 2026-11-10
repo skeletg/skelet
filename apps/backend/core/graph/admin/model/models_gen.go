@@ -14,6 +14,45 @@ type ProductOptionOwner interface {
 	IsProductOptionOwner()
 }
 
+type AIAgentActivity struct {
+	Agent         string         `json:"agent"`
+	Calls         int32          `json:"calls"`
+	Searches      int32          `json:"searches"`
+	EmptySearches int32          `json:"emptySearches"`
+	Tools         []*AIToolCount `json:"tools"`
+}
+
+type AICohort struct {
+	People         int32 `json:"people"`
+	Buyers         int32 `json:"buyers"`
+	Orders         int32 `json:"orders"`
+	Revenue        int   `json:"revenue"`
+	RevenueOrders  int32 `json:"revenueOrders"`
+	ReturnedOrders int32 `json:"returnedOrders"`
+}
+
+type AIInsights struct {
+	Days            int32                   `json:"days"`
+	CartWindowDays  int32                   `json:"cartWindowDays"`
+	OrderWindowDays int32                   `json:"orderWindowDays"`
+	CurrencyCode    string                  `json:"currencyCode"`
+	Chatted         *AICohort               `json:"chatted"`
+	DidNotChat      *AICohort               `json:"didNotChat"`
+	Products        []*AIRecommendedProduct `json:"products"`
+	Agents          []*AIAgentActivity      `json:"agents"`
+	AgentOrders     int32                   `json:"agentOrders"`
+	AgentRevenue    int                     `json:"agentRevenue"`
+}
+
+type AIRecommendedProduct struct {
+	ProductID string  `json:"productId"`
+	Name      *string `json:"name,omitempty"`
+	Shown     int32   `json:"shown"`
+	People    int32   `json:"people"`
+	Carted    int32   `json:"carted"`
+	Ordered   int32   `json:"ordered"`
+}
+
 type AISeoSuggestion struct {
 	MetaTitle       string `json:"metaTitle"`
 	MetaDescription string `json:"metaDescription"`
@@ -21,6 +60,11 @@ type AISeoSuggestion struct {
 
 type AIStatus struct {
 	Enabled bool `json:"enabled"`
+}
+
+type AIToolCount struct {
+	Tool  string `json:"tool"`
+	Calls int32  `json:"calls"`
 }
 
 type ActionArgument struct {
@@ -371,6 +415,12 @@ type AdminLoginInput struct {
 	TotpCode *string `json:"totpCode,omitempty"`
 }
 
+type AdminMcp struct {
+	Available bool       `json:"available"`
+	Path      string     `json:"path"`
+	Tools     []*McpTool `json:"tools"`
+}
+
 type AdminNotification struct {
 	ID         string    `json:"id"`
 	Category   string    `json:"category"`
@@ -402,6 +452,31 @@ type AdminProductQuestion struct {
 	Status      string     `json:"status"`
 	CreatedAt   time.Time  `json:"createdAt"`
 	AnsweredAt  *time.Time `json:"answeredAt,omitempty"`
+}
+
+type AdminSearchCustomer struct {
+	ID    string `json:"id"`
+	Email string `json:"email"`
+	Name  string `json:"name"`
+}
+
+type AdminSearchOrder struct {
+	ID     string `json:"id"`
+	Number string `json:"number"`
+	Email  string `json:"email"`
+	Name   string `json:"name"`
+}
+
+type AdminSearchProduct struct {
+	ID   string `json:"id"`
+	Sku  string `json:"sku"`
+	Name string `json:"name"`
+}
+
+type AdminSearchResult struct {
+	Orders    []*AdminSearchOrder    `json:"orders"`
+	Customers []*AdminSearchCustomer `json:"customers"`
+	Products  []*AdminSearchProduct  `json:"products"`
 }
 
 type AdminSession struct {
@@ -459,6 +534,14 @@ type AdminUser struct {
 	CreatedAt   time.Time       `json:"createdAt"`
 }
 
+type AgenticStatus struct {
+	Key          string       `json:"key"`
+	Label        string       `json:"label"`
+	State        AgenticState `json:"state"`
+	Detail       string       `json:"detail"`
+	SettingsPath string       `json:"settingsPath"`
+}
+
 type AppliedPromotion struct {
 	ID        string    `json:"id"`
 	RuleID    *string   `json:"ruleId,omitempty"`
@@ -485,6 +568,135 @@ type AssignReviewQuestionInput struct {
 	SortOrder     int32  `json:"sortOrder"`
 }
 
+type AssistantConversation struct {
+	ID               string        `json:"id"`
+	CustomerID       *string       `json:"customerId,omitempty"`
+	AnonID           string        `json:"anonId"`
+	FirstQuestion    string        `json:"firstQuestion"`
+	Turns            int32         `json:"turns"`
+	CartChanged      bool          `json:"cartChanged"`
+	Checkout         bool          `json:"checkout"`
+	Incomplete       bool          `json:"incomplete"`
+	StartedAt        time.Time     `json:"startedAt"`
+	LastAt           time.Time     `json:"lastAt"`
+	Unanswered       int32         `json:"unanswered"`
+	LatestUnanswered *AssistantGap `json:"latestUnanswered,omitempty"`
+}
+
+type AssistantConversationDetail struct {
+	Conversation *AssistantConversation     `json:"conversation"`
+	Turns        []*AssistantTranscriptTurn `json:"turns"`
+}
+
+type AssistantConversationPage struct {
+	Items      []*AssistantConversation `json:"items"`
+	Counts     *AssistantGapCounts      `json:"counts"`
+	NextCursor *string                  `json:"nextCursor,omitempty"`
+}
+
+type AssistantDay struct {
+	Day             string `json:"day"`
+	Turns           int32  `json:"turns"`
+	FailedTurns     int32  `json:"failedTurns"`
+	UnansweredTurns int32  `json:"unansweredTurns"`
+	CartTurns       int32  `json:"cartTurns"`
+	CheckoutTurns   int32  `json:"checkoutTurns"`
+	AssistantOrders int32  `json:"assistantOrders"`
+	AgentOrders     int32  `json:"agentOrders"`
+}
+
+type AssistantGap struct {
+	TurnID   string               `json:"turnId"`
+	Question string               `json:"question"`
+	Reasons  []AssistantGapReason `json:"reasons"`
+}
+
+type AssistantGapCounts struct {
+	Any          int32 `json:"any"`
+	NoAnswer     int32 `json:"noAnswer"`
+	CutShort     int32 `json:"cutShort"`
+	FoundNothing int32 `json:"foundNothing"`
+	Unsure       int32 `json:"unsure"`
+}
+
+type AssistantReport struct {
+	Days            int32             `json:"days"`
+	Turns           int32             `json:"turns"`
+	FailedTurns     int32             `json:"failedTurns"`
+	UnansweredTurns int32             `json:"unansweredTurns"`
+	CartTurns       int32             `json:"cartTurns"`
+	CheckoutTurns   int32             `json:"checkoutTurns"`
+	SearchOverviews int32             `json:"searchOverviews"`
+	Usage           *AssistantUsage   `json:"usage"`
+	Orders          []*AssistedOrders `json:"orders"`
+	Daily           []*AssistantDay   `json:"daily"`
+}
+
+type AssistantRound struct {
+	Thinking string               `json:"thinking"`
+	Text     string               `json:"text"`
+	Calls    []*AssistantToolCall `json:"calls"`
+	Shown    bool                 `json:"shown"`
+}
+
+type AssistantShownItem struct {
+	Kind      AssistantShownKind `json:"kind"`
+	ProductID *string            `json:"productId,omitempty"`
+	Name      *string            `json:"name,omitempty"`
+	Label     *string            `json:"label,omitempty"`
+	Path      *string            `json:"path,omitempty"`
+	Text      *string            `json:"text,omitempty"`
+}
+
+type AssistantToolCall struct {
+	Tool    string `json:"tool"`
+	Input   string `json:"input"`
+	Output  string `json:"output"`
+	IsError bool   `json:"isError"`
+	Skipped bool   `json:"skipped"`
+}
+
+type AssistantTranscriptTurn struct {
+	ID               string                `json:"id"`
+	Page             string                `json:"page"`
+	Question         string                `json:"question"`
+	Reply            string                `json:"reply"`
+	Recap            string                `json:"recap"`
+	Showed           []*AssistantShownItem `json:"showed"`
+	FollowUps        []string              `json:"followUps"`
+	Steps            int32                 `json:"steps"`
+	ToolCalls        int32                 `json:"toolCalls"`
+	Refused          bool                  `json:"refused"`
+	Thought          bool                  `json:"thought"`
+	Products         int32                 `json:"products"`
+	CartChanged      bool                  `json:"cartChanged"`
+	Checkout         bool                  `json:"checkout"`
+	Incomplete       bool                  `json:"incomplete"`
+	Model            string                `json:"model"`
+	InputTokens      int                   `json:"inputTokens"`
+	OutputTokens     int                   `json:"outputTokens"`
+	CacheReadTokens  int                   `json:"cacheReadTokens"`
+	CacheWriteTokens int                   `json:"cacheWriteTokens"`
+	At               time.Time             `json:"at"`
+}
+
+type AssistantUsage struct {
+	InputTokens      int      `json:"inputTokens"`
+	OutputTokens     int      `json:"outputTokens"`
+	CacheReadTokens  int      `json:"cacheReadTokens"`
+	CacheWriteTokens int      `json:"cacheWriteTokens"`
+	EstimatedCostUsd *float64 `json:"estimatedCostUsd,omitempty"`
+}
+
+type AssistedOrders struct {
+	CurrencyCode     string `json:"currencyCode"`
+	OrderCount       int32  `json:"orderCount"`
+	AssistantOrders  int32  `json:"assistantOrders"`
+	AssistantRevenue int    `json:"assistantRevenue"`
+	AgentOrders      int32  `json:"agentOrders"`
+	AgentRevenue     int    `json:"agentRevenue"`
+}
+
 type Attribute struct {
 	ID                 string                    `json:"id"`
 	Slug               string                    `json:"slug"`
@@ -501,6 +713,8 @@ type Attribute struct {
 	H1Position         AttributeH1Position       `json:"h1Position"`
 	SynapseTrack       bool                      `json:"synapseTrack"`
 	AutoSegment        bool                      `json:"autoSegment"`
+	Embedded           bool                      `json:"embedded"`
+	SimilarMatch       bool                      `json:"similarMatch"`
 	SortOrder          int32                     `json:"sortOrder"`
 	Values             []*AttributeValue         `json:"values"`
 	Descriptions       []*AttributeContent       `json:"descriptions"`
@@ -543,6 +757,7 @@ type AttributeValue struct {
 	Value        string                   `json:"value"`
 	SortOrder    int32                    `json:"sortOrder"`
 	IsIndexable  bool                     `json:"isIndexable"`
+	MatchesAny   bool                     `json:"matchesAny"`
 	Descriptions []*AttributeValueContent `json:"descriptions"`
 }
 
@@ -567,6 +782,7 @@ type AttributeValueInput struct {
 	Value       *string `json:"value,omitempty"`
 	SortOrder   *int32  `json:"sortOrder,omitempty"`
 	IsIndexable *bool   `json:"isIndexable,omitempty"`
+	MatchesAny  *bool   `json:"matchesAny,omitempty"`
 }
 
 type AttributedRevenue struct {
@@ -719,25 +935,47 @@ type BlogTagContent struct {
 }
 
 type Board struct {
-	ID             string         `json:"id"`
-	ChannelID      string         `json:"channelId"`
-	Name           string         `json:"name"`
-	UpdatedAt      time.Time      `json:"updatedAt"`
-	ReportCount    int32          `json:"reportCount"`
-	Reports        []*BoardReport `json:"reports"`
-	Status         string         `json:"status"`
-	Access         string         `json:"access"`
-	Favourite      bool           `json:"favourite"`
-	Owner          *BoardOwner    `json:"owner,omitempty"`
-	DraftUpdatedAt *time.Time     `json:"draftUpdatedAt,omitempty"`
-	Shares         []*BoardShare  `json:"shares"`
-	Draft          *BoardDraft    `json:"draft,omitempty"`
+	ID             string                `json:"id"`
+	ChannelID      string                `json:"channelId"`
+	Name           string                `json:"name"`
+	UpdatedAt      time.Time             `json:"updatedAt"`
+	Reports        []*BoardReport        `json:"reports"`
+	Access         BoardAccess           `json:"access"`
+	Favourite      bool                  `json:"favourite"`
+	Owner          *BoardOwner           `json:"owner,omitempty"`
+	DraftUpdatedAt *time.Time            `json:"draftUpdatedAt,omitempty"`
+	Shares         []*BoardShare         `json:"shares"`
+	Draft          *BoardDraft           `json:"draft,omitempty"`
+	AccessRequests []*BoardAccessRequest `json:"accessRequests"`
+}
+
+type BoardAccessRequest struct {
+	AdminID     string          `json:"adminId"`
+	Name        string          `json:"name"`
+	Level       BoardShareLevel `json:"level"`
+	RequestedAt time.Time       `json:"requestedAt"`
 }
 
 type BoardDraft struct {
-	Payload       any       `json:"payload"`
-	BaseUpdatedAt time.Time `json:"baseUpdatedAt"`
-	UpdatedAt     time.Time `json:"updatedAt"`
+	Name          string              `json:"name"`
+	Reports       []*BoardDraftReport `json:"reports"`
+	BaseUpdatedAt time.Time           `json:"baseUpdatedAt"`
+	UpdatedAt     time.Time           `json:"updatedAt"`
+}
+
+type BoardDraftInput struct {
+	Name    string                   `json:"name"`
+	Reports []*BoardDraftReportInput `json:"reports"`
+}
+
+type BoardDraftReport struct {
+	Report *BoardReport `json:"report"`
+	From   *int32       `json:"from,omitempty"`
+}
+
+type BoardDraftReportInput struct {
+	Report *BoardReportInput `json:"report"`
+	From   *int32            `json:"from,omitempty"`
 }
 
 type BoardOwner struct {
@@ -747,26 +985,68 @@ type BoardOwner struct {
 }
 
 type BoardReport struct {
-	Title      string `json:"title"`
-	Definition any    `json:"definition"`
+	Title      string                 `json:"title"`
+	Size       *BoardReportSize       `json:"size,omitempty"`
+	Definition *BoardReportDefinition `json:"definition"`
+}
+
+type BoardReportDefinition struct {
+	Kind        BoardReportKind      `json:"kind"`
+	SinceDays   *int32               `json:"sinceDays,omitempty"`
+	Event       *string              `json:"event,omitempty"`
+	Measure     *string              `json:"measure,omitempty"`
+	Unit        *string              `json:"unit,omitempty"`
+	Breakdown   *string              `json:"breakdown,omitempty"`
+	Steps       []string             `json:"steps,omitempty"`
+	Filters     []*BoardReportFilter `json:"filters,omitempty"`
+	WindowHours *int32               `json:"windowHours,omitempty"`
+	StartEvent  *string              `json:"startEvent,omitempty"`
+	ReturnEvent *string              `json:"returnEvent,omitempty"`
+	Periods     *int32               `json:"periods,omitempty"`
+	Depth       *int32               `json:"depth,omitempty"`
+	WindowDays  *int32               `json:"windowDays,omitempty"`
+}
+
+type BoardReportDefinitionInput struct {
+	Kind        BoardReportKind             `json:"kind"`
+	SinceDays   *int32                      `json:"sinceDays,omitempty"`
+	Event       *string                     `json:"event,omitempty"`
+	Measure     *string                     `json:"measure,omitempty"`
+	Unit        *string                     `json:"unit,omitempty"`
+	Breakdown   *string                     `json:"breakdown,omitempty"`
+	Steps       []string                    `json:"steps,omitempty"`
+	Filters     []*SynapseFunnelFilterInput `json:"filters,omitempty"`
+	WindowHours *int32                      `json:"windowHours,omitempty"`
+	StartEvent  *string                     `json:"startEvent,omitempty"`
+	ReturnEvent *string                     `json:"returnEvent,omitempty"`
+	Periods     *int32                      `json:"periods,omitempty"`
+	Depth       *int32                      `json:"depth,omitempty"`
+	WindowDays  *int32                      `json:"windowDays,omitempty"`
+}
+
+type BoardReportFilter struct {
+	Step  int32  `json:"step"`
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
 type BoardReportInput struct {
-	Title      string `json:"title"`
-	Definition any    `json:"definition"`
+	Title      string                      `json:"title"`
+	Size       *BoardReportSize            `json:"size,omitempty"`
+	Definition *BoardReportDefinitionInput `json:"definition"`
 }
 
 type BoardShare struct {
-	AdminID *string `json:"adminId,omitempty"`
-	RoleID  *string `json:"roleId,omitempty"`
-	Name    string  `json:"name"`
-	Level   string  `json:"level"`
+	AdminID *string         `json:"adminId,omitempty"`
+	RoleID  *string         `json:"roleId,omitempty"`
+	Name    string          `json:"name"`
+	Level   BoardShareLevel `json:"level"`
 }
 
 type BoardShareInput struct {
-	AdminID *string `json:"adminId,omitempty"`
-	RoleID  *string `json:"roleId,omitempty"`
-	Level   string  `json:"level"`
+	AdminID *string         `json:"adminId,omitempty"`
+	RoleID  *string         `json:"roleId,omitempty"`
+	Level   BoardShareLevel `json:"level"`
 }
 
 type BoardShareTarget struct {
@@ -775,6 +1055,18 @@ type BoardShareTarget struct {
 	Name       string `json:"name"`
 	SeesBoards bool   `json:"seesBoards"`
 	SeesData   bool   `json:"seesData"`
+}
+
+type BoardSummary struct {
+	ID                 string      `json:"id"`
+	Name               string      `json:"name"`
+	UpdatedAt          time.Time   `json:"updatedAt"`
+	ReportCount        int32       `json:"reportCount"`
+	Access             BoardAccess `json:"access"`
+	Favourite          bool        `json:"favourite"`
+	Owner              *BoardOwner `json:"owner,omitempty"`
+	DraftUpdatedAt     *time.Time  `json:"draftUpdatedAt,omitempty"`
+	AccessRequestCount int32       `json:"accessRequestCount"`
 }
 
 type BotAgent struct {
@@ -1228,6 +1520,7 @@ type Category struct {
 	Position         int32                     `json:"position"`
 	IsPublished      bool                      `json:"isPublished"`
 	SeoNoindex       bool                      `json:"seoNoindex"`
+	IsAnchor         bool                      `json:"isAnchor"`
 	Parent           *Category                 `json:"parent,omitempty"`
 	Children         []*Category               `json:"children"`
 	Ancestors        []*Category               `json:"ancestors"`
@@ -1281,18 +1574,19 @@ type CategoryOption struct {
 }
 
 type Channel struct {
-	ID                 string                      `json:"id"`
-	Slug               string                      `json:"slug"`
-	Name               string                      `json:"name"`
-	DefaultLocale      string                      `json:"defaultLocale"`
-	Locales            []*Locale                   `json:"locales"`
-	IsActive           bool                        `json:"isActive"`
-	IsDefault          bool                        `json:"isDefault"`
-	CurrencyCode       string                      `json:"currencyCode"`
-	PublicURL          string                      `json:"publicUrl"`
-	Metadata           []*MetadataItem             `json:"metadata"`
-	CreatedAt          time.Time                   `json:"createdAt"`
-	InventoryLocations []*ChannelInventoryLocation `json:"inventoryLocations"`
+	ID                  string                      `json:"id"`
+	Slug                string                      `json:"slug"`
+	Name                string                      `json:"name"`
+	DefaultLocale       string                      `json:"defaultLocale"`
+	Locales             []*Locale                   `json:"locales"`
+	IsActive            bool                        `json:"isActive"`
+	IsDefault           bool                        `json:"isDefault"`
+	CurrencyCode        string                      `json:"currencyCode"`
+	PublicURL           string                      `json:"publicUrl"`
+	TaxInclusivePricing bool                        `json:"taxInclusivePricing"`
+	Metadata            []*MetadataItem             `json:"metadata"`
+	CreatedAt           time.Time                   `json:"createdAt"`
+	InventoryLocations  []*ChannelInventoryLocation `json:"inventoryLocations"`
 }
 
 type ChannelInventoryLocation struct {
@@ -1419,6 +1713,7 @@ type ConfigValue struct {
 	IsSet       bool            `json:"isSet"`
 	Scope       *ConfigScope    `json:"scope"`
 	Options     []*ConfigOption `json:"options,omitempty"`
+	MaxLength   *int32          `json:"maxLength,omitempty"`
 	UpdatedAt   *time.Time      `json:"updatedAt,omitempty"`
 }
 
@@ -1538,6 +1833,8 @@ type CreateAttributeInput struct {
 	H1Position         *AttributeH1Position      `json:"h1Position,omitempty"`
 	SynapseTrack       *bool                     `json:"synapseTrack,omitempty"`
 	AutoSegment        *bool                     `json:"autoSegment,omitempty"`
+	Embedded           *bool                     `json:"embedded,omitempty"`
+	SimilarMatch       *bool                     `json:"similarMatch,omitempty"`
 	SortOrder          *int32                    `json:"sortOrder,omitempty"`
 	Values             []*AttributeValueInput    `json:"values,omitempty"`
 	Metadata           []*MetadataInput          `json:"metadata,omitempty"`
@@ -1666,6 +1963,7 @@ type CreateCategoryInput struct {
 	Position         *int32           `json:"position,omitempty"`
 	IsPublished      *bool            `json:"isPublished,omitempty"`
 	SeoNoindex       *bool            `json:"seoNoindex,omitempty"`
+	IsAnchor         *bool            `json:"isAnchor,omitempty"`
 	Metadata         []*MetadataInput `json:"metadata,omitempty"`
 	PrivateMetadata  []*MetadataInput `json:"privateMetadata,omitempty"`
 	Locale           string           `json:"locale"`
@@ -1678,13 +1976,14 @@ type CreateCategoryInput struct {
 }
 
 type CreateChannelInput struct {
-	Slug          string           `json:"slug"`
-	Name          string           `json:"name"`
-	DefaultLocale *string          `json:"defaultLocale,omitempty"`
-	Locales       []string         `json:"locales,omitempty"`
-	CurrencyCode  *string          `json:"currencyCode,omitempty"`
-	PublicURL     *string          `json:"publicUrl,omitempty"`
-	Metadata      []*MetadataInput `json:"metadata,omitempty"`
+	Slug                string           `json:"slug"`
+	Name                string           `json:"name"`
+	DefaultLocale       *string          `json:"defaultLocale,omitempty"`
+	Locales             []string         `json:"locales,omitempty"`
+	CurrencyCode        *string          `json:"currencyCode,omitempty"`
+	PublicURL           *string          `json:"publicUrl,omitempty"`
+	Metadata            []*MetadataInput `json:"metadata,omitempty"`
+	TaxInclusivePricing *bool            `json:"taxInclusivePricing,omitempty"`
 }
 
 type CreateCollectionInput struct {
@@ -1963,6 +2262,8 @@ type CreateShippingMethodInput struct {
 	EstimatedDays      *int32                         `json:"estimatedDays,omitempty"`
 	DeliversOnWeekends *bool                          `json:"deliversOnWeekends,omitempty"`
 	TypeRates          []*ShippingMethodTypeRateInput `json:"typeRates,omitempty"`
+	TableBasis         *ShippingTableBasis            `json:"tableBasis,omitempty"`
+	RateTiers          []*ShippingRateTierInput       `json:"rateTiers,omitempty"`
 }
 
 type CreateShippingZoneInput struct {
@@ -2578,8 +2879,12 @@ type EmailGroup struct {
 }
 
 type EmailPreview struct {
-	Subject string `json:"subject"`
-	HTML    string `json:"html"`
+	Subject     string  `json:"subject"`
+	HTML        string  `json:"html"`
+	Text        *string `json:"text,omitempty"`
+	Preheader   *string `json:"preheader,omitempty"`
+	FromName    *string `json:"fromName,omitempty"`
+	FromAddress *string `json:"fromAddress,omitempty"`
 }
 
 type EmailRevision struct {
@@ -2607,35 +2912,29 @@ type EmailSuppressionPage struct {
 	TotalCount int32               `json:"totalCount"`
 }
 
+type EmailTranslation struct {
+	EmailID   string    `json:"emailId"`
+	Locale    string    `json:"locale"`
+	Subject   string    `json:"subject"`
+	Preheader string    `json:"preheader"`
+	Blocks    any       `json:"blocks"`
+	Styles    any       `json:"styles"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
 type EmailWarning struct {
 	Severity string `json:"severity"`
 	Message  string `json:"message"`
 }
 
-type EventDestination struct {
-	ID              string     `json:"id"`
-	ChannelID       string     `json:"channelId"`
-	Name            string     `json:"name"`
-	Kind            string     `json:"kind"`
-	TargetURL       string     `json:"targetUrl"`
-	EventSources    []string   `json:"eventSources"`
-	EventNames      []string   `json:"eventNames"`
-	IsActive        bool       `json:"isActive"`
-	LastError       string     `json:"lastError"`
-	LastForwardedAt *time.Time `json:"lastForwardedAt,omitempty"`
-	CreatedAt       time.Time  `json:"createdAt"`
-	UpdatedAt       time.Time  `json:"updatedAt"`
-}
-
-type EventDestinationInput struct {
-	ChannelID    string   `json:"channelId"`
-	Name         string   `json:"name"`
-	Kind         string   `json:"kind"`
-	TargetURL    string   `json:"targetUrl"`
-	Secret       *string  `json:"secret,omitempty"`
-	EventSources []string `json:"eventSources,omitempty"`
-	EventNames   []string `json:"eventNames,omitempty"`
-	IsActive     *bool    `json:"isActive,omitempty"`
+type EmbeddingCoverage struct {
+	Model            string `json:"model"`
+	Products         int32  `json:"products"`
+	EmbeddedProducts int32  `json:"embeddedProducts"`
+	Pages            int32  `json:"pages"`
+	EmbeddedPages    int32  `json:"embeddedPages"`
+	Queued           int32  `json:"queued"`
+	Failed           string `json:"failed"`
 }
 
 type Experiment struct {
@@ -2949,6 +3248,12 @@ type KitComponent struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
+type LensAISearchGap struct {
+	Term      string `json:"term"`
+	Assistant int32  `json:"assistant"`
+	Agents    int32  `json:"agents"`
+}
+
 type LensCell struct {
 	X     int32 `json:"x"`
 	Y     int32 `json:"y"`
@@ -3003,6 +3308,13 @@ type LensOverview struct {
 	PlanIssues   []*LensPlanIssue  `json:"planIssues"`
 }
 
+type LensOverviewTerm struct {
+	Term   string `json:"term"`
+	Shown  int32  `json:"shown"`
+	Clicks int32  `json:"clicks"`
+	Chats  int32  `json:"chats"`
+}
+
 type LensPage struct {
 	PageKey string `json:"pageKey"`
 	Views   int32  `json:"views"`
@@ -3037,10 +3349,10 @@ type LensPageVitals struct {
 }
 
 type LensPlanIssue struct {
-	Kind  string `json:"kind"`
-	Event string `json:"event"`
-	Prop  string `json:"prop"`
-	Count int32  `json:"count"`
+	Kind  LensPlanIssueKind `json:"kind"`
+	Event string            `json:"event"`
+	Prop  string            `json:"prop"`
+	Count int32             `json:"count"`
 }
 
 type LensRageElement struct {
@@ -3050,18 +3362,26 @@ type LensRageElement struct {
 }
 
 type LensSearchAnalytics struct {
-	TotalSearches      int32             `json:"totalSearches"`
-	DistinctTerms      int32             `json:"distinctTerms"`
-	ZeroResultSearches int32             `json:"zeroResultSearches"`
-	Top                []*LensSearchTerm `json:"top"`
-	ZeroResult         []*LensSearchTerm `json:"zeroResult"`
-	Daily              []*LensSearchDay  `json:"daily"`
+	TotalSearches       int32               `json:"totalSearches"`
+	DistinctTerms       int32               `json:"distinctTerms"`
+	ZeroResultSearches  int32               `json:"zeroResultSearches"`
+	Top                 []*LensSearchTerm   `json:"top"`
+	ZeroResult          []*LensSearchTerm   `json:"zeroResult"`
+	MeaningOnlySearches int32               `json:"meaningOnlySearches"`
+	MeaningOnly         []*LensSearchTerm   `json:"meaningOnly"`
+	Daily               []*LensSearchDay    `json:"daily"`
+	AiGaps              []*LensAISearchGap  `json:"aiGaps"`
+	OverviewsShown      int32               `json:"overviewsShown"`
+	OverviewClicks      int32               `json:"overviewClicks"`
+	OverviewChats       int32               `json:"overviewChats"`
+	Overviews           []*LensOverviewTerm `json:"overviews"`
 }
 
 type LensSearchDay struct {
 	Date        string `json:"date"`
 	Searches    int32  `json:"searches"`
 	ZeroResults int32  `json:"zeroResults"`
+	MeaningOnly int32  `json:"meaningOnly"`
 }
 
 type LensSearchTerm struct {
@@ -3255,6 +3575,16 @@ type MasqueradeSession struct {
 	ExpiresInSeconds int32  `json:"expiresInSeconds"`
 }
 
+type McpOverview struct {
+	Storefront *StorefrontMcp `json:"storefront"`
+	Admin      *AdminMcp      `json:"admin"`
+}
+
+type McpTool struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
 type MediaAsset struct {
 	ID            string           `json:"id"`
 	Path          string           `json:"path"`
@@ -3395,6 +3725,8 @@ type Order struct {
 	Status              OrderStatus           `json:"status"`
 	PaymentStatus       PaymentStatus         `json:"paymentStatus"`
 	PaymentClientSecret *string               `json:"paymentClientSecret,omitempty"`
+	PaymentActionKind   *string               `json:"paymentActionKind,omitempty"`
+	PaymentFailed       *bool                 `json:"paymentFailed,omitempty"`
 	PaymentProvider     string                `json:"paymentProvider"`
 	PaymentReference    string                `json:"paymentReference"`
 	Email               string                `json:"email"`
@@ -3409,6 +3741,7 @@ type Order struct {
 	ShippingAmount      int32                 `json:"shippingAmount"`
 	DiscountAmount      int32                 `json:"discountAmount"`
 	TaxAmount           int32                 `json:"taxAmount"`
+	TaxIncluded         bool                  `json:"taxIncluded"`
 	ShippingTaxAmount   int32                 `json:"shippingTaxAmount"`
 	ShippingRefundable  int32                 `json:"shippingRefundable"`
 	Total               int32                 `json:"total"`
@@ -4515,6 +4848,15 @@ type SaveEmailBlockInput struct {
 	Scripted     *bool   `json:"scripted,omitempty"`
 }
 
+type SaveEmailTranslationInput struct {
+	EmailID   string  `json:"emailId"`
+	Locale    string  `json:"locale"`
+	Subject   string  `json:"subject"`
+	Preheader *string `json:"preheader,omitempty"`
+	Blocks    any     `json:"blocks"`
+	Styles    any     `json:"styles,omitempty"`
+}
+
 type SaveExperimentInput struct {
 	ChannelID   string                      `json:"channelId"`
 	Key         string                      `json:"key"`
@@ -4629,11 +4971,71 @@ type SearchMerchandising struct {
 	Redirects []*SearchRedirect `json:"redirects"`
 }
 
+type SearchOverviewPreview struct {
+	Status   SearchOverviewStatus            `json:"status"`
+	Text     string                          `json:"text"`
+	Products []*SearchOverviewPreviewProduct `json:"products"`
+}
+
+type SearchOverviewPreviewProduct struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
 type SearchPin struct {
 	ID        string `json:"id"`
 	Query     string `json:"query"`
 	ProductID string `json:"productId"`
 	Position  int32  `json:"position"`
+}
+
+type SearchPreview struct {
+	Locales       []string                `json:"locales"`
+	WordsTotal    int32                   `json:"wordsTotal"`
+	ByWords       []*SearchPreviewProduct `json:"byWords"`
+	ByMeaning     []*SearchPreviewNear    `json:"byMeaning"`
+	Shown         []*SearchPreviewShown   `json:"shown"`
+	ProductsText  string                  `json:"productsText"`
+	PagesByWords  []*SearchPreviewPage    `json:"pagesByWords"`
+	Passages      []*SearchPreviewPassage `json:"passages"`
+	PagesText     string                  `json:"pagesText"`
+	MeaningFailed string                  `json:"meaningFailed"`
+}
+
+type SearchPreviewNear struct {
+	Product  *SearchPreviewProduct `json:"product"`
+	Distance float64               `json:"distance"`
+	Counted  bool                  `json:"counted"`
+}
+
+type SearchPreviewPage struct {
+	Title string `json:"title"`
+	URL   string `json:"url"`
+}
+
+type SearchPreviewPassage struct {
+	Title    string  `json:"title"`
+	URL      string  `json:"url"`
+	Text     string  `json:"text"`
+	Distance float64 `json:"distance"`
+	Counted  bool    `json:"counted"`
+}
+
+type SearchPreviewProduct struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Sku          string `json:"sku"`
+	URL          string `json:"url"`
+	Price        int    `json:"price"`
+	CurrencyCode string `json:"currencyCode"`
+	InStock      bool   `json:"inStock"`
+}
+
+type SearchPreviewShown struct {
+	Product   *SearchPreviewProduct `json:"product"`
+	ByWords   bool                  `json:"byWords"`
+	ByMeaning bool                  `json:"byMeaning"`
 }
 
 type SearchRedirect struct {
@@ -4872,6 +5274,8 @@ type ShippingMethod struct {
 	EstimatedDays      int32                     `json:"estimatedDays"`
 	DeliversOnWeekends bool                      `json:"deliversOnWeekends"`
 	TypeRates          []*ShippingMethodTypeRate `json:"typeRates"`
+	TableBasis         ShippingTableBasis        `json:"tableBasis"`
+	RateTiers          []*ShippingRateTier       `json:"rateTiers"`
 	CreatedAt          time.Time                 `json:"createdAt"`
 	UpdatedAt          time.Time                 `json:"updatedAt"`
 }
@@ -4889,6 +5293,18 @@ type ShippingMethodTypeRateInput struct {
 	PriceCents           int32  `json:"priceCents"`
 	UnitsPerCharge       *int32 `json:"unitsPerCharge,omitempty"`
 	FreeShippingEligible *bool  `json:"freeShippingEligible,omitempty"`
+}
+
+type ShippingRateTier struct {
+	From       int32 `json:"from"`
+	PriceCents int32 `json:"priceCents"`
+	NotOffered bool  `json:"notOffered"`
+}
+
+type ShippingRateTierInput struct {
+	From       int32 `json:"from"`
+	PriceCents int32 `json:"priceCents"`
+	NotOffered *bool `json:"notOffered,omitempty"`
 }
 
 type ShippingZone struct {
@@ -4949,18 +5365,6 @@ type SignalsChatPage struct {
 
 type SignalsChatReply struct {
 	Reply string `json:"reply"`
-}
-
-type SignalsImportCandidate struct {
-	LegacyID       string                 `json:"legacyId"`
-	Name           string                 `json:"name"`
-	LegacyKind     string                 `json:"legacyKind"`
-	TargetKind     *string                `json:"targetKind,omitempty"`
-	Config         []*TrackingConfigValue `json:"config"`
-	SignalsActive  bool                   `json:"signalsActive"`
-	ImportedAs     *string                `json:"importedAs,omitempty"`
-	DroppedFilters []string               `json:"droppedFilters"`
-	Problem        *string                `json:"problem,omitempty"`
 }
 
 type SignalsInsight struct {
@@ -5052,6 +5456,25 @@ type StoreCreditSummary struct {
 	BalanceCents int32               `json:"balanceCents"`
 	CurrencyCode string              `json:"currencyCode"`
 	Entries      []*StoreCreditEntry `json:"entries"`
+}
+
+type StorefrontMcp struct {
+	Available bool       `json:"available"`
+	Enabled   bool       `json:"enabled"`
+	URL       *string    `json:"url,omitempty"`
+	Tools     []*McpTool `json:"tools"`
+}
+
+type StorefrontSearchPreview struct {
+	Reads         StorefrontSearchReading `json:"reads"`
+	AnsweredBy    StorefrontSearchAnswer  `json:"answeredBy"`
+	Margin        float64                 `json:"margin"`
+	Total         int32                   `json:"total"`
+	Listed        []*SearchPreviewShown   `json:"listed"`
+	WordsTotal    int32                   `json:"wordsTotal"`
+	ByWords       []*SearchPreviewProduct `json:"byWords"`
+	ByMeaning     []*SearchPreviewNear    `json:"byMeaning"`
+	MeaningFailed string                  `json:"meaningFailed"`
 }
 
 type Subscription struct {
@@ -5334,14 +5757,14 @@ type TrackingConfigValueInput struct {
 }
 
 type TrackingDelivery struct {
-	ID            string    `json:"id"`
-	EventName     string    `json:"eventName"`
-	EventID       string    `json:"eventId"`
-	Status        string    `json:"status"`
-	Attempts      int32     `json:"attempts"`
-	LastError     string    `json:"lastError"`
-	NextAttemptAt time.Time `json:"nextAttemptAt"`
-	CreatedAt     time.Time `json:"createdAt"`
+	ID            string                 `json:"id"`
+	EventName     string                 `json:"eventName"`
+	EventID       string                 `json:"eventId"`
+	Status        TrackingDeliveryStatus `json:"status"`
+	Attempts      int32                  `json:"attempts"`
+	LastError     string                 `json:"lastError"`
+	NextAttemptAt time.Time              `json:"nextAttemptAt"`
+	CreatedAt     time.Time              `json:"createdAt"`
 }
 
 type TrackingDestination struct {
@@ -5355,7 +5778,7 @@ type TrackingDestination struct {
 	Config          []*TrackingConfigValue `json:"config"`
 	SecretSet       bool                   `json:"secretSet"`
 	NeedsSecret     bool                   `json:"needsSecret"`
-	ImportedFrom    *string                `json:"importedFrom,omitempty"`
+	InTestMode      bool                   `json:"inTestMode"`
 	Health          *TrackingHealth        `json:"health"`
 	CreatedAt       time.Time              `json:"createdAt"`
 	UpdatedAt       time.Time              `json:"updatedAt"`
@@ -5374,6 +5797,7 @@ type TrackingField struct {
 	Help     string `json:"help"`
 	Required bool   `json:"required"`
 	Secret   bool   `json:"secret"`
+	TestMode bool   `json:"testMode"`
 }
 
 type TrackingHealth struct {
@@ -5435,6 +5859,8 @@ type UpdateAttributeInput struct {
 	H1Position      *AttributeH1Position `json:"h1Position,omitempty"`
 	SynapseTrack    *bool                `json:"synapseTrack,omitempty"`
 	AutoSegment     *bool                `json:"autoSegment,omitempty"`
+	Embedded        *bool                `json:"embedded,omitempty"`
+	SimilarMatch    *bool                `json:"similarMatch,omitempty"`
 	SortOrder       *int32               `json:"sortOrder,omitempty"`
 	Metadata        []*MetadataInput     `json:"metadata,omitempty"`
 	PrivateMetadata []*MetadataInput     `json:"privateMetadata,omitempty"`
@@ -5563,19 +5989,21 @@ type UpdateCategoryInput struct {
 	Position        *int32           `json:"position,omitempty"`
 	IsPublished     *bool            `json:"isPublished,omitempty"`
 	SeoNoindex      *bool            `json:"seoNoindex,omitempty"`
+	IsAnchor        *bool            `json:"isAnchor,omitempty"`
 	Metadata        []*MetadataInput `json:"metadata,omitempty"`
 	PrivateMetadata []*MetadataInput `json:"privateMetadata,omitempty"`
 }
 
 type UpdateChannelInput struct {
-	ID            string           `json:"id"`
-	Name          *string          `json:"name,omitempty"`
-	DefaultLocale *string          `json:"defaultLocale,omitempty"`
-	Locales       []string         `json:"locales,omitempty"`
-	IsActive      *bool            `json:"isActive,omitempty"`
-	CurrencyCode  *string          `json:"currencyCode,omitempty"`
-	PublicURL     *string          `json:"publicUrl,omitempty"`
-	Metadata      []*MetadataInput `json:"metadata,omitempty"`
+	ID                  string           `json:"id"`
+	Name                *string          `json:"name,omitempty"`
+	DefaultLocale       *string          `json:"defaultLocale,omitempty"`
+	Locales             []string         `json:"locales,omitempty"`
+	IsActive            *bool            `json:"isActive,omitempty"`
+	CurrencyCode        *string          `json:"currencyCode,omitempty"`
+	PublicURL           *string          `json:"publicUrl,omitempty"`
+	Metadata            []*MetadataInput `json:"metadata,omitempty"`
+	TaxInclusivePricing *bool            `json:"taxInclusivePricing,omitempty"`
 }
 
 type UpdateCollectionInput struct {
@@ -5913,6 +6341,8 @@ type UpdateShippingMethodInput struct {
 	EstimatedDays      *int32                         `json:"estimatedDays,omitempty"`
 	DeliversOnWeekends *bool                          `json:"deliversOnWeekends,omitempty"`
 	TypeRates          []*ShippingMethodTypeRateInput `json:"typeRates,omitempty"`
+	TableBasis         *ShippingTableBasis            `json:"tableBasis,omitempty"`
+	RateTiers          []*ShippingRateTierInput       `json:"rateTiers,omitempty"`
 }
 
 type UpdateShippingZoneInput struct {
@@ -6256,6 +6686,246 @@ func (e *ActionArgumentType) UnmarshalJSON(b []byte) error {
 }
 
 func (e ActionArgumentType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type AgenticState string
+
+const (
+	AgenticStateOn        AgenticState = "ON"
+	AgenticStateOff       AgenticState = "OFF"
+	AgenticStateAttention AgenticState = "ATTENTION"
+)
+
+var AllAgenticState = []AgenticState{
+	AgenticStateOn,
+	AgenticStateOff,
+	AgenticStateAttention,
+}
+
+func (e AgenticState) IsValid() bool {
+	switch e {
+	case AgenticStateOn, AgenticStateOff, AgenticStateAttention:
+		return true
+	}
+	return false
+}
+
+func (e AgenticState) String() string {
+	return string(e)
+}
+
+func (e *AgenticState) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = AgenticState(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid AgenticState", str)
+	}
+	return nil
+}
+
+func (e AgenticState) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AgenticState) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AgenticState) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type AssistantGapReason string
+
+const (
+	AssistantGapReasonNoAnswer     AssistantGapReason = "NO_ANSWER"
+	AssistantGapReasonCutShort     AssistantGapReason = "CUT_SHORT"
+	AssistantGapReasonFoundNothing AssistantGapReason = "FOUND_NOTHING"
+	AssistantGapReasonUnsure       AssistantGapReason = "UNSURE"
+)
+
+var AllAssistantGapReason = []AssistantGapReason{
+	AssistantGapReasonNoAnswer,
+	AssistantGapReasonCutShort,
+	AssistantGapReasonFoundNothing,
+	AssistantGapReasonUnsure,
+}
+
+func (e AssistantGapReason) IsValid() bool {
+	switch e {
+	case AssistantGapReasonNoAnswer, AssistantGapReasonCutShort, AssistantGapReasonFoundNothing, AssistantGapReasonUnsure:
+		return true
+	}
+	return false
+}
+
+func (e AssistantGapReason) String() string {
+	return string(e)
+}
+
+func (e *AssistantGapReason) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = AssistantGapReason(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid AssistantGapReason", str)
+	}
+	return nil
+}
+
+func (e AssistantGapReason) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AssistantGapReason) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AssistantGapReason) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type AssistantShownKind string
+
+const (
+	AssistantShownKindCard   AssistantShownKind = "CARD"
+	AssistantShownKindPanel  AssistantShownKind = "PANEL"
+	AssistantShownKindButton AssistantShownKind = "BUTTON"
+	AssistantShownKindMoved  AssistantShownKind = "MOVED"
+	AssistantShownKindCart   AssistantShownKind = "CART"
+	AssistantShownKindText   AssistantShownKind = "TEXT"
+)
+
+var AllAssistantShownKind = []AssistantShownKind{
+	AssistantShownKindCard,
+	AssistantShownKindPanel,
+	AssistantShownKindButton,
+	AssistantShownKindMoved,
+	AssistantShownKindCart,
+	AssistantShownKindText,
+}
+
+func (e AssistantShownKind) IsValid() bool {
+	switch e {
+	case AssistantShownKindCard, AssistantShownKindPanel, AssistantShownKindButton, AssistantShownKindMoved, AssistantShownKindCart, AssistantShownKindText:
+		return true
+	}
+	return false
+}
+
+func (e AssistantShownKind) String() string {
+	return string(e)
+}
+
+func (e *AssistantShownKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = AssistantShownKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid AssistantShownKind", str)
+	}
+	return nil
+}
+
+func (e AssistantShownKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AssistantShownKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AssistantShownKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type AssistantUnansweredFilter string
+
+const (
+	AssistantUnansweredFilterAny          AssistantUnansweredFilter = "ANY"
+	AssistantUnansweredFilterNoAnswer     AssistantUnansweredFilter = "NO_ANSWER"
+	AssistantUnansweredFilterCutShort     AssistantUnansweredFilter = "CUT_SHORT"
+	AssistantUnansweredFilterFoundNothing AssistantUnansweredFilter = "FOUND_NOTHING"
+	AssistantUnansweredFilterUnsure       AssistantUnansweredFilter = "UNSURE"
+)
+
+var AllAssistantUnansweredFilter = []AssistantUnansweredFilter{
+	AssistantUnansweredFilterAny,
+	AssistantUnansweredFilterNoAnswer,
+	AssistantUnansweredFilterCutShort,
+	AssistantUnansweredFilterFoundNothing,
+	AssistantUnansweredFilterUnsure,
+}
+
+func (e AssistantUnansweredFilter) IsValid() bool {
+	switch e {
+	case AssistantUnansweredFilterAny, AssistantUnansweredFilterNoAnswer, AssistantUnansweredFilterCutShort, AssistantUnansweredFilterFoundNothing, AssistantUnansweredFilterUnsure:
+		return true
+	}
+	return false
+}
+
+func (e AssistantUnansweredFilter) String() string {
+	return string(e)
+}
+
+func (e *AssistantUnansweredFilter) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = AssistantUnansweredFilter(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid AssistantUnansweredFilter", str)
+	}
+	return nil
+}
+
+func (e AssistantUnansweredFilter) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AssistantUnansweredFilter) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AssistantUnansweredFilter) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
@@ -6610,6 +7280,236 @@ func (e *BlogPostStatus) UnmarshalJSON(b []byte) error {
 }
 
 func (e BlogPostStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type BoardAccess string
+
+const (
+	BoardAccessView BoardAccess = "VIEW"
+	BoardAccessEdit BoardAccess = "EDIT"
+	BoardAccessOwn  BoardAccess = "OWN"
+)
+
+var AllBoardAccess = []BoardAccess{
+	BoardAccessView,
+	BoardAccessEdit,
+	BoardAccessOwn,
+}
+
+func (e BoardAccess) IsValid() bool {
+	switch e {
+	case BoardAccessView, BoardAccessEdit, BoardAccessOwn:
+		return true
+	}
+	return false
+}
+
+func (e BoardAccess) String() string {
+	return string(e)
+}
+
+func (e *BoardAccess) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = BoardAccess(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid BoardAccess", str)
+	}
+	return nil
+}
+
+func (e BoardAccess) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *BoardAccess) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e BoardAccess) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type BoardReportKind string
+
+const (
+	BoardReportKindInsights   BoardReportKind = "INSIGHTS"
+	BoardReportKindFunnel     BoardReportKind = "FUNNEL"
+	BoardReportKindRetention  BoardReportKind = "RETENTION"
+	BoardReportKindStickiness BoardReportKind = "STICKINESS"
+	BoardReportKindFlow       BoardReportKind = "FLOW"
+)
+
+var AllBoardReportKind = []BoardReportKind{
+	BoardReportKindInsights,
+	BoardReportKindFunnel,
+	BoardReportKindRetention,
+	BoardReportKindStickiness,
+	BoardReportKindFlow,
+}
+
+func (e BoardReportKind) IsValid() bool {
+	switch e {
+	case BoardReportKindInsights, BoardReportKindFunnel, BoardReportKindRetention, BoardReportKindStickiness, BoardReportKindFlow:
+		return true
+	}
+	return false
+}
+
+func (e BoardReportKind) String() string {
+	return string(e)
+}
+
+func (e *BoardReportKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = BoardReportKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid BoardReportKind", str)
+	}
+	return nil
+}
+
+func (e BoardReportKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *BoardReportKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e BoardReportKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type BoardReportSize string
+
+const (
+	BoardReportSizeSmall  BoardReportSize = "SMALL"
+	BoardReportSizeMedium BoardReportSize = "MEDIUM"
+	BoardReportSizeFull   BoardReportSize = "FULL"
+)
+
+var AllBoardReportSize = []BoardReportSize{
+	BoardReportSizeSmall,
+	BoardReportSizeMedium,
+	BoardReportSizeFull,
+}
+
+func (e BoardReportSize) IsValid() bool {
+	switch e {
+	case BoardReportSizeSmall, BoardReportSizeMedium, BoardReportSizeFull:
+		return true
+	}
+	return false
+}
+
+func (e BoardReportSize) String() string {
+	return string(e)
+}
+
+func (e *BoardReportSize) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = BoardReportSize(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid BoardReportSize", str)
+	}
+	return nil
+}
+
+func (e BoardReportSize) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *BoardReportSize) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e BoardReportSize) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type BoardShareLevel string
+
+const (
+	BoardShareLevelView BoardShareLevel = "VIEW"
+	BoardShareLevelEdit BoardShareLevel = "EDIT"
+)
+
+var AllBoardShareLevel = []BoardShareLevel{
+	BoardShareLevelView,
+	BoardShareLevelEdit,
+}
+
+func (e BoardShareLevel) IsValid() bool {
+	switch e {
+	case BoardShareLevelView, BoardShareLevelEdit:
+		return true
+	}
+	return false
+}
+
+func (e BoardShareLevel) String() string {
+	return string(e)
+}
+
+func (e *BoardShareLevel) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = BoardShareLevel(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid BoardShareLevel", str)
+	}
+	return nil
+}
+
+func (e BoardShareLevel) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *BoardShareLevel) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e BoardShareLevel) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
@@ -7773,6 +8673,65 @@ func (e *InventoryMode) UnmarshalJSON(b []byte) error {
 }
 
 func (e InventoryMode) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type LensPlanIssueKind string
+
+const (
+	LensPlanIssueKindUnknownEvent LensPlanIssueKind = "UNKNOWN_EVENT"
+	LensPlanIssueKindUnknownProp  LensPlanIssueKind = "UNKNOWN_PROP"
+	LensPlanIssueKindBadType      LensPlanIssueKind = "BAD_TYPE"
+	LensPlanIssueKindServerProp   LensPlanIssueKind = "SERVER_PROP"
+)
+
+var AllLensPlanIssueKind = []LensPlanIssueKind{
+	LensPlanIssueKindUnknownEvent,
+	LensPlanIssueKindUnknownProp,
+	LensPlanIssueKindBadType,
+	LensPlanIssueKindServerProp,
+}
+
+func (e LensPlanIssueKind) IsValid() bool {
+	switch e {
+	case LensPlanIssueKindUnknownEvent, LensPlanIssueKindUnknownProp, LensPlanIssueKindBadType, LensPlanIssueKindServerProp:
+		return true
+	}
+	return false
+}
+
+func (e LensPlanIssueKind) String() string {
+	return string(e)
+}
+
+func (e *LensPlanIssueKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = LensPlanIssueKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid LensPlanIssueKind", str)
+	}
+	return nil
+}
+
+func (e LensPlanIssueKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *LensPlanIssueKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e LensPlanIssueKind) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
@@ -9232,6 +10191,179 @@ func (e ReviewStatus) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+type SearchByMeaningMode string
+
+const (
+	SearchByMeaningModeNatural SearchByMeaningMode = "NATURAL"
+	SearchByMeaningModeAlways  SearchByMeaningMode = "ALWAYS"
+	SearchByMeaningModeOff     SearchByMeaningMode = "OFF"
+)
+
+var AllSearchByMeaningMode = []SearchByMeaningMode{
+	SearchByMeaningModeNatural,
+	SearchByMeaningModeAlways,
+	SearchByMeaningModeOff,
+}
+
+func (e SearchByMeaningMode) IsValid() bool {
+	switch e {
+	case SearchByMeaningModeNatural, SearchByMeaningModeAlways, SearchByMeaningModeOff:
+		return true
+	}
+	return false
+}
+
+func (e SearchByMeaningMode) String() string {
+	return string(e)
+}
+
+func (e *SearchByMeaningMode) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SearchByMeaningMode(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SearchByMeaningMode", str)
+	}
+	return nil
+}
+
+func (e SearchByMeaningMode) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SearchByMeaningMode) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SearchByMeaningMode) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type SearchByMeaningStrictness string
+
+const (
+	SearchByMeaningStrictnessStrict   SearchByMeaningStrictness = "STRICT"
+	SearchByMeaningStrictnessBalanced SearchByMeaningStrictness = "BALANCED"
+	SearchByMeaningStrictnessBroad    SearchByMeaningStrictness = "BROAD"
+)
+
+var AllSearchByMeaningStrictness = []SearchByMeaningStrictness{
+	SearchByMeaningStrictnessStrict,
+	SearchByMeaningStrictnessBalanced,
+	SearchByMeaningStrictnessBroad,
+}
+
+func (e SearchByMeaningStrictness) IsValid() bool {
+	switch e {
+	case SearchByMeaningStrictnessStrict, SearchByMeaningStrictnessBalanced, SearchByMeaningStrictnessBroad:
+		return true
+	}
+	return false
+}
+
+func (e SearchByMeaningStrictness) String() string {
+	return string(e)
+}
+
+func (e *SearchByMeaningStrictness) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SearchByMeaningStrictness(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SearchByMeaningStrictness", str)
+	}
+	return nil
+}
+
+func (e SearchByMeaningStrictness) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SearchByMeaningStrictness) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SearchByMeaningStrictness) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type SearchOverviewStatus string
+
+const (
+	SearchOverviewStatusWritten     SearchOverviewStatus = "WRITTEN"
+	SearchOverviewStatusKeywords    SearchOverviewStatus = "KEYWORDS"
+	SearchOverviewStatusUnavailable SearchOverviewStatus = "UNAVAILABLE"
+	SearchOverviewStatusNothing     SearchOverviewStatus = "NOTHING"
+)
+
+var AllSearchOverviewStatus = []SearchOverviewStatus{
+	SearchOverviewStatusWritten,
+	SearchOverviewStatusKeywords,
+	SearchOverviewStatusUnavailable,
+	SearchOverviewStatusNothing,
+}
+
+func (e SearchOverviewStatus) IsValid() bool {
+	switch e {
+	case SearchOverviewStatusWritten, SearchOverviewStatusKeywords, SearchOverviewStatusUnavailable, SearchOverviewStatusNothing:
+		return true
+	}
+	return false
+}
+
+func (e SearchOverviewStatus) String() string {
+	return string(e)
+}
+
+func (e *SearchOverviewStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SearchOverviewStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SearchOverviewStatus", str)
+	}
+	return nil
+}
+
+func (e SearchOverviewStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SearchOverviewStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SearchOverviewStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 type SegmentBoolOp string
 
 const (
@@ -9445,17 +10577,19 @@ const (
 	ShippingCalcTypeFlat      ShippingCalcType = "FLAT"
 	ShippingCalcTypeFree      ShippingCalcType = "FREE"
 	ShippingCalcTypeFreeAbove ShippingCalcType = "FREE_ABOVE"
+	ShippingCalcTypeTable     ShippingCalcType = "TABLE"
 )
 
 var AllShippingCalcType = []ShippingCalcType{
 	ShippingCalcTypeFlat,
 	ShippingCalcTypeFree,
 	ShippingCalcTypeFreeAbove,
+	ShippingCalcTypeTable,
 }
 
 func (e ShippingCalcType) IsValid() bool {
 	switch e {
-	case ShippingCalcTypeFlat, ShippingCalcTypeFree, ShippingCalcTypeFreeAbove:
+	case ShippingCalcTypeFlat, ShippingCalcTypeFree, ShippingCalcTypeFreeAbove, ShippingCalcTypeTable:
 		return true
 	}
 	return false
@@ -9491,6 +10625,63 @@ func (e *ShippingCalcType) UnmarshalJSON(b []byte) error {
 }
 
 func (e ShippingCalcType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type ShippingTableBasis string
+
+const (
+	ShippingTableBasisWeight   ShippingTableBasis = "WEIGHT"
+	ShippingTableBasisSubtotal ShippingTableBasis = "SUBTOTAL"
+	ShippingTableBasisQuantity ShippingTableBasis = "QUANTITY"
+)
+
+var AllShippingTableBasis = []ShippingTableBasis{
+	ShippingTableBasisWeight,
+	ShippingTableBasisSubtotal,
+	ShippingTableBasisQuantity,
+}
+
+func (e ShippingTableBasis) IsValid() bool {
+	switch e {
+	case ShippingTableBasisWeight, ShippingTableBasisSubtotal, ShippingTableBasisQuantity:
+		return true
+	}
+	return false
+}
+
+func (e ShippingTableBasis) String() string {
+	return string(e)
+}
+
+func (e *ShippingTableBasis) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ShippingTableBasis(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ShippingTableBasis", str)
+	}
+	return nil
+}
+
+func (e ShippingTableBasis) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ShippingTableBasis) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ShippingTableBasis) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
@@ -9550,6 +10741,122 @@ func (e *SiteCrawlStatus) UnmarshalJSON(b []byte) error {
 }
 
 func (e SiteCrawlStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type StorefrontSearchAnswer string
+
+const (
+	StorefrontSearchAnswerWords   StorefrontSearchAnswer = "WORDS"
+	StorefrontSearchAnswerMeaning StorefrontSearchAnswer = "MEANING"
+	StorefrontSearchAnswerBlended StorefrontSearchAnswer = "BLENDED"
+)
+
+var AllStorefrontSearchAnswer = []StorefrontSearchAnswer{
+	StorefrontSearchAnswerWords,
+	StorefrontSearchAnswerMeaning,
+	StorefrontSearchAnswerBlended,
+}
+
+func (e StorefrontSearchAnswer) IsValid() bool {
+	switch e {
+	case StorefrontSearchAnswerWords, StorefrontSearchAnswerMeaning, StorefrontSearchAnswerBlended:
+		return true
+	}
+	return false
+}
+
+func (e StorefrontSearchAnswer) String() string {
+	return string(e)
+}
+
+func (e *StorefrontSearchAnswer) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = StorefrontSearchAnswer(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid StorefrontSearchAnswer", str)
+	}
+	return nil
+}
+
+func (e StorefrontSearchAnswer) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *StorefrontSearchAnswer) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e StorefrontSearchAnswer) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type StorefrontSearchReading string
+
+const (
+	StorefrontSearchReadingWords    StorefrontSearchReading = "WORDS"
+	StorefrontSearchReadingKeywords StorefrontSearchReading = "KEYWORDS"
+	StorefrontSearchReadingSentence StorefrontSearchReading = "SENTENCE"
+	StorefrontSearchReadingBlended  StorefrontSearchReading = "BLENDED"
+)
+
+var AllStorefrontSearchReading = []StorefrontSearchReading{
+	StorefrontSearchReadingWords,
+	StorefrontSearchReadingKeywords,
+	StorefrontSearchReadingSentence,
+	StorefrontSearchReadingBlended,
+}
+
+func (e StorefrontSearchReading) IsValid() bool {
+	switch e {
+	case StorefrontSearchReadingWords, StorefrontSearchReadingKeywords, StorefrontSearchReadingSentence, StorefrontSearchReadingBlended:
+		return true
+	}
+	return false
+}
+
+func (e StorefrontSearchReading) String() string {
+	return string(e)
+}
+
+func (e *StorefrontSearchReading) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = StorefrontSearchReading(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid StorefrontSearchReading", str)
+	}
+	return nil
+}
+
+func (e StorefrontSearchReading) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *StorefrontSearchReading) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e StorefrontSearchReading) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
@@ -9725,6 +11032,61 @@ func (e *SubscriptionStatus) UnmarshalJSON(b []byte) error {
 }
 
 func (e SubscriptionStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type TrackingDeliveryStatus string
+
+const (
+	TrackingDeliveryStatusPending TrackingDeliveryStatus = "PENDING"
+	TrackingDeliveryStatusDead    TrackingDeliveryStatus = "DEAD"
+)
+
+var AllTrackingDeliveryStatus = []TrackingDeliveryStatus{
+	TrackingDeliveryStatusPending,
+	TrackingDeliveryStatusDead,
+}
+
+func (e TrackingDeliveryStatus) IsValid() bool {
+	switch e {
+	case TrackingDeliveryStatusPending, TrackingDeliveryStatusDead:
+		return true
+	}
+	return false
+}
+
+func (e TrackingDeliveryStatus) String() string {
+	return string(e)
+}
+
+func (e *TrackingDeliveryStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = TrackingDeliveryStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid TrackingDeliveryStatus", str)
+	}
+	return nil
+}
+
+func (e TrackingDeliveryStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *TrackingDeliveryStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e TrackingDeliveryStatus) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

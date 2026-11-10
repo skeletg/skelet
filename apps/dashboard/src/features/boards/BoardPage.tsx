@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { CopyIcon, GripVerticalIcon, Maximize2Icon, Minimize2Icon, PencilIcon, PlusIcon, Share2Icon, StarIcon, Trash2Icon, XIcon } from 'lucide-react'
+import { CopyIcon, GripVerticalIcon, PencilIcon, PlusIcon, Share2Icon, StarIcon, Trash2Icon, XIcon } from 'lucide-react'
 import { DetailPageBody, DetailPageHeader, DetailPageLayout } from '@/components/layout/detail-page'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -18,31 +18,35 @@ import { usePermissions } from '@/shared/auth/usePermissions'
 import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 import { ChannelRequired } from '@/shared/analytics/ChannelRequired'
 import { PeriodPicker } from '@/shared/analytics/PeriodPicker'
-import { BUILDERS, ReportControls, ReportResult, suggestTitle } from '@/shared/analytics/kinds'
-import { DEFAULT_DEFINITIONS, REPORT_KIND_LABEL, REPORT_SIZE_LABEL, describeReport, type BoardReport, type ReportDefinition, type ReportKind, type ReportSize } from '@/shared/analytics/report'
+import { BUILDERS, KINDS, ReportResult, describeReport, kindOf } from '@/shared/analytics/kinds'
+import type { ReportKind } from '@/shared/analytics/kinds/definition'
+import { cleanReport, type ReportSize } from './report'
 import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
-import { added } from '@/shared/saving/diff'
 import { useSaveRegistry, useSaveSection } from '@/shared/saving/saveRegistry'
 import {
   BoardDocument,
   BoardsDocument,
-  ClaimBoardDocument,
+  CreateBoardDocument,
   DeleteBoardDocument,
-  DiscardBoardDraftDocument,
-  MakeShopBoardDocument,
   SaveBoardDocument,
-  SaveBoardDraftDocument,
   SetBoardFavouriteDocument,
   type BoardFullFragment,
 } from './Boards.gql'
+import { ACCESS_LABEL, can, verb } from './access'
+import { AccessRequestList, RequestAccess, notOpenable } from './AccessRequests'
 import { ShareDialog } from './ShareDialog'
-import { boardDiff, keyed, unkeyed, type AddToBoardState, type DraftReport } from './boardDiff'
-
-const newKey = () => `n${crypto.randomUUID()}` // a report added since the board was loaded - boardDiff reads it as new
+import { useKeptDraft } from './useKeptDraft'
+import { boardDiff, fresh, keyed, unkeyed, type AddToBoardState, type DraftReport } from './boardDiff'
+import { EditPanel } from './EditPanel'
 
 // A tile's width in the board's grid, which is 1 column narrow, 2 from a medium width, 4 wide and 5 very wide - measured
 // on the grid itself, so opening the edit panel narrows it rather than squeezing four tiles into the space left
-const SPAN: Record<ReportSize, string> = { small: 'col-span-1', medium: 'col-span-1 @2xl:col-span-2', full: 'col-span-full' }
+const SPAN: Record<ReportSize, string> = { SMALL: 'col-span-1', MEDIUM: 'col-span-1 @2xl:col-span-2', FULL: 'col-span-full' }
+
+// The copy's name, cut to fit the 120 characters a board's name may run to
+export function copyName(name: string): string {
+  return `${Array.from(name).slice(0, 113).join('')} (copy)`
+}
 
 // BoardPage is the board as a canvas: tiles are added, built, resized and reordered in place, the edit panel sits beside
 // the grid while the tile previews each change, and the header Save applies the lot
@@ -58,9 +62,9 @@ export function BoardPage() {
   const seesData = isChannel && canAccessChannelScope('customers.view', channelId)
   const { data, loading, error } = useQuery(BoardDocument, { variables: { channelId, id }, skip: !isChannel || !id })
   const board = data?.board
-  const saved: BoardReport[] = (board?.reports ?? []) as BoardReport[]
-  const canEdit = board?.access === 'edit' || board?.access === 'own'
-  const canOwn = board?.access === 'own'
+  const saved = useMemo(() => (board?.reports ?? []).map(cleanReport), [board])
+  const canEdit = can(board?.access, 'EDIT')
+  const canOwn = can(board?.access, 'OWN')
 
   const [draftName, setDraftName] = useState('')
   const [draft, setDraft] = useState<DraftReport[]>([])
@@ -69,21 +73,24 @@ export function BoardPage() {
   const [editing, setEditing] = useState<string | null>(null) // the key of the tile the panel edits
   const [focused, setFocused] = useState(false) // the edited tile on its own, full width
   const [arriving] = useState(() => (location.state as AddToBoardState | null)?.add) // what Add to board sent, read once
-  const [base, setBase] = useState('') // the board's updatedAt the staged edits started from - Save sends it as readAt
-  const [restoredAt, setRestoredAt] = useState<string | null>(null) // when the kept draft this page opened with was written
-  // Adopt the board on its identity only, so a refetch never wipes edits mid-way. Unsaved edits kept from an earlier
-  // visit come back as they were staged, against the board they started from
+  const changes = board && loadedId === board.id ? boardDiff(board.name, saved, draftName, draft) : []
+  const kept = useKeptDraft({
+    channelId,
+    board,
+    active: !!board && loadedId === board.id && canEdit,
+    staged: { name: draftName, reports: draft },
+    dirty: changes.length > 0,
+    changesKey: JSON.stringify(changes),
+  })
+  // Adopt the board on its identity only, so a refetch never wipes edits mid-way
   if (board && loadedId !== board.id) {
     setLoadedId(board.id)
-    const kept = canEdit ? readDraft(board.draft?.payload) : null
-    setDraftName(kept?.name ?? board.name)
-    setBase(kept ? board.draft!.baseUpdatedAt : board.updatedAt)
-    setRestoredAt(kept ? board.draft!.updatedAt : null)
-    const reports = kept?.reports ?? keyed(board.reports as BoardReport[])
+    const { name, reports } = kept.open(board, saved, canEdit)
+    setDraftName(name)
     if (arriving) {
-      const key = newKey()
-      setDraft([...reports, { ...arriving, key }])
-      setEditing(key)
+      const added = fresh(arriving)
+      setDraft([...reports, added])
+      setEditing(added.key)
     } else setDraft(reports)
   }
   useEffect(() => {
@@ -93,50 +100,31 @@ export function BoardPage() {
 
   const registry = useSaveRegistry(board ? `Board · ${board.name}` : 'Board')
   const [saveBoard] = useMutation(SaveBoardDocument, { refetchQueries: [BoardsDocument] })
-  const [keepDraft] = useMutation(SaveBoardDraftDocument)
-  const [dropDraft] = useMutation(DiscardBoardDraftDocument, { refetchQueries: [BoardsDocument] })
   const [star] = useMutation(SetBoardFavouriteDocument, { refetchQueries: [BoardsDocument, BoardDocument] })
-  const [makeShop] = useMutation(MakeShopBoardDocument, { refetchQueries: [BoardsDocument] })
-  const [claim, claiming] = useMutation(ClaimBoardDocument, { refetchQueries: [BoardsDocument] })
   const [sharing, setSharing] = useState(false)
-  const [confirmingShop, setConfirmingShop] = useState(false)
   const [deleteBoard] = useMutation(DeleteBoardDocument, { refetchQueries: [BoardsDocument] })
+  const [createBoard, duplicating] = useMutation(CreateBoardDocument, { refetchQueries: [BoardsDocument] })
   const [confirmingSave, setConfirmingSave] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  const changes = board && loadedId === board.id ? boardDiff(board.name, saved, draftName, draft) : []
-  // Unsaved edits are kept on the server about a second after the last one, so a reload or another device picks them
-  // up - they change nothing anyone else sees, which is why this is the one write that doesn't wait for Save
-  const changesKey = JSON.stringify(changes)
-  useEffect(() => {
-    if (!board || loadedId !== board.id || !canEdit || !base) return
-    const t = setTimeout(() => {
-      if (changes.length > 0) void keepDraft({ variables: { channelId, id: board.id, payload: { name: draftName, reports: draft }, baseUpdatedAt: base } }).catch(() => {})
-      else if (restoredAt || board.draft) void dropDraft({ variables: { channelId, id: board.id } }).catch(() => {})
-    }, DRAFT_DELAY_MS)
-    return () => clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [changesKey, loadedId, canEdit])
-  const publish = board?.status === 'draft' ? [added('Publish', 'Save it to keep it - it stays private to you until you share it')] : []
 
   useSaveSection(
     {
       id: 'board',
       title: 'Board',
-      diff: board && loadedId === board.id ? [...publish, ...changes] : [],
+      diff: changes,
       save: async () => {
         if (!board) return
         const res = await saveBoard({
-          variables: { channelId, id: board.id, name: draftName.trim(), reports: unkeyed(draft).map((r) => ({ title: r.title.trim(), definition: r.definition })), readAt: base },
+          variables: { channelId, id: board.id, name: draftName.trim(), reports: unkeyed(draft).map((r) => ({ ...r, title: r.title.trim() })), readAt: kept.base },
         })
         const next = res.data?.saveBoard
         if (next) {
-          setDraft(keyed(next.reports as BoardReport[]))
+          setDraft(keyed(next.reports.map(cleanReport)))
           setDraftName(next.name)
-          setBase(next.updatedAt)
-          setRestoredAt(null)
+          kept.saved(next.updatedAt)
           setEditing(null)
         }
       },
@@ -157,12 +145,12 @@ export function BoardPage() {
     }
   }
 
-  const update = (key: string, patch: Partial<BoardReport>) => setDraft((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)))
+  const update = (key: string, patch: Partial<DraftReport>) => setDraft((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)))
   const add = (kind: ReportKind) => {
-    const definition = DEFAULT_DEFINITIONS[kind]
-    const key = newKey()
-    setDraft((rs) => [...rs, { key, title: suggestTitle(definition), definition }])
-    setEditing(key)
+    const { start, title } = KINDS[kind]
+    const added = fresh({ title: title(start), size: 'MEDIUM', definition: start })
+    setDraft((rs) => [...rs, added])
+    setEditing(added.key)
     setFocused(false)
   }
   const remove = (key: string) => {
@@ -172,7 +160,7 @@ export function BoardPage() {
   const duplicate = (key: string) =>
     setDraft((rs) => {
       const i = rs.findIndex((r) => r.key === key)
-      return [...rs.slice(0, i + 1), { ...rs[i], key: newKey(), title: `${rs[i].title} (copy)` }, ...rs.slice(i + 1)]
+      return [...rs.slice(0, i + 1), fresh({ ...rs[i], title: `${rs[i].title} (copy)` }), ...rs.slice(i + 1)]
     })
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
   const onDragEnd = ({ active, over }: DragEndEvent) => {
@@ -195,12 +183,18 @@ export function BoardPage() {
 
   async function discardKept() {
     if (!board) return
-    await dropDraft({ variables: { channelId, id: board.id } })
-    setDraftName(board.name)
-    setDraft(keyed(board.reports as BoardReport[]))
-    setBase(board.updatedAt)
-    setRestoredAt(null)
+    const { name, reports } = await kept.discard(board, saved)
+    setDraftName(name)
+    setDraft(reports)
     setEditing(null)
+  }
+
+  // A copy of the board as saved is the caller's own, private like any new board - its shares and requests stay behind
+  async function duplicateBoard() {
+    if (!board) return
+    const res = await createBoard({ variables: { channelId, name: copyName(board.name), reports: saved } }).catch(() => null)
+    const copy = res?.data?.createBoard.id
+    if (copy) navigate(`/synapse/boards/${copy}`)
   }
 
   const addMenu = (trigger: React.ReactNode) => (
@@ -223,7 +217,7 @@ export function BoardPage() {
   return (
     <DetailPageLayout>
       <DetailPageHeader
-        backTo="/boards"
+        backTo="/synapse/boards"
         backLabel="Back to boards"
         title={
           canEdit && board ? (
@@ -253,23 +247,17 @@ export function BoardPage() {
                 <StarIcon className={board.favourite ? 'size-4 fill-current' : 'size-4'} />
               </Button>
             )}
-            {board?.owner?.removed && canManage && (
-              <Button size="sm" variant="outline" disabled={claiming.loading} onClick={() => void claim({ variables: { channelId, id: board.id } })}>
-                Claim it
+            {canOwn && board && (
+              <Button size="sm" variant="outline" onClick={() => setSharing(true)}>
+                <Share2Icon className="size-4" />
+                Share
               </Button>
             )}
-            {canOwn && board?.owner && board.status === 'published' && (
-              <>
-                <Button size="sm" variant="outline" onClick={() => setSharing(true)}>
-                  <Share2Icon className="size-4" />
-                  Share
-                </Button>
-                {canManage && (
-                  <Button size="sm" variant="ghost" onClick={() => setConfirmingShop(true)}>
-                    Make it a shop board
-                  </Button>
-                )}
-              </>
+            {canManage && board && (
+              <Button size="sm" variant="ghost" disabled={duplicating.loading} onClick={() => void duplicateBoard()}>
+                <CopyIcon className="size-4" />
+                Duplicate
+              </Button>
             )}
             {canEdit && board && (
               <>
@@ -294,18 +282,25 @@ export function BoardPage() {
         }
       />
       <DetailPageBody>
-        {error && (
+        {notOpenable(error) && <RequestAccess channelId={channelId} id={id} />}
+        {error && !notOpenable(error) && (
           <Alert variant="destructive">
             <AlertTitle>Couldn't load the board</AlertTitle>
             <AlertDescription>{error.message}</AlertDescription>
           </Alert>
         )}
+        {duplicating.error && (
+          <Alert variant="destructive">
+            <AlertTitle>Couldn't duplicate the board</AlertTitle>
+            <AlertDescription>{duplicating.error.message}</AlertDescription>
+          </Alert>
+        )}
         {loading && !board && <p className="py-6 text-sm text-muted-foreground">Loading…</p>}
-        {claiming.error && <p className="px-6 pt-4 text-sm text-destructive">{claiming.error.message}</p>}
-        {restoredAt && (
+        {board && canOwn && <AccessRequestList channelId={channelId} board={board} />}
+        {kept.restoredAt && (
           <div className="mx-6 mt-4 flex flex-wrap items-center gap-3 rounded-md border border-info/40 bg-info-soft px-3 py-2 text-sm">
             <span className="flex-1">
-              These are your unsaved changes from {new Date(restoredAt).toLocaleString()} - Save to keep them. Unsaved changes are kept for 30 days.
+              These are your unsaved changes from {new Date(kept.restoredAt).toLocaleString()} - Save to keep them. Unsaved changes are kept for 30 days.
             </span>
             <Button size="sm" variant="outline" onClick={() => void discardKept()}>
               Discard them
@@ -382,46 +377,21 @@ export function BoardPage() {
         onConfirm={async () => {
           if (!board) return
           await deleteBoard({ variables: { channelId, id: board.id } })
-          navigate('/boards')
+          navigate('/synapse/boards')
         }}
       />
-      {board && (
-        <>
-          <ShareDialog channelId={channelId} shop={selectedChannel?.name ?? 'this shop'} board={board} open={sharing} onOpenChange={setSharing} />
-          <ConfirmDialog
-            open={confirmingShop}
-            onOpenChange={setConfirmingShop}
-            title={`Make ${board.name} a shop board?`}
-            description={`Everyone on ${selectedChannel?.name ?? 'this shop'} with access to boards will see it, and anyone who manages boards here can change, share or delete it. You stop being its owner, and its current shares go.`}
-            confirmLabel="Make it a shop board"
-            onConfirm={async () => {
-              await makeShop({ variables: { channelId, id: board.id } })
-            }}
-          />
-        </>
-      )}
+      {board && sharing && <ShareDialog channelId={channelId} shop={selectedChannel?.name ?? 'this shop'} board={board} canManage={canManage} onClose={() => setSharing(false)} />}
     </DetailPageLayout>
   )
 }
 
-const DRAFT_DELAY_MS = 1000
-
-// The kept draft is the page's own staging, as it was written - anything else reads as no draft
-function readDraft(payload: unknown): { name: string; reports: DraftReport[] } | null {
-  const p = payload as { name?: unknown; reports?: unknown } | null | undefined
-  if (!p || typeof p.name !== 'string' || !Array.isArray(p.reports)) return null
-  return { name: p.name, reports: p.reports as DraftReport[] }
-}
-
 // Who sees the board, in one line under its name
 export function sharingSummary(b: BoardFullFragment, shop: string): string {
-  if (b.status === 'draft') return 'A draft only you can see - Save to keep it.'
   if (!b.owner) return `A shop board: everyone on ${shop} with access to boards sees it.`
-  const owner = b.owner.removed ? 'Its owner was removed - someone who manages boards here can claim it.' : b.access === 'own' ? '' : `${b.owner.name}'s board. `
-  if (b.owner.removed) return owner
-  if (b.access === 'own' && b.shares.length === 0) return 'Private - only you can see it.'
-  if (b.access === 'own') return `Shared with ${b.shares.map((s) => `${s.name} (${s.level === 'edit' ? 'can edit' : 'can view'})`).join(', ')}.`
-  return `${owner}You can ${b.access === 'edit' ? 'edit' : 'view'} it.`
+  if (b.owner.removed) return 'Its owner was removed - a superuser can hand it to someone.'
+  if (b.access !== 'OWN') return `${b.owner.name}'s board. You can ${verb(b.access)} it.`
+  if (b.shares.length === 0) return 'Private - only you can see it.'
+  return `Shared with ${b.shares.map((s) => `${s.name} (${ACCESS_LABEL[s.level].toLowerCase()})`).join(', ')}.`
 }
 
 type TileProps = {
@@ -440,7 +410,7 @@ type TileProps = {
 
 function Tile({ r, channelId, sinceDays, canManage, editing, focused, onEdit, onRemove, onDuplicate, seesData, shop }: TileProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: r.key, disabled: !canManage || focused })
-  const size = focused ? 'full' : (r.definition.size ?? 'medium')
+  const size: ReportSize = focused ? 'FULL' : r.size
   return (
     <section
       ref={setNodeRef}
@@ -457,7 +427,7 @@ function Tile({ r, channelId, sinceDays, canManage, editing, focused, onEdit, on
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-medium">{r.title || 'Untitled report'}</h3>
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
-            {REPORT_KIND_LABEL[r.definition.kind] ?? r.definition.kind} · {describeReport(r.definition)}
+            {kindOf(r.definition)?.label ?? r.definition.kind} · {describeReport(r.definition)}
           </p>
         </div>
         {canManage && (
@@ -477,71 +447,10 @@ function Tile({ r, channelId, sinceDays, canManage, editing, focused, onEdit, on
         )}
       </div>
       {seesData ? (
-        <ReportResult channelId={channelId} d={r.definition} sinceDays={r.definition.sinceDays || sinceDays} compact={size !== 'full'} />
+        <ReportResult channelId={channelId} d={r.definition} sinceDays={r.definition.sinceDays || sinceDays} compact={size !== 'FULL'} />
       ) : (
         <p className="py-6 text-center text-sm text-muted-foreground">You need customer analytics on {shop} to see this report's numbers.</p>
       )}
     </section>
-  )
-}
-
-// EditPanel builds the tile being edited, beside the grid rather than over it, so the board stays usable and the tile
-// shows each change as it's made - the changes are staged on the board like any other edit
-function EditPanel({ r, channelId, focused, onChange, onFocus, onClose }: { r: DraftReport; channelId: string; focused: boolean; onChange: (patch: Partial<BoardReport>) => void; onFocus: () => void; onClose: () => void }) {
-  const d = r.definition
-  const builder = d.kind === 'stickiness' ? 'retention' : d.kind
-  const setDefinition = (next: ReportDefinition) => onChange({ definition: { ...next, size: d.size, sinceDays: d.sinceDays } })
-  return (
-    <aside aria-label={`Edit ${r.title}`} className="sticky top-0 max-h-[calc(100vh-10rem)] w-[26rem] shrink-0 space-y-4 overflow-y-auto rounded-md border bg-background p-4">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="font-semibold">Edit report</h2>
-        <div className="flex">
-          <Button size="icon" variant="ghost" className="size-7" aria-label={focused ? 'Back to the board' : 'Expand the report'} onClick={onFocus}>
-            {focused ? <Minimize2Icon className="size-4" /> : <Maximize2Icon className="size-4" />}
-          </Button>
-          <Button size="icon" variant="ghost" className="size-7" aria-label="Close the editor" onClick={onClose}>
-            <XIcon className="size-4" />
-          </Button>
-        </div>
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor="tile-title">Title</Label>
-        <Input id="tile-title" value={r.title} onChange={(e) => onChange({ title: e.target.value })} />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label htmlFor="tile-kind">Report</Label>
-          <select
-            id="tile-kind"
-            value={builder}
-            onChange={(e) => {
-              const next = DEFAULT_DEFINITIONS[e.target.value as ReportKind]
-              onChange({ title: suggestTitle(next), definition: { ...next, size: d.size } })
-            }}
-            className="w-full rounded border bg-background px-2 py-1.5 text-sm"
-          >
-            {BUILDERS.map((b) => (
-              <option key={b.kind} value={b.kind}>
-                {b.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="tile-size">Size</Label>
-          <select id="tile-size" value={d.size ?? 'medium'} onChange={(e) => onChange({ definition: { ...d, size: e.target.value as ReportSize } })} className="w-full rounded border bg-background px-2 py-1.5 text-sm">
-            {(Object.keys(REPORT_SIZE_LABEL) as ReportSize[]).map((s) => (
-              <option key={s} value={s}>
-                {REPORT_SIZE_LABEL[s]}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-      <div className="border-t pt-4">
-        <ReportControls channelId={channelId} value={d} onChange={setDefinition} />
-      </div>
-      <p className="text-xs text-muted-foreground">Changes show on the tile straight away and are kept when you Save the board. Esc closes this panel.</p>
-    </aside>
   )
 }

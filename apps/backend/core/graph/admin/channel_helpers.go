@@ -29,22 +29,42 @@ func (r *Resolver) publicURLChange(ctx context.Context, id uuid.UUID, in *string
 	return in, nil
 }
 
+// taxModeChange gates flipping whether a channel's prices hold their tax - it changes what every price there means, so
+// it takes the permission tax rules take. Resending the current value, as the identity form does, needs nothing more
+func (r *Resolver) taxModeChange(ctx context.Context, id uuid.UUID, in *bool) (*bool, error) {
+	if in == nil {
+		return nil, nil
+	}
+	current, err := r.ChannelSvc.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if *in == current.TaxInclusivePricing {
+		return nil, nil
+	}
+	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "settings.manage", id, nil); err != nil {
+		return nil, err
+	}
+	return in, nil
+}
+
 func toChannelModel(sv channel.Channel) *model.Channel {
 	locales := make([]*model.Locale, len(sv.Locales))
 	for i, l := range sv.Locales {
 		locales[i] = toLocaleModel(l)
 	}
 	return &model.Channel{
-		ID:            sv.ID.String(),
-		Slug:          sv.Slug,
-		Name:          sv.Name,
-		DefaultLocale: sv.DefaultLocale,
-		Locales:       locales,
-		IsActive:      sv.IsActive,
-		IsDefault:     sv.IsDefault,
-		CurrencyCode:  sv.CurrencyCode,
-		PublicURL:     sv.PublicURL,
-		Metadata:      toStringMapItems(sv.Metadata),
-		CreatedAt:     sv.CreatedAt,
+		ID:                  sv.ID.String(),
+		Slug:                sv.Slug,
+		Name:                sv.Name,
+		DefaultLocale:       sv.DefaultLocale,
+		Locales:             locales,
+		IsActive:            sv.IsActive,
+		IsDefault:           sv.IsDefault,
+		CurrencyCode:        sv.CurrencyCode,
+		PublicURL:           sv.PublicURL,
+		TaxInclusivePricing: sv.TaxInclusivePricing,
+		Metadata:            toStringMapItems(sv.Metadata),
+		CreatedAt:           sv.CreatedAt,
 	}
 }

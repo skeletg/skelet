@@ -37,7 +37,13 @@ export default defineConfig({
   optimizeDeps: {
     // rrweb (the Replayer) is dynamic-imported only on the session-replay route. Pre-bundle it deterministically so the
     // first visit doesn't hit a lazy on-demand optimize + reload
-    include: ['rrweb'],
+    // The two CommonJS packages inside the playground's GraphQL worker - served raw, `import x from` finds no default
+    // export, the worker dies at load and Monaco runs the language service on the main thread, freezing the page
+    include: [
+      'rrweb',
+      'graphiql > @graphiql/react > monaco-graphql > graphql-language-service > nullthrows',
+      'graphiql > @graphiql/react > monaco-graphql > picomatch-browser',
+    ],
     // The playground's Monaco worker registration is a bare `?worker` chain the dep optimizer can't pre-bundle - optimizing it serves a 504 and the whole route fails to load
     exclude: ['graphiql/setup-workers/vite', '@graphiql/react/setup-workers/vite'],
   },

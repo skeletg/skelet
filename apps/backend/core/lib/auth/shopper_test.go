@@ -12,7 +12,7 @@ func shopRequest(consent string) context.Context {
 	r.Header.Set("User-Agent", "Mozilla/5.0 test")
 	r.Header.Set(AnonHeader, "visitor-1")
 	r.Header.Set(SessionHeader, "1700000000")
-	r.Header.Set(ClickIDsHeader, "cjevent=c1")
+	r.Header.Set(ClickIDsHeader, "gclid=c1")
 	if consent != "" {
 		r.Header.Set(ConsentHeader, consent)
 	}
@@ -24,14 +24,7 @@ func TestAShopperKeepsEachPartOnlyUnderItsConsent(t *testing.T) {
 		t.Fatalf("no stated consent: %+v, want nil", got)
 	}
 	none := ShopperFromContext(shopRequest("v2:a0.d0.p0"))
-	r, _ := http.NewRequest(http.MethodPost, "/", nil)
-	r.Header.Set(ConsentHeader, "v2:a0.d0.p0")
-	r.Header.Set(ClickIDsHeader, "gclid=g1")
-	if got := ShopperFromContext(WithRequest(context.Background(), r)); got.ClickIDs != nil {
-		t.Fatalf("an ad click id was kept without ads consent: %v", got.ClickIDs)
-	}
-	// An affiliate id the storefront sent without ads consent is one the merchant made necessary
-	if none == nil || none.AnonID != "" || none.IP != "" || none.UserAgent != "" || none.ClickIDs["cjevent"] != "c1" {
+	if none == nil || none.AnonID != "" || none.IP != "" || none.UserAgent != "" || none.ClickIDs != nil {
 		t.Fatalf("nothing granted kept %+v", none)
 	}
 	analytics := ShopperFromContext(shopRequest("v2:a1.d0.p0"))
@@ -39,7 +32,7 @@ func TestAShopperKeepsEachPartOnlyUnderItsConsent(t *testing.T) {
 		t.Fatalf("analytics only: %+v", analytics)
 	}
 	ads := ShopperFromContext(shopRequest("v2:a0.d1.p0"))
-	if ads.AnonID != "" || ads.SessionID != "" || ads.IP != "203.0.113.7" || ads.UserAgent != "Mozilla/5.0 test" || ads.ClickIDs["cjevent"] != "c1" {
+	if ads.AnonID != "" || ads.SessionID != "" || ads.IP != "203.0.113.7" || ads.UserAgent != "Mozilla/5.0 test" || ads.ClickIDs["gclid"] != "c1" {
 		t.Fatalf("ads only: %+v", ads)
 	}
 }

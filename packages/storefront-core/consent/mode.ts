@@ -4,24 +4,22 @@ import { FRONT_API_URL } from "../backend-url";
 import { PublicConfigDocument, type PublicConfigQuery } from "../config/operations.gql";
 import type { ConsentMode } from "./categories";
 
-// The store's cookie consent mode and which affiliate cookies it made necessary. A plain fetch with a module-level TTL cache, like backend-locales, because the proxy
+// The store's cookie consent mode and whether it counts visitors who decline analytics. A plain fetch with a module-level TTL cache, like backend-locales, because the proxy
 // reads it on every request and has no render scope for gqlFetch or react cache(). One request a minute per channel
 
 const QUERY = print(PublicConfigDocument);
 const TTL_MS = 60_000;
 const PATH = "general/privacy/cookie_consent";
-// The affiliate networks whose click cookie the merchant made necessary, by the click-id key each one stores
-const NECESSARY: Record<string, string> = {
-  "general/privacy/cj_cookie_necessary": "cjevent",
-  "general/privacy/awin_cookie_necessary": "awc",
-};
+const COUNTS = "general/privacy/aggregate_counts";
 
-export type Privacy = { mode: ConsentMode; necessary: Set<string> };
-const ASK_FIRST: Privacy = { mode: "opt_in", necessary: new Set() };
+// counts says whether to report page views from visitors who decline analytics - the backend drops them anyway when it's off,
+// so an unread setting leaves it on rather than lose views
+export type Privacy = { mode: ConsentMode; counts: boolean };
+const ASK_FIRST: Privacy = { mode: "opt_in", counts: true };
 
 const cache = new Map<string, { at: number; value: Privacy }>();
 
-// Anything unset, unknown or unreachable reads as opt_in with nothing necessary - asking is the side that can't break the law
+// Anything unset, unknown or unreachable reads as opt_in - asking is the side that can't break the law
 export async function getPrivacy(channelId: string): Promise<Privacy> {
   if (!channelId) return ASK_FIRST;
   const cached = cache.get(channelId);
@@ -39,7 +37,7 @@ export async function getPrivacy(channelId: string): Promise<Privacy> {
     const config = body.data?.publicConfig ?? [];
     const value: Privacy = {
       mode: config.find((c) => c.path === PATH)?.value === "opt_out" ? "opt_out" : "opt_in",
-      necessary: new Set(config.filter((c) => NECESSARY[c.path] && c.value === "true").map((c) => NECESSARY[c.path])),
+      counts: config.find((c) => c.path === COUNTS)?.value !== "false",
     };
     cache.set(channelId, { at: Date.now(), value });
     return value;

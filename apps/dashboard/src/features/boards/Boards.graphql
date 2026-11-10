@@ -1,11 +1,36 @@
+fragment BoardReportFields on BoardReport {
+  title
+  size
+  definition {
+    kind
+    sinceDays
+    event
+    measure
+    unit
+    breakdown
+    steps
+    filters {
+      step
+      key
+      value
+    }
+    windowHours
+    startEvent
+    returnEvent
+    periods
+    depth
+    windowDays
+  }
+}
+
 query Boards($channelId: ID!, $all: Boolean) {
   boards(channelId: $channelId, all: $all) {
     id
     name
     updatedAt
     reportCount
-    status
     access
+    accessRequestCount
     favourite
     draftUpdatedAt
     owner {
@@ -26,7 +51,6 @@ fragment BoardFull on Board {
   id
   name
   updatedAt
-  status
   access
   favourite
   owner {
@@ -35,8 +59,7 @@ fragment BoardFull on Board {
     removed
   }
   reports {
-    title
-    definition
+    ...BoardReportFields
   }
   shares {
     adminId
@@ -45,9 +68,21 @@ fragment BoardFull on Board {
     level
   }
   draft {
-    payload
+    name
+    reports {
+      from
+      report {
+        ...BoardReportFields
+      }
+    }
     baseUpdatedAt
     updatedAt
+  }
+  accessRequests {
+    adminId
+    name
+    level
+    requestedAt
   }
 }
 
@@ -89,26 +124,26 @@ mutation SetBoardShares($channelId: ID!, $id: ID!, $shares: [BoardShareInput!]!)
   }
 }
 
-mutation MakeShopBoard($channelId: ID!, $id: ID!) {
-  makeShopBoard(channelId: $channelId, id: $id) {
-    ...BoardFull
-  }
-}
-
-mutation ClaimBoard($channelId: ID!, $id: ID!) {
-  claimBoard(channelId: $channelId, id: $id) {
-    ...BoardFull
-  }
+mutation TransferBoard($channelId: ID!, $id: ID!, $ownerId: ID) {
+  transferBoard(channelId: $channelId, id: $id, ownerId: $ownerId)
 }
 
 mutation SetBoardFavourite($channelId: ID!, $id: ID!, $favourite: Boolean!) {
   setBoardFavourite(channelId: $channelId, id: $id, favourite: $favourite)
 }
 
-mutation SaveBoardDraft($channelId: ID!, $id: ID!, $payload: JSON!, $baseUpdatedAt: Time!) {
-  saveBoardDraft(channelId: $channelId, id: $id, payload: $payload, baseUpdatedAt: $baseUpdatedAt)
+mutation SaveBoardDraft($channelId: ID!, $id: ID!, $draft: BoardDraftInput!, $baseUpdatedAt: Time!) {
+  saveBoardDraft(channelId: $channelId, id: $id, draft: $draft, baseUpdatedAt: $baseUpdatedAt)
 }
 
 mutation DiscardBoardDraft($channelId: ID!, $id: ID!) {
   discardBoardDraft(channelId: $channelId, id: $id)
+}
+
+mutation RequestBoardAccess($channelId: ID!, $id: ID!, $level: BoardShareLevel!) {
+  requestBoardAccess(channelId: $channelId, id: $id, level: $level)
+}
+
+mutation DismissBoardAccessRequest($channelId: ID!, $id: ID!, $adminId: ID!) {
+  dismissBoardAccessRequest(channelId: $channelId, id: $id, adminId: $adminId)
 }

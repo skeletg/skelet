@@ -33,4 +33,5 @@ export function platformStatus(p: Platform, destinations: Destination[]): Status
   return order.map((k) => statuses.find((s) => s.kind === k)).find(Boolean) ?? STATUS.disabled
 }
 
-export const enableCommand = (slug: string) => `skelet cli plugin enable ${slug}`
+// Each published plugin lives in a repository named after its slug
+export const installCommand = (slug: string) => `skelet cli plugin add github.com/skeletg/${slug}`

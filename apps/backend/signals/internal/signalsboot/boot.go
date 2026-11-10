@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics/spinech"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics/spinequeue"
@@ -52,7 +53,13 @@ func Build(ctx context.Context, o Options) (*Stack, error) {
 	if err != nil {
 		return nil, fmt.Errorf("clickhouse spine: %w", err)
 	}
+	key := os.Getenv(auth.EnvServiceSecret) // keys the aggregate events' dedupe hash - a secret neither database holds
+	if key == "" {
+		spineCleanup()
+		return nil, fmt.Errorf("%s is not set - aggregate events need it", auth.EnvServiceSecret)
+	}
 	rec := analytics.NewRecorder(o.Queries, spine)
+	rec.SetAggregateKey([]byte(key))
 	st := &Stack{
 		Recorder: rec, Roster: analytics.NewRoster(o.Queries), Traits: analytics.NewTraitCompute(o.Queries, spine),
 		Spine: spine, CHPing: spine.Ping, cleanups: []func(){spineCleanup},

@@ -25,6 +25,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/observability"
 	"github.com/skeletg/skelet/apps/backend/core/lib/ratelimit"
+	"github.com/skeletg/skelet/apps/backend/core/signalsapi"
 )
 
 const (
@@ -51,6 +52,13 @@ type Scope struct {
 	Tools   ToolSet
 	Key     string
 	Caller  []any
+	// set, the store's own budget a minute in place of the limiter's - 0 for none
+	PerMinute *int
+}
+
+type Limiter interface {
+	Allow(ctx context.Context, key string) bool
+	AllowN(ctx context.Context, key string, rate int) bool
 }
 
 // Refusal answers a request before the protocol starts
@@ -67,7 +75,7 @@ type Config struct {
 	Tools        []ai.Tool
 	Resolve      Resolver
 	Instructions func(channel.Channel) string
-	Limiter      ratelimit.Limiter
+	Limiter      Limiter
 	Reporter     observability.Reporter
 	MaxInFlight  int           // calls one budget key may run at once, 4 when unset
 	CallTimeout  time.Duration // a minute when unset
@@ -203,20 +211,39 @@ func adminChannel(ctx context.Context, req *http.Request, channels Channels) (ch
 	return ch, nil
 }
 
-// Storefront scopes an anonymous shopper's agent to the channel the front middleware resolved, budgeted per client address - source refuses a channel that keeps agents out
-func Storefront(source func(ctx context.Context, ch channel.Channel) (ToolSet, *Refusal)) Resolver {
+// Storefront scopes an anonymous shopper's agent to the channel the front middleware resolved, budgeted per client address
+// at the store's own rate - source refuses a channel that keeps agents out
+func Storefront(source func(ctx context.Context, ch channel.Channel, agent string) (ToolSet, *Refusal), perMinute func(ctx context.Context, ch channel.Channel) int) Resolver {
 	return func(req *http.Request) (Scope, *Refusal) {
 		ch, ok := channel.FromContext(req.Context())
 		if !ok || ch == nil {
 			return Scope{}, &Refusal{http.StatusBadRequest, "name an active storefront channel with the X-Channel-Id header"}
 		}
-		tools, refused := source(req.Context(), *ch)
+		tools, refused := source(req.Context(), *ch, AgentName(req.UserAgent()))
 		if refused != nil {
 			return Scope{}, refused
 		}
 		ip := auth.ClientIP(req)
-		return Scope{Channel: *ch, Tools: tools, Key: "mcp:front:" + ip, Caller: []any{"client_ip", ip}}, nil
+		rate := perMinute(req.Context(), *ch)
+		return Scope{Channel: *ch, Tools: tools, Key: "mcp:front:" + ch.ID.String() + ":" + auth.AddressKey(ip), Caller: []any{"client_ip", ip}, PerMinute: &rate}, nil
 	}
+}
+
+// AgentName is what an agent's HTTP client calls itself - the first product in its User-Agent, as "ShopBot" in
+// "ShopBot/1.0 (+https://...)" - since a stateless server never sees the handshake's client name on a tool call
+func AgentName(userAgent string) string {
+	name, _, _ := strings.Cut(strings.TrimSpace(userAgent), " ")
+	name, _, _ = strings.Cut(name, "/")
+	name = strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f {
+			return -1
+		}
+		return r
+	}, name)
+	if r := []rune(name); len(r) > signalsapi.AIMaxAgentName {
+		name = string(r[:signalsapi.AIMaxAgentName])
+	}
+	return cmp.Or(name, signalsapi.AIUnknownAgent)
 }
 
 func (h *handler) scoped(next mcp.MethodHandler) mcp.MethodHandler {
@@ -250,6 +277,13 @@ func (h *handler) scoped(next mcp.MethodHandler) mcp.MethodHandler {
 	}
 }
 
+func (h *handler) allow(ctx context.Context, sc Scope) bool {
+	if sc.PerMinute != nil {
+		return h.cfg.Limiter.AllowN(ctx, sc.Key, *sc.PerMinute)
+	}
+	return h.cfg.Limiter.Allow(ctx, sc.Key)
+}
+
 func (h *handler) call(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	sc, _ := ctx.Value(scopeKey{}).(*scope)
 	name := req.Params.Name
@@ -257,13 +291,13 @@ func (h *handler) call(ctx context.Context, req *mcp.CallToolRequest) (*mcp.Call
 	switch {
 	case sc == nil || !sc.offered[name]:
 		res = ai.ToolResult{IsError: true, Content: fmt.Sprintf("Unknown tool %q.", name)}
-	case h.cfg.Limiter != nil && !h.cfg.Limiter.Allow(ctx, sc.Key):
+	case h.cfg.Limiter != nil && !h.allow(ctx, sc.Scope):
 		res = ai.ToolResult{IsError: true, Content: "Rate limit reached - slow down and try again shortly."}
 	case !h.acquire(sc.Key):
 		res = ai.ToolResult{IsError: true, Content: fmt.Sprintf("Too many tool calls in flight - you can run %d at once.", h.cfg.MaxInFlight)}
 	default:
 		defer h.release(sc.Key)
-		callCtx, cancel := context.WithTimeout(ctx, h.cfg.CallTimeout)
+		callCtx, cancel := context.WithTimeout(ratelimit.Counted(ctx), h.cfg.CallTimeout)
 		defer cancel()
 		res = sc.Tools.Call(callCtx, name, req.Params.Arguments)
 	}

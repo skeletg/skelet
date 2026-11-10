@@ -39,6 +39,9 @@ const (
 	EmailBuilderService_ListEmailBlocks_FullMethodName        = "/skelet.signals.v1.EmailBuilderService/ListEmailBlocks"
 	EmailBuilderService_SaveEmailBlock_FullMethodName         = "/skelet.signals.v1.EmailBuilderService/SaveEmailBlock"
 	EmailBuilderService_DeleteEmailBlock_FullMethodName       = "/skelet.signals.v1.EmailBuilderService/DeleteEmailBlock"
+	EmailBuilderService_ListEmailTranslations_FullMethodName  = "/skelet.signals.v1.EmailBuilderService/ListEmailTranslations"
+	EmailBuilderService_SaveEmailTranslation_FullMethodName   = "/skelet.signals.v1.EmailBuilderService/SaveEmailTranslation"
+	EmailBuilderService_DeleteEmailTranslation_FullMethodName = "/skelet.signals.v1.EmailBuilderService/DeleteEmailTranslation"
 )
 
 // EmailBuilderServiceClient is the client API for EmailBuilderService service.
@@ -70,6 +73,10 @@ type EmailBuilderServiceClient interface {
 	ListEmailBlocks(ctx context.Context, in *ListEmailBlocksRequest, opts ...grpc.CallOption) (*ListEmailBlocksResponse, error)
 	SaveEmailBlock(ctx context.Context, in *SaveEmailBlockRequest, opts ...grpc.CallOption) (*SaveEmailBlockResponse, error)
 	DeleteEmailBlock(ctx context.Context, in *DeleteEmailBlockRequest, opts ...grpc.CallOption) (*DeleteEmailBlockResponse, error)
+	// A library email's version in another language - a shopper in that language gets it, everyone else the email itself
+	ListEmailTranslations(ctx context.Context, in *ListEmailTranslationsRequest, opts ...grpc.CallOption) (*ListEmailTranslationsResponse, error)
+	SaveEmailTranslation(ctx context.Context, in *SaveEmailTranslationRequest, opts ...grpc.CallOption) (*SaveEmailTranslationResponse, error)
+	DeleteEmailTranslation(ctx context.Context, in *DeleteEmailTranslationRequest, opts ...grpc.CallOption) (*DeleteEmailTranslationResponse, error)
 }
 
 type emailBuilderServiceClient struct {
@@ -250,6 +257,36 @@ func (c *emailBuilderServiceClient) DeleteEmailBlock(ctx context.Context, in *De
 	return out, nil
 }
 
+func (c *emailBuilderServiceClient) ListEmailTranslations(ctx context.Context, in *ListEmailTranslationsRequest, opts ...grpc.CallOption) (*ListEmailTranslationsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListEmailTranslationsResponse)
+	err := c.cc.Invoke(ctx, EmailBuilderService_ListEmailTranslations_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *emailBuilderServiceClient) SaveEmailTranslation(ctx context.Context, in *SaveEmailTranslationRequest, opts ...grpc.CallOption) (*SaveEmailTranslationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SaveEmailTranslationResponse)
+	err := c.cc.Invoke(ctx, EmailBuilderService_SaveEmailTranslation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *emailBuilderServiceClient) DeleteEmailTranslation(ctx context.Context, in *DeleteEmailTranslationRequest, opts ...grpc.CallOption) (*DeleteEmailTranslationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteEmailTranslationResponse)
+	err := c.cc.Invoke(ctx, EmailBuilderService_DeleteEmailTranslation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // EmailBuilderServiceServer is the server API for EmailBuilderService service.
 // All implementations must embed UnimplementedEmailBuilderServiceServer
 // for forward compatibility.
@@ -279,6 +316,10 @@ type EmailBuilderServiceServer interface {
 	ListEmailBlocks(context.Context, *ListEmailBlocksRequest) (*ListEmailBlocksResponse, error)
 	SaveEmailBlock(context.Context, *SaveEmailBlockRequest) (*SaveEmailBlockResponse, error)
 	DeleteEmailBlock(context.Context, *DeleteEmailBlockRequest) (*DeleteEmailBlockResponse, error)
+	// A library email's version in another language - a shopper in that language gets it, everyone else the email itself
+	ListEmailTranslations(context.Context, *ListEmailTranslationsRequest) (*ListEmailTranslationsResponse, error)
+	SaveEmailTranslation(context.Context, *SaveEmailTranslationRequest) (*SaveEmailTranslationResponse, error)
+	DeleteEmailTranslation(context.Context, *DeleteEmailTranslationRequest) (*DeleteEmailTranslationResponse, error)
 	mustEmbedUnimplementedEmailBuilderServiceServer()
 }
 
@@ -339,6 +380,15 @@ func (UnimplementedEmailBuilderServiceServer) SaveEmailBlock(context.Context, *S
 }
 func (UnimplementedEmailBuilderServiceServer) DeleteEmailBlock(context.Context, *DeleteEmailBlockRequest) (*DeleteEmailBlockResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteEmailBlock not implemented")
+}
+func (UnimplementedEmailBuilderServiceServer) ListEmailTranslations(context.Context, *ListEmailTranslationsRequest) (*ListEmailTranslationsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListEmailTranslations not implemented")
+}
+func (UnimplementedEmailBuilderServiceServer) SaveEmailTranslation(context.Context, *SaveEmailTranslationRequest) (*SaveEmailTranslationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SaveEmailTranslation not implemented")
+}
+func (UnimplementedEmailBuilderServiceServer) DeleteEmailTranslation(context.Context, *DeleteEmailTranslationRequest) (*DeleteEmailTranslationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteEmailTranslation not implemented")
 }
 func (UnimplementedEmailBuilderServiceServer) mustEmbedUnimplementedEmailBuilderServiceServer() {}
 func (UnimplementedEmailBuilderServiceServer) testEmbeddedByValue()                             {}
@@ -667,6 +717,60 @@ func _EmailBuilderService_DeleteEmailBlock_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _EmailBuilderService_ListEmailTranslations_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListEmailTranslationsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EmailBuilderServiceServer).ListEmailTranslations(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EmailBuilderService_ListEmailTranslations_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EmailBuilderServiceServer).ListEmailTranslations(ctx, req.(*ListEmailTranslationsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _EmailBuilderService_SaveEmailTranslation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveEmailTranslationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EmailBuilderServiceServer).SaveEmailTranslation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EmailBuilderService_SaveEmailTranslation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EmailBuilderServiceServer).SaveEmailTranslation(ctx, req.(*SaveEmailTranslationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _EmailBuilderService_DeleteEmailTranslation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteEmailTranslationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EmailBuilderServiceServer).DeleteEmailTranslation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EmailBuilderService_DeleteEmailTranslation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EmailBuilderServiceServer).DeleteEmailTranslation(ctx, req.(*DeleteEmailTranslationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // EmailBuilderService_ServiceDesc is the grpc.ServiceDesc for EmailBuilderService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -741,6 +845,18 @@ var EmailBuilderService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteEmailBlock",
 			Handler:    _EmailBuilderService_DeleteEmailBlock_Handler,
+		},
+		{
+			MethodName: "ListEmailTranslations",
+			Handler:    _EmailBuilderService_ListEmailTranslations_Handler,
+		},
+		{
+			MethodName: "SaveEmailTranslation",
+			Handler:    _EmailBuilderService_SaveEmailTranslation_Handler,
+		},
+		{
+			MethodName: "DeleteEmailTranslation",
+			Handler:    _EmailBuilderService_DeleteEmailTranslation_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

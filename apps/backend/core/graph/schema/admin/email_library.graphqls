@@ -33,6 +33,27 @@ input SaveLibraryEmailInput {
   groupId:   ID
 }
 
+# A library email's version in another language - shoppers in that language get it (a regional locale like de-at reads de), everyone else the email itself.
+type EmailTranslation {
+  emailId:   ID!
+  locale:    String!
+  subject:   String!   # empty keeps the email's own subject
+  preheader: String!
+  blocks:    JSON!
+  styles:    JSON!
+  updatedAt: Time!
+}
+
+# Creates the locale's version or replaces it whole.
+input SaveEmailTranslationInput {
+  emailId:   ID!
+  locale:    String!
+  subject:   String!
+  preheader: String
+  blocks:    JSON!
+  styles:    JSON
+}
+
 # One pre-send checklist finding.
 type EmailWarning {
   severity: String!  # warn | info
@@ -77,6 +98,8 @@ extend type Query {
   emailPreflight(id: ID!): [EmailWarning!]!
   # Version history for an email (newest first).
   emailRevisions(id: ID!): [EmailRevision!]!
+  # The email's versions in other languages, by locale.
+  emailTranslations(emailId: ID!): [EmailTranslation!]!
   # Live preview of draft content. customerId (optional) renders merge tags with
   # that customer's real data; otherwise sample data. Includes the preheader.
   renderLibraryPreview(channelId: ID!, customerId: ID, subject: String!, preheader: String, blocks: JSON!, styles: JSON): EmailPreview!
@@ -91,6 +114,9 @@ extend type Mutation {
   deleteEmailGroup(id: ID!): Boolean!
   # Bind an email to a transactional slot (slot: "" clears it). One email per slot.
   assignEmailSlot(emailId: ID!, slot: String!): Boolean!
+  # An email's version in another language (emails.manage on the email's channel).
+  saveEmailTranslation(input: SaveEmailTranslationInput!): EmailTranslation!
+  deleteEmailTranslation(emailId: ID!, locale: String!): Boolean!
   # Restore a prior version of an email (records the restored state as a new revision).
   restoreEmailRevision(revisionId: ID!): LibraryEmail!
   # Pulse's starter content for a channel - the blocks, an email per transactional slot and an active flow that sends it (emails.manage + flows.manage)

@@ -24,6 +24,7 @@ var publicMutations = map[string]string{
 	"ResetPassword":        "the reset token is the credential",
 	"OpenCartOffer":        "the signed offer link is the credential - an offer made out to an account still needs its owner signed in",
 	"RedeemCartHandoff":    "the handoff link is the credential, and it only copies the agent's lines into the caller's own cart",
+	"AskShopAssistant":     "the storefront's public shopping assistant - switched on per channel, paced per shopper; its tools see what any visitor does, and a signed-in shopper's own orders through the customer token's myOrders",
 
 	// Gateway handshakes - they resolve a cart and return a client token, touching no customer record
 

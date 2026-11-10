@@ -1,0 +1,16 @@
+# What's on offer at the store right now, for the storefront and shoppers' agents alike
+
+type StorePromotion {
+  # The merchant's public label, in the request's locale where it has one
+  label:  String!
+  terms:  String!
+  # When it ends, if it does
+  endsAt: Time
+}
+
+extend type Query {
+  # Automatic promotions running on this store that the shopper could get - the store, the time and a signed-in customer's group and segments are checked, while what only a cart settles, like a minimum spend, is left to the terms. Highest priority first. A code-only promotion isn't listed - its code is the shopper's to bring
+  storePromotions: [StorePromotion!]!
+  # Products selling below their strike-through price on this store right now, the biggest saving first - kept a minute at a time. limit has a default page and a cap, like the sale page's
+  saleProducts(limit: Int): [Product!]!
+}

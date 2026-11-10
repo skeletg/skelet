@@ -1,14 +1,15 @@
--- Admin inbox queries - visibility filter is shared across list/count/mark-all: a notification is visible to an admin when (a) they bypass scope (superuser / all-channel), OR (b) they hold its required_permission AND it's global (channel_id IS NULL) or in one of their permitted channels On top of that, categories the admin muted are excluded from all three - the badge is counted here, so a mute the count didn't honour would be a badge that lies COALESCE, because an empty mute list arrives as NULL and `= ANY(NULL)` is NULL, so NOT of it drops every row - "nothing muted" would have emptied the whole inbox
+-- Admin inbox queries - visibility filter is shared across list/count/mark-all: a notification is visible to an admin when (a) they bypass scope (superuser / all-channel), OR (b) they hold its required_permission AND it's global (channel_id IS NULL) or in one of their permitted channels A notice with a recipient is theirs alone, superusers included. On top of that, categories the admin muted are excluded from all three - the badge is counted here, so a mute the count didn't honour would be a badge that lies COALESCE, because an empty mute list arrives as NULL and `= ANY(NULL)` is NULL, so NOT of it drops every row - "nothing muted" would have emptied the whole inbox
 
 -- name: CreateNotification :one
 -- Idempotent: dedupe_key collapses repeat events / re-scans of the same condition - RETURNING feeds the live-push fan-out; a dedupe hit returns no row (sql.ErrNoRows), which the service treats as "already notified"
 INSERT INTO admin_notifications (
     category, severity, title, body, required_permission, channel_id,
-    entity_type, entity_id, action_url, dedupe_key
+    entity_type, entity_id, action_url, dedupe_key, recipient_admin_id
 ) VALUES (
     sqlc.arg(category), sqlc.arg(severity), sqlc.arg(title), sqlc.arg(body),
     sqlc.arg(required_permission), sqlc.narg(channel_id),
-    sqlc.arg(entity_type), sqlc.arg(entity_id), sqlc.arg(action_url), sqlc.arg(dedupe_key)
+    sqlc.arg(entity_type), sqlc.arg(entity_id), sqlc.arg(action_url), sqlc.arg(dedupe_key),
+    sqlc.narg(recipient_admin_id)
 )
 ON CONFLICT (dedupe_key) DO NOTHING
 RETURNING id, created_at;
@@ -21,6 +22,7 @@ WHERE (sqlc.arg(bypass)::bool OR n.required_permission = ANY(sqlc.arg(perms)::te
   AND (sqlc.arg(bypass)::bool OR n.channel_id IS NULL OR n.required_permission = ANY(sqlc.arg(global_perms)::text[])
        OR (n.required_permission || '|' || n.channel_id::text) = ANY(sqlc.arg(perm_channels)::text[]))
   AND NOT (n.category = ANY(COALESCE(sqlc.arg(muted)::text[], '{}')))
+  AND (n.recipient_admin_id IS NULL OR n.recipient_admin_id = sqlc.arg(admin_id))
   AND (NOT sqlc.arg(unread_only)::bool OR r.read_at IS NULL)
 ORDER BY n.created_at DESC
 LIMIT sqlc.arg(lim);
@@ -33,6 +35,7 @@ WHERE (sqlc.arg(bypass)::bool OR n.required_permission = ANY(sqlc.arg(perms)::te
   AND (sqlc.arg(bypass)::bool OR n.channel_id IS NULL OR n.required_permission = ANY(sqlc.arg(global_perms)::text[])
        OR (n.required_permission || '|' || n.channel_id::text) = ANY(sqlc.arg(perm_channels)::text[]))
   AND NOT (n.category = ANY(COALESCE(sqlc.arg(muted)::text[], '{}')))
+  AND (n.recipient_admin_id IS NULL OR n.recipient_admin_id = sqlc.arg(admin_id))
   AND r.read_at IS NULL;
 
 -- name: MarkNotificationRead :exec
@@ -49,6 +52,7 @@ WHERE (sqlc.arg(bypass)::bool OR n.required_permission = ANY(sqlc.arg(perms)::te
   AND (sqlc.arg(bypass)::bool OR n.channel_id IS NULL OR n.required_permission = ANY(sqlc.arg(global_perms)::text[])
        OR (n.required_permission || '|' || n.channel_id::text) = ANY(sqlc.arg(perm_channels)::text[]))
   AND NOT (n.category = ANY(COALESCE(sqlc.arg(muted)::text[], '{}')))
+  AND (n.recipient_admin_id IS NULL OR n.recipient_admin_id = sqlc.arg(admin_id))
   AND r.read_at IS NULL
 ON CONFLICT DO NOTHING;
 

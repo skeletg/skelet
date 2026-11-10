@@ -109,7 +109,7 @@ export function HeaderMenu({
         type="button"
         onClick={() => setOpen(true)}
         aria-label={tm("openMenu")}
-        className="flex h-9 w-9 items-center justify-center rounded-md text-foreground transition hover:bg-muted"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-foreground transition hover:bg-muted"
       >
         <MenuIcon className="h-5 w-5" aria-hidden="true" />
       </button>

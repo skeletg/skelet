@@ -13,6 +13,30 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+type AiActivitySeen struct {
+	DedupeKey string    `json:"dedupe_key"`
+	SeenAt    time.Time `json:"seen_at"`
+}
+
+type AiSearchDaily struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	Day       time.Time `json:"day"`
+	Source    string    `json:"source"`
+	Agent     string    `json:"agent"`
+	Term      string    `json:"term"`
+	Searches  int64     `json:"searches"`
+	Empty     int64     `json:"empty"`
+}
+
+type AiToolDaily struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	Day       time.Time `json:"day"`
+	Source    string    `json:"source"`
+	Agent     string    `json:"agent"`
+	Tool      string    `json:"tool"`
+	Calls     int64     `json:"calls"`
+}
+
 type AnalyticsTrafficRollup struct {
 	ChannelID   uuid.UUID `json:"channel_id"`
 	Day         time.Time `json:"day"`
@@ -24,6 +48,52 @@ type AnalyticsTrafficRollup struct {
 	LastSeen    time.Time `json:"last_seen"`
 }
 
+type AssistantConversation struct {
+	ID         uuid.UUID     `json:"id"`
+	ChannelID  uuid.UUID     `json:"channel_id"`
+	CustomerID uuid.NullUUID `json:"customer_id"`
+	AnonID     string        `json:"anon_id"`
+	LastAt     time.Time     `json:"last_at"`
+}
+
+type AssistantConversationSummary struct {
+	ID            uuid.UUID     `json:"id"`
+	ChannelID     uuid.UUID     `json:"channel_id"`
+	CustomerID    uuid.NullUUID `json:"customer_id"`
+	AnonID        string        `json:"anon_id"`
+	LastAt        time.Time     `json:"last_at"`
+	FirstQuestion string        `json:"first_question"`
+	StartedAt     time.Time     `json:"started_at"`
+	Turns         int32         `json:"turns"`
+	CartChanged   bool          `json:"cart_changed"`
+	Checkout      bool          `json:"checkout"`
+	Incomplete    bool          `json:"incomplete"`
+}
+
+type AssistantTurn struct {
+	ID               uuid.UUID       `json:"id"`
+	ConversationID   uuid.UUID       `json:"conversation_id"`
+	CustomerID       uuid.NullUUID   `json:"customer_id"`
+	Page             string          `json:"page"`
+	Question         string          `json:"question"`
+	Reply            string          `json:"reply"`
+	Recap            string          `json:"recap"`
+	FollowUps        []string        `json:"follow_ups"`
+	Rounds           json.RawMessage `json:"rounds"`
+	Products         int32           `json:"products"`
+	CartChanged      bool            `json:"cart_changed"`
+	Checkout         bool            `json:"checkout"`
+	Incomplete       bool            `json:"incomplete"`
+	FoundNothing     bool            `json:"found_nothing"`
+	Unsure           bool            `json:"unsure"`
+	Model            string          `json:"model"`
+	InputTokens      int64           `json:"input_tokens"`
+	OutputTokens     int64           `json:"output_tokens"`
+	CacheReadTokens  int64           `json:"cache_read_tokens"`
+	CacheWriteTokens int64           `json:"cache_write_tokens"`
+	At               time.Time       `json:"at"`
+}
+
 type Board struct {
 	ID           uuid.UUID     `json:"id"`
 	ChannelID    uuid.UUID     `json:"channel_id"`
@@ -31,7 +101,13 @@ type Board struct {
 	CreatedAt    time.Time     `json:"created_at"`
 	UpdatedAt    time.Time     `json:"updated_at"`
 	OwnerAdminID uuid.NullUUID `json:"owner_admin_id"`
-	Status       string        `json:"status"`
+}
+
+type BoardAccessRequest struct {
+	BoardID   uuid.UUID `json:"board_id"`
+	AdminID   uuid.UUID `json:"admin_id"`
+	Level     string    `json:"level"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type BoardDraft struct {
@@ -49,12 +125,12 @@ type BoardFavourite struct {
 }
 
 type BoardReport struct {
-	ID                uuid.UUID       `json:"id"`
-	BoardID           uuid.UUID       `json:"board_id"`
-	Position          int32           `json:"position"`
-	Title             string          `json:"title"`
-	Definition        json.RawMessage `json:"definition"`
-	DefinitionVersion int32           `json:"definition_version"`
+	ID         uuid.UUID       `json:"id"`
+	BoardID    uuid.UUID       `json:"board_id"`
+	Position   int32           `json:"position"`
+	Title      string          `json:"title"`
+	Definition json.RawMessage `json:"definition"`
+	Size       string          `json:"size"`
 }
 
 type BoardShare struct {
@@ -141,6 +217,7 @@ type CustomerRoster struct {
 	MonetaryCents       int64           `json:"monetary_cents"`
 	FirstOrderAt        sql.NullTime    `json:"first_order_at"`
 	LastOrderAt         sql.NullTime    `json:"last_order_at"`
+	Locale              string          `json:"locale"`
 }
 
 type CustomerRosterState struct {
@@ -289,6 +366,16 @@ type EmailLibraryRevision struct {
 	CreatedAt     time.Time       `json:"created_at"`
 }
 
+type EmailLibraryTranslation struct {
+	EmailID   uuid.UUID       `json:"email_id"`
+	Locale    string          `json:"locale"`
+	Subject   string          `json:"subject"`
+	Preheader string          `json:"preheader"`
+	Blocks    json.RawMessage `json:"blocks"`
+	Styles    json.RawMessage `json:"styles"`
+	UpdatedAt time.Time       `json:"updated_at"`
+}
+
 type EmailSend struct {
 	ID           uuid.UUID     `json:"id"`
 	ChannelID    uuid.UUID     `json:"channel_id"`
@@ -351,24 +438,6 @@ type EmailTemplate struct {
 type ErasedCustomer struct {
 	CustomerID uuid.UUID `json:"customer_id"`
 	ErasedAt   time.Time `json:"erased_at"`
-}
-
-type EventDestination struct {
-	ID              uuid.UUID     `json:"id"`
-	ChannelID       uuid.UUID     `json:"channel_id"`
-	Name            string        `json:"name"`
-	Kind            string        `json:"kind"`
-	TargetUrl       string        `json:"target_url"`
-	Secret          string        `json:"secret"`
-	EventSources    []string      `json:"event_sources"`
-	EventNames      []string      `json:"event_names"`
-	IsActive        bool          `json:"is_active"`
-	CursorCreatedAt sql.NullTime  `json:"cursor_created_at"`
-	CursorEventID   uuid.NullUUID `json:"cursor_event_id"`
-	LastError       string        `json:"last_error"`
-	LastForwardedAt sql.NullTime  `json:"last_forwarded_at"`
-	CreatedAt       time.Time     `json:"created_at"`
-	UpdatedAt       time.Time     `json:"updated_at"`
 }
 
 type Experiment struct {

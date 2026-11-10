@@ -17,7 +17,7 @@ most a one-line hint. Everything that needs a paragraph lives here.
 |---|---|---|
 | `../.env.example` | `../.env` | docker compose itself (prod and small) - see below |
 | `go.env.example` | `go.env` | core in dev (`app`, `worker`, `media`, `migrate`) |
-| `signals.env.example` | `signals.env` | the Signals processes in dev (`signals`, `ingest`) - `skelet up` writes it and copies `CUSTOMER_JWT_PUBLIC_KEY` / `EMAIL_LINK_SECRET` / `SIGNALS_SERVICE_SECRET` over from `go.env`, and generates its own `SIGNALS_ENCRYPTION_KEY` |
+| `signals.env.example` | `signals.env` | the Signals processes in dev (`signals`, `ingest`) - `skelet up` writes it and copies `CUSTOMER_JWT_PUBLIC_KEY` / `EMAIL_LINK_SECRET` / `SIGNALS_SERVICE_SECRET` over from `go.env` |
 | `db.env.example` | `db.env` | the dev Postgres container |
 | `prod.env.example` | `prod.env` | `app`, `worker`, `media`, `signals`, `ingest`, `migrate` - one shared file |
 | `prod-signals.env.example` | `prod-signals.env` | `signals` only, on top of `prod.env` - the retention archive's bucket and `CORE_FRONT_API_URL`; optional |
@@ -128,7 +128,6 @@ silent default in production is worse than a refusal to start.
 | `REVIEW_VOTER_TOKEN_SECRET` | `openssl rand -hex 32`, in the root `.env`. Signs anonymous review votes, shared by core and the storefront. |
 | `SIGNALS_SERVICE_SECRET` | `openssl rand -hex 32`, in the root `.env`. Core signs every call on the Signals wire contract with it and the suite verifies with the same value - core and the Signals processes alone. |
 | `CONFIG_ENCRYPTION_KEY` | `openssl rand -base64 32`, in the root `.env`. Keep it stable - rotating it orphans every stored secret. |
-| `SIGNALS_ENCRYPTION_KEY` | `openssl rand -base64 32`, in the root `.env`, and different from `CONFIG_ENCRYPTION_KEY`. The `signals` process seals the destination secrets with it (webhook signing keys, the GA4 API secret, the Meta access token). Keep it stable for the same reason. Dev without it stores them in plaintext. |
 | `CORS_ALLOWED_ORIGINS` | Storefront + dashboard origins, comma-separated. Empty in dev means localhost defaults. |
 | `DB_PASSWORD` | Commerce Postgres. `DATABASE_URL` derives from it, or set that directly for an external database. |
 | `SIGNALS_DB_PASSWORD` | Signals Postgres, same deal via `SIGNALS_DB_URL`. Only the Signals processes read it - see below. |
@@ -423,6 +422,15 @@ at build, so `skelet release` passes it through. Without it uploads fail
 with a CSP error in the browser console. Dev needs nothing - its local hosts
 are already allowed.
 
+A card gateway's fields load from the gateway's own hosts, which the Next
+storefront's CSP blocks until `PAYMENT_ORIGINS` names them - separated by spaces
+or commas, baked in at build like `UPLOAD_ORIGINS`, and read from the root `.env`
+in dev too. Each one has to be a bare https origin, and anything else fails the
+build rather than loosening the policy. Use the hosts the gateway plugin lists in
+its manifest's `SecurityOrigins` (Stripe: `https://js.stripe.com
+https://api.stripe.com`). The backend, dashboard and Caddy CSPs pick those up
+from the compiled-in plugin on `skelet gen`, so only the storefront needs this.
+
 ### S3
 
 Two shapes:
@@ -565,6 +573,10 @@ rather keep the key out of the database, and they are read in this order:
 
 All three are OPTIONAL. With no key from any source the assistant stays off.
 
+A key from the environment only ever goes to the provider's own address. Point `ai/llm/base_url` somewhere else and
+the key has to be entered in the settings for that address. The same goes for a key saved in the settings: one
+saved before the address last moved isn't sent to the new one.
+
 ## Storefront links
 
 `STOREFRONT_URL` is where customer email links land, `DASHBOARD_URL` where
@@ -599,8 +611,8 @@ the `/subscribe/confirm/*` signup confirmations, the `/e/*` email pixels and cli
 falls back to `http://localhost:8080`, which only fits `pnpm run dev` on the
 host.
 
-`STOREFRONT_COOKIE_DOMAIN` is the domain the ad and affiliate click-id cookies
-(`cje`, `awc`, `_fbc`, `sk_gclid` and the rest) are set on. Left empty, a
+`STOREFRONT_COOKIE_DOMAIN` is the domain the ad click-id cookies
+(`_fbc`, `sk_gclid` and the rest) are set on. Left empty, a
 `www.` host sets them on the bare domain and any other host on itself. Set it,
 for example to `shop.example`, when checkout runs on a different subdomain
 from the pages shoppers land on, so a click still counts there.
@@ -756,7 +768,6 @@ Once it's on, each surface has its own per-minute budget:
 | `TOKEN_RATE_LIMIT_PER_MIN` | 60 | download, unsubscribe, signup confirmation, email open/click |
 | `INGEST_RATE_LIMIT_PER_MIN` | 300 | `/t/*` beacons, per endpoint |
 | `MCP_RATE_LIMIT_PER_MIN` | 120 | MCP tool calls, per integration token or admin ([mcp.md](mcp.md)) |
-| `MCP_FRONT_RATE_LIMIT_PER_MIN` | 600 | storefront MCP tool calls, per client address ([storefront-mcp.md](storefront-mcp.md)) |
 | `SIGNUP_CONFIRM_RATE_LIMIT_PER_HOUR` | 3 | signup-form confirmation emails, per address (an hourly budget, unlike the rest) |
 | `PAYMENT_METHOD_SAVE_RATE_LIMIT_PER_HOUR` | 5 | saved-card attempts per customer, failures included (an hourly budget) - each is a gateway vault call, the card-testing surface |
 
@@ -767,6 +778,11 @@ start refusing traffic.
 `MCP_FRONT_MAX_IN_FLIGHT` (32) caps the storefront MCP calls one client address runs at once. Unlike the
 budgets above it's always on, `RATE_LIMIT_ENABLED` or not.
 
+Everything on the storefront that reaches an AI provider is limited per store in the settings instead, on
+whatever `RATE_LIMIT_ENABLED` says, since each call is paid for: `sales/agents/assistant_per_minute`,
+`search/products/meaning_per_minute` and `sales/agents/mcp_per_minute` ([settings.md](settings.md),
+[storefront-mcp.md](storefront-mcp.md)).
+
 The lockout is separate, in case you want brute-force protection without
 per-IP budgets: `LOGIN_LOCKOUT_ENABLED` (defaults to whatever
 `RATE_LIMIT_ENABLED` is) and `LOGIN_LOCKOUT_THRESHOLD` (10 failures, then a
@@ -775,7 +791,7 @@ per-IP budgets: `LOGIN_LOCKOUT_ENABLED` (defaults to whatever
 Two limits are per-feature and stay off by default on their own terms,
 independent of all of the above:
 
-- **Catalog query throttle** - Settings > General > Security, a per-IP soft
+- **Catalog query throttle** - Settings > All settings > General > Security, a per-IP soft
   budget for storefront catalog reads. Past the budget requests are
   *slowed*, past 3x refused. Meant to be flipped on mid-attack with no
   deploy, which is why `RATE_LIMIT_ENABLED` doesn't gate it. 0 = off.
@@ -789,7 +805,7 @@ All default to true.
 | Var | Off means |
 |---|---|
 | `SIGNALS_ENABLED` | no Signals suite (Pulse campaigns/flows/the email builder, Lens, Synapse, Prism, spine ingestion, forwarding). Transactional email keeps sending from core's own templates. This is core's switch: it decides whether core dials the suite at all. The Signals processes have none of their own, so a deployed suite is on and cannot quietly drop writes while core keeps sending them. |
-| `AI_ENABLED` | no LLM integrations, including the Settings > AI section |
+| `AI_ENABLED` | no LLM integrations, including the AI section of Settings > All settings |
 | `MCP_ENABLED` | no MCP endpoint for AI agents ([mcp.md](mcp.md)). It doesn't use the store's own AI provider, so `AI_ENABLED` doesn't switch it off |
 | `MCP_FRONT_ENABLED` | no storefront MCP endpoint for shoppers' agents ([storefront-mcp.md](storefront-mcp.md)) |
 

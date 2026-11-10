@@ -1,6 +1,6 @@
-# Server-side tracking: GA4, GTM, ad and affiliate platforms
+# Server-side tracking: GA4, GTM and ad platforms
 
-How shop events reach analytics, ad, affiliate and marketing platforms. The default sends everything server to
+How shop events reach analytics, ad and marketing platforms. The default sends everything server to
 server, so the storefront loads no tracking script. What each event needs from the visitor's cookie choices is in
 [privacy.md](privacy.md).
 
@@ -8,10 +8,17 @@ server, so the storefront loads no tracking script. What each event needs from t
 
 | Event | Reported by |
 |---|---|
-| `page_view`, `view_item`, `begin_checkout` | The storefront, as a beacon to its own `/t/e`. The storefront server adds the visitor's consent, click ids, analytics session and browser, then forwards it to the backend |
-| `add_to_cart`, `remove_from_cart` | The backend, when the cart changes |
-| `purchase`, `refund` (also on cancellation) | The backend, from the order, using the consent given at purchase |
-| `sign_up` | The backend, when a shopper creates an account |
+| `page_view`, `view_item_list`, `select_item`, `view_item`, `view_cart`, `begin_checkout`, `view_promotion`, `select_promotion`, `search` | The storefront, as a beacon to its own `/t/e`. The storefront server adds the visitor's consent, click ids, analytics session and browser, then forwards it to the backend. The backend drops any other name sent this way |
+| `add_to_cart`, `remove_from_cart` | The backend, when the cart changes. A quantity change is an add or removal of the difference |
+| `add_shipping_info`, `add_payment_info` | The backend, when a checkout step picks a different delivery or payment method. `shipping_tier` is `carrier:method` per delivery group (an option's id when it has no carrier method), `payment_type` the provider's slug |
+| `add_to_wishlist` | The backend, when a signed-in customer saves a product |
+| `purchase`, `refund` (also on cancellation) | The backend, from the order, using the consent given at purchase. `coupon` lists the codes the order redeemed |
+| `sign_up`, `login` | The backend, when a shopper creates an account or signs in |
+| `generate_lead` | The backend, when a visitor sends a signup form. It carries no email, since the address isn't confirmed yet |
+
+Vetrina reports list views and clicks on category, collection and search grids, cart views, searches, and the
+promotions on a product page. Its promotion banners link nowhere, so it sends no `select_promotion`. A storefront with
+clickable banners sends it with `promotion_id`, `promotion_name` and `creative_slot`.
 
 Each event goes to every enabled destination on its channel that wants it, if the visitor allowed what that platform
 needs. Delivery is queued and retried: after 10s, 1m, 5m, 30m and 2h, then dead. One failing event never holds up
@@ -20,33 +27,29 @@ once.
 
 ## Destinations
 
-**Every destination is in development.** Each is built from its vendor's documentation and tested against recorded
-requests, but none has yet run against a production account. They are off by default and compiled into no build
-until enabled. Verify one against a real account before relying on it in production:
+**Each platform is a plugin in its own repository**, installed into a build with `skelet cli plugin add`. None is
+compiled in by default. Every one is still in development: built from its vendor's documentation and tested against
+recorded requests, but not yet run against a production account. Verify one against a real account before relying on
+it in production:
 
 ```bash
-skelet cli plugin enable tracking-ga4                      # compiles it in; restart the backend
+skelet cli plugin add github.com/skeletg/tracking-ga4    # then rebuild the backend
 ```
 
 | Kind | Plugin | Platform | Needs |
 |---|---|---|---|
-| `ga4` | `tracking-ga4` | Google Analytics 4, Measurement Protocol | analytics |
-| `google_ads` | `tracking-google-ads` | Google Ads conversions, Data Manager API | ads |
-| `google_ads_audience` | `tracking-google-ads` | Google Ads Customer Match list | ads and personalization, plus the account's marketing opt-in; removals need none |
-| `meta_capi` | `tracking-meta` | Meta Conversions API | ads |
-| `bing_uet` | `tracking-bing` | Microsoft Advertising, UET Conversions API | ads |
-| `openai` | `tracking-openai` | OpenAI Ads Conversions API | ads |
-| `cj` | `tracking-cj` | CJ Affiliate, server-to-server postback | ads, or none with `general/privacy/cj_cookie_necessary` |
-| `awin` | `tracking-awin` | Awin Conversion API | ads, or none with `general/privacy/awin_cookie_necessary` |
-| `klaviyo` | `tracking-klaviyo` | Klaviyo Events API | personalization, plus the email's marketing opt-in |
-| `attentive` | `tracking-attentive` | Attentive eCommerce events | personalization, plus the email's marketing opt-in |
-| `webhook` | `tracking-webhook` | Your own endpoint, signed JSON | analytics |
+| `ga4` | [`tracking-ga4`](https://github.com/skeletg/tracking-ga4) | Google Analytics 4, Measurement Protocol | analytics |
+| `google_ads` | [`tracking-google-ads`](https://github.com/skeletg/tracking-google-ads) | Google Ads conversions, Data Manager API | ads |
+| `google_ads_audience` | [`tracking-google-ads`](https://github.com/skeletg/tracking-google-ads) | Google Ads Customer Match list | ads and personalization, plus the account's marketing opt-in; removals need none |
+| `meta_capi` | [`tracking-meta`](https://github.com/skeletg/tracking-meta) | Meta Conversions API | ads |
+
+Any other platform is a plugin you write against the SDK's `RegisterDestination` - see [plugins.md](plugins.md).
 
 ### Setting up in the dashboard
 
 **Marketing → Tracking** lists every platform with where it stands on the selected channel: on, off, failing,
 waiting for its secret, not set up, its plugin switched off on the channel, or not in this build - with the
-`skelet cli plugin enable <slug>` command that adds it. Admins need `tracking.view` to see it and `tracking.manage`
+`skelet cli plugin add` command that adds it. Admins need `tracking.view` to see it and `tracking.manage`
 to change it.
 
 Setting a platform up is guided:
@@ -55,30 +58,17 @@ Setting a platform up is guided:
    field says where to find its value.
 2. **Consent** - the cookie categories every event needs.
 3. **Settings and events** - saved switched off, in the platform's test mode where it has one (GA4's validate,
-   Google Ads' and OpenAI's validate-only, Awin's test flag; Meta's test event code is pasted in).
+   Google Ads' validate-only; Meta's test event code is pasted in).
 4. **Send a test** - one sample purchase, with the platform's answer shown as it came back, credentials redacted.
 5. **Turn it on** - leaves test mode and switches it on in one save.
 
 A destination's page keeps its settings behind the one reviewed Save, with **Send test**, the on/off switch and
-**Delete** acting at once, and a **delivery log** of what was sent, what is retrying and what gave up, with Retry on
+**Delete** acting at once, its last successful send, and a **delivery log** of what is retrying and what gave up, with Retry on
 the failed ones. The log shows the event and the platform's answer, never the event's contents, which hold the
 shopper's email, IP and click ids. Credentials are write-only: stored encrypted and never shown again.
 
-**Settings → Privacy** holds the cookie consent mode, the anonymous counts switch and the affiliate exceptions, and
+**Settings → Privacy** holds the cookie consent mode and the anonymous counts switch, and
 shows which destinations each consent category feeds.
-
-### Importing from Signals
-
-The older Signals event destinations (now **Marketing → Signals event export**) forward Signals' own events - email
-campaigns, flows, transactional and system events. **Import from Signals** on the Tracking page copies their GA4, Meta
-and webhook ones here after a preview:
-
-- each arrives switched off and asks for its secret again - Signals never hands one over
-- their event filters don't carry over; the platform's default shop events apply
-- a webhook changes format: one event per POST, signed with `X-Webhook-Signature-256`, where Signals posted batches
-  signed with `X-Destination-Signature` - update the receiver before turning it on
-- the Signals destination keeps running until you switch it off there, so switch one of the two off once the new one
-  works, or events go twice. Importing the same one again does nothing
 
 ### From the command line
 
@@ -137,7 +127,7 @@ Setting one up:
 4. Add the destination, checking it first with `validate_only`, which records nothing:
 
 ```bash
-skelet cli plugin enable tracking-google-ads             # compiles it in; restart the backend
+skelet cli plugin add github.com/skeletg/tracking-google-ads   # then rebuild the backend
 TRACKING_SECRET="$(cat service-account.json)" skelet cli tracking add --channel <id> --kind google_ads \
   --name "Google Ads" --set customer_id=1234567890 --set conversion_action_id=<id> --set validate_only=true
 skelet cli tracking test <destination-id>

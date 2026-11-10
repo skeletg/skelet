@@ -165,7 +165,7 @@ function SearchSettingsBody({ isDirty, saving, onSave }: { isDirty: boolean; sav
   return (
     <>
       <DetailPageHeader
-        title="Search Engine"
+        title="Search engine"
         badges={
           <>
             <Badge variant="outline" className="gap-1 text-muted-foreground">

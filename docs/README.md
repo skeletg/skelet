@@ -42,4 +42,6 @@ A new doc gets a row here rather than a link buried in a section, or nobody find
 | [remote-providers.md](remote-providers.md) | Writing a remote provider: the signed envelope, limits, per-kind schemas |
 | [mcp.md](mcp.md) | Letting an AI agent read the store over MCP: connecting one, the channel it reads, which tools it gets |
 | [storefront-mcp.md](storefront-mcp.md) | Shoppers' own AI agents on the storefront's `/api/mcp`: the tools, and the cart handoff link |
+| [embeddings.md](embeddings.md) | Vectors for products and pages, so the store can be searched by meaning: the provider, what's embedded, how it keeps up |
+| [langfuse.md](langfuse.md) | Sending AI calls to Langfuse: turning it on, what each trace holds, and what's never sent |
 | [backups.md](backups.md) | What needs backing up, and the tools to do it with |

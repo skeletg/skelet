@@ -129,12 +129,19 @@ export const TRIGGER_LABELS: Record<string, string> = {
   account_exists: 'Account already exists',
   cart_offer: 'Cart offer sent',
   cart_abandoned: 'Abandoned cart',
+  assisted_cart_abandoned: 'Abandoned cart the assistant filled',
   browse_abandoned: 'Browse abandonment',
   email_opened: 'Email opened',
   email_clicked: 'Email clicked',
   segment_entered: 'Entered a segment',
   back_in_stock: 'Back in stock',
   form_submitted: 'Signup form submitted',
+}
+
+// What a trigger means where its label alone doesn't say
+export const TRIGGER_HELP: Record<string, string> = {
+  assisted_cart_abandoned:
+    'A cart the shopping assistant filled, then left. When a flow on this takes the cart, it goes here instead of the usual abandoned-cart flow, so the shopper gets one reminder, not two.',
 }
 
 // TRANSACTIONAL_TRIGGERS mirror the server's: flows on these deliver receipts / auth links and default to the

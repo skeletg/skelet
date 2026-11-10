@@ -56,6 +56,7 @@ const guestField = {
   type: 'BOOL',
   value: 'true',
   isSet: false,
+  maxLength: null,
   options: [],
   isDefault: true,
   public: true,

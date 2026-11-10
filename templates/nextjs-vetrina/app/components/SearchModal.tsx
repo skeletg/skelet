@@ -122,13 +122,14 @@ export function SearchModal() {
         onClick={() => setOpen(true)}
         aria-label={t("label")}
         title={t("shortcut")}
-        className="flex h-9 items-center gap-2 rounded-md border border-border bg-background px-2.5 text-sm text-muted-foreground transition hover:border-foreground/40 sm:w-64"
+        className="flex h-9 shrink-0 items-center gap-2 rounded-md border border-border bg-background px-2.5 text-sm text-muted-foreground transition hover:border-foreground/40 @[40rem]:w-64"
       >
         <SearchIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
-        <span className="hidden min-w-0 flex-1 truncate text-left sm:inline">
+        {/* Sized by the header's own room, which the assistant's panel can take from on a wide screen */}
+        <span className="hidden min-w-0 flex-1 truncate text-left @[40rem]:inline">
           {t("placeholder")}
         </span>
-        <kbd className="hidden rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground lg:inline">
+        <kbd className="hidden rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground @[56rem]:inline">
           ⌘K
         </kbd>
       </button>

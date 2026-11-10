@@ -110,10 +110,10 @@ INSERT INTO catalog_attributes (
     value_required, filterable, searchable, is_public,
     facet_collapsed, is_indexable, h1_position,
     sort_order, metadata, private_metadata, default_value, synapse_track, auto_segment,
-    relationship_target
+    relationship_target, embedded, similar_match
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
-RETURNING id, slug, name, input_type, unit, value_required, filterable, searchable, is_public, sort_order, metadata, private_metadata, created_at, updated_at, default_value, facet_collapsed, is_indexable, h1_position, synapse_track, auto_segment, relationship_target
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+RETURNING id, slug, name, input_type, unit, value_required, filterable, searchable, is_public, sort_order, metadata, private_metadata, created_at, updated_at, default_value, facet_collapsed, is_indexable, h1_position, synapse_track, auto_segment, relationship_target, embedded, similar_match
 `
 
 type CreateAttributeParams struct {
@@ -135,6 +135,8 @@ type CreateAttributeParams struct {
 	SynapseTrack       bool                  `json:"synapse_track"`
 	AutoSegment        bool                  `json:"auto_segment"`
 	RelationshipTarget sql.NullString        `json:"relationship_target"`
+	Embedded           bool                  `json:"embedded"`
+	SimilarMatch       bool                  `json:"similar_match"`
 }
 
 // ==================== Attributes ====================
@@ -158,6 +160,8 @@ func (q *Queries) CreateAttribute(ctx context.Context, arg CreateAttributeParams
 		arg.SynapseTrack,
 		arg.AutoSegment,
 		arg.RelationshipTarget,
+		arg.Embedded,
+		arg.SimilarMatch,
 	)
 	var i Attribute
 	err := row.Scan(
@@ -182,15 +186,17 @@ func (q *Queries) CreateAttribute(ctx context.Context, arg CreateAttributeParams
 		&i.SynapseTrack,
 		&i.AutoSegment,
 		&i.RelationshipTarget,
+		&i.Embedded,
+		&i.SimilarMatch,
 	)
 	return i, err
 }
 
 const createAttributeValue = `-- name: CreateAttributeValue :one
 
-INSERT INTO catalog_attribute_values (attribute_id, slug, name, value, sort_order, is_indexable)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, attribute_id, slug, name, value, sort_order, created_at, is_indexable
+INSERT INTO catalog_attribute_values (attribute_id, slug, name, value, sort_order, is_indexable, matches_any)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, attribute_id, slug, name, value, sort_order, created_at, is_indexable, matches_any
 `
 
 type CreateAttributeValueParams struct {
@@ -200,6 +206,7 @@ type CreateAttributeValueParams struct {
 	Value       string    `json:"value"`
 	SortOrder   int32     `json:"sort_order"`
 	IsIndexable bool      `json:"is_indexable"`
+	MatchesAny  bool      `json:"matches_any"`
 }
 
 // ==================== Attribute Values ====================
@@ -211,6 +218,7 @@ func (q *Queries) CreateAttributeValue(ctx context.Context, arg CreateAttributeV
 		arg.Value,
 		arg.SortOrder,
 		arg.IsIndexable,
+		arg.MatchesAny,
 	)
 	var i AttributeValue
 	err := row.Scan(
@@ -222,6 +230,7 @@ func (q *Queries) CreateAttributeValue(ctx context.Context, arg CreateAttributeV
 		&i.SortOrder,
 		&i.CreatedAt,
 		&i.IsIndexable,
+		&i.MatchesAny,
 	)
 	return i, err
 }
@@ -402,7 +411,7 @@ func (q *Queries) DeleteProductType(ctx context.Context, id uuid.UUID) error {
 }
 
 const getAttributeByID = `-- name: GetAttributeByID :one
-SELECT id, slug, name, input_type, unit, value_required, filterable, searchable, is_public, sort_order, metadata, private_metadata, created_at, updated_at, default_value, facet_collapsed, is_indexable, h1_position, synapse_track, auto_segment, relationship_target FROM catalog_attributes WHERE id = $1
+SELECT id, slug, name, input_type, unit, value_required, filterable, searchable, is_public, sort_order, metadata, private_metadata, created_at, updated_at, default_value, facet_collapsed, is_indexable, h1_position, synapse_track, auto_segment, relationship_target, embedded, similar_match FROM catalog_attributes WHERE id = $1
 `
 
 func (q *Queries) GetAttributeByID(ctx context.Context, id uuid.UUID) (Attribute, error) {
@@ -430,12 +439,14 @@ func (q *Queries) GetAttributeByID(ctx context.Context, id uuid.UUID) (Attribute
 		&i.SynapseTrack,
 		&i.AutoSegment,
 		&i.RelationshipTarget,
+		&i.Embedded,
+		&i.SimilarMatch,
 	)
 	return i, err
 }
 
 const getAttributeValueByID = `-- name: GetAttributeValueByID :one
-SELECT id, attribute_id, slug, name, value, sort_order, created_at, is_indexable FROM catalog_attribute_values WHERE id = $1
+SELECT id, attribute_id, slug, name, value, sort_order, created_at, is_indexable, matches_any FROM catalog_attribute_values WHERE id = $1
 `
 
 func (q *Queries) GetAttributeValueByID(ctx context.Context, id uuid.UUID) (AttributeValue, error) {
@@ -450,6 +461,7 @@ func (q *Queries) GetAttributeValueByID(ctx context.Context, id uuid.UUID) (Attr
 		&i.SortOrder,
 		&i.CreatedAt,
 		&i.IsIndexable,
+		&i.MatchesAny,
 	)
 	return i, err
 }
@@ -694,7 +706,7 @@ func (q *Queries) ListAttributeValueContentByValueIDs(ctx context.Context, value
 }
 
 const listAttributeValues = `-- name: ListAttributeValues :many
-SELECT id, attribute_id, slug, name, value, sort_order, created_at, is_indexable FROM catalog_attribute_values
+SELECT id, attribute_id, slug, name, value, sort_order, created_at, is_indexable, matches_any FROM catalog_attribute_values
 WHERE attribute_id = $1
 ORDER BY sort_order, name
 `
@@ -717,6 +729,7 @@ func (q *Queries) ListAttributeValues(ctx context.Context, attributeID uuid.UUID
 			&i.SortOrder,
 			&i.CreatedAt,
 			&i.IsIndexable,
+			&i.MatchesAny,
 		); err != nil {
 			return nil, err
 		}
@@ -732,7 +745,7 @@ func (q *Queries) ListAttributeValues(ctx context.Context, attributeID uuid.UUID
 }
 
 const listAttributeValuesByAttributeIDs = `-- name: ListAttributeValuesByAttributeIDs :many
-SELECT id, attribute_id, slug, name, value, sort_order, created_at, is_indexable FROM catalog_attribute_values
+SELECT id, attribute_id, slug, name, value, sort_order, created_at, is_indexable, matches_any FROM catalog_attribute_values
 WHERE attribute_id = ANY($1::uuid[])
 ORDER BY attribute_id, sort_order, name
 `
@@ -755,6 +768,7 @@ func (q *Queries) ListAttributeValuesByAttributeIDs(ctx context.Context, attribu
 			&i.SortOrder,
 			&i.CreatedAt,
 			&i.IsIndexable,
+			&i.MatchesAny,
 		); err != nil {
 			return nil, err
 		}
@@ -770,7 +784,7 @@ func (q *Queries) ListAttributeValuesByAttributeIDs(ctx context.Context, attribu
 }
 
 const listAttributes = `-- name: ListAttributes :many
-SELECT id, slug, name, input_type, unit, value_required, filterable, searchable, is_public, sort_order, metadata, private_metadata, created_at, updated_at, default_value, facet_collapsed, is_indexable, h1_position, synapse_track, auto_segment, relationship_target FROM catalog_attributes ORDER BY sort_order, name
+SELECT id, slug, name, input_type, unit, value_required, filterable, searchable, is_public, sort_order, metadata, private_metadata, created_at, updated_at, default_value, facet_collapsed, is_indexable, h1_position, synapse_track, auto_segment, relationship_target, embedded, similar_match FROM catalog_attributes ORDER BY sort_order, name
 `
 
 func (q *Queries) ListAttributes(ctx context.Context) ([]Attribute, error) {
@@ -804,6 +818,8 @@ func (q *Queries) ListAttributes(ctx context.Context) ([]Attribute, error) {
 			&i.SynapseTrack,
 			&i.AutoSegment,
 			&i.RelationshipTarget,
+			&i.Embedded,
+			&i.SimilarMatch,
 		); err != nil {
 			return nil, err
 		}
@@ -1236,7 +1252,7 @@ func (q *Queries) ListProductIDsCarryingAttributeValue(ctx context.Context, attr
 }
 
 const listProductTypeAttributes = `-- name: ListProductTypeAttributes :many
-SELECT a.id, a.slug, a.name, a.input_type, a.unit, a.value_required, a.filterable, a.searchable, a.is_public, a.sort_order, a.metadata, a.private_metadata, a.created_at, a.updated_at, a.default_value, a.facet_collapsed, a.is_indexable, a.h1_position, a.synapse_track, a.auto_segment, a.relationship_target,
+SELECT a.id, a.slug, a.name, a.input_type, a.unit, a.value_required, a.filterable, a.searchable, a.is_public, a.sort_order, a.metadata, a.private_metadata, a.created_at, a.updated_at, a.default_value, a.facet_collapsed, a.is_indexable, a.h1_position, a.synapse_track, a.auto_segment, a.relationship_target, a.embedded, a.similar_match,
        pta.sort_order AS assignment_sort_order,
        pta.group_id   AS group_id
 FROM catalog_product_type_attributes pta
@@ -1283,6 +1299,8 @@ func (q *Queries) ListProductTypeAttributes(ctx context.Context, productTypeID u
 			&i.Attribute.SynapseTrack,
 			&i.Attribute.AutoSegment,
 			&i.Attribute.RelationshipTarget,
+			&i.Attribute.Embedded,
+			&i.Attribute.SimilarMatch,
 			&i.AssignmentSortOrder,
 			&i.GroupID,
 		); err != nil {
@@ -1301,7 +1319,7 @@ func (q *Queries) ListProductTypeAttributes(ctx context.Context, productTypeID u
 
 const listProductTypeAttributesByTypeIDs = `-- name: ListProductTypeAttributesByTypeIDs :many
 SELECT pta.product_type_id,
-       a.id, a.slug, a.name, a.input_type, a.unit, a.value_required, a.filterable, a.searchable, a.is_public, a.sort_order, a.metadata, a.private_metadata, a.created_at, a.updated_at, a.default_value, a.facet_collapsed, a.is_indexable, a.h1_position, a.synapse_track, a.auto_segment, a.relationship_target,
+       a.id, a.slug, a.name, a.input_type, a.unit, a.value_required, a.filterable, a.searchable, a.is_public, a.sort_order, a.metadata, a.private_metadata, a.created_at, a.updated_at, a.default_value, a.facet_collapsed, a.is_indexable, a.h1_position, a.synapse_track, a.auto_segment, a.relationship_target, a.embedded, a.similar_match,
        pta.sort_order AS assignment_sort_order,
        pta.group_id   AS group_id
 FROM catalog_product_type_attributes pta
@@ -1351,6 +1369,8 @@ func (q *Queries) ListProductTypeAttributesByTypeIDs(ctx context.Context, produc
 			&i.Attribute.SynapseTrack,
 			&i.Attribute.AutoSegment,
 			&i.Attribute.RelationshipTarget,
+			&i.Attribute.Embedded,
+			&i.Attribute.SimilarMatch,
 			&i.AssignmentSortOrder,
 			&i.GroupID,
 		); err != nil {
@@ -1461,6 +1481,84 @@ func (q *Queries) MoveAttributeToGroup(ctx context.Context, arg MoveAttributeToG
 	return result.RowsAffected()
 }
 
+const productNamesByIDs = `-- name: ProductNamesByIDs :many
+SELECT p.id, COALESCE((SELECT c.name FROM catalog_product_content c WHERE c.product_id = p.id
+    ORDER BY (c.locale = $1::text) DESC, c.locale LIMIT 1), p.sku)::text AS name
+FROM catalog_products p
+WHERE p.id = ANY($2::uuid[])
+`
+
+type ProductNamesByIDsParams struct {
+	Locale string      `json:"locale"`
+	Ids    []uuid.UUID `json:"ids"`
+}
+
+type ProductNamesByIDsRow struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
+}
+
+// Each product's name in the language asked for, else any it has - for reports that list products by id
+func (q *Queries) ProductNamesByIDs(ctx context.Context, arg ProductNamesByIDsParams) ([]ProductNamesByIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, productNamesByIDs, arg.Locale, pq.Array(arg.Ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ProductNamesByIDsRow{}
+	for rows.Next() {
+		var i ProductNamesByIDsRow
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const productRefsBySKU = `-- name: ProductRefsBySKU :many
+SELECT p.sku, p.id, c.parent_id
+FROM catalog_products p
+LEFT JOIN catalog_product_children c ON c.child_id = p.id
+WHERE p.sku = ANY($1::text[])
+`
+
+type ProductRefsBySKURow struct {
+	Sku      string        `json:"sku"`
+	ID       uuid.UUID     `json:"id"`
+	ParentID uuid.NullUUID `json:"parent_id"`
+}
+
+// Each SKU's product and every product it's sold through, for the analytics events that name what was carted or ordered
+func (q *Queries) ProductRefsBySKU(ctx context.Context, skus []string) ([]ProductRefsBySKURow, error) {
+	rows, err := q.db.QueryContext(ctx, productRefsBySKU, pq.Array(skus))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ProductRefsBySKURow{}
+	for rows.Next() {
+		var i ProductRefsBySKURow
+		if err := rows.Scan(&i.Sku, &i.ID, &i.ParentID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const removeProductChild = `-- name: RemoveProductChild :execrows
 DELETE FROM catalog_product_children WHERE parent_id = $1 AND child_id = $2
 `
@@ -1483,7 +1581,7 @@ UPDATE catalog_attributes
 SET is_indexable = $2,
     updated_at   = NOW()
 WHERE id = $1
-RETURNING id, slug, name, input_type, unit, value_required, filterable, searchable, is_public, sort_order, metadata, private_metadata, created_at, updated_at, default_value, facet_collapsed, is_indexable, h1_position, synapse_track, auto_segment, relationship_target
+RETURNING id, slug, name, input_type, unit, value_required, filterable, searchable, is_public, sort_order, metadata, private_metadata, created_at, updated_at, default_value, facet_collapsed, is_indexable, h1_position, synapse_track, auto_segment, relationship_target, embedded, similar_match
 `
 
 type SetAttributeIndexableCascadeParams struct {
@@ -1517,6 +1615,8 @@ func (q *Queries) SetAttributeIndexableCascade(ctx context.Context, arg SetAttri
 		&i.SynapseTrack,
 		&i.AutoSegment,
 		&i.RelationshipTarget,
+		&i.Embedded,
+		&i.SimilarMatch,
 	)
 	return i, err
 }
@@ -1590,9 +1690,11 @@ SET name               = $2,
     synapse_track      = $15,
     auto_segment       = $16,
     relationship_target = $17,
+    embedded           = $18,
+    similar_match      = $19,
     updated_at         = NOW()
 WHERE id = $1
-RETURNING id, slug, name, input_type, unit, value_required, filterable, searchable, is_public, sort_order, metadata, private_metadata, created_at, updated_at, default_value, facet_collapsed, is_indexable, h1_position, synapse_track, auto_segment, relationship_target
+RETURNING id, slug, name, input_type, unit, value_required, filterable, searchable, is_public, sort_order, metadata, private_metadata, created_at, updated_at, default_value, facet_collapsed, is_indexable, h1_position, synapse_track, auto_segment, relationship_target, embedded, similar_match
 `
 
 type UpdateAttributeParams struct {
@@ -1613,6 +1715,8 @@ type UpdateAttributeParams struct {
 	SynapseTrack       bool                  `json:"synapse_track"`
 	AutoSegment        bool                  `json:"auto_segment"`
 	RelationshipTarget sql.NullString        `json:"relationship_target"`
+	Embedded           bool                  `json:"embedded"`
+	SimilarMatch       bool                  `json:"similar_match"`
 }
 
 func (q *Queries) UpdateAttribute(ctx context.Context, arg UpdateAttributeParams) (Attribute, error) {
@@ -1634,6 +1738,8 @@ func (q *Queries) UpdateAttribute(ctx context.Context, arg UpdateAttributeParams
 		arg.SynapseTrack,
 		arg.AutoSegment,
 		arg.RelationshipTarget,
+		arg.Embedded,
+		arg.SimilarMatch,
 	)
 	var i Attribute
 	err := row.Scan(
@@ -1658,6 +1764,8 @@ func (q *Queries) UpdateAttribute(ctx context.Context, arg UpdateAttributeParams
 		&i.SynapseTrack,
 		&i.AutoSegment,
 		&i.RelationshipTarget,
+		&i.Embedded,
+		&i.SimilarMatch,
 	)
 	return i, err
 }
@@ -1668,18 +1776,20 @@ SET slug         = $2,
     name         = $3,
     value        = $4,
     sort_order   = $5,
-    is_indexable = $6
+    is_indexable = $6,
+    matches_any  = COALESCE($7::boolean, matches_any)
 WHERE id = $1
-RETURNING id, attribute_id, slug, name, value, sort_order, created_at, is_indexable
+RETURNING id, attribute_id, slug, name, value, sort_order, created_at, is_indexable, matches_any
 `
 
 type UpdateAttributeValueParams struct {
-	ID          uuid.UUID `json:"id"`
-	Slug        string    `json:"slug"`
-	Name        string    `json:"name"`
-	Value       string    `json:"value"`
-	SortOrder   int32     `json:"sort_order"`
-	IsIndexable bool      `json:"is_indexable"`
+	ID          uuid.UUID    `json:"id"`
+	Slug        string       `json:"slug"`
+	Name        string       `json:"name"`
+	Value       string       `json:"value"`
+	SortOrder   int32        `json:"sort_order"`
+	IsIndexable bool         `json:"is_indexable"`
+	MatchesAny  sql.NullBool `json:"matches_any"`
 }
 
 func (q *Queries) UpdateAttributeValue(ctx context.Context, arg UpdateAttributeValueParams) (AttributeValue, error) {
@@ -1690,6 +1800,7 @@ func (q *Queries) UpdateAttributeValue(ctx context.Context, arg UpdateAttributeV
 		arg.Value,
 		arg.SortOrder,
 		arg.IsIndexable,
+		arg.MatchesAny,
 	)
 	var i AttributeValue
 	err := row.Scan(
@@ -1701,6 +1812,7 @@ func (q *Queries) UpdateAttributeValue(ctx context.Context, arg UpdateAttributeV
 		&i.SortOrder,
 		&i.CreatedAt,
 		&i.IsIndexable,
+		&i.MatchesAny,
 	)
 	return i, err
 }

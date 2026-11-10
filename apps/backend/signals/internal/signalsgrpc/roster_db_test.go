@@ -136,7 +136,7 @@ func TestACompletedRosterStreamSweepsWhatItDidNotCarry(t *testing.T) {
 // Every field on the roster crosses the wire through two hand-written mappings, and one dropped in either reads downstream as "core never had one"
 // An SMS node would skip a subscriber who is opted in, and a campaign would address nobody
 func TestAPushedEntryArrivesWithEveryFieldItLeftWith(t *testing.T) {
-	client, _, channelID := rosterServer(t)
+	client, qs, channelID := rosterServer(t)
 	conn := testdb.RequireSignals(t)
 	customerID := uuid.New()
 	groupID := uuid.New()
@@ -146,7 +146,7 @@ func TestAPushedEntryArrivesWithEveryFieldItLeftWith(t *testing.T) {
 		CustomerId: customerID.String(), ChannelId: channelID.String(),
 		Email: "ada@test", FirstName: "Ada", Phone: "+15550001111",
 		IsActive: true, CustomerGroupId: groupID.String(),
-		MarketingOptedIn: true, SmsOptedIn: true,
+		MarketingOptedIn: true, SmsOptedIn: true, Locale: "de-at",
 	}
 	if _, err := client.UpsertRosterEntry(rosterCtx(t), &signalsv1.UpsertRosterEntryRequest{Customer: sent}); err != nil {
 		t.Fatalf("push the entry: %v", err)
@@ -176,6 +176,11 @@ func TestAPushedEntryArrivesWithEveryFieldItLeftWith(t *testing.T) {
 	}
 	if !group.Valid || group.UUID != groupID {
 		t.Errorf("group = %v, want %s - a group-audience campaign filters on it", group, groupID)
+	}
+	// read the way a campaign does, which picks each recipient's language version off it
+	locales, err := qs.RosterLocales(context.Background(), []uuid.UUID{customerID})
+	if err != nil || len(locales) != 1 || locales[0].Locale != "de-at" {
+		t.Errorf("roster locales = %+v, %v - want de-at", locales, err)
 	}
 }
 

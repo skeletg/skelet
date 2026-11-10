@@ -5,6 +5,7 @@ syntax = "proto3";
 package skelet.signals.v1;
 
 import "google/protobuf/timestamp.proto";
+import "skelet/signals/v1/synapse.proto";
 
 service BoardService {
   rpc ListBoards(ListBoardsRequest) returns (ListBoardsResponse);
@@ -17,14 +18,35 @@ service BoardService {
   rpc CreateStarterBoards(CreateStarterBoardsRequest) returns (CreateStarterBoardsResponse);
   // Replaces who the board is shared with - its owner's to change, and only once it's saved
   rpc SetBoardShares(SetBoardSharesRequest) returns (SetBoardSharesResponse);
-  // Gives up ownership so everyone on the shop sees the board
-  rpc MakeShopBoard(MakeShopBoardRequest) returns (MakeShopBoardResponse);
-  // Makes the caller the owner of a board whose owner was removed - core checks the owner is gone before calling
-  rpc ClaimBoard(ClaimBoardRequest) returns (ClaimBoardResponse);
+  // Hands the board to another admin, or with no admin makes it a shop board - for whoever owns it: its owner, a
+  // superuser, or boards.manage on a shop board. Core checks the new owner is an active admin before calling
+  rpc TransferBoard(TransferBoardRequest) returns (TransferBoardResponse);
   rpc SetBoardFavourite(SetBoardFavouriteRequest) returns (SetBoardFavouriteResponse);
   // Keeps the caller's unsaved edits between visits, until they save or discard them
   rpc SaveBoardDraft(SaveBoardDraftRequest) returns (SaveBoardDraftResponse);
   rpc DiscardBoardDraft(DiscardBoardDraftRequest) returns (DiscardBoardDraftResponse);
+  // Asks a board's owner for access. Answers the same whether or not the board exists or the caller has the access
+  // already, so it tells them nothing about a board they can't see
+  rpc RequestBoardAccess(RequestBoardAccessRequest) returns (RequestBoardAccessResponse);
+  // The owner turning a request down - granting one is a share, which clears it
+  rpc DismissBoardAccessRequest(DismissBoardAccessRequestRequest) returns (DismissBoardAccessRequestResponse);
+}
+
+// One board in the list, without its reports
+message BoardSummary {
+  string id = 1;
+  string name = 2;
+  google.protobuf.Timestamp updated_at = 3;
+  int32 report_count = 4;
+  // Empty for a shop board, which everyone on the shop sees
+  string owner_admin_id = 5;
+  // For the caller: view | edit | own
+  string access = 6;
+  bool favourite = 7;
+  // When the caller's unsaved edits were last kept, unset when there are none
+  google.protobuf.Timestamp draft_updated_at = 8;
+  // Open requests for access, for a caller who owns the board
+  int32 access_request_count = 9;
 }
 
 message Board {
@@ -34,21 +56,26 @@ message Board {
   // What a save sends back as read_at
   google.protobuf.Timestamp updated_at = 4;
   repeated BoardReport reports = 5;
-  // Filled on a list, where reports is empty
-  int32 report_count = 6;
   // Empty for a shop board, which everyone on the shop sees
-  string owner_admin_id = 7;
-  // draft | published - a draft is its owner's alone until its first save
-  string status = 8;
+  string owner_admin_id = 6;
   // For the caller: view | edit | own
-  string access = 9;
-  bool favourite = 10;
+  string access = 7;
+  bool favourite = 8;
   // When the caller's unsaved edits were last kept, unset when there are none
-  google.protobuf.Timestamp draft_updated_at = 11;
-  // On a single read, for a caller who owns the board
-  repeated BoardShare shares = 12;
-  // On a single read, the caller's unsaved edits
-  BoardDraft draft = 13;
+  google.protobuf.Timestamp draft_updated_at = 9;
+  // For a caller who owns the board
+  repeated BoardShare shares = 10;
+  // The caller's unsaved edits
+  BoardDraft draft = 11;
+  // For a caller who owns the board: who asked for access
+  repeated BoardAccessRequest access_requests = 12;
+}
+
+message BoardAccessRequest {
+  string admin_id = 1;
+  // view | edit
+  string level = 2;
+  google.protobuf.Timestamp requested_at = 3;
 }
 
 // Exactly one of admin_id and role_id is set
@@ -59,17 +86,44 @@ message BoardShare {
   string level = 3;
 }
 
+// An admin's unsaved edits: the board as they staged it. It's held to its shape only - a draft can hold work in
+// progress, such as a one-step funnel, that Save would refuse
 message BoardDraft {
-  string payload_json = 1;
-  google.protobuf.Timestamp base_updated_at = 2;
-  google.protobuf.Timestamp updated_at = 3;
+  string name = 1;
+  repeated BoardDraftReport reports = 2;
+  google.protobuf.Timestamp base_updated_at = 3;
+  google.protobuf.Timestamp updated_at = 4;
+}
+
+message BoardDraftReport {
+  BoardReport report = 1;
+  // The position of the saved report this one is, unset for one added in the draft
+  optional int32 from = 2;
 }
 
 message BoardReport {
   string title = 1;
-  // The report's definition as JSON, version definition_version - Signals refuses fields it doesn't know
-  string definition_json = 2;
-  int32 definition_version = 3;
+  BoardReportDefinition definition = 2;
+  string size = 3; // the tile's width on the board: small | medium (unset) | full
+}
+
+// One saved report - which engine and its settings, the arguments that engine's Synapse read takes. A zero value is
+// unset; Signals checks the fields its kind needs
+message BoardReportDefinition {
+  string kind = 1; // insights | funnel | retention | stickiness | flow
+  int32 since_days = 2; // 0 = the board's period
+  string event = 3; // insights, stickiness, the flow's focus
+  string measure = 4; // insights: total | unique
+  string unit = 5; // insights and retention: day | week
+  string breakdown = 6; // insights, funnel
+  repeated string steps = 7; // funnel
+  repeated FunnelFilter filters = 8; // funnel
+  int32 window_hours = 9; // funnel
+  string start_event = 10; // retention
+  string return_event = 11; // retention
+  int32 periods = 12; // retention
+  int32 depth = 13; // flow
+  int32 window_days = 14; // stickiness: the return window, 0 = the shop's default
 }
 
 message ListBoardsRequest {
@@ -79,7 +133,7 @@ message ListBoardsRequest {
 }
 
 message ListBoardsResponse {
-  repeated Board boards = 1;
+  repeated BoardSummary boards = 1;
 }
 
 message GetBoardRequest {
@@ -125,7 +179,7 @@ message CreateStarterBoardsRequest {
 }
 
 message CreateStarterBoardsResponse {
-  repeated Board boards = 1;
+  repeated BoardSummary boards = 1;
 }
 
 message SetBoardSharesRequest {
@@ -138,23 +192,15 @@ message SetBoardSharesResponse {
   Board board = 1;
 }
 
-message MakeShopBoardRequest {
+message TransferBoardRequest {
   string channel_id = 1;
   string id = 2;
+  // Empty makes it a shop board
+  string owner_admin_id = 3;
 }
 
-message MakeShopBoardResponse {
-  Board board = 1;
-}
-
-message ClaimBoardRequest {
-  string channel_id = 1;
-  string id = 2;
-}
-
-message ClaimBoardResponse {
-  Board board = 1;
-}
+// No board: handing it to someone else can leave the caller unable to open it
+message TransferBoardResponse {}
 
 message SetBoardFavouriteRequest {
   string channel_id = 1;
@@ -167,9 +213,10 @@ message SetBoardFavouriteResponse {}
 message SaveBoardDraftRequest {
   string channel_id = 1;
   string id = 2;
-  string payload_json = 3;
+  string name = 3;
   // The board's updated_at when the edits began, so a save over a newer one is still refused
   google.protobuf.Timestamp base_updated_at = 4;
+  repeated BoardDraftReport reports = 5;
 }
 
 message SaveBoardDraftResponse {
@@ -182,3 +229,24 @@ message DiscardBoardDraftRequest {
 }
 
 message DiscardBoardDraftResponse {}
+
+message RequestBoardAccessRequest {
+  string channel_id = 1;
+  string id = 2;
+  // view | edit
+  string level = 3;
+}
+
+// Set when a request was kept, so core can tell the owner - never shown to the asker, who learns nothing of the board
+message RequestBoardAccessResponse {
+  string owner_id = 1;
+  string board_name = 2;
+}
+
+message DismissBoardAccessRequestRequest {
+  string channel_id = 1;
+  string id = 2;
+  string admin_id = 3;
+}
+
+message DismissBoardAccessRequestResponse {}

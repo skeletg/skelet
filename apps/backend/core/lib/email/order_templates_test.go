@@ -86,3 +86,19 @@ func TestRenderFallbackGreeting(t *testing.T) {
 		t.Errorf("expected fallback greeting %q in %q", greetingFallback, html)
 	}
 }
+
+// Tax already inside the prices is said under the total, never added as one more line above it
+func TestATaxInclusiveConfirmationSaysTheTaxIsIncluded(t *testing.T) {
+	_, html, text, err := RenderOrderConfirmation(OrderConfirmationData{
+		OrderNumber: "X", Currency: "EUR", Subtotal: 2000, Shipping: 500, Tax: 417, TaxIncluded: true, Total: 2500,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(html, "<td>Tax</td>") || strings.Contains(text, "\nTax: ") {
+		t.Error("an inclusive order still adds a Tax line")
+	}
+	if !strings.Contains(html, "Includes tax") || !strings.Contains(text, "Includes tax: ") {
+		t.Errorf("no includes-tax note:\n%s", text)
+	}
+}

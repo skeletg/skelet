@@ -80,17 +80,20 @@ type CreateChannelInput struct {
 	CurrencyCode  string   // required
 	PublicURL     string
 	Metadata      Metadata
+	// Prices on this channel already contain tax, so tax is split out of them rather than added on top
+	TaxInclusivePricing bool
 }
 
 type UpdateChannelInput struct {
-	ID            uuid.UUID
-	Name          *string
-	DefaultLocale *string
-	Locales       []string // nil = no change; pass codes to replace the supported-locales set, which always keeps the default
-	IsActive      *bool
-	CurrencyCode  *string
-	PublicURL     *string
-	Metadata      *Metadata
+	ID                  uuid.UUID
+	Name                *string
+	DefaultLocale       *string
+	Locales             []string // nil = no change; pass codes to replace the supported-locales set, which always keeps the default
+	IsActive            *bool
+	CurrencyCode        *string
+	PublicURL           *string
+	Metadata            *Metadata
+	TaxInclusivePricing *bool
 }
 
 var (

@@ -157,7 +157,7 @@ describe("SectionHeading", () => {
 });
 
 describe("Seo", () => {
-  const channel = { name: "Test Shop", defaultLocale: "en-GB", publicUrl: "", currency: { code: "USD", symbol: "", symbolPosition: "prefix", decimals: 2 } };
+  const channel = { name: "Test Shop", defaultLocale: "en-GB", publicUrl: "", taxInclusivePricing: false, currency: { code: "USD", symbol: "", symbolPosition: "prefix", decimals: 2 } };
   // Head tags, rendered the way the server does - a client render would hoist them out of the container
   const head = (el: React.ReactElement) => {
     const doc = document.implementation.createHTMLDocument();

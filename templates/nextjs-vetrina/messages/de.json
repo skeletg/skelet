@@ -57,5 +57,114 @@
     "pickupOnly": "Abholung möglich",
     "pickupAvailable": "Online bestellen und abholen",
     "walkInShopping": "Einkaufen vor Ort"
+  },
+  "assistant": {
+    "title": "Einkaufsassistent",
+    "open": "Einkaufsassistent fragen",
+    "close": "Assistent schließen",
+    "resize": "Größe des Assistenten ändern",
+    "newChat": "Neuer Chat",
+    "greeting": "Hallo",
+    "intro": "Fragen Sie mich alles rund um Ihren Einkauf bei {store} - ich finde Produkte, vergleiche sie und fülle Ihren Warenkorb.",
+    "introHere": "Fragen Sie mich alles rund um Ihren Einkauf hier - ich finde Produkte, vergleiche sie und fülle Ihren Warenkorb.",
+    "starter1": "Was sind gerade Ihre Bestseller?",
+    "starter2": "Hilf mir, ein Geschenk auszusuchen",
+    "starter3": "Wie funktionieren Versand und Rücksendungen?",
+    "starters": {
+      "product": {
+        "1": "Erzähl mir mehr über {title}",
+        "2": "Für wen eignet es sich am besten?",
+        "3": "Zeig mir ähnliche Produkte"
+      },
+      "listing": {
+        "1": "Was ist hier die beste Wahl?",
+        "2": "Sortiere nach dem günstigsten Preis",
+        "3": "Hilf mir, die Auswahl einzugrenzen"
+      },
+      "search": {
+        "1": "Welches davon ist am besten?",
+        "2": "Sortiere nach dem günstigsten Preis",
+        "3": "Hilf mir, die Ergebnisse einzugrenzen"
+      },
+      "page": {
+        "1": "Fasse diese Seite für mich zusammen",
+        "2": "Was sollte ich vor der Bestellung wissen?"
+      }
+    },
+    "followUps": "Vorgeschlagene Antworten",
+    "placeholder": "Fragen zu Produkten, Lieferung oder Rücksendungen",
+    "send": "Senden",
+    "thinking": "Denke nach…",
+    "steps": {
+      "search": "Durchsuche den Katalog…",
+      "searchFor": "Suche nach „{detail}“…",
+      "similar": "Suche ähnliche Produkte…",
+      "similarTo": "Suche Produkte wie {detail}…",
+      "product": "Sehe mir ein Produkt an…",
+      "productNamed": "Sehe mir {detail} an…",
+      "writeUp": "Fasse es zusammen…",
+      "writeUpNamed": "Fasse {detail} zusammen…",
+      "deals": "Prüfe die aktuellen Angebote…",
+      "categories": "Gehe die Kategorien durch…",
+      "pages": "Lese die Seiten des Shops…",
+      "pagesAbout": "Lese nach zu „{detail}“…",
+      "delivery": "Prüfe die Versandoptionen…",
+      "deliveryTo": "Prüfe den Versand nach {detail}…",
+      "cart": "Sehe mir Ihren Warenkorb an…",
+      "updateCart": "Aktualisiere Ihren Warenkorb…",
+      "checkout": "Bereite Ihren Warenkorb vor…",
+      "picking": "Wähle Produkte für Sie aus…",
+      "links": "Suche die passende Seite…",
+      "currentPage": "Sehe mir diese Seite an…",
+      "listing": "Aktualisiere die Liste…",
+      "store": "Prüfe die Angaben des Shops…",
+      "orders": "Suche Ihre Bestellungen…",
+      "order": "Sehe mir Ihre Bestellung an…",
+      "orderNamed": "Sehe mir Bestellung {detail} an…",
+      "return": "Prüfe Ihre Rücksendung…",
+      "returnFor": "Prüfe eine Rücksendung zu Bestellung {detail}…"
+    },
+    "reviewCart": "Warenkorb ansehen",
+    "cartLost": "Was ich hinzugefügt habe, ist nicht in Ihrem Warenkorb angekommen - legen Sie es über die Produktseite hinein oder fragen Sie mich noch einmal.",
+    "cartMissed": "Diese Artikel sind nicht in Ihrem Warenkorb angekommen: {items}.",
+    "noAnswer": "Entschuldigung, darauf habe ich keine Antwort gefunden - können Sie es anders formulieren?",
+    "cutShort": "Meine Antwort wurde abgeschnitten. Was ich an Ihrem Warenkorb geändert habe, bleibt bestehen - fragen Sie gern noch einmal.",
+    "retry": "Erneut versuchen",
+    "loading": "Der Assistent wird geöffnet…",
+    "loadFailed": "Der Assistent konnte nicht geladen werden.",
+    "speaker": {
+      "you": "Sie",
+      "assistant": "Assistent"
+    },
+    "products": "Vorgeschlagene Produkte",
+    "tellMe": "Mehr erfahren",
+    "links": {
+      "count": "{count, plural, one {# Produkt} other {# Produkte}}",
+      "updated": "Liste aktualisiert: {count, plural, one {# Produkt} other {# Produkte}}",
+      "see": "Ansehen"
+    },
+    "detail": {
+      "inStock": "Auf Lager",
+      "yes": "Ja",
+      "no": "Nein",
+      "view": "Produkt ansehen",
+      "goodFor": "Geeignet für",
+      "keepInMind": "Gut zu wissen",
+      "specs": "Technische Daten ({count})"
+    },
+    "disclaimer": "KI kann Fehler machen. Preise und Verfügbarkeit bestätigt Ihr Warenkorb.",
+    "overview": {
+      "label": "KI-Überblick",
+      "writing": "Schreibe einen Überblick…",
+      "disclaimer": "Von KI aus den Produkten unten geschrieben - prüfen Sie die Details beim jeweiligen Produkt.",
+      "continue": "Im Chat weiterfragen"
+    },
+    "problems": {
+      "unavailable": "Der Assistent ist gerade nicht verfügbar - die Suche oben auf der Seite findet trotzdem alles, oder versuchen Sie es gleich noch einmal.",
+      "busy": "Ich arbeite noch an Ihrer letzten Frage - einen Moment.",
+      "limited": "Das waren viele Fragen auf einmal - warten Sie kurz und versuchen Sie es erneut.",
+      "invalid": "Ihre Nachricht ist zu lang - kürzen Sie sie und senden Sie sie erneut.",
+      "failed": "Etwas ist schiefgelaufen - bitte versuchen Sie es erneut."
+    }
   }
 }

@@ -3,20 +3,53 @@
 # one, and to run shop boards); Signals decides each admin's access to each board. Each report still runs through the
 # Synapse query of its kind, under that query's own grant - so a board never shows anyone data they couldn't query
 
-type Board {
+# What the caller may do with a board, each including the ones before it: open it; change its name and reports; share,
+# hand over and delete it
+enum BoardAccess {
+  VIEW
+  EDIT
+  OWN
+}
+
+# What a share or a request for access gives someone
+enum BoardShareLevel {
+  VIEW
+  EDIT
+}
+
+# One board in the list, without its reports
+type BoardSummary {
   id:          ID!
-  channelId:   ID!
   name:        String!
-  updatedAt:   Time!        # send back as saveBoard's readAt
+  updatedAt:   Time!
   reportCount: Int!
-  reports:     [BoardReport!]!   # empty on the boards list
-  status:      String!      # draft (its owner's alone, until its first save) | published
-  access:      String!      # the caller's: view | edit | own
+  access:      BoardAccess!  # the caller's
   favourite:   Boolean!     # the caller's star
   owner:       BoardOwner   # null on a shop board
   draftUpdatedAt: Time      # when the caller's unsaved edits were last kept
-  shares:      [BoardShare!]!    # on a single read, for a caller who owns it
-  draft:       BoardDraft        # on a single read, the caller's unsaved edits
+  accessRequestCount: Int!  # open requests for access, for a caller who owns it
+}
+
+type Board {
+  id:        ID!
+  channelId: ID!
+  name:      String!
+  updatedAt: Time!        # send back as saveBoard's readAt
+  reports:   [BoardReport!]!
+  access:    BoardAccess!   # the caller's
+  favourite: Boolean!     # the caller's star
+  owner:     BoardOwner   # null on a shop board
+  draftUpdatedAt: Time    # when the caller's unsaved edits were last kept
+  shares:    [BoardShare!]!   # for a caller who owns it
+  draft:     BoardDraft       # the caller's unsaved edits
+  accessRequests: [BoardAccessRequest!]!   # for a caller who owns it: who asked for access
+}
+
+type BoardAccessRequest {
+  adminId:     ID!
+  name:        String!
+  level:       BoardShareLevel!
+  requestedAt: Time!
 }
 
 type BoardOwner {
@@ -29,13 +62,31 @@ type BoardShare {
   adminId: ID
   roleId:  ID
   name:    String!
-  level:   String!    # view | edit
+  level:   BoardShareLevel!
 }
 
+# The caller's unsaved edits: the board as they staged it. Held to its shape only - a draft can hold work in progress,
+# such as a one-step funnel, that saveBoard would refuse
 type BoardDraft {
-  payload:       JSON!   # the dashboard's own: the board as staged
+  name:          String!
+  reports:       [BoardDraftReport!]!
   baseUpdatedAt: Time!   # the board's updatedAt when the edits began - save with it as readAt
   updatedAt:     Time!
+}
+
+type BoardDraftReport {
+  report: BoardReport!
+  from:   Int            # the position of the saved report this one is; null for one added in the draft
+}
+
+input BoardDraftInput {
+  name:    String!
+  reports: [BoardDraftReportInput!]!
+}
+
+input BoardDraftReportInput {
+  report: BoardReportInput!
+  from:   Int
 }
 
 # Someone a board can be shared with, and whether they'd see anything: boards.view, and customers.view for the numbers
@@ -49,46 +100,109 @@ type BoardShareTarget {
 
 type BoardReport {
   title:      String!
-  # { kind: insights|funnel|retention|stickiness|flow, sinceDays?, event?, measure?, unit?, breakdown?, steps?,
-  #   filters?, windowHours?, startEvent?, returnEvent?, periods?, depth?, windowDays?, size? } - unknown fields are refused
-  definition: JSON!
+  size:       BoardReportSize       # unset = MEDIUM
+  definition: BoardReportDefinition!
+}
+
+enum BoardReportKind {
+  INSIGHTS
+  FUNNEL
+  RETENTION
+  STICKINESS
+  FLOW
+}
+
+# A report's width on its board
+enum BoardReportSize {
+  SMALL
+  MEDIUM
+  FULL
+}
+
+# One saved report - which engine and its settings, the arguments that engine's Synapse query takes. Each kind reads
+# its own fields; an unset one takes the query's default
+type BoardReportDefinition {
+  kind:        BoardReportKind!
+  sinceDays:   Int                   # unset = the board's period
+  event:       String                # insights, stickiness, the flow's focus
+  measure:     String                # insights: total | unique
+  unit:        String                # insights and retention: day | week
+  breakdown:   String                # insights, funnel
+  steps:       [String!]             # funnel
+  filters:     [BoardReportFilter!]  # funnel
+  windowHours: Int                   # funnel
+  startEvent:  String                # retention
+  returnEvent: String                # retention
+  periods:     Int                   # retention
+  depth:       Int                   # flow
+  windowDays:  Int                   # stickiness: the return window, unset = the shop's default
+}
+
+type BoardReportFilter {
+  step:  Int!   # 0-based
+  key:   String!
+  value: String!
+}
+
+input BoardReportDefinitionInput {
+  kind:        BoardReportKind!
+  sinceDays:   Int
+  event:       String
+  measure:     String
+  unit:        String
+  breakdown:   String
+  steps:       [String!]
+  filters:     [SynapseFunnelFilterInput!]
+  windowHours: Int
+  startEvent:  String
+  returnEvent: String
+  periods:     Int
+  depth:       Int
+  windowDays:  Int
 }
 
 input BoardReportInput {
   title:      String!
-  definition: JSON!
+  size:       BoardReportSize
+  definition: BoardReportDefinitionInput!
 }
 
 input BoardShareInput {
   adminId: ID
   roleId:  ID
-  level:   String!
+  level:   BoardShareLevel!
 }
 
 extend type Query {
   # The boards the caller can open. all: a superuser's every board on the shop, not only their own view of it
-  boards(channelId: ID!, all: Boolean): [Board!]!
+  boards(channelId: ID!, all: Boolean): [BoardSummary!]!
   board(channelId: ID!, id: ID!): Board!
   # Admins and roles a board on this shop can be shared with - names only, gated boards.manage
   boardShareTargets(channelId: ID!): [BoardShareTarget!]!
 }
 
 extend type Mutation {
-  # A new board is the caller's private draft until its first save
+  # A new board is the caller's, and private until they share it
   createBoard(channelId: ID!, name: String!, reports: [BoardReportInput!]): Board!
-  # Replaces the name and every report, and publishes a draft. Refused when the board was saved since readAt
+  # Replaces the name and every report. Refused when the board was saved since readAt (its updatedAt as loaded)
   saveBoard(channelId: ID!, id: ID!, name: String!, reports: [BoardReportInput!]!, readAt: Time!): Board!
   deleteBoard(channelId: ID!, id: ID!): Boolean!
   # The four starter boards, as shop boards, for a shop that has none - a shop with any is left as it is
-  createStarterBoards(channelId: ID!): [Board!]!
+  createStarterBoards(channelId: ID!): [BoardSummary!]!
   # Replaces who the board is shared with - its owner's to change, once it's saved
   setBoardShares(channelId: ID!, id: ID!, shares: [BoardShareInput!]!): Board!
-  # Gives up ownership: everyone on the shop sees it, and its managers run it
-  makeShopBoard(channelId: ID!, id: ID!): Board!
-  # Takes over a board whose owner was deleted
-  claimBoard(channelId: ID!, id: ID!): Board!
+  # Hands the board to another active admin with boards.view here, or with no ownerId makes it a shop board everyone on
+  # the shop sees and its managers run. For whoever owns it: its owner, a superuser (how an orphaned board is handed
+  # on), or boards.manage on a shop board. An owner handing it to someone else stays on it as an editor. Answers no
+  # board, since the caller may no longer be able to open it
+  transferBoard(channelId: ID!, id: ID!, ownerId: ID): Boolean!
   setBoardFavourite(channelId: ID!, id: ID!, favourite: Boolean!): Boolean!
   # Keeps the caller's unsaved edits between visits; answers when they were kept
-  saveBoardDraft(channelId: ID!, id: ID!, payload: JSON!, baseUpdatedAt: Time!): Time!
+  saveBoardDraft(channelId: ID!, id: ID!, draft: BoardDraftInput!, baseUpdatedAt: Time!): Time!
   discardBoardDraft(channelId: ID!, id: ID!): Boolean!
+  # Asks a board's owner for view or edit access. Answers true whether or not the board exists or the caller has the
+  # access already, so it says nothing about a board they can't see
+  requestBoardAccess(channelId: ID!, id: ID!, level: BoardShareLevel!): Boolean!
+  # The owner turning a request down - granting one is setBoardShares, which clears it
+  dismissBoardAccessRequest(channelId: ID!, id: ID!, adminId: ID!): Boolean!
 }

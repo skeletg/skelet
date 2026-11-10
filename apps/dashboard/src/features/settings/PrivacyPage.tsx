@@ -18,7 +18,7 @@ import { useConfigDrafts } from './useConfigDrafts'
 const CATEGORIES = [
   { key: 'necessary', label: 'Necessary', about: 'Always on - the consent cookie itself, carts and sign-in.' },
   { key: 'analytics', label: PURPOSE_LABELS.analytics, about: 'The visitor id, Signals profiles and analytics platforms.' },
-  { key: 'ads', label: PURPOSE_LABELS.ads, about: 'Ad click ids and ad and affiliate platforms.' },
+  { key: 'ads', label: PURPOSE_LABELS.ads, about: 'Ad click ids and ad platforms.' },
   { key: 'personalization', label: PURPOSE_LABELS.personalization, about: 'Personalised marketing platforms and Customer Match.' },
 ]
 
@@ -89,7 +89,7 @@ function PrivacySettings({ scopeInput }: { scopeInput: ReturnType<typeof useConf
   const { data } = useQuery(ConfigSectionsDocument, { variables: { scope: scopeInput } })
   const drafts = useConfigDrafts({ sections: data?.configSections, scopeInput })
   return (
-    <DetailPageSection title="Cookie consent" description="Ask first is the EU and UK model; no banner is the US one. Affiliate exceptions are your call where you sell.">
+    <DetailPageSection title="Cookie consent" description="Ask first is the EU and UK model; no banner is the US one.">
       <div className="rounded-md border">
         <SettingsContent activeSectionSlug="general" activeGroupSlug="privacy" drafts={drafts} />
       </div>

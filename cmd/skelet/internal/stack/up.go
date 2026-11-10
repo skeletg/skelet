@@ -1,7 +1,6 @@
 package stack
 
 import (
-	"crypto/rand"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,7 +10,6 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/compose"
 	"github.com/skeletg/skelet/cmd/skelet/internal/envfile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
-	"github.com/skeletg/skelet/cmd/skelet/internal/secret"
 	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
@@ -132,18 +130,6 @@ func syncSignalsEnv(root string) error {
 	// JWT_SECRET is retired, and the suite refuses to boot while it's set
 	if err := envfile.Del(sig, "JWT_SECRET"); err != nil {
 		return err
-	}
-	if v, _, err := envfile.Get(sig, "SIGNALS_ENCRYPTION_KEY"); err != nil {
-		return err
-	} else if v == "" {
-		key, err := secret.Key32(rand.Reader)
-		if err != nil {
-			return err
-		}
-		if err := envfile.Set(sig, "SIGNALS_ENCRYPTION_KEY", key); err != nil {
-			return err
-		}
-		fmt.Println("==> generated SIGNALS_ENCRYPTION_KEY in env/signals.env")
 	}
 	for _, key := range []string{"CUSTOMER_JWT_PUBLIC_KEY", "EMAIL_LINK_SECRET", "SIGNALS_SERVICE_SECRET"} {
 		v, _, err := envfile.Get(goEnv, key)

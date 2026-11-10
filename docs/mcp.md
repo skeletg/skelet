@@ -22,6 +22,9 @@ takes the endpoint away entirely.
 
 ## Connecting an agent
 
+**Agentic Commerce, MCP** in the dashboard gives this server's address and a ready-made command for the
+store you have selected, along with every tool an agent can call.
+
 1. In the dashboard, open **Developer → Integrations** and create a token. Give it the `.view`
    permissions you want the agent to have and nothing else, and pin it to the channel it should
    read. The raw token is shown once.

@@ -13,6 +13,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/adminprefs"
 	"github.com/skeletg/skelet/apps/backend/core/internal/agenttools"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
+	"github.com/skeletg/skelet/apps/backend/core/internal/aiusage"
 	"github.com/skeletg/skelet/apps/backend/core/internal/audit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/blog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/blog/preview"
@@ -28,6 +29,7 @@ import (
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/delivery"
 	"github.com/skeletg/skelet/apps/backend/core/internal/dsar"
+	"github.com/skeletg/skelet/apps/backend/core/internal/embedding"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/internal/health"
 	"github.com/skeletg/skelet/apps/backend/core/internal/integration"
@@ -49,8 +51,10 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
 	"github.com/skeletg/skelet/apps/backend/core/internal/sales"
 	"github.com/skeletg/skelet/apps/backend/core/internal/scheduler"
+	"github.com/skeletg/skelet/apps/backend/core/internal/search"
 	"github.com/skeletg/skelet/apps/backend/core/internal/searchmerch"
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
+	"github.com/skeletg/skelet/apps/backend/core/internal/shoptools"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/sitecrawl"
@@ -113,6 +117,7 @@ type Resolver struct {
 	GiftcardSvc       *giftcard.Service
 	SubscriptionSvc   *subscription.Service
 	SalesSvc          *sales.Service
+	AIUsageSvc        *aiusage.Service
 	AgentTools        *agenttools.Service
 	// Core's plug into the Signals service - Pulse, the chat's suite tools and every other Signals read relay through it
 	SignalsAPI      *signalsclient.Client
@@ -135,11 +140,15 @@ type Resolver struct {
 	CustomerKeys     auth.CustomerSigner // masquerade mints a storefront session
 	JWTTTL           time.Duration
 
-	RateLimiter   ratelimit.Limiter   // shares the Valkey-backed counters with the storefront limiter so every pod sees the same budget - nil disables the check, which is what tests do
-	AuthLimiter   ratelimit.Limiter   // tighter limiter for the admin login surface
-	LoginThrottle *auth.LoginThrottle // locks an admin email after sustained failed logins
-	Scheduler     *scheduler.Service  // backs the scheduled-jobs admin surface
-	Health        *health.Registry    // every subsystem's probe, behind the one operator panel
+	RateLimiter      ratelimit.Limiter   // shares the Valkey-backed counters with the storefront limiter so every pod sees the same budget - nil disables the check, which is what tests do
+	AuthLimiter      ratelimit.Limiter   // tighter limiter for the admin login surface
+	LoginThrottle    *auth.LoginThrottle // locks an admin email after sustained failed logins
+	Scheduler        *scheduler.Service  // backs the scheduled-jobs admin surface
+	Health           *health.Registry    // every subsystem's probe, behind the one operator panel
+	MCP              MCPEndpoints        // what the dashboard's MCP page reports about the two endpoints
+	Embeddings       *embedding.Indexer  // where embedding stands, for the Agentic Commerce overview
+	ShopTools        *shoptools.Service  // the assistant's tools, for the search preview - attached once the front server exists
+	StorefrontSearch *search.Hybrid      // the store's own search page, for its preview
 
 	DevMode bool // set from APP_ENV=development in main.go - the dev identity-switching resolvers hard-error when false, so that surface is inert in production even though the schema carries it
 }

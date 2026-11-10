@@ -903,8 +903,8 @@ func (r *queryResolver) OrderDocumentPDF(ctx context.Context, orderID string, ki
 		if ch.PublicURL != "" {
 			in.Store.Lines = append(in.Store.Lines, ch.PublicURL)
 		}
-		in.TaxInclusive = ch.TaxInclusivePricing
 	}
+	in.TaxInclusive = o.TaxInclusive // the order's own mode - the channel may have changed since
 	if cur, cerr := r.CurrencySvc.GetByCode(ctx, o.CurrencyCode); cerr == nil {
 		in.Decimals = int(cur.Decimals)
 	}

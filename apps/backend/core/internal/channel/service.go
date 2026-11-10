@@ -386,6 +386,9 @@ func applyUpdate(ch Channel, in UpdateChannelInput) Channel {
 	if in.Metadata != nil {
 		ch.Metadata = *in.Metadata
 	}
+	if in.TaxInclusivePricing != nil {
+		ch.TaxInclusivePricing = *in.TaxInclusivePricing
+	}
 	return ch
 }
 

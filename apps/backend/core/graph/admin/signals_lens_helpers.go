@@ -70,3 +70,23 @@ func lensSessionLimit(limit *int32) int32 {
 	}
 	return n
 }
+
+func lensSearchTerms(terms []*signalsv1.LensSearchTerm) []*model.LensSearchTerm {
+	out := make([]*model.LensSearchTerm, 0, len(terms))
+	for _, t := range terms {
+		out = append(out, &model.LensSearchTerm{Term: t.GetTerm(), Count: t.GetCount()})
+	}
+	return out
+}
+
+func lensAISearch(out *model.LensSearchAnalytics, a *signalsv1.GetSearchAnalyticsResponse) {
+	out.OverviewsShown, out.OverviewClicks, out.OverviewChats = a.GetOverviewsShown(), a.GetOverviewClicks(), a.GetOverviewChats()
+	out.AiGaps = make([]*model.LensAISearchGap, 0, len(a.GetAiGaps()))
+	for _, g := range a.GetAiGaps() {
+		out.AiGaps = append(out.AiGaps, &model.LensAISearchGap{Term: g.GetTerm(), Assistant: g.GetAssistant(), Agents: g.GetAgents()})
+	}
+	out.Overviews = make([]*model.LensOverviewTerm, 0, len(a.GetOverviews()))
+	for _, o := range a.GetOverviews() {
+		out.Overviews = append(out.Overviews, &model.LensOverviewTerm{Term: o.GetTerm(), Shown: o.GetShown(), Clicks: o.GetClicks(), Chats: o.GetChats()})
+	}
+}

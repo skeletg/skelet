@@ -2,6 +2,28 @@ enum ShippingCalcType {
   FLAT
   FREE
   FREE_ABOVE
+  # Priced by tiers over the shipment's weight, subtotal or item count - see rateTiers
+  TABLE
+}
+
+# What a TABLE method's tiers measure: WEIGHT in grams of the lines it prices itself, SUBTOTAL in cents after discounts, QUANTITY in units of the lines it prices itself
+enum ShippingTableBasis {
+  WEIGHT
+  SUBTOTAL
+  QUANTITY
+}
+
+# One row of a TABLE method - a shipment measuring `from` or more pays priceCents, until the next tier. Below the first tier the method isn't offered, and a notOffered tier is the ceiling: from there on it isn't offered either.
+type ShippingRateTier {
+  from:       Int!
+  priceCents: Int!
+  notOffered: Boolean!
+}
+
+input ShippingRateTierInput {
+  from:       Int!
+  priceCents: Int!
+  notOffered: Boolean
 }
 
 type ShippingZone {
@@ -41,6 +63,9 @@ type ShippingMethod {
   deliversOnWeekends: Boolean!
   # Prices for particular product types - their lines are priced by their own row instead of pooling into the method's price.
   typeRates:        [ShippingMethodTypeRate!]!
+  # A TABLE method's measure and its tiers, ascending - unused by the other calc types
+  tableBasis:       ShippingTableBasis!
+  rateTiers:        [ShippingRateTier!]!
   createdAt:      Time!
   updatedAt:      Time!
 }
@@ -96,6 +121,8 @@ input CreateShippingMethodInput {
   estimatedDays:      Int
   deliversOnWeekends: Boolean
   typeRates:        [ShippingMethodTypeRateInput!]
+  tableBasis:       ShippingTableBasis
+  rateTiers:        [ShippingRateTierInput!]
 }
 
 input UpdateShippingMethodInput {
@@ -115,6 +142,9 @@ input UpdateShippingMethodInput {
   deliversOnWeekends: Boolean
   # Replaces the method's type rates when given.
   typeRates:        [ShippingMethodTypeRateInput!]
+  tableBasis:       ShippingTableBasis
+  # Replaces the method's tiers when given.
+  rateTiers:        [ShippingRateTierInput!]
 }
 
 # A registered shipping carrier with its per-channel config. The built-in zones/methods engine is the "builtin" carrier; plugin carriers register additional slugs. carrierSlug + the (carrierSlug, methodCode) selection at checkout identify a carrier. Credentials (API keys) are edited via Settings → Shipping → <carrier>, not here.

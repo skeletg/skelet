@@ -25,30 +25,32 @@ WITH base AS (
     WHERE l.is_published = TRUE
       AND (cardinality($5::text[]) = 0
            OR p.kind::text = ANY($5::text[]))
+      AND (COALESCE(cardinality($6::uuid[]), 0) = 0
+           OR p.id = ANY($6::uuid[]))
       -- Character-for-character the predicate BrowseProductsFallback applies - a
       -- facet counted over a wider set than the grid shows is a count that lies
-      AND ($6::text = '' OR p.id IN (
+      AND ($7::text = '' OR p.id IN (
             SELECT mc.product_id
               FROM catalog_product_content mc
-             WHERE $6::text <> ''
-               AND mc.locale = $7::text
-               AND (mc.search_tsv @@ websearch_to_tsquery('simple', $6::text)
-                    OR mc.name ILIKE '%' || escape_like($6::text) || '%')
+             WHERE $7::text <> ''
+               AND mc.locale = $8::text
+               AND (mc.search_tsv @@ websearch_to_tsquery('simple', $7::text)
+                    OR mc.name ILIKE '%' || escape_like($7::text) || '%')
             UNION
             SELECT mp.id
               FROM catalog_products mp
-             WHERE $6::text <> ''
-               AND mp.sku ILIKE '%' || escape_like($6::text) || '%'))
-      AND (NOT $8::boolean OR EXISTS (
+             WHERE $7::text <> ''
+               AND mp.sku ILIKE '%' || escape_like($7::text) || '%'))
+      AND (NOT $9::boolean OR EXISTS (
             SELECT 1 FROM catalog_product_categories pc
-            WHERE pc.product_id = p.id AND pc.category_id = $9))
-      AND (NOT $10::boolean OR EXISTS (
+            WHERE pc.product_id = p.id AND pc.category_id = ANY($10::uuid[])))
+      AND (NOT $11::boolean OR EXISTS (
             SELECT 1 FROM catalog_collection_products cp
-            WHERE cp.product_id = p.id AND cp.collection_id = $11))
+            WHERE cp.product_id = p.id AND cp.collection_id = $12))
 ), constrained AS (
     SELECT av.product_id
     FROM catalog_product_attribute_values av
-    WHERE av.attribute_value_id = ANY($12::uuid[])
+    WHERE av.attribute_value_id = ANY($13::uuid[])
     GROUP BY av.product_id
     HAVING count(DISTINCT av.attribute_id) = $2::int
 )
@@ -70,10 +72,11 @@ type BrowseFacetCountsFallbackParams struct {
 	MaxValues         int32       `json:"max_values"`
 	ChannelID         uuid.UUID   `json:"channel_id"`
 	Kinds             []string    `json:"kinds"`
+	ProductIds        []uuid.UUID `json:"product_ids"`
 	Search            string      `json:"search"`
 	Locale            string      `json:"locale"`
 	FilterCategory    bool        `json:"filter_category"`
-	CategoryID        uuid.UUID   `json:"category_id"`
+	CategoryIds       []uuid.UUID `json:"category_ids"`
 	FilterCollection  bool        `json:"filter_collection"`
 	CollectionID      uuid.UUID   `json:"collection_id"`
 	OtherValueIds     []uuid.UUID `json:"other_value_ids"`
@@ -97,10 +100,11 @@ func (q *Queries) BrowseFacetCountsFallback(ctx context.Context, arg BrowseFacet
 		arg.MaxValues,
 		arg.ChannelID,
 		pq.Array(arg.Kinds),
+		pq.Array(arg.ProductIds),
 		arg.Search,
 		arg.Locale,
 		arg.FilterCategory,
-		arg.CategoryID,
+		pq.Array(arg.CategoryIds),
 		arg.FilterCollection,
 		arg.CollectionID,
 		pq.Array(arg.OtherValueIds),
@@ -148,73 +152,77 @@ JOIN catalog_product_channel_listings l
 WHERE l.is_published = TRUE
   AND (cardinality($2::text[]) = 0
        OR p.kind::text = ANY($2::text[]))
+  -- A search by meaning hands over the products it found, and the listing narrows to them
+  AND (COALESCE(cardinality($3::uuid[]), 0) = 0
+       OR p.id = ANY($3::uuid[]))
   -- Same arms SearchProductsFallback uses, so a term typed into a filtered PLP finds what the search box finds - matching SKU alone meant a shopper who typed a product NAME on a category page got an empty grid on this tier Shaped as a UNION of per-table arms for the same reason: each is an index path, where one OR across p and c would force a scan of the whole join The <> '' guard inside each arm matters - without it an unfiltered PLP (the common case) still builds the subquery, and ILIKE '%%' matches every row
-  AND ($3::text = '' OR p.id IN (
+  AND ($4::text = '' OR p.id IN (
         SELECT mc.product_id
           FROM catalog_product_content mc
-         WHERE $3::text <> ''
-           AND mc.locale = $4::text
-           AND (mc.search_tsv @@ websearch_to_tsquery('simple', $3::text)
-                OR mc.name ILIKE '%' || escape_like($3::text) || '%')
+         WHERE $4::text <> ''
+           AND mc.locale = $5::text
+           AND (mc.search_tsv @@ websearch_to_tsquery('simple', $4::text)
+                OR mc.name ILIKE '%' || escape_like($4::text) || '%')
         UNION
         SELECT mp.id
           FROM catalog_products mp
-         WHERE $3::text <> ''
-           AND mp.sku ILIKE '%' || escape_like($3::text) || '%'))
-  AND (NOT $5::boolean OR EXISTS (
+         WHERE $4::text <> ''
+           AND mp.sku ILIKE '%' || escape_like($4::text) || '%'))
+  AND (NOT $6::boolean OR EXISTS (
         SELECT 1 FROM catalog_product_categories pc
-        WHERE pc.product_id = p.id AND pc.category_id = $6))
-  AND (NOT $7::boolean OR EXISTS (
+        WHERE pc.product_id = p.id AND pc.category_id = ANY($7::uuid[])))
+  AND (NOT $8::boolean OR EXISTS (
         SELECT 1 FROM catalog_collection_products cp
-        WHERE cp.product_id = p.id AND cp.collection_id = $8))
+        WHERE cp.product_id = p.id AND cp.collection_id = $9))
   -- Attribute filters: AND across attributes, OR within one - A value id belongs to exactly one attribute, so counting distinct matched attributes and requiring all of them expresses that without building SQL per request - offering facets that didn't actually filter would be worse than offering none
-  AND ($9::int = 0 OR EXISTS (
+  AND ($10::int = 0 OR EXISTS (
         SELECT 1 FROM catalog_product_attribute_values av
         WHERE av.product_id = p.id
-          AND av.attribute_value_id = ANY($10::uuid[])
-        HAVING count(DISTINCT av.attribute_id) = $9::int))
-  AND (NOT $11::boolean OR CASE
+          AND av.attribute_value_id = ANY($11::uuid[])
+        HAVING count(DISTINCT av.attribute_id) = $10::int))
+  AND (NOT $12::boolean OR CASE
                WHEN l.special_price IS NOT NULL
                     AND (l.special_from IS NULL OR l.special_from <= NOW())
                     AND (l.special_to   IS NULL OR l.special_to   >= NOW())
                THEN l.special_price
                ELSE COALESCE(l.price, p.default_price)
-           END >= $12)
-  AND (NOT $13::boolean OR CASE
+           END >= $13)
+  AND (NOT $14::boolean OR CASE
                WHEN l.special_price IS NOT NULL
                     AND (l.special_from IS NULL OR l.special_from <= NOW())
                     AND (l.special_to   IS NULL OR l.special_to   >= NOW())
                THEN l.special_price
                ELSE COALESCE(l.price, p.default_price)
-           END <= $14)
+           END <= $15)
 ORDER BY
-    CASE WHEN $15::text = 'price_asc'  THEN CASE
+    CASE WHEN $16::text = 'price_asc'  THEN CASE
                WHEN l.special_price IS NOT NULL
                     AND (l.special_from IS NULL OR l.special_from <= NOW())
                     AND (l.special_to   IS NULL OR l.special_to   >= NOW())
                THEN l.special_price
                ELSE COALESCE(l.price, p.default_price)
            END END ASC,
-    CASE WHEN $15::text = 'price_desc' THEN CASE
+    CASE WHEN $16::text = 'price_desc' THEN CASE
                WHEN l.special_price IS NOT NULL
                     AND (l.special_from IS NULL OR l.special_from <= NOW())
                     AND (l.special_to   IS NULL OR l.special_to   >= NOW())
                THEN l.special_price
                ELSE COALESCE(l.price, p.default_price)
            END END DESC,
-    CASE WHEN $15::text = 'sku'        THEN p.sku END ASC,
+    CASE WHEN $16::text = 'sku'        THEN p.sku END ASC,
     p.created_at DESC,
     p.id ASC
-LIMIT $17 OFFSET $16
+LIMIT $18 OFFSET $17
 `
 
 type BrowseProductsFallbackParams struct {
 	ChannelID        uuid.UUID     `json:"channel_id"`
 	Kinds            []string      `json:"kinds"`
+	ProductIds       []uuid.UUID   `json:"product_ids"`
 	Search           string        `json:"search"`
 	Locale           string        `json:"locale"`
 	FilterCategory   bool          `json:"filter_category"`
-	CategoryID       uuid.UUID     `json:"category_id"`
+	CategoryIds      []uuid.UUID   `json:"category_ids"`
 	FilterCollection bool          `json:"filter_collection"`
 	CollectionID     uuid.UUID     `json:"collection_id"`
 	AttrCount        int32         `json:"attr_count"`
@@ -241,10 +249,11 @@ func (q *Queries) BrowseProductsFallback(ctx context.Context, arg BrowseProducts
 	rows, err := q.db.QueryContext(ctx, browseProductsFallback,
 		arg.ChannelID,
 		pq.Array(arg.Kinds),
+		pq.Array(arg.ProductIds),
 		arg.Search,
 		arg.Locale,
 		arg.FilterCategory,
-		arg.CategoryID,
+		pq.Array(arg.CategoryIds),
 		arg.FilterCollection,
 		arg.CollectionID,
 		arg.AttrCount,
@@ -727,10 +736,20 @@ SELECT p.sku,
                  FROM catalog_product_kit_components k
                  JOIN catalog_products c ON c.id = k.component_product_id
                  WHERE k.product_id = p.id)
-           ELSE p.weight_grams
+           ELSE COALESCE(NULLIF(p.weight_grams, 0), parent.weight_grams)
        END, 0)::int AS weight_grams,
-       p.length_mm, p.width_mm, p.height_mm, p.product_type_id
+       COALESCE(NULLIF(p.length_mm, 0), parent.length_mm) AS length_mm,
+       COALESCE(NULLIF(p.width_mm, 0), parent.width_mm) AS width_mm,
+       COALESCE(NULLIF(p.height_mm, 0), parent.height_mm) AS height_mm,
+       p.product_type_id
 FROM catalog_products p
+LEFT JOIN LATERAL (
+    SELECT pp.weight_grams, pp.length_mm, pp.width_mm, pp.height_mm
+    FROM catalog_product_children pc
+    JOIN catalog_products pp ON pp.id = pc.parent_id
+    WHERE pc.child_id = p.id
+    LIMIT 1
+) parent ON true
 WHERE p.sku = ANY($1::text[])
 `
 
@@ -744,7 +763,8 @@ type GetProductDimensionsBySKUsRow struct {
 }
 
 // What shipping rates a line by - its physical size, and its product type for the methods' per-type rates. A kit ships as
-// its own SKU, but one with no size or weight set weighs what its items do, so its rate isn't quoted as weightless
+// its own SKU, but one with no size or weight set weighs what its items do, so its rate isn't quoted as weightless. A
+// variant with none of its own takes its parent's, which is where a merchant usually sets them once for every size
 func (q *Queries) GetProductDimensionsBySKUs(ctx context.Context, skus []string) ([]GetProductDimensionsBySKUsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getProductDimensionsBySKUs, pq.Array(skus))
 	if err != nil {

@@ -17,7 +17,10 @@ import (
 )
 
 // Columns that record what language something was written in, not content to keep in it - counting them would make a locale undeletable forever
-var historicalLocaleColumns = []string{"reviews", "cms_page_comments", "cms_page_revisions"}
+var historicalLocaleColumns = []string{"reviews", "cms_page_comments", "cms_page_revisions", "orders", "customers", "signup_confirmations"}
+
+// Rows derived from content, which go with their locale - the test holds them to a cascading key instead of the guard
+var derivedLocaleColumns = []string{"embeddings"}
 
 // A new locale column must join the delete guard or be named historical here - otherwise deleting a locale orphans its rows, as blog, CMS, menu and promotion content once were
 func TestTheDeleteGuardCountsEveryLocaleColumn(t *testing.T) {
@@ -43,6 +46,14 @@ func TestTheDeleteGuardCountsEveryLocaleColumn(t *testing.T) {
 			t.Fatal(err)
 		}
 		table, _, _ := strings.Cut(col, ".")
+		if slices.Contains(derivedLocaleColumns, table) {
+			var cascades bool
+			if err := conn.QueryRow(`SELECT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = $1::regclass AND contype = 'f'
+				AND confrelid = 'locales'::regclass AND confdeltype = 'c')`, table).Scan(&cascades); err != nil || !cascades {
+				t.Errorf("%s is derived but its locale doesn't cascade from locales (%v) - deleting a locale would orphan it", col, err)
+			}
+			continue
+		}
 		if !counted[col] && !slices.Contains(historicalLocaleColumns, table) {
 			t.Errorf("%s holds a locale but the delete guard does not count it", col)
 		}

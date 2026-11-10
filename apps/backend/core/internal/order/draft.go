@@ -1,17 +1,18 @@
 package order
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
@@ -41,6 +42,8 @@ type CreateDraftOrderInput struct {
 	SourceCartID *uuid.UUID
 	// SkipRequiredOptionCheck bypasses the required-options gate for callers carrying personalization elsewhere (B2B quote)
 	SkipRequiredOptionCheck bool
+	// Locale its emails go out in - empty takes the customer's own, since an admin builds it off the storefront
+	Locale string
 }
 
 // CreateDraftOrder stages an admin order in `draft` - it prices (tax + shipping + manual discount) reusing the placement money machinery
@@ -183,6 +186,8 @@ func (s *Service) CreateDraftOrder(ctx context.Context, in CreateDraftOrderInput
 			ShippingTaxAmount:   cc.shippingTax,
 			ShippingAmount:      shipSel.Cents,
 			TotalAmount:         total,
+			TaxInclusive:        store.TaxInclusivePricing,
+			Locale:              cmp.Or(in.Locale, cust.Locale),
 			CurrencyCode:        store.CurrencyCode,
 			CustomerNote:        in.CustomerNote,
 			ShippingMethodID:    shipSel.MethodID,

@@ -110,6 +110,12 @@ func (s *categoryService) CreateCategory(ctx context.Context, input CreateCatego
 	return s.repo.GetCategoryByID(ctx, created.ID)
 }
 
+// CategoryListingIDs is what a category page lists products from on a channel - the category, and under an anchor
+// every category beneath it the channel shows
+func (s *categoryService) CategoryListingIDs(ctx context.Context, channelID, id uuid.UUID) ([]uuid.UUID, error) {
+	return s.repo.ListCategoryListingIDs(ctx, channelID, id)
+}
+
 func (s *categoryService) GetCategory(ctx context.Context, id uuid.UUID, locale string) (Category, error) {
 	const op = "catalog.Service.GetCategory"
 	c, err := s.repo.GetCategoryByID(ctx, id)
@@ -370,6 +376,7 @@ func changedCategoryFields(in UpdateCategoryInput) []string {
 	add(in.Position != nil, "position")
 	add(in.IsPublished != nil, "is_published")
 	add(in.SEONoindex != nil, "seo_noindex")
+	add(in.IsAnchor != nil, "is_anchor")
 	add(in.Metadata != nil, "metadata")
 	add(in.PrivateMetadata != nil, "private_metadata")
 	return changed

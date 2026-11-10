@@ -82,7 +82,8 @@ func (s *Service) AdminUpdateOffer(ctx context.Context, cartID uuid.UUID, in Off
 		}
 		return normalizeOfferSettings(c, &in, ships)
 	}
-	return s.updateCheckout(ctx, cartID, authorize, false, apply, &in)
+	_, _, err := s.updateCheckout(ctx, cartID, authorize, false, apply, &in)
+	return err
 }
 
 func normalizeOfferSettings(c Cart, in *OfferSettings, ships bool) error {

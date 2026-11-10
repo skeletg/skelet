@@ -65,6 +65,8 @@ type ConfigValue {
   isSet:     Boolean!
   scope:     ConfigScope!
   options:   [ConfigOption!]
+  # The most characters the value takes, null when it isn't capped.
+  maxLength: Int
   updatedAt: Time
 }
 

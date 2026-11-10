@@ -16,6 +16,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
@@ -31,9 +32,13 @@ type sent struct {
 type fakeGraphQL struct {
 	answers map[string]func(vars map[string]any) (any, error)
 	calls   []sent
+	seen    func(ctx context.Context)
 }
 
-func (f *fakeGraphQL) Do(_ context.Context, query string, vars map[string]any, out any) error {
+func (f *fakeGraphQL) Do(ctx context.Context, query string, vars map[string]any, out any) error {
+	if f.seen != nil {
+		f.seen(ctx)
+	}
 	op := opName.FindStringSubmatch(query)[1]
 	f.calls = append(f.calls, sent{op, vars})
 	answer, ok := f.answers[op]
@@ -57,11 +62,71 @@ func (f *fakeGraphQL) ops() []string {
 }
 
 type fakeCarts struct {
-	carts   map[uuid.UUID]cart.Cart
-	err     error
-	failing map[string]error
-	created int
-	edits   []string
+	carts    map[uuid.UUID]cart.Cart
+	closed   map[uuid.UUID]bool
+	err      error
+	failing  map[string]error
+	created  int
+	edits    []string
+	callers  []*uuid.UUID
+	assisted map[uuid.UUID]string
+	traces   map[uuid.UUID]string
+}
+
+func (f *fakeCarts) MarkAssisted(_ context.Context, id uuid.UUID, by, trace string) error {
+	if f.assisted == nil {
+		f.assisted, f.traces = map[uuid.UUID]string{}, map[uuid.UUID]string{}
+	}
+	f.traces[id] = trace
+	if f.assisted[id] == "" {
+		f.assisted[id] = by
+	}
+	return nil
+}
+
+// GetCart answers with the cart service's own access rule, so a fake can't drift from what the storefront enforces
+func (f *fakeCarts) GetCart(ctx context.Context, id uuid.UUID, caller *uuid.UUID) (cart.Cart, error) {
+	c, ok := f.carts[id]
+	switch {
+	case f.err != nil:
+		return cart.Cart{}, f.err
+	case !ok:
+		return cart.Cart{}, cart.ErrCartForbidden
+	case f.closed[id]:
+		return cart.Cart{}, cart.ErrCartNotActive
+	}
+	if err := cart.CheckCartAccess(ctx, c, caller); err != nil {
+		return cart.Cart{}, err
+	}
+	return c, nil
+}
+
+func (f *fakeCarts) FindCustomerCart(_ context.Context, customer, ch uuid.UUID) (cart.Cart, bool, error) {
+	for _, c := range f.carts {
+		if c.CustomerID != nil && *c.CustomerID == customer && c.ChannelID == ch {
+			return c, true, nil
+		}
+	}
+	return cart.Cart{}, false, f.err
+}
+
+func (f *fakeCarts) CreateGuestCart(_ context.Context, ch uuid.UUID) (cart.Cart, error) {
+	f.created++
+	c := cart.Cart{ID: uuid.New(), ChannelID: ch, Source: cart.SourceWeb, Status: "active"}
+	f.carts[c.ID] = c
+	return c, nil
+}
+
+func (f *fakeCarts) GetOrCreateCart(_ context.Context, customer, ch uuid.UUID) (cart.Cart, error) {
+	for _, c := range f.carts {
+		if c.CustomerID != nil && *c.CustomerID == customer && c.ChannelID == ch {
+			return c, nil
+		}
+	}
+	f.created++
+	c := cart.Cart{ID: uuid.New(), ChannelID: ch, CustomerID: &customer, Source: cart.SourceWeb, Status: "active"}
+	f.carts[c.ID] = c
+	return c, nil
 }
 
 func (f *fakeCarts) CreateAgentCart(_ context.Context, ch uuid.UUID) (cart.Cart, error) {
@@ -76,8 +141,11 @@ func (f *fakeCarts) AgentCart(_ context.Context, id, _ uuid.UUID) (cart.Cart, er
 		return cart.Cart{}, f.err
 	}
 	c, ok := f.carts[id]
-	if !ok {
+	switch {
+	case !ok:
 		return cart.Cart{}, cart.ErrCartForbidden
+	case f.closed[id]:
+		return cart.Cart{}, cart.ErrCartNotActive
 	}
 	return c, nil
 }
@@ -91,8 +159,9 @@ func (f *fakeCarts) StartHandoff(_ context.Context, id, _ uuid.UUID) (cart.Cart,
 	return c, nil
 }
 
-func (f *fakeCarts) AddToCart(_ context.Context, _ uuid.UUID, _ *uuid.UUID, sku string, qty float64) (cart.Cart, error) {
+func (f *fakeCarts) AddToCart(_ context.Context, _ uuid.UUID, caller *uuid.UUID, sku string, qty float64) (cart.Cart, error) {
 	f.edits = append(f.edits, fmt.Sprintf("add %s %g", sku, qty))
+	f.callers = append(f.callers, caller)
 	return cart.Cart{}, f.failing[sku]
 }
 
@@ -107,12 +176,26 @@ func (f *fakeCarts) RemoveFromCart(_ context.Context, _, line uuid.UUID, _ *uuid
 }
 
 type fakeSettings struct {
-	open bool
-	err  error
+	open        bool
+	daily       int64
+	err         error
+	transcripts bool
+	strings     map[string]string
 }
 
-func (f fakeSettings) GetBool(context.Context, string, config.Scope) (bool, error) {
+func (f fakeSettings) GetString(_ context.Context, path string, _ config.Scope) (string, error) {
+	return f.strings[path], f.err
+}
+
+func (f fakeSettings) GetBool(_ context.Context, path string, _ config.Scope) (bool, error) {
+	if path == TranscriptsPath {
+		return f.transcripts, f.err
+	}
 	return f.open, f.err
+}
+
+func (f fakeSettings) GetInt(context.Context, string, config.Scope) (int64, error) {
+	return f.daily, f.err
 }
 
 var shop = channel.Channel{ID: uuid.New(), Name: "Test Shop", CurrencyCode: "EUR", PublicURL: "https://shop.example/"}
@@ -144,14 +227,18 @@ func TestUpdateCartSetsEachSkuToAnExactQuantity(t *testing.T) {
 		{ID: uuid.New(), ProductSku: "ENGRAVED", Quantity: 1, Options: []cart.CartLineOption{{}}},
 	}}}}
 	gql := &fakeGraphQL{answers: map[string]func(map[string]any) (any, error){"AgentCartRead": emptyCart}}
-	if out, isErr := run(t, rig(gql, carts), "update_cart", map[string]any{"cart_id": id, "lines": []map[string]any{
-		{"sku": "KEEP", "quantity": 5}, {"sku": "DROP", "quantity": 0}, {"sku": "ENGRAVED", "quantity": 1}, {"sku": "NEW", "quantity": 1}, {"sku": "KEEP", "quantity": 2},
-	}}); isErr {
+	out, isErr := run(t, rig(gql, carts), "update_cart", map[string]any{"cart_id": id, "lines": []map[string]any{
+		{"sku": "KEEP", "quantity": 5}, {"sku": "DROP", "quantity": 0}, {"sku": "ENGRAVED", "quantity": 0}, {"sku": "NEW", "quantity": 1}, {"sku": "GONE", "quantity": 0}, {"sku": "KEEP", "quantity": 2},
+	}})
+	if isErr {
 		t.Fatalf("update failed: %s", out)
 	}
-	want := []string{"remove " + drop.String(), "add ENGRAVED 1", "add NEW 1"}
+	want := []string{"remove " + drop.String(), "add NEW 1"}
 	if strings.Join(carts.edits, "|") != strings.Join(want, "|") {
 		t.Fatalf("edits = %v, want %v - KEEP's last quantity matches, so it's left alone", carts.edits, want)
+	}
+	if !strings.Contains(out, "ENGRAVED wasn't changed: it's in the cart with choices made on its product page") || !strings.Contains(out, "GONE isn't in the cart.") {
+		t.Errorf("a line with choices, or one that isn't there, went unexplained:\n%s", out)
 	}
 	if strings.Join(gql.ops(), ",") != "AgentCartRead" || carts.created != 0 {
 		t.Errorf("line edits went through GraphQL (%v) or a new cart was started (%d)", gql.ops(), carts.created)
@@ -426,5 +513,36 @@ func TestAChannelWithNoAddressStaysClosed(t *testing.T) {
 	}
 	if open, _ := New(Deps{Settings: fakeSettings{}}).Open(ctx, shop); open {
 		t.Error("the switch off should close it")
+	}
+}
+
+func TestDealsListThePromotionsAndTheBiggestSavings(t *testing.T) {
+	var asked any
+	gql := &fakeGraphQL{answers: map[string]func(map[string]any) (any, error){
+		"AgentDeals": func(vars map[string]any) (any, error) {
+			asked = vars["limit"]
+			return map[string]any{
+				"storePromotions": []any{map[string]any{"label": "Autumn sale", "terms": "10% off   orders over 50", "endsAt": "2026-11-30T00:00:00Z"}},
+				"saleProducts":    []any{productJSON("SIMPLE", map[string]any{"price": 5000, "compareAtPrice": 10000})},
+			}, nil
+		},
+	}}
+	out, isErr := run(t, rig(gql, nil), "get_deals", map[string]any{"limit": 99})
+	if isErr || asked != catalog.MaxSalePage {
+		t.Fatalf("get_deals = %q, limit sent %v", out, asked)
+	}
+	for _, want := range []string{"Autumn sale: 10% off orders over 50 (until 30 Nov 2026)", "Rain Shell [sku P-1", "(was EUR 100.00)"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+
+	quiet := &fakeGraphQL{answers: map[string]func(map[string]any) (any, error){
+		"AgentDeals": func(map[string]any) (any, error) {
+			return map[string]any{"storePromotions": []any{}, "saleProducts": []any{}}, nil
+		},
+	}}
+	if out, _ := run(t, rig(quiet, nil), "get_deals", nil); !strings.Contains(out, "No automatic promotions") || !strings.Contains(out, "Nothing is marked down") {
+		t.Errorf("a store with no deals says:\n%s", out)
 	}
 }

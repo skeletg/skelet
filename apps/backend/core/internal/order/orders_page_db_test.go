@@ -2,6 +2,7 @@ package order
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -49,11 +50,19 @@ func TestTheOrderPageReadsOnlyTheScopedChannelsAndAllOfThemUnscoped(t *testing.T
 	if err != nil || total != 4 || len(all) != 4 {
 		t.Fatalf("unscoped page = %d rows of %d, %v, want all 4", len(all), total, err)
 	}
+	// A typed _ is the character - taken as a wildcard, this matched every order above
+	wild := "PAGE-" + strings.Repeat("_", 8)
+	if got, total, err := repo.ListOrdersPage(ctx, ListPageFilter{ChannelIDs: chans, Search: wild, Limit: 10}); err != nil || total != 0 || len(got) != 0 {
+		t.Fatalf("searching %q = %d rows of %d, %v, want none", wild, len(got), total, err)
+	}
 }
 
 func TestOrdersCarryTheTimeIndexesTheListsAndReportsRead(t *testing.T) {
 	conn := testdb.Require(t)
-	for _, name := range []string{"idx_orders_channel_created", "idx_orders_created", "idx_orders_payment_sync"} {
+	for _, name := range []string{
+		"idx_orders_channel_created", "idx_orders_created", "idx_orders_payment_sync",
+		"idx_orders_number_trgm", "idx_orders_email_trgm", "idx_orders_shipping_name_trgm", // the admin search's
+	} {
 		var n int
 		if err := conn.QueryRow(`SELECT count(*) FROM pg_indexes WHERE tablename = 'orders' AND indexname = $1`, name).Scan(&n); err != nil {
 			t.Fatal(err)

@@ -44,13 +44,13 @@ type Client struct {
 	segments segmentGuard
 
 	Ingest       signalsv1.IngestServiceClient
+	Assistant    signalsv1.AssistantServiceClient
 	Prism        signalsv1.PrismServiceClient
 	Boards       signalsv1.BoardServiceClient
 	Lens         signalsv1.LensServiceClient
 	Synapse      signalsv1.SynapseServiceClient
 	Segments     signalsv1.SegmentServiceClient
 	Pulse        signalsv1.PulseServiceClient
-	Destination  signalsv1.DestinationServiceClient
 	Maintenance  signalsv1.MaintenanceServiceClient
 	Settings     signalsv1.SettingsServiceClient
 	Suppressions signalsv1.SuppressionServiceClient
@@ -85,13 +85,13 @@ func New(addr string, tr Transport, keys auth.ServiceKeys, ttl time.Duration, gr
 		conn: conn, keys: keys, ttl: ttl, grants: grants,
 		segments:     newSegmentGuard(),
 		Ingest:       signalsv1.NewIngestServiceClient(conn),
+		Assistant:    signalsv1.NewAssistantServiceClient(conn),
 		Prism:        signalsv1.NewPrismServiceClient(conn),
 		Boards:       signalsv1.NewBoardServiceClient(conn),
 		Lens:         signalsv1.NewLensServiceClient(conn),
 		Synapse:      signalsv1.NewSynapseServiceClient(conn),
 		Segments:     signalsv1.NewSegmentServiceClient(conn),
 		Pulse:        signalsv1.NewPulseServiceClient(conn),
-		Destination:  signalsv1.NewDestinationServiceClient(conn),
 		Maintenance:  signalsv1.NewMaintenanceServiceClient(conn),
 		Settings:     signalsv1.NewSettingsServiceClient(conn),
 		Suppressions: signalsv1.NewSuppressionServiceClient(conn),

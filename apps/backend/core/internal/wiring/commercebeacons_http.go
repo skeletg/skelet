@@ -146,7 +146,7 @@ func (d commerceBeaconDeps) submitForm(w http.ResponseWriter, r *http.Request, c
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "bad request"})
 		return
 	}
-	msg, err := d.Forms.Submit(r.Context(), channelID, b.Form, b.Email, b.Name)
+	msg, err := d.Forms.Submit(auth.WithRequest(r.Context(), r), channelID, b.Form, b.Email, b.Name) // the shopper's consent rides along to the lead
 	if err != nil {
 		// Only the shopper-facing sentinels get echoed - any other text would leak internals
 		switch {

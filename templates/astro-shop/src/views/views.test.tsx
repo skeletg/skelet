@@ -92,7 +92,7 @@ describe("ProductView", () => {
 });
 
 describe("CheckoutView", () => {
-  const channel = { name: "Test Shop", defaultLocale: "en", publicUrl: "", currency: { code: "USD", symbol: "", symbolPosition: "prefix", decimals: 2 } };
+  const channel = { name: "Test Shop", defaultLocale: "en", publicUrl: "", taxInclusivePricing: false, currency: { code: "USD", symbol: "", symbolPosition: "prefix", decimals: 2 } };
   const totals = { subtotalCents: 3900, discountCents: 0, shippingCents: 0, taxCents: 0, totalCents: 3900 };
   const cart = {
     id: "c1", subtotal: 3900, totalDiscount: 0, lines,
@@ -137,7 +137,7 @@ describe("CheckoutView", () => {
 });
 
 describe("HomeView", () => {
-  const channel = { name: "Test Shop", defaultLocale: "en", publicUrl: "", currency: { code: "USD", symbol: "", symbolPosition: "prefix", decimals: 2 } };
+  const channel = { name: "Test Shop", defaultLocale: "en", publicUrl: "", taxInclusivePricing: false, currency: { code: "USD", symbol: "", symbolPosition: "prefix", decimals: 2 } };
   const card = { id: "p1", url: "mug", name: "Mug", inStock: true, price: 900, compareAtPrice: null, onSale: false, mainImage: null };
 
   it("lists the collection, counting what's in stock, with the anchors the nav links to", () => {

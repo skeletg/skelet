@@ -26,7 +26,7 @@ import {
   SynapseTrackedAttributesDocument,
 } from './Synapse.gql'
 import { SegmentTreeBuilder } from './SegmentTreeBuilder'
-import { newGroup, nodeComplete, nodeToInput, summarizeNode, type SegNode, type SummaryNode } from './segment-tree'
+import { newGroup, nodeComplete, nodeToInput, segmentEvents, summarizeNode, type SegNode, type SummaryNode } from './segment-tree'
 import { formatNumber } from '@/lib/format'
 
 type SegRow = SynapseSegmentsQuery['synapseSegments'][number]
@@ -38,7 +38,7 @@ export function SynapseSegments() {
   const [name, setName] = useState('')
 
   const { data: ov, error: ovError } = useQuery(SynapseOverviewDocument, { variables: { channelId, sinceDays: 30 }, skip: !isChannel, fetchPolicy: 'cache-and-network' })
-  const events = (ov?.synapseOverview.topEvents ?? []).map((e) => e.name)
+  const events = segmentEvents((ov?.synapseOverview.topEvents ?? []).map((e) => e.name))
   const { data: attrData, error: attrError } = useQuery(SynapseTrackedAttributesDocument, { variables: { channelId }, skip: !isChannel, fetchPolicy: 'cache-and-network' })
   const attributes = attrData?.synapseTrackedAttributes ?? []
 

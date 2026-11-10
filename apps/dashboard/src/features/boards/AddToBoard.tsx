@@ -7,7 +7,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { usePermissions } from '@/shared/auth/usePermissions'
-import { cleanDefinition, describeReport, type ReportDefinition } from '@/shared/analytics/report'
+import { describeReport } from '@/shared/analytics/kinds'
+import { cleanDefinition, type ReportDefinition } from '@/shared/analytics/kinds/definition'
+import { can } from './access'
+import type { BoardReport } from './report'
 import { BoardsDocument, CreateBoardDocument } from './Boards.gql'
 import type { AddToBoardState } from './boardDiff'
 
@@ -28,23 +31,23 @@ export function AddToBoard({ channelId, title, definition }: { channelId: string
   const [create, { loading, error }] = useMutation(CreateBoardDocument, { refetchQueries: [BoardsDocument] })
   // The board this shop last added to, else its first board - a new board only when the admin asks for one or there's none
   // Only boards the admin can change take a report; a new one needs boards.manage
-  const boards = (data?.boards ?? []).filter((b) => b.access === 'edit' || b.access === 'own')
+  const boards = (data?.boards ?? []).filter((b) => can(b.access, 'EDIT'))
   const last = localStorage.getItem(lastBoardKey(channelId))
   const boardId = picked ?? (boards.find((b) => b.id === last) ?? boards[0])?.id ?? ''
   if (!canView) return null
-  const report = { title: name.trim() || title, definition: cleanDefinition(definition) }
+  const report: BoardReport = { title: name.trim() || title, size: 'MEDIUM', definition: cleanDefinition(definition) }
 
   async function submit() {
     if (boardId) {
       localStorage.setItem(lastBoardKey(channelId), boardId)
-      navigate(`/boards/${boardId}`, { state: { add: report } satisfies AddToBoardState })
+      navigate(`/synapse/boards/${boardId}`, { state: { add: report } satisfies AddToBoardState })
       return
     }
     const res = await create({ variables: { channelId, name: newBoard.trim(), reports: [report] } })
     const id = res.data?.createBoard.id
     if (id) {
       localStorage.setItem(lastBoardKey(channelId), id)
-      navigate(`/boards/${id}`)
+      navigate(`/synapse/boards/${id}`)
     }
   }
 

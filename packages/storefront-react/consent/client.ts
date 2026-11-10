@@ -14,3 +14,10 @@ export function readClientConsent(): ClientConsent {
   const c = parseConsent(hit ? decodeURIComponent(hit.slice(CONSENT_COOKIE.length + 1)) : null);
   return { ...(c ?? NONE_GRANTED), decided: c !== null };
 }
+
+// Whether the server-side destinations may hear from this visitor at all - each needs its own category, which the
+// backend checks per destination, so any grant is reason enough to send
+export function trackingAllowed(): boolean {
+  const c = readClientConsent();
+  return c.analytics || c.ads || c.personalization;
+}

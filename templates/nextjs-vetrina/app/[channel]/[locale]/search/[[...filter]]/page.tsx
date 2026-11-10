@@ -1,16 +1,20 @@
 // Full product search results - the "view all" target from the header search modal
 
 import { Link } from "@/app/components/LocaleLink";
-import { useTranslations } from "next-intl";
 import { getLocale, getTranslations } from "next-intl/server";
 import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { userAgent } from "next/server";
 
 import { ProductListShell } from "@/app/components/ProductListShell";
+import { SearchField } from "@/app/components/SearchField";
+import { SearchOverview } from "@/app/components/search-overview/SearchOverview";
 import {
   parsePageFromSegments, parseFilterSegments, parseSortFromSegments } from "@skelet/storefront-core/filter-path";
 import { searchProducts } from "@skelet/storefront-next/search/read";
+import { searchedOnSite } from "@skelet/storefront-core/search/overview";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +48,7 @@ export default async function SearchPage(
     return (
       <main className="mx-auto w-full max-w-3xl px-6 pt-6 pb-10">
         <h1 className="text-2xl font-extrabold tracking-tight">{t("title")}</h1>
-        <SearchForm initialQuery="" autoFocus />
+        <SearchField initialQuery="" autoFocus />
         <p className="mt-6 text-sm text-muted-foreground">
           {t.rich("prompt", {
             link: (chunks) => (
@@ -60,6 +64,10 @@ export default async function SearchPage(
 
   const probe = await searchProducts(q, { limit: 1 });
   if (probe.redirectUrl) redirect(await withLocalePrefix(probe.redirectUrl, await getLocale()));
+  const page = parsePageFromSegments(filter ?? []);
+  // the backend decides which listings get an overview; the page keeps crawlers and direct landings from writing one
+  const requestHeaders = await headers();
+  const overview = !userAgent({ headers: requestHeaders }).isBot && searchedOnSite(requestHeaders);
 
   return (
     <ProductListShell
@@ -67,18 +75,19 @@ export default async function SearchPage(
       searchParams={params}
       pathFilters={pathFilters}
       pathSort={sortSlug}
-      pathPage={parsePageFromSegments(filter ?? [])}
+      pathPage={page}
       basePath="/search"
       emptyText={t("empty", { query: q })}
+      overview={overview ? <SearchOverview query={q} /> : undefined}
       header={
         <>
-          <h1 className="text-2xl font-extrabold tracking-tight">
+          <h1 className="text-balance text-3xl font-extrabold leading-tight tracking-tight md:text-5xl md:leading-[1.08]">
             {t.rich("resultsFor", {
               query: q,
               q: (chunks) => <span className="text-muted-foreground">{chunks}</span>,
             })}
           </h1>
-          <SearchForm initialQuery={q} />
+          <SearchField initialQuery={q} />
         </>
       }
     />
@@ -90,33 +99,4 @@ function pickQuery(sp: RawSearchParams): string {
   if (typeof raw === "string") return raw.trim();
   if (Array.isArray(raw)) return (raw[0] ?? "").trim();
   return "";
-}
-
-function SearchForm({
-  initialQuery,
-  autoFocus,
-}: {
-  initialQuery: string;
-  autoFocus?: boolean;
-}) {
-  const t = useTranslations("search");
-  return (
-    <form action="/search" method="GET" className="mt-4 flex gap-2">
-      <input
-        type="search"
-        name="q"
-        defaultValue={initialQuery}
-        autoFocus={autoFocus}
-        placeholder={t("placeholder")}
-        className="flex-1 rounded-md border border-border bg-transparent px-4 py-2 text-sm outline-none focus:border-ring"
-        autoComplete="off"
-      />
-      <button
-        type="submit"
-        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-      >
-        {t("submit")}
-      </button>
-    </form>
-  );
 }

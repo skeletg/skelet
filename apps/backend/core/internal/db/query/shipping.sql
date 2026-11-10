@@ -57,8 +57,8 @@ DELETE FROM shipping_zone_countries WHERE zone_id = $1;
 -- name: CreateShippingMethod :one
 INSERT INTO shipping_methods (
     zone_id, code, name, calc_type, flat_cents, free_above_cents, sort_order, is_active, country_mode, delivery_kind, units_per_charge,
-    estimated_days, delivers_on_weekends
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+    estimated_days, delivers_on_weekends, table_basis, rate_tiers
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 RETURNING *;
 
 -- name: UpdateShippingMethod :one
@@ -75,6 +75,8 @@ SET code = $2,
     units_per_charge = $11,
     estimated_days = $12,
     delivers_on_weekends = $13,
+    table_basis = $14,
+    rate_tiers = $15,
     updated_at = NOW()
 WHERE id = $1
 RETURNING *;

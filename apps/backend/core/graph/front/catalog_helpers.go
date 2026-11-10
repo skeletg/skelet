@@ -7,10 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"slices"
 	"strings"
 
 	"github.com/99designs/gqlgen/graphql"
+	"github.com/skeletg/skelet/apps/backend/core/internal/graphqlx"
 	"github.com/skeletg/skelet/apps/backend/core/internal/search"
 
 	"github.com/google/uuid"
@@ -1263,4 +1265,32 @@ func toCustomOptionRuleModels(ctx context.Context, rules []catalog.ProductOption
 		}
 	}
 	return out
+}
+
+// An anchor category's page lists the categories beneath it the channel shows - a failed read lists the category alone
+// rather than failing the page, and keeps that thinner page out of the response cache
+func (r *Resolver) categoryListingIDs(ctx context.Context, channelID, id uuid.UUID) []uuid.UUID {
+	ids, err := r.CatalogSvc.CategoryListingIDs(ctx, channelID, id)
+	if err != nil {
+		slog.WarnContext(ctx, "browse: category tree unreadable, listing the category alone", "category", id, "err", err)
+		graphqlx.MarkUncacheable(ctx)
+		return nil
+	}
+	return ids
+}
+
+// browse lists products through search by meaning where it's wired, the engine alone where it isn't
+func (r *Resolver) browse(ctx context.Context, req search.BrowseRequest) (search.BrowseResult, error) {
+	if r.ProductBrowse == nil {
+		return r.ProductSearch.BrowseProducts(ctx, req.ChannelID, req.Locale, req.Words, req.Filter, req.Sort, req.Limit, req.Offset, req.Boosts)
+	}
+	return r.ProductBrowse.Browse(ctx, req)
+}
+
+// Meaning reads the shopper's language first, then the store's own for products not written in theirs
+func (r *Resolver) meaningLocales(ctx context.Context, active string) []string {
+	if sv, ok := channel.FromContext(ctx); ok && sv != nil {
+		return search.MeaningLocales(active, sv.DefaultLocale)
+	}
+	return search.MeaningLocales(active, "")
 }

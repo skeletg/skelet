@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,8 +19,8 @@ func NewService(conn *sql.DB) *Service { return &Service{r: &repo{conn: conn, q:
 
 // List is the shop's boards the actor can open, each with their access to it, their star and their draft. all widens
 // a superuser's list to every board on the shop - without it they see what they'd see as themselves
-func (s *Service) List(ctx context.Context, channelID uuid.UUID, a Actor, all bool) ([]Board, error) {
-	bs, err := s.r.list(ctx, channelID)
+func (s *Service) List(ctx context.Context, channelID uuid.UUID, a Actor, all bool) ([]Summary, error) {
+	bs, err := s.r.list(ctx, channelID, a.AdminID)
 	if err != nil {
 		return nil, err
 	}
@@ -28,25 +28,19 @@ func (s *Service) List(ctx context.Context, channelID uuid.UUID, a Actor, all bo
 	if err != nil {
 		return nil, err
 	}
-	favs, err := s.r.favourites(ctx, a.AdminID)
-	if err != nil {
-		return nil, err
-	}
-	drafts, err := s.r.draftTimes(ctx, a.AdminID)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]Board, 0, len(bs))
+	out := make([]Summary, 0, len(bs))
 	for _, b := range bs {
 		listedAs := a.asSelf()
 		if all && a.Superuser {
 			listedAs = a
 		}
-		if access(b, shares[b.ID], listedAs) == NoAccess {
+		if access(b.Ownership, shares[b.ID], listedAs) == NoAccess {
 			continue
 		}
-		b.Access = access(b, shares[b.ID], a)
-		b.Favourite, b.DraftAt = favs[b.ID], drafts[b.ID]
+		b.Access = access(b.Ownership, shares[b.ID], a)
+		if b.Access != Own {
+			b.RequestCount = 0 // who asked for access is the owner's business
+		}
 		out = append(out, b)
 	}
 	return out, nil
@@ -60,12 +54,14 @@ func (s *Service) Get(ctx context.Context, channelID uuid.UUID, a Actor, id uuid
 	}
 	if b.Access == Own {
 		b.Shares = shares
+		if b.Requests, err = s.r.requests(ctx, id); err != nil {
+			return Board{}, err
+		}
+		b.RequestCount = len(b.Requests)
 	}
-	favs, err := s.r.favourites(ctx, a.AdminID)
-	if err != nil {
+	if b.Favourite, err = s.r.isFavourite(ctx, a.AdminID, id); err != nil {
 		return Board{}, err
 	}
-	b.Favourite = favs[b.ID]
 	if b.Access >= Edit {
 		if b.Draft, err = s.r.draft(ctx, b.ID, a.AdminID); err != nil {
 			return Board{}, err
@@ -79,18 +75,15 @@ func (s *Service) Get(ctx context.Context, channelID uuid.UUID, a Actor, id uuid
 
 // load reads a board with its shares and the actor's access, refusing below need - not found when they can't open it
 func (s *Service) load(ctx context.Context, channelID uuid.UUID, a Actor, id uuid.UUID, need Access) (Board, []Share, error) {
-	b, err := s.r.get(ctx, id)
+	b, err := s.r.get(ctx, channelID, id)
 	if err != nil {
 		return Board{}, nil, err
-	}
-	if b.ChannelID != channelID {
-		return Board{}, nil, ErrNotFound
 	}
 	shares, err := s.r.shares(ctx, id)
 	if err != nil {
 		return Board{}, nil, err
 	}
-	b.Access = access(b, shares, a)
+	b.Access = access(b.Ownership, shares, a)
 	if b.Access == NoAccess {
 		return Board{}, nil, ErrNotFound
 	}
@@ -100,25 +93,25 @@ func (s *Service) load(ctx context.Context, channelID uuid.UUID, a Actor, id uui
 	return b, shares, nil
 }
 
-// Create starts a board as the actor's private draft, published by its first Save
+// Create starts a board as the actor's own, private until they share it
 func (s *Service) Create(ctx context.Context, channelID uuid.UUID, a Actor, name string, reports []Report) (Board, error) {
-	b := tidy(Board{ChannelID: channelID, Name: name, Reports: reports, OwnerID: a.AdminID, Status: StatusDraft})
-	if err := b.validate(); err != nil {
+	b, err := Board{ChannelID: channelID, Name: name, Reports: reports, OwnerID: a.AdminID}.normalized()
+	if err != nil {
 		return Board{}, err
 	}
-	b, err := s.r.create(ctx, b)
+	b, err = s.r.create(ctx, b)
 	b.Access = Own
 	return b, err
 }
 
 // Save replaces a board's name and reports - readAt is the UpdatedAt the caller loaded, so two admins can't overwrite
-// each other unseen. It publishes a draft board and clears the saver's draft
+// each other unseen. It clears the saver's draft
 func (s *Service) Save(ctx context.Context, channelID uuid.UUID, a Actor, id uuid.UUID, name string, reports []Report, readAt time.Time) (Board, error) {
 	if _, _, err := s.load(ctx, channelID, a, id, Edit); err != nil {
 		return Board{}, err
 	}
-	b := tidy(Board{ID: id, ChannelID: channelID, Name: name, Reports: reports})
-	if err := b.validate(); err != nil {
+	b, err := Board{ID: id, ChannelID: channelID, Name: name, Reports: reports}.normalized()
+	if err != nil {
 		return Board{}, err
 	}
 	if err := s.r.save(ctx, b, readAt, a.AdminID); err != nil {
@@ -131,19 +124,16 @@ func (s *Service) Delete(ctx context.Context, channelID uuid.UUID, a Actor, id u
 	if _, _, err := s.load(ctx, channelID, a, id, Own); err != nil {
 		return err
 	}
-	return s.r.delete(ctx, id)
+	return s.r.delete(ctx, channelID, id)
 }
 
-// SetShares replaces who the board is shared with. A draft is its owner's alone until saved, and a shop board is
-// everyone's already, so neither takes shares
+// SetShares replaces who the board is shared with. A shop board is everyone's already, so it takes none
 func (s *Service) SetShares(ctx context.Context, channelID uuid.UUID, a Actor, id uuid.UUID, shares []Share) (Board, error) {
 	b, _, err := s.load(ctx, channelID, a, id, Own)
 	if err != nil {
 		return Board{}, err
 	}
 	switch {
-	case b.Status == StatusDraft:
-		return Board{}, fmt.Errorf("%w: save the board before sharing it", ErrInvalid)
 	case b.OwnerID == uuid.Nil:
 		return Board{}, fmt.Errorf("%w: a shop board is shared with everyone on the shop already", ErrInvalid)
 	case len(shares) > maxShares:
@@ -172,41 +162,60 @@ func (s *Service) SetShares(ctx context.Context, channelID uuid.UUID, a Actor, i
 	return s.Get(ctx, channelID, a, id)
 }
 
-// MakeShopBoard gives up ownership so everyone on the shop sees the board, and the shop's managers run it
-func (s *Service) MakeShopBoard(ctx context.Context, channelID uuid.UUID, a Actor, id uuid.UUID) (Board, error) {
+// Transfer hands the board to another admin, or with uuid.Nil makes it a shop board everyone on the shop sees and its
+// managers run - which takes boards.manage. Only whoever owns it may: its owner, a superuser (an orphaned board is
+// handed on this way), or a manager on a shop board. Core checks the new owner is an active admin. An owner who hands
+// their board to someone else stays on it as an editor, the way a shared document works
+func (s *Service) Transfer(ctx context.Context, channelID uuid.UUID, a Actor, id, to uuid.UUID) error {
 	b, _, err := s.load(ctx, channelID, a, id, Own)
 	if err != nil {
-		return Board{}, err
+		return err
 	}
-	if !a.CanManage && !a.Superuser {
-		return Board{}, ErrForbidden
+	if to == uuid.Nil && !a.CanManage && !a.Superuser {
+		return ErrForbidden
 	}
-	if b.Status == StatusDraft {
-		return Board{}, fmt.Errorf("%w: save the board before making it a shop board", ErrInvalid)
+	var keep uuid.UUID
+	if to != uuid.Nil && b.OwnerID == a.AdminID && to != a.AdminID {
+		keep = a.AdminID
 	}
-	if err := s.r.setOwner(ctx, id, uuid.Nil); err != nil {
-		return Board{}, err
-	}
-	return s.Get(ctx, channelID, a, id)
+	return s.r.setOwner(ctx, channelID, id, to, keep)
 }
 
-// Claim makes the actor the owner of a board whose owner was removed. Only core knows an admin is gone, so it checks
-// that before calling; here it takes boards.manage and a board the actor could already open
-func (s *Service) Claim(ctx context.Context, channelID uuid.UUID, a Actor, id uuid.UUID) (Board, error) {
-	b, _, err := s.load(ctx, channelID, a, id, View)
+// RequestAccess asks the board's owner for a level on it. It answers nil whether or not the board exists on the shop,
+// or the actor has that access already, so a request says nothing about a board they can't see. A shop board takes no
+// requests: everyone on the shop sees it, and editing it comes with boards.manage. The board comes back when a request
+// was kept, for its owner to be told - the caller's to keep from the asker
+func (s *Service) RequestAccess(ctx context.Context, channelID uuid.UUID, a Actor, id uuid.UUID, level string) (*Board, error) {
+	want := map[string]Access{ShareView: View, ShareEdit: Edit}[level]
+	if want == NoAccess {
+		return nil, fmt.Errorf("%w: a request is for view or edit", ErrInvalid)
+	}
+	b, err := s.r.get(ctx, channelID, id)
+	if errors.Is(err, ErrNotFound) {
+		return nil, nil
+	}
 	if err != nil {
-		return Board{}, err
+		return nil, err
 	}
-	if !a.CanManage && !a.Superuser {
-		return Board{}, ErrForbidden
+	shares, err := s.r.shares(ctx, id)
+	if err != nil {
+		return nil, err
 	}
-	if b.OwnerID == uuid.Nil || b.Status == StatusDraft {
-		return Board{}, fmt.Errorf("%w: only a saved board with an owner can be claimed", ErrInvalid)
+	if b.OwnerID == uuid.Nil || access(b.Ownership, shares, a) >= want {
+		return nil, nil
 	}
-	if err := s.r.setOwner(ctx, id, a.AdminID); err != nil {
-		return Board{}, err
+	if err := s.r.putRequest(ctx, id, a.AdminID, level); err != nil {
+		return nil, err
 	}
-	return s.Get(ctx, channelID, a, id)
+	return &b, nil
+}
+
+// DismissRequest turns an access request down - the owner's to do. Granting one is a share, which clears it
+func (s *Service) DismissRequest(ctx context.Context, channelID uuid.UUID, a Actor, id, adminID uuid.UUID) error {
+	if _, _, err := s.load(ctx, channelID, a, id, Own); err != nil {
+		return err
+	}
+	return s.r.deleteRequest(ctx, id, adminID)
 }
 
 func (s *Service) SetFavourite(ctx context.Context, channelID uuid.UUID, a Actor, id uuid.UUID, on bool) error {
@@ -216,14 +225,18 @@ func (s *Service) SetFavourite(ctx context.Context, channelID uuid.UUID, a Actor
 	return s.r.setFavourite(ctx, a.AdminID, id, on)
 }
 
-// SaveDraft keeps the actor's staged edits between visits. The payload is the dashboard's own - it comes back on the
-// next read and goes through Save, which checks it, so here it's only held to a size
-func (s *Service) SaveDraft(ctx context.Context, channelID uuid.UUID, a Actor, id uuid.UUID, payload []byte, base time.Time) (time.Time, error) {
+// SaveDraft keeps the actor's staged edits between visits. It comes back on the next read and goes through Save, which
+// checks it, so here it's only held to a size
+func (s *Service) SaveDraft(ctx context.Context, channelID uuid.UUID, a Actor, id uuid.UUID, d Draft, base time.Time) (time.Time, error) {
 	if _, _, err := s.load(ctx, channelID, a, id, Edit); err != nil {
 		return time.Time{}, err
 	}
-	if len(payload) > maxDraft || !json.Valid(payload) {
-		return time.Time{}, fmt.Errorf("%w: a draft is a JSON document of %d bytes at most", ErrInvalid, maxDraft)
+	payload, err := json.Marshal(d)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if len(payload) > maxDraft {
+		return time.Time{}, fmt.Errorf("%w: a draft is %d bytes at most", ErrInvalid, maxDraft)
 	}
 	return s.r.putDraft(ctx, id, a.AdminID, payload, base)
 }
@@ -242,29 +255,12 @@ func (s *Service) SweepDrafts(ctx context.Context, now time.Time) (int64, error)
 
 // CreateStarters adds the four starter boards to a shop that has none yet, and does nothing to one that does. They
 // are shop boards: no owner, seen by everyone on the shop
-func (s *Service) CreateStarters(ctx context.Context, channelID uuid.UUID, a Actor) ([]Board, error) {
-	have, err := s.r.list(ctx, channelID)
-	if err != nil || len(have) > 0 {
-		return s.List(ctx, channelID, a, false)
-	}
-	for _, st := range Starters {
-		b := tidy(Board{ChannelID: channelID, Name: st.Name, Reports: st.Reports, Status: StatusPublished})
-		if err := b.validate(); err != nil {
-			return nil, err
-		}
-		if _, err := s.r.create(ctx, b); err != nil {
-			return nil, err
-		}
+func (s *Service) CreateStarters(ctx context.Context, channelID uuid.UUID, a Actor) ([]Summary, error) {
+	// Starters are already tidy and valid - TestEveryStarterBoardIsValid holds them to it
+	if err := s.r.createIfNone(ctx, channelID, Starters); err != nil {
+		return nil, err
 	}
 	return s.List(ctx, channelID, a, false)
-}
-
-func tidy(b Board) Board {
-	b.Name = strings.TrimSpace(b.Name)
-	for i := range b.Reports {
-		b.Reports[i].Title = strings.TrimSpace(b.Reports[i].Title)
-	}
-	return b
 }
 
 // Starters are the boards a new shop can begin from, one per area the seed fills

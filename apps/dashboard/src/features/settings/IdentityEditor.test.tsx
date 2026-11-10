@@ -7,7 +7,8 @@ import { CurrenciesPickerDocument } from '@/features/currencies/Currencies.gql'
 import { IdentityEditor } from './IdentityEditor'
 
 // What these pin: a bad public URL keeps the confirm dialog open with the reason, the update sends
-// the fields this section doesn't own back unchanged, and a currency guard reads as advice
+// the fields this section doesn't own back unchanged, tax-inclusive pricing goes through the same
+// staged save, and a currency guard reads as advice
 
 const channel = {
   __typename: 'Channel' as const,
@@ -20,6 +21,7 @@ const channel = {
   isDefault: true,
   currencyCode: 'EUR',
   publicUrl: null,
+  taxInclusivePricing: false,
   metadata: [{ __typename: 'MetadataEntry' as const, key: 'region', value: 'eu' }],
   createdAt: '2026-01-01T00:00:00Z',
 }
@@ -67,9 +69,29 @@ describe('IdentityEditor', () => {
           currencyCode: 'EUR',
           publicUrl: 'https://wheels.example.com',
           metadata: [expect.objectContaining({ key: 'region', value: 'eu' })],
+          taxInclusivePricing: false,
         }),
       SLOW,
     )
+  })
+
+  it('switches the channel to tax-inclusive prices through the header save', async () => {
+    const onUpdate = vi.fn()
+    renderSection(
+      <IdentityEditor channelId="c1" />,
+      mocks({
+        request: { query: UpdateChannelDocument, variables: captureInput(onUpdate) },
+        result: { data: { updateChannel: { ...channel, taxInclusivePricing: true } } },
+      }),
+    )
+
+    fireEvent.click(await screen.findByRole('switch', { name: 'Prices include tax' }))
+    expect(onUpdate).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    const dialog = await screen.findByRole('alertdialog')
+    expect(within(dialog).getByText('Prices include tax')).toBeDefined()
+    fireEvent.click(within(dialog).getByRole('button', { name: /Apply/ }))
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({ taxInclusivePricing: true })), SLOW)
   })
 
   it('explains a blocked currency change instead of showing the error code', async () => {

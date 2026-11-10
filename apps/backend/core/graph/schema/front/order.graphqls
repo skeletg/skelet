@@ -26,8 +26,12 @@ type Order {
   paymentProvider: String!
   # Customer-facing payment instructions when the order is still unpaid and was placed with an offline method (bank details, "pay on pickup", …). Empty once paid or for gateway methods. Lets the order page show "how to pay".
   paymentInstructions: String
-  # Set ONLY on the placeOrder response when the gateway needs a client-side 3DS/SCA step: run it (stripe.handleNextAction) then call finalizeOrderPayment. Null everywhere else.
+  # Set ONLY on the placeOrder response when the gateway needs the shopper to do something before the payment is authorized - see paymentActionKind. Null everywhere else.
   paymentClientSecret: String
+  # What paymentClientSecret is for: "challenge" is an in-page step the gateway's JS runs with it (3DS, stripe.handleNextAction), then finalizeOrderPayment; "redirect" makes it a URL to send the browser to, and the gateway settles the order when the shopper comes back. Null with no action.
+  paymentActionKind: String
+  # Set ONLY on the placeOrder response: true when the gateway refused or never answered the payment, so the order is placed but unpaid - the shop shows it as unpaid rather than thanking the shopper. Null everywhere else.
+  paymentFailed: Boolean
   billingAddress:  OrderAddress!
   shippingAddress: OrderAddress!
   lines:           [OrderLine!]!
@@ -36,6 +40,8 @@ type Order {
   shippingAmount:  Int!
   discountAmount:  Int!
   taxAmount:       Int!
+  # taxAmount is already inside the prices rather than added on top - label it "includes tax"
+  taxIncluded:     Boolean!
   total:           Int!
   # Cents of `total` covered by gift cards (a tender, not a discount - `total` is unchanged). amountDue is what's still owed to the payment provider: total - giftCardAmount.
   giftCardAmount:  Int!

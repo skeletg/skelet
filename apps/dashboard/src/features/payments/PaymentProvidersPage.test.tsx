@@ -17,7 +17,7 @@ vi.mock('@/shared/auth/usePermissions', () => ({ usePermissions: () => ({ has: (
 afterEach(() => localStorage.clear())
 
 const provider = (slug: string) => ({ slug, displayName: slug === 'cards' ? 'Card gateway' : 'Second gateway', pluginSlug: `payment-${slug}`, pluginName: `${slug} plugin`, pluginVersion: '1.0.0', isOffline: false, isAvailable: true, configurationPaths: [`payment/${slug}/api_key`], webhookPath: `/api/v1/payments/webhook/${slug}?channel=channel-1` })
-const field = (slug: string) => ({ path: `payment/${slug}/api_key`, section: 'payment', group: slug, field: 'api_key', label: `${slug} API key`, description: '', type: 'SECRET' as const, value: '', isSet: true, isDefault: false, public: false, scoping: 'CHANNEL' as const, updatedAt: null, options: [], scope: { kind: 'CHANNEL' as const, channelId: 'channel-1', locale: null } })
+const field = (slug: string) => ({ path: `payment/${slug}/api_key`, section: 'payment', group: slug, field: 'api_key', label: `${slug} API key`, description: '', type: 'SECRET' as const, value: '', isSet: true, maxLength: null, isDefault: false, public: false, scoping: 'CHANNEL' as const, updatedAt: null, options: [], scope: { kind: 'CHANNEL' as const, channelId: 'channel-1', locale: null } })
 
 function mount(providers = [provider('cards'), provider('second')], extra: MockLink.MockedResponse[] = []) {
   return render(<MockedProvider mocks={[

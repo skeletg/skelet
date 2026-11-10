@@ -255,6 +255,7 @@ describe("paymentStepSchema", () => {
       tos: true,
       note: null,
       savedPaymentMethodId: null,
+      paymentToken: null,
     });
   });
 });

@@ -18,6 +18,8 @@ type Category {
   position:        Int!
   isPublished:     Boolean!
   seoNoindex:      Boolean!
+  # Its storefront page lists the products of every published category beneath it as well as its own
+  isAnchor:        Boolean!
   parent:          Category
   children:        [Category!]!
   ancestors:       [Category!]!
@@ -34,7 +36,7 @@ type Category {
   # The locale code whose content row populates name/description/seo* above. Tracks the requested locale when present, otherwise the global default locale (resolved via fallback). Null only if the category has no content rows at all.
   contentLocale:    String
   products:         [Product!]!
-  # Number of products directly assigned to this category (resolver-computed, excludes descendant categories). Cheap indexed COUNT - safe to select on the category tree (e.g. picker hints), unlike the full `products` list.
+  # Number of products directly assigned to this category (resolver-computed, excludes descendant categories - an anchor's storefront page lists those too). Cheap indexed COUNT - safe to select on the category tree (e.g. picker hints), unlike the full `products` list.
   productCount:     Int!
   # Per-store listings - gates which storefronts render this category.
   # Without a row, a category is hidden on that store.
@@ -88,6 +90,8 @@ input CreateCategoryInput {
   position:         Int
   isPublished:      Boolean
   seoNoindex:       Boolean
+  # Defaults to true
+  isAnchor:         Boolean
   metadata:         [MetadataInput!]
   privateMetadata:  [MetadataInput!]
   locale:           String!
@@ -107,6 +111,7 @@ input UpdateCategoryInput {
   position:        Int
   isPublished:     Boolean
   seoNoindex:      Boolean
+  isAnchor:        Boolean
   metadata:        [MetadataInput!]
   privateMetadata: [MetadataInput!]
 }

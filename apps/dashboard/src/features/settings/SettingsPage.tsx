@@ -420,6 +420,26 @@ function SettingsPageBody({ registry }: { registry: PageRegistry }) {
             , beside delivery options and pickup points.
           </p>
         )}
+        {/* Same for the two settings with a page of their own in the sidebar - the values are shared, the page adds more */}
+        {sectionSlug === 'general' && groupSlug === 'privacy' && (
+          <p className="border-b bg-info-soft px-6 py-2 text-xs">
+            The cookie banner is also on the{' '}
+            <Link className="underline underline-offset-2" to="/privacy">
+              Privacy page
+            </Link>
+            , with which tracking each choice allows.
+          </p>
+        )}
+        {/* the Cache page asks for cache.view, which reading settings doesn't imply */}
+        {sectionSlug === 'cache' && permissions.has('cache.view') && (
+          <p className="border-b bg-info-soft px-6 py-2 text-xs">
+            Caching is also on the{' '}
+            <Link className="underline underline-offset-2" to="/cache">
+              Cache page
+            </Link>
+            , with purge controls and the recent purges.
+          </p>
+        )}
         {sectionSlug === 'shipping' && <ShippingCarrierAvailability carrierSlug={groupSlug} />}
         <SettingsContent
           activeSectionSlug={sectionSlug}

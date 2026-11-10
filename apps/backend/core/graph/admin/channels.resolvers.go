@@ -36,14 +36,21 @@ func (r *mutationResolver) CreateChannel(ctx context.Context, input model.Create
 	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, channel.PermManage); err != nil {
 		return nil, err
 	}
+	taxInclusive := boolOrDefault(input.TaxInclusivePricing, false)
+	if taxInclusive {
+		if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "settings.manage"); err != nil {
+			return nil, err
+		}
+	}
 	domainInput := channel.CreateChannelInput{
-		Slug:          input.Slug,
-		Name:          input.Name,
-		DefaultLocale: stringOr(input.DefaultLocale, ""),
-		Locales:       input.Locales,
-		CurrencyCode:  stringOr(input.CurrencyCode, ""),
-		PublicURL:     stringOr(input.PublicURL, ""),
-		Metadata:      channel.Metadata(metadataInputToStringMap(input.Metadata)),
+		Slug:                input.Slug,
+		Name:                input.Name,
+		DefaultLocale:       stringOr(input.DefaultLocale, ""),
+		Locales:             input.Locales,
+		CurrencyCode:        stringOr(input.CurrencyCode, ""),
+		PublicURL:           stringOr(input.PublicURL, ""),
+		Metadata:            channel.Metadata(metadataInputToStringMap(input.Metadata)),
+		TaxInclusivePricing: taxInclusive,
 	}
 	sv, err := r.ChannelSvc.Create(ctx, domainInput)
 	if err != nil {
@@ -64,14 +71,19 @@ func (r *mutationResolver) UpdateChannel(ctx context.Context, input model.Update
 	if err != nil {
 		return nil, err
 	}
+	taxInclusive, err := r.taxModeChange(ctx, id, input.TaxInclusivePricing)
+	if err != nil {
+		return nil, err
+	}
 	domainInput := channel.UpdateChannelInput{
-		ID:            id,
-		Name:          input.Name,
-		DefaultLocale: input.DefaultLocale,
-		Locales:       input.Locales,
-		IsActive:      input.IsActive,
-		CurrencyCode:  input.CurrencyCode,
-		PublicURL:     publicURL,
+		ID:                  id,
+		Name:                input.Name,
+		DefaultLocale:       input.DefaultLocale,
+		Locales:             input.Locales,
+		IsActive:            input.IsActive,
+		CurrencyCode:        input.CurrencyCode,
+		PublicURL:           publicURL,
+		TaxInclusivePricing: taxInclusive,
 	}
 	if input.Metadata != nil {
 		m := channel.Metadata(metadataInputToStringMap(input.Metadata))

@@ -20,6 +20,7 @@ import {
   ActivityIcon,
   WarehouseIcon,
   ArrowUpDownIcon,
+  BotIcon,
 } from 'lucide-react'
 import {
   registerDetailRoute,
@@ -40,13 +41,15 @@ registerNavNode({
 })
 
 registerNavNode({
-  id: 'admins',
-  title: 'Admins',
-  icon: <UserCogIcon />,
+  id: 'orders',
+  title: 'Orders',
+  icon: <ShoppingCartIcon />,
   children: [
-    { title: 'All admins', path: '/admins', element: lazyPage(() => import('@/features/admins/AdminsList'), 'AdminsList'), permission: 'admins.view' },
-    { title: 'Roles', path: '/admins/roles', element: lazyPage(() => import('@/features/admins/roles/RolesList'), 'RolesList'), permission: 'admins.view' },
-    { title: 'Permissions', path: '/admins/permissions', element: lazyPage(() => import('@/features/admins/permissions/PermissionCatalog'), 'PermissionCatalog'), permission: 'admins.view' },
+    // Pending / Fulfilled aren't separate pages - they're just values of the
+    // orders list's Status column filter (in the table toolbar)
+    { title: 'All orders', path: '/orders', element: lazyPage(() => import('@/features/orders/OrdersList'), 'OrdersList'), permission: 'orders.view' },
+    { title: 'Carts', path: '/carts', element: lazyPage(() => import('@/features/carts/CartsList'), 'CartsList'), permission: 'orders.view' },
+    { title: 'Offers', path: '/offers', element: lazyPage(() => import('@/features/carts/CartsList'), 'OffersList'), permission: 'orders.view' },
   ],
 })
 
@@ -58,19 +61,6 @@ registerNavNode({
     { title: 'All customers', path: '/customers', element: lazyPage(() => import('@/features/customers/CustomersList'), 'CustomersList'), permission: 'customers.view' },
     { title: 'Groups', path: '/customers/groups', element: lazyPage(() => import('@/features/customers/CustomerGroupsList'), 'CustomerGroupsList'), permission: 'customers.view' },
     { title: 'Segments', path: '/segments', element: lazyPage(() => import('@/features/segments/SegmentsListPage'), 'SegmentsListPage'), permission: 'promotions.view', feature: 'signals' },
-  ],
-})
-
-registerNavNode({
-  id: 'orders',
-  title: 'Orders',
-  icon: <ShoppingCartIcon />,
-  children: [
-    // Pending / Fulfilled aren't separate pages - they're just values of the
-    // orders list's Status column filter (in the table toolbar)
-    { title: 'All orders', path: '/orders', element: lazyPage(() => import('@/features/orders/OrdersList'), 'OrdersList'), permission: 'orders.view' },
-    { title: 'Carts', path: '/carts', element: lazyPage(() => import('@/features/carts/CartsList'), 'CartsList'), permission: 'orders.view' },
-    { title: 'Offers', path: '/offers', element: lazyPage(() => import('@/features/carts/CartsList'), 'OffersList'), permission: 'orders.view' },
   ],
 })
 
@@ -114,6 +104,13 @@ registerNavNode({
       path: '/search-merch',
       element: lazyPage(() => import('@/features/searchmerch/SearchMerchPage'), 'SearchMerchPage'),
       permission: 'searchmerch.manage',
+    },
+    {
+      // per-attribute search tuning is merchandising work, and an admin with only catalog access reaches it here
+      title: 'Search engine',
+      path: '/search-engine',
+      element: lazyPage(() => import('@/features/search/SearchSettings'), 'SearchSettings'),
+      permission: 'catalog.view',
     },
   ],
 })
@@ -185,18 +182,10 @@ registerNavNode({
           element: lazyPage(() => import('@/features/tracking/TrackingPage'), 'TrackingPage'),
           permission: 'tracking.view',
         },
-        {
-          title: 'Signals event export',
-          path: '/destinations',
-          element: lazyPage(() => import('@/features/destinations/DestinationsPage'), 'DestinationsPage'),
-          permission: 'settings.manage',
-          feature: 'signals',
-        },
       ],
     },
   ],
 })
-
 
 registerNavNode({
   id: 'content-seo',
@@ -276,14 +265,6 @@ registerNavNode({
       permission: 'customers.view',
     },
     {
-      title: 'Boards',
-      subtitle: 'Shared report dashboards',
-      path: '/boards',
-      feature: 'signals',
-      element: lazyPage(() => import('@/features/boards/BoardsPage'), 'BoardsPage'),
-      permission: 'boards.view',
-    },
-    {
       title: 'Prism',
       subtitle: 'Frontend A/B experiments',
       path: '/prism',
@@ -291,6 +272,103 @@ registerNavNode({
       element: lazyPage(() => import('@/features/prism/PrismHome'), 'PrismHome'),
       permission: 'experiments.view',
     },
+  ],
+})
+
+// Agentic commerce - how AI agents meet the store: the MCP endpoints (core, always there) and what shoppers asked the
+// storefront assistant (kept in Signals, so that page follows the suite's switch)
+registerNavNode({
+  id: 'agentic-commerce',
+  title: 'Agentic Commerce',
+  icon: <BotIcon />,
+  children: [
+    {
+      title: 'Overview',
+      subtitle: 'How AI shopping is doing on this store',
+      path: '/agentic',
+      element: lazyPage(() => import('@/features/agentic/AgenticOverview'), 'AgenticOverview'),
+      permission: 'reports.view',
+    },
+    {
+      title: 'Assistant voice',
+      subtitle: 'Its name, tone and instructions',
+      path: '/agentic/voice',
+      element: lazyPage(() => import('@/features/agentic/AssistantVoice'), 'AssistantVoice'),
+      permission: 'config.view',
+    },
+    {
+      title: 'Hybrid search',
+      subtitle: 'Words and meaning, on the search page and in the assistant',
+      path: '/agentic/hybrid-search',
+      element: lazyPage(() => import('@/features/agentic/HybridSearch'), 'HybridSearch'),
+      permission: 'catalog.view',
+    },
+    {
+      title: 'MCP',
+      subtitle: "Connect shoppers' and your team's agents",
+      path: '/mcp',
+      element: lazyPage(() => import('@/features/mcp/McpPage'), 'McpPage'),
+      permission: 'config.view',
+    },
+    {
+      title: 'Conversations',
+      subtitle: 'Shopping assistant chats & reasoning',
+      path: '/conversations',
+      feature: 'signals',
+      element: lazyPage(() => import('@/features/conversations/ConversationsList'), 'ConversationsList'),
+      permission: 'assistant.view',
+    },
+    {
+      title: 'AI insights',
+      subtitle: 'Chatters against the rest, what it shows, shoppers’ agents',
+      path: '/ai-insights',
+      feature: 'signals',
+      element: lazyPage(() => import('@/features/agentic/AIInsights'), 'AIInsights'),
+      permission: 'assistant.view',
+    },
+  ],
+})
+
+registerNavNode({
+  id: 'channels',
+  title: 'Channels',
+  icon: <StoreIcon />,
+  children: [
+    {
+      title: 'Channels',
+      path: '/channels',
+      element: lazyPage(() => import('@/features/channels/ChannelsList'), 'ChannelsList'),
+      permission: 'channels.view',
+    },
+    {
+      title: 'Locales',
+      path: '/locales',
+      element: lazyPage(() => import('@/features/locales/LocalesList'), 'LocalesList'),
+      permission: 'locales.view',
+    },
+    {
+      title: 'Currencies',
+      path: '/currencies',
+      element: lazyPage(() => import('@/features/currencies/CurrenciesList'), 'CurrenciesList'),
+      permission: 'currencies.view',
+    },
+    {
+      title: 'Countries',
+      path: '/countries',
+      element: lazyPage(() => import('@/features/countries/CountriesList'), 'CountriesList'),
+      permission: 'countries.view',
+    },
+  ],
+})
+
+registerNavNode({
+  id: 'admins',
+  title: 'Admins',
+  icon: <UserCogIcon />,
+  children: [
+    { title: 'All admins', path: '/admins', element: lazyPage(() => import('@/features/admins/AdminsList'), 'AdminsList'), permission: 'admins.view' },
+    { title: 'Roles', path: '/admins/roles', element: lazyPage(() => import('@/features/admins/roles/RolesList'), 'RolesList'), permission: 'admins.view' },
+    { title: 'Permissions', path: '/admins/permissions', element: lazyPage(() => import('@/features/admins/permissions/PermissionCatalog'), 'PermissionCatalog'), permission: 'admins.view' },
   ],
 })
 
@@ -350,43 +428,17 @@ registerNavNode({
       permission: 'settings.manage',
     },
     {
+      title: 'Cache',
+      path: '/cache',
+      element: lazyPage(() => import('@/features/cache/CacheAdminPage'), 'CacheAdminPage'),
+      permission: 'cache.view',
+    },
+    {
       title: 'Playground',
       path: '/playground',
       icon: <SquareTerminalIcon />,
       actionId: 'playground', // opens over the current page rather than routing away from it
       permission: 'developer.playground',
-    },
-  ],
-})
-
-registerNavNode({
-  id: 'channels',
-  title: 'Channels',
-  icon: <StoreIcon />,
-  children: [
-    {
-      title: 'Channels',
-      path: '/channels',
-      element: lazyPage(() => import('@/features/channels/ChannelsList'), 'ChannelsList'),
-      permission: 'channels.view',
-    },
-    {
-      title: 'Locales',
-      path: '/locales',
-      element: lazyPage(() => import('@/features/locales/LocalesList'), 'LocalesList'),
-      permission: 'locales.view',
-    },
-    {
-      title: 'Currencies',
-      path: '/currencies',
-      element: lazyPage(() => import('@/features/currencies/CurrenciesList'), 'CurrenciesList'),
-      permission: 'currencies.view',
-    },
-    {
-      title: 'Countries',
-      path: '/countries',
-      element: lazyPage(() => import('@/features/countries/CountriesList'), 'CountriesList'),
-      permission: 'countries.view',
     },
   ],
 })
@@ -401,71 +453,71 @@ registerNavNode({
   permission: 'data.view',
 })
 
-// Top-level Settings - General first (header-scope-driven config + bespoke channel editors when
-// a channel is scoped), then the commerce configuration pages (tax, shipping - absorbed from the
-// removed Commerce group), then the technical pages
-//   Search Engine → /search-engine (bespoke per-attribute editor +
-//              reindex action; doesn't fit the generic field renderer)
-// The channel detail page deep-links to /settings with `?channelId=…`
-// to pre-select the channel
+// Top-level Settings, in three groups: the store itself (every setting, plus the cookie banner's own page), what checkout
+// takes and charges, and how things ship. The search engine sits under Catalog and the cache under Developer
+// The channel detail page deep-links to /settings with `?channelId=…` to pre-select the channel
 registerNavNode({
   id: 'settings',
   title: 'Settings',
   icon: <SettingsIcon />,
-  children: [
+  subgroups: [
     {
-      title: 'General',
-      path: '/settings',
-      element: lazyPage(() => import('@/features/settings/SettingsPage'), 'SettingsPage'),
-      permission: 'config.view',
+      label: 'Store',
+      items: [
+        {
+          // the whole settings registry, whose own first section is General - naming this General too read as two of them
+          title: 'All settings',
+          path: '/settings',
+          element: lazyPage(() => import('@/features/settings/SettingsPage'), 'SettingsPage'),
+          permission: 'config.view',
+        },
+        {
+          title: 'Privacy',
+          path: '/privacy',
+          element: lazyPage(() => import('@/features/settings/PrivacyPage'), 'PrivacyPage'),
+          permission: 'config.view',
+        },
+      ],
     },
     {
-      title: 'Privacy',
-      path: '/privacy',
-      element: lazyPage(() => import('@/features/settings/PrivacyPage'), 'PrivacyPage'),
-      permission: 'config.view',
+      label: 'Checkout & payments',
+      items: [
+        {
+          title: 'Checkout',
+          path: '/checkout-settings',
+          element: lazyPage(() => import('@/features/checkout/CheckoutPage'), 'CheckoutPage'),
+          permission: 'checkout.view',
+        },
+        {
+          title: 'Payment providers',
+          path: '/payment-providers',
+          element: lazyPage(() => import('@/features/payments/PaymentProvidersPage'), 'PaymentProvidersPage'),
+          permission: 'payments.view',
+        },
+        {
+          title: 'Tax rules',
+          path: '/tax',
+          element: lazyPage(() => import('@/features/tax/TaxRulesTable'), 'TaxRulesTable'),
+          permission: 'settings.view',
+        },
+      ],
     },
     {
-      title: 'Tax rules',
-      path: '/tax',
-      element: lazyPage(() => import('@/features/tax/TaxRulesTable'), 'TaxRulesTable'),
-      permission: 'settings.view',
-    },
-    {
-      title: 'Checkout',
-      path: '/checkout-settings',
-      element: lazyPage(() => import('@/features/checkout/CheckoutPage'), 'CheckoutPage'),
-      permission: 'checkout.view',
-    },
-    {
-      title: 'Payment providers',
-      path: '/payment-providers',
-      element: lazyPage(() => import('@/features/payments/PaymentProvidersPage'), 'PaymentProvidersPage'),
-      permission: 'payments.view',
-    },
-    {
-      title: 'Shipping zones',
-      path: '/shipping',
-      element: lazyPage(() => import('@/features/shipping/ShippingZonesList'), 'ShippingZonesList'),
-      permission: 'settings.view',
-    },
-    {
-      title: 'Shipping boxes',
-      path: '/shipping/boxes',
-      element: lazyPage(() => import('@/features/shipping/ShippingBoxesPage'), 'ShippingBoxesPage'),
-      permission: 'settings.manage',
-    },
-    {
-      title: 'Search Engine',
-      path: '/search-engine',
-      element: lazyPage(() => import('@/features/search/SearchSettings'), 'SearchSettings'),
-      permission: 'catalog.view',
-    },
-    {
-      title: 'Cache',
-      path: '/cache',
-      element: lazyPage(() => import('@/features/cache/CacheAdminPage'), 'CacheAdminPage'),
-      permission: 'cache.view',
+      label: 'Shipping',
+      items: [
+        {
+          title: 'Shipping zones',
+          path: '/shipping',
+          element: lazyPage(() => import('@/features/shipping/ShippingZonesList'), 'ShippingZonesList'),
+          permission: 'settings.view',
+        },
+        {
+          title: 'Shipping boxes',
+          path: '/shipping/boxes',
+          element: lazyPage(() => import('@/features/shipping/ShippingBoxesPage'), 'ShippingBoxesPage'),
+          permission: 'settings.manage',
+        },
+      ],
     },
   ],
 })
@@ -534,6 +586,7 @@ const detailLeaves = [
   { title: 'Edit promotion', path: '/promotions/:id', element: lazyPage(() => import('@/features/promotions/PromotionPage'), 'PromotionPage'), permission: 'promotions.manage' },
   { title: 'New page', path: '/cms/pages/new', element: lazyPage(() => import('@/features/cms/CmsPageCreate'), 'CmsPageCreate') },
   { title: 'CMS page detail', path: '/cms/pages/:id', element: lazyPage(() => import('@/features/cms/CmsPageDetail'), 'CmsPageDetail') },
+  { title: 'Search preview redirect', path: '/agentic/search', element: <Navigate to="/agentic/hybrid-search?tab=assistant" replace />, permission: 'catalog.view' },
   {
     title: 'Reusable blocks redirect',
     path: '/settings/email/blocks',
@@ -562,6 +615,7 @@ const detailLeaves = [
   { title: 'New signup form', path: '/forms/new', element: lazyPage(() => import('@/features/forms/FormBuilder'), 'FormBuilder'), permission: 'forms.manage' },
   { title: 'Edit form', path: '/forms/:id', element: lazyPage(() => import('@/features/forms/FormBuilder'), 'FormBuilder'), permission: 'forms.view' },
   { title: 'Suppression list', path: '/emails/suppressions', element: lazyPage(() => import('@/features/deliverability/SuppressionList'), 'SuppressionList'), permission: 'emails.view', feature: 'signals' },
+  { title: 'Conversation', path: '/conversations/:id', element: lazyPage(() => import('@/features/conversations/ConversationDetail'), 'ConversationDetail'), permission: 'assistant.view', feature: 'signals' },
   // Lens heatmap viewer - reached from the /lens overview's top-pages list
   // (page + viewport carried in the query string, since page keys contain '/')
   { title: 'Heatmap', path: '/lens/heatmap', element: lazyPage(() => import('@/features/lens/LensPageDetail'), 'LensPageDetail'), permission: 'lens.view', feature: 'signals' },
@@ -613,7 +667,8 @@ const detailLeaves = [
   // in-app links), not the sidebar Lives under Synapse, not the operational customer record
   { title: 'Customer profile', path: '/synapse/customers/:id', element: lazyPage(() => import('@/features/synapse/SynapseCustomer'), 'SynapseCustomer'), permission: 'customers.view', feature: 'signals' },
   { title: 'Visitor profile', path: '/synapse/visitors/:anonId', element: lazyPage(() => import('@/features/synapse/SynapseVisitor'), 'SynapseVisitor'), permission: 'customers.view', feature: 'signals' },
-  { title: 'Board', path: '/boards/:id', element: lazyPage(() => import('@/features/boards/BoardPage'), 'BoardPage'), permission: 'boards.view', feature: 'signals' },
+  { title: 'Boards', path: '/synapse/boards', element: lazyPage(() => import('@/features/boards/BoardsPage'), 'BoardsPage'), permission: 'boards.view', feature: 'signals' },
+  { title: 'Board', path: '/synapse/boards/:id', element: lazyPage(() => import('@/features/boards/BoardPage'), 'BoardPage'), permission: 'boards.view', feature: 'signals' },
   { title: 'Funnel', path: '/synapse/funnels', element: lazyPage(() => import('@/features/synapse/SynapseFunnel'), 'SynapseFunnel'), permission: 'customers.view', feature: 'signals' },
   { title: 'Retention', path: '/synapse/retention', element: lazyPage(() => import('@/features/synapse/SynapseRetention'), 'SynapseRetention'), permission: 'customers.view', feature: 'signals' },
   { title: 'Behavioural segments', path: '/synapse/segments', element: lazyPage(() => import('@/features/synapse/SynapseSegments'), 'SynapseSegments'), permission: 'customers.view', feature: 'signals' },

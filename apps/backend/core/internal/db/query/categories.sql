@@ -1,9 +1,27 @@
 -- ==================== Categories ====================
 
 -- name: CreateCategory :one
-INSERT INTO catalog_categories (parent_id, slug, url_path, position, is_published, seo_noindex, metadata, private_metadata)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO catalog_categories (parent_id, slug, url_path, position, is_published, seo_noindex, metadata, private_metadata, is_anchor)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING *;
+
+-- name: ListCategoryListingIDs :many
+-- What a category page lists products from on a channel: the category, and under an anchor every category beneath it
+-- that the channel shows - published globally and listed published there, as its menu has it. One the channel hides
+-- hides its branch, and the depth cap stops a parent cycle recursing forever
+WITH RECURSIVE root AS (
+    SELECT c.id, c.is_anchor FROM catalog_categories c WHERE c.id = sqlc.arg(id)::uuid
+), tree(id, depth) AS (
+    SELECT root.id, 0 FROM root
+    UNION ALL
+    SELECT c.id, tree.depth + 1
+    FROM catalog_categories c
+    JOIN tree ON c.parent_id = tree.id
+    JOIN catalog_category_channel_listings l
+      ON l.category_id = c.id AND l.channel_id = sqlc.arg(channel_id)::uuid AND l.is_published
+    WHERE c.is_published AND tree.depth < sqlc.arg(max_depth)::int AND (SELECT is_anchor FROM root)
+)
+SELECT id FROM tree;
 
 -- name: GetCategoryByID :one
 SELECT * FROM catalog_categories WHERE id = $1;
@@ -45,6 +63,7 @@ SET slug             = $2,
     seo_noindex      = $7,
     metadata         = $8,
     private_metadata = $9,
+    is_anchor        = $10,
     updated_at       = NOW()
 WHERE id = $1
 RETURNING *;

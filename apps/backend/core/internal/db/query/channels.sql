@@ -1,12 +1,12 @@
 -- name: CreateChannel :one
 INSERT INTO channels (
     slug, name, default_locale,
-    currency_code,
+    currency_code, tax_inclusive_pricing,
     public_url, storefront_host, metadata
 ) VALUES (
     $1, $2, $3,
-    $4,
-    $5, $6, $7
+    $4, $5,
+    $6, $7, $8
 )
 RETURNING *;
 
@@ -42,6 +42,7 @@ SET name            = $2,
     currency_code   = $5,
     public_url      = $6,
     storefront_host = $7,
+    tax_inclusive_pricing = $8,
     metadata        = COALESCE(sqlc.narg(metadata)::jsonb, metadata)
 WHERE id = $1
 RETURNING *;

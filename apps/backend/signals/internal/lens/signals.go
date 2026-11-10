@@ -7,6 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/signalsapi"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	signalsdb "github.com/skeletg/skelet/apps/backend/signals/internal/db/sqlc"
 )
 
@@ -137,19 +139,40 @@ type SearchDay struct {
 	Date        string
 	Searches    int64
 	ZeroResults int64
+	MeaningOnly int64
+}
+
+// What the shopping assistant or shoppers' own agents searched for and got nothing back
+type AIGap struct {
+	Term      string
+	Assistant int64
+	Agents    int64
+}
+
+type OverviewTerm struct {
+	Term                 string
+	Shown, Clicks, Chats int64
 }
 
 // The on-site-search report - headline totals, top terms, zero-result terms as merchandising gaps, and a daily trend
 type SearchAnalytics struct {
-	TotalSearches      int64
-	DistinctTerms      int64
-	ZeroResultSearches int64
-	Top                []TermCount
-	ZeroResult         []TermCount
-	Daily              []SearchDay
+	TotalSearches       int64
+	DistinctTerms       int64
+	ZeroResultSearches  int64
+	MeaningOnlySearches int64
+	Top                 []TermCount
+	ZeroResult          []TermCount
+	MeaningOnly         []TermCount
+	Daily               []SearchDay
+	AIGaps              []AIGap
+	OverviewsShown      int64
+	OverviewClicks      int64
+	OverviewChats       int64
+	Overviews           []OverviewTerm
 }
 
-// All rollup-backed, from dim='search' and 'search_zero'
+const aiTermsListed = 20
+
 func (s *Service) SearchAnalytics(ctx context.Context, channelID uuid.UUID, since time.Time) (SearchAnalytics, error) {
 	var out SearchAnalytics
 	totals, err := s.read().LensSearchTotals(ctx, signalsdb.LensSearchTotalsParams{ChannelID: channelID, Since: since})
@@ -159,6 +182,7 @@ func (s *Service) SearchAnalytics(ctx context.Context, channelID uuid.UUID, sinc
 	out.TotalSearches = totals.TotalSearches
 	out.DistinctTerms = totals.DistinctTerms
 	out.ZeroResultSearches = totals.ZeroResultSearches
+	out.MeaningOnlySearches = totals.MeaningOnlySearches
 	top, err := s.read().LensTopSearches(ctx, signalsdb.LensTopSearchesParams{ChannelID: channelID, Since: since, Lim: 50})
 	if err != nil {
 		return out, err
@@ -166,19 +190,44 @@ func (s *Service) SearchAnalytics(ctx context.Context, channelID uuid.UUID, sinc
 	for _, r := range top {
 		out.Top = append(out.Top, TermCount{Term: r.Term, Count: r.Count})
 	}
-	zero, err := s.read().LensZeroResultSearches(ctx, signalsdb.LensZeroResultSearchesParams{ChannelID: channelID, Since: since, Lim: 50})
-	if err != nil {
-		return out, err
-	}
-	for _, r := range zero {
-		out.ZeroResult = append(out.ZeroResult, TermCount{Term: r.Term, Count: r.Count})
+	for _, gap := range []struct {
+		dim  string
+		into *[]TermCount
+	}{{dimSearchZero, &out.ZeroResult}, {dimSearchMeaning, &out.MeaningOnly}} {
+		rows, err := s.read().LensSearchGaps(ctx, signalsdb.LensSearchGapsParams{ChannelID: channelID, Since: since, Dim: gap.dim, Lim: 50})
+		if err != nil {
+			return out, err
+		}
+		for _, r := range rows {
+			*gap.into = append(*gap.into, TermCount{Term: r.Term, Count: r.Count})
+		}
 	}
 	daily, err := s.read().LensSearchDaily(ctx, signalsdb.LensSearchDailyParams{ChannelID: channelID, Since: since})
 	if err != nil {
 		return out, err
 	}
 	for _, r := range daily {
-		out.Daily = append(out.Daily, SearchDay{Date: r.Day, Searches: r.Searches, ZeroResults: r.ZeroResults})
+		out.Daily = append(out.Daily, SearchDay{Date: r.Day, Searches: r.Searches, ZeroResults: r.ZeroResults, MeaningOnly: r.MeaningOnly})
+	}
+	gaps, err := s.read().AISearchGaps(ctx, signalsdb.AISearchGapsParams{ChannelID: channelID, Since: since, Lim: aiTermsListed,
+		AssistantSource: signalsapi.AISourceAssistant, AgentSource: signalsapi.AISourceAgent})
+	if err != nil {
+		return out, err
+	}
+	for _, g := range gaps {
+		out.AIGaps = append(out.AIGaps, AIGap{Term: g.Term, Assistant: g.Assistant, Agents: g.Agents})
+	}
+	ov, err := s.read().LensOverviewTotals(ctx, signalsdb.LensOverviewTotalsParams{ChannelID: channelID, Since: since})
+	if err != nil {
+		return out, err
+	}
+	out.OverviewsShown, out.OverviewClicks, out.OverviewChats = ov.Shown, ov.Clicks, ov.Chats
+	terms, err := s.read().LensOverviewTerms(ctx, signalsdb.LensOverviewTermsParams{ChannelID: channelID, Since: since, Lim: aiTermsListed})
+	if err != nil {
+		return out, err
+	}
+	for _, t := range terms {
+		out.Overviews = append(out.Overviews, OverviewTerm{Term: t.Term, Shown: t.Shown, Clicks: t.Clicks, Chats: t.Chats})
 	}
 	return out, nil
 }
@@ -208,9 +257,9 @@ func (s *Service) SessionSignals(ctx context.Context, channelID uuid.UUID, sessi
 	order := make([]string, 0, 4)
 	for _, r := range rows {
 		switch r.Name {
-		case sigJSError:
+		case analytics.EventJSError:
 			sig.Errors = append(sig.Errors, SessionError{Message: r.Message, At: r.OccurredAt})
-		case sigWebVitals:
+		case analytics.EventWebVitals:
 			m := asString(r.Metric)
 			if m == "" {
 				continue

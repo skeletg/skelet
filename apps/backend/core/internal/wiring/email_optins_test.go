@@ -7,51 +7,29 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
-	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 )
 
-type fakeOptIns struct {
-	recorded []string
-	claimed  []uuid.UUID
-}
+type fakeOptIns struct{ recorded []string }
 
 func (f *fakeOptIns) RecordEmailOptIn(_ context.Context, _ uuid.UUID, email, source, reference string) error {
 	f.recorded = append(f.recorded, email+" "+source+" "+reference)
 	return nil
 }
 
-func (f *fakeOptIns) ClaimEmailOptIns(_ context.Context, customerID, _ uuid.UUID, _ string) (int, error) {
-	f.claimed = append(f.claimed, customerID)
-	return 1, nil
-}
-
-func TestAGuestCheckoutOptInIsKeptAndClaimedOnVerification(t *testing.T) {
+// Only the ticked order is kept, with its number as proof - and nothing more: anyone can tick the box under someone else's
+// address, so the opt-in never reaches an account, existing or created later (emailOptIns has no way to apply one)
+func TestAGuestCheckoutOptInIsKeptAsProofOnly(t *testing.T) {
 	bus := events.NewBus()
 	f := &fakeOptIns{}
 	registerEmailOptIns(bus, f)
 	ctx := context.Background()
-	ch, cust := uuid.New(), uuid.New()
+	ch := uuid.New()
 
 	_ = bus.DispatchAsyncNow(ctx, &order.OrderPlaced{OrderID: uuid.New(), OrderNumber: "ORD-000001", Email: "g@example.com", ChannelID: ch})
 	_ = bus.DispatchAsyncNow(ctx, &order.OrderPlaced{OrderID: uuid.New(), OrderNumber: "ORD-000002", Email: "g@example.com", ChannelID: ch, MarketingOptIn: true})
 	if len(f.recorded) != 1 || f.recorded[0] != "g@example.com "+consent.SourceCheckout+" ORD-000002" {
 		t.Errorf("recorded %v, want only the ticked order, with its number as proof", f.recorded)
-	}
-	_ = bus.DispatchAsyncNow(ctx, &customer.CustomerEmailVerified{CustomerID: cust, ChannelID: ch, Email: "g@example.com"})
-	if len(f.claimed) != 1 || f.claimed[0] != cust {
-		t.Errorf("claimed for %v, want the verified customer", f.claimed)
-	}
-}
-
-func TestAGuestOptInNeverAppliesAtOnceToAnExistingAccount(t *testing.T) {
-	bus := events.NewBus()
-	f := &fakeOptIns{}
-	registerEmailOptIns(bus, f)
-	// Anyone can place an unpaid order under a customer's address - the tick is kept as proof, never applied
-	_ = bus.DispatchAsyncNow(context.Background(), &order.OrderPlaced{OrderNumber: "ORD-1", Email: "owner@example.com", ChannelID: uuid.New(), MarketingOptIn: true})
-	if len(f.recorded) != 1 || len(f.claimed) != 0 {
-		t.Errorf("recorded %v, claimed %v - want it kept and nothing applied", f.recorded, f.claimed)
 	}
 }

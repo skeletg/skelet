@@ -44,10 +44,12 @@ func getCartTool() tool {
 			if err != nil {
 				return "", err
 			}
-			return renderCart(ctx, c, ct.ID, nil)
+			return renderCart(ctx, c, ct.ID, cartTitle(ct.ID), nil)
 		},
 	}
 }
+
+func cartTitle(id uuid.UUID) string { return "Cart " + id.String() }
 
 func updateCartTool() tool {
 	return tool{
@@ -80,66 +82,95 @@ func updateCartTool() tool {
 }
 
 func runUpdateCart(ctx context.Context, c call) (string, error) {
-	a := c.a
-	created := a.CartID == ""
+	created := c.a.CartID == ""
+	if created && len(c.a.Lines) == 0 && strings.TrimSpace(c.a.Coupon) == "" {
+		return "", refusal("Pass the lines to put in the new cart.")
+	}
+	if _, _, err := wantedLines(c.a.Lines); err != nil {
+		return "", err
+	}
 	var ct cart.Cart
 	var err error
 	if created {
-		if len(a.Lines) == 0 && strings.TrimSpace(a.Coupon) == "" {
-			return "", refusal("Pass the lines to put in the new cart.")
-		}
 		ct, err = c.carts().CreateAgentCart(ctx, c.ch.ID)
 	} else {
-		ct, err = agentCart(ctx, c, a.CartID)
+		ct, err = agentCart(ctx, c, c.a.CartID)
 	}
 	if err != nil {
 		return "", err
 	}
-	wanted, order, err := wantedLines(a.Lines)
+	notes, _, err := applyCart(ctx, c, ct, nil)
 	if err != nil {
 		return "", err
 	}
-	plain := map[string]cart.CartLine{}
+	if created {
+		notes = append([]string{fmt.Sprintf("New cart - pass cart_id %s on every later cart call.", ct.ID)}, notes...)
+	}
+	return renderCart(ctx, c, ct.ID, cartTitle(ct.ID), notes)
+}
+
+// applyCart sets each SKU to its quantity and applies the code, as caller - what the store refuses comes back as notes for the model, and changed
+// says whether anything in the cart moved. A line with choices made on its product page - an engraving, a bundle's picks - isn't the
+// SKU's to set: changing it from here would drop the choices or add a second, plain line, so the shopper changes it in the cart
+// added is whether anything went in or grew - a turn that only took things out or applied a code didn't fill the cart
+type cartEdit struct{ changed, added bool }
+
+func applyCart(ctx context.Context, c call, ct cart.Cart, caller *uuid.UUID) (notes []string, edit cartEdit, err error) {
+	wanted, order, err := wantedLines(c.a.Lines)
+	if err != nil {
+		return nil, cartEdit{}, err
+	}
+	plain, chosen := map[string]cart.CartLine{}, map[string]bool{}
 	for _, l := range ct.Lines {
 		if len(l.Options) == 0 && len(l.Components) == 0 {
 			plain[l.ProductSku] = l
+		} else {
+			chosen[l.ProductSku] = true
 		}
 	}
-	var notes []string
 	for _, sku := range order {
 		qty := wanted[sku]
 		existing, has := plain[sku]
 		var err error
 		switch {
+		case !has && chosen[sku]:
+			notes = append(notes, fmt.Sprintf("%s wasn't changed: it's in the cart with choices made on its product page, so the shopper changes that line in their cart.", sku))
+			continue
+		case !has && qty == 0:
+			notes = append(notes, fmt.Sprintf("%s isn't in the cart.", sku))
+			continue
+		case has && qty == existing.Quantity:
+			continue
 		case has && qty == 0:
-			_, err = c.carts().RemoveFromCart(ctx, ct.ID, existing.ID, nil)
-		case has && qty != existing.Quantity:
-			_, err = c.carts().UpdateCartLine(ctx, ct.ID, existing.ID, nil, qty)
-		case !has && qty > 0:
-			_, err = c.carts().AddToCart(ctx, ct.ID, nil, sku, qty)
+			_, err = c.carts().RemoveFromCart(ctx, ct.ID, existing.ID, caller)
+		case has:
+			_, err = c.carts().UpdateCartLine(ctx, ct.ID, existing.ID, caller, qty)
+		default:
+			_, err = c.carts().AddToCart(ctx, ct.ID, caller, sku, qty)
 		}
 		if err == nil {
+			edit.changed = true
+			edit.added = edit.added || !has || qty > existing.Quantity
 			continue
 		}
 		code := apperr.CodeOf(err)
 		if code == "" {
-			return "", err
+			return nil, edit, err
 		}
 		notes = append(notes, fmt.Sprintf("%s wasn't changed: %s", sku, lineRefusal(code, err)))
 	}
-	if code := strings.TrimSpace(a.Coupon); code != "" {
+	if code := strings.TrimSpace(c.a.Coupon); code != "" {
 		if err := c.gql().Do(ctx, couponDoc, map[string]any{"cartId": ct.ID.String(), "code": code}, nil); err != nil {
 			gql, ok := errors.AsType[*Error](err)
 			if !ok {
-				return "", err
+				return nil, edit, err
 			}
 			notes = append(notes, fmt.Sprintf("Code %s wasn't applied: %s", code, couponRefusal(gql)))
+		} else {
+			edit.changed = true
 		}
 	}
-	if created {
-		notes = append([]string{fmt.Sprintf("New cart - pass cart_id %s on every later cart call.", ct.ID)}, notes...)
-	}
-	return renderCart(ctx, c, ct.ID, notes)
+	return notes, edit, nil
 }
 
 func wantedLines(lines []lineArg) (map[string]float64, []string, error) {
@@ -211,7 +242,7 @@ type cartView struct {
 	} `json:"appliedCodes"`
 }
 
-func renderCart(ctx context.Context, c call, id uuid.UUID, notes []string) (string, error) {
+func renderCart(ctx context.Context, c call, id uuid.UUID, title string, notes []string) (string, error) {
 	var out struct {
 		Cart *cartView `json:"cart"`
 	}
@@ -226,7 +257,7 @@ func renderCart(ctx context.Context, c call, id uuid.UUID, notes []string) (stri
 	for _, n := range notes {
 		b.WriteString(n + "\n")
 	}
-	fmt.Fprintf(&b, "Cart %s:\n", out.Cart.ID)
+	b.WriteString(title + ":\n")
 	if len(out.Cart.Lines) == 0 {
 		b.WriteString("(empty)\n")
 	}

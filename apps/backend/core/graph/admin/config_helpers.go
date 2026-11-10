@@ -61,6 +61,10 @@ func toConfigValueModel(ctx context.Context, e config.Entry) *model.ConfigValue 
 		Scope:       toConfigScopeModel(e.Scope),
 		Scoping:     toConfigScopingModel(config.ScopingFor(e.Definition.Path)),
 	}
+	if e.Definition.MaxLen > 0 {
+		n := int32(e.Definition.MaxLen)
+		m.MaxLength = &n
+	}
 
 	opts, err := e.Definition.GetOptions(ctx)
 	if err == nil && len(opts) > 0 {

@@ -95,7 +95,10 @@ type remoteBrowseRequest struct {
 }
 
 type remoteBrowseFilter struct {
-	CategoryID    string                  `json:"categoryId,omitempty"`
+	CategoryID string `json:"categoryId,omitempty"`
+	// The category and, under an anchor, the categories beneath it the channel shows - a product in any of them matches.
+	// Supersedes categoryId when present, which stays for a provider built before it
+	CategoryIDs   []string                `json:"categoryIds,omitempty"`
 	CollectionID  string                  `json:"collectionId,omitempty"`
 	PriceMinCents *int64                  `json:"priceMinCents,omitempty"`
 	PriceMaxCents *int64                  `json:"priceMaxCents,omitempty"`
@@ -166,6 +169,9 @@ func browseFilterToWire(f BrowseFilter) remoteBrowseFilter {
 	}
 	if f.CategoryID != nil {
 		out.CategoryID = f.CategoryID.String()
+	}
+	for _, id := range f.CategorySet() {
+		out.CategoryIDs = append(out.CategoryIDs, id.String())
 	}
 	if f.CollectionID != nil {
 		out.CollectionID = f.CollectionID.String()

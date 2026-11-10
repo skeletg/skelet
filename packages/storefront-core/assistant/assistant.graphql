@@ -1,0 +1,7 @@
+# What the shopper's page is, for the assistant's opening suggestions - no model involved
+query AssistantPage($page: String!) {
+  assistantPage(page: $page) {
+    kind
+    title
+  }
+}
