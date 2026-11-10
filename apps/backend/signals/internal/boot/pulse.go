@@ -73,7 +73,7 @@ func (r *RosterStores) Get(ctx context.Context, channelID uuid.UUID) (emailtempl
 	if err != nil {
 		return emailtemplate.Store{}, err
 	}
-	return emailtemplate.Store{ID: e.ID, Name: e.Name, PublicURL: e.PublicURL, LogoURL: e.LogoURL}, nil
+	return emailtemplate.Store{ID: e.ID, Name: e.Name, PublicURL: e.PublicURL, LogoURL: e.LogoURL, FromName: e.FromName, FromAddress: e.FromAddress}, nil
 }
 
 type flowStores struct{ *RosterStores }
@@ -116,6 +116,7 @@ func contactFromRow(row signalsdb.RosterContactRow) flow.Contact {
 		ID: row.CustomerID, ChannelID: row.ChannelID, Email: row.Email, FirstName: row.FirstName,
 		Phone:        strings.TrimSpace(row.Phone),
 		EmailOptedIn: row.MarketingOptedIn && row.IsActive, SMSOptedIn: row.SmsOptedIn && row.IsActive,
+		Locale: row.Locale,
 	}
 }
 
@@ -171,6 +172,21 @@ func (r campaignAudience) OptedInByIDs(ctx context.Context, customerIDs []uuid.U
 	}
 	for _, row := range rows {
 		out[row.CustomerID] = row.MarketingOptedIn
+	}
+	return out, nil
+}
+
+func (r campaignAudience) LocalesByIDs(ctx context.Context, customerIDs []uuid.UUID) (map[uuid.UUID]string, error) {
+	out := make(map[uuid.UUID]string, len(customerIDs))
+	if len(customerIDs) == 0 {
+		return out, nil
+	}
+	rows, err := r.q.RosterLocales(ctx, customerIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		out[row.CustomerID] = row.Locale
 	}
 	return out, nil
 }

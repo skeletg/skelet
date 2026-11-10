@@ -223,3 +223,8 @@ func TestAFailedUploadLeavesNoRowBehind(t *testing.T) {
 		t.Errorf("a snapshot row survived its failed upload")
 	}
 }
+
+func signalsdbRecordAI(ch uuid.UUID, source, agent, key, term string, results int32) signalsdb.RecordAIActivityParams {
+	return signalsdb.RecordAIActivityParams{DedupeKey: key + ch.String(), ChannelID: ch, Day: time.Now().UTC(), Source: source, Agent: agent,
+		Tools: []string{"search_products"}, Terms: []string{term}, Results: []int32{results}}
+}

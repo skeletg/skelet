@@ -75,7 +75,7 @@ export function NavProgress() {
   return (
     <div
       // Over the sticky header, and never in the way of a click
-      className="pointer-events-none fixed inset-x-0 top-0 z-50 h-0.5"
+      className="assistant-follow pointer-events-none fixed inset-x-0 top-0 z-50 h-0.5 md:right-[var(--assistant-inset,0px)]"
       aria-hidden
     >
       <div

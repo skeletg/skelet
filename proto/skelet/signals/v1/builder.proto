@@ -32,6 +32,10 @@ service EmailBuilderService {
   rpc ListEmailBlocks(ListEmailBlocksRequest) returns (ListEmailBlocksResponse);
   rpc SaveEmailBlock(SaveEmailBlockRequest) returns (SaveEmailBlockResponse);
   rpc DeleteEmailBlock(DeleteEmailBlockRequest) returns (DeleteEmailBlockResponse);
+  // A library email's version in another language - a shopper in that language gets it, everyone else the email itself
+  rpc ListEmailTranslations(ListEmailTranslationsRequest) returns (ListEmailTranslationsResponse);
+  rpc SaveEmailTranslation(SaveEmailTranslationRequest) returns (SaveEmailTranslationResponse);
+  rpc DeleteEmailTranslation(DeleteEmailTranslationRequest) returns (DeleteEmailTranslationResponse);
 }
 
 message LibraryEmail {
@@ -224,6 +228,11 @@ message RenderLibraryPreviewRequest {
 message RenderLibraryPreviewResponse {
   string subject = 1;
   string html = 2;
+  string text = 3;
+  // The preheader with its merge tags filled in, as an inbox shows it after the subject
+  string preheader = 4;
+  string from_name = 5;
+  string from_address = 6;
 }
 
 message ListEmailBlocksRequest {
@@ -248,3 +257,38 @@ message DeleteEmailBlockRequest {
 }
 
 message DeleteEmailBlockResponse {}
+
+message EmailTranslation {
+  string email_id = 1;
+  // A storefront locale code, lowercase - "de", "fr-ca"
+  string locale = 2;
+  string subject = 3;
+  string preheader = 4;
+  string blocks_json = 5;
+  string styles_json = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+message ListEmailTranslationsRequest {
+  string email_id = 1;
+}
+
+message ListEmailTranslationsResponse {
+  repeated EmailTranslation translations = 1;
+}
+
+// Creates the locale's version or replaces it whole
+message SaveEmailTranslationRequest {
+  EmailTranslation translation = 1;
+}
+
+message SaveEmailTranslationResponse {
+  EmailTranslation translation = 1;
+}
+
+message DeleteEmailTranslationRequest {
+  string email_id = 1;
+  string locale = 2;
+}
+
+message DeleteEmailTranslationResponse {}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"math"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
@@ -31,7 +32,7 @@ func (r *queryResolver) LensOverview(ctx context.Context, channelID string, sinc
 		PlanIssues:   []*model.LensPlanIssue{},
 	}
 	for _, i := range ov.GetPlanIssues() {
-		out.PlanIssues = append(out.PlanIssues, &model.LensPlanIssue{Kind: i.GetKind(), Event: i.GetEvent(), Prop: i.GetProp(), Count: int32(min(i.GetCount(), math.MaxInt32))})
+		out.PlanIssues = append(out.PlanIssues, &model.LensPlanIssue{Kind: model.LensPlanIssueKind(strings.ToUpper(strings.TrimPrefix(i.GetKind(), "plan_"))), Event: i.GetEvent(), Prop: i.GetProp(), Count: int32(min(i.GetCount(), math.MaxInt32))})
 	}
 	for _, p := range ov.GetTopPages() {
 		out.TopPages = append(out.TopPages, &model.LensPageStat{
@@ -312,19 +313,16 @@ func (r *queryResolver) LensSearchAnalytics(ctx context.Context, channelID strin
 	}
 	out := &model.LensSearchAnalytics{
 		TotalSearches: a.GetTotalSearches(), DistinctTerms: a.GetDistinctTerms(), ZeroResultSearches: a.GetZeroResultSearches(),
-		Top:        make([]*model.LensSearchTerm, 0, len(a.GetTop())),
-		ZeroResult: make([]*model.LensSearchTerm, 0, len(a.GetZeroResult())),
-		Daily:      make([]*model.LensSearchDay, 0, len(a.GetDaily())),
-	}
-	for _, t := range a.GetTop() {
-		out.Top = append(out.Top, &model.LensSearchTerm{Term: t.GetTerm(), Count: t.GetCount()})
-	}
-	for _, t := range a.GetZeroResult() {
-		out.ZeroResult = append(out.ZeroResult, &model.LensSearchTerm{Term: t.GetTerm(), Count: t.GetCount()})
+		MeaningOnlySearches: a.GetMeaningOnlySearches(),
+		Top:                 lensSearchTerms(a.GetTop()),
+		ZeroResult:          lensSearchTerms(a.GetZeroResult()),
+		MeaningOnly:         lensSearchTerms(a.GetMeaningOnly()),
+		Daily:               make([]*model.LensSearchDay, 0, len(a.GetDaily())),
 	}
 	for _, d := range a.GetDaily() {
-		out.Daily = append(out.Daily, &model.LensSearchDay{Date: d.GetDate(), Searches: d.GetSearches(), ZeroResults: d.GetZeroResults()})
+		out.Daily = append(out.Daily, &model.LensSearchDay{Date: d.GetDate(), Searches: d.GetSearches(), ZeroResults: d.GetZeroResults(), MeaningOnly: d.GetMeaningOnly()})
 	}
+	lensAISearch(out, a)
 	return out, nil
 }
 

@@ -1,6 +1,10 @@
 package channel
 
-import "context"
+import (
+	"context"
+
+	"github.com/google/uuid"
+)
 
 type ctxKey struct{}
 
@@ -15,4 +19,12 @@ func WithChannel(ctx context.Context, sv *Channel) context.Context {
 func FromContext(ctx context.Context) (*Channel, bool) {
 	sv, ok := ctx.Value(ctxKey{}).(*Channel)
 	return sv, ok && sv != nil
+}
+
+// IDFromContext is the current store's id, uuid.Nil outside a storefront request
+func IDFromContext(ctx context.Context) uuid.UUID {
+	if sv, ok := FromContext(ctx); ok {
+		return sv.ID
+	}
+	return uuid.Nil
 }

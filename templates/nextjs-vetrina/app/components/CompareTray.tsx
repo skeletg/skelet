@@ -55,7 +55,7 @@ export function CompareTray() {
   const ready = ids.length >= 2;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
+    <div className="assistant-follow pointer-events-none fixed inset-x-0 bottom-4 z-40 flex md:left-[var(--page-gutter,0px)] md:right-[var(--assistant-inset,0px)] justify-center px-4">
       <div
         role="region"
         aria-label={t("list")}

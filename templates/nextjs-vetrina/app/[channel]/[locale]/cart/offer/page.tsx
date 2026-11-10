@@ -140,7 +140,7 @@ export default async function OfferPage({ params, searchParams }: PageProps<"/[c
       <div className="mt-6 text-right">
         <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{t("subtotal")}</p>
         <p className="text-2xl font-semibold tabular-nums">{formatPrice(Math.max(0, cart.subtotal - cart.totalDiscount), currency)}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{t("taxNote")}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{channel?.taxInclusivePricing ? t("taxNoteIncluded") : t("taxNote")}</p>
       </div>
 
       <form action={continueOfferCheckout} className="mt-8 flex justify-end">

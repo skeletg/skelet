@@ -39,9 +39,9 @@ INSERT INTO catalog_attributes (
     value_required, filterable, searchable, is_public,
     facet_collapsed, is_indexable, h1_position,
     sort_order, metadata, private_metadata, default_value, synapse_track, auto_segment,
-    relationship_target
+    relationship_target, embedded, similar_match
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 RETURNING *;
 
 -- name: GetAttributeByID :one
@@ -68,6 +68,8 @@ SET name               = $2,
     synapse_track      = $15,
     auto_segment       = $16,
     relationship_target = $17,
+    embedded           = $18,
+    similar_match      = $19,
     updated_at         = NOW()
 WHERE id = $1
 RETURNING *;
@@ -94,8 +96,8 @@ SELECT DISTINCT product_id FROM catalog_product_attribute_values WHERE attribute
 -- ==================== Attribute Values ====================
 
 -- name: CreateAttributeValue :one
-INSERT INTO catalog_attribute_values (attribute_id, slug, name, value, sort_order, is_indexable)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO catalog_attribute_values (attribute_id, slug, name, value, sort_order, is_indexable, matches_any)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
 -- name: GetAttributeValueByID :one
@@ -117,7 +119,8 @@ SET slug         = $2,
     name         = $3,
     value        = $4,
     sort_order   = $5,
-    is_indexable = $6
+    is_indexable = $6,
+    matches_any  = COALESCE(sqlc.narg(matches_any)::boolean, matches_any)
 WHERE id = $1
 RETURNING *;
 
@@ -358,3 +361,17 @@ ORDER BY pc.parent_id, pc.sort_order, p.url;
 -- name: ListSynapseTrackedAttributes :many
 -- Attributes flagged for affinity tracking - Signals wants the slug and label alone, so this stays a narrow read rather than the whole catalog service
 SELECT slug, name, auto_segment FROM catalog_attributes WHERE synapse_track = true ORDER BY slug;
+
+-- Each SKU's product and every product it's sold through, for the analytics events that name what was carted or ordered
+-- name: ProductRefsBySKU :many
+SELECT p.sku, p.id, c.parent_id
+FROM catalog_products p
+LEFT JOIN catalog_product_children c ON c.child_id = p.id
+WHERE p.sku = ANY(sqlc.arg(skus)::text[]);
+
+-- Each product's name in the language asked for, else any it has - for reports that list products by id
+-- name: ProductNamesByIDs :many
+SELECT p.id, COALESCE((SELECT c.name FROM catalog_product_content c WHERE c.product_id = p.id
+    ORDER BY (c.locale = sqlc.arg(locale)::text) DESC, c.locale LIMIT 1), p.sku)::text AS name
+FROM catalog_products p
+WHERE p.id = ANY(sqlc.arg(ids)::uuid[]);

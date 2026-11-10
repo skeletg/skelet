@@ -1892,9 +1892,14 @@ func (x *RenderLibraryPreviewRequest) GetStylesJson() string {
 }
 
 type RenderLibraryPreviewResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Subject       string                 `protobuf:"bytes,1,opt,name=subject,proto3" json:"subject,omitempty"`
-	Html          string                 `protobuf:"bytes,2,opt,name=html,proto3" json:"html,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Subject string                 `protobuf:"bytes,1,opt,name=subject,proto3" json:"subject,omitempty"`
+	Html    string                 `protobuf:"bytes,2,opt,name=html,proto3" json:"html,omitempty"`
+	Text    string                 `protobuf:"bytes,3,opt,name=text,proto3" json:"text,omitempty"`
+	// The preheader with its merge tags filled in, as an inbox shows it after the subject
+	Preheader     string `protobuf:"bytes,4,opt,name=preheader,proto3" json:"preheader,omitempty"`
+	FromName      string `protobuf:"bytes,5,opt,name=from_name,json=fromName,proto3" json:"from_name,omitempty"`
+	FromAddress   string `protobuf:"bytes,6,opt,name=from_address,json=fromAddress,proto3" json:"from_address,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1939,6 +1944,34 @@ func (x *RenderLibraryPreviewResponse) GetSubject() string {
 func (x *RenderLibraryPreviewResponse) GetHtml() string {
 	if x != nil {
 		return x.Html
+	}
+	return ""
+}
+
+func (x *RenderLibraryPreviewResponse) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+func (x *RenderLibraryPreviewResponse) GetPreheader() string {
+	if x != nil {
+		return x.Preheader
+	}
+	return ""
+}
+
+func (x *RenderLibraryPreviewResponse) GetFromName() string {
+	if x != nil {
+		return x.FromName
+	}
+	return ""
+}
+
+func (x *RenderLibraryPreviewResponse) GetFromAddress() string {
+	if x != nil {
+		return x.FromAddress
 	}
 	return ""
 }
@@ -2207,6 +2240,364 @@ func (*DeleteEmailBlockResponse) Descriptor() ([]byte, []int) {
 	return file_skelet_signals_v1_builder_proto_rawDescGZIP(), []int{40}
 }
 
+type EmailTranslation struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	EmailId string                 `protobuf:"bytes,1,opt,name=email_id,json=emailId,proto3" json:"email_id,omitempty"`
+	// A storefront locale code, lowercase - "de", "fr-ca"
+	Locale        string                 `protobuf:"bytes,2,opt,name=locale,proto3" json:"locale,omitempty"`
+	Subject       string                 `protobuf:"bytes,3,opt,name=subject,proto3" json:"subject,omitempty"`
+	Preheader     string                 `protobuf:"bytes,4,opt,name=preheader,proto3" json:"preheader,omitempty"`
+	BlocksJson    string                 `protobuf:"bytes,5,opt,name=blocks_json,json=blocksJson,proto3" json:"blocks_json,omitempty"`
+	StylesJson    string                 `protobuf:"bytes,6,opt,name=styles_json,json=stylesJson,proto3" json:"styles_json,omitempty"`
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EmailTranslation) Reset() {
+	*x = EmailTranslation{}
+	mi := &file_skelet_signals_v1_builder_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EmailTranslation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EmailTranslation) ProtoMessage() {}
+
+func (x *EmailTranslation) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_builder_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EmailTranslation.ProtoReflect.Descriptor instead.
+func (*EmailTranslation) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_builder_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *EmailTranslation) GetEmailId() string {
+	if x != nil {
+		return x.EmailId
+	}
+	return ""
+}
+
+func (x *EmailTranslation) GetLocale() string {
+	if x != nil {
+		return x.Locale
+	}
+	return ""
+}
+
+func (x *EmailTranslation) GetSubject() string {
+	if x != nil {
+		return x.Subject
+	}
+	return ""
+}
+
+func (x *EmailTranslation) GetPreheader() string {
+	if x != nil {
+		return x.Preheader
+	}
+	return ""
+}
+
+func (x *EmailTranslation) GetBlocksJson() string {
+	if x != nil {
+		return x.BlocksJson
+	}
+	return ""
+}
+
+func (x *EmailTranslation) GetStylesJson() string {
+	if x != nil {
+		return x.StylesJson
+	}
+	return ""
+}
+
+func (x *EmailTranslation) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+type ListEmailTranslationsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EmailId       string                 `protobuf:"bytes,1,opt,name=email_id,json=emailId,proto3" json:"email_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListEmailTranslationsRequest) Reset() {
+	*x = ListEmailTranslationsRequest{}
+	mi := &file_skelet_signals_v1_builder_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListEmailTranslationsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListEmailTranslationsRequest) ProtoMessage() {}
+
+func (x *ListEmailTranslationsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_builder_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListEmailTranslationsRequest.ProtoReflect.Descriptor instead.
+func (*ListEmailTranslationsRequest) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_builder_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *ListEmailTranslationsRequest) GetEmailId() string {
+	if x != nil {
+		return x.EmailId
+	}
+	return ""
+}
+
+type ListEmailTranslationsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Translations  []*EmailTranslation    `protobuf:"bytes,1,rep,name=translations,proto3" json:"translations,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListEmailTranslationsResponse) Reset() {
+	*x = ListEmailTranslationsResponse{}
+	mi := &file_skelet_signals_v1_builder_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListEmailTranslationsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListEmailTranslationsResponse) ProtoMessage() {}
+
+func (x *ListEmailTranslationsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_builder_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListEmailTranslationsResponse.ProtoReflect.Descriptor instead.
+func (*ListEmailTranslationsResponse) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_builder_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *ListEmailTranslationsResponse) GetTranslations() []*EmailTranslation {
+	if x != nil {
+		return x.Translations
+	}
+	return nil
+}
+
+// Creates the locale's version or replaces it whole
+type SaveEmailTranslationRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Translation   *EmailTranslation      `protobuf:"bytes,1,opt,name=translation,proto3" json:"translation,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SaveEmailTranslationRequest) Reset() {
+	*x = SaveEmailTranslationRequest{}
+	mi := &file_skelet_signals_v1_builder_proto_msgTypes[44]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SaveEmailTranslationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SaveEmailTranslationRequest) ProtoMessage() {}
+
+func (x *SaveEmailTranslationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_builder_proto_msgTypes[44]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SaveEmailTranslationRequest.ProtoReflect.Descriptor instead.
+func (*SaveEmailTranslationRequest) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_builder_proto_rawDescGZIP(), []int{44}
+}
+
+func (x *SaveEmailTranslationRequest) GetTranslation() *EmailTranslation {
+	if x != nil {
+		return x.Translation
+	}
+	return nil
+}
+
+type SaveEmailTranslationResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Translation   *EmailTranslation      `protobuf:"bytes,1,opt,name=translation,proto3" json:"translation,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SaveEmailTranslationResponse) Reset() {
+	*x = SaveEmailTranslationResponse{}
+	mi := &file_skelet_signals_v1_builder_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SaveEmailTranslationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SaveEmailTranslationResponse) ProtoMessage() {}
+
+func (x *SaveEmailTranslationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_builder_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SaveEmailTranslationResponse.ProtoReflect.Descriptor instead.
+func (*SaveEmailTranslationResponse) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_builder_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *SaveEmailTranslationResponse) GetTranslation() *EmailTranslation {
+	if x != nil {
+		return x.Translation
+	}
+	return nil
+}
+
+type DeleteEmailTranslationRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EmailId       string                 `protobuf:"bytes,1,opt,name=email_id,json=emailId,proto3" json:"email_id,omitempty"`
+	Locale        string                 `protobuf:"bytes,2,opt,name=locale,proto3" json:"locale,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteEmailTranslationRequest) Reset() {
+	*x = DeleteEmailTranslationRequest{}
+	mi := &file_skelet_signals_v1_builder_proto_msgTypes[46]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteEmailTranslationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteEmailTranslationRequest) ProtoMessage() {}
+
+func (x *DeleteEmailTranslationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_builder_proto_msgTypes[46]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteEmailTranslationRequest.ProtoReflect.Descriptor instead.
+func (*DeleteEmailTranslationRequest) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_builder_proto_rawDescGZIP(), []int{46}
+}
+
+func (x *DeleteEmailTranslationRequest) GetEmailId() string {
+	if x != nil {
+		return x.EmailId
+	}
+	return ""
+}
+
+func (x *DeleteEmailTranslationRequest) GetLocale() string {
+	if x != nil {
+		return x.Locale
+	}
+	return ""
+}
+
+type DeleteEmailTranslationResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteEmailTranslationResponse) Reset() {
+	*x = DeleteEmailTranslationResponse{}
+	mi := &file_skelet_signals_v1_builder_proto_msgTypes[47]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteEmailTranslationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteEmailTranslationResponse) ProtoMessage() {}
+
+func (x *DeleteEmailTranslationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_builder_proto_msgTypes[47]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteEmailTranslationResponse.ProtoReflect.Descriptor instead.
+func (*DeleteEmailTranslationResponse) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_builder_proto_rawDescGZIP(), []int{47}
+}
+
 var File_skelet_signals_v1_builder_proto protoreflect.FileDescriptor
 
 const file_skelet_signals_v1_builder_proto_rawDesc = "" +
@@ -2356,10 +2747,14 @@ const file_skelet_signals_v1_builder_proto_rawDesc = "" +
 	"blocksJson\x12\x1f\n" +
 	"\vstyles_json\x18\x06 \x01(\tR\n" +
 	"stylesJsonB\x0e\n" +
-	"\f_customer_id\"L\n" +
+	"\f_customer_id\"\xbe\x01\n" +
 	"\x1cRenderLibraryPreviewResponse\x12\x18\n" +
 	"\asubject\x18\x01 \x01(\tR\asubject\x12\x12\n" +
-	"\x04html\x18\x02 \x01(\tR\x04html\"7\n" +
+	"\x04html\x18\x02 \x01(\tR\x04html\x12\x12\n" +
+	"\x04text\x18\x03 \x01(\tR\x04text\x12\x1c\n" +
+	"\tpreheader\x18\x04 \x01(\tR\tpreheader\x12\x1b\n" +
+	"\tfrom_name\x18\x05 \x01(\tR\bfromName\x12!\n" +
+	"\ffrom_address\x18\x06 \x01(\tR\vfromAddress\"7\n" +
 	"\x16ListEmailBlocksRequest\x12\x1d\n" +
 	"\n" +
 	"channel_id\x18\x01 \x01(\tR\tchannelId\"P\n" +
@@ -2373,7 +2768,30 @@ const file_skelet_signals_v1_builder_proto_rawDesc = "" +
 	"\n" +
 	"channel_id\x18\x01 \x01(\tR\tchannelId\x12\x12\n" +
 	"\x04slug\x18\x02 \x01(\tR\x04slug\"\x1a\n" +
-	"\x18DeleteEmailBlockResponse2\xf3\x0e\n" +
+	"\x18DeleteEmailBlockResponse\"\xfa\x01\n" +
+	"\x10EmailTranslation\x12\x19\n" +
+	"\bemail_id\x18\x01 \x01(\tR\aemailId\x12\x16\n" +
+	"\x06locale\x18\x02 \x01(\tR\x06locale\x12\x18\n" +
+	"\asubject\x18\x03 \x01(\tR\asubject\x12\x1c\n" +
+	"\tpreheader\x18\x04 \x01(\tR\tpreheader\x12\x1f\n" +
+	"\vblocks_json\x18\x05 \x01(\tR\n" +
+	"blocksJson\x12\x1f\n" +
+	"\vstyles_json\x18\x06 \x01(\tR\n" +
+	"stylesJson\x129\n" +
+	"\n" +
+	"updated_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"9\n" +
+	"\x1cListEmailTranslationsRequest\x12\x19\n" +
+	"\bemail_id\x18\x01 \x01(\tR\aemailId\"h\n" +
+	"\x1dListEmailTranslationsResponse\x12G\n" +
+	"\ftranslations\x18\x01 \x03(\v2#.skelet.signals.v1.EmailTranslationR\ftranslations\"d\n" +
+	"\x1bSaveEmailTranslationRequest\x12E\n" +
+	"\vtranslation\x18\x01 \x01(\v2#.skelet.signals.v1.EmailTranslationR\vtranslation\"e\n" +
+	"\x1cSaveEmailTranslationResponse\x12E\n" +
+	"\vtranslation\x18\x01 \x01(\v2#.skelet.signals.v1.EmailTranslationR\vtranslation\"R\n" +
+	"\x1dDeleteEmailTranslationRequest\x12\x19\n" +
+	"\bemail_id\x18\x01 \x01(\tR\aemailId\x12\x16\n" +
+	"\x06locale\x18\x02 \x01(\tR\x06locale\" \n" +
+	"\x1eDeleteEmailTranslationResponse2\xe7\x11\n" +
 	"\x13EmailBuilderService\x12n\n" +
 	"\x11ListLibraryEmails\x12+.skelet.signals.v1.ListLibraryEmailsRequest\x1a,.skelet.signals.v1.ListLibraryEmailsResponse\x12h\n" +
 	"\x0fGetLibraryEmail\x12).skelet.signals.v1.GetLibraryEmailRequest\x1a*.skelet.signals.v1.GetLibraryEmailResponse\x12k\n" +
@@ -2391,7 +2809,10 @@ const file_skelet_signals_v1_builder_proto_rawDesc = "" +
 	"\x14RenderLibraryPreview\x12..skelet.signals.v1.RenderLibraryPreviewRequest\x1a/.skelet.signals.v1.RenderLibraryPreviewResponse\x12h\n" +
 	"\x0fListEmailBlocks\x12).skelet.signals.v1.ListEmailBlocksRequest\x1a*.skelet.signals.v1.ListEmailBlocksResponse\x12e\n" +
 	"\x0eSaveEmailBlock\x12(.skelet.signals.v1.SaveEmailBlockRequest\x1a).skelet.signals.v1.SaveEmailBlockResponse\x12k\n" +
-	"\x10DeleteEmailBlock\x12*.skelet.signals.v1.DeleteEmailBlockRequest\x1a+.skelet.signals.v1.DeleteEmailBlockResponseB\xd0\x01\n" +
+	"\x10DeleteEmailBlock\x12*.skelet.signals.v1.DeleteEmailBlockRequest\x1a+.skelet.signals.v1.DeleteEmailBlockResponse\x12z\n" +
+	"\x15ListEmailTranslations\x12/.skelet.signals.v1.ListEmailTranslationsRequest\x1a0.skelet.signals.v1.ListEmailTranslationsResponse\x12w\n" +
+	"\x14SaveEmailTranslation\x12..skelet.signals.v1.SaveEmailTranslationRequest\x1a/.skelet.signals.v1.SaveEmailTranslationResponse\x12}\n" +
+	"\x16DeleteEmailTranslation\x120.skelet.signals.v1.DeleteEmailTranslationRequest\x1a1.skelet.signals.v1.DeleteEmailTranslationResponseB\xd0\x01\n" +
 	"\x15com.skelet.signals.v1B\fBuilderProtoP\x01ZCgithub.com/skeletg/skelet/apps/backend/core/signalsapi/v1;signalsv1\xa2\x02\x03SSX\xaa\x02\x11Skelet.Signals.V1\xca\x02\x11Skelet\\Signals\\V1\xe2\x02\x1dSkelet\\Signals\\V1\\GPBMetadata\xea\x02\x13Skelet::Signals::V1b\x06proto3"
 
 var (
@@ -2406,7 +2827,7 @@ func file_skelet_signals_v1_builder_proto_rawDescGZIP() []byte {
 	return file_skelet_signals_v1_builder_proto_rawDescData
 }
 
-var file_skelet_signals_v1_builder_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
+var file_skelet_signals_v1_builder_proto_msgTypes = make([]protoimpl.MessageInfo, 48)
 var file_skelet_signals_v1_builder_proto_goTypes = []any{
 	(*LibraryEmail)(nil),                   // 0: skelet.signals.v1.LibraryEmail
 	(*LibraryEmailInput)(nil),              // 1: skelet.signals.v1.LibraryEmailInput
@@ -2449,12 +2870,19 @@ var file_skelet_signals_v1_builder_proto_goTypes = []any{
 	(*SaveEmailBlockResponse)(nil),         // 38: skelet.signals.v1.SaveEmailBlockResponse
 	(*DeleteEmailBlockRequest)(nil),        // 39: skelet.signals.v1.DeleteEmailBlockRequest
 	(*DeleteEmailBlockResponse)(nil),       // 40: skelet.signals.v1.DeleteEmailBlockResponse
-	(*timestamppb.Timestamp)(nil),          // 41: google.protobuf.Timestamp
+	(*EmailTranslation)(nil),               // 41: skelet.signals.v1.EmailTranslation
+	(*ListEmailTranslationsRequest)(nil),   // 42: skelet.signals.v1.ListEmailTranslationsRequest
+	(*ListEmailTranslationsResponse)(nil),  // 43: skelet.signals.v1.ListEmailTranslationsResponse
+	(*SaveEmailTranslationRequest)(nil),    // 44: skelet.signals.v1.SaveEmailTranslationRequest
+	(*SaveEmailTranslationResponse)(nil),   // 45: skelet.signals.v1.SaveEmailTranslationResponse
+	(*DeleteEmailTranslationRequest)(nil),  // 46: skelet.signals.v1.DeleteEmailTranslationRequest
+	(*DeleteEmailTranslationResponse)(nil), // 47: skelet.signals.v1.DeleteEmailTranslationResponse
+	(*timestamppb.Timestamp)(nil),          // 48: google.protobuf.Timestamp
 }
 var file_skelet_signals_v1_builder_proto_depIdxs = []int32{
-	41, // 0: skelet.signals.v1.LibraryEmail.created_at:type_name -> google.protobuf.Timestamp
-	41, // 1: skelet.signals.v1.LibraryEmail.updated_at:type_name -> google.protobuf.Timestamp
-	41, // 2: skelet.signals.v1.EmailRevision.created_at:type_name -> google.protobuf.Timestamp
+	48, // 0: skelet.signals.v1.LibraryEmail.created_at:type_name -> google.protobuf.Timestamp
+	48, // 1: skelet.signals.v1.LibraryEmail.updated_at:type_name -> google.protobuf.Timestamp
+	48, // 2: skelet.signals.v1.EmailRevision.created_at:type_name -> google.protobuf.Timestamp
 	0,  // 3: skelet.signals.v1.ListLibraryEmailsResponse.emails:type_name -> skelet.signals.v1.LibraryEmail
 	0,  // 4: skelet.signals.v1.GetLibraryEmailResponse.email:type_name -> skelet.signals.v1.LibraryEmail
 	1,  // 5: skelet.signals.v1.SaveLibraryEmailRequest.email:type_name -> skelet.signals.v1.LibraryEmailInput
@@ -2469,45 +2897,55 @@ var file_skelet_signals_v1_builder_proto_depIdxs = []int32{
 	6,  // 14: skelet.signals.v1.ListEmailBlocksResponse.blocks:type_name -> skelet.signals.v1.EmailBlock
 	6,  // 15: skelet.signals.v1.SaveEmailBlockRequest.block:type_name -> skelet.signals.v1.EmailBlock
 	6,  // 16: skelet.signals.v1.SaveEmailBlockResponse.block:type_name -> skelet.signals.v1.EmailBlock
-	7,  // 17: skelet.signals.v1.EmailBuilderService.ListLibraryEmails:input_type -> skelet.signals.v1.ListLibraryEmailsRequest
-	9,  // 18: skelet.signals.v1.EmailBuilderService.GetLibraryEmail:input_type -> skelet.signals.v1.GetLibraryEmailRequest
-	11, // 19: skelet.signals.v1.EmailBuilderService.SaveLibraryEmail:input_type -> skelet.signals.v1.SaveLibraryEmailRequest
-	13, // 20: skelet.signals.v1.EmailBuilderService.DeleteLibraryEmail:input_type -> skelet.signals.v1.DeleteLibraryEmailRequest
-	15, // 21: skelet.signals.v1.EmailBuilderService.ListEmailGroups:input_type -> skelet.signals.v1.ListEmailGroupsRequest
-	17, // 22: skelet.signals.v1.EmailBuilderService.CreateEmailGroup:input_type -> skelet.signals.v1.CreateEmailGroupRequest
-	19, // 23: skelet.signals.v1.EmailBuilderService.RenameEmailGroup:input_type -> skelet.signals.v1.RenameEmailGroupRequest
-	21, // 24: skelet.signals.v1.EmailBuilderService.DeleteEmailGroup:input_type -> skelet.signals.v1.DeleteEmailGroupRequest
-	23, // 25: skelet.signals.v1.EmailBuilderService.ListTransactionalSlots:input_type -> skelet.signals.v1.ListTransactionalSlotsRequest
-	25, // 26: skelet.signals.v1.EmailBuilderService.AssignEmailSlot:input_type -> skelet.signals.v1.AssignEmailSlotRequest
-	27, // 27: skelet.signals.v1.EmailBuilderService.PreflightEmail:input_type -> skelet.signals.v1.PreflightEmailRequest
-	29, // 28: skelet.signals.v1.EmailBuilderService.ListEmailRevisions:input_type -> skelet.signals.v1.ListEmailRevisionsRequest
-	31, // 29: skelet.signals.v1.EmailBuilderService.RestoreEmailRevision:input_type -> skelet.signals.v1.RestoreEmailRevisionRequest
-	33, // 30: skelet.signals.v1.EmailBuilderService.RenderLibraryPreview:input_type -> skelet.signals.v1.RenderLibraryPreviewRequest
-	35, // 31: skelet.signals.v1.EmailBuilderService.ListEmailBlocks:input_type -> skelet.signals.v1.ListEmailBlocksRequest
-	37, // 32: skelet.signals.v1.EmailBuilderService.SaveEmailBlock:input_type -> skelet.signals.v1.SaveEmailBlockRequest
-	39, // 33: skelet.signals.v1.EmailBuilderService.DeleteEmailBlock:input_type -> skelet.signals.v1.DeleteEmailBlockRequest
-	8,  // 34: skelet.signals.v1.EmailBuilderService.ListLibraryEmails:output_type -> skelet.signals.v1.ListLibraryEmailsResponse
-	10, // 35: skelet.signals.v1.EmailBuilderService.GetLibraryEmail:output_type -> skelet.signals.v1.GetLibraryEmailResponse
-	12, // 36: skelet.signals.v1.EmailBuilderService.SaveLibraryEmail:output_type -> skelet.signals.v1.SaveLibraryEmailResponse
-	14, // 37: skelet.signals.v1.EmailBuilderService.DeleteLibraryEmail:output_type -> skelet.signals.v1.DeleteLibraryEmailResponse
-	16, // 38: skelet.signals.v1.EmailBuilderService.ListEmailGroups:output_type -> skelet.signals.v1.ListEmailGroupsResponse
-	18, // 39: skelet.signals.v1.EmailBuilderService.CreateEmailGroup:output_type -> skelet.signals.v1.CreateEmailGroupResponse
-	20, // 40: skelet.signals.v1.EmailBuilderService.RenameEmailGroup:output_type -> skelet.signals.v1.RenameEmailGroupResponse
-	22, // 41: skelet.signals.v1.EmailBuilderService.DeleteEmailGroup:output_type -> skelet.signals.v1.DeleteEmailGroupResponse
-	24, // 42: skelet.signals.v1.EmailBuilderService.ListTransactionalSlots:output_type -> skelet.signals.v1.ListTransactionalSlotsResponse
-	26, // 43: skelet.signals.v1.EmailBuilderService.AssignEmailSlot:output_type -> skelet.signals.v1.AssignEmailSlotResponse
-	28, // 44: skelet.signals.v1.EmailBuilderService.PreflightEmail:output_type -> skelet.signals.v1.PreflightEmailResponse
-	30, // 45: skelet.signals.v1.EmailBuilderService.ListEmailRevisions:output_type -> skelet.signals.v1.ListEmailRevisionsResponse
-	32, // 46: skelet.signals.v1.EmailBuilderService.RestoreEmailRevision:output_type -> skelet.signals.v1.RestoreEmailRevisionResponse
-	34, // 47: skelet.signals.v1.EmailBuilderService.RenderLibraryPreview:output_type -> skelet.signals.v1.RenderLibraryPreviewResponse
-	36, // 48: skelet.signals.v1.EmailBuilderService.ListEmailBlocks:output_type -> skelet.signals.v1.ListEmailBlocksResponse
-	38, // 49: skelet.signals.v1.EmailBuilderService.SaveEmailBlock:output_type -> skelet.signals.v1.SaveEmailBlockResponse
-	40, // 50: skelet.signals.v1.EmailBuilderService.DeleteEmailBlock:output_type -> skelet.signals.v1.DeleteEmailBlockResponse
-	34, // [34:51] is the sub-list for method output_type
-	17, // [17:34] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	48, // 17: skelet.signals.v1.EmailTranslation.updated_at:type_name -> google.protobuf.Timestamp
+	41, // 18: skelet.signals.v1.ListEmailTranslationsResponse.translations:type_name -> skelet.signals.v1.EmailTranslation
+	41, // 19: skelet.signals.v1.SaveEmailTranslationRequest.translation:type_name -> skelet.signals.v1.EmailTranslation
+	41, // 20: skelet.signals.v1.SaveEmailTranslationResponse.translation:type_name -> skelet.signals.v1.EmailTranslation
+	7,  // 21: skelet.signals.v1.EmailBuilderService.ListLibraryEmails:input_type -> skelet.signals.v1.ListLibraryEmailsRequest
+	9,  // 22: skelet.signals.v1.EmailBuilderService.GetLibraryEmail:input_type -> skelet.signals.v1.GetLibraryEmailRequest
+	11, // 23: skelet.signals.v1.EmailBuilderService.SaveLibraryEmail:input_type -> skelet.signals.v1.SaveLibraryEmailRequest
+	13, // 24: skelet.signals.v1.EmailBuilderService.DeleteLibraryEmail:input_type -> skelet.signals.v1.DeleteLibraryEmailRequest
+	15, // 25: skelet.signals.v1.EmailBuilderService.ListEmailGroups:input_type -> skelet.signals.v1.ListEmailGroupsRequest
+	17, // 26: skelet.signals.v1.EmailBuilderService.CreateEmailGroup:input_type -> skelet.signals.v1.CreateEmailGroupRequest
+	19, // 27: skelet.signals.v1.EmailBuilderService.RenameEmailGroup:input_type -> skelet.signals.v1.RenameEmailGroupRequest
+	21, // 28: skelet.signals.v1.EmailBuilderService.DeleteEmailGroup:input_type -> skelet.signals.v1.DeleteEmailGroupRequest
+	23, // 29: skelet.signals.v1.EmailBuilderService.ListTransactionalSlots:input_type -> skelet.signals.v1.ListTransactionalSlotsRequest
+	25, // 30: skelet.signals.v1.EmailBuilderService.AssignEmailSlot:input_type -> skelet.signals.v1.AssignEmailSlotRequest
+	27, // 31: skelet.signals.v1.EmailBuilderService.PreflightEmail:input_type -> skelet.signals.v1.PreflightEmailRequest
+	29, // 32: skelet.signals.v1.EmailBuilderService.ListEmailRevisions:input_type -> skelet.signals.v1.ListEmailRevisionsRequest
+	31, // 33: skelet.signals.v1.EmailBuilderService.RestoreEmailRevision:input_type -> skelet.signals.v1.RestoreEmailRevisionRequest
+	33, // 34: skelet.signals.v1.EmailBuilderService.RenderLibraryPreview:input_type -> skelet.signals.v1.RenderLibraryPreviewRequest
+	35, // 35: skelet.signals.v1.EmailBuilderService.ListEmailBlocks:input_type -> skelet.signals.v1.ListEmailBlocksRequest
+	37, // 36: skelet.signals.v1.EmailBuilderService.SaveEmailBlock:input_type -> skelet.signals.v1.SaveEmailBlockRequest
+	39, // 37: skelet.signals.v1.EmailBuilderService.DeleteEmailBlock:input_type -> skelet.signals.v1.DeleteEmailBlockRequest
+	42, // 38: skelet.signals.v1.EmailBuilderService.ListEmailTranslations:input_type -> skelet.signals.v1.ListEmailTranslationsRequest
+	44, // 39: skelet.signals.v1.EmailBuilderService.SaveEmailTranslation:input_type -> skelet.signals.v1.SaveEmailTranslationRequest
+	46, // 40: skelet.signals.v1.EmailBuilderService.DeleteEmailTranslation:input_type -> skelet.signals.v1.DeleteEmailTranslationRequest
+	8,  // 41: skelet.signals.v1.EmailBuilderService.ListLibraryEmails:output_type -> skelet.signals.v1.ListLibraryEmailsResponse
+	10, // 42: skelet.signals.v1.EmailBuilderService.GetLibraryEmail:output_type -> skelet.signals.v1.GetLibraryEmailResponse
+	12, // 43: skelet.signals.v1.EmailBuilderService.SaveLibraryEmail:output_type -> skelet.signals.v1.SaveLibraryEmailResponse
+	14, // 44: skelet.signals.v1.EmailBuilderService.DeleteLibraryEmail:output_type -> skelet.signals.v1.DeleteLibraryEmailResponse
+	16, // 45: skelet.signals.v1.EmailBuilderService.ListEmailGroups:output_type -> skelet.signals.v1.ListEmailGroupsResponse
+	18, // 46: skelet.signals.v1.EmailBuilderService.CreateEmailGroup:output_type -> skelet.signals.v1.CreateEmailGroupResponse
+	20, // 47: skelet.signals.v1.EmailBuilderService.RenameEmailGroup:output_type -> skelet.signals.v1.RenameEmailGroupResponse
+	22, // 48: skelet.signals.v1.EmailBuilderService.DeleteEmailGroup:output_type -> skelet.signals.v1.DeleteEmailGroupResponse
+	24, // 49: skelet.signals.v1.EmailBuilderService.ListTransactionalSlots:output_type -> skelet.signals.v1.ListTransactionalSlotsResponse
+	26, // 50: skelet.signals.v1.EmailBuilderService.AssignEmailSlot:output_type -> skelet.signals.v1.AssignEmailSlotResponse
+	28, // 51: skelet.signals.v1.EmailBuilderService.PreflightEmail:output_type -> skelet.signals.v1.PreflightEmailResponse
+	30, // 52: skelet.signals.v1.EmailBuilderService.ListEmailRevisions:output_type -> skelet.signals.v1.ListEmailRevisionsResponse
+	32, // 53: skelet.signals.v1.EmailBuilderService.RestoreEmailRevision:output_type -> skelet.signals.v1.RestoreEmailRevisionResponse
+	34, // 54: skelet.signals.v1.EmailBuilderService.RenderLibraryPreview:output_type -> skelet.signals.v1.RenderLibraryPreviewResponse
+	36, // 55: skelet.signals.v1.EmailBuilderService.ListEmailBlocks:output_type -> skelet.signals.v1.ListEmailBlocksResponse
+	38, // 56: skelet.signals.v1.EmailBuilderService.SaveEmailBlock:output_type -> skelet.signals.v1.SaveEmailBlockResponse
+	40, // 57: skelet.signals.v1.EmailBuilderService.DeleteEmailBlock:output_type -> skelet.signals.v1.DeleteEmailBlockResponse
+	43, // 58: skelet.signals.v1.EmailBuilderService.ListEmailTranslations:output_type -> skelet.signals.v1.ListEmailTranslationsResponse
+	45, // 59: skelet.signals.v1.EmailBuilderService.SaveEmailTranslation:output_type -> skelet.signals.v1.SaveEmailTranslationResponse
+	47, // 60: skelet.signals.v1.EmailBuilderService.DeleteEmailTranslation:output_type -> skelet.signals.v1.DeleteEmailTranslationResponse
+	41, // [41:61] is the sub-list for method output_type
+	21, // [21:41] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_skelet_signals_v1_builder_proto_init() }
@@ -2525,7 +2963,7 @@ func file_skelet_signals_v1_builder_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_skelet_signals_v1_builder_proto_rawDesc), len(file_skelet_signals_v1_builder_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   41,
+			NumMessages:   48,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

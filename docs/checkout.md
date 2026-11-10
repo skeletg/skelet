@@ -88,6 +88,27 @@ item that can't ship free.
 | 6 t-shirts | 10 € | free |
 | 3 t-shirts and a fridge | 35 € | 30 € |
 
+A **Table rate** method prices by rows instead, measured by weight (kg), the order subtotal or
+the number of items. A package pays the last row it reaches, and below the first row the method
+isn't offered at all, so start at 0 to always offer it. A row marked **not offered** works the
+other way, as a ceiling: a 30 kg row like that keeps pallets off a parcel method. Items with a
+rate by product type keep their own row and don't count toward the weight or item count. A
+subtotal table whose row reaches 0 € ships free from there, which also waives the product-type
+rates marked as eligible for free shipping, and drives the "add X for free shipping" hint.
+
+A variant with no weight of its own ships at its parent's. A cart that drops out of a table
+after an order edit keeps its old shipping price, and the order history says so.
+
+Example: a weight table of 0 kg at 4.90 €, 2 kg at 8.90 € and 10 kg at 19.90 €.
+
+| Package | Price |
+|---|---|
+| 0.8 kg | 4.90 € |
+| 2 kg | 8.90 € |
+| 14 kg | 19.90 € |
+
+Item weights come from each product's weight, so a product without one weighs nothing on the table.
+
 Store pickup is the built-in pickup carrier and is always free.
 
 ## Several methods, carriers and options
@@ -107,7 +128,7 @@ warning doesn't stop the option being offered.
 
 A method quotes delivery days, and checkout turns them into the date the shopper sees
 ("Arrives Mon 5 Oct"). The count starts the day after the order, on the calendar of
-**Settings → General → Store information → Store timezone**. Saturday and Sunday are skipped unless the
+**Settings → All settings → General → Store information → Store timezone**. Saturday and Sunday are skipped unless the
 carrier delivers on weekends, so a Friday order quoted 1 day arrives Monday, or Saturday
 from a weekend carrier. The **Fastest** badge goes by that date, not by the days quoted.
 

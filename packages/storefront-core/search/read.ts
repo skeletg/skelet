@@ -1,9 +1,14 @@
 // Server-side search helpers
 
 
-import { perRequest } from "../request";
+import { perRequest, rethrowControlFlow } from "../request";
 import { gqlFetch } from "../graphql";
-import { SearchBlogPostsDocument, SearchProductsDocument } from "./operations.gql";
+import { SearchBlogPostsDocument, SearchOverviewDocument, SearchProductsDocument } from "./operations.gql";
+import type { SearchOverview } from "./overview";
+
+export type { OverviewProduct, SearchOverview } from "./overview";
+
+const OVERVIEW_TIMEOUT_MS = 6000;
 
 export type ProductSearchHit = {
   id: string;
@@ -68,3 +73,18 @@ export const searchBlogPosts = perRequest(
     }
   },
 );
+
+// Never cached here: the backend keeps the overview and paces each shopper, and a slow model just means no overview
+export const searchOverview = perRequest(async (query: string): Promise<SearchOverview | null> => {
+  const q = query.trim();
+  if (!q) return null;
+  try {
+    const res = await gqlFetch(SearchOverviewDocument, { query: q }, { signal: AbortSignal.timeout(OVERVIEW_TIMEOUT_MS) });
+    const o = res.data.searchOverview;
+    if (!o?.text.trim()) return null;
+    return { text: o.text, recap: o.recap, products: o.products.map(({ id, name, url }) => ({ id, name, url })) };
+  } catch (err) {
+    rethrowControlFlow(err);
+    return null;
+  }
+});

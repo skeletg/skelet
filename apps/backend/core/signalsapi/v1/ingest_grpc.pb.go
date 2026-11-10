@@ -32,6 +32,8 @@ const (
 	IngestService_RosterStatus_FullMethodName            = "/skelet.signals.v1.IngestService/RosterStatus"
 	IngestService_EraseCustomerIdentities_FullMethodName = "/skelet.signals.v1.IngestService/EraseCustomerIdentities"
 	IngestService_SyncChannels_FullMethodName            = "/skelet.signals.v1.IngestService/SyncChannels"
+	IngestService_RecordAssistantTurn_FullMethodName     = "/skelet.signals.v1.IngestService/RecordAssistantTurn"
+	IngestService_RecordAIActivity_FullMethodName        = "/skelet.signals.v1.IngestService/RecordAIActivity"
 )
 
 // IngestServiceClient is the client API for IngestService service.
@@ -61,6 +63,11 @@ type IngestServiceClient interface {
 	// Core's active channels, replacing the copy the beacon surface resolves against - a handful of
 	// rows that change rarely, so the whole set goes in one call rather than a stream
 	SyncChannels(ctx context.Context, in *SyncChannelsRequest, opts ...grpc.CallOption) (*SyncChannelsResponse, error)
+	// One storefront assistant turn as it happened - a turn already held under its id is not written again
+	RecordAssistantTurn(ctx context.Context, in *RecordAssistantTurnRequest, opts ...grpc.CallOption) (*RecordAssistantTurnResponse, error)
+	// What the shopping assistant or a shopper's own AI agent did - tools called and words searched, counted per store and
+	// day, never tied to a person
+	RecordAIActivity(ctx context.Context, in *RecordAIActivityRequest, opts ...grpc.CallOption) (*RecordAIActivityResponse, error)
 }
 
 type ingestServiceClient struct {
@@ -184,6 +191,26 @@ func (c *ingestServiceClient) SyncChannels(ctx context.Context, in *SyncChannels
 	return out, nil
 }
 
+func (c *ingestServiceClient) RecordAssistantTurn(ctx context.Context, in *RecordAssistantTurnRequest, opts ...grpc.CallOption) (*RecordAssistantTurnResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RecordAssistantTurnResponse)
+	err := c.cc.Invoke(ctx, IngestService_RecordAssistantTurn_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ingestServiceClient) RecordAIActivity(ctx context.Context, in *RecordAIActivityRequest, opts ...grpc.CallOption) (*RecordAIActivityResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RecordAIActivityResponse)
+	err := c.cc.Invoke(ctx, IngestService_RecordAIActivity_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // IngestServiceServer is the server API for IngestService service.
 // All implementations must embed UnimplementedIngestServiceServer
 // for forward compatibility.
@@ -211,6 +238,11 @@ type IngestServiceServer interface {
 	// Core's active channels, replacing the copy the beacon surface resolves against - a handful of
 	// rows that change rarely, so the whole set goes in one call rather than a stream
 	SyncChannels(context.Context, *SyncChannelsRequest) (*SyncChannelsResponse, error)
+	// One storefront assistant turn as it happened - a turn already held under its id is not written again
+	RecordAssistantTurn(context.Context, *RecordAssistantTurnRequest) (*RecordAssistantTurnResponse, error)
+	// What the shopping assistant or a shopper's own AI agent did - tools called and words searched, counted per store and
+	// day, never tied to a person
+	RecordAIActivity(context.Context, *RecordAIActivityRequest) (*RecordAIActivityResponse, error)
 	mustEmbedUnimplementedIngestServiceServer()
 }
 
@@ -253,6 +285,12 @@ func (UnimplementedIngestServiceServer) EraseCustomerIdentities(context.Context,
 }
 func (UnimplementedIngestServiceServer) SyncChannels(context.Context, *SyncChannelsRequest) (*SyncChannelsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SyncChannels not implemented")
+}
+func (UnimplementedIngestServiceServer) RecordAssistantTurn(context.Context, *RecordAssistantTurnRequest) (*RecordAssistantTurnResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RecordAssistantTurn not implemented")
+}
+func (UnimplementedIngestServiceServer) RecordAIActivity(context.Context, *RecordAIActivityRequest) (*RecordAIActivityResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RecordAIActivity not implemented")
 }
 func (UnimplementedIngestServiceServer) mustEmbedUnimplementedIngestServiceServer() {}
 func (UnimplementedIngestServiceServer) testEmbeddedByValue()                       {}
@@ -462,6 +500,42 @@ func _IngestService_SyncChannels_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _IngestService_RecordAssistantTurn_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RecordAssistantTurnRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IngestServiceServer).RecordAssistantTurn(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: IngestService_RecordAssistantTurn_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IngestServiceServer).RecordAssistantTurn(ctx, req.(*RecordAssistantTurnRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _IngestService_RecordAIActivity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RecordAIActivityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IngestServiceServer).RecordAIActivity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: IngestService_RecordAIActivity_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IngestServiceServer).RecordAIActivity(ctx, req.(*RecordAIActivityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // IngestService_ServiceDesc is the grpc.ServiceDesc for IngestService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -508,6 +582,14 @@ var IngestService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SyncChannels",
 			Handler:    _IngestService_SyncChannels_Handler,
+		},
+		{
+			MethodName: "RecordAssistantTurn",
+			Handler:    _IngestService_RecordAssistantTurn_Handler,
+		},
+		{
+			MethodName: "RecordAIActivity",
+			Handler:    _IngestService_RecordAIActivity_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

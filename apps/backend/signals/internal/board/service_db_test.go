@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,15 +22,10 @@ func newShop(t *testing.T) (*sql.DB, *Service, uuid.UUID) {
 	return conn, NewService(conn), shop
 }
 
-// publish creates a board as its owner and saves it once, which is what takes it out of draft
-func publish(t *testing.T, svc *Service, shop uuid.UUID, owner Actor, name string, reports ...Report) Board {
+// newBoard creates a board as its owner
+func newBoard(t *testing.T, svc *Service, shop uuid.UUID, owner Actor, name string, reports ...Report) Board {
 	t.Helper()
-	ctx := context.Background()
-	b, err := svc.Create(ctx, shop, owner, name, reports)
-	if err != nil {
-		t.Fatal(err)
-	}
-	b, err = svc.Save(ctx, shop, owner, b.ID, name, reports, b.UpdatedAt)
+	b, err := svc.Create(context.Background(), shop, owner, name, reports)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,12 +58,12 @@ func TestBoardsStayInTheirShopAndRefuseAStaleSave(t *testing.T) {
 	if err != nil || len(got.Reports) != 1 || got.Reports[0].Definition.Event != "page_view" {
 		t.Fatalf("board = %+v, %v", got, err)
 	}
-	funnel := Report{Title: "Funnel", Definition: Definition{Kind: "funnel", Steps: []string{"page_view", "order_placed"}}}
+	funnel := Report{Title: "Funnel", Size: "full", Definition: Definition{Kind: "funnel", Steps: []string{"page_view", "order_placed"}}}
 	saved, err := svc.Save(ctx, shop, me, b.ID, "Mine", []Report{funnel, views}, got.UpdatedAt)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(saved.Reports) != 2 || saved.Reports[0].Title != "Funnel" || saved.Reports[1].Title != "Views" {
+	if len(saved.Reports) != 2 || saved.Reports[0].Title != "Funnel" || saved.Reports[0].Size != "full" || saved.Reports[1].Title != "Views" {
 		t.Fatalf("saved reports = %+v, want them in the order sent", saved.Reports)
 	}
 	if _, err := svc.Save(ctx, shop, me, b.ID, "Mine", nil, got.UpdatedAt); !errors.Is(err, ErrStale) {
@@ -89,8 +85,8 @@ func TestBoardsStayInTheirShopAndRefuseAStaleSave(t *testing.T) {
 	}
 }
 
-// A new board is its creator's draft; the first Save publishes it, and only then can it be shared
-func TestANewBoardIsAPrivateDraftUntilSaved(t *testing.T) {
+// A new board is its creator's and private: nobody else lists or opens it until it's shared
+func TestANewBoardIsPrivateToItsOwner(t *testing.T) {
 	_, svc, shop := newShop(t)
 	ctx := context.Background()
 	me, colleague := Actor{AdminID: uuid.New(), CanManage: true}, Actor{AdminID: uuid.New(), CanManage: true}
@@ -99,24 +95,20 @@ func TestANewBoardIsAPrivateDraftUntilSaved(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if b.Status != StatusDraft || b.OwnerID != me.AdminID {
-		t.Fatalf("a new board = status %q owner %s, want my draft", b.Status, b.OwnerID)
+	if b.OwnerID != me.AdminID || b.Access != Own {
+		t.Fatalf("a new board = owner %s access %s, want mine", b.OwnerID, b.Access)
 	}
 	if _, err := svc.Get(ctx, shop, colleague, b.ID); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("a colleague opened my draft: %v", err)
+		t.Fatalf("a colleague opened my board: %v", err)
 	}
 	if list, _ := svc.List(ctx, shop, colleague, false); len(list) != 0 {
-		t.Fatalf("a colleague lists my draft: %+v", list)
+		t.Fatalf("a colleague lists my board: %+v", list)
 	}
-	if _, err := svc.SetShares(ctx, shop, me, b.ID, []Share{{AdminID: colleague.AdminID, Level: ShareView}}); !errors.Is(err, ErrInvalid) {
-		t.Fatalf("sharing a draft: %v, want ErrInvalid", err)
+	if _, err := svc.SetShares(ctx, shop, me, b.ID, []Share{{AdminID: colleague.AdminID, Level: ShareView}}); err != nil {
+		t.Fatalf("sharing a new board: %v", err)
 	}
-	saved, err := svc.Save(ctx, shop, me, b.ID, "Product X", []Report{views}, b.UpdatedAt)
-	if err != nil || saved.Status != StatusPublished {
-		t.Fatalf("first save = %q, %v, want published", saved.Status, err)
-	}
-	if _, err := svc.Get(ctx, shop, colleague, b.ID); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("a saved board isn't shared by being saved: %v", err)
+	if _, err := svc.Get(ctx, shop, colleague, b.ID); err != nil {
+		t.Fatalf("a colleague can't open what I shared: %v", err)
 	}
 }
 
@@ -128,7 +120,7 @@ func TestSharingWithARoleToViewOnly(t *testing.T) {
 	me := Actor{AdminID: uuid.New(), CanManage: true}
 	member := Actor{AdminID: uuid.New(), RoleIDs: []uuid.UUID{marketing}}
 	outsider := Actor{AdminID: uuid.New(), CanManage: true}
-	b := publish(t, svc, shop, me, "Product X", views)
+	b := newBoard(t, svc, shop, me, "Product X", views)
 
 	shared, err := svc.SetShares(ctx, shop, me, b.ID, []Share{{RoleID: marketing, Level: ShareView}})
 	if err != nil || len(shared.Shares) != 1 {
@@ -141,7 +133,7 @@ func TestSharingWithARoleToViewOnly(t *testing.T) {
 	if _, err := svc.Save(ctx, shop, member, b.ID, "Mine now", nil, got.UpdatedAt); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("a viewer saved: %v, want ErrForbidden", err)
 	}
-	if _, err := svc.SaveDraft(ctx, shop, member, b.ID, []byte(`{}`), got.UpdatedAt); !errors.Is(err, ErrForbidden) {
+	if _, err := svc.SaveDraft(ctx, shop, member, b.ID, Draft{}, got.UpdatedAt); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("a viewer kept a draft: %v, want ErrForbidden", err)
 	}
 	if err := svc.SetFavourite(ctx, shop, member, b.ID, true); err != nil {
@@ -167,17 +159,23 @@ func TestAnEditorsDraftIsKeptUntilTheySave(t *testing.T) {
 	_, svc, shop := newShop(t)
 	ctx := context.Background()
 	me, editor := Actor{AdminID: uuid.New(), CanManage: true}, Actor{AdminID: uuid.New()}
-	b := publish(t, svc, shop, me, "Product X", views)
+	b := newBoard(t, svc, shop, me, "Product X", views)
 	if _, err := svc.SetShares(ctx, shop, me, b.ID, []Share{{AdminID: editor.AdminID, Level: ShareEdit}}); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := svc.SaveDraft(ctx, shop, editor, b.ID, []byte(`{"name":"Product X v2"}`), b.UpdatedAt); err != nil {
+	// work in progress Save would refuse - a one-step funnel, with no title yet - is still kept
+	unfinished := Report{Definition: Definition{Kind: "funnel", Steps: []string{"page_view"}}}
+	kept := Draft{Name: "Product X v2", Reports: []DraftReport{{Report: views, From: new(0)}, {Report: unfinished}}}
+	if _, err := svc.SaveDraft(ctx, shop, editor, b.ID, kept, b.UpdatedAt); err != nil {
 		t.Fatal(err)
 	}
 	got, err := svc.Get(ctx, shop, editor, b.ID)
-	if err != nil || got.Draft == nil || string(got.Draft.Payload) != `{"name": "Product X v2"}` || !got.Draft.BaseUpdatedAt.Equal(b.UpdatedAt) {
+	if err != nil || got.Draft == nil || got.Draft.Name != "Product X v2" || !got.Draft.BaseUpdatedAt.Equal(b.UpdatedAt) {
 		t.Fatalf("the editor's draft = %+v, %v", got.Draft, err)
+	}
+	if r := got.Draft.Reports; len(r) != 2 || r[0].From == nil || *r[0].From != 0 || r[0].Title != "Views" || r[1].From != nil || len(r[1].Definition.Steps) != 1 {
+		t.Fatalf("the draft's reports = %+v, want both back as staged, with where each came from", r)
 	}
 	if mine, _ := svc.Get(ctx, shop, me, b.ID); mine.Draft != nil {
 		t.Fatal("the owner sees the editor's draft - a draft is its admin's alone")
@@ -191,8 +189,8 @@ func TestAnEditorsDraftIsKeptUntilTheySave(t *testing.T) {
 	if after, _ := svc.Get(ctx, shop, editor, b.ID); after.Draft != nil {
 		t.Fatal("the draft outlived the save that applied it")
 	}
-	if _, err := svc.SaveDraft(ctx, shop, editor, b.ID, []byte(`not json`), b.UpdatedAt); !errors.Is(err, ErrInvalid) {
-		t.Fatalf("a junk draft: %v", err)
+	if _, err := svc.SaveDraft(ctx, shop, editor, b.ID, Draft{Name: strings.Repeat("x", maxDraft)}, b.UpdatedAt); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("an oversized draft: %v", err)
 	}
 }
 
@@ -200,8 +198,8 @@ func TestDraftsNobodyCameBackToAreSwept(t *testing.T) {
 	conn, svc, shop := newShop(t)
 	ctx := context.Background()
 	me := Actor{AdminID: uuid.New(), CanManage: true}
-	b := publish(t, svc, shop, me, "Old", views)
-	if _, err := svc.SaveDraft(ctx, shop, me, b.ID, []byte(`{}`), b.UpdatedAt); err != nil {
+	b := newBoard(t, svc, shop, me, "Old", views)
+	if _, err := svc.SaveDraft(ctx, shop, me, b.ID, Draft{}, b.UpdatedAt); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := conn.Exec(`UPDATE board_drafts SET updated_at = now() - interval '31 days' WHERE board_id = $1`, b.ID); err != nil {
@@ -218,32 +216,48 @@ func TestDraftsNobodyCameBackToAreSwept(t *testing.T) {
 	}
 }
 
-// A shop board is everyone's to see and its managers' to run; making one drops the shares it no longer needs
-func TestMakingAShopBoardAndClaimingAnOrphan(t *testing.T) {
+// Handing a board on: to an admin, whose own share goes, or to nobody, which makes it a shop board everyone sees and
+// its managers run - and only whoever owns it may
+func TestTransferringABoard(t *testing.T) {
 	_, svc, shop := newShop(t)
 	ctx := context.Background()
-	me := Actor{AdminID: uuid.New(), CanManage: true}
+	me := Actor{AdminID: uuid.New()} // no boards.manage
 	viewer, manager := Actor{AdminID: uuid.New()}, Actor{AdminID: uuid.New(), CanManage: true}
-	b := publish(t, svc, shop, me, "Weekly", views)
-	if _, err := svc.SetShares(ctx, shop, me, b.ID, []Share{{AdminID: manager.AdminID, Level: ShareView}}); err != nil {
+	b := newBoard(t, svc, shop, me, "Weekly", views)
+	if _, err := svc.SetShares(ctx, shop, me, b.ID, []Share{{AdminID: manager.AdminID, Level: ShareEdit}}); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := svc.Claim(ctx, shop, viewer, b.ID); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("someone it isn't shared with claimed it: %v", err)
+	if err := svc.Transfer(ctx, shop, manager, b.ID, manager.AdminID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("an edit share took the board: %v", err)
 	}
-	claimed, err := svc.Claim(ctx, shop, manager, b.ID) // core checked the owner is gone
-	if err != nil || claimed.OwnerID != manager.AdminID || claimed.Access != Own {
-		t.Fatalf("claimed = owner %s access %s, %v", claimed.OwnerID, claimed.Access, err)
+	if err := svc.Transfer(ctx, shop, me, b.ID, uuid.Nil); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("an owner without boards.manage made a shop board: %v", err)
+	}
+	if err := svc.Transfer(ctx, shop, me, b.ID, manager.AdminID); err != nil {
+		t.Fatal(err)
+	}
+	got, err := svc.Get(ctx, shop, manager, b.ID)
+	if err != nil || got.OwnerID != manager.AdminID || len(got.Shares) != 1 || got.Shares[0].AdminID != me.AdminID || got.Shares[0].Level != ShareEdit {
+		t.Fatalf("handed over = owner %s shares %+v, %v - want the manager's, without their old share, and the giver as an editor", got.OwnerID, got.Shares, err)
+	}
+	if mine, err := svc.Get(ctx, shop, me, b.ID); err != nil || mine.Access != Edit {
+		t.Fatalf("the old owner after handing it over = %+v, %v - want to edit it still", mine.Access, err)
+	}
+	if err := svc.Transfer(ctx, shop, Actor{AdminID: uuid.New(), Superuser: true}, b.ID, me.AdminID); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ = svc.Get(ctx, shop, me, b.ID); len(got.Shares) != 0 {
+		t.Fatalf("a superuser moving a board left a share behind: %+v - only an owner giving it away stays on it", got.Shares)
 	}
 
-	shopBoard, err := svc.MakeShopBoard(ctx, shop, manager, b.ID)
-	if err != nil || shopBoard.OwnerID != uuid.Nil {
-		t.Fatalf("shop board = owner %s, %v", shopBoard.OwnerID, err)
+	su := Actor{AdminID: uuid.New(), Superuser: true} // how an orphaned board is handed on
+	if err := svc.Transfer(ctx, shop, su, b.ID, uuid.Nil); err != nil {
+		t.Fatal(err)
 	}
-	got, err := svc.Get(ctx, shop, viewer, b.ID)
-	if err != nil || got.Access != View {
-		t.Fatalf("anyone on the shop = %s, %v, want view", got.Access, err)
+	got, err = svc.Get(ctx, shop, viewer, b.ID)
+	if err != nil || got.OwnerID != uuid.Nil || got.Access != View {
+		t.Fatalf("anyone on the shop = owner %s access %s, %v - want to view a shop board", got.OwnerID, got.Access, err)
 	}
 	if _, err := svc.Save(ctx, shop, viewer, b.ID, "x", nil, got.UpdatedAt); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("boards.view alone edited a shop board: %v", err)
@@ -254,7 +268,7 @@ func TestMakingAShopBoardAndClaimingAnOrphan(t *testing.T) {
 }
 
 func TestStarterBoardsAreShopBoardsAddedOnce(t *testing.T) {
-	_, svc, shop := newShop(t)
+	conn, svc, shop := newShop(t)
 	ctx := context.Background()
 	me := Actor{AdminID: uuid.New(), CanManage: true}
 	first, err := svc.CreateStarters(ctx, shop, me)
@@ -262,8 +276,8 @@ func TestStarterBoardsAreShopBoardsAddedOnce(t *testing.T) {
 		t.Fatalf("starters = %d, %v", len(first), err)
 	}
 	for _, b := range first {
-		if b.OwnerID != uuid.Nil || b.Status != StatusPublished {
-			t.Fatalf("starter %q = owner %s status %s, want a published shop board", b.Name, b.OwnerID, b.Status)
+		if b.OwnerID != uuid.Nil {
+			t.Fatalf("starter %q = owner %s, want a shop board", b.Name, b.OwnerID)
 		}
 	}
 	again, err := svc.CreateStarters(ctx, shop, me)
@@ -273,12 +287,27 @@ func TestStarterBoardsAreShopBoardsAddedOnce(t *testing.T) {
 	if seen, _ := svc.List(ctx, shop, Actor{AdminID: uuid.New()}, false); len(seen) != 4 {
 		t.Fatalf("someone with boards.view sees %d starters, want all 4", len(seen))
 	}
+	// Two admins clicking at once still get one set
+	racing := uuid.New()
+	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM boards WHERE channel_id = $1`, racing) })
+	errs := make(chan error, 2)
+	for range 2 {
+		go func() { _, err := svc.CreateStarters(ctx, racing, me); errs <- err }()
+	}
+	for range 2 {
+		if err := <-errs; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if bs, _ := svc.List(ctx, racing, me, false); len(bs) != 4 {
+		t.Fatalf("concurrent starters left %d boards, want 4", len(bs))
+	}
 }
 
 func TestASuperuserListsOtherPeoplesBoardsOnlyWhenAskingForAll(t *testing.T) {
 	_, svc, shop := newShop(t)
 	ctx := context.Background()
-	publish(t, svc, shop, Actor{AdminID: uuid.New(), CanManage: true}, "Someone's", views)
+	newBoard(t, svc, shop, Actor{AdminID: uuid.New(), CanManage: true}, "Someone's", views)
 	su := Actor{AdminID: uuid.New(), Superuser: true}
 	if mine, _ := svc.List(ctx, shop, su, false); len(mine) != 0 {
 		t.Fatalf("a superuser's own list holds someone's private board: %+v", mine)
@@ -300,5 +329,81 @@ func TestARetiredShopsBoardsGo(t *testing.T) {
 	}
 	if bs, _ := svc.List(ctx, shop, me, false); len(bs) != 0 {
 		t.Fatalf("%d boards outlived their shop", len(bs))
+	}
+}
+
+// Someone who can't open a board asks its owner for access; the owner sees it, and sharing answers it. A request says
+// nothing back about a board the asker can't see, and is dropped when they could already do what they ask
+func TestRequestingAccessToABoard(t *testing.T) {
+	_, svc, shop := newShop(t)
+	ctx := context.Background()
+	me, asker := Actor{AdminID: uuid.New(), CanManage: true}, Actor{AdminID: uuid.New()}
+	b := newBoard(t, svc, shop, me, "Weekly", views)
+
+	if _, err := svc.RequestAccess(ctx, shop, asker, uuid.New(), ShareView); err != nil {
+		t.Fatalf("a request for a board that doesn't exist: %v, want the same answer as for one that does", err)
+	}
+	if _, err := svc.RequestAccess(ctx, shop, asker, b.ID, "own"); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("asking to own it: %v, want ErrInvalid", err)
+	}
+	if kept, err := svc.RequestAccess(ctx, shop, asker, b.ID, ShareEdit); err != nil || kept == nil || kept.OwnerID != me.AdminID {
+		t.Fatalf("a kept request = %+v, %v - want the board back, to tell its owner", kept, err)
+	}
+	if list, _ := svc.List(ctx, shop, me, false); len(list) != 1 || list[0].RequestCount != 1 {
+		t.Fatalf("the owner's list = %+v, want one request on the board", list)
+	}
+	colleague := Actor{AdminID: uuid.New()}
+	if _, err := svc.SetShares(ctx, shop, me, b.ID, []Share{{AdminID: colleague.AdminID, Level: ShareEdit}}); err != nil {
+		t.Fatal(err)
+	}
+	if list, _ := svc.List(ctx, shop, colleague, false); len(list) != 1 || list[0].RequestCount != 0 {
+		t.Fatalf("an editor's list = %+v, want the board without its requests - they're the owner's", list)
+	}
+	got, err := svc.Get(ctx, shop, me, b.ID)
+	if err != nil || len(got.Requests) != 1 || got.Requests[0].AdminID != asker.AdminID || got.Requests[0].Level != ShareEdit {
+		t.Fatalf("requests = %+v, %v - want the asker's, for edit", got.Requests, err)
+	}
+
+	if _, err := svc.SetShares(ctx, shop, me, b.ID, []Share{{AdminID: asker.AdminID, Level: ShareView}}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ = svc.Get(ctx, shop, me, b.ID); len(got.Requests) != 0 {
+		t.Fatalf("sharing the board left the request: %+v", got.Requests)
+	}
+	if kept, err := svc.RequestAccess(ctx, shop, asker, b.ID, ShareView); err != nil || kept != nil {
+		t.Fatalf("asking for access they already have = %+v, %v - want nothing to tell the owner", kept, err)
+	}
+	if got, _ = svc.Get(ctx, shop, me, b.ID); len(got.Requests) != 0 {
+		t.Fatalf("asking for access they already have was kept: %+v", got.Requests)
+	}
+
+	if _, err := svc.RequestAccess(ctx, shop, asker, b.ID, ShareEdit); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.DismissRequest(ctx, shop, asker, b.ID, asker.AdminID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("the asker dismissed it themselves: %v, want ErrForbidden", err)
+	}
+	if err := svc.DismissRequest(ctx, shop, me, b.ID, asker.AdminID); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ = svc.Get(ctx, shop, me, b.ID); len(got.Requests) != 0 {
+		t.Fatalf("a dismissed request stayed: %+v", got.Requests)
+	}
+}
+
+// A draft kept by an older build in a shape this one can't read opens as no draft, rather than failing the board
+func TestADraftInAnOlderShapeReadsAsNone(t *testing.T) {
+	conn, svc, shop := newShop(t)
+	ctx := context.Background()
+	me := Actor{AdminID: uuid.New(), CanManage: true}
+	b := newBoard(t, svc, shop, me, "Old", views)
+	if _, err := svc.SaveDraft(ctx, shop, me, b.ID, Draft{}, b.UpdatedAt); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.Exec(`UPDATE board_drafts SET payload = '["not", "a", "draft"]' WHERE board_id = $1`, b.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := svc.Get(ctx, shop, me, b.ID); err != nil || got.Draft != nil {
+		t.Fatalf("board = draft %+v, %v - want the board, with no draft", got.Draft, err)
 	}
 }

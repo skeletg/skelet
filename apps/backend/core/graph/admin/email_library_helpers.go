@@ -24,3 +24,15 @@ func libraryEmailModel(e *signalsv1.LibraryEmail) *model.LibraryEmail {
 func emailGroupModel(g *signalsv1.EmailGroup) *model.EmailGroup {
 	return &model.EmailGroup{ID: g.GetId(), Slug: g.GetSlug(), Name: g.GetName(), IsSystem: g.GetIsSystem(), EmailCount: g.GetEmailCount()}
 }
+
+func emailTranslationModel(t *signalsv1.EmailTranslation) *model.EmailTranslation {
+	return &model.EmailTranslation{
+		EmailID:   t.GetEmailId(),
+		Locale:    t.GetLocale(),
+		Subject:   t.GetSubject(),
+		Preheader: t.GetPreheader(),
+		Blocks:    jsonValue(t.GetBlocksJson(), "[]"),
+		Styles:    jsonValue(t.GetStylesJson(), "{}"),
+		UpdatedAt: protoTime(t.GetUpdatedAt()),
+	}
+}

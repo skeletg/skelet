@@ -12,7 +12,7 @@ import {
 } from 'react'
 import { useApolloClient, useMutation, useQuery } from '@apollo/client/react'
 import { useLocation } from 'react-router-dom'
-import { ArrowUpIcon, HistoryIcon, MessageSquareIcon, SquarePenIcon, XIcon } from 'lucide-react'
+import { ArrowUpIcon, HistoryIcon, SquarePenIcon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -36,6 +36,8 @@ import {
   ChatConversationsDocument,
 } from './Ai.gql'
 import { MessageContent } from './ChatMessage'
+import { Presence } from '@/features/agentic/aurora'
+import { useTyping } from '@/features/agentic/useAssistant'
 import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string }
@@ -90,9 +92,9 @@ function pageContext(pathname: string): PageCtx {
   return { path: pathname, label: titleCase(segs[0]) }
 }
 
-// AssistantMark marks an assistant turn with the same glyph as the trigger
-function AssistantMark({ className }: { className?: string }) {
-  return <MessageSquareIcon className={cn('text-muted-foreground', className)} />
+// The chat wears the assistant's voice everywhere it appears - the trigger, its header and each of its turns
+function AssistantMark({ speaking, still, className }: { speaking?: boolean; still?: boolean; className?: string }) {
+  return <Presence size="sm" speaking={speaking} still={still} className={className} />
 }
 
 function useHasSignals(): boolean {
@@ -142,7 +144,7 @@ export function ChatTrigger() {
       aria-pressed={open}
       onClick={toggle}
     >
-      <MessageSquareIcon className="size-4" />
+      <AssistantMark still />
     </Button>
   )
 }
@@ -166,6 +168,7 @@ export function ChatDock() {
   const [input, setInput] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [send, { loading: sending }] = useMutation(SignalsChatDocument)
+  const [typing, ping] = useTyping()
 
   // Proactive insights for the empty state - deterministic (no model call)
   const { data: insightsData } = useQuery(SignalsInsightsDocument, {
@@ -381,7 +384,7 @@ export function ChatDock() {
         />
         <div className="flex items-center gap-2 px-4 py-3">
           <div className="flex shrink-0 items-center gap-2">
-            <AssistantMark className="size-7" />
+            <AssistantMark speaking={sending || typing} />
             <span className="text-base font-semibold">Chat</span>
           </div>
           {/* Page-awareness chip: the page the assistant will answer about */}
@@ -472,6 +475,7 @@ export function ChatDock() {
           ) : messages.length === 0 ? (
             <div className="flex h-full flex-col">
               <div className="mb-5 mt-2">
+                <Presence speaking={typing} className="mb-5 ml-3 mt-3" />
                 <h2 className="text-2xl font-semibold leading-tight">Hello there</h2>
                 <p className="mt-1 text-sm text-muted-foreground">How can I help you analyze your Signals today?</p>
               </div>
@@ -540,7 +544,7 @@ export function ChatDock() {
                   key={i}
                   className="flex gap-3"
                 >
-                  <AssistantMark className="mt-0.5 size-7 shrink-0" />
+                  <AssistantMark still className="mt-0.5" />
                   <MessageContent
                     content={m.content}
                     onAsk={i === messages.length - 1 && !sending ? (q) => void ask(q) : undefined}
@@ -552,7 +556,7 @@ export function ChatDock() {
           )}
           {sending ? (
             <div className="flex items-center gap-3">
-              <AssistantMark className="size-7 shrink-0" />
+              <AssistantMark speaking />
               <span className="animate-pulse text-sm text-muted-foreground">Thinking…</span>
             </div>
           ) : null}
@@ -569,7 +573,10 @@ export function ChatDock() {
           >
             <input
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value)
+                ping()
+              }}
               placeholder={!enabled ? 'AI not enabled' : effectiveChannel ? 'Ask a question…' : 'No channel available'}
               disabled={sending || !effectiveChannel || !enabled}
               className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground disabled:opacity-50"

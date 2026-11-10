@@ -926,6 +926,31 @@ func (r *queryResolver) ProductsByIds(ctx context.Context, ids []string) ([]*mod
 	return r.renderProductRows(ctx, products, nil)
 }
 
+func (r *queryResolver) ProductsBySkus(ctx context.Context, skus []string) ([]*model.Product, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.view"); err != nil {
+		return nil, err
+	}
+	if len(skus) > 100 {
+		skus = skus[:100]
+	}
+	bySKU, err := r.CatalogSvc.GetProductsBySKUs(ctx, skus)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]uuid.UUID, 0, len(bySKU))
+	for _, p := range bySKU {
+		ids = append(ids, p.ID)
+	}
+	if len(ids) == 0 {
+		return []*model.Product{}, nil
+	}
+	products, err := r.CatalogSvc.ListProductsWithGraphByIDs(ctx, ids, r.activeLocale(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return r.renderProductRows(ctx, products, nil)
+}
+
 func (r *queryResolver) ProductLinks(ctx context.Context, productID string, kind model.ProductLinkKind) ([]string, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.view"); err != nil {
 		return nil, err

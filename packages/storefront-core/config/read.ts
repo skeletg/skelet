@@ -31,6 +31,29 @@ const getLivePublicConfig = perRequest(async (): Promise<PublicConfigQuery> => {
   return res.data as PublicConfigQuery;
 });
 
+// Whether the shopping assistant shows - switched on for the store with an AI provider that can answer, so a chat that
+// could only say "unavailable" never appears. Read live with the public config; unreachable reads as off
+export const getAssistantEnabled = perRequest(async (): Promise<boolean> => {
+  try {
+    return (await getLivePublicConfig()).assistantAvailable === true;
+  } catch {
+    return false;
+  }
+});
+
+// The name the store gave its assistant, for the panel's title - empty keeps the template's own wording
+const ASSISTANT_NAME_PATH = "sales/assistant/name";
+const MAX_ASSISTANT_NAME = 40;
+
+export const getAssistantName = perRequest(async (): Promise<string> => {
+  try {
+    const row = (await getLivePublicConfig()).publicConfig.find((c) => c.path === ASSISTANT_NAME_PATH);
+    return (row?.value ?? "").trim().slice(0, MAX_ASSISTANT_NAME);
+  } catch {
+    return "";
+  }
+});
+
 // getPlpPaginationStyle picks the PLP pager UI - anything absent, unknown, or unreachable falls
 // back to classic numbered pagination, the pre-setting behaviour
 export const getPlpPaginationStyle = perRequest(async (): Promise<PlpPaginationStyle> => {

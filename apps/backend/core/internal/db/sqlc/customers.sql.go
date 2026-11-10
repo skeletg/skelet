@@ -112,11 +112,12 @@ func (q *Queries) CreateAddress(ctx context.Context, arg CreateAddressParams) (A
 }
 
 const createCustomer = `-- name: CreateCustomer :one
-INSERT INTO customers (email, password_hash, first_name, last_name, channel_id, is_email_verified, customer_group_id)
+INSERT INTO customers (email, password_hash, first_name, last_name, channel_id, is_email_verified, customer_group_id, locale)
 VALUES ($1, $2, $3, $4, $5,
         $6,
-        COALESCE($7::uuid, (SELECT id FROM customer_groups WHERE is_default)))
-RETURNING id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at
+        COALESCE($7::uuid, (SELECT id FROM customer_groups WHERE is_default)),
+        $8)
+RETURNING id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at, locale
 `
 
 type CreateCustomerParams struct {
@@ -127,6 +128,7 @@ type CreateCustomerParams struct {
 	ChannelID       uuid.UUID     `json:"channel_id"`
 	IsEmailVerified bool          `json:"is_email_verified"`
 	CustomerGroupID uuid.NullUUID `json:"customer_group_id"`
+	Locale          string        `json:"locale"`
 }
 
 // customer_group_id falls back to the current default group, so a caller names one only when it
@@ -140,6 +142,7 @@ func (q *Queries) CreateCustomer(ctx context.Context, arg CreateCustomerParams) 
 		arg.ChannelID,
 		arg.IsEmailVerified,
 		arg.CustomerGroupID,
+		arg.Locale,
 	)
 	var i Customer
 	err := row.Scan(
@@ -164,6 +167,7 @@ func (q *Queries) CreateCustomer(ctx context.Context, arg CreateCustomerParams) 
 		&i.VatID,
 		&i.VatIDStatus,
 		&i.VatIDCheckedAt,
+		&i.Locale,
 	)
 	return i, err
 }
@@ -173,7 +177,7 @@ INSERT INTO customers (
     email, password_hash, first_name, last_name, phone,
     is_active, is_email_verified, channel_id, customer_group_id
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at
+RETURNING id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at, locale
 `
 
 type CreateCustomerAdminParams struct {
@@ -225,6 +229,7 @@ func (q *Queries) CreateCustomerAdmin(ctx context.Context, arg CreateCustomerAdm
 		&i.VatID,
 		&i.VatIDStatus,
 		&i.VatIDCheckedAt,
+		&i.Locale,
 	)
 	return i, err
 }
@@ -411,7 +416,7 @@ func (q *Queries) GetCustomerAddress(ctx context.Context, arg GetCustomerAddress
 }
 
 const getCustomerByChannelAndEmail = `-- name: GetCustomerByChannelAndEmail :one
-SELECT id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at FROM customers WHERE channel_id = $1 AND lower(btrim(email)) = $2 LIMIT 1
+SELECT id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at, locale FROM customers WHERE channel_id = $1 AND lower(btrim(email)) = $2 LIMIT 1
 `
 
 type GetCustomerByChannelAndEmailParams struct {
@@ -445,12 +450,13 @@ func (q *Queries) GetCustomerByChannelAndEmail(ctx context.Context, arg GetCusto
 		&i.VatID,
 		&i.VatIDStatus,
 		&i.VatIDCheckedAt,
+		&i.Locale,
 	)
 	return i, err
 }
 
 const getCustomerByID = `-- name: GetCustomerByID :one
-SELECT id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at FROM customers WHERE id = $1 LIMIT 1
+SELECT id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at, locale FROM customers WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetCustomerByID(ctx context.Context, id uuid.UUID) (Customer, error) {
@@ -478,12 +484,13 @@ func (q *Queries) GetCustomerByID(ctx context.Context, id uuid.UUID) (Customer, 
 		&i.VatID,
 		&i.VatIDStatus,
 		&i.VatIDCheckedAt,
+		&i.Locale,
 	)
 	return i, err
 }
 
 const getCustomerByIDForUpdate = `-- name: GetCustomerByIDForUpdate :one
-SELECT id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at FROM customers WHERE id = $1 FOR UPDATE
+SELECT id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at, locale FROM customers WHERE id = $1 FOR UPDATE
 `
 
 // Locks the row for a read-merge-write, so two admin edits can't each overwrite the other's fields
@@ -512,6 +519,7 @@ func (q *Queries) GetCustomerByIDForUpdate(ctx context.Context, id uuid.UUID) (C
 		&i.VatID,
 		&i.VatIDStatus,
 		&i.VatIDCheckedAt,
+		&i.Locale,
 	)
 	return i, err
 }
@@ -553,7 +561,7 @@ func (q *Queries) GetCustomerGroupBySlug(ctx context.Context, slug string) (Cust
 }
 
 const getCustomersByIDs = `-- name: GetCustomersByIDs :many
-SELECT id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at FROM customers WHERE id = ANY($1::uuid[])
+SELECT id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at, locale FROM customers WHERE id = ANY($1::uuid[])
 `
 
 // GetCustomersByIDs is the batched form of GetCustomerByID - powers the storefront DataLoader so a page that surfaces N reviews with different authors fires one query instead of N
@@ -588,6 +596,7 @@ func (q *Queries) GetCustomersByIDs(ctx context.Context, ids []uuid.UUID) ([]Cus
 			&i.VatID,
 			&i.VatIDStatus,
 			&i.VatIDCheckedAt,
+			&i.Locale,
 		); err != nil {
 			return nil, err
 		}
@@ -727,7 +736,7 @@ func (q *Queries) ListCustomerGroupsWithMemberCount(ctx context.Context) ([]List
 }
 
 const listCustomersInChannels = `-- name: ListCustomersInChannels :many
-SELECT c.id, c.email, c.password_hash, c.first_name, c.last_name, c.phone, c.is_active, c.is_email_verified, c.note, c.metadata, c.created_at, c.updated_at, c.default_billing_address_id, c.default_shipping_address_id, c.customer_group_id, c.channel_id, c.tax_exempt, c.tax_exemption_note, c.vat_id, c.vat_id_status, c.vat_id_checked_at, g.id, g.name, g.slug, g.description, g.is_default, g.created_at
+SELECT c.id, c.email, c.password_hash, c.first_name, c.last_name, c.phone, c.is_active, c.is_email_verified, c.note, c.metadata, c.created_at, c.updated_at, c.default_billing_address_id, c.default_shipping_address_id, c.customer_group_id, c.channel_id, c.tax_exempt, c.tax_exemption_note, c.vat_id, c.vat_id_status, c.vat_id_checked_at, c.locale, g.id, g.name, g.slug, g.description, g.is_default, g.created_at
 FROM   customers c
 JOIN   customer_groups g ON g.id = c.customer_group_id
 WHERE  $1::boolean OR c.channel_id = ANY($2::uuid[])
@@ -775,6 +784,7 @@ func (q *Queries) ListCustomersInChannels(ctx context.Context, arg ListCustomers
 			&i.Customer.VatID,
 			&i.Customer.VatIDStatus,
 			&i.Customer.VatIDCheckedAt,
+			&i.Customer.Locale,
 			&i.CustomerGroup.ID,
 			&i.CustomerGroup.Name,
 			&i.CustomerGroup.Slug,
@@ -796,7 +806,7 @@ func (q *Queries) ListCustomersInChannels(ctx context.Context, arg ListCustomers
 }
 
 const listCustomersPaged = `-- name: ListCustomersPaged :many
-SELECT c.id, c.email, c.password_hash, c.first_name, c.last_name, c.phone, c.is_active, c.is_email_verified, c.note, c.metadata, c.created_at, c.updated_at, c.default_billing_address_id, c.default_shipping_address_id, c.customer_group_id, c.channel_id, c.tax_exempt, c.tax_exemption_note, c.vat_id, c.vat_id_status, c.vat_id_checked_at, g.id, g.name, g.slug, g.description, g.is_default, g.created_at, COUNT(*) OVER () AS total_count
+SELECT c.id, c.email, c.password_hash, c.first_name, c.last_name, c.phone, c.is_active, c.is_email_verified, c.note, c.metadata, c.created_at, c.updated_at, c.default_billing_address_id, c.default_shipping_address_id, c.customer_group_id, c.channel_id, c.tax_exempt, c.tax_exemption_note, c.vat_id, c.vat_id_status, c.vat_id_checked_at, c.locale, g.id, g.name, g.slug, g.description, g.is_default, g.created_at, COUNT(*) OVER () AS total_count
 FROM   customers c
 JOIN   customer_groups g ON g.id = c.customer_group_id
 WHERE  ($1::boolean OR c.channel_id = ANY($2::uuid[]))
@@ -869,6 +879,7 @@ func (q *Queries) ListCustomersPaged(ctx context.Context, arg ListCustomersPaged
 			&i.Customer.VatID,
 			&i.Customer.VatIDStatus,
 			&i.Customer.VatIDCheckedAt,
+			&i.Customer.Locale,
 			&i.CustomerGroup.ID,
 			&i.CustomerGroup.Name,
 			&i.CustomerGroup.Slug,
@@ -947,6 +958,25 @@ type SetCustomerGroupParams struct {
 
 func (q *Queries) SetCustomerGroup(ctx context.Context, arg SetCustomerGroupParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, setCustomerGroup, arg.ID, arg.CustomerGroupID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const setCustomerLocale = `-- name: SetCustomerLocale :execrows
+UPDATE customers SET locale = $1, updated_at = now()
+WHERE id = $2 AND locale <> $1
+`
+
+type SetCustomerLocaleParams struct {
+	Locale string    `json:"locale"`
+	ID     uuid.UUID `json:"id"`
+}
+
+// The storefront language a customer signed in with - a repeat in the same one writes nothing
+func (q *Queries) SetCustomerLocale(ctx context.Context, arg SetCustomerLocaleParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setCustomerLocale, arg.Locale, arg.ID)
 	if err != nil {
 		return 0, err
 	}

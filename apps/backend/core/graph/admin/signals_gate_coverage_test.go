@@ -14,18 +14,17 @@ import (
 
 // Resolver file -> the suite it belongs to, every resolver in it gated
 var signalsGatedFiles = map[string]string{
-	"campaign.resolvers.go":           "Pulse broadcasts",
-	"flow.resolvers.go":               "Pulse automation flows",
-	"email.resolvers.go":              "the Pulse email builder's reusable blocks",
-	"email_library.resolvers.go":      "the Pulse email library",
-	"customer_profile.resolvers.go":   "the commerce panels of the Synapse profile page",
-	"deliverability.resolvers.go":     "Pulse sending reputation",
-	"prism_experiments.resolvers.go":  "Prism experiments",
-	"pulse_engagement.resolvers.go":   "the Pulse engagement rollup",
-	"event_destinations.resolvers.go": "event destinations",
-	"signals_lens.resolvers.go":       "Lens web analytics",
-	"signals_synapse.resolvers.go":    "Synapse customer analytics",
-	"signals_segments.resolvers.go":   "customer segments",
+	"campaign.resolvers.go":          "Pulse broadcasts",
+	"flow.resolvers.go":              "Pulse automation flows",
+	"email.resolvers.go":             "the Pulse email builder's reusable blocks",
+	"email_library.resolvers.go":     "the Pulse email library",
+	"customer_profile.resolvers.go":  "the commerce panels of the Synapse profile page",
+	"deliverability.resolvers.go":    "Pulse sending reputation",
+	"prism_experiments.resolvers.go": "Prism experiments",
+	"pulse_engagement.resolvers.go":  "the Pulse engagement rollup",
+	"signals_lens.resolvers.go":      "Lens web analytics",
+	"signals_synapse.resolvers.go":   "Synapse customer analytics",
+	"signals_segments.resolvers.go":  "customer segments",
 }
 
 // The suite-backed resolvers reach it through one of these, and each funnels into signalsCtx, which

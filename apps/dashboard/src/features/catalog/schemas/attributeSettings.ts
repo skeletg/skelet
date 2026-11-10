@@ -64,6 +64,10 @@ export function attributeSettingsSchema(inputType: AttributeInputType) {
       filterable: z.boolean().describe('Show the attribute as a filter facet on the storefront'),
       searchable: z.boolean().describe("Include the attribute's values in full-text product search"),
       isPublic: z.boolean().describe('Display the attribute on the product detail page'),
+      embedded: z
+        .boolean()
+        .describe("Include the attribute's values in the text embedded for search by meaning - ignored unless isPublic"),
+      similarMatch: z.boolean().describe('Products found similar to others must share a value with them on this attribute'),
       facetCollapsed: z.boolean().describe('Start the filter facet collapsed rather than open - ignored unless filterable'),
       h1Position: z
         .enum(['BEFORE', 'AFTER'])
@@ -103,6 +107,8 @@ export const ATTRIBUTE_SETTINGS_LABELS: Record<keyof AttributeSettingsValues, st
   filterable: 'Filterable',
   searchable: 'Searchable',
   isPublic: 'Public',
+  embedded: 'Search by meaning',
+  similarMatch: 'Must match for similar products',
   facetCollapsed: 'Facet collapsed',
   h1Position: 'H1 position',
   synapseTrack: 'Track in Synapse',
@@ -119,6 +125,8 @@ type ExistingAttribute = {
   filterable: boolean
   searchable: boolean
   isPublic: boolean
+  embedded: boolean
+  similarMatch: boolean
   facetCollapsed: boolean
   h1Position: 'BEFORE' | 'AFTER'
   synapseTrack: boolean
@@ -136,6 +144,8 @@ export function toAttributeSettingsValues(a: ExistingAttribute): AttributeSettin
     filterable: a.filterable,
     searchable: a.searchable,
     isPublic: a.isPublic,
+    embedded: a.embedded,
+    similarMatch: a.similarMatch,
     facetCollapsed: a.facetCollapsed,
     h1Position: a.h1Position,
     synapseTrack: a.synapseTrack,
@@ -165,6 +175,8 @@ export function toAttributeSettingsInput(before: AttributeSettingsValues, v: Att
     filterable: v.filterable,
     searchable: v.searchable,
     isPublic: v.isPublic,
+    embedded: v.embedded,
+    similarMatch: v.similarMatch,
     facetCollapsed: v.facetCollapsed,
     h1Position: v.h1Position,
     synapseTrack: v.synapseTrack,
@@ -196,6 +208,8 @@ export function attributeSettingsDiff(inputType: AttributeInputType, values: { i
       { label: ATTRIBUTE_SETTINGS_LABELS.filterable, value: (o) => o.filterable },
       { label: ATTRIBUTE_SETTINGS_LABELS.searchable, value: (o) => o.searchable },
       { label: ATTRIBUTE_SETTINGS_LABELS.isPublic, value: (o) => o.isPublic },
+      { label: ATTRIBUTE_SETTINGS_LABELS.embedded, value: (o) => o.embedded },
+      { label: ATTRIBUTE_SETTINGS_LABELS.similarMatch, value: (o) => o.similarMatch },
       { label: ATTRIBUTE_SETTINGS_LABELS.facetCollapsed, value: (o) => o.facetCollapsed },
       { label: ATTRIBUTE_SETTINGS_LABELS.h1Position, value: (o) => o.h1Position },
       { label: ATTRIBUTE_SETTINGS_LABELS.synapseTrack, value: (o) => o.synapseTrack },

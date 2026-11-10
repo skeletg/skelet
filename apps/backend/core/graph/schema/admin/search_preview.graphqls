@@ -1,0 +1,155 @@
+type SearchPreviewProduct {
+  id:           ID!
+  name:         String!
+  sku:          String!
+  url:          String!
+  price:        Int64!
+  currencyCode: String!
+  inStock:      Boolean!
+}
+
+# A product by meaning - counted when it's close enough to the nearest one to join what the words found
+type SearchPreviewNear {
+  product:  SearchPreviewProduct!
+  distance: Float!
+  counted:  Boolean!
+}
+
+type SearchPreviewShown {
+  product:   SearchPreviewProduct!
+  byWords:   Boolean!
+  byMeaning: Boolean!
+}
+
+type SearchPreviewPage {
+  title: String!
+  url:   String!
+}
+
+type SearchPreviewPassage {
+  title:    String!
+  url:      String!
+  text:     String!
+  distance: Float!
+  counted:  Boolean!
+}
+
+# How the storefront's own search page reads a query, under the store's Search by meaning setting
+enum StorefrontSearchReading {
+  # Search by meaning is off - the words alone
+  WORDS
+  # Keywords - the words decide, and meaning steps in only when they match nothing
+  KEYWORDS
+  # A sentence - the products closest in meaning are listed, the words helping to order them
+  SENTENCE
+  # Every search ranks words and meaning together
+  BLENDED
+}
+
+type SearchPreview {
+  # The languages searched, the shopper's first
+  locales:      [String!]!
+  wordsTotal:   Int!
+  byWords:      [SearchPreviewProduct!]!
+  byMeaning:    [SearchPreviewNear!]!
+  # What search_products shows the model, in its order
+  shown:        [SearchPreviewShown!]!
+  productsText: String!
+  pagesByWords: [SearchPreviewPage!]!
+  passages:     [SearchPreviewPassage!]!
+  pagesText:    String!
+  # Why search by meaning didn't answer, empty when it did - the assistant then goes on with the words alone
+  meaningFailed: String!
+}
+
+# Whether the store's search page uses meaning, as the Search by meaning setting says
+enum SearchByMeaningMode {
+  # For queries that read like a sentence, and keywords that match nothing
+  NATURAL
+  # Every search
+  ALWAYS
+  OFF
+}
+
+# How close to the best match a product must be to be listed by meaning
+enum SearchByMeaningStrictness {
+  STRICT
+  BALANCED
+  BROAD
+}
+
+# What answered a storefront search
+enum StorefrontSearchAnswer {
+  # The words alone
+  WORDS
+  # The products closest in meaning, the words helping to order them
+  MEANING
+  # Words and meaning ranked together
+  BLENDED
+}
+
+# How the store's own search page answers a shopper's words, step by step
+type StorefrontSearchPreview {
+  reads:      StorefrontSearchReading!
+  answeredBy: StorefrontSearchAnswer!
+  # How far past the closest product another may be and still be listed, under the strictness used
+  margin:     Float!
+  # Everything listed, across every page
+  total:      Int!
+  # The first page, in the order the shopper sees it
+  listed:     [SearchPreviewShown!]!
+  wordsTotal: Int!
+  byWords:    [SearchPreviewProduct!]!
+  # Empty when meaning wasn't asked - a keyword search whose words match stays on them
+  byMeaning:  [SearchPreviewNear!]!
+  meaningFailed: String!
+}
+
+# How much of what one store shows is embedded with the current model - model is empty while embeddings are off
+type EmbeddingCoverage {
+  model:            String!
+  products:         Int!
+  embeddedProducts: Int!
+  pages:            Int!
+  embeddedPages:    Int!
+  queued:           Int!
+  # The embedding job's last run, when it failed
+  failed:           String!
+}
+
+# What became of the AI overview a search would get
+enum SearchOverviewStatus {
+  # Written - text is what shoppers would see
+  WRITTEN
+  # The words answered the search, so it gets none
+  KEYWORDS
+  # The shopping assistant isn't on for this store, or has no AI provider that calls tools
+  UNAVAILABLE
+  # Nothing listed, or nothing written
+  NOTHING
+}
+
+type SearchOverviewPreview {
+  status:   SearchOverviewStatus!
+  # [[n]] stands for the nth of products
+  text:     String!
+  products: [SearchOverviewPreviewProduct!]!
+}
+
+type SearchOverviewPreviewProduct {
+  id:   ID!
+  name: String!
+  # The product's page on the storefront
+  url:  String!
+}
+
+extend type Query {
+  # What the shopping assistant's searches find for a shopper's words on one store, step by step - mode and strictness try a setting before it's saved. catalog.view on the channel
+  searchPreview(channelId: ID!, query: String!, locale: String, mode: SearchByMeaningMode, strictness: SearchByMeaningStrictness): SearchPreview!
+  # catalog.view on the channel
+  embeddingCoverage(channelId: ID!): EmbeddingCoverage!
+  # What the store's own search page lists for a shopper's words, and how it got there - mode and strictness try a setting before it's saved. catalog.view on the channel
+  storefrontSearchPreview(channelId: ID!, query: String!, locale: String, mode: SearchByMeaningMode, strictness: SearchByMeaningStrictness): StorefrontSearchPreview!
+  # The AI overview the store's search page would show above this search's results, whether or not it's switched on - mode and strictness try a setting before it's saved. Writing one spends the store's AI budget like a shopper's would, so settings.manage on the channel
+  searchOverviewPreview(channelId: ID!, query: String!, locale: String, mode: SearchByMeaningMode, strictness: SearchByMeaningStrictness): SearchOverviewPreview!
+}

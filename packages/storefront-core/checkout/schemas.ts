@@ -174,6 +174,10 @@ export function paymentStepSchema(mode: PaymentMode) {
       ? z.string({ error: "paymentMethodRequired" }).min(1, "paymentMethodRequired")
       : optionalText(),
     savedPaymentMethodId: optionalText(),
+    // A gateway's single-use handle from its card fields, filled in by the page right before it submits
+    paymentToken: optionalText(),
+    // The page can run the gateway's in-page step itself, so a challenge comes back to it instead of ending the checkout
+    paymentUi: z.boolean().optional(),
     // The cart note allows 2000, and checkout carries the same note
     note: optionalText(2000),
     // Email offers, signed-in shoppers only - unticked by default, and leaving it unticked changes nothing they chose before

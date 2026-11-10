@@ -3,34 +3,35 @@ import { describe, expect, it } from "vitest";
 import { clickCookieWrites, clickIdsHeader, cookieDomain } from "./click-ids";
 
 const jar = (cookies: Record<string, string>) => (name: string) => cookies[name];
-const writes = (query: string, cookies: Record<string, string>, ads: boolean, necessary = new Set<string>()) =>
-  clickCookieWrites(new URLSearchParams(query), jar(cookies), ads, necessary, "www.shop.example:3000", true, 1700000000000);
+const writes = (query: string, cookies: Record<string, string>, ads: boolean) =>
+  clickCookieWrites(new URLSearchParams(query), jar(cookies), ads, "www.shop.example:3000", true, 1700000000000);
 const byName = (w: ReturnType<typeof writes>) => Object.fromEntries(w.map((x) => [x.name, x]));
 
 describe("click id cookies", () => {
   it("stores nothing before advertising consent, and a click that lands then is lost", () => {
-    expect(writes("gclid=abc&cjevent=123&fbclid=xyz", {}, false)).toEqual([]);
+    expect(writes("gclid=abc&fbclid=xyz", {}, false)).toEqual([]);
   });
 
   it("deletes every stored click id once advertising consent is withdrawn", () => {
-    const w = byName(writes("gclid=new", { cje: "1", awc: "2", _fbp: "fb.1.1.1", other: "x" }, false));
-    expect(Object.keys(w).sort()).toEqual(["_fbp", "awc", "cje"]);
+    const w = byName(writes("gclid=new", { sk_gclid: "1", sk_msclkid: "2", _fbp: "fb.1.1.1", other: "x" }, false));
+    expect(Object.keys(w).sort()).toEqual(["_fbp", "sk_gclid", "sk_msclkid"]);
     for (const x of Object.values(w)) expect([x.value, x.options.maxAge]).toEqual(["", 0]);
   });
 
-  it("sets CJ's cje the way its spec asks", () => {
-    const { cje } = byName(writes("cjevent=abc123", {}, true));
-    expect(cje).toEqual({
-      name: "cje",
+  it("sets a click id on the parent domain, HttpOnly", () => {
+    const { sk_gclid } = byName(writes("gclid=abc123", {}, true));
+    expect(sk_gclid).toEqual({
+      name: "sk_gclid",
       value: "abc123",
-      options: { path: "/", httpOnly: true, sameSite: "lax", secure: true, maxAge: 395 * 86400, domain: "shop.example" },
+      options: { path: "/", httpOnly: true, sameSite: "lax", secure: true, maxAge: 90 * 86400, domain: "shop.example" },
     });
   });
 
   it("overwrites on a new click and keeps the stored value without one", () => {
-    expect(byName(writes("cjevent=second", { cje: "first" }, true)).cje.value).toBe("second");
-    expect(byName(writes("", { cje: "first", _fbp: "fb.1.1.1" }, true))).toEqual({});
+    expect(byName(writes("gclid=second", { sk_gclid: "first" }, true)).sk_gclid.value).toBe("second");
+    expect(byName(writes("", { sk_gclid: "first", _fbp: "fb.1.1.1" }, true))).toEqual({});
   });
+
 
   it("mints _fbp once and builds _fbc from fbclid, keeping its first-seen time", () => {
     const first = byName(writes("fbclid=Iw_1", {}, true));
@@ -41,20 +42,13 @@ describe("click id cookies", () => {
   });
 
   it("refuses a value that is not a click id", () => {
-    expect(byName(writes("gclid=" + encodeURIComponent("a;b=c") + "&awc=" + "x".repeat(256), { _fbp: "x" }, true))).toEqual({});
+    expect(byName(writes("gclid=" + encodeURIComponent("a;b=c") + "&msclkid=" + "x".repeat(256), { _fbp: "x" }, true))).toEqual({});
   });
 
   it("forwards the stored ids under their own names", () => {
     const h = new URLSearchParams(clickIdsHeader(jar({ sk_gclid: "g1", cje: "c1", _fbc: "fb.1.5.Iw", junk: "x" }), true));
-    expect(Object.fromEntries(h)).toEqual({ gclid: "g1", cjevent: "c1", fbc: "fb.1.5.Iw" });
-  });
-
-  it("keeps an affiliate network the merchant made necessary without ads consent, and nothing else", () => {
-    const w = byName(writes("cjevent=c1&awc=a1&gclid=g1", { sk_msclkid: "m" }, false, new Set(["cjevent"])));
-    expect(Object.keys(w).sort()).toEqual(["cje", "sk_msclkid"]);
-    expect([w.cje.value, w.sk_msclkid.value]).toEqual(["c1", ""]);
-    expect(byName(writes("", { cje: "c1" }, false, new Set(["cjevent"])))).toEqual({});
-    expect(clickIdsHeader(jar({ cje: "c1", sk_gclid: "g1" }), false)).toBe("cjevent=c1");
+    expect(Object.fromEntries(h)).toEqual({ gclid: "g1", fbc: "fb.1.5.Iw" });
+    expect(clickIdsHeader(jar({ sk_gclid: "g1" }), false)).toBe("");
   });
 
   it("scopes to the parent of www. and leaves local hosts host-only", () => {

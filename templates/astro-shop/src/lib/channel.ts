@@ -4,7 +4,7 @@ import type { Channel as CoreChannel } from "@skelet/storefront-core/channel/typ
 import type { Currency } from "./format";
 import { siteOrigin } from "./seo";
 
-export type Channel = Pick<CoreChannel, "name" | "defaultLocale" | "publicUrl"> & { currency: Currency };
+export type Channel = Pick<CoreChannel, "name" | "defaultLocale" | "publicUrl" | "taxInclusivePricing"> & { currency: Currency };
 
 // Read on every page including the uncached cart - the core keeps it for the request and its data cache for longer,
 // until /api/revalidate drops nav:all

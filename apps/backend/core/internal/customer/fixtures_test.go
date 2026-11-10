@@ -32,6 +32,7 @@ type fixture struct {
 	refresh *auth.RefreshStore
 	conn    *sql.DB
 	ctx     context.Context
+	bus     *events.Bus
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -45,6 +46,7 @@ func newFixture(t *testing.T) *fixture {
 	cfg := config.NewService(configstore.New(queries))
 
 	reset := auth.NewPasswordResetStore(tokens)
+	bus := events.NewBus()
 	svc := NewService(
 		NewRepository(queries, nil, txMgr), // no Signals eraser - erasure of the analytics side is its own suite
 		verify,
@@ -53,10 +55,10 @@ func newFixture(t *testing.T) *fixture {
 		email.LogSender{},
 		stubStores{},
 		consent.NewService(consent.NewRepository(queries)),
-		events.NewBus(),
+		bus,
 	)
 	svc.SetConfigService(cfg)
-	return &fixture{svc: svc, cfg: cfg, verify: verify, reset: reset, refresh: refresh, conn: conn, ctx: context.Background()}
+	return &fixture{svc: svc, cfg: cfg, verify: verify, reset: reset, refresh: refresh, conn: conn, ctx: context.Background(), bus: bus}
 }
 
 // Only the verification and reset paths read a store, and neither asserts on the rendered link

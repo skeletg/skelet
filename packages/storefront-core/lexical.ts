@@ -155,7 +155,14 @@ export const IS_HIGHLIGHT = 128;
  * entirely of custom blocks.
  */
 export function lexicalHasContent(value: unknown): boolean {
-  return lexicalBlocks(value).length > 0;
+  return lexicalBlocks(value).some(hasContent);
+}
+
+// An editor someone emptied still holds a paragraph with no text in it
+function hasContent(node: LexicalNode): boolean {
+  if (node.type === "text") return typeof node.text === "string" && node.text.trim() !== "";
+  if (node.type === "product-image" || node.type === "faq-block" || node.type === "structured-block") return true;
+  return "children" in node && Array.isArray(node.children) && (node.children as LexicalNode[]).some(hasContent);
 }
 
 /**

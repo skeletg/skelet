@@ -37,6 +37,18 @@ func TestAChannelAdminCannotRerouteOrRemoveTheirChannel(t *testing.T) {
 	if got, err := r.UpdateChannel(global, model.UpdateChannelInput{ID: id, PublicURL: &moved}); err != nil || got.PublicURL != moved {
 		t.Fatalf("a global admin moving the URL: %v, %v", got, err)
 	}
+	// Resending the tax mode it has is a plain save; flipping it takes settings.manage as well
+	off, on := false, true
+	if _, err := r.UpdateChannel(scoped, model.UpdateChannelInput{ID: id, Name: &name, TaxInclusivePricing: &off}); err != nil {
+		t.Fatalf("a channel admin resending the current tax mode: %v", err)
+	}
+	if _, err := r.UpdateChannel(scoped, model.UpdateChannelInput{ID: id, TaxInclusivePricing: &on}); err == nil {
+		t.Fatal("a channel admin without settings.manage flipped the channel's tax mode")
+	}
+	taxAdmin := adminWithCachedGrants(auth.Grant{Slug: channel.PermManage, ChannelID: &ch.ID}, auth.Grant{Slug: "settings.manage", ChannelID: &ch.ID})
+	if got, err := r.UpdateChannel(taxAdmin, model.UpdateChannelInput{ID: id, TaxInclusivePricing: &on}); err != nil || !got.TaxInclusivePricing {
+		t.Fatalf("an admin with settings.manage flipping it: %v, %v", got, err)
+	}
 	if _, err := r.SetChannelAsDefault(scoped, id); err == nil {
 		t.Fatal("a channel admin made their channel the install default")
 	}

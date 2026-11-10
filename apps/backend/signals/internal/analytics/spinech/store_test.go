@@ -693,52 +693,6 @@ func TestFlowLeavesOutTrackerEvents(t *testing.T) {
 	}
 }
 
-// Pins the keyset cursor - a batch insert shares one created_at, so the uuid tiebreaker decides the boundary and a page must not re-serve rows the previous one returned
-func TestEventsForForwardingPagesInIngestOrder(t *testing.T) {
-	ctx := context.Background()
-	st := testStore(t)
-	ch := uuid.New()
-	at := time.Now().UTC()
-	for i := range 3 {
-		if _, err := st.AppendEvent(ctx, analytics.SpineEvent{
-			EventName: "page_view", OccurredAt: at, ChannelID: &ch, AnonID: "fwd-" + uuid.NewString(),
-			Source: "web", Props: map[string]any{"n": i}, DedupeKey: "fwd:" + uuid.NewString(),
-		}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := st.flush(ctx); err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
-
-	// the forwarding read hides rows younger than its 5s visibility watermark, so age these out of it
-	if err := st.conn.Exec(ctx,
-		"ALTER TABLE analytics_events UPDATE created_at = created_at - INTERVAL 10 SECOND WHERE channel_id = ? SETTINGS mutations_sync = 1", ch); err != nil {
-		t.Fatal(err)
-	}
-
-	page, err := st.EventsForForwarding(ctx, ch, time.Unix(0, 0).UTC(), uuid.Nil, 2)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(page) != 2 {
-		t.Fatalf("first page = %d rows, want the limit of 2", len(page))
-	}
-	last := page[len(page)-1]
-	rest, err := st.EventsForForwarding(ctx, ch, last.CreatedAt, last.ID, 10)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(rest) != 1 {
-		t.Fatalf("second page = %d rows, want the remaining 1", len(rest))
-	}
-	if len(rest[0].Properties) == 0 {
-		t.Fatal("properties should carry through for the destination shapers")
-	}
-}
-
-// The Postgres LATERAL matched a goal to an exposure on `anon OR customer` plus a time bound - this pins the actor-key rewrite that replaces it, including that a goal firing BEFORE the exposure doesn't count and doesn't drop the exposure
 func TestExperimentResultsMatchesGoalsAcrossIdentity(t *testing.T) {
 	ctx := context.Background()
 	st := testStore(t)

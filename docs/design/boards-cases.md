@@ -1,16 +1,31 @@
 # Boards as owned, shareable cases
 
-This is the design for turning Boards (PR #200, shared per shop) into boards that are owned, private by default and
+This is the design for turning Boards (PR #210, shared per shop) into boards that are owned, private by default and
 shareable, and that can carry a subject such as "sku = X" or "campaign Y" that every report on the board follows.
 Reports are built inside the board, so nobody has to jump between screens. Each section is one stage, written and
-agreed before the next one starts.
+agreed before the next one starts. Every decision is listed here, and the stages below are written to match it.
 
-Decided so far:
-- Reports are built and edited in a side sheet beside the board, and the tile being edited updates live.
-- The grid has 4 columns, or 5 from about 1680px wide. Tiles span 1, 2 or 4 columns.
-- The Synapse report pages stay as a scratch area, built from the same components.
-- Saving is staged, per [conventions.md](../conventions.md).
-- Drafts are kept on the server until they are saved and shared.
+**Decided:**
+- **Building.** Reports are built and edited in a side sheet beside the board, and the tile being edited updates
+  live. The Synapse report pages stay as a scratch area, built from the same components. There are no question
+  templates for now, and today's four starter boards stay.
+- **Layout.** The grid has 4 columns, or 5 from about 1680px wide. Tiles span 1, 2 or 4 columns.
+- **Saving.** Saving is staged, per [conventions.md](../conventions.md). Unsaved edits are kept on the server as a
+  draft per admin per board, for 30 days.
+- **Reports are copied, not linked.** A report added to a second board is its own copy, and editing it on one board
+  never changes another. "Duplicate to board…" is the action.
+- **Sharing.** A new board is private to its owner. Only the owner, a shop-board manager or a superuser shares it;
+  an edit share can't share it on. Someone with `boards.manage` can make a board a shop board, which clears the
+  owner and makes it visible to the whole channel. Superusers see private boards only under "All boards".
+- **The subject** is a list of conditions joined with AND. Operators are `=`, `≠` and "is one of" (up to 50 values);
+  `≠` treats an event without the property as passing.
+- **Revenue is net sales**, in the shop's base currency: discounts are taken off, and tax and shipping are left out.
+  An order discount is split across lines by each line's share of the subtotal, with core's `allocateLineDiscount`.
+  Returns and edits count on the day they happen. Past orders are backfilled.
+- **Engagement and Retention merge** into one builder, Retention, with a "Return rate" view and a "By cohort" view.
+  The two engines and the two stored kinds (`stickiness`, `retention`) stay.
+- **Flow from a funnel drop-off** comes now, with the property filters. The builder fixes that aren't about boards
+  go into `boards-canvas`, with no separate branch.
 
 ## 1. Top tasks and the journey
 
@@ -32,7 +47,7 @@ Two gaps show up in every question:
 ### The journey, step by step
 
 Each competitor step comes from the vendor's docs. The chrome-devtools browser failed to start ("Target closed") during
-this stage, so nothing was clicked through and there are no screenshots yet. Skelet's steps today come from the code
+this stage, so nothing was clicked through. Skelet's steps today come from the code
 (`features/boards/*` and `features/synapse/*`).
 
 | Step | Mixpanel | Amplitude | PostHog | GA4 Explorations | Skelet today | Skelet proposed |
@@ -41,7 +56,7 @@ this stage, so nothing was clicked through and there are no screenshots yet. Ske
 | **Add to a board** | Adding links the report to the board, and the report inherits the board's permissions | Charts are added to a dashboard. The chart keeps its own owner and permissions | "Add to dashboard". One insight can sit on many dashboards and isn't copied | Not needed: a tab lives inside the exploration | "Add to board" → dialog → navigate to the board → Save. That's 4 screens, and a tile can't be edited later | "+ Add report" on the board, or a question template. On a scratch page, "Add to board" opens the board with the sheet already open |
 | **Set the board's subject** | Board-level filters | Dashboard filter bar: date, interval, property and segment, applied to every chart | Dashboard date and property filters. Each tile can override them or "Ignore dashboard filters" | Segments and filters apply per tab, and there's no exploration-wide filter | None. Period is the only board-level control | A subject chip in the board header (`sku = X`, campaign, flow). Each tile shows whether it follows the subject, and a tile can opt out |
 | **Share** | Per board, Viewer or Editor. Reports inherit the board's permissions. Public boards are off by default | Per dashboard, "Can view" or "Can edit" (edit makes them co-owners). Admins can change the owner | "Share" restricts who can edit. There are public links. No private mode is documented | Private when created. "Share exploration" gives read-only access, and to edit you duplicate it | Everyone with `boards.view` on the shop sees every board | Private draft → Save → Share with an admin or a role, as view or edit (stage 2) |
-| **Revisit** | Search and favourites | Owned-by-me and shared lists | Dashboards list and pinned dashboards | Explorations list, owned and shared | Boards list for the shop | "Favourites", "Mine", "Shared with me" and "My drafts". An unsaved draft is waiting where you left it |
+| **Revisit** | Search and favourites | Owned-by-me and shared lists | Dashboards list and pinned dashboards | Explorations list, owned and shared | Boards list for the shop | "Favourites", "Mine" and "Shared with me". A board with your unsaved changes carries a badge, and they're waiting where you left them |
 
 ### What the four tools agree on, and what we take
 
@@ -52,8 +67,7 @@ this stage, so nothing was clicked through and there are no screenshots yet. Ske
 3. **Sharing is per board, with two levels (view and edit).** Nobody exposes more than two. Mixpanel and Amplitude
    both treat edit as co-ownership.
 4. **Linked vs copied reports split the field.** Mixpanel and PostHog link one report to many boards, while GA4 copies.
-   The decision comes in stage 2. A copy is simpler, and a linked report only pays off if one report has to stay the
-   same across boards.
+   We copy: it's simpler, and a linked report only pays off if one report has to stay the same across boards.
 5. **Drafts are a gap everywhere.** None of the four documents draft persistence. PostHog's layout edit mode is
    E to save and Escape to discard. Keeping drafts on the server is a place where we can do better than all of them.
 
@@ -67,14 +81,6 @@ this stage, so nothing was clicked through and there are no screenshots yet. Ske
 - **A viewer without `customers.view`** opens a board where every tile is an error. Boards gate on `boards.view`,
   but Synapse reads gate on `customers.view`.
 - **The fixed 2-column grid** fits only 2 tiles across, so a board for one question doesn't fit on one screen.
-
-### Answers (2026-11-04)
-
-1. **Copied.** A report added to a second board is its own copy. Editing it on one board never changes another.
-   "Duplicate to board…" is the action.
-2. **Base currency.** Revenue tiles convert to the shop's base currency (stage 3 checks where the rates come from).
-3. **Several conditions at once.** A subject is a list of conditions joined with AND (stage 3).
-4. **Templates aren't needed for now.** Today's four starter boards stay.
 
 Sources (stage 1): [PostHog dashboards](https://posthog.com/docs/product-analytics/dashboards),
 [Mixpanel sharing and permission](https://docs.mixpanel.com/docs/boards/sharing-and-permission),
@@ -92,7 +98,8 @@ Sources (stage 1): [PostHog dashboards](https://posthog.com/docs/product-analyti
 - **Roles** are `admin_roles` plus `admin_user_roles`. There are no groups, so roles are what you share with.
 - **Listing admins or roles** (`admins`, `roles`) needs the global `admins.view` permission, which most board owners
   won't have. Sharing needs a narrower lookup of its own.
-- **Signals never sees an admin being deleted.** `DeleteAdmin` is core-only.
+- **Signals never sees an admin being deleted.** `DeleteAdmin` is core-only, and it deletes the row. Admin ids are
+  UUIDs and are never reused.
 - **Report reads already run as the viewer.** Every tile calls the Synapse query with the viewer's own session, gated
   on `customers.view`.
 
@@ -100,14 +107,14 @@ Sources (stage 1): [PostHog dashboards](https://posthog.com/docs/product-analyti
 
 | Object | Where | Shape |
 |---|---|---|
-| Board | `boards` (Signals) | adds `owner_admin_id uuid NULL`, `status draft\|published` and `owner_removed_at` |
+| Board | `boards` (Signals) | adds `owner_admin_id uuid NULL` |
 | Share | `board_shares` (new) | `board_id`, exactly one of `admin_id` or `role_id`, `level view\|edit`, `created_by`. Unique on (board, target) |
 | Favourite | `board_favourites` (new) | `admin_id`, `board_id`. Your favourites are your own, and nobody else sees them |
 | Draft | `board_drafts` (new) | `board_id`, `admin_id`, `payload jsonb` (name, subject, reports), `base_updated_at`, `updated_at` |
-| Report | inside the board, as now | A copy per board (answer 1). Gains `size` and an opt-out from the subject |
+| Report | inside the board, as now | A copy per board. Gains `size` and an opt-out from the subject |
 
-**A shop board is a board with no owner.** That's what the four starter boards and every board from #200 already
-are, so **#200 needs no data migration**: those rows keep `owner_admin_id = NULL` and keep behaving the way they do
+**A shop board is a board with no owner.** That's what the four starter boards and every board from #210 already
+are, so **#210 needs no data migration**: those rows keep `owner_admin_id = NULL` and keep behaving the way they do
 today. Only boards created from now on get an owner and start private.
 
 ### Who can do what
@@ -134,15 +141,15 @@ Creating a board needs `boards.manage` on the channel, and the creator becomes i
   governance possible (taking over an orphaned board, for example) without the superuser's own list filling up
   with other people's work.
 
-### Drafts (your note)
+### Drafts
 
-- **A new board is a draft.** It's created with `status = draft` the first time something is added, and only its
-  creator sees it, under "My drafts". It can't be shared. Its first Save publishes it.
-- **Unsaved edits to a published board** go in `board_drafts`, one row per admin per board, and are written about
-  1 second after the last change. When you come back to the board, it opens with "You have unsaved changes from
+- **There's no draft state on a board.** "New board" creates a private, empty board straight away, which only its
+  owner sees, so it needs no status of its own. Everything after that is an edit like any other.
+- **Unsaved edits to any board** go in `board_drafts`, one row per admin per board, and are written about 1 second
+  after the last change. A board with your draft carries a badge in the list. When you come back to the board, it opens with "You have unsaved changes from
   Tuesday 14:02 – Review & save / Discard".
 - **Save is still the single, staged step** (conventions.md). The confirm dialog diffs the draft against the
-  published board. If someone else saved since the draft started (`base_updated_at` no longer matches), Save is
+  saved board. If someone else saved since the draft started (`base_updated_at` no longer matches), Save is
   refused with today's stale error, and the dialog shows what changed on both sides.
 - **This is an exception to "never fire a mutation on change", and conventions.md will say so.** Writing a draft
   changes nothing anyone else sees. It only keeps your staged work.
@@ -164,35 +171,33 @@ Creating a board needs `boards.manage` on the channel, and the creator becomes i
 ### When the owner leaves
 
 - **A deactivated owner** keeps the board. Its shares keep working, and nothing moves.
-- **As built:** Signals isn't told. Core names every board's owner when it reads one, and an owner it no longer has
-  shows as removed; `claimBoard` checks that before relaying. Their drafts age out with the 30-day sweep, and their
-  favourites and shares are rows nobody reads. *(The original plan follows.)*
-- **A deleted owner:** core sends `AdminRemoved(admin_id)` to Signals over the outbox, the same way channels are
-  pushed. Signals stamps `owner_removed_at` on their boards, drops their drafts and favourites, and deletes their
-  admin shares.
-- **An orphaned board can be claimed.** It shows as "Owner removed – claim" to anyone with `boards.manage` on the
-  channel who could already open it, and to superusers. Claiming makes them the owner. Nothing is deleted
+- **A deleted owner needs no event.** Core fills in owner names when it relays the board list, so an owner id with
+  no admin behind it shows as "Owner removed". Signals stores nothing for it, and the board and its shares keep
+  working.
+- **A superuser hands an orphaned board over** with the same `TransferBoard` an owner uses. Nothing is deleted
   automatically.
+- **The removed admin's own rows stay.** Their drafts expire after 30 days. Their favourites and admin shares point
+  at an id nobody can sign in as, so they grant nothing.
 
-### What changes in #200's code
+### As built
 
-- **Proto:** `ListBoards` returns `owner`, `status`, `my_access`, `favourite` and `has_my_draft`. New calls:
-  `ShareBoard`, `UnshareBoard`, `SetBoardFavourite`, `SaveBoardDraft`, `DiscardBoardDraft`, `TransferBoard` and
-  `AdminRemoved`.
-- **Core:** the service token gains `RoleIDs`, there's the `boardShareTargets` query, and `DeleteAdmin` publishes
-  `AdminRemoved` to the outbox.
+- **Sharing replaces the whole list** with `SetBoardShares`, rather than separate `ShareBoard` and `UnshareBoard`
+  calls: the share dialog edits the list and applies it with its own button.
+- **A shop board takes no shares.** Everyone on the shop sees it already, so the "Share and unshare" cell for a shop
+  board with `boards.manage` doesn't apply. Its managers can still hand it to an admin.
+- **`TransferBoard` with no new owner makes a shop board**, which takes `boards.manage`. Core refuses a new owner who
+  isn't an active admin with `boards.view` on the shop, since the board would be orphaned at once.
+
+### What changes in #210's code
+
+- **Proto:** `BoardSummary` gains `owner`, `my_access`, `favourite` and `has_my_draft`. New calls: `ShareBoard`,
+  `UnshareBoard`, `SetBoardFavourite`, `SaveBoardDraft`, `DiscardBoardDraft` and `TransferBoard`.
+- **Core:** the service token gains `RoleIDs`, there's the `boardShareTargets` query, and the relayed board list
+  fills in owner names.
 - **Signals:** `board.Service` takes an `Actor{AdminID, RoleIDs, Superuser}` on every method. One function,
   `access(board, actor) → none|view|edit|own`, answers every check, and the access matrix test is written against it.
-- **Dashboard:** the board list gets the tabs Favourites, Mine, Shared with me, Shop boards and My drafts. There's a
-  Share dialog with the warning, a star in the board header, the draft banner, and the tile's no-permission state.
-
-### Answers (2026-11-04)
-
-1. **Yes.** Someone with `boards.manage` can make a board a shop board, which clears the owner and makes it visible
-   to the whole channel.
-2. **No.** An edit share can't share the board on. Only the owner, a shop-board manager or a superuser shares.
-3. **Superusers see private boards**, under "All boards".
-4. **Drafts are kept for 30 days.**
+- **Dashboard:** the board list gets the tabs Favourites, Mine, Shared with me and Shop boards. There's a Share dialog
+  with the warning, a star in the board header, the draft badge and banner, and the tile's no-permission state.
 
 ## 3. The board as a case
 
@@ -209,18 +214,23 @@ That one rule answers all four questions without any setting per tile:
 
 | Question | Tile | What the subject does |
 |---|---|---|
-| Q1 How is product X doing? | Funnel view_item → cart_add → order_line | every step carries `sku`, so every step is filtered |
-| Q1 | Revenue: Insights, net sales (order_line minus return_line) | only X's lines are summed |
+| Q1 How is product X doing? | Funnel view_item → cart_add → order_line (`kind = placed`) | every step carries `sku`, so every step is filtered |
+| Q1 | Revenue: Insights, sum of `net_base_cents` on order_line | only X's lines are summed. Returns and edits are negative, so the sum is net sales |
 | Q2 Did campaign Y work? | Funnel email_sent → opened → clicked → conversion | every step carries `campaign_id` |
 | Q2 | Attributed revenue: sum of `revenue_base_cents` on conversion | only Y's conversions |
 | Q3 Where do shoppers drop off? | Funnel with a device breakdown, and Flow after begin_checkout | a `utm_source` subject filters the page_view steps. begin_checkout doesn't carry it and is left alone |
-| Q4 Do buyers come back? | Retention: start order_line, return order_placed | the start carries `sku`, so the cohort is buyers of X. The return doesn't, so any later order counts |
+| Q4 Do buyers come back? | Retention: start order_line (`kind = placed`), return order_placed | the start carries `sku`, so the cohort is buyers of X. The return doesn't, so any later order counts |
 
 **Whether an event "carries" a property is declared, not guessed.** Browser events are declared in the tracking plan
-(`analytics/plan.go`). Server events get the same declaration in a new `analytics.ServerEventKeys`, filled from the
-shapes the tracker writes. A declaration is necessary: `page_view` carries `sku` only on product pages, and
-"`page_view` with sku = X" must mean X's product pages, not every page that lacks a sku. `skelet gen` adds the server
-events to the tracking-plan doc.
+(`analytics/plan.go`), and server events are added to the same plan, marked as server-sourced so the Lens beacon
+doesn't accept them from a browser. One plan answers for every event. A declaration is necessary: `page_view` carries `sku` only on product pages, and
+"`page_view` with sku = X" must mean X's product pages, not every page that lacks a sku. `skelet gen` writes the server
+events into the tracking-plan doc with the rest.
+
+**The engines apply the rule, not the dashboard.** A tile sends the board's subject and its own filters as one list,
+and each engine applies a filter only to the events that declare its key. The rule is written once, beside
+`propText` in `spinech/reads.go`, and every engine calls it. Each answer says which of its events followed the
+filters, and that is the tile's "follows … on" line.
 
 **Exceptions:**
 - **Flow** filters only its focus event, so the people are those who did the focus event on X. The paths after it stay
@@ -233,32 +243,44 @@ events to the tracking-plan doc.
 
 | Engine | Property filter today | Needed |
 |---|---|---|
-| Funnel | yes: `FunnelQuery.Filters{Step, Key, Value}` with `propText = ?` | the subject added to each step that carries the property. Today's step filters stay |
+| Funnel | yes: `FunnelQuery.Filters{Step, Key, Value}` with `propText = ?` | step filters become `PropertyFilter`s with a step, so the funnel has one filter type like the rest |
 | Insights | no | `filters []PropertyFilter` ANDed into its one `WHERE`, plus a **sum measure** (`measure = sum`, `sumKey`) |
 | Engagement (Stickiness) | no | the same `filters` in its `WHERE` |
 | Retention | no | separate filters for the `anchors` and `returns` CTEs (a start filter and a return filter) |
 | Flow | no | filters on the `focus_actors` CTE only |
 
-All of them reuse the funnel's `propText` expression, so a number compares the same way in every engine.
-`PropertyFilter{Key, Op, Value}` starts with `Op = eq` only. The type has room for `neq` and `in` later.
+There is one filter type, `PropertyFilter{Key, Op, Values}`, with `Op` one of `eq`, `neq` and `in`. All engines
+reuse the funnel's `propText` expression, so a number compares the same way in every engine. The proto's
+`FunnelFilter` stays only as a wire field, mapped onto `PropertyFilter` at the edge.
 
 ### Events that are missing
 
-**`order_line`: one event per order line, emitted next to `order_placed`.** `Tracker.onOrderPlaced` already loads
-the order, so the lines cost no extra query. Its properties:
-- `order_id`, `line_id`, `sku`, `product_name`, `qty`
-- `gross_cents`, `discount_cents` (its share of the order discount), `line_net_cents`, `currency` and `line_net_base_cents`
+**`order_line`: one event per change to an order line's revenue, with signed amounts.** `kind` says which change:
+- `placed`, emitted next to `order_placed`. `Tracker.onOrderPlaced` already loads the order, so the lines cost no
+  extra query. Lines with `removed_at` set are skipped.
+- `returned`, when a return is received, from `order_return_lines`, for that line's returned quantity.
+- `edited`, when an edit after checkout (`edit.go`) removes a line or changes its quantity, with the difference.
+
+Every kind carries the same properties, negative for a return and for an edit that lowers the line:
+- `kind`, `order_id`, `line_id`, `sku`, `product_name`, `qty`
+- `gross_cents`, `discount_cents` (its share of the order discount), `net_cents`, `currency` and `net_base_cents`
 - `is_gift`
 
-The dedupe key is `act:order_line:<line_id>`. Lines with `removed_at` set are skipped.
+The dedupe keys are `act:order_line:placed:<line_id>`, `act:order_line:returned:<return line id>` and
+`act:order_line:edited:<line_id>:<edit time>`.
 
 Why one event per line and not a `skus` array on order_placed: an array can say *that* X was bought, not how many or
-for how much, so it can't produce revenue for X.
+for how much, so it can't produce revenue for X. Why one event and not one per kind: net sales and units are then
+plain sums, and the subject filters one event.
 
-**Revenue in the base currency (your answer 2).** Rates live only in core (`currencies.exchange_rate`, which holds
+**Backfill.** A one-off `skelet cli` command writes `placed` events for past orders, with each line's current values,
+and `returned` events from past returns. Past edits have no history, so they're already folded into `placed`. The
+dedupe keys are the live events' own, so running it twice changes nothing.
+
+**Revenue in the base currency.** Rates live only in core (`currencies.exchange_rate`, which holds
 the current rate and no history), and Signals has none. Core therefore stamps the converted amount **when the event
 happens**, with `currency.Convert`:
-- `order_placed.total_base_cents` and `order_line.line_net_base_cents` and `return_line.refund_net_base_cents`
+- `order_placed.total_base_cents` and `order_line.net_base_cents`
 - `revenue_base_cents` on the conversion signal Signals records
 
 Stamping then is the only way to keep historical revenue at the rate of the day, since no rate history exists.
@@ -273,14 +295,14 @@ asked. Adding `sku` to both is a two-line change in the tracker, and it goes in 
 
 ### What changes
 
-- **Signals `board`:** `Board.Subject []PropertyFilter` (in boards and drafts), and `Definition.IgnoreSubject` and
-  `Definition.SumKey`. `DefinitionVersion` goes to 2, and a version-1 definition reads as before.
-- **Proto and core:** each Synapse request takes `filters`, and Insights takes `sum_key`. The relaying resolvers pass
-  them through.
+- **Signals `board`:** `Board.Subject []PropertyFilter` (in boards and drafts). `BoardReportDefinition` gains
+  `ignore_subject` and `sum_key`. Both empty mean today's behaviour, so stored reports need no migration.
+- **Proto and core:** each Synapse request takes `filters`, and Insights takes `sum_key`. Each answer returns the
+  events that followed the filters. The relaying resolvers pass them through.
 - **Dashboard:**
   - the subject chips in the board header: a property picker from the declared keys, and a value picker from the
     top values (`topValues` already exists)
-  - each tile shows a "follows subject on …" line and an "Ignore the board's subject" switch
+  - each tile shows the engine's "follows subject on …" line and an "Ignore the board's subject" switch
   - an Insights "Sum of" measure, shown as money when the key ends in `_cents`
 
 **As built (`feat/spine-order-lines`):**
@@ -291,7 +313,7 @@ asked. Adding `sku` to both is a two-line change in the tracker, and it goes in 
 - **Gaps.** A refund with no lines (shipping, goodwill) belongs to no product. Edits from before the release can't
   be replayed by the backfill, because the lines as they stood before an edit weren't kept.
 
-### Revenue, explained (your questions 1 and 2)
+### Revenue, explained
 
 **A worked example.** One order, in a shop whose prices don't include tax:
 
@@ -326,54 +348,24 @@ Shipping and the order-level fees never go to a product. They aren't the product
    exactly what core already does for tax and refunds, so the board can't disagree with the refund a customer got.
 2. **Book a return on the day it happens, not on the original order's day.** Last month's figures then never change
    after the fact, and the board matches accounting. Shopify works the same way.
-3. **So there are two events, and the board does the subtraction:**
-   - `order_line` at checkout: `line_net_base_cents` (after the discount share, without tax) plus the gross and
-     discount for anyone who wants them
-   - `return_line` when a return is received: `refund_net_base_cents` for that line's quantity, from
-     `order_return_lines`
-   - a "Net sales" tile is `sum(order_line.line_net) − sum(return_line.refund_net)` over the period. The subject on
-     `sku` filters both, because both carry `sku`
-4. **Order edits after checkout** (a line removed, or a quantity changed in `edit.go`) are booked the same way as a
-   return, as an `order_line_adjusted` event dated on the edit, with the difference. Otherwise an edited order
-   would keep its old revenue on the board.
+3. **So one signed event carries it all.** `order_line` at checkout adds the line's `net_base_cents` (after the
+   discount share, without tax). A return adds the returned quantity's net value as a negative amount, without its
+   tax. An edit adds the difference, dated on the edit, so an edited order doesn't keep its old revenue.
+   A "Net sales" tile is `sum(order_line.net_base_cents)` over the period, and the subject on `sku` filters it.
+   Gross sales and returns alone are the same sum with a filter on `kind`.
 
 **What this means for stage 5's reconciliation test:** for product X over a period, the board's net sales must equal
 the commerce DB's lines placed in the period (net of discount, without tax), minus returns received in the period,
 plus or minus edits made in the period. All three come from tables that already exist.
 
-### Answers (2026-11-04)
-
-3. **Backfill: yes.** A one-off `skelet cli` command writes `order_line`, `return_line` and `order_line_adjusted`
-   events for past orders. Dedupe keys are the same as live events, so running it twice changes nothing.
-4. **Operators:** `=`, `≠` and "is one of" in the first version. `≠` treats an event that lacks the property as
-   passing, and "is one of" takes up to 50 values.
-
-### Decided (2026-11-04)
-
-1. **Net sales, the standard way.** Discounts are taken off, and tax and shipping are left out. Returns and edits are
-   counted on the day they happen.
-2. **An order discount is split across lines** by each line's share of the subtotal, with core's
-   `allocateLineDiscount`.
-
 ## 4. Heuristic evaluation and cognitive walkthrough
 
 **How this was done:**
-- **Screenshots:** headless Chromium (Microsoft's Playwright image, on the dashboard container's network), signed in
-  as the dev superuser on the Default Store (15,448 events, 23 event names). Each builder was captured in its
-  default state, plus the boards list, a board and the "Add to board" dialog. They're in
-  [boards-cases/](boards-cases/).
-- **Interactions not captured** (filters, breakdowns, switching events) were checked in the code
+- **Checked in the running dev dashboard** as the dev superuser on the Default Store (15,448 events, 23 event names):
+  each builder in its default state, plus the boards list, a board and the "Add to board" dialog.
+- **Interactions not exercised** (filters, breakdowns, switching events) were checked in the code
   (`features/synapse/*`). Those findings are marked *code*.
 - **Severity uses Nielsen's scale:** 0 not a problem, 1 cosmetic, 2 minor, 3 major, 4 blocks the task.
-
-| Builder | Screenshot |
-|---|---|
-| Insights | [synapse-insights.png](boards-cases/synapse-insights.png) |
-| Funnel | [synapse-funnels.png](boards-cases/synapse-funnels.png) |
-| Flow | [synapse-flows.png](boards-cases/synapse-flows.png) |
-| Engagement | [synapse-stickiness.png](boards-cases/synapse-stickiness.png) |
-| Retention | [synapse-retention.png](boards-cases/synapse-retention.png) |
-| Boards list, a board, Add to board | [boards.png](boards-cases/boards.png), [board.png](boards-cases/board.png), [add-to-board-dialog.png](boards-cases/add-to-board-dialog.png) |
 
 ### Issues, most severe first
 
@@ -385,8 +377,8 @@ plus or minus edits made in the period. All three come from tables that already 
 | 4 | 3 | All five | Recognition, user control | Settings live only in component state (*code*: no `useSearchParams`), so a reload, the back button or a pasted link loses the query | Keep the definition in the URL (`?q=<definition>`). On the board, the tile is in the URL (`?tile=n`) | boards-canvas |
 | 5 | 3 | All five, and Boards | Visibility, error prevention | With global scope, each page is a dead end: "Select a channel – pick one in the header scope picker". The picker is in the top-left corner, not in a header | Put a channel picker inside the empty state itself | boards-canvas |
 | 6 | 3 | Add to board, Board | Minimalism, user control | Four screens to add one report, the builder's state is lost on leaving, and a saved tile can't be edited | The canvas: build and edit in the side sheet beside the board | boards-canvas |
-| 7 | 3 | Engagement vs Retention | Match, consistency | Both answer "do people come back?" Engagement's subtitle says exactly that, so for Q4 an admin can't tell which one to use. The names also differ: Engagement in the menu, stickiness in the URL and code, "Return rate" on the page | Name them by their question: "Return rate" (window over window) and "Cohort retention" (period by period), with one line on each pointing to the other | boards-canvas |
-| 8 | 3 | Funnel → Flow | Flexibility | Q3 stops at "41% dropped at Added to cart". Nothing leads to *what those people did instead* | "See where they went" on each funnel step adds a Flow tile that starts from people who did step N but not step N+1. The Flow engine needs an "excluding" focus | boards-canvas, engine-property-filters |
+| 7 | 3 | Engagement vs Retention | Match, consistency | Both answer "do people come back?" Engagement's subtitle says exactly that, so for Q4 an admin can't tell which one to use. The names also differ: Engagement in the menu, stickiness in the URL and code, "Return rate" on the page | Merge them into one builder, Retention, with a "Return rate" view (Engagement's headline number) and a "By cohort" view (today's table). The engines and stored kinds stay, so only the menu, the labels and the tile picker change | boards-canvas |
+| 8 | 3 | Funnel → Flow | Flexibility | Q3 stops at "41% dropped at Added to cart". Nothing leads to *what those people did instead* | "See where they went" on each funnel step adds a Flow tile that starts from people who did step N but not step N+1. Flow's `focus_actors` gains an exclusion, people who did A and not B within the window, in the same CTE the filters change. The button goes in boards-canvas | boards-canvas, engine-property-filters |
 | 9 | 3 | Funnel step filter, Funnel breakdown | Error prevention, recognition | Property and value are free-text inputs ("property, e.g. device"), while Insights' breakdown is a list. A typo gives a silent zero | One property picker everywhere (declared keys, stage 3), with value suggestions from `topValues` | engine-property-filters |
 | 10 | 2 | Insights | Match | The default is "Any event", which adds page views, web vitals and rage clicks into one meaningless 11,864 | Default to page_view, and group the event list (Shopping, Email, Quality signals) | boards-canvas |
 | 11 | 2 | Flow | Minimalism | Technical events show up as journey steps ("$web vitals", 1%) | Leave `$`-events out of paths by default, behind a "Show technical events" toggle | boards-canvas |
@@ -443,18 +435,6 @@ the goal, and understand the result? ✗ marks where it fails.
 **Score today:** none of the four questions can be answered end to end. With the canvas, the filters, `order_line`
 and the sum measure, every ✗ above has a fix in the table.
 
-### Answers and proposals (2026-11-04)
-
-1. **Engagement and Retention: merge (decided)** them into one builder, **Retention**, with two views: "Return rate"
-   (the headline number Engagement shows today) and "By cohort" (today's table). They answer the same question, Q4,
-   so they belong in one place. The two engines stay, and a stored board definition keeps its kind (`stickiness` or
-   `retention`), so no definition has to be migrated. Only the menu, the labels and the tile picker change.
-2. **Flow from a drop-off: now (decided)**, in `engine-property-filters`. Flow's `focus_actors` gains an
-   exclusion: people who did A and did **not** do B within the window. The same CTE is already being changed for
-   filters there. The funnel step's "See where the 82 went" button goes in `boards-canvas`.
-3. **Decided:** the fixes that aren't about boards (#5, #10, #11, #12, #14, #18) go into `boards-canvas`, because the
-   builders' controls are being split out there anyway. There's no separate `synapse-builder-fixes` branch.
-
 ## 5. Test plan
 
 The goal is evidence that doesn't depend on our own judgment: tests that fail when access or numbers are wrong, and
@@ -477,7 +457,7 @@ people who aren't us doing the task.
 - an admin who has the share but `boards.view` only on channel B
 - an admin who has the share but no `boards.view` at all
 
-**Board states:** private draft, private published, shared, shop board, and orphaned (owner removed).
+**Board states:** private, shared, shop board, and orphaned (its owner's admin row deleted).
 
 **Expected result per row:** one of none, view, edit or own, plus the error each refused call gives:
 - `NotFound` when the actor may not know the board exists
@@ -496,11 +476,11 @@ A dashboard test (`ReportTile.test.tsx`) checks that the "You need Customer anal
 that error.
 
 **Drafts and ownership:**
-- a draft is visible only to its admin
+- a draft is visible only to its admin, and a new board is visible only to its owner before anything is saved
 - Save with a stale `base_updated_at` is refused, and both sides are kept
-- `AdminRemoved` stamps `owner_removed_at`, drops the removed admin's drafts, favourites and shares, and leaves the
-  board otherwise untouched
-- claiming needs `boards.manage`
+- after the owner's admin row is deleted, the relayed board list shows "Owner removed", and the board and its shares
+  still work
+- `TransferBoard` on an orphaned private board works for a superuser and is refused for everyone else
 - the 30-day sweep deletes only expired drafts
 
 ### 5.2 Reconciliation: the board equals the commerce DB
@@ -520,9 +500,9 @@ runs real core, real Signals and its own ClickHouse spine.
 
 | Board figure | Must equal (SQL on the commerce DB) |
 |---|---|
-| Orders containing X | `count(DISTINCT order_id)` over `order_lines` where `product_sku = X` and `removed_at IS NULL` |
-| Units of X | `sum(quantity)` over the same lines, minus returned quantity |
-| Net sales of X in the base currency | lines net of `allocateLineDiscount`, converted with `currency.Convert`, minus returns net of tax, plus or minus the edit |
+| Orders containing X (unique `order_id` on `order_line`, `kind = placed`) | `count(DISTINCT order_id)` over `order_lines` where `product_sku = X` and `removed_at IS NULL` |
+| Units of X (sum of `qty` on `order_line`) | `sum(quantity)` over the same lines, minus returned quantity, plus or minus the edit |
+| Net sales of X in the base currency (sum of `net_base_cents` on `order_line`) | lines net of `allocateLineDiscount`, converted with `currency.Convert`, minus returns net of tax, plus or minus the edit |
 | Buyers of X (unique) | `count(DISTINCT customer)` over the same orders |
 | Order 3 | contributes nothing to any X figure |
 
@@ -606,7 +586,7 @@ the script and data work.
 |---|---|
 | `feat/boards-canvas` | 5.4, plus the builder-fix tests (toggle `aria-pressed`, channel picker in the empty state, defaults) |
 | `feat/boards-ownership` | 5.1 |
-| `feat/spine-order-lines` | tracker unit tests for `order_line`, `return_line` and `order_line_adjusted`, backfill idempotence, and the first half of 5.2: the spine's raw events for X, summed in ClickHouse, equal the commerce DB |
+| `feat/spine-order-lines` | tracker unit tests for `order_line` of each kind (`placed`, `returned`, `edited`), backfill idempotence, and the first half of 5.2: the spine's raw events for X, summed in ClickHouse, equal the commerce DB |
 | `feat/engine-property-filters` | 5.3, and 5.2 in full through Insights' sum with a filter |
 | `feat/boards-subject` | the subject parts of 5.4, plus 5.2 extended to the subject on every tile kind |
 | after all of them | 5.5 on a build that includes everything |

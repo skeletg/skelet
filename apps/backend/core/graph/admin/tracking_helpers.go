@@ -13,7 +13,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tracking"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
-	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
@@ -118,15 +117,12 @@ func toTrackingDestination(d tracking.Destination, h tracking.Health) *model.Tra
 		ID: d.ID.String(), ChannelID: d.ChannelID.String(), Kind: d.Kind, Name: d.Name, Enabled: d.Enabled,
 		Events: nonNilStrings(d.Events), EffectiveEvents: nonNilStrings(d.Events),
 		Config: configValues(d.Config, secretKey(k)), SecretSet: d.Secret != "", NeedsSecret: tracking.NeedsSecret(d),
-		Health:    &model.TrackingHealth{LastSentAt: h.LastSentAt, LastError: h.LastError, Dead24h: int32(h.Dead24h)},
-		CreatedAt: d.CreatedAt, UpdatedAt: d.UpdatedAt,
+		InTestMode: tracking.InTestMode(d),
+		Health:     &model.TrackingHealth{LastSentAt: d.LastSentAt, LastError: h.LastError, Dead24h: int32(h.Dead24h)},
+		CreatedAt:  d.CreatedAt, UpdatedAt: d.UpdatedAt,
 	}
 	if len(d.Events) == 0 {
 		m.EffectiveEvents = nonNilStrings(k.DefaultEvents)
-	}
-	if d.ImportedFrom != nil {
-		from := d.ImportedFrom.String()
-		m.ImportedFrom = &from
 	}
 	return m
 }
@@ -149,7 +145,7 @@ func configValues(cfg map[string]string, secret string) []*model.TrackingConfigV
 
 func toTrackingDelivery(d tracking.Delivery) *model.TrackingDelivery {
 	return &model.TrackingDelivery{
-		ID: d.ID.String(), EventName: d.EventName, EventID: d.EventID, Status: d.Status, Attempts: d.Attempts,
+		ID: d.ID.String(), EventName: d.EventName, EventID: d.EventID, Status: model.TrackingDeliveryStatus(strings.ToUpper(d.Status)), Attempts: d.Attempts,
 		LastError: d.LastError, NextAttemptAt: d.NextAttemptAt, CreatedAt: d.CreatedAt,
 	}
 }
@@ -169,7 +165,7 @@ func (r *Resolver) trackingPlatforms(ctx context.Context, channelID uuid.UUID) [
 			p.Purposes = append(p.Purposes, string(purpose))
 		}
 		for _, f := range k.Fields {
-			p.Fields = append(p.Fields, &model.TrackingField{Key: f.Key, Label: f.Label, Help: f.Help, Required: f.Required, Secret: f.Secret})
+			p.Fields = append(p.Fields, &model.TrackingField{Key: f.Key, Label: f.Label, Help: f.Help, Required: f.Required, Secret: f.Secret, TestMode: f.TestMode})
 		}
 		if k.NecessarySetting != "" {
 			setting := k.NecessarySetting
@@ -193,50 +189,6 @@ func (r *Resolver) trackingPlatforms(ctx context.Context, channelID uuid.UUID) [
 		return len(tracking.FirstParty)
 	}
 	slices.SortStableFunc(out, func(a, b *model.TrackingPlatform) int { return rank(a.Kind) - rank(b.Kind) })
-	return out
-}
-
-// importCandidate is what one Signals destination would become here - or why it can't
-func importCandidate(d *signalsv1.EventDestination, existing map[uuid.UUID]uuid.UUID) *model.SignalsImportCandidate {
-	c := &model.SignalsImportCandidate{
-		LegacyID: d.GetId(), Name: d.GetName(), LegacyKind: d.GetKind(), SignalsActive: d.GetIsActive(),
-		Config: []*model.TrackingConfigValue{}, DroppedFilters: []string{},
-	}
-	for _, s := range d.GetEventSources() {
-		c.DroppedFilters = append(c.DroppedFilters, "source: "+s)
-	}
-	for _, n := range d.GetEventNames() {
-		c.DroppedFilters = append(c.DroppedFilters, "event: "+n)
-	}
-	if legacy, err := uuid.Parse(d.GetId()); err == nil {
-		if as, ok := existing[legacy]; ok {
-			s := as.String()
-			c.ImportedAs = &s
-		}
-	}
-	kind, cfg, err := tracking.FromLegacy(d.GetKind(), d.GetTargetUrl())
-	if err != nil {
-		problem := err.Error()
-		c.Problem = &problem
-		return c
-	}
-	if _, ok := tracking.KindFor(kind); !ok {
-		problem := "the " + kind + " plugin isn't in this build"
-		c.Problem = &problem
-	}
-	c.TargetKind = &kind
-	c.Config = configValues(cfg, "")
-	return c
-}
-
-// The channel's destinations by the Signals one each was imported from
-func importedFrom(ds []tracking.Destination) map[uuid.UUID]uuid.UUID {
-	out := map[uuid.UUID]uuid.UUID{}
-	for _, d := range ds {
-		if d.ImportedFrom != nil {
-			out[*d.ImportedFrom] = d.ID
-		}
-	}
 	return out
 }
 

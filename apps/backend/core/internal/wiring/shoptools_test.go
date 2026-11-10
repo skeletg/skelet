@@ -23,6 +23,14 @@ func (s switchSetting) GetBool(context.Context, string, config.Scope) (bool, err
 	return s.open, s.err
 }
 
+func (s switchSetting) GetInt(context.Context, string, config.Scope) (int64, error) {
+	return 0, s.err
+}
+
+func (s switchSetting) GetString(context.Context, string, config.Scope) (string, error) {
+	return "", s.err
+}
+
 func TestTheStorefrontSwitchDecidesWhoGetsTools(t *testing.T) {
 	ch := channel.Channel{ID: uuid.New(), PublicURL: "https://shop.example"}
 	for name, tc := range map[string]struct {
@@ -35,7 +43,7 @@ func TestTheStorefrontSwitchDecidesWhoGetsTools(t *testing.T) {
 		"unreadable switch": {switchSetting{err: errors.New("valkey down")}, ch, http.StatusServiceUnavailable},
 		"no public address": {switchSetting{open: true}, channel.Channel{ID: uuid.New()}, http.StatusNotFound},
 	} {
-		tools, refused := storefrontTools(shoptools.New(shoptools.Deps{Settings: tc.setting}))(context.Background(), tc.ch)
+		tools, refused := storefrontTools(shoptools.New(shoptools.Deps{Settings: tc.setting}))(context.Background(), tc.ch, "ShopBot")
 		switch {
 		case tc.want == 0 && (refused != nil || tools == nil):
 			t.Errorf("%s: refused %+v", name, refused)

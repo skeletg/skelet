@@ -58,3 +58,5 @@ func (w *devDebugWriter) Write(b []byte) (int, error) {
 	w.inject()
 	return w.ResponseWriter.Write(b)
 }
+
+func (w *devDebugWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }

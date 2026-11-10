@@ -1,16 +1,7 @@
 import { useMemo, useRef, useState, useId } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
-import {
-  DndContext,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  type DragOverEvent,
-} from '@dnd-kit/core'
-import { arrayMove } from '@dnd-kit/sortable'
+import { DndContext } from '@dnd-kit/core'
 import { PlusIcon, Trash2Icon } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -35,13 +26,16 @@ import {
 import { DetailPageHeader, DetailPageLayout } from '@/components/layout/detail-page'
 import { LoadingState } from '@/components/ui/loading-state'
 import { cn } from '@/lib/utils'
+import { slugify } from '@/lib/slug'
 import { useConfigScope, useUnsavedChangesGuard } from '@/lib/config-scope'
 import { BlockPalette } from '@/features/email/BlockPalette'
-import { EmailCanvas, END_DROP, type CanvasItem } from '@/features/email/EmailCanvas'
+import { EmailCanvas, type CanvasItem } from '@/features/email/EmailCanvas'
+import { useCanvasDnd } from '@/features/email/canvasDnd'
 import { BlockInspector } from '@/features/email/BlockInspector'
 import { BlockStyleControls } from '@/features/email/StyleControls'
 import { RowInspector } from '@/features/email/RowInspector'
-import { addToColumn, findBlock, moveChild, removeBlock, replaceBlock } from '@/features/email/treeops'
+import { FLOATING_PANEL, PANEL_BACKDROP, PANEL_TITLE } from '@/features/email/panel'
+import { findBlock, moveChild, parseSel, removeBlock, replaceBlock } from '@/features/email/treeops'
 import {
   SAMPLE_VARS,
   componentMap,
@@ -66,8 +60,9 @@ import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 const MERGE_TAGS = ['store.name', 'store.logoUrl', 'storefront.url', 'customer.firstName', 'customer.email']
 const FIELD_KINDS: CustomFieldKind[] = ['text', 'textarea', 'url', 'color', 'number', 'date', 'image', 'select', 'boolean']
 
+const LOAD = Math.random().toString(36).slice(2, 7)
 let uid = 0
-const nextId = () => `lb_${++uid}`
+const nextId = () => `lb_${LOAD}_${++uid}`
 
 type Loaded = {
   channelId: string
@@ -154,6 +149,8 @@ function Editor({ initial, onSaved, onDeleted }: { initial: Loaded; onSaved: (sl
   const canEdit = usePermissions().has('emails.manage')
   const [slug, setSlug] = useState(initial.slug)
   const [name, setName] = useState(initial.name)
+  // A new block's slug follows its name until it's typed in by hand
+  const [slugTyped, setSlugTyped] = useState(!initial.isNew || initial.slug !== '')
   const [icon, setIcon] = useState(initial.icon)
   const [fields, setFields] = useState<CustomFieldDef[]>(initial.fields)
   const [items, setItems] = useState<CanvasItem[]>(() => initial.blocks.map((b) => ({ id: nextId(), block: b })))
@@ -163,7 +160,6 @@ function Editor({ initial, onSaved, onDeleted }: { initial: Loaded; onSaved: (sl
   const [scripted, setScripted] = useState(initial.scripted)
   const [bodyMode, setBodyMode] = useState<'visual' | 'html'>(initial.htmlTemplate.trim() ? 'html' : 'visual')
   const [sel, setSel] = useState<string | null>(null)
-  const [dropBefore, setDropBefore] = useState<string | null>(null)
   const [saved, setSaved] = useState(!initial.isNew)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -194,7 +190,6 @@ function Editor({ initial, onSaved, onDeleted }: { initial: Loaded; onSaved: (sl
   const compMap = useMemo(() => componentMap(allComponents), [allComponents])
   const snippetList = components.map((c) => ({ slug: c.slug, name: c.name }))
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
   const selectedBlock = findBlock(items, sel)
   const selectedIsRow = !!selectedBlock && selectedBlock.type === 'row' && !!sel && !sel.includes('::')
 
@@ -206,58 +201,37 @@ function Editor({ initial, onSaved, onDeleted }: { initial: Loaded; onSaved: (sl
     setItems((prev) => removeBlock(prev, target))
     setSel((cur) => (cur === target || (cur && cur.startsWith(`${target}::`)) ? null : cur))
   }
-  function updateSelected(next: EmailBlock) {
-    if (sel) setItems((prev) => replaceBlock(prev, sel, next))
+  function editBlock(target: string, next: EmailBlock) {
+    setItems((prev) => replaceBlock(prev, target, next))
   }
+  function updateSelected(next: EmailBlock) {
+    if (sel) editBlock(sel, next)
+  }
+  function insertAt(index: number, type: string) {
+    const item = { id: nextId(), block: makeBlock(type) }
+    setItems((prev) => {
+      const next = [...prev]
+      next.splice(Math.max(0, Math.min(index, prev.length)), 0, item)
+      return next
+    })
+    setSel(item.id)
+  }
+  function addBlock(type: string) {
+    const at = sel ? items.findIndex((i) => i.id === parseSel(sel).id) : -1
+    insertAt(at === -1 ? items.length : at + 1, type)
+  }
+  const mergeTags = useMemo(() => [...new Set([...fields.map((f) => f.key).filter(Boolean), ...MERGE_TAGS])], [fields])
   function onMoveChild(rowId: string, col: number, idx: number, dir: -1 | 1) {
     setItems((prev) => moveChild(prev, rowId, col, idx, dir))
   }
-  function onDragOver(e: DragOverEvent) {
-    const ad = e.active.data.current
-    if (!ad?.fromPalette) {
-      if (dropBefore !== null) setDropBefore(null)
-      return
-    }
-    const overId = e.over ? String(e.over.id) : null
-    if (!overId || overId.startsWith('col:')) {
-      setDropBefore(null)
-      return
-    }
-    setDropBefore(overId === 'canvas' ? END_DROP : overId)
-  }
-  function onDragEnd(e: DragEndEvent) {
-    setDropBefore(null)
-    const { active, over } = e
-    if (!over) return
-    const overId = String(over.id)
-    const ad = active.data.current
-    if (ad?.fromPalette) {
-      const type = String(ad.blockType)
-      if (overId.startsWith('col:') && type !== 'row' && type !== 'ref' && !compMap[type]) {
-        const [, rowId, colStr] = overId.split(':')
-        setItems((prev) => addToColumn(prev, rowId, Number(colStr), makeBlock(type)))
-        return
-      }
-      const item = { id: nextId(), block: makeBlock(type) }
-      setItems((prev) => {
-        const overIdx = prev.findIndex((i) => i.id === overId)
-        if (overIdx === -1) return [...prev, item]
-        const next = [...prev]
-        next.splice(overIdx, 0, item)
-        return next
-      })
-      setSel(item.id)
-      return
-    }
-    if (active.id !== over.id) {
-      setItems((prev) => {
-        const from = prev.findIndex((i) => i.id === active.id)
-        const to = prev.findIndex((i) => i.id === overId)
-        if (from === -1 || to === -1) return prev
-        return arrayMove(prev, from, to)
-      })
-    }
-  }
+  const { dropBefore, dndProps } = useCanvasDnd({
+    items,
+    setItems,
+    makeBlock,
+    canNest: (type) => type !== 'row' && type !== 'ref' && !compMap[type],
+    nextId,
+    onPlaced: (placed) => placed && setSel(placed),
+  })
 
   // --- field schema editing ---
   function updateField(i: number, patch: Partial<CustomFieldDef>) {
@@ -289,7 +263,10 @@ function Editor({ initial, onSaved, onDeleted }: { initial: Loaded; onSaved: (sl
   async function onSave() {
     const cleanSlug = slug.trim()
     if (!cleanSlug || !name.trim()) {
-      setError('Give the block a name and a slug.')
+      setError(name.trim() ? 'Give the block a slug.' : 'Give the block a name.')
+      // The fields sit under Settings - bring that tab forward and put the cursor where it's missing
+      setSel(null)
+      requestAnimationFrame(() => document.getElementById(name.trim() ? 'block-slug' : 'block-name')?.focus())
       return
     }
     if (bodyMode === 'html' && !htmlTemplate.trim()) {
@@ -370,7 +347,16 @@ function Editor({ initial, onSaved, onDeleted }: { initial: Loaded; onSaved: (sl
       <div className="grid grid-cols-[1fr_auto] gap-2">
         <div className="grid gap-1.5">
           <Label htmlFor="block-name">Block name</Label>
-          <Input id="block-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Promo banner" />
+          <Input
+            id="block-name"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value)
+              if (!slugTyped) setSlug(slugify(e.target.value))
+              setError(null)
+            }}
+            placeholder="Promo banner"
+          />
         </div>
         <div className="grid w-16 gap-1.5">
           <Label htmlFor="block-icon">Icon</Label>
@@ -383,7 +369,11 @@ function Editor({ initial, onSaved, onDeleted }: { initial: Loaded; onSaved: (sl
           id="block-slug"
           value={slug}
           disabled={!initial.isNew}
-          onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '-'))}
+          onChange={(e) => {
+            setSlugTyped(true)
+            setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '-'))
+            setError(null)
+          }}
           placeholder="promo-banner"
           className="font-mono"
         />
@@ -425,20 +415,15 @@ function Editor({ initial, onSaved, onDeleted }: { initial: Loaded; onSaved: (sl
   )
 
   return (
-    <DndContext
-      sensors={canEdit ? sensors : []}
-      collisionDetection={closestCenter}
-      onDragOver={onDragOver}
-      onDragEnd={onDragEnd}
-      onDragCancel={() => setDropBefore(null)}
-    >
+    <DndContext {...dndProps} sensors={canEdit ? dndProps.sensors : []}>
       <DetailPageLayout
-        leftSidebar={bodyMode === 'visual' && canEdit ? <BlockPalette components={components} /> : undefined}
+        className={cn('@container/editor', PANEL_BACKDROP)}
+        leftSidebar={bodyMode === 'visual' && canEdit ? <BlockPalette components={components} onAdd={addBlock} /> : undefined}
         rightSidebar={
           bodyMode === 'visual' && canEdit && selectedIsRow && selectedBlock ? (
-            <aside className="flex w-80 shrink-0 flex-col border-l bg-card">
-              <div className="border-b px-4 py-3">
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Edit Columns</h2>
+            <aside className={cn(FLOATING_PANEL, 'ml-0 w-72 @min-[1200px]/editor:w-80')}>
+              <div className="border-b px-4 py-3.5">
+                <h2 className={PANEL_TITLE}>Columns</h2>
               </div>
               <div className="flex-1 overflow-y-auto p-4">
                 <RowInspector block={selectedBlock} onChange={updateSelected} />
@@ -448,10 +433,13 @@ function Editor({ initial, onSaved, onDeleted }: { initial: Loaded; onSaved: (sl
           ) : (
             <BlockInspector
               block={bodyMode === 'visual' && canEdit ? selectedBlock : null}
+              blockKey={bodyMode === 'visual' && canEdit ? sel : null}
+              inlineText
               onChangeBlock={updateSelected}
               subject=""
               onSubjectChange={() => {}}
-              mergeTags={MERGE_TAGS}
+              mergeTags={mergeTags}
+              settingsLabel="Settings"
               snippets={snippetList}
               components={compMap}
               showSubject={false}
@@ -470,6 +458,10 @@ function Editor({ initial, onSaved, onDeleted }: { initial: Loaded; onSaved: (sl
               onSelect={canEdit ? setSel : () => {}}
               onDelete={canEdit ? deleteSel : () => {}}
               onMoveChild={canEdit ? onMoveChild : () => {}}
+              onEdit={canEdit ? editBlock : undefined}
+              onInsertAt={canEdit ? insertAt : undefined}
+              mergeTags={mergeTags}
+              canAdd={canEdit}
               theme={{}}
               components={compMap}
               dropBefore={dropBefore}

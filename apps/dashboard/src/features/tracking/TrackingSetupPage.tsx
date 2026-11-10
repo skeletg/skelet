@@ -10,7 +10,7 @@ import { useRecordForm } from '@/shared/saving/useRecordForm'
 import { DestinationFields } from './DestinationFields'
 import { PlatformIntro } from './PlatformIntro'
 import { guideFor } from './platformGuides'
-import { enableCommand, type Platform } from './status'
+import { installCommand, type Platform } from './status'
 import { CreateTrackingDestinationDocument, TrackingPlatformsDocument } from './Tracking.gql'
 import {
   toTrackingDestinationInput,
@@ -59,7 +59,7 @@ export function TrackingSetupPage() {
                 <>Turn its plugin on for {selectedChannel?.name ?? 'this channel'} under Settings → Plugins, then come back.</>
               ) : (
                 <>
-                  Enable its plugin and rebuild the backend: <code className="font-mono">{enableCommand(platform.pluginSlug)}</code>
+                  Install its plugin and rebuild the backend: <code className="font-mono">{installCommand(platform.pluginSlug)}</code>
                 </>
               )}
             </AlertDescription>
@@ -76,7 +76,8 @@ function SetupForm({ platform, channelId, channelName }: { platform: Platform; c
   const [create] = useMutation(CreateTrackingDestinationDocument)
   const created = useRef<string | null>(null)
   const guide = guideFor(platform.kind)
-  const preset = guide.testField?.value ? { [guide.testField.key]: guide.testField.value } : {}
+  const testKey = platform.fields.find((f) => f.testMode)?.key
+  const preset = testKey && guide.testMode?.preset ? { [testKey]: guide.testMode.preset } : {}
   const baseline = useMemo(() => ({ ...toTrackingDestinationValues(platform.fields, null, preset), name: platform.label }), [platform]) // eslint-disable-line react-hooks/exhaustive-deps
   const record = useRecordForm({
     id: 'tracking-destination',
@@ -111,10 +112,10 @@ function SetupForm({ platform, channelId, channelName }: { platform: Platform; c
       <DetailPageSection title="Next: test, then turn it on">
         <p className="max-w-2xl text-sm text-muted-foreground">
           It is saved switched off.
-          {guide.testField
-            ? ` ${guide.testField.note}${guide.testField.value ? ' - that is set for you, and cleared when it goes live.' : '.'}`
-            : guide.noTestMode
-              ? ` ${platform.label} has no test mode, so a test send is recorded there as a real purchase of 10 EUR.`
+          {!testKey
+            ? ` ${platform.label} has no test mode, so a test send is recorded there as a real purchase of 10 EUR.`
+            : guide.testMode
+              ? ` ${guide.testMode.note}${guide.testMode.preset ? ' - that is set for you, and cleared when it goes live.' : '.'}`
               : ''}
         </p>
       </DetailPageSection>

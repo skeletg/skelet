@@ -9,7 +9,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/cache"
 	"github.com/skeletg/skelet/apps/backend/core/lib/phone"
 	"github.com/skeletg/skelet/apps/backend/core/lib/secrets"
@@ -220,6 +222,9 @@ func (s *Service) Set(ctx context.Context, path, value string, scope Scope) (Ent
 	if err != nil {
 		return Entry{}, err
 	}
+	if def.MaxLen > 0 && utf8.RuneCountInString(normalized) > def.MaxLen {
+		return Entry{}, apperr.New("CONFIG_VALUE_TOO_LONG", apperr.ClassValidation, fmt.Sprintf("%s takes at most %d characters", def.Label, def.MaxLen))
+	}
 	// Encrypt secret values at rest, storing plaintext when no cipher is configured (dev) - the returned Entry always carries the plaintext, so callers like the admin resolver computing "is set" never see ciphertext
 	toStore := normalized
 	if def.Type == TypeSecret && s.cipher != nil && normalized != "" {
@@ -232,6 +237,9 @@ func (s *Service) Set(ctx context.Context, path, value string, scope Scope) (Ent
 	repo := s.storeFor(path)
 	if repo == nil {
 		return Entry{}, ErrStoreUnavailable
+	}
+	if same, ok := s.unchanged(ctx, repo, def, scope, normalized); ok { // nothing to write, and nothing changed for a hook to react to
+		return same, nil
 	}
 	stored, err := repo.Upsert(ctx, scope, path, toStore)
 	if err != nil {
@@ -246,6 +254,24 @@ func (s *Service) Set(ctx context.Context, path, value string, scope Scope) (Ent
 		Scope:      stored.Scope,
 		UpdatedAt:  stored.UpdatedAt,
 	}, nil
+}
+
+func (s *Service) unchanged(ctx context.Context, repo Repository, def Definition, scope Scope, value string) (Entry, bool) {
+	candidates, err := repo.GetCandidates(ctx, scope, def.Path)
+	if err != nil {
+		return Entry{}, false
+	}
+	for _, c := range candidates {
+		if scopeKey(c.Scope, "") != scopeKey(scope, "") {
+			continue
+		}
+		stored, err := s.decryptStored(c.Value)
+		if err != nil || stored != value {
+			return Entry{}, false
+		}
+		return Entry{Definition: def, Value: value, Scope: c.Scope, UpdatedAt: c.UpdatedAt}, true
+	}
+	return Entry{}, false
 }
 
 // Deletes the row at the given scope - the next Get falls back through the resolution chain, typically to the Registry default

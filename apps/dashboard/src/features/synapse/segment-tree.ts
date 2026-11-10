@@ -43,6 +43,11 @@ export type SegNode = {
 export const LIFECYCLES = ['prospect', 'new', 'active', 'at_risk', 'lapsed']
 export const emptyTrait = (): TraitLeaf => ({ lifecycle: [], minRecencyScore: 0, minFrequencyScore: 0, minMonetaryScore: 0, minEngagement: 0 })
 
+// The AI events stay on offer before a store has any, so a segment can be set up ahead of the first chat
+export const AI_EVENTS = ['assistant_turn', 'assisted_order']
+
+export const segmentEvents = (top: string[]): string[] => [...top, ...AI_EVENTS.filter((e) => !top.includes(e))]
+
 export const newEvent = (event = 'order_placed'): SegNode => ({ kind: 'EVENT', field: 'event', event, negate: false, count: 1, days: 30 })
 export const newGroup = (op: SegmentBoolOp = 'AND'): SegNode => ({ kind: 'GROUP', op, children: [newEvent()] })
 

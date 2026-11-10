@@ -136,3 +136,4 @@ func TestAFunnelStepTakesTheOtherOperators(t *testing.T) {
 		t.Fatalf("an unknown operator = %v, want ErrBadFilter", err)
 	}
 }
+

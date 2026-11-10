@@ -63,7 +63,6 @@ const NO_STAGED_EDITS: Record<string, string> = {
   '@/features/remote-providers/RemoteProvidersList': 'provider config dialogs with their own Save',
   '@/features/scheduler/ScheduledJobsList': 'job create/edit dialogs with their own Save',
 
-  '@/features/destinations/DestinationsPage': 'row edit dialogs with their own Save',
   '@/features/tracking/TrackingPage': 'catalogue and list - setup and editing are their own pages, the import a dialog',
   '@/features/shipping/ShippingBoxesPage': 'row edit dialogs with their own Save',
   '@/features/orders/OrderDetail': 'order lifecycle actions and edit dialogs, no staged page form',
@@ -75,6 +74,7 @@ const NO_STAGED_EDITS: Record<string, string> = {
   '@/features/synapse/SynapseRetention': 'report controls only, kept in the URL - Add to board is its own dialog',
   '@/features/synapse/SynapseFlow': 'report controls only - Add to board is its own dialog',
   '@/features/synapse/SynapseInsights': 'report controls only - Add to board is its own dialog',
+  '@/features/boards/BoardsPage': 'a list of boards - New board and the starter boards are explicit creates, nothing staged',
 }
 
 function resolve(spec: string, fromKey: string): string | null {

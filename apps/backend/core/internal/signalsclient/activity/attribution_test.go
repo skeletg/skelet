@@ -31,15 +31,15 @@ func (f *fakeConversions) RecordConversion(ctx context.Context, cs signalsclient
 func TestAConversionCarriesItsRevenueInTheBaseCurrency(t *testing.T) {
 	cid := uuid.New()
 	for name, tc := range map[string]struct {
-		toBase ToBase
-		want   *int64
+		base rate
+		want *int64
 	}{
-		"a known rate": {func(context.Context, int64, string) (int64, bool) { return 4600, true }, ptr(int64(4600))},
-		"no rate":      {func(context.Context, int64, string) (int64, bool) { return 0, false }, nil},
+		"a known rate": {rate(2), ptr(int64(10000))},
+		"no rate":      {rate(0), nil},
 	} {
 		bus := events.NewBus()
 		rec := &fakeConversions{}
-		RegisterConversionAttribution(bus, rec, tc.toBase)
+		RegisterConversionAttribution(bus, rec, tc.base)
 		if err := bus.DispatchAsyncNow(context.Background(), &order.OrderPlaced{OrderID: uuid.New(), CustomerID: &cid, TotalCents: 5000, Currency: "EUR"}); err != nil {
 			t.Fatal(err)
 		}
@@ -66,7 +66,7 @@ func TestConversionFailureReachesTheOutbox(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			bus := events.NewBus()
 			rec := &fakeConversions{err: tc.err}
-			RegisterConversionAttribution(bus, rec, nil)
+			RegisterConversionAttribution(bus, rec, rate(0))
 			err := bus.DispatchAsyncNow(context.Background(), &order.OrderPlaced{OrderID: uuid.New(), CustomerID: &cid})
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("dispatch err = %v, want error %v", err, tc.wantErr)

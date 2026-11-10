@@ -270,6 +270,7 @@ type AdminNotification struct {
 	ActionUrl          string        `json:"action_url"`
 	DedupeKey          string        `json:"dedupe_key"`
 	CreatedAt          time.Time     `json:"created_at"`
+	RecipientAdminID   uuid.NullUUID `json:"recipient_admin_id"`
 }
 
 type AdminPreference struct {
@@ -332,6 +333,21 @@ type AdminUserRole struct {
 	AssignedAt  time.Time `json:"assigned_at"`
 }
 
+type AssistantUsageDaily struct {
+	ChannelID        uuid.UUID `json:"channel_id"`
+	Day              time.Time `json:"day"`
+	Turns            int32     `json:"turns"`
+	FailedTurns      int32     `json:"failed_turns"`
+	CartTurns        int32     `json:"cart_turns"`
+	CheckoutTurns    int32     `json:"checkout_turns"`
+	InputTokens      int64     `json:"input_tokens"`
+	OutputTokens     int64     `json:"output_tokens"`
+	CacheReadTokens  int64     `json:"cache_read_tokens"`
+	CacheWriteTokens int64     `json:"cache_write_tokens"`
+	UnansweredTurns  int32     `json:"unanswered_turns"`
+	Overviews        int32     `json:"overviews"`
+}
+
 type Attribute struct {
 	ID                 uuid.UUID             `json:"id"`
 	Slug               string                `json:"slug"`
@@ -354,6 +370,8 @@ type Attribute struct {
 	SynapseTrack       bool                  `json:"synapse_track"`
 	AutoSegment        bool                  `json:"auto_segment"`
 	RelationshipTarget sql.NullString        `json:"relationship_target"`
+	Embedded           bool                  `json:"embedded"`
+	SimilarMatch       bool                  `json:"similar_match"`
 }
 
 type AttributeGroup struct {
@@ -373,6 +391,7 @@ type AttributeValue struct {
 	SortOrder   int32     `json:"sort_order"`
 	CreatedAt   time.Time `json:"created_at"`
 	IsIndexable bool      `json:"is_indexable"`
+	MatchesAny  bool      `json:"matches_any"`
 }
 
 type AuditLog struct {
@@ -606,6 +625,9 @@ type Cart struct {
 	Source                 string                `json:"source"`
 	HandoffToken           string                `json:"handoff_token"`
 	HandoffExpiresAt       sql.NullTime          `json:"handoff_expires_at"`
+	AssistedBy             string                `json:"assisted_by"`
+	AssistedAt             sql.NullTime          `json:"assisted_at"`
+	AssistTrace            string                `json:"assist_trace"`
 }
 
 type CartAppliedCode struct {
@@ -727,6 +749,7 @@ type CatalogCategory struct {
 	PrivateMetadata json.RawMessage `json:"private_metadata"`
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at"`
+	IsAnchor        bool            `json:"is_anchor"`
 }
 
 type CatalogCategoryChannelListing struct {
@@ -1367,6 +1390,7 @@ type Customer struct {
 	VatID                    string          `json:"vat_id"`
 	VatIDStatus              string          `json:"vat_id_status"`
 	VatIDCheckedAt           sql.NullTime    `json:"vat_id_checked_at"`
+	Locale                   string          `json:"locale"`
 }
 
 type CustomerConsent struct {
@@ -1510,6 +1534,25 @@ type EmailOptIn struct {
 	Source    string    `json:"source"`
 	Reference string    `json:"reference"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type Embedding struct {
+	Source      string      `json:"source"`
+	SourceID    uuid.UUID   `json:"source_id"`
+	Locale      string      `json:"locale"`
+	Model       string      `json:"model"`
+	Chunk       int16       `json:"chunk"`
+	Content     string      `json:"content"`
+	ContentHash []byte      `json:"content_hash"`
+	Embedding   interface{} `json:"embedding"`
+	UpdatedAt   time.Time   `json:"updated_at"`
+}
+
+type EmbeddingQueue struct {
+	Source   string    `json:"source"`
+	SourceID uuid.UUID `json:"source_id"`
+	QueuedAt time.Time `json:"queued_at"`
+	Attempts int32     `json:"attempts"`
 }
 
 type EventOutbox struct {
@@ -1791,6 +1834,9 @@ type Order struct {
 	AnonID              string          `json:"anon_id"`
 	BusinessIds         json.RawMessage `json:"business_ids"`
 	FulfillmentNeed     string          `json:"fulfillment_need"`
+	AssistedBy          string          `json:"assisted_by"`
+	Locale              string          `json:"locale"`
+	TaxInclusive        bool            `json:"tax_inclusive"`
 }
 
 type OrderEmailLog struct {
@@ -2562,22 +2608,24 @@ type ShippingLabel struct {
 }
 
 type ShippingMethod struct {
-	ID                 uuid.UUID `json:"id"`
-	ZoneID             uuid.UUID `json:"zone_id"`
-	Code               string    `json:"code"`
-	Name               string    `json:"name"`
-	CalcType           string    `json:"calc_type"`
-	FlatCents          int64     `json:"flat_cents"`
-	FreeAboveCents     int64     `json:"free_above_cents"`
-	SortOrder          int32     `json:"sort_order"`
-	IsActive           bool      `json:"is_active"`
-	CreatedAt          time.Time `json:"created_at"`
-	UpdatedAt          time.Time `json:"updated_at"`
-	CountryMode        string    `json:"country_mode"`
-	DeliveryKind       string    `json:"delivery_kind"`
-	UnitsPerCharge     int32     `json:"units_per_charge"`
-	EstimatedDays      int32     `json:"estimated_days"`
-	DeliversOnWeekends bool      `json:"delivers_on_weekends"`
+	ID                 uuid.UUID       `json:"id"`
+	ZoneID             uuid.UUID       `json:"zone_id"`
+	Code               string          `json:"code"`
+	Name               string          `json:"name"`
+	CalcType           string          `json:"calc_type"`
+	FlatCents          int64           `json:"flat_cents"`
+	FreeAboveCents     int64           `json:"free_above_cents"`
+	SortOrder          int32           `json:"sort_order"`
+	IsActive           bool            `json:"is_active"`
+	CreatedAt          time.Time       `json:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at"`
+	CountryMode        string          `json:"country_mode"`
+	DeliveryKind       string          `json:"delivery_kind"`
+	UnitsPerCharge     int32           `json:"units_per_charge"`
+	EstimatedDays      int32           `json:"estimated_days"`
+	DeliversOnWeekends bool            `json:"delivers_on_weekends"`
+	TableBasis         string          `json:"table_basis"`
+	RateTiers          json.RawMessage `json:"rate_tiers"`
 }
 
 type ShippingMethodCountry struct {
@@ -2621,6 +2669,7 @@ type SignupConfirmation struct {
 	CreatedAt   time.Time     `json:"created_at"`
 	ExpiresAt   time.Time     `json:"expires_at"`
 	ConfirmedAt sql.NullTime  `json:"confirmed_at"`
+	Locale      string        `json:"locale"`
 }
 
 type SignupForm struct {
@@ -2738,31 +2787,41 @@ type TaxRuleEffect struct {
 }
 
 type TrackingDelivery struct {
-	ID            uuid.UUID       `json:"id"`
-	DestinationID uuid.UUID       `json:"destination_id"`
-	EventID       string          `json:"event_id"`
-	EventName     string          `json:"event_name"`
-	Payload       json.RawMessage `json:"payload"`
-	Status        string          `json:"status"`
-	Attempts      int32           `json:"attempts"`
-	NextAttemptAt time.Time       `json:"next_attempt_at"`
-	LastError     string          `json:"last_error"`
-	CreatedAt     time.Time       `json:"created_at"`
-	UpdatedAt     time.Time       `json:"updated_at"`
+	ID              uuid.UUID `json:"id"`
+	DestinationID   uuid.UUID `json:"destination_id"`
+	Status          string    `json:"status"`
+	Attempts        int32     `json:"attempts"`
+	NextAttemptAt   time.Time `json:"next_attempt_at"`
+	LastError       string    `json:"last_error"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+	TrackingEventID uuid.UUID `json:"tracking_event_id"`
 }
 
 type TrackingDestination struct {
-	ID           uuid.UUID       `json:"id"`
-	ChannelID    uuid.UUID       `json:"channel_id"`
-	Kind         string          `json:"kind"`
-	Name         string          `json:"name"`
-	Enabled      bool            `json:"enabled"`
-	Events       []string        `json:"events"`
-	Config       json.RawMessage `json:"config"`
-	Secret       string          `json:"secret"`
-	CreatedAt    time.Time       `json:"created_at"`
-	UpdatedAt    time.Time       `json:"updated_at"`
-	ImportedFrom uuid.NullUUID   `json:"imported_from"`
+	ID         uuid.UUID       `json:"id"`
+	ChannelID  uuid.UUID       `json:"channel_id"`
+	Kind       string          `json:"kind"`
+	Name       string          `json:"name"`
+	Enabled    bool            `json:"enabled"`
+	Events     []string        `json:"events"`
+	Config     json.RawMessage `json:"config"`
+	Secret     string          `json:"secret"`
+	CreatedAt  time.Time       `json:"created_at"`
+	UpdatedAt  time.Time       `json:"updated_at"`
+	LastSentAt sql.NullTime    `json:"last_sent_at"`
+}
+
+type TrackingEvent struct {
+	ID         uuid.UUID       `json:"id"`
+	ChannelID  uuid.UUID       `json:"channel_id"`
+	EventID    string          `json:"event_id"`
+	EventName  string          `json:"event_name"`
+	CustomerID uuid.NullUUID   `json:"customer_id"`
+	AnonID     string          `json:"anon_id"`
+	Email      string          `json:"email"`
+	Payload    json.RawMessage `json:"payload"`
+	CreatedAt  time.Time       `json:"created_at"`
 }
 
 type UrlRewrite struct {

@@ -303,13 +303,23 @@ func (s *core) UpdateProductType(ctx context.Context, input UpdateProductTypeInp
 	if input.Name != nil && strings.TrimSpace(*input.Name) == "" {
 		return ProductType{}, ErrNameRequired
 	}
-	if input.URLTemplate == nil {
-		return s.repo.UpdateProductType(ctx, input)
-	}
-	if err := s.validateAndRecomputeForTemplateChange(ctx, input.ID, *input.URLTemplate); err != nil {
+	before, err := s.repo.GetProductTypeByID(ctx, input.ID)
+	if err != nil {
 		return ProductType{}, err
 	}
-	return s.updateProductTypeAndRecompute(ctx, input, false)
+	var updated ProductType
+	if input.URLTemplate == nil {
+		updated, err = s.repo.UpdateProductType(ctx, input)
+	} else {
+		if err := s.validateAndRecomputeForTemplateChange(ctx, input.ID, *input.URLTemplate); err != nil {
+			return ProductType{}, err
+		}
+		updated, err = s.updateProductTypeAndRecompute(ctx, input, false)
+	}
+	if err == nil && s.bus != nil && updated.Name != before.Name {
+		s.bus.Publish(ctx, &ProductTypeRenamed{ProductTypeID: input.ID})
+	}
+	return updated, err
 }
 
 // SetProductTypeURLPathTemplate validates and saves the template with an outbox row; the type's auto-URL products recompute asynchronously afterwards,
@@ -520,6 +530,8 @@ func changedAttributeFields(input UpdateAttributeInput) []string {
 	add(input.H1Position != nil, "h1Position")
 	add(input.SynapseTrack != nil, "synapseTrack")
 	add(input.AutoSegment != nil, "autoSegment")
+	add(input.Embedded != nil, "embedded")
+	add(input.SimilarMatch != nil, "similarMatch")
 	add(input.SortOrder != nil, "sortOrder")
 	add(input.Metadata != nil, "metadata")
 	add(input.PrivateMetadata != nil, "privateMetadata")

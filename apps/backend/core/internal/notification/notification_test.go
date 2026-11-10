@@ -286,3 +286,16 @@ func TestCanSeeScopesEachPermissionToItsOwnChannels(t *testing.T) {
 		t.Error("a permission held everywhere was refused on a channel")
 	}
 }
+
+// The live push has to skip someone else's personal notice too, or a superuser's socket would show it
+func TestCanSeeKeepsANoticeToItsRecipient(t *testing.T) {
+	owner := uuid.New()
+	n := notif(PermBoards, nil)
+	n.RecipientAdminID = &owner
+	if !(Scope{AdminID: owner, Perms: []string{PermBoards}}).CanSee(n) {
+		t.Error("the recipient was refused their own notice")
+	}
+	if (Scope{AdminID: uuid.New(), Bypass: true}).CanSee(n) {
+		t.Error("a superuser saw someone else's notice")
+	}
+}

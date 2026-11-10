@@ -11,7 +11,7 @@ func TestTheSuitesChannelSweepsOutliveTheSchedulerDefault(t *testing.T) {
 			t.Errorf("%s runs under %v, want the maintenance call's 30m - at many channels it is cut off every run", name, got)
 		}
 	}
-	if got := signalsJobTimeout("event-destinations-forward"); got != 0 {
+	if got := signalsJobTimeout("flow-engine"); got != 0 {
 		t.Errorf("a minute-cadence job got %v, want the scheduler default", got)
 	}
 }

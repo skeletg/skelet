@@ -32,6 +32,8 @@ func toAttributeModel(a catalog.Attribute) *model.Attribute {
 		H1Position:         h1PositionToGQL(a.H1Position),
 		SynapseTrack:       a.SynapseTrack,
 		AutoSegment:        a.AutoSegment,
+		Embedded:           a.Embedded,
+		SimilarMatch:       a.SimilarMatch,
 		SortOrder:          a.SortOrder,
 		Values:             values,
 		Metadata:           toMetadataItems(a.Metadata), // no Descriptions here - the Attribute.descriptions field resolver looks catalog_attribute_content up lazily
@@ -108,6 +110,7 @@ func toAttributeValueModel(v catalog.AttributeValue) *model.AttributeValue {
 		Name:        v.Name,
 		Value:       v.Value,
 		SortOrder:   v.SortOrder,
+		MatchesAny:  v.MatchesAny,
 		IsIndexable: v.IsIndexable, // no Descriptions here - the field resolver fills them, keeping list views from fanning out to ListAttributeValueContent
 	}
 }
@@ -164,5 +167,6 @@ func attributeValueInputFromGQL(in *model.AttributeValueInput) catalog.Attribute
 		Value:       stringOr(in.Value, ""),
 		SortOrder:   int32Or(in.SortOrder, 0),
 		IsIndexable: boolOrFalse(in.IsIndexable),
+		MatchesAny:  in.MatchesAny,
 	}
 }

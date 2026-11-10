@@ -2,7 +2,8 @@ import { useId, useState } from 'react'
 import { useQuery } from '@apollo/client/react'
 import { PlusIcon, XIcon } from 'lucide-react'
 import { SynapseInsightsDocument } from '@/features/synapse/Synapse.gql'
-import { CONDITION_OP_LABEL, type Condition, type ConditionOp } from '../report'
+import type { SynapsePropertyFilterInput } from '@/graphql/schema.types'
+import { CONDITION_OP_LABEL, type Condition, type ConditionOp } from './definition'
 
 // The properties the spine's events carry, named - picking one beats typing it, since a typo filters everything out
 export const KNOWN_KEYS: { key: string; label: string }[] = [
@@ -32,8 +33,10 @@ function useTopValues(channelId: string, events: string[], key: string): string[
   return (data?.synapseInsights.series ?? []).map((s) => s.key).filter((k) => k !== '(none)')
 }
 
-// ConditionsEditor edits a list of conditions, each a property, an operator and its values
-export function ConditionsEditor({ channelId, events, label, value, onChange }: { channelId: string; events: string[]; label: string; value: Condition[]; onChange: (next: Condition[]) => void }) {
+// ConditionsEditor edits a list of conditions, each a property, an operator and its values. It takes them as a
+// definition holds them, where the API types op as any string - every one this editor wrote is a ConditionOp
+export function ConditionsEditor({ channelId, events, label, value: held, onChange }: { channelId: string; events: string[]; label: string; value: readonly SynapsePropertyFilterInput[] | null | undefined; onChange: (next: Condition[]) => void }) {
+  const value = (held ?? []) as Condition[]
   const set = (i: number, c: Condition) => onChange(value.map((x, k) => (k === i ? c : x)))
   return (
     <div className="space-y-2">

@@ -3,7 +3,6 @@ package admin
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
@@ -229,25 +228,19 @@ func (r *queryResolver) SynapseFunnel(ctx context.Context, channelID string, ste
 	if err != nil {
 		return nil, err
 	}
-	if len(steps) < 2 {
-		return nil, fmt.Errorf("a funnel needs at least 2 steps")
-	}
 	if len(steps) > 8 {
 		steps = steps[:8]
 	}
-	// The walker streams raw step events and walks them per actor, so the window is the only real cost lever
+	// Signals validates the request - steps, filters and breakdown - so this only relays it
 	req := &signalsv1.GetFunnelRequest{ChannelId: channelID, Steps: steps, SinceDays: synapseWindow(sinceDays, 30, 180)}
 	if windowHours != nil && *windowHours > 0 {
 		req.WindowSeconds = int64(*windowHours) * 3600
 	}
 	if breakdown != nil {
-		req.Breakdown = strings.TrimSpace(*breakdown)
+		req.Breakdown = *breakdown
 	}
 	for _, f := range filters {
-		if f.Step < 0 || int(f.Step) >= len(steps) || strings.TrimSpace(f.Key) == "" {
-			return nil, fmt.Errorf("a funnel filter needs a property and one of the funnel's steps")
-		}
-		req.Filters = append(req.Filters, &signalsv1.FunnelFilter{Step: f.Step, Key: strings.TrimSpace(f.Key), Value: f.Value, Op: deref(f.Op), Values: f.Values})
+		req.Filters = append(req.Filters, &signalsv1.FunnelFilter{Step: f.Step, Key: f.Key, Value: f.Value, Op: deref(f.Op), Values: f.Values})
 	}
 	res, err := r.SignalsAPI.Synapse.GetFunnel(authed, req)
 	if err != nil {

@@ -14,6 +14,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/internal/locale"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/lib/email"
 	"github.com/skeletg/skelet/apps/backend/core/signalsapi"
@@ -92,36 +93,45 @@ func (e *Enroller) OnPaymentRefunded(ctx context.Context, channelID, customerID 
 
 // --- customer's account mail: the suite runs these inside the call, the one-time link has to go out now ---
 
+// They start on the storefront, so the language the shopper is browsing in is the one the mail goes out in - no
+// language says nothing, and the suite sends the email as written
+func inLocale(ctx context.Context, p map[string]any) map[string]any {
+	if l := locale.FromContext(ctx); l != "" {
+		p[signalsapi.PayloadLocale] = l
+	}
+	return p
+}
+
 func (e *Enroller) OnEmailVerification(ctx context.Context, channelID, customerID uuid.UUID, verifyLink, storeName, firstName string) int {
 	return e.answered(ctx, signalsapi.TriggerEmailVerification, moment(signalsapi.TriggerEmailVerification, customerID.String(), linkDigest(verifyLink)),
-		channelID, customerID, "", map[string]any{
+		channelID, customerID, "", inLocale(ctx, map[string]any{
 			signalsapi.PayloadVerifyLink: verifyLink, signalsapi.PayloadStoreName: storeName, signalsapi.PayloadFirstName: firstName,
-		})
+		}))
 }
 
 func (e *Enroller) OnPasswordReset(ctx context.Context, channelID, customerID uuid.UUID, resetLink, expiresIn, storeName, firstName string) int {
 	return e.answered(ctx, signalsapi.TriggerPasswordReset, moment(signalsapi.TriggerPasswordReset, customerID.String(), linkDigest(resetLink)),
-		channelID, customerID, "", map[string]any{
+		channelID, customerID, "", inLocale(ctx, map[string]any{
 			signalsapi.PayloadResetLink: resetLink, signalsapi.PayloadResetExpiresIn: expiresIn,
 			signalsapi.PayloadStoreName: storeName, signalsapi.PayloadFirstName: firstName,
-		})
+		}))
 }
 
 func (e *Enroller) OnSignupConfirmation(ctx context.Context, channelID uuid.UUID, to, confirmLink, expiresIn, storeName, firstName string) int {
 	return e.answered(ctx, signalsapi.TriggerSignupConfirmation, moment(signalsapi.TriggerSignupConfirmation, linkDigest(confirmLink)),
-		channelID, uuid.Nil, to, map[string]any{
+		channelID, uuid.Nil, to, inLocale(ctx, map[string]any{
 			signalsapi.PayloadConfirmLink: confirmLink, signalsapi.PayloadConfirmExpires: expiresIn,
 			signalsapi.PayloadStoreName: storeName, signalsapi.PayloadFirstName: firstName,
-		})
+		}))
 }
 
 // Keyed on the minute as well, so a burst of attempts is one mail and a later one is another
 func (e *Enroller) OnAccountExists(ctx context.Context, channelID, customerID uuid.UUID, signInLink, forgotLink, storeName, firstName string) int {
 	return e.answered(ctx, signalsapi.TriggerAccountExists, moment(signalsapi.TriggerAccountExists, customerID.String(), strconv.FormatInt(time.Now().Unix()/60, 10)),
-		channelID, customerID, "", map[string]any{
+		channelID, customerID, "", inLocale(ctx, map[string]any{
 			signalsapi.PayloadSignInLink: signInLink, signalsapi.PayloadForgotLink: forgotLink,
 			signalsapi.PayloadStoreName: storeName, signalsapi.PayloadFirstName: firstName,
-		})
+		}))
 }
 
 // Every send is its own moment - an admin resending an offer means another mail
@@ -148,6 +158,13 @@ func (e *Enroller) OnCartAbandoned(ctx context.Context, channelID, customerID uu
 	_, err := e.enroll(ctx, signalsapi.TriggerCartAbandoned, moment(signalsapi.TriggerCartAbandoned, cartID.String(), strconv.FormatInt(lastActivity.Unix(), 10)),
 		channelID, customerID, to, map[string]any{signalsapi.PayloadCartID: cartID.String()})
 	return err
+}
+
+// Taken says a flow started on it - none did, and the cart goes to the usual recovery instead
+func (e *Enroller) OnAssistedCartAbandoned(ctx context.Context, channelID, customerID uuid.UUID, to string, cartID uuid.UUID, lastActivity time.Time) (bool, error) {
+	n, err := e.enroll(ctx, signalsapi.TriggerAssistedCartAbandoned, moment(signalsapi.TriggerAssistedCartAbandoned, cartID.String(), strconv.FormatInt(lastActivity.Unix(), 10)),
+		channelID, customerID, to, map[string]any{signalsapi.PayloadCartID: cartID.String()})
+	return n > 0, err
 }
 
 // The browsed product rides the run so the recovery email can show it through {{ product.* }}

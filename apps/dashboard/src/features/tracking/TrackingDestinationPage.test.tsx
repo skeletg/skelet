@@ -6,7 +6,8 @@ import { SendTrackingTestDocument, TrackingDeliveriesDocument, TrackingDestinati
 import { ga4Destination, ga4Platform } from './fixtures.test-data'
 
 // What these pin: edits go through the reviewed Save and never carry an untouched secret, going live drops the test
-// setting in the same write, and a refused test send shows the platform's answer
+// setting in the same write, a test send outside test mode is confirmed first, and a refused one shows the platform's
+// answer
 
 function renderDestination(dest = ga4Destination(), writes = { update: vi.fn() }, extra: Parameters<typeof renderPage>[0]['mocks'] = []) {
   renderPage({
@@ -64,9 +65,22 @@ describe('TrackingDestinationPage', () => {
     expect(screen.getByText('api_secret=[redacted] rejected')).toBeDefined()
   })
 
-  it('asks for the secret on an imported destination and keeps it switched off', async () => {
-    renderDestination(ga4Destination({ needsSecret: true, secretSet: false, importedFrom: 'legacy-1' }))
-    expect(await screen.findByText(/Imported from Signals/, {}, SLOW)).toBeDefined()
+  it('asks before a test send that a live platform would record as a real purchase', async () => {
+    const sent = vi.fn(() => ({ data: { sendTrackingTest: { __typename: 'TrackingTestResult', ok: true, message: '' } } }))
+    renderDestination(ga4Destination({ enabled: true, inTestMode: false }), { update: vi.fn() }, [
+      { request: { query: SendTrackingTestDocument, variables: { id: 'd1' } }, result: sent },
+    ])
+    fireEvent.click(await screen.findByRole('button', { name: 'Send test' }, SLOW))
+    const dialog = await screen.findByRole('alertdialog')
+    expect(within(dialog).getByText('Send a real test purchase?')).toBeDefined()
+    expect(sent).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Send test' }))
+    await vi.waitFor(() => expect(sent).toHaveBeenCalled(), SLOW)
+  })
+
+  it('asks for the secret a destination is missing and keeps it switched off', async () => {
+    renderDestination(ga4Destination({ needsSecret: true, secretSet: false }))
+    expect(await screen.findByText(/Enter it below and save before turning this destination on/, {}, SLOW)).toBeDefined()
     expect((screen.getByRole('switch', { name: /Off/ }) as HTMLButtonElement).disabled).toBe(true)
   })
 })

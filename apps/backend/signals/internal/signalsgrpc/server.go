@@ -22,13 +22,14 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/otelx"
 	"github.com/skeletg/skelet/apps/backend/core/signalsapi"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/aiactivity"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics/spinequeue"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/assistantlog"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/behavioralsegment"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/board"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/campaign"
 	signalsdb "github.com/skeletg/skelet/apps/backend/signals/internal/db/sqlc"
-	"github.com/skeletg/skelet/apps/backend/signals/internal/destination"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/emailtemplate"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/engagement"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/experiment"
@@ -42,12 +43,11 @@ import (
 
 // Deps is what the suite's handlers read - the same services the GraphQL surface is built from
 type Deps struct {
-	Experiment  *experiment.Service
-	Boards      *board.Service
-	Lens        *lens.Service
-	Destination *destination.Service
-	Segment     *segment.Service
-	Analytics   *analytics.Recorder
+	Experiment *experiment.Service
+	Boards     *board.Service
+	Lens       *lens.Service
+	Segment    *segment.Service
+	Analytics  *analytics.Recorder
 	// The customer roster core pushes, and the compute that turns it into traits - separate from the event recorder
 	CustomerRoster *analytics.Roster
 	Traits         *analytics.TraitCompute
@@ -61,6 +61,8 @@ type Deps struct {
 	// The send log and the suppression list - the engines here and core's transactional sends write and read them
 	SendLog     *sendlog.Store
 	Suppression *suppression.Service
+	Assistant   *assistantlog.Store
+	AIActivity  *aiactivity.Store
 	// Pulse: the flow engine, the campaign pipeline and the email builder they render from - nil in a
 	// test server without them, and the services then go unregistered
 	Flows     *flow.Service
@@ -101,7 +103,6 @@ func NewServer(d Deps) *grpc.Server {
 	signalsv1.RegisterPrismServiceServer(srv, &prismServer{svc: d.Experiment})
 	signalsv1.RegisterBoardServiceServer(srv, &boardServer{svc: d.Boards})
 	signalsv1.RegisterLensServiceServer(srv, &lensServer{svc: d.Lens})
-	signalsv1.RegisterDestinationServiceServer(srv, &destinationServer{svc: d.Destination})
 	signalsv1.RegisterSegmentServiceServer(srv, &segmentServer{svc: d.Segment})
 	pulse := &pulseServer{rec: d.Analytics, sends: d.SendLog, roster: rosterOrNil(d.Roster)}
 	if d.Campaigns != nil {
@@ -109,12 +110,14 @@ func NewServer(d Deps) *grpc.Server {
 	}
 	signalsv1.RegisterPulseServiceServer(srv, pulse)
 	signalsv1.RegisterIngestServiceServer(srv, &ingestServer{
-		rec: d.Analytics, roster: d.CustomerRoster, channels: d.Channels, sends: d.SendLog, track: engagement.New(d.Analytics, d.SendLog),
+		rec: d.Analytics, roster: d.CustomerRoster, channels: d.Channels, sends: d.SendLog, track: engagement.New(d.Analytics, d.SendLog), assistant: d.Assistant,
+		ai: d.AIActivity,
 	})
+	signalsv1.RegisterAssistantServiceServer(srv, &assistantServer{log: d.Assistant, rec: d.Analytics, ai: d.AIActivity})
 	signalsv1.RegisterSettingsServiceServer(srv, &settingsServer{repo: d.SettingsRepo})
 	maint := &maintenanceServer{
-		rec: d.Analytics, roster: d.CustomerRoster, traits: d.Traits, lens: d.Lens, destination: d.Destination, settings: d.Settings,
-		segments: d.Segment, behavioral: d.Behavioral, queue: queueOrNil(d.Queue), sends: sendLogOrNil(d.SendLog), boards: d.Boards,
+		rec: d.Analytics, roster: d.CustomerRoster, traits: d.Traits, lens: d.Lens, settings: d.Settings,
+		segments: d.Segment, behavioral: d.Behavioral, queue: queueOrNil(d.Queue), sends: sendLogOrNil(d.SendLog), assistant: d.Assistant, boards: d.Boards,
 	}
 	if d.Flows != nil {
 		maint.flows = d.Flows
@@ -229,8 +232,8 @@ func windowDays(requested, fallback int32) int32 {
 	if requested <= 0 {
 		return fallback
 	}
-	if requested > 365 {
-		return 365
+	if requested > signalsapi.MaxReportDays {
+		return signalsapi.MaxReportDays
 	}
 	return requested
 }

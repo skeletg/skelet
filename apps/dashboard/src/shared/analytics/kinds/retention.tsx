@@ -3,9 +3,9 @@ import { cn } from '@/lib/utils'
 import { formatNumber } from '@/lib/format'
 import { eventLabel } from '@/features/synapse/eventLabel'
 import { SynapseRetentionDocument, SynapseStickinessDocument } from '@/features/synapse/Synapse.gql'
-import { conditionsIn, type ReportDefinition } from '../report'
+import { describeConditions, readyConditions, type ControlsProps, type Kind, type ReportDefinition, type ResultProps } from './definition'
 import { ConditionsEditor } from './conditions'
-import { Bars, EventSelect, Field, Headline, Note, State, StatTile, Toggle, pct, useTopEvents, type ControlsProps, type ResultProps } from './ui'
+import { Bars, EventSelect, Field, Headline, Note, State, StatTile, Toggle, pct, useTopEvents } from './ui'
 
 type Bucket = { period: number; count: number; eligible: number }
 const pctOf = (b?: Bucket | null): number | null => (b && b.eligible > 0 ? Math.round((b.count / b.eligible) * 100) : null)
@@ -20,18 +20,22 @@ const fmtDay = (v: string) => {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
+// What an unset unit reads as, and how many periods a unit reads
+const UNIT = 'week'
+const periodsFor = (unit: string) => (unit === 'day' ? 14 : 8)
+
 // One builder answers "do people come back?" two ways; switching view carries the event across
-export function switchRetentionView(d: ReportDefinition, view: 'stickiness' | 'retention'): ReportDefinition {
+export function switchRetentionView(d: ReportDefinition, view: 'STICKINESS' | 'RETENTION'): ReportDefinition {
   if (view === d.kind) return d
-  const { size } = d
-  if (view === 'stickiness') return { kind: 'stickiness', event: d.returnEvent || undefined, where: d.returnWhere, size }
-  const ev = d.event || 'order_placed'
-  return { kind: 'retention', startEvent: ev, returnEvent: ev, unit: 'week', periods: 8, startWhere: d.where, returnWhere: d.where, size }
+  const { sinceDays } = d
+  if (view === 'STICKINESS') return { kind: 'STICKINESS', event: d.returnEvent || undefined, where: d.returnWhere, sinceDays }
+  const ev = d.event || retention.start.startEvent
+  return { ...retention.start, startEvent: ev, returnEvent: ev, startWhere: d.where, returnWhere: d.where, sinceDays }
 }
 
-export function RetentionControls({ channelId, value: d, onChange }: ControlsProps) {
+function RetentionControls({ channelId, value: d, onChange }: ControlsProps) {
   const events = useTopEvents(channelId)
-  const view = d.kind === 'stickiness' ? 'stickiness' : 'retention'
+  const view = d.kind === 'STICKINESS' ? 'STICKINESS' : 'RETENTION'
   return (
     <div className="space-y-3">
     <div className="flex flex-wrap items-end gap-3 text-sm">
@@ -39,14 +43,14 @@ export function RetentionControls({ channelId, value: d, onChange }: ControlsPro
         <Toggle
           label="View"
           options={[
-            { v: 'stickiness', l: 'Return rate' },
-            { v: 'retention', l: 'By cohort' },
+            { v: 'STICKINESS', l: 'Return rate' },
+            { v: 'RETENTION', l: 'By cohort' },
           ]}
           value={view}
           onChange={(v) => onChange(switchRetentionView(d, v))}
         />
       </Field>
-      {view === 'stickiness' ? (
+      {view === 'STICKINESS' ? (
         <>
           <Field label="Active means doing">
             <EventSelect label="Active means doing" value={d.event ?? ''} onChange={(event) => onChange({ ...d, event })} events={events} anyLabel="Any activity" />
@@ -82,30 +86,30 @@ export function RetentionControls({ channelId, value: d, onChange }: ControlsPro
                 { v: 'day', l: 'Day' },
                 { v: 'week', l: 'Week' },
               ]}
-              value={d.unit ?? 'week'}
-              onChange={(unit) => onChange({ ...d, unit, periods: unit === 'day' ? 14 : 8 })}
+              value={d.unit ?? UNIT}
+              onChange={(unit) => onChange({ ...d, unit, periods: periodsFor(unit) })}
             />
           </Field>
         </>
       )}
     </div>
-    {view === 'stickiness' ? (
-      <ConditionsEditor channelId={channelId} events={d.event ? [d.event] : []} label="Where" value={d.where ?? []} onChange={(where) => onChange({ ...d, where })} />
+    {view === 'STICKINESS' ? (
+      <ConditionsEditor channelId={channelId} events={d.event ? [d.event] : []} label="Where" value={d.where} onChange={(where) => onChange({ ...d, where })} />
     ) : (
       <div className="grid gap-3 sm:grid-cols-2">
-        <ConditionsEditor channelId={channelId} events={d.startEvent ? [d.startEvent] : []} label="Where the start event" value={d.startWhere ?? []} onChange={(startWhere) => onChange({ ...d, startWhere })} />
-        <ConditionsEditor channelId={channelId} events={d.returnEvent ? [d.returnEvent] : []} label="Where the return event" value={d.returnWhere ?? []} onChange={(returnWhere) => onChange({ ...d, returnWhere })} />
+        <ConditionsEditor channelId={channelId} events={d.startEvent ? [d.startEvent] : []} label="Where the start event" value={d.startWhere} onChange={(startWhere) => onChange({ ...d, startWhere })} />
+        <ConditionsEditor channelId={channelId} events={d.returnEvent ? [d.returnEvent] : []} label="Where the return event" value={d.returnWhere} onChange={(returnWhere) => onChange({ ...d, returnWhere })} />
       </div>
     )}
     </div>
   )
 }
 
-export function RetentionResult({ channelId, d, sinceDays, compact }: ResultProps) {
-  const unit = d.unit ?? 'week'
-  const periods = d.periods ?? (unit === 'day' ? 14 : 8)
+function RetentionResult({ channelId, d, sinceDays, compact }: ResultProps) {
+  const unit = d.unit ?? UNIT
+  const periods = d.periods ?? periodsFor(unit)
   const { data, loading, error } = useQuery(SynapseRetentionDocument, {
-    variables: { channelId, startEvent: d.startEvent ?? '', returnEvent: d.returnEvent ?? '', sinceDays, periods, unit, startFilters: conditionsIn(d.startWhere), returnFilters: conditionsIn(d.returnWhere) },
+    variables: { channelId, startEvent: d.startEvent ?? '', returnEvent: d.returnEvent ?? '', sinceDays, periods, unit, startFilters: readyConditions(d.startWhere), returnFilters: readyConditions(d.returnWhere) },
     skip: !channelId || !d.startEvent || !d.returnEvent,
     fetchPolicy: 'cache-and-network',
   })
@@ -205,9 +209,9 @@ function CohortRow({ label, size, buckets, emphasize }: { label: string; size: n
   )
 }
 
-export function StickinessResult({ channelId, d, sinceDays, compact }: ResultProps) {
+function StickinessResult({ channelId, d, sinceDays, compact }: ResultProps) {
   const { data, loading, error } = useQuery(SynapseStickinessDocument, {
-    variables: { channelId, event: d.event || null, sinceDays, windowDays: d.windowDays ?? null, filters: conditionsIn(d.where) },
+    variables: { channelId, event: d.event || null, sinceDays, windowDays: d.windowDays ?? null, filters: readyConditions(d.where) },
     skip: !channelId,
     fetchPolicy: 'cache-and-network',
   })
@@ -296,4 +300,25 @@ export function StickinessResult({ channelId, d, sinceDays, compact }: ResultPro
       )}
     </State>
   )
+}
+
+export const retention: Kind = {
+  label: 'Retention by cohort',
+  menu: { label: 'Retention', hint: 'Whether people come back' },
+  describe: (d) =>
+    `${d.startEvent}${d.startWhere?.length ? ` where ${describeConditions(d.startWhere)}` : ''} then ${d.returnEvent}${d.returnWhere?.length ? ` where ${describeConditions(d.returnWhere)}` : ''}, by ${d.unit ?? UNIT}`,
+  title: (d) => `${eventLabel(d.startEvent ?? '')} retention`,
+  start: { kind: 'RETENTION', startEvent: 'order_placed', returnEvent: 'order_placed', unit: UNIT, periods: periodsFor(UNIT) },
+  Controls: RetentionControls,
+  Result: RetentionResult,
+}
+
+export const stickiness: Kind = {
+  label: 'Return rate',
+  builder: 'RETENTION',
+  describe: (d) => `Returning on ${d.event || 'any activity'}${d.where?.length ? ` where ${describeConditions(d.where)}` : ''}`,
+  title: (d) => (d.event ? `Returning on ${eventLabel(d.event)}` : 'Returning shoppers'),
+  start: { kind: 'STICKINESS' },
+  Controls: RetentionControls,
+  Result: StickinessResult,
 }

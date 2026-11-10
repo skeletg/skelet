@@ -21,6 +21,8 @@ func contractTree(t *testing.T) string {
 		"apps/channels/shop/app/components/cms/CmsBlocks.tsx": "const REGISTRY: Record<string, BlockRenderer> = {\n  hero: Hero,\n  text: Text,\n};\n",
 		responseCache:                   "var frontCacheableOps = map[string]bool{\n\t\"Products\": true,\n\t\"Menu\": true,\n}\n",
 		publicOps:                       "export const PUBLIC_OPS = new Set([\n  \"Menu\",\n  \"Products\",\n])\n",
+		assistantGo:                     "package shoptools\n\nvar privatePages = []string{\"account\", \"checkout\"}\n",
+		assistantPage:                   "const PRIVATE_PAGES = new Set([\"checkout\", \"account\"]);\n",
 		dashLexical + "/image.tsx":      "class ImageNode {\n  static getType() {\n    return 'image'\n  }\n}\n",
 		dashLexical + "/structured.tsx": "type StructuredBlockType =\n  | 'pros-cons'\n  | 'faq'\n\nexport {}\n",
 		"apps/channels/shop/app/lib/lexical-render.tsx": "switch (t) {\n  case \"image\":\n  case \"pros-cons\":\n  case \"faq\":\n}\n",
@@ -32,7 +34,10 @@ func contractTree(t *testing.T) string {
 		nginxConf:                     "add_header Content-Security-Policy \"default-src 'self'; img-src 'self' ${UPLOAD_ORIGINS}\" always;\nadd_header Permissions-Policy \"camera=(), geolocation=()\" always;\n",
 		caddyfile:                     "header Content-Security-Policy \"default-src 'self'; img-src 'self' {$UPLOAD_ORIGINS}\"\nheader Permissions-Policy \"camera=(), geolocation=()\"\n",
 		"apps/backend/core/internal/rules/schema.go": "package rules\n\nvar s = `{\"x-widget\": \"segment-picker\"}`\n",
-		widgetReg: "export const FORM_WIDGETS = {\n  'segment-picker': SegmentPicker,\n}\n",
+		widgetReg:  "export const FORM_WIDGETS = {\n  'segment-picker': SegmentPicker,\n}\n",
+		goConsent:  "package auth\n\nvar consentValue = regexp.MustCompile(`^v2:a([01])$`)\n\nvar clickIDKeys = []string{\"gclid\", \"fbp\"}\n",
+		tsConsent:  "const V2 = /^v2:a([01])$/;\n",
+		tsClickIDs: "export const CLICK_IDS = [\n  { key: \"gclid\", param: \"gclid\" },\n  { key: \"fbp\", param: \"\" },\n];\n",
 	})
 	git(t, root, "add", "-A")
 	git(t, root, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
@@ -65,9 +70,12 @@ func TestContractsHealthy(t *testing.T) {
 		"ok    backend BuiltinTypes == dashboard palette (3 types)",
 		"ok    shop renderer covers every type but the declared gaps (ref)",
 		"ok    storefront-core PUBLIC_OPS == frontCacheableOps (2 ops)",
+		"ok    storefront-core PRIVATE_PAGES == privatePages (2 pages)",
 		"ok    shop renders all 3 authored node types and variants",
 		"ok    storefront-core evaluator matches the dashboard's, modulo formatting",
-		"ok    packages/storefront-core imports none of next, react, react-dom, next-intl, server-only (3 files)",
+		"ok    packages/storefront-core imports none of next, react, react-dom, next-intl, server-only (6 files)",
+		"ok    core's ParseConsent and storefront-core's parseConsent read ^v2:a([01])$",
+		"ok    2 click ids on both sides",
 		"ok    packages/storefront-react imports none of next, next-intl (1 files)",
 		"ok    Content-Security-Policy matches " + nginxConf,
 		"ok    Permissions-Policy matches " + caddyfile,
@@ -96,6 +104,8 @@ func TestContractFailures(t *testing.T) {
 			"FAIL  shop renders types the backend rejects: video"},
 		{"a public op the backend doesn't cache", map[string]string{publicOps: "new Set([\n  \"Menu\",\n  \"Products\",\n  \"Cart\",\n])\n"},
 			"FAIL  storefront-core PUBLIC_OPS != frontCacheableOps"},
+		{"a private page only the storefront knows", map[string]string{assistantPage: "const PRIVATE_PAGES = new Set([\"checkout\", \"account\", \"wishlist\"]);\n"},
+			"FAIL  storefront-core PRIVATE_PAGES != privatePages"},
 		{"an authored node with no case", map[string]string{"apps/channels/shop/app/lib/lexical-render.tsx": "case \"image\":\ncase \"faq\":\n"},
 			"FAIL  shop has no case for: pros-cons"},
 		{"an evaluator that changed meaning", map[string]string{pkgOptVis: "export function visible(o: {a?:string}) { return o.a !== 'x' }\n"},
@@ -157,5 +167,18 @@ func TestAMovedCaddyfileFails(t *testing.T) {
 	git(t, root, "add", "-A")
 	if out, code := contractsOut(t, root); code != 1 || !strings.Contains(out, "is missing but a Caddyfile is tracked at deploy/edge/Caddyfile") {
 		t.Errorf("exit %d:\n%s", code, out)
+	}
+}
+
+// A click id only the storefront stores, or a consent format changed on one side, fails the check
+func TestContractsCatchConsentDrift(t *testing.T) {
+	root := contractTree(t)
+	put(t, root, map[string]string{
+		tsConsent:  "const V2 = /^v3:a([01])$/;\n",
+		tsClickIDs: "export const CLICK_IDS = [\n  { key: \"gclid\", param: \"gclid\" },\n  { key: \"awc\", param: \"awc\" },\n  { key: \"fbp\", param: \"\" },\n];\n",
+	})
+	out, code := contractsOut(t, root)
+	if code == 0 || !strings.Contains(out, "consent patterns differ") || !strings.Contains(out, "click ids differ") {
+		t.Fatalf("drift passed, exit %d:\n%s", code, out)
 	}
 }

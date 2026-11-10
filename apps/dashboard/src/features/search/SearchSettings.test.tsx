@@ -19,6 +19,7 @@ const field = (path: string, label: string, type: string, value: string, group: 
   type,
   value,
   isSet: true,
+  maxLength: null,
   options: [],
   isDefault: true,
   public: false,

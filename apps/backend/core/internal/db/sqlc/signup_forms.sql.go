@@ -16,7 +16,7 @@ import (
 const claimSignupConfirmation = `-- name: ClaimSignupConfirmation :one
 UPDATE signup_confirmations SET confirmed_at = NOW()
 WHERE token_hash = $1 AND confirmed_at IS NULL AND expires_at > NOW()
-RETURNING id, token_hash, form_id, channel_id, email, first_name, consent_kind, customer_id, created_at, expires_at, confirmed_at
+RETURNING id, token_hash, form_id, channel_id, email, first_name, consent_kind, customer_id, created_at, expires_at, confirmed_at, locale
 `
 
 // Single-use: the first caller flips confirmed_at, every later one matches nothing
@@ -35,6 +35,7 @@ func (q *Queries) ClaimSignupConfirmation(ctx context.Context, tokenHash []byte)
 		&i.CreatedAt,
 		&i.ExpiresAt,
 		&i.ConfirmedAt,
+		&i.Locale,
 	)
 	return i, err
 }
@@ -51,8 +52,8 @@ func (q *Queries) CountSignupSubmissions(ctx context.Context, formID uuid.UUID) 
 }
 
 const createSignupConfirmation = `-- name: CreateSignupConfirmation :exec
-INSERT INTO signup_confirmations (token_hash, form_id, channel_id, email, first_name, consent_kind, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO signup_confirmations (token_hash, form_id, channel_id, email, first_name, consent_kind, expires_at, locale)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 `
 
 type CreateSignupConfirmationParams struct {
@@ -63,6 +64,7 @@ type CreateSignupConfirmationParams struct {
 	FirstName   string    `json:"first_name"`
 	ConsentKind string    `json:"consent_kind"`
 	ExpiresAt   time.Time `json:"expires_at"`
+	Locale      string    `json:"locale"`
 }
 
 func (q *Queries) CreateSignupConfirmation(ctx context.Context, arg CreateSignupConfirmationParams) error {
@@ -74,6 +76,7 @@ func (q *Queries) CreateSignupConfirmation(ctx context.Context, arg CreateSignup
 		arg.FirstName,
 		arg.ConsentKind,
 		arg.ExpiresAt,
+		arg.Locale,
 	)
 	return err
 }
@@ -209,7 +212,7 @@ func (q *Queries) GetActiveSignupFormBySlug(ctx context.Context, arg GetActiveSi
 }
 
 const getPendingSignupConfirmation = `-- name: GetPendingSignupConfirmation :one
-SELECT id, token_hash, form_id, channel_id, email, first_name, consent_kind, customer_id, created_at, expires_at, confirmed_at FROM signup_confirmations
+SELECT id, token_hash, form_id, channel_id, email, first_name, consent_kind, customer_id, created_at, expires_at, confirmed_at, locale FROM signup_confirmations
 WHERE token_hash = $1 AND confirmed_at IS NULL AND expires_at > NOW()
 `
 
@@ -228,6 +231,7 @@ func (q *Queries) GetPendingSignupConfirmation(ctx context.Context, tokenHash []
 		&i.CreatedAt,
 		&i.ExpiresAt,
 		&i.ConfirmedAt,
+		&i.Locale,
 	)
 	return i, err
 }

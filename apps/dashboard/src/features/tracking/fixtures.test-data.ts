@@ -10,10 +10,10 @@ export const ga4Platform = {
   defaultEvents: ['page_view', 'purchase'],
   necessarySetting: null,
   fields: [
-    { __typename: 'TrackingField' as const, key: 'measurement_id', label: 'Measurement ID', help: 'G-XXXX, from the web data stream', required: true, secret: false },
-    { __typename: 'TrackingField' as const, key: 'api_secret', label: 'Measurement Protocol API secret', help: '', required: true, secret: true },
-    { __typename: 'TrackingField' as const, key: 'endpoint', label: 'Endpoint', help: '', required: false, secret: false },
-    { __typename: 'TrackingField' as const, key: 'validate', label: 'Validate only', help: '', required: false, secret: false },
+    { __typename: 'TrackingField' as const, key: 'measurement_id', label: 'Measurement ID', help: 'G-XXXX, from the web data stream', required: true, secret: false, testMode: false },
+    { __typename: 'TrackingField' as const, key: 'api_secret', label: 'Measurement Protocol API secret', help: '', required: true, secret: true, testMode: false },
+    { __typename: 'TrackingField' as const, key: 'endpoint', label: 'Endpoint', help: '', required: false, secret: false, testMode: false },
+    { __typename: 'TrackingField' as const, key: 'validate', label: 'Validate only', help: '', required: false, secret: false, testMode: true },
   ],
 }
 
@@ -46,7 +46,7 @@ export function ga4Destination(over: Record<string, unknown> = {}) {
     ],
     secretSet: true,
     needsSecret: false,
-    importedFrom: null,
+    inTestMode: true,
     health: { __typename: 'TrackingHealth' as const, lastSentAt: null, lastError: '', dead24h: 0 },
     createdAt: '2026-11-01T00:00:00Z',
     updatedAt: '2026-11-01T00:00:00Z',

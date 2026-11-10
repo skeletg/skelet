@@ -1,0 +1,99 @@
+fragment SearchPreviewProductFields on SearchPreviewProduct {
+  id
+  name
+  sku
+  url
+  price
+  currencyCode
+  inStock
+}
+
+query SearchPreview($channelId: ID!, $query: String!, $locale: String, $mode: SearchByMeaningMode, $strictness: SearchByMeaningStrictness) {
+  searchPreview(channelId: $channelId, query: $query, locale: $locale, mode: $mode, strictness: $strictness) {
+    locales
+    wordsTotal
+    byWords {
+      ...SearchPreviewProductFields
+    }
+    byMeaning {
+      distance
+      counted
+      product {
+        ...SearchPreviewProductFields
+      }
+    }
+    shown {
+      byWords
+      byMeaning
+      product {
+        ...SearchPreviewProductFields
+      }
+    }
+    productsText
+    pagesByWords {
+      title
+      url
+    }
+    passages {
+      title
+      url
+      text
+      distance
+      counted
+    }
+    pagesText
+    meaningFailed
+  }
+}
+
+query EmbeddingCoverage($channelId: ID!) {
+  embeddingCoverage(channelId: $channelId) {
+    model
+    products
+    embeddedProducts
+    pages
+    embeddedPages
+    queued
+    failed
+  }
+}
+
+query StorefrontSearchPreview($channelId: ID!, $query: String!, $locale: String, $mode: SearchByMeaningMode, $strictness: SearchByMeaningStrictness) {
+  storefrontSearchPreview(channelId: $channelId, query: $query, locale: $locale, mode: $mode, strictness: $strictness) {
+    reads
+    answeredBy
+    margin
+    total
+    wordsTotal
+    meaningFailed
+    listed {
+      byWords
+      byMeaning
+      product {
+        ...SearchPreviewProductFields
+      }
+    }
+    byWords {
+      ...SearchPreviewProductFields
+    }
+    byMeaning {
+      distance
+      counted
+      product {
+        ...SearchPreviewProductFields
+      }
+    }
+  }
+}
+
+query SearchOverviewPreview($channelId: ID!, $query: String!, $locale: String, $mode: SearchByMeaningMode, $strictness: SearchByMeaningStrictness) {
+  searchOverviewPreview(channelId: $channelId, query: $query, locale: $locale, mode: $mode, strictness: $strictness) {
+    status
+    text
+    products {
+      id
+      name
+      url
+    }
+  }
+}

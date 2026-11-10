@@ -9,14 +9,16 @@ type TrackingField {
   required: Boolean!
   # Write-only: stored encrypted, never returned - a destination only says whether it is set
   secret:   Boolean!
+  # The setting that keeps sends out of the platform's live reports while it is set - at most one per platform
+  testMode: Boolean!
 }
 
-# One platform skelet can send to - every first-party one, whether or not this build compiled its plugin in
+# One platform skelet can send to - every one skelet publishes a plugin for, whether or not this build compiled it in
 type TrackingPlatform {
   kind:       String!
   label:      String!
   pluginSlug: String!
-  # The plugin is compiled into this build. False: enable it with `skelet cli plugin enable <pluginSlug>` and rebuild
+  # The plugin is compiled into this build. False: skelet cli plugin add github.com/skeletg/<pluginSlug>, then rebuild
   installed:  Boolean!
   # The plugin is switched on for the channel
   availableOnChannel: Boolean!
@@ -58,10 +60,10 @@ type TrackingDestination {
   # Settings without the secret field
   config:      [TrackingConfigValue!]!
   secretSet:   Boolean!
-  # The platform requires a secret this destination doesn't have yet - an imported one, until it is entered
+  # The platform requires a secret this destination doesn't have yet
   needsSecret: Boolean!
-  # The Signals event destination it was imported from
-  importedFrom: ID
+  # Its platform's test-mode setting is on, so its sends aren't recorded as real
+  inTestMode:  Boolean!
   health:    TrackingHealth!
   createdAt: Time!
   updatedAt: Time!
@@ -77,13 +79,18 @@ input TrackingDestinationInput {
   config:  [TrackingConfigValueInput!]!
 }
 
+# Where a delivery stands. A sent one is deleted, so it never shows
+enum TrackingDeliveryStatus {
+  PENDING # waiting for its next attempt
+  DEAD    # gave up after its last retry - redeliverTrackingDelivery puts it back
+}
+
 # One event bound for a destination. The event itself isn't returned - it holds the shopper's email, IP and click ids
 type TrackingDelivery {
   id:            ID!
   eventName:     String!
   eventId:       String!
-  # pending | sent | dead
-  status:        String!
+  status:        TrackingDeliveryStatus!
   attempts:      Int!
   lastError:     String!
   nextAttemptAt: Time!
@@ -96,30 +103,12 @@ type TrackingTestResult {
   message: String!
 }
 
-# An old Signals event destination and what it would become here
-type SignalsImportCandidate {
-  legacyId:      ID!
-  name:          String!
-  legacyKind:    String!
-  # Null when it can't be imported - see problem
-  targetKind:    String
-  config:        [TrackingConfigValue!]!
-  signalsActive: Boolean!
-  # The destination it was already imported as
-  importedAs:    ID
-  # Event filters set on the Signals destination; they don't carry over
-  droppedFilters: [String!]!
-  problem:       String
-}
-
 extend type Query {
   trackingPlatforms(channelId: ID!): [TrackingPlatform!]!
   trackingDestinations(channelId: ID!): [TrackingDestination!]!
   trackingDestination(id: ID!): TrackingDestination
-  # Newest first. status: pending | sent | dead, empty for all. limit at most 200
-  trackingDeliveries(destinationId: ID!, status: String, limit: Int): [TrackingDelivery!]!
-  # Needs settings.manage as well; empty when Signals is off
-  signalsImportCandidates(channelId: ID!): [SignalsImportCandidate!]!
+  # Newest first, every status when it is null. limit at most 200
+  trackingDeliveries(destinationId: ID!, status: TrackingDeliveryStatus, limit: Int): [TrackingDelivery!]!
 }
 
 extend type Mutation {
@@ -132,6 +121,4 @@ extend type Mutation {
   sendTrackingTest(id: ID!): TrackingTestResult!
   # Only a delivery that gave up (dead) can be retried
   redeliverTrackingDelivery(id: ID!): TrackingDelivery!
-  # Copies Signals event destinations here, disabled and without their secrets. Importing one again changes nothing
-  importSignalsDestinations(channelId: ID!, legacyIds: [ID!]!): [TrackingDestination!]!
 }

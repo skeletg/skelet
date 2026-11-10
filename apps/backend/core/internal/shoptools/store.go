@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/core/internal/locale"
 )
@@ -112,9 +114,9 @@ func pagesTool() tool {
 	return tool{
 		def: ai.Tool{
 			Name:        "search_store_pages",
-			Description: "Search the store's own pages - shipping, returns, sizing, FAQs, contact and the like. Omit query to list every page.",
+			Description: "Search the store's own pages - shipping, returns, sizing, FAQs, contact and the like - and get the passages that answer. Omit query to list every page.",
 			Schema: schema(map[string]any{
-				"query": str("Words to look for, like \"returns\" or \"delivery time\"."),
+				"query": str("The question in plain words, like \"do you deliver to Norway\" or \"how long do returns take\"."),
 			}),
 			Effect: ai.Reads, Idempotent: true,
 		},
@@ -193,7 +195,7 @@ func runPages(ctx context.Context, c call) (string, error) {
 		return "", err
 	}
 	if len(pages) == 0 {
-		return "The store has no pages published.", nil
+		return noPagesAtAll, nil
 	}
 	words := strings.Fields(strings.ToLower(c.a.Query))
 	var b strings.Builder
@@ -214,12 +216,43 @@ func runPages(ctx context.Context, c call) (string, error) {
 			hits = append(hits, hit{p, score})
 		}
 	}
-	if len(hits) == 0 {
-		return "No store page mentions that. Omit query to see every page.", nil
-	}
 	sort.SliceStable(hits, func(i, j int) bool { return hits[i].score > hits[j].score })
-	for _, h := range hits[:min(len(hits), pagesShown)] {
-		fmt.Fprintf(&b, "## %s - %s\n%s\n\n", h.title, h.url, clip(h.text, pageExcerptChars))
+	passages := c.nearPassages(ctx, c.a.Query, pagesShown*passagesPerPage)
+	if len(hits) == 0 && len(passages) == 0 {
+		return noPagesFound, nil
+	}
+
+	// Pages ranked by both, each shown with the passages that came close in meaning, or the start of its text when none did
+	titles := map[string]string{}
+	byWords := make([]string, len(hits))
+	excerpt := map[string]string{}
+	for i, h := range hits {
+		byWords[i], titles[h.url], excerpt[h.url] = h.url, h.title, h.text
+	}
+	var byMeaning []string
+	near := map[string][]string{}
+	for _, p := range passages {
+		url := link(c.ch, p.Path)
+		if _, seen := near[url]; !seen {
+			byMeaning = append(byMeaning, url)
+		}
+		if len(near[url]) < passagesPerPage {
+			near[url] = append(near[url], p.Text)
+		}
+		if titles[url] == "" {
+			titles[url] = p.Title
+		}
+	}
+	for _, url := range fuse(byWords, byMeaning, pagesShown) {
+		fmt.Fprintf(&b, "## %s - %s\n", titles[url], url)
+		if texts := near[url]; len(texts) > 0 {
+			for _, t := range texts {
+				fmt.Fprintf(&b, "%s\n", shorten(strings.TrimSpace(t), pageExcerptChars))
+			}
+		} else {
+			b.WriteString(clip(excerpt[url], pageExcerptChars) + "\n")
+		}
+		b.WriteString("\n")
 	}
 	return b.String(), nil
 }
@@ -265,25 +298,33 @@ func shippingTool() tool {
 }
 
 func runShipping(ctx context.Context, c call) (string, error) {
+	if c.a.CartID == "" {
+		return quoteShipping(ctx, c, nil)
+	}
+	ct, err := agentCart(ctx, c, c.a.CartID)
+	if err != nil {
+		return "", err
+	}
+	return quoteShipping(ctx, c, &ct.ID)
+}
+
+// quoteShipping prices delivery for the cart, when there is one, as checkout will
+func quoteShipping(ctx context.Context, c call, cartID *uuid.UUID) (string, error) {
 	country := strings.ToUpper(strings.TrimSpace(c.a.Country))
 	if len(country) != 2 {
 		return "", refusal("country takes a two-letter ISO code, like \"DE\".")
 	}
 	vars := map[string]any{"country": country, "region": nilIfEmpty(c.a.Region), "postal": nilIfEmpty(c.a.PostalCode), "cartId": nil}
 	spent := int64(-1)
-	if c.a.CartID != "" {
-		ct, err := agentCart(ctx, c, c.a.CartID)
-		if err != nil {
-			return "", err
-		}
-		vars["cartId"] = ct.ID.String()
+	if cartID != nil {
+		vars["cartId"] = cartID.String()
 		var totals struct {
 			Cart *struct {
 				Subtotal      int64 `json:"subtotal"`
 				TotalDiscount int64 `json:"totalDiscount"`
 			} `json:"cart"`
 		}
-		if err := c.gql().Do(ctx, cartTotalsDoc, map[string]any{"id": ct.ID.String()}, &totals); err != nil {
+		if err := c.gql().Do(ctx, cartTotalsDoc, map[string]any{"id": cartID.String()}, &totals); err != nil {
 			return "", err
 		}
 		if totals.Cart != nil {

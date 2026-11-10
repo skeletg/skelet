@@ -5,9 +5,9 @@ import { cn } from '@/lib/utils'
 import { formatNumber } from '@/lib/format'
 import { eventLabel } from '@/features/synapse/eventLabel'
 import { type SynapseFlowQuery, SynapseFlowDocument } from '@/features/synapse/Synapse.gql'
-import { conditionsIn } from '../report'
 import { ConditionsEditor } from './conditions'
-import { EventSelect, Field, Headline, Note, State, pct, useTopEvents, type ControlsProps, type ResultProps } from './ui'
+import { EventSelect, Field, Headline, Note, State, pct, useTopEvents } from './ui'
+import { describeConditions, readyConditions, type ControlsProps, type Kind, type ResultProps } from './definition'
 
 const WITHIN = [
   { l: 'Any time after', h: 0 },
@@ -18,8 +18,9 @@ const WITHIN = [
 
 type FlowNode = { id: string; parentId: string; event: string; depth: number; count: number }
 const TOP = 12 // show the busiest next steps; rarer ones fold into "show more"
+const DEPTH = 4 // how many steps an unset depth follows
 
-export function FlowControls({ channelId, value: d, onChange }: ControlsProps) {
+function FlowControls({ channelId, value: d, onChange }: ControlsProps) {
   // The opaque "custom" bucket can't be a starting point - the flow keys custom events by their real name
   const events = useTopEvents(channelId).filter((e) => e !== 'custom')
   return (
@@ -43,15 +44,15 @@ export function FlowControls({ channelId, value: d, onChange }: ControlsProps) {
           </Field>
         )}
       </div>
-      <ConditionsEditor channelId={channelId} events={d.event ? [d.event] : []} label="Where the starting event" value={d.where ?? []} onChange={(where) => onChange({ ...d, where })} />
+      <ConditionsEditor channelId={channelId} events={d.event ? [d.event] : []} label="Where the starting event" value={d.where} onChange={(where) => onChange({ ...d, where })} />
     </div>
   )
 }
 
-export function FlowResult({ channelId, d, sinceDays, compact }: ResultProps) {
+function FlowResult({ channelId, d, sinceDays, compact }: ResultProps) {
   const focus = d.event ?? ''
   const { data, loading, error } = useQuery(SynapseFlowDocument, {
-    variables: { channelId, event: focus, sinceDays, depth: d.depth ?? 4, filters: conditionsIn(d.where), notThen: d.notThen ?? null, notThenWithinHours: d.notThenWithinHours ?? null },
+    variables: { channelId, event: focus, sinceDays, depth: d.depth ?? DEPTH, filters: readyConditions(d.where), notThen: d.notThen ?? null, notThenWithinHours: d.notThenWithinHours ?? null },
     skip: !channelId || !focus,
     fetchPolicy: 'cache-and-network',
   })
@@ -302,4 +303,14 @@ function NextSteps({ steps, cohort, byParent, onDrill }: { steps: FlowNode[]; co
       ) : null}
     </div>
   )
+}
+
+export const flow: Kind = {
+  label: 'Flow',
+  menu: { label: 'Flow', hint: 'What people did next' },
+  describe: (d) => `After ${d.event}${d.where?.length ? ` where ${describeConditions(d.where)}` : ''}${d.notThen ? `, not then ${d.notThen}` : ''}`,
+  title: (d) => `After ${eventLabel(d.event ?? '')}`,
+  start: { kind: 'FLOW', event: 'page_view', depth: DEPTH },
+  Controls: FlowControls,
+  Result: FlowResult,
 }

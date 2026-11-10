@@ -705,13 +705,13 @@ func (s *Service) redeemPromotions(ctx context.Context, sqlTx *sql.Tx, cc *check
 
 // Authorizes the amount owed after the order commits - best-effort, since a gateway failure can't roll a placed order back, so it records a visible "authorization failed" event and logs, leaving the order unpaid for retry
 // The result settles payment_status asynchronously through the payment-to-order bridge
-func (s *Service) authorizePostPlacement(ctx context.Context, in PlaceOrderInput, placed Order) PaymentAuthorizeOutcome {
+func (s *Service) authorizePostPlacement(ctx context.Context, in PlaceOrderInput, placed Order) (PaymentAuthorizeOutcome, bool) {
 	if s.paymentAuthorizer == nil || placed.PaymentProvider == "" {
-		return PaymentAuthorizeOutcome{}
+		return PaymentAuthorizeOutcome{}, false
 	}
 	amountDue := placed.AmountDue()
 	if amountDue <= 0 {
-		return PaymentAuthorizeOutcome{}
+		return PaymentAuthorizeOutcome{}, false
 	}
 	token := ""
 	if in.PaymentToken != nil {
@@ -737,7 +737,7 @@ func (s *Service) authorizePostPlacement(ctx context.Context, in PlaceOrderInput
 		}); evErr != nil {
 			log.Printf("[order] record authorization-failure event for order %s: %v", placed.ID, evErr)
 		}
-		return PaymentAuthorizeOutcome{}
+		return PaymentAuthorizeOutcome{}, true
 	}
 	// The hold is real once the gateway confirms it - record it, or every later capture is rejected against a zero authorized total. Offline providers return a zero outcome and correctly record nothing
 	if outcome.Authorized {
@@ -779,7 +779,7 @@ func (s *Service) authorizePostPlacement(ctx context.Context, in PlaceOrderInput
 			log.Printf("[order] record payment-action event for order %s: %v", placed.ID, evErr)
 		}
 	}
-	return outcome
+	return outcome, false
 }
 
 type lineValidator interface { // bundle availability plus each line's min/max/step

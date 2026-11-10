@@ -162,6 +162,8 @@ type Attribute struct {
 	H1Position         H1Position
 	SynapseTrack       bool // marks the attribute commercially significant - filtering by its values or viewing products carrying them records a Synapse profile affinity
 	AutoSegment        bool // a scheduled sync materialises one customer segment per popular value - only meaningful alongside SynapseTrack
+	Embedded           bool // a public attribute's values join the text embedded for search by meaning
+	SimilarMatch       bool // a product found similar to others shares a value with them on this one
 	SortOrder          int32
 	Metadata           Metadata
 	PrivateMetadata    Metadata
@@ -215,6 +217,7 @@ type AttributeValue struct { // for swatch, Value holds a hex color or an image 
 	Value       string
 	SortOrder   int32
 	IsIndexable bool
+	MatchesAny  bool // stands for every other value when similar products are held to the attribute - Unisex, One size
 	CreatedAt   time.Time
 }
 
@@ -254,6 +257,8 @@ type CreateAttributeInput struct {
 	H1Position         H1Position
 	SynapseTrack       bool
 	AutoSegment        bool
+	Embedded           *bool // nil is on, like the column - only an explicit false keeps a new attribute out
+	SimilarMatch       *bool
 	SortOrder          int32
 	Values             []AttributeValueInput // optional initial values
 	Metadata           Metadata
@@ -275,6 +280,8 @@ type UpdateAttributeInput struct { // slug and InputType are left out deliberate
 	H1Position      *H1Position
 	SynapseTrack    *bool
 	AutoSegment     *bool
+	Embedded        *bool
+	SimilarMatch    *bool
 	SortOrder       *int32
 	Metadata        *Metadata
 	PrivateMetadata *Metadata
@@ -287,6 +294,7 @@ type AttributeValueInput struct {
 	Value       string
 	SortOrder   int32
 	IsIndexable bool
+	MatchesAny  *bool // nil keeps it on an update, off on a new value
 }
 
 type AssignAttributeInput struct {

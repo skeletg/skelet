@@ -10,6 +10,8 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/adminaction"
 	"github.com/skeletg/skelet/apps/backend/core/internal/adminprefs"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
+	"github.com/skeletg/skelet/apps/backend/core/internal/aitrace"
+	"github.com/skeletg/skelet/apps/backend/core/internal/aiusage"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/delivery"
@@ -52,6 +54,7 @@ var Services = fx.Module("services",
 		newShippingService,
 		newPromotionService,
 		newSalesService,
+		newAIUsageService,
 		newURLRewriteService,
 		newInventoryService,
 		newGiftcardService,
@@ -65,6 +68,8 @@ var Services = fx.Module("services",
 		newQnAService,
 		newWishlistService,
 		newAIService,
+		newEmbeddingIndexer,
+		newEmbeddingSearcher,
 		newReviewService,
 		newFormService,
 		newTrackingService,
@@ -108,6 +113,10 @@ func newPromotionService(q *db.Queries, txMgr *txrunner.Manager) *promotion.Serv
 
 func newSalesService(q *db.Queries) *sales.Service { return sales.NewService(sales.NewRepository(q)) }
 
+func newAIUsageService(q *db.Queries, cfg *config.Service) *aiusage.Service {
+	return aiusage.New(q, cfg)
+}
+
 func newURLRewriteService(q *db.Queries) *urlrewrite.Service {
 	return urlrewrite.NewService(urlrewrite.NewRepository(q))
 }
@@ -146,7 +155,15 @@ func newSearchMerchService(q *db.Queries) *searchmerch.Service { return searchme
 func newQnAService(q *db.Queries) *qna.Service                 { return qna.NewService(q) }
 func newWishlistService(q *db.Queries) *wishlist.Service       { return wishlist.NewService(q) }
 
-func newAIService(cfg *config.Service) *ai.Service { return ai.NewService(cfg) } // config-gated and resolved at request time, so it ships dark until an operator sets a provider/key
+// Config-gated and resolved at request time, so it ships dark until an operator sets a provider/key - and with it the
+// The AI trace sink every AI call reports to, dark the same way until its keys are set, flushed as the process stops
+func newAIService(cfg *config.Service, lc fx.Lifecycle) *ai.Service {
+	sink := aitrace.New(cfg)
+	aitrace.Install(sink)
+	lc.Append(fx.Hook{OnStop: sink.Shutdown})
+	ai.GuardSecrets(cfg)
+	return ai.NewService(cfg)
+}
 
 func newReviewService(q *db.Queries, txMgr *txrunner.Manager) *review.Service {
 	return review.NewService(review.NewRepository(q, txMgr), txMgr)

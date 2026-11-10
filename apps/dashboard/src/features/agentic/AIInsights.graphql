@@ -1,0 +1,43 @@
+query AIInsights($channelId: ID!, $days: Int!) {
+  aiInsights(channelId: $channelId, days: $days) {
+    days
+    cartWindowDays
+    orderWindowDays
+    currencyCode
+    chatted {
+      ...AICohortFields
+    }
+    didNotChat {
+      ...AICohortFields
+    }
+    products {
+      productId
+      name
+      shown
+      people
+      carted
+      ordered
+    }
+    agents {
+      agent
+      calls
+      searches
+      emptySearches
+      tools {
+        tool
+        calls
+      }
+    }
+    agentOrders
+    agentRevenue
+  }
+}
+
+fragment AICohortFields on AICohort {
+  people
+  buyers
+  orders
+  revenue
+  revenueOrders
+  returnedOrders
+}

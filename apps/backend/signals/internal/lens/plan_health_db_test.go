@@ -36,10 +36,10 @@ func TestDataHealthCountsWhatIngestStripped(t *testing.T) {
 		got[i] = true
 	}
 	for _, want := range []PlanIssue{
-		{Kind: analytics.IssueServerProp, Event: "page_view", Prop: "revenue_cents", Count: 2},
-		{Kind: analytics.IssueUnknownProp, Event: "page_view", Prop: "coupon", Count: 2},
-		{Kind: analytics.IssueBadType, Event: "$search", Prop: "results", Count: 2},
-		{Kind: analytics.IssueUnknownEvent, Event: "$made.up", Count: 2},
+		{analytics.PlanIssue{Kind: analytics.IssueServerProp, Event: "page_view", Prop: "revenue_cents"}, 2},
+		{analytics.PlanIssue{Kind: analytics.IssueUnknownProp, Event: "page_view", Prop: "coupon"}, 2},
+		{analytics.PlanIssue{Kind: analytics.IssueBadType, Event: "$search", Prop: "results"}, 2},
+		{analytics.PlanIssue{Kind: analytics.IssueUnknownEvent, Event: "$made.up"}, 2},
 	} {
 		if !got[want] {
 			t.Errorf("missing %+v in %+v", want, ov.PlanIssues)

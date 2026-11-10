@@ -1,0 +1,20 @@
+# A few sentences above a search's results, written from the products listed - only for a search the store's search page answers by meaning, while the store has its AI overview and its shopping assistant on
+type SearchOverview {
+  # Plain text in the shopper's language; [[n]] stands for the nth of products, for the storefront to show as that product's name and link
+  text:     String!
+  products: [SearchOverviewProduct!]!
+  # What a chat carried on from it should know it showed, in the assistant's own words for its earlier replies
+  recap:    String!
+}
+
+type SearchOverviewProduct {
+  id:   ID!
+  name: String!
+  # As Product.url - link to /<url>
+  url:  String!
+}
+
+extend type Query {
+  # Null when there's nothing to show: the overview is off, the search read as keywords its words answered, the assistant isn't available, or the shopper asked too fast. It reads the first page of the search with no filters, so ask only for that page. A new one can take a few seconds; asked again it comes from the cache
+  searchOverview(query: String!): SearchOverview
+}

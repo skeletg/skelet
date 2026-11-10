@@ -51,6 +51,7 @@ const category = (id: string, slug: string, name: string, products: ReturnType<t
   level: 0,
   isPublished: true,
   seoNoindex: false,
+  isAnchor: true,
   name,
   shortDescription: null,
   description: null,
@@ -245,6 +246,19 @@ describe('CategoriesPage', () => {
     await vi.waitFor(() => expect(writes.content).toHaveBeenCalled(), SLOW)
     expect(writes.update).toHaveBeenCalledWith({ input: expect.objectContaining({ id: 'cat1', position: 3, clearParent: true }) })
     expect(writes.content).toHaveBeenCalledWith({ categoryId: 'cat1', input: expect.objectContaining({ locale: 'en', name: 'Shoes', metaTitle: 'All shoes' }) })
+  })
+
+  it('stops listing the products of its subcategories through the reviewed save', async () => {
+    const writes = renderCategories('/categories/cat1')
+    fireEvent.click(await screen.findByRole('switch', { name: 'Show products from subcategories' }, SLOW))
+    expect(writes.update).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: /Save changes/ }))
+    const dialog = await screen.findByRole('alertdialog')
+    expect(within(dialog).getByText('Show products from subcategories')).toBeDefined()
+    fireEvent.click(within(dialog).getByRole('button', { name: /Apply 1 change/ }))
+    await vi.waitFor(() => expect(writes.update).toHaveBeenCalled(), SLOW)
+    expect(writes.update).toHaveBeenCalledWith({ input: expect.objectContaining({ id: 'cat1', isAnchor: false }) })
+    expect(writes.content).not.toHaveBeenCalled()
   })
 
   it('offers neither the category nor its subtree as its parent, and moves it under the one picked', async () => {

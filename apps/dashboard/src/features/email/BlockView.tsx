@@ -1,7 +1,14 @@
 import { Fragment, type CSSProperties, type ReactNode } from 'react'
 import { EyeOffIcon } from 'lucide-react'
 import {
+  blockWord,
+  buttonStyle,
+  headingStyle,
+  mergeTagLabel,
+  RICH_TEXT_CLASSES,
+  textBlockStyle,
   SAMPLE_LINES,
+  SAMPLE_VARS,
   SAMPLE_SHIPTO,
   interpolateSample,
   isParameterized,
@@ -10,6 +17,12 @@ import {
   type EmailBlock,
   type EmailStyles,
 } from './blocks'
+import { productImage, useBlockProducts } from './blockProducts'
+import { richToDisplayHtml } from './richtext'
+
+function sampleOf(tag: string): string {
+  return SAMPLE_VARS[tag] || mergeTagLabel(tag)
+}
 
 // Client-side approximation of the Go renderer (internal/emailtemplate) so the canvas can show blocks as they'll roughly look - with sample
 // data + merge tags resolved - Not byte-identical to the sent email (the server preview is authoritative); close enough to design against
@@ -70,11 +83,21 @@ function Leaf({ block, theme }: { block: EmailBlock; theme: EmailStyles }) {
   switch (block.type) {
     case 'heading':
       return (
-        <h2 style={{ margin: '0 0 8px', fontSize: s.fontSize || 20, textAlign: align(s), color: s.color || theme.textColor || '#222' }}>
+        <h2 style={headingStyle(block, theme)}>
           {interpolateSample(block.text ?? '') || 'Heading'}
         </h2>
       )
     case 'text':
+      if (block.format === 'rich') {
+        return (
+          <div
+            className={RICH_TEXT_CLASSES}
+            style={{ ...textBlockStyle(block, theme), margin: '0 0 12px', ['--email-link' as string]: theme.linkColor || undefined }}
+            // built node by node from the allowed subset (richtext.ts), never the stored string itself
+            dangerouslySetInnerHTML={{ __html: richToDisplayHtml(block.content ?? '', sampleOf) || '<p>Text block</p>' }}
+          />
+        )
+      }
       return (
         <p style={{ margin: '0 0 12px', lineHeight: 1.5, textAlign: align(s), color: s.color || theme.textColor || '#333', fontSize: s.fontSize || undefined }}>
           {multiline(interpolateSample(block.content ?? '') || 'Text block')}
@@ -83,7 +106,7 @@ function Leaf({ block, theme }: { block: EmailBlock; theme: EmailStyles }) {
     case 'button':
       return (
         <div style={{ textAlign: align(s), margin: '16px 0' }}>
-          <span style={{ display: 'inline-block', background: s.buttonColor || theme.linkColor || '#222', color: s.buttonTextColor || '#fff', padding: '10px 18px', borderRadius: s.radius ?? 4, fontSize: 14 }}>
+          <span style={buttonStyle(block, theme)}>
             {interpolateSample(block.label ?? '') || 'Button'}
           </span>
         </div>
@@ -105,33 +128,8 @@ function Leaf({ block, theme }: { block: EmailBlock; theme: EmailStyles }) {
         </div>
       )
     }
-    case 'products': {
-      const p = block.products
-      const cols = Math.max(1, p?.columns || 3)
-      const count =
-        p?.mode === 'collection' ? Math.max(1, Math.min(cols, p?.limit || cols)) : Math.max(1, (p?.skus?.length || cols))
-      const label =
-        p?.mode === 'collection'
-          ? `Collection · up to ${p?.limit ?? 0} products`
-          : `${p?.skus?.length ?? 0} product${(p?.skus?.length ?? 0) === 1 ? '' : 's'} by SKU`
-      const cards = Math.min(count, cols)
-      return (
-        <div style={{ margin: '12px 0' }}>
-          <div style={{ marginBottom: 6, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#0d7d5b' }}>
-            Products - {label}
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 8 }}>
-            {Array.from({ length: cards }).map((_, i) => (
-              <div key={i} style={{ border: '1px dashed #b6dccb', background: '#f2fbf7', borderRadius: 4, padding: 8, textAlign: 'center' }}>
-                <div style={{ height: 56, background: '#e4f4ec', borderRadius: 3, marginBottom: 6 }} />
-                <div style={{ fontSize: 11, color: '#4b8a72' }}>Product</div>
-              </div>
-            ))}
-          </div>
-          <div style={{ marginTop: 4, fontSize: 11, color: '#999' }}>Resolves to live products on send.</div>
-        </div>
-      )
-    }
+    case 'products':
+      return <ProductsLeaf block={block} />
     case 'social': {
       const links = block.social ?? []
       return (
@@ -187,6 +185,83 @@ function Leaf({ block, theme }: { block: EmailBlock; theme: EmailStyles }) {
           <div style={{ marginTop: 4, fontSize: 11, color: '#94a3b8' }}>Sanitized + rendered on send.</div>
         </div>
       )
+    case 'coupon':
+      return (
+        <div style={{ margin: '16px 0', padding: 20, border: `2px dashed ${s.buttonColor || theme.linkColor || '#222'}`, borderRadius: 8, textAlign: s.align ?? 'center', color: s.color || theme.textColor || '#222' }}>
+          {block.text ? <div style={{ fontSize: 16, fontWeight: 700, margin: '0 0 10px' }}>{interpolateSample(block.text)}</div> : null}
+          <div style={{ display: 'inline-block', fontFamily: "'Courier New', Courier, monospace", fontSize: 24, fontWeight: 700, letterSpacing: 3, padding: '8px 16px', background: '#f4f4f5', borderRadius: 4 }}>
+            {interpolateSample(block.code ?? '') || 'CODE'}
+          </div>
+          {block.content ? <div style={{ fontSize: 13, color: '#666', marginTop: 10 }}>{interpolateSample(block.content)}</div> : null}
+          {block.label && block.url ? (
+            <div style={{ marginTop: 14 }}>
+              <span style={buttonStyle(block, theme)}>{interpolateSample(block.label)}</span>
+            </div>
+          ) : null}
+        </div>
+      )
+    case 'image_text': {
+      const src = interpolateSample(block.image ?? '').trim()
+      const picture = (
+        <div style={{ flex: '0 0 45%' }}>
+          {src ? (
+            <img src={src} alt={interpolateSample(block.alt ?? '')} style={{ display: 'block', width: '100%', height: 'auto', borderRadius: 4 }} />
+          ) : (
+            <div style={{ aspectRatio: '4 / 3', display: 'grid', placeItems: 'center', background: '#f0f0f0', color: '#999', fontSize: 12, border: '1px dashed #ccc', borderRadius: 4 }}>
+              Image
+            </div>
+          )}
+        </div>
+      )
+      const words = (
+        <div style={{ flex: 1, minWidth: 0, textAlign: align(s), color: s.color || theme.textColor || '#333' }}>
+          {block.text ? <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700 }}>{interpolateSample(block.text)}</h3> : null}
+          {block.content ? <p style={{ margin: '0 0 12px', lineHeight: 1.5 }}>{multiline(interpolateSample(block.content))}</p> : null}
+          {block.label && block.url ? <span style={buttonStyle(block, theme)}>{interpolateSample(block.label)}</span> : null}
+        </div>
+      )
+      return (
+        <div className="email-stack" style={{ display: 'flex', gap: 16, alignItems: 'center', margin: '12px 0' }}>
+          {block.side === 'right' ? (
+            <>
+              {words}
+              {picture}
+            </>
+          ) : (
+            <>
+              {picture}
+              {words}
+            </>
+          )}
+        </div>
+      )
+    }
+    case 'menu': {
+      const links = (block.links ?? []).filter((l) => l.label.trim())
+      return (
+        <div style={{ margin: '12px 0', textAlign: s.align ?? 'center' }}>
+          {links.length === 0 ? (
+            <span style={{ fontSize: 12, color: '#999' }}>No links yet</span>
+          ) : (
+            links.map((l, i) => (
+              <Fragment key={i}>
+                {i > 0 ? <span style={{ color: '#ccc', padding: '0 10px' }}>|</span> : null}
+                <span style={{ color: s.color || theme.linkColor || '#222', fontWeight: 600, fontSize: 14 }}>{interpolateSample(l.label)}</span>
+              </Fragment>
+            ))
+          )}
+        </div>
+      )
+    }
+    case 'store_footer':
+      return (
+        <div style={{ margin: '24px 0 0', paddingTop: 16, borderTop: '1px solid #eee', textAlign: s.align ?? 'center', fontSize: 12, lineHeight: 1.6, color: s.color || '#888' }}>
+          {block.content ? multiline(interpolateSample(block.content)) : null}
+          <div style={{ marginTop: 8 }}>
+            <span style={{ textDecoration: 'underline' }}>{block.label?.trim() || 'Unsubscribe'}</span>
+          </div>
+        </div>
+      )
     case 'divider':
       return <hr style={{ border: 'none', borderTop: `1px solid ${s.color || '#e5e5e5'}`, margin: '16px 0' }} />
     case 'spacer':
@@ -196,9 +271,9 @@ function Leaf({ block, theme }: { block: EmailBlock; theme: EmailStyles }) {
         <table cellPadding={6} style={{ borderCollapse: 'collapse', width: '100%', fontSize: 14 }}>
           <thead>
             <tr style={{ textAlign: 'left', borderBottom: '1px solid #ddd' }}>
-              <th>Item</th>
-              <th>Qty</th>
-              <th style={{ textAlign: 'right' }}>Total</th>
+              <th>{blockWord(block, 'item')}</th>
+              <th>{blockWord(block, 'qty')}</th>
+              <th style={{ textAlign: 'right' }}>{blockWord(block, 'total')}</th>
             </tr>
           </thead>
           <tbody>
@@ -221,10 +296,10 @@ function Leaf({ block, theme }: { block: EmailBlock; theme: EmailStyles }) {
         <table style={{ marginTop: 12, width: '100%', fontSize: 14 }}>
           <tbody>
             {[
-              ['Subtotal', interpolateSample('{{order.subtotal}}')],
-              ['Discount', `-${interpolateSample('{{order.discount}}')}`],
-              ['Shipping', interpolateSample('{{order.shipping}}')],
-              ['Tax', interpolateSample('{{order.tax}}')],
+              [blockWord(block, 'subtotal'), interpolateSample('{{order.subtotal}}')],
+              [blockWord(block, 'discount'), `-${interpolateSample('{{order.discount}}')}`],
+              [blockWord(block, 'shipping'), interpolateSample('{{order.shipping}}')],
+              [blockWord(block, 'tax'), interpolateSample('{{order.tax}}')],
             ].map(([label, val]) => (
               <tr key={label}>
                 <td>{label}</td>
@@ -233,7 +308,7 @@ function Leaf({ block, theme }: { block: EmailBlock; theme: EmailStyles }) {
             ))}
             <tr>
               <td>
-                <strong>Total</strong>
+                <strong>{blockWord(block, 'total')}</strong>
               </td>
               <td style={{ textAlign: 'right' }}>
                 <strong>{interpolateSample('{{order.total}}')}</strong>
@@ -245,7 +320,7 @@ function Leaf({ block, theme }: { block: EmailBlock; theme: EmailStyles }) {
     case 'shipping_address':
       return (
         <p style={{ marginTop: 12, fontSize: 14 }}>
-          <strong>Shipping to</strong>
+          <strong>{blockWord(block, 'shippingTo')}</strong>
           <br />
           {SAMPLE_SHIPTO.map((line) => (
             <Fragment key={line}>
@@ -258,19 +333,55 @@ function Leaf({ block, theme }: { block: EmailBlock; theme: EmailStyles }) {
     case 'tracking':
       return (
         <p style={{ fontSize: 14 }}>
-          Carrier: {interpolateSample('{{tracking.carrier}}')} &middot; Tracking:{' '}
+          {blockWord(block, 'carrier')}: {interpolateSample('{{tracking.carrier}}')} &middot; {blockWord(block, 'tracking')}:{' '}
           <strong>{interpolateSample('{{tracking.number}}')}</strong>
         </p>
       )
     case 'refund_amount':
       return (
         <p style={{ fontSize: 14 }}>
-          Refund issued: <strong>{interpolateSample('{{refund.amount}}')}</strong>
+          {blockWord(block, 'refund')}: <strong>{interpolateSample('{{refund.amount}}')}</strong>
         </p>
       )
     default:
       return null
   }
+}
+
+function ProductsLeaf({ block }: { block: EmailBlock }) {
+  const p = block.products
+  const byCollection = p?.mode === 'collection'
+  const skus = byCollection ? [] : (p?.skus ?? [])
+  const { bySku } = useBlockProducts(skus)
+  const cols = Math.max(1, p?.columns || 3)
+  const count = byCollection ? Math.max(1, Math.min(cols, p?.limit || cols)) : Math.max(1, skus.length || cols)
+  const label = byCollection ? `Collection · up to ${p?.limit ?? 0} products` : `${Math.min(skus.length, p?.limit && p.limit > 0 ? p.limit : 3)} product${skus.length === 1 ? '' : 's'}`
+  // A send shows up to the limit - the canvas shows the same cards
+  const limit = p?.limit && p.limit > 0 ? p.limit : 3
+  const cards = byCollection || skus.length === 0 ? Array.from({ length: Math.min(count, cols) }, () => undefined) : skus.slice(0, limit).map((sku) => bySku.get(sku))
+  return (
+    <div style={{ margin: '12px 0' }}>
+      <div style={{ marginBottom: 6, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#0d7d5b' }}>
+        Products - {label}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(cols, 4)}, minmax(0, 1fr))`, gap: 8 }}>
+        {cards.map((product, i) => {
+          const image = productImage(product)
+          return (
+            <div key={i} style={{ border: '1px solid #e5e7eb', background: '#fff', borderRadius: 4, padding: 8, textAlign: 'center' }}>
+              {image ? (
+                <img src={image} alt="" style={{ display: 'block', width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 3, marginBottom: 6 }} />
+              ) : (
+                <div style={{ aspectRatio: '1', background: '#f2f4f5', borderRadius: 3, marginBottom: 6 }} />
+              )}
+              <div style={{ fontSize: 12, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product?.name ?? 'Product'}</div>
+            </div>
+          )
+        })}
+      </div>
+      <div style={{ marginTop: 4, fontSize: 11, color: '#999' }}>Prices and stock come in live on send.</div>
+    </div>
+  )
 }
 
 /**
@@ -284,15 +395,17 @@ export function BlockView({
   theme,
   components,
   renderColumn,
+  editor,
 }: {
   block: EmailBlock
   theme: EmailStyles
   components?: Record<string, BlockComponent>
   renderColumn?: (colIndex: number) => ReactNode
+  editor?: ReactNode
 }) {
   return (
     <ConditionalWrap visibleIf={block.visibleIf}>
-      <BlockContent block={block} theme={theme} components={components} renderColumn={renderColumn} />
+      <BlockContent block={block} theme={theme} components={components} renderColumn={renderColumn} editor={editor} />
     </ConditionalWrap>
   )
 }
@@ -302,11 +415,13 @@ function BlockContent({
   theme,
   components,
   renderColumn,
+  editor,
 }: {
   block: EmailBlock
   theme: EmailStyles
   components?: Record<string, BlockComponent>
   renderColumn?: (colIndex: number) => ReactNode
+  editor?: ReactNode
 }) {
   if (block.type === 'ref') {
     const comp = block.slug ? components?.[block.slug] : undefined
@@ -357,7 +472,7 @@ function BlockContent({
     return <ComponentCard comp={comp} fields={block.fields} />
   }
 
-  return <>{box(block.style, <Leaf block={block} theme={theme} />)}</>
+  return <>{box(block.style, editor ?? <Leaf block={block} theme={theme} />)}</>
 }
 
 // Human-readable summary of a visibleIf rule for the canvas badge

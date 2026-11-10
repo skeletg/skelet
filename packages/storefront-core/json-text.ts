@@ -1,3 +1,5 @@
+import { lexicalPlainText } from "./lexical";
+
 // The backend's content fields are typed as the GraphQL `JSON` scalar because they can
 // hold either plain strings or a structured rich-text document
 export function renderJsonText(value: unknown): string | null {
@@ -10,6 +12,10 @@ export function renderJsonText(value: unknown): string | null {
   // return one and don't visit the rest, so we don't render the same sentence twice
   if (typeof value === "object" && !Array.isArray(value)) {
     const obj = value as Record<string, unknown>;
+    // A Lexical document's other leaves are node types and directions, not copy
+    if (obj.root && typeof obj.root === "object") {
+      return lexicalPlainText(value) || null;
+    }
     if (typeof obj.plain === "string") {
       const s = obj.plain.trim();
       if (s) return s;

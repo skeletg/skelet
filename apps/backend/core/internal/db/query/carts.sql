@@ -150,7 +150,7 @@ DELETE FROM cart_lines WHERE id = $1;
 
 -- name: AbandonedCarts :many
 -- Oldest first, so a backlog drains in order
-SELECT c.id, c.channel_id, c.customer_id, c.email, c.last_activity_at AS last_activity
+SELECT c.id, c.channel_id, c.customer_id, c.email, c.last_activity_at AS last_activity, c.assisted_by
 FROM carts c
 WHERE c.channel_id = sqlc.arg(channel_id)
   AND c.status = 'active' AND c.kind = 'shopper' AND (c.customer_id IS NOT NULL OR c.email <> '')
@@ -296,3 +296,12 @@ UPDATE carts SET offer_expired_notified_at = NOW() WHERE id = ANY(sqlc.arg(ids):
   AND kind = 'offer' AND status = 'active' AND offer_revoked_at IS NULL
   AND offer_expires_at <= clock_timestamp() AND offer_expired_notified_at IS NULL
 RETURNING *;
+
+-- The first helper keeps the credit while it's fresh, and helping again keeps it fresh - once it's stale, whoever helps next takes it
+-- name: MarkCartAssisted :exec
+UPDATE carts SET assisted_by = sqlc.arg(assisted_by), assisted_at = now(), assist_trace = sqlc.arg(assist_trace)
+WHERE id = sqlc.arg(id) AND (assisted_by = '' OR assisted_by = sqlc.arg(assisted_by) OR assisted_at IS NULL OR assisted_at < sqlc.arg(stale_before)::timestamptz);
+
+-- name: CarryCartAssisted :exec
+UPDATE carts t SET assisted_by = f.assisted_by, assisted_at = f.assisted_at, assist_trace = f.assist_trace FROM carts f
+WHERE t.id = sqlc.arg(to_cart_id)::uuid AND f.id = sqlc.arg(from_cart_id)::uuid AND f.assisted_by <> '' AND t.assisted_by = '';

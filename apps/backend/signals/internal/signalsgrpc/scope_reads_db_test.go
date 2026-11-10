@@ -52,6 +52,7 @@ func TestAPreviewRendersOnlyACustomerOfItsOwnChannel(t *testing.T) {
 		id := customer.String()
 		return c.RenderLibraryPreview(ctx, &signalsv1.RenderLibraryPreviewRequest{
 			ChannelId: mine.String(), Subject: "Hi {{customer.firstName}} {{customer.email}}", CustomerId: &id,
+			Preheader: "For {{customer.firstName}}", BlocksJson: `[{"type":"text","content":"Dear {{customer.firstName}}"}]`,
 		})
 	}
 
@@ -59,7 +60,7 @@ func TestAPreviewRendersOnlyACustomerOfItsOwnChannel(t *testing.T) {
 	if got := status.Code(err); got != codes.NotFound {
 		t.Errorf("previewing another channel's customer answered %s, want NotFound", got)
 	}
-	if strings.Contains(res.GetSubject()+res.GetHtml(), "Sabine") || strings.Contains(res.GetSubject()+res.GetHtml(), "secret@") {
+	if all := res.GetSubject() + res.GetHtml() + res.GetText() + res.GetPreheader(); strings.Contains(all, "Sabine") || strings.Contains(all, "secret@") {
 		t.Errorf("the preview leaked the foreign customer: %q", res.GetSubject())
 	}
 	res, err = preview(own)
@@ -68,6 +69,12 @@ func TestAPreviewRendersOnlyACustomerOfItsOwnChannel(t *testing.T) {
 	}
 	if !strings.Contains(res.GetSubject(), "Owen") {
 		t.Errorf("subject = %q, want the channel's own customer merged in", res.GetSubject())
+	}
+	if res.GetPreheader() != "For Owen" || !strings.Contains(res.GetText(), "Dear Owen") {
+		t.Errorf("preheader %q, text %q - want both filled in for the customer", res.GetPreheader(), res.GetText())
+	}
+	if res.GetFromAddress() == "" {
+		t.Error("the preview names no sender address")
 	}
 }
 

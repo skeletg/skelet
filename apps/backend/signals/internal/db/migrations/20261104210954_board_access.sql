@@ -1,10 +1,7 @@
 -- migrate:up
 -- Boards get an owner and start private. A board with no owner is a shop board: everyone on the shop with boards.view
 -- sees it, as every board did before this - so the boards already here keep working with no data change
-ALTER TABLE boards
-    ADD COLUMN owner_admin_id uuid,
-    -- A draft is seen only by its owner and can't be shared; its first Save publishes it
-    ADD COLUMN status text NOT NULL DEFAULT 'published' CHECK (status IN ('draft', 'published'));
+ALTER TABLE boards ADD COLUMN owner_admin_id uuid;
 CREATE INDEX boards_owner ON boards (owner_admin_id) WHERE owner_admin_id IS NOT NULL;
 
 -- Shared with one admin or with everyone holding a role, to view or to edit
@@ -44,4 +41,4 @@ DROP TABLE board_drafts;
 DROP TABLE board_favourites;
 DROP TABLE board_shares;
 DROP INDEX boards_owner;
-ALTER TABLE boards DROP COLUMN status, DROP COLUMN owner_admin_id;
+ALTER TABLE boards DROP COLUMN owner_admin_id;

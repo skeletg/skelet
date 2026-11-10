@@ -31,6 +31,8 @@ type audienceReader interface {
 	// Consent as it stands right now - the send loop works from stored recipient rows, and someone
 	// who unsubscribed after the campaign was built must not be mailed
 	OptedInByIDs(ctx context.Context, customerIDs []uuid.UUID) (map[uuid.UUID]bool, error)
+	// The language each last signed in with, so a library email reaches them in it - missing ones get it as written
+	LocalesByIDs(ctx context.Context, customerIDs []uuid.UUID) (map[uuid.UUID]string, error)
 }
 
 // The shop a send goes out as - the customer-facing name, the storefront the links point at, and

@@ -5,12 +5,12 @@ import { ChartTooltipContent } from '@/components/ui/chart'
 import { SERIES, SERIES_OTHER } from '@/lib/chart-colors'
 import { cn } from '@/lib/utils'
 import { formatCents, formatNumber, formatShortDay } from '@/lib/format'
+import { eventLabel } from '@/features/synapse/eventLabel'
 import { aggregateNote } from '@/features/synapse/aggregateNote'
 import { SynapseInsightsDocument } from '@/features/synapse/Synapse.gql'
-import { NET_SALES, conditionsIn, isNetSales, type ReportDefinition } from '../report'
-import { eventLabel } from '@/features/synapse/eventLabel'
 import { ConditionsEditor } from './conditions'
-import { Bars, Field, Headline, Note, State, StatTile, Toggle, pct, useTopEvents, type ControlsProps, type ResultProps } from './ui'
+import { Bars, Field, Headline, Note, State, StatTile, Toggle, pct, useTopEvents } from './ui'
+import { NET_SALES, describeConditions, isNetSales, readyConditions, type ControlsProps, type Kind, type ReportDefinition, type ResultProps } from './definition'
 
 // What a sum can add up - integer properties the spine's commerce events carry
 export const SUM_KEYS: { key: string; label: string }[] = [
@@ -35,8 +35,10 @@ export const BREAKDOWNS: { value: string; label: string }[] = [
   { value: 'page_key', label: 'Page' },
 ]
 const COLORS = [...SERIES, SERIES_OTHER]
+// What an unset measure and unit read as
+const DEFAULTS = { measure: 'total', unit: 'day' } as const
 
-export function InsightsControls({ channelId, value: d, onChange }: ControlsProps) {
+function InsightsControls({ channelId, value: d, onChange }: ControlsProps) {
   const events = useTopEvents(channelId)
   const net = isNetSales(d)
   const current = net ? NET : (d.event ?? '')
@@ -73,7 +75,7 @@ export function InsightsControls({ channelId, value: d, onChange }: ControlsProp
               { v: 'unique', l: 'Unique' },
               { v: 'sum', l: 'Sum' },
             ]}
-            value={d.measure ?? 'total'}
+            value={d.measure ?? DEFAULTS.measure}
             onChange={(measure) => onChange({ ...d, measure, sumKey: measure === 'sum' ? (d.sumKey ?? SUM_KEYS[0].key) : undefined })}
           />
         </Field>
@@ -99,20 +101,20 @@ export function InsightsControls({ channelId, value: d, onChange }: ControlsProp
         </select>
       </Field>
       <Field label="By">
-        <Toggle label="By" options={[{ v: 'day', l: 'Day' }, { v: 'week', l: 'Week' }]} value={d.unit ?? 'day'} onChange={(unit) => onChange({ ...d, unit })} />
+        <Toggle label="By" options={[{ v: 'day', l: 'Day' }, { v: 'week', l: 'Week' }]} value={d.unit ?? DEFAULTS.unit} onChange={(unit) => onChange({ ...d, unit })} />
       </Field>
     </div>
-    <ConditionsEditor channelId={channelId} events={eventsOf(d)} label="Where" value={d.where ?? []} onChange={(where) => onChange({ ...d, where })} />
+    <ConditionsEditor channelId={channelId} events={eventsOf(d)} label="Where" value={d.where} onChange={(where) => onChange({ ...d, where })} />
     </div>
   )
 }
 
-export function InsightsResult({ channelId, d, sinceDays, compact }: ResultProps) {
-  const measure = d.measure ?? 'total'
-  const unit = d.unit ?? 'day'
+function InsightsResult({ channelId, d, sinceDays, compact }: ResultProps) {
+  const measure = d.measure ?? DEFAULTS.measure
+  const unit = d.unit ?? DEFAULTS.unit
   const breakdown = d.breakdown ?? ''
   const { data, loading, error } = useQuery(SynapseInsightsDocument, {
-    variables: { channelId, event: d.event || null, events: d.events ?? null, sumKey: d.sumKey ?? null, filters: conditionsIn(d.where), breakdown: breakdown || null, measure, unit, sinceDays },
+    variables: { channelId, event: d.event || null, events: d.events ?? null, sumKey: d.sumKey ?? null, filters: readyConditions(d.where), breakdown: breakdown || null, measure, unit, sinceDays },
     skip: !channelId,
     fetchPolicy: 'cache-and-network',
   })
@@ -124,6 +126,7 @@ export function InsightsResult({ channelId, d, sinceDays, compact }: ResultProps
   const money = sum && (d.sumKey ?? '').endsWith('_cents')
   const fmt = (n: number) => (money ? formatCents(n, ins?.baseCurrency ?? 'USD') : formatNumber(n))
   const valueOf = (p: { value: number; amount: number }) => (sum ? p.amount : p.value)
+  const measureLabel = sum ? (isNetSales(d) ? 'Net sales' : `Sum of ${d.sumKey}`) : unique ? 'Unique people' : 'Total events'
   const delta = prev > 0 ? pct(cur - prev, prev) : null
   const seriesKeys = useMemo(() => (ins?.series ?? []).map((s) => s.key), [ins])
 
@@ -168,7 +171,6 @@ export function InsightsResult({ channelId, d, sinceDays, compact }: ResultProps
   const avgPerUnit = chartData.length ? Math.round(bucketTotals.reduce((a, b) => a + b, 0) / chartData.length) : 0
   const peakIdx = bucketTotals.reduce((bi, v, i, arr) => (v > arr[bi] ? i : bi), 0)
   const seriesTotal = (ins?.series ?? []).reduce((s, x) => s + (sum ? x.amount : x.total), 0) || 1
-  const measureLabel = sum ? (isNetSales(d) ? 'Net sales' : `Sum of ${d.sumKey}`) : unique ? 'Unique people' : 'Total events'
   const seriesLabel = (k: string) => (breakdown ? k : measureLabel)
 
   return (
@@ -259,4 +261,19 @@ export function InsightsResult({ channelId, d, sinceDays, compact }: ResultProps
       )}
     </State>
   )
+}
+
+export const insights: Kind = {
+  label: 'Insights',
+  menu: { label: 'Insights', hint: 'Count any event over time' },
+  describe: (d) => {
+    const events = eventsOf(d).join(', ') || 'any event'
+    const what = isNetSales(d) ? 'Net sales' : d.measure === 'sum' ? `Sum of ${d.sumKey} on ${events}` : `${d.measure === 'unique' ? 'People doing' : 'Count of'} ${events}`
+    const where = describeConditions(d.where)
+    return `${what}${where ? ` where ${where}` : ''}${d.breakdown ? ` by ${d.breakdown}` : ''}`
+  },
+  title: (d) => (isNetSales(d) ? 'Net sales' : d.event ? eventLabel(d.event) : 'All events'),
+  start: { kind: 'INSIGHTS', event: 'page_view', ...DEFAULTS },
+  Controls: InsightsControls,
+  Result: InsightsResult,
 }

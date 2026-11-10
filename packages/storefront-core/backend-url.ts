@@ -11,3 +11,5 @@ export const FRONT_API_URL = `${BACKEND_INTERNAL_URL}${
 }`;
 
 export const FRONT_MCP_URL = FRONT_API_URL.replace(/\/graphql$/, "/mcp");
+
+export const FRONT_ASSISTANT_URL = FRONT_API_URL.replace(/\/graphql$/, "/assistant");

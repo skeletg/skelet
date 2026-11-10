@@ -21,10 +21,6 @@ Visitors choose three categories. They follow Google's Consent Mode v2.
 
 The choice is stored in the `storefront_consent` cookie. It is strictly necessary, so it needs no consent itself.
 
-**Affiliate cookies.** CJ's `cje` and Awin's `awc` need advertising consent by default.
-`general/privacy/cj_cookie_necessary` and `general/privacy/awin_cookie_necessary` let them work without it, which some
-programmes require. Whether that is lawful where you sell is your decision.
-
 ## Orders follow the consent given at purchase
 
 Each order keeps a snapshot of the visitor's choices. Each part is kept only under the category it needs:
@@ -32,7 +28,7 @@ Each order keeps a snapshot of the visitor's choices. Each part is kept only und
 | Part | Needs |
 |---|---|
 | Visitor id | Analytics |
-| Click ids, IP address, browser | Advertising, or a necessary affiliate network |
+| Click ids, IP address, browser | Advertising |
 
 Events sent later about the order, such as a refund weeks after the purchase, follow the choices made at purchase,
 not the visitor's current ones. GDPR erasure clears the snapshot with the rest of the order's personal data.
@@ -44,6 +40,10 @@ views and checkout steps go through the shop's own `/t/e` path. No third-party s
 
 An event reaches a destination only when the visitor allowed every category that destination needs. An order placed
 by an admin or an API client has no banner choice behind it, so it reaches only destinations that need no consent.
+
+Each event is stored once while it waits to be sent. Within an hour of its last delivery, its personal data (email,
+phone, IP, click ids) is deleted. Only its key stays, for 48 hours, so a replay can't send it twice. A delivery that
+failed keeps its event for 30 days so it can be retried. Erasing a customer deletes their waiting and failed events.
 
 **Leaving a list needs no consent.** When a customer turns email marketing off, or their account is deleted or
 erased, destinations built to remove people - Google Ads Customer Match - are told whatever the visitor's cookie
@@ -71,6 +71,8 @@ They are counted as nobody, so that the shop's totals stay right:
   - Page paths are kept without their query string, and with ids in them (an order number, a reset token) replaced
     by `:id`.
   - Only amounts and items are kept from cart and order activity.
+  - Times are kept to the hour, and the key that stops an event being counted twice is hashed with a secret neither
+    database holds, so neither can be matched back to an order.
 - **They never appear as a person.** They appear in event totals and revenue. They are left out of unique-visitor
   counts, funnels, retention, profiles, RFM and segments.
   - The Insights page says how much of a total they make up.

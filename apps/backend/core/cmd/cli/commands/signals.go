@@ -2,20 +2,20 @@ package commands
 
 import (
 	"fmt"
-	"github.com/skeletg/skelet/apps/backend/core/internal/configstore"
-	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
-	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/configstore"
+	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/activity"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
+	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/dbconn"
 )
 
@@ -30,7 +30,8 @@ var signalsBackfillOrdersCmd = &cobra.Command{
 	Long: "For orders that never reached Signals: placed while the suite was off or unreachable for longer than the outbox retries, " +
 		"or guest orders from before guests without a visitor id were recorded - and for the order lines and refunded lines that " +
 		"product reports read, on orders from before they were recorded. Each lands at its original time. Edits made before then " +
-		"can't be replayed: the lines as they stood before an edit weren't kept.",
+		"can't be replayed: the lines as they stood before an edit weren't kept. " +
+		"An order placed without analytics consent already counts, so only its lines and refunds are replayed, as nobody.",
 	Args: cobra.NoArgs,
 	RunE: runSignalsBackfillOrders,
 }
@@ -60,9 +61,10 @@ func runSignalsBackfillOrders(cmd *cobra.Command, _ []string) error {
 	defer func() { _ = signals.Close() }()
 
 	repo := order.NewRepository(db.New(conn))
-	tracker := activity.NewTracker(signals, nil) // a backfill hands each order over, so the tracker never looks one up
+	// A backfill hands each order over, so the tracker never looks one up
 	q := db.New(conn)
-	tracker.SetSales(nil, activity.BaseConverter(config.NewService(configstore.New(q)), currency.NewService(currency.NewRepository(q))))
+	cfg := config.NewService(configstore.New(q))
+	tracker := activity.NewTracker(signals, nil, cfg, q, currency.NewBaseRates(cfg, currency.NewService(currency.NewRepository(q))))
 	ctx := cmd.Context()
 	const page = 500
 	processed, skipped := 0, 0

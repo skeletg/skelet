@@ -151,6 +151,31 @@ With no usable header the resolution order is: the active channel's default loca
 Missing translations fall back rather than blanking: an untranslated field keeps the
 canonical value.
 
+### Emails in the shopper's language
+
+An order remembers the storefront language it was placed in, and a customer the one they
+signed up and last signed in with. Signals sends an email in that language when the email
+has a version written for it - pick the language at the top of the email's settings, and a
+language with no version yet opens as a copy of the default to translate in place. A
+regional locale reads its language's version (`de-at` gets `de`), and anything else gets the
+email as written.
+
+What decides the language:
+
+- **Order emails** - the order's language. A draft or exchange order an admin makes takes
+  the customer's language, or the original order's.
+- **Account emails** (verification, password reset) - the storefront the shopper is on, and
+  the customer's own language when the request doesn't say.
+- **Campaigns, marketing flows and cart offers** - the customer's language, from the roster.
+  A newsletter subscriber gets the language of the storefront they signed up on. An A/B
+  test's second subject only goes to people reading the email as written, since it's written
+  in that language.
+
+The picker flags a version saved before the email last changed, so it's easy to spot one
+that needs another look.
+
+The built-in emails core sends when Signals is off are English only.
+
 ## Currency
 
 Each channel holds one currency, and that is what the cart charges and the order settles in.

@@ -2,56 +2,77 @@ package board
 
 import (
 	"errors"
+	"reflect"
+	"strings"
 	"testing"
 )
 
-func TestParseDefinitionRefusesWhatItDoesntKnow(t *testing.T) {
-	for name, raw := range map[string]string{
-		"unknown field":      `{"kind":"insights","evnt":"page_view"}`,
-		"unknown kind":       `{"kind":"pie"}`,
-		"one-step funnel":    `{"kind":"funnel","steps":["page_view"]}`,
-		"filter off a step":  `{"kind":"funnel","steps":["a","b"],"filters":[{"step":2,"key":"device","value":"x"}]}`,
-		"retention, no end":  `{"kind":"retention","startEvent":"order_placed"}`,
-		"flow without focus": `{"kind":"flow"}`,
-		"bad unit":           `{"kind":"insights","unit":"hour"}`,
-		"period too long":    `{"kind":"insights","sinceDays":400}`,
-		"not json":           `kind: insights`,
-		"bad size":           `{"kind":"insights","size":"huge"}`,
-		"window too long":    `{"kind":"stickiness","windowDays":400}`,
-		"a sum of nothing":   `{"kind":"insights","measure":"sum"}`,
-		"a bad operator":     `{"kind":"insights","where":[{"key":"sku","op":"like","values":["X"]}]}`,
-		"= with two values":  `{"kind":"stickiness","where":[{"key":"sku","op":"eq","values":["X","Y"]}]}`,
+func TestDefinitionRefusesWhatItsKindCantRun(t *testing.T) {
+	for name, d := range map[string]Definition{
+		"unknown kind":       {Kind: "pie"},
+		"one-step funnel":    {Kind: "funnel", Steps: []string{"page_view"}},
+		"filter off a step":  {Kind: "funnel", Steps: []string{"a", "b"}, Filters: []Filter{{Step: 2, Key: "device", Value: "x"}}},
+		"retention, no end":  {Kind: "retention", StartEvent: "order_placed"},
+		"flow without focus": {Kind: "flow"},
+		"bad unit":           {Kind: "insights", Unit: "hour"},
+		"period too long":    {Kind: "insights", SinceDays: 400},
+		"window too long":    {Kind: "stickiness", WindowDays: 400},
+		"a sum of nothing":   {Kind: "insights", Measure: "sum"},
+		"a bad operator":     {Kind: "insights", Where: []Condition{{Key: "sku", Op: "like", Values: []string{"X"}}}},
+		"= with two values":  {Kind: "stickiness", Where: []Condition{{Key: "sku", Op: "eq", Values: []string{"X", "Y"}}}},
 	} {
-		if _, err := ParseDefinition([]byte(raw)); !errors.Is(err, ErrInvalid) {
+		if err := d.validate(); !errors.Is(err, ErrInvalid) {
 			t.Errorf("%s: err = %v, want ErrInvalid", name, err)
 		}
 	}
-	d, err := ParseDefinition([]byte(`{"kind":"funnel","steps":["page_view","order_placed"],"filters":[{"step":0,"key":"device","value":"mobile"}],"windowHours":24,"breakdown":"device"}`))
-	if err != nil || d.WindowHours != 24 || len(d.Filters) != 1 || d.Breakdown != "device" {
-		t.Fatalf("a valid funnel = %+v, %v", d, err)
+	funnel := Definition{Kind: "funnel", Steps: []string{"page_view", "order_placed"}, Filters: []Filter{{Step: 0, Key: "device", Value: "mobile"}}, WindowHours: 24, Breakdown: "device"}
+	if err := funnel.validate(); err != nil {
+		t.Fatalf("a valid funnel: %v", err)
 	}
-	if d, err := ParseDefinition([]byte(`{"kind":"insights","size":"full"}`)); err != nil || d.Size != "full" {
-		t.Fatalf("a full-width tile = %+v, %v", d, err)
-	}
-	netSales := `{"kind":"insights","events":["order_line","order_line_adjusted","refund_line"],"measure":"sum","sumKey":"net_base_cents","where":[{"key":"sku","op":"in","values":["X","Y"]}]}`
-	if d, err := ParseDefinition([]byte(netSales)); err != nil || d.SumKey != "net_base_cents" || len(d.Where[0].Values) != 2 {
-		t.Fatalf("net sales for two products = %+v, %v", d, err)
-	}
-	if d, err := ParseDefinition([]byte(`{"kind":"flow","event":"view_item","notThen":"cart_add","notThenWithinHours":24}`)); err != nil || d.NotThen != "cart_add" {
-		t.Fatalf("a drop-off flow = %+v, %v", d, err)
-	}
-	if d, err := ParseDefinition([]byte(`{"kind":"stickiness","windowDays":14}`)); err != nil || d.WindowDays != 14 {
-		t.Fatalf("a 14-day return window = %+v, %v", d, err)
+	netSales := Definition{Kind: "insights", Events: []string{"order_line", "order_line_adjusted", "refund_line"}, Measure: "sum", SumKey: "net_base_cents",
+		Where: []Condition{{Key: "sku", Op: "in", Values: []string{"X", "Y"}}}}
+	dropOff := Definition{Kind: "flow", Event: "view_item", NotThen: "cart_add", NotThenWithinHours: 24}
+	for _, d := range []Definition{{Kind: "stickiness", WindowDays: 14}, netSales, dropOff} {
+		if err := d.validate(); err != nil {
+			t.Fatalf("%+v: %v", d, err)
+		}
 	}
 }
 
+// CreateStarters stores them as they are, so each must already be what normalized makes of it
 func TestEveryStarterBoardIsValid(t *testing.T) {
 	if len(Starters) != 4 {
 		t.Fatalf("%d starter boards, want the four areas", len(Starters))
 	}
 	for _, b := range Starters {
-		if err := b.validate(); err != nil {
+		n, err := b.normalized()
+		if err != nil {
 			t.Errorf("%s: %v", b.Name, err)
+		} else if !reflect.DeepEqual(n, b) {
+			t.Errorf("%s isn't stored as written: %+v", b.Name, n)
+		}
+	}
+}
+
+func TestNameLimitCountsCharacters(t *testing.T) {
+	if _, err := (Board{Name: strings.Repeat("ж", maxName)}).normalized(); err != nil {
+		t.Errorf("a %d-letter Cyrillic name was refused: %v", maxName, err)
+	}
+	if _, err := (Board{Name: strings.Repeat("ж", maxName+1)}).normalized(); !errors.Is(err, ErrInvalid) {
+		t.Errorf("a name over the limit: %v, want ErrInvalid", err)
+	}
+}
+
+func TestReportSizeIsSmallMediumOrFull(t *testing.T) {
+	board := func(size string) Board {
+		return Board{Name: "Mine", Reports: []Report{{Title: "Buyers", Size: size, Definition: Definition{Kind: "stickiness"}}}}
+	}
+	if _, err := board("huge").normalized(); !errors.Is(err, ErrInvalid) {
+		t.Errorf("size huge: err = %v, want ErrInvalid", err)
+	}
+	for _, size := range []string{"", "small", "medium", "full"} {
+		if _, err := board(size).normalized(); err != nil {
+			t.Errorf("size %q: %v", size, err)
 		}
 	}
 }

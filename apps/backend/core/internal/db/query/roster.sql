@@ -3,7 +3,7 @@
 -- Both consent joins resolve to the registry default when no row exists, which for marketing is opted out
 -- Keyset-paged so a delete mid-sweep can't shift a customer off a page; read_at stops an older push overwriting a newer one
 -- Lifetime order totals ride along, since the suite's event log only keeps a year
-SELECT c.id AS customer_id, c.channel_id, c.email, c.first_name,
+SELECT c.id AS customer_id, c.channel_id, c.email, c.first_name, c.locale,
        COALESCE(c.phone, '')::text AS phone, c.is_active, c.customer_group_id,
        COALESCE(g.slug, '')::text AS customer_group_slug,
        COALESCE(k.opted_in, false)::boolean AS marketing_opted_in,
@@ -27,7 +27,7 @@ LIMIT sqlc.arg(lim);
 
 -- name: CustomerRosterEntry :one
 -- One customer for the event-driven push, shaped exactly like a page row
-SELECT c.id AS customer_id, c.channel_id, c.email, c.first_name,
+SELECT c.id AS customer_id, c.channel_id, c.email, c.first_name, c.locale,
        COALESCE(c.phone, '')::text AS phone, c.is_active, c.customer_group_id,
        COALESCE(g.slug, '')::text AS customer_group_slug,
        COALESCE(k.opted_in, false)::boolean AS marketing_opted_in,

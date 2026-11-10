@@ -11,9 +11,17 @@ type LensOverview {
   planIssues:   [LensPlanIssue!]!    # Data health: what ingest stripped against the tracking plan, most frequent first
 }
 
-# One kind of tracking-plan breach in the window (docs/tracking-plan.md)
+# What ingest dropped against the tracking plan (docs/tracking-plan.md)
+enum LensPlanIssueKind {
+  UNKNOWN_EVENT # a $ event the plan doesn't have - the whole event
+  UNKNOWN_PROP  # a property the event's plan entry doesn't list
+  BAD_TYPE      # a planned property with the wrong type
+  SERVER_PROP   # a property only the server may set
+}
+
+# One kind of tracking-plan breach in the window
 type LensPlanIssue {
-  kind:  String!   # plan_unknown_event | plan_unknown_prop | plan_bad_type | plan_server_prop
+  kind:  LensPlanIssueKind!
   event: String!   # the event name, or "custom" for a merchant-named event
   prop:  String!   # empty when the whole event was dropped
   count: Int!
@@ -209,6 +217,7 @@ type LensSearchDay {
   date:        String!  # YYYY-MM-DD
   searches:    Int!
   zeroResults: Int!
+  meaningOnly: Int!
 }
 type LensSearchAnalytics {
   totalSearches:      Int!
@@ -216,7 +225,25 @@ type LensSearchAnalytics {
   zeroResultSearches: Int!
   top:                [LensSearchTerm!]!   # most-searched terms
   zeroResult:         [LensSearchTerm!]!   # searches that returned nothing (merchandising gaps)
+  meaningOnlySearches: Int!
+  meaningOnly:        [LensSearchTerm!]!   # searches whose words matched nothing, answered by meaning alone
   daily:              [LensSearchDay!]!    # daily search + zero-result volume
+  aiGaps:             [LensAISearchGap!]!  # what shoppers asked the assistant or their own AI agents for that came back empty
+  overviewsShown:     Int!
+  overviewClicks:     Int!                 # a product named in an overview followed
+  overviewChats:      Int!                 # an overview carried into the chat
+  overviews:          [LensOverviewTerm!]! # the same, per search
+}
+type LensAISearchGap {
+  term:      String!
+  assistant: Int!
+  agents:    Int!
+}
+type LensOverviewTerm {
+  term:   String!
+  shown:  Int!
+  clicks: Int!
+  chats:  Int!
 }
 
 # p75 web vitals per page (nullable when a page has no sample for that metric).

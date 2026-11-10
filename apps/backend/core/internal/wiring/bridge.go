@@ -11,6 +11,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/adminaction"
 	"github.com/skeletg/skelet/apps/backend/core/internal/adminprefs"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
+	"github.com/skeletg/skelet/apps/backend/core/internal/aiusage"
 	"github.com/skeletg/skelet/apps/backend/core/internal/audit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/backinstock"
 	"github.com/skeletg/skelet/apps/backend/core/internal/blog"
@@ -26,6 +27,7 @@ import (
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/delivery"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
+	"github.com/skeletg/skelet/apps/backend/core/internal/embedding"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/internal/integration"
@@ -123,6 +125,7 @@ type Svcs struct {
 	Promotion    *promotion.Service
 	SegmentReads *SegmentLookup
 	Sales        *sales.Service
+	AIUsage      *aiusage.Service
 	URLRewrite   *urlrewrite.Service
 	Inventory    *inventory.Service
 	Giftcard     *giftcard.Service
@@ -158,14 +161,16 @@ type Svcs struct {
 	RevalidateCli   *revalidate.Client
 	RevalidateQueue *revalidate.Queue
 
-	Customer  *customer.Service
-	CartRepo  cart.Repository
-	Cart      *cart.Service
-	Order     *order.Service
-	OrderMail *ordermail.Service
-	Catalog   *catalog.Service
-	Recommend *recommend.Service
-	Outbox    *outbox.Outbox
+	Customer   *customer.Service
+	CartRepo   cart.Repository
+	Cart       *cart.Service
+	Order      *order.Service
+	OrderMail  *ordermail.Service
+	Catalog    *catalog.Service
+	Recommend  *recommend.Service
+	Outbox     *outbox.Outbox
+	Meaning    *embedding.Searcher
+	Embeddings *embedding.Indexer
 
 	Flows               *enroll.Enroller
 	BackInStock         *backinstock.Service

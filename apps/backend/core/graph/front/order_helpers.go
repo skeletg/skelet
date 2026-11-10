@@ -1,6 +1,7 @@
 package front
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"strings"
@@ -13,16 +14,21 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/delivery"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
+	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
 	"github.com/skeletg/skelet/apps/backend/core/internal/paymentvault"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
 
 func toOrderModel(o order.Order) *model.Order {
-	var paymentClientSecret *string // PaymentActionSecret is transient - it only ever rides the placement response
+	var paymentClientSecret, paymentActionKind *string // PaymentActionSecret is transient - it only ever rides the placement response
 	if o.PaymentActionSecret != "" {
-		v := o.PaymentActionSecret
-		paymentClientSecret = &v
+		v, kind := o.PaymentActionSecret, cmp.Or(o.PaymentActionKind, string(payment.ActionChallenge))
+		paymentClientSecret, paymentActionKind = &v, &kind
+	}
+	var paymentFailed *bool
+	if o.PaymentFailed {
+		paymentFailed = &o.PaymentFailed
 	}
 
 	lines := make([]*model.OrderLine, len(o.Lines))
@@ -40,6 +46,8 @@ func toOrderModel(o order.Order) *model.Order {
 		PaymentStatus:       model.PaymentStatus(strings.ToUpper(o.PaymentStatus)),
 		PaymentProvider:     o.PaymentProvider,
 		PaymentClientSecret: paymentClientSecret,
+		PaymentActionKind:   paymentActionKind,
+		PaymentFailed:       paymentFailed,
 		BillingAddress:      toOrderAddressModel(o.BillingAddress),
 		ShippingAddress:     toOrderAddressModel(o.ShippingAddress),
 		Lines:               lines,
@@ -48,6 +56,7 @@ func toOrderModel(o order.Order) *model.Order {
 		ShippingAmount:      int32(o.ShippingAmount),
 		DiscountAmount:      int32(o.DiscountAmount),
 		TaxAmount:           int32(o.TaxAmount),
+		TaxIncluded:         o.TaxIncluded(),
 		Total:               int32(o.TotalAmount),
 		GiftCardAmount:      int32(o.GiftCardAmount),
 		StoreCreditAmount:   int32(o.StoreCreditAmount),

@@ -2,7 +2,6 @@ package signalsgrpc
 
 import (
 	"context"
-	"net/http"
 	"testing"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	signalsdb "github.com/skeletg/skelet/apps/backend/signals/internal/db/sqlc"
-	"github.com/skeletg/skelet/apps/backend/signals/internal/destination"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/emailtemplate"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/experiment"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/lens"
@@ -27,10 +25,11 @@ func grantOn(slug string, channelID uuid.UUID) auth.Grant {
 
 func TestAChannelGrantCannotNameAnotherChannel(t *testing.T) {
 	conn := testConn(t)
-	prism, dest, pulse := signalsv1.NewPrismServiceClient(conn), signalsv1.NewDestinationServiceClient(conn), signalsv1.NewPulseServiceClient(conn)
+	prism, pulse := signalsv1.NewPrismServiceClient(conn), signalsv1.NewPulseServiceClient(conn)
+	assistant := signalsv1.NewAssistantServiceClient(conn)
 	mine, theirs := uuid.New(), uuid.New()
 	ctx := tokenCtx(t,
-		grantOn("experiments.manage", mine), grantOn("settings.manage", mine), grantOn("emails.view", mine))
+		grantOn("experiments.manage", mine), grantOn("emails.view", mine), grantOn("assistant.view", mine))
 	other := theirs.String()
 
 	for name, call := range map[string]func() error{
@@ -50,16 +49,20 @@ func TestAChannelGrantCannotNameAnotherChannel(t *testing.T) {
 			_, e := prism.CreateExperiment(ctx, &signalsv1.CreateExperimentRequest{Experiment: &signalsv1.ExperimentInput{ChannelId: other, Key: "k", Name: "n"}})
 			return e
 		},
-		"ListDestinations": func() error {
-			_, e := dest.ListDestinations(ctx, &signalsv1.ListDestinationsRequest{ChannelId: other})
-			return e
-		},
-		"CreateDestination": func() error {
-			_, e := dest.CreateDestination(ctx, &signalsv1.CreateDestinationRequest{Destination: &signalsv1.DestinationInput{ChannelId: other, Name: "n"}})
-			return e
-		},
 		"GetEngagement": func() error {
 			_, e := pulse.GetEngagement(ctx, &signalsv1.GetEngagementRequest{ChannelId: other})
+			return e
+		},
+		"ListAssistantConversations": func() error {
+			_, e := assistant.ListAssistantConversations(ctx, &signalsv1.ListAssistantConversationsRequest{ChannelId: other})
+			return e
+		},
+		"GetAssistantConversation": func() error {
+			_, e := assistant.GetAssistantConversation(ctx, &signalsv1.GetAssistantConversationRequest{ChannelId: other, ConversationId: uuid.NewString()})
+			return e
+		},
+		"GetAssistantTurnRounds": func() error {
+			_, e := assistant.GetAssistantTurnRounds(ctx, &signalsv1.GetAssistantTurnRoundsRequest{ChannelId: other, TurnId: uuid.NewString()})
 			return e
 		},
 	} {
@@ -72,13 +75,6 @@ func TestAChannelGrantCannotNameAnotherChannel(t *testing.T) {
 	}
 }
 
-type allowAllGuard struct{}
-
-func (allowAllGuard) ValidateTargetURL(string, bool) error { return nil }
-func (allowAllGuard) SafeTransport(bool) *http.Transport {
-	return http.DefaultTransport.(*http.Transport)
-}
-
 func channelScopeServer(t *testing.T) (*signalsdb.Queries, Deps) {
 	t.Helper()
 	conn := testdb.RequireSignals(t)
@@ -87,7 +83,6 @@ func channelScopeServer(t *testing.T) (*signalsdb.Queries, Deps) {
 		ServiceKeys: testKeys,
 		Channels:    analytics.NewChannelRoster(nil),
 		Experiment:  experiment.NewService(experiment.NewRepository(qs, nil)),
-		Destination: destination.NewService(qs, nil, allowAllGuard{}, nil, true),
 		Lens:        lens.NewService(qs, nil, nil, nil),
 		Builder:     emailtemplate.NewService(emailtemplate.NewRepository(qs), nil),
 	}
@@ -135,56 +130,6 @@ func TestAnExperimentByIdIsGatedOnItsOwnChannel(t *testing.T) {
 	}
 	if _, err := c.GetExperiment(tokenCtx(t, grantOn("experiments.view", theirs)), &signalsv1.GetExperimentRequest{Id: id}); err != nil {
 		t.Errorf("a grant on the experiment's own channel was refused: %v", err)
-	}
-}
-
-func TestADestinationByIdIsGatedOnItsOwnChannel(t *testing.T) {
-	qs, deps := channelScopeServer(t)
-	c := signalsv1.NewDestinationServiceClient(dial(t, deps))
-	mine, theirs := uuid.New(), uuid.New()
-	row, err := qs.CreateEventDestination(context.Background(), signalsdb.CreateEventDestinationParams{
-		ChannelID: theirs, Name: "theirs", Kind: destination.KindWebhook, TargetUrl: "https://theirs.example/hook",
-		EventSources: []string{}, EventNames: []string{}, IsActive: true,
-	})
-	if err != nil {
-		t.Fatalf("seed destination: %v", err)
-	}
-	id := row.ID.String()
-	ctx := tokenCtx(t, grantOn("settings.manage", mine))
-
-	for name, call := range map[string]func() error{
-		"GetDestination": func() error {
-			_, e := c.GetDestination(ctx, &signalsv1.GetDestinationRequest{Id: id})
-			return e
-		},
-		"UpdateDestination": func() error {
-			_, e := c.UpdateDestination(ctx, &signalsv1.UpdateDestinationRequest{Id: id, Destination: &signalsv1.DestinationInput{
-				ChannelId: mine.String(), Name: "mine", Kind: destination.KindWebhook, TargetUrl: "https://attacker.example/hook",
-			}})
-			return e
-		},
-		"DeleteDestination": func() error {
-			_, e := c.DeleteDestination(ctx, &signalsv1.DeleteDestinationRequest{Id: id})
-			return e
-		},
-		"SyncAudience": func() error {
-			_, e := c.SyncAudience(ctx, &signalsv1.SyncAudienceRequest{SegmentId: uuid.New().String(), DestinationId: id})
-			return e
-		},
-	} {
-		if got := status.Code(call()); got != codes.PermissionDenied {
-			t.Errorf("%s on another channel's destination answered %s, want PermissionDenied", name, got)
-		}
-	}
-	after, err := qs.GetEventDestination(context.Background(), row.ID)
-	if err != nil {
-		t.Fatalf("the destination is gone: %v", err)
-	}
-	if after.TargetUrl != "https://theirs.example/hook" {
-		t.Errorf("the target was repointed through a foreign grant: %q", after.TargetUrl)
-	}
-	if _, err := c.GetDestination(tokenCtx(t, grantOn("settings.manage", theirs)), &signalsv1.GetDestinationRequest{Id: id}); err != nil {
-		t.Errorf("a grant on the destination's own channel was refused: %v", err)
 	}
 }
 
@@ -271,5 +216,54 @@ func TestAReplayFlushCannotJoinAForeignSession(t *testing.T) {
 	}
 	if n, err := qs.LensUpsertSession(bg, seed); err != nil || n != 1 {
 		t.Errorf("the owner's own next flush was refused: n=%d err=%v", n, err)
+	}
+}
+
+// An email's language versions belong to its channel: its own admin writes, reads, replaces and drops them, and a
+// grant on another channel touches none of it
+func TestAnEmailsTranslationsStayOnItsChannel(t *testing.T) {
+	_, deps := channelScopeServer(t)
+	c := signalsv1.NewEmailBuilderServiceClient(dial(t, deps))
+	mine, theirs := uuid.New(), uuid.New()
+	e, err := deps.Builder.CreateLibraryEmail(context.Background(), emailtemplate.LibraryEmail{ChannelID: mine, Name: "Order confirmed", Subject: "Thanks"})
+	if err != nil {
+		t.Fatalf("seed email: %v", err)
+	}
+	own := tokenCtx(t, grantOn("emails.manage", mine), grantOn("emails.view", mine))
+	other := tokenCtx(t, grantOn("emails.manage", theirs), grantOn("emails.view", theirs))
+	save := func(ctx context.Context, subject string) error {
+		_, err := c.SaveEmailTranslation(ctx, &signalsv1.SaveEmailTranslationRequest{Translation: &signalsv1.EmailTranslation{
+			EmailId: e.ID.String(), Locale: "DE", Subject: subject, BlocksJson: `[{"type":"text","content":"Hallo"}]`,
+		}})
+		return err
+	}
+
+	if got := status.Code(save(other, "Fremd")); got != codes.PermissionDenied {
+		t.Errorf("another channel's admin saving a translation answered %s, want PermissionDenied", got)
+	}
+	if err := save(own, "Danke"); err != nil {
+		t.Fatalf("own admin saving: %v", err)
+	}
+	if err := save(own, "Vielen Dank"); err != nil {
+		t.Fatalf("own admin replacing: %v", err)
+	}
+	if _, err := c.ListEmailTranslations(other, &signalsv1.ListEmailTranslationsRequest{EmailId: e.ID.String()}); status.Code(err) != codes.PermissionDenied {
+		t.Errorf("another channel listing translations answered %v, want PermissionDenied", status.Code(err))
+	}
+	res, err := c.ListEmailTranslations(own, &signalsv1.ListEmailTranslationsRequest{EmailId: e.ID.String()})
+	if err != nil || len(res.GetTranslations()) != 1 || res.GetTranslations()[0].GetLocale() != "de" || res.GetTranslations()[0].GetSubject() != "Vielen Dank" {
+		t.Fatalf("listed %v, %v - want one de version, replaced", res.GetTranslations(), err)
+	}
+	if got, _ := deps.Builder.Localize(context.Background(), e, "de-at"); got.Subject != "Vielen Dank" {
+		t.Errorf("a de-at shopper gets %q, want the de version", got.Subject)
+	}
+	if _, err := c.DeleteEmailTranslation(other, &signalsv1.DeleteEmailTranslationRequest{EmailId: e.ID.String(), Locale: "de"}); status.Code(err) != codes.PermissionDenied {
+		t.Errorf("another channel deleting answered %v, want PermissionDenied", status.Code(err))
+	}
+	if _, err := c.DeleteEmailTranslation(own, &signalsv1.DeleteEmailTranslationRequest{EmailId: e.ID.String(), Locale: "de"}); err != nil {
+		t.Fatalf("own admin deleting: %v", err)
+	}
+	if got, ok := deps.Builder.Localize(context.Background(), e, "de"); got.Subject != "Thanks" || ok {
+		t.Errorf("after the delete a de shopper gets %q, want the email itself", got.Subject)
 	}
 }

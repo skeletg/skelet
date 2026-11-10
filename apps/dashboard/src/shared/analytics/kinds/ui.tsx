@@ -3,18 +3,6 @@ import { cn } from '@/lib/utils'
 import { formatNumber } from '@/lib/format'
 import { eventLabel } from '@/features/synapse/eventLabel'
 import { SynapseOverviewDocument } from '@/features/synapse/Synapse.gql'
-import type { ReportDefinition } from '../report'
-
-// What every kind's controls and result take - the board's sheet and the report pages hand them the same props
-export type ControlsProps = { channelId: string; value: ReportDefinition; onChange: (next: ReportDefinition) => void }
-export type ResultProps = {
-  channelId: string
-  d: ReportDefinition
-  sinceDays: number
-  compact?: boolean
-  // Where a result can put a report it leads to - "see where the people who dropped off went" - on the board or a page
-  onAddReport?: (title: string, d: ReportDefinition) => void
-}
 
 export const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0)
 

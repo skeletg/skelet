@@ -53,8 +53,21 @@ func TestApplyPlanOnNamedEvents(t *testing.T) {
 	if keep, issues := ApplyPlan("$search", map[string]any{"query": "shirt", "results": 3.0}); !keep || len(issues) != 0 {
 		t.Fatalf("a clean $search: keep=%v issues=%v", keep, issues)
 	}
+	meaning := map[string]any{"query": "something warm", "results": 4.0, "byMeaningOnly": true}
+	if keep, issues := ApplyPlan("$search", meaning); !keep || len(issues) != 0 || meaning["byMeaningOnly"] != true {
+		t.Fatalf("a search only meaning answered: keep=%v issues=%v props=%v - want the flag kept for the meaning-only figures", keep, issues, meaning)
+	}
+	shown := map[string]any{"query": "linen", "products": 2.0, "cart": map[string]any{}}
+	if keep, issues := ApplyPlan(EventOverviewShown, shown); !keep || len(issues) != 1 || shown["query"] != "linen" || shown["products"] != 2.0 {
+		t.Fatalf("an AI overview shown: keep=%v issues=%v props=%v", keep, issues, shown)
+	}
 	if _, issues := ApplyPlan("$search", map[string]any{"results": "3"}); len(issues) != 1 || issues[0].Kind != IssueBadType {
 		t.Fatalf("results as a string: %v, want a bad type", issues)
+	}
+	// The tracker's own rage click, label included - the top rage elements list reads text
+	rage := map[string]any{"x": 10.0, "y": 20.0, "selector": "button.add", "text": "Add to cart", "sessionId": "s1"}
+	if keep, issues := ApplyPlan("$rage_click", rage); !keep || len(issues) != 0 || rage["text"] != "Add to cart" {
+		t.Fatalf("the tracker's rage click: keep=%v issues=%v props=%v", keep, issues, rage)
 	}
 }
 
@@ -75,6 +88,18 @@ func TestEveryPlannedPropertyHasAKnownType(t *testing.T) {
 			if serverProps[k] {
 				t.Errorf("%s plans %s, which only the server may set", e.Name, k)
 			}
+		}
+	}
+}
+
+func TestAPlanIssueRoundTripsThroughItsKey(t *testing.T) {
+	for _, is := range []PlanIssue{
+		{Kind: IssueUnknownProp, Event: EventPageView, Prop: "coupon"},
+		{Kind: IssueBadType, Event: CustomEvent, Prop: "a.b"}, // a merchant's property name may hold a dot
+		{Kind: IssueUnknownEvent, Event: "$made.up"},          // so may an unknown event's name, which has no property
+	} {
+		if got := ParsePlanIssue(is.Kind, is.Key()); got != is {
+			t.Errorf("%+v came back as %+v", is, got)
 		}
 	}
 }

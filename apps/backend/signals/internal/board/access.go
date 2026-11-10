@@ -23,12 +23,10 @@ func (a Access) String() string {
 }
 
 const (
-	StatusDraft     = "draft"
-	StatusPublished = "published"
-	ShareView       = "view"
-	ShareEdit       = "edit"
-	maxShares       = 100
-	maxDraft        = 256 << 10
+	ShareView = "view"
+	ShareEdit = "edit"
+	maxShares = 100
+	maxDraft  = 256 << 10
 	// DraftKeep is how long unsaved edits wait for their admin to come back
 	DraftKeep = 30 * 24 * time.Hour
 )
@@ -51,27 +49,35 @@ type Share struct {
 	Level   string
 }
 
-// Draft is an admin's unsaved edits to a board, as the dashboard staged them
+// AccessRequest is an admin who opened a board they can't see asking its owner for a level on it
+type AccessRequest struct {
+	AdminID     uuid.UUID
+	Level       string
+	RequestedAt time.Time
+}
+
+// Draft is an admin's unsaved edits to a board, as the dashboard staged them. It's held to its shape, not to Save's
+// rules - work in progress, such as a one-step funnel, has to be keepable
 type Draft struct {
-	Payload       []byte
-	BaseUpdatedAt time.Time
-	UpdatedAt     time.Time
+	Name          string
+	Reports       []DraftReport
+	BaseUpdatedAt time.Time `json:"-"`
+	UpdatedAt     time.Time `json:"-"`
+}
+
+// DraftReport is a report as staged, and the position of the saved report it is - nil for one added in the draft
+type DraftReport struct {
+	Report
+	From *int
 }
 
 // access is the one answer to "what may this admin do with this board" - every check in the service goes through it
 //
-//   - a draft is its owner's alone
 //   - the owner owns it; a superuser can do anything
 //   - a shop board (no owner) is everyone's on the shop to view, and theirs to manage with boards.manage
 //   - otherwise the best of the shares to the admin or to a role they hold
-func access(b Board, shares []Share, a Actor) Access {
+func access(b Ownership, shares []Share, a Actor) Access {
 	mine := b.OwnerID != uuid.Nil && b.OwnerID == a.AdminID
-	if b.Status == StatusDraft {
-		if mine || a.Superuser {
-			return Own
-		}
-		return NoAccess
-	}
 	if mine || a.Superuser {
 		return Own
 	}

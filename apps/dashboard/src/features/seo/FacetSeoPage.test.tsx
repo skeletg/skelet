@@ -43,6 +43,7 @@ const combos = {
   type: 'TEXTAREA',
   value: 'brand + size',
   isSet: true,
+  maxLength: null,
   options: [],
   isDefault: false,
   public: false,

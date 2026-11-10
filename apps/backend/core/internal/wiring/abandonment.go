@@ -44,6 +44,7 @@ type abandonedCarts interface {
 
 type cartAbandonEnroller interface {
 	OnCartAbandoned(ctx context.Context, channelID, customerID uuid.UUID, to string, cartID uuid.UUID, lastActivity time.Time) error
+	OnAssistedCartAbandoned(ctx context.Context, channelID, customerID uuid.UUID, to string, cartID uuid.UUID, lastActivity time.Time) (bool, error)
 }
 
 func runCartAbandonment(ctx context.Context, channels []uuid.UUID, cfg intSettings, carts abandonedCarts, flows cartAbandonEnroller, now time.Time) error {
@@ -69,7 +70,7 @@ func cartAbandonmentFor(ctx context.Context, ch uuid.UUID, cfg intSettings, cart
 	done := make([]uuid.UUID, 0, len(list))
 	var unreached error
 	for _, c := range list {
-		if err := flows.OnCartAbandoned(ctx, c.ChannelID, c.CustomerID, c.Email, c.ID, c.LastActivity); err != nil {
+		if err := abandon(ctx, flows, c); err != nil {
 			unreached = err
 			break
 		}
@@ -79,6 +80,17 @@ func cartAbandonmentFor(ctx context.Context, ch uuid.UUID, cfg intSettings, cart
 		return err
 	}
 	return unreached
+}
+
+// A cart the assistant filled goes to a flow built for it, and to the usual recovery when none takes it
+func abandon(ctx context.Context, flows cartAbandonEnroller, c cart.AbandonedCart) error {
+	if c.AssistedBy == cart.AssistedAssistant {
+		taken, err := flows.OnAssistedCartAbandoned(ctx, c.ChannelID, c.CustomerID, c.Email, c.ID, c.LastActivity)
+		if err != nil || taken {
+			return err
+		}
+	}
+	return flows.OnCartAbandoned(ctx, c.ChannelID, c.CustomerID, c.Email, c.ID, c.LastActivity)
 }
 
 type browseAbandonSource interface {

@@ -220,6 +220,18 @@ tree at any depth (the nested tree queries stop at a fixed depth). Creating a ca
 CHANNEL mode auto-fires `setCategoryListing` on the active channel so
 new categories show up where the user is working.
 
+**Anchor categories**: a category is an anchor unless it's switched off
+(`isAnchor`, on by default). Its storefront page - `browseProducts` with a
+`categoryId` - lists the products of every category beneath it that the
+channel shows (published, and listed published on the channel, as its menu
+has it) as well as its own, so a parent like "Apparel" shows its
+subcategories' products without each one being assigned to it. A
+subcategory the channel hides hides its whole branch. The tree is read when
+the page is browsed rather than indexed, so moving a category takes effect
+at once, and a remote search engine receives it as `categoryIds`, which
+supersedes `categoryId`. `Category.products` stays the category's own
+products, and the category CSV carries the flag as `is_anchor`.
+
 **Events** (`internal/events/`): `Publish` (async, background goroutine,
 errors logged, panics recovered) · `PublishSync` (blocking, first error
 aborts chain). `-ing` events = pre-commit sync (can abort/enrich).

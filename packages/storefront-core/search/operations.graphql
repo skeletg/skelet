@@ -24,3 +24,15 @@ query SearchBlogPosts($query: String!, $limit: Int, $offset: Int) {
     }
   }
 }
+
+query SearchOverview($query: String!) {
+  searchOverview(query: $query) {
+    text
+    recap
+    products {
+      id
+      name
+      url
+    }
+  }
+}

@@ -90,6 +90,26 @@ func GetOrCreateCustomerCart(ctx context.Context, repo Repository, customerID, c
 	return cart, nil
 }
 
+// FindCustomerCart is GetOrCreateCart for a caller that only reads - false when the customer has no cart on the store yet
+func (s *Service) FindCustomerCart(ctx context.Context, customerID, channelID uuid.UUID) (Cart, bool, error) {
+	cart, err := s.repo.GetCartByCustomerAndChannel(ctx, customerID, channelID)
+	if IsSQLNoRows(err) {
+		return Cart{}, false, nil
+	}
+	if err != nil {
+		return Cart{}, false, fmt.Errorf("get cart: %w", err)
+	}
+	if cart.Lines, err = s.repo.ListCartLinesByCart(ctx, cart.ID); err != nil {
+		return Cart{}, false, fmt.Errorf("load cart lines: %w", err)
+	}
+	return cart, true, nil
+}
+
+// MarkAssisted credits the helper, and for the assistant remembers the turn's trace so the order can score it
+func (s *Service) MarkAssisted(ctx context.Context, cartID uuid.UUID, by, trace string) error {
+	return s.repo.MarkCartAssisted(ctx, cartID, by, trace)
+}
+
 func (s *Service) CreateGuestCart(ctx context.Context, channelID uuid.UUID) (Cart, error) { // ownerless - the UUID is the capability, and whoever holds it can operate the cart until it's merged or converted
 	cart, err := s.repo.CreateCart(ctx, nil, channelID)
 	if err != nil {
@@ -155,60 +175,105 @@ var errCheckoutMoved = errors.New("checkout moved")
 // apply runs on the cart as loaded, with its lines, and outside any transaction: its quotes, payment eligibility and address checks may wait on a third party and read through the shared pool, so holding the row lock and a pooled connection across them would let a burst of saves exhaust the pool. The commit is a short transaction that re-checks access, writes only when checkout_version hasn't moved since the load, and otherwise recomputes the step
 // On an offer, a step that moves a locked part - or the recipient's email - is refused whole
 func (s *Service) UpdateCheckout(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, apply func(c *Cart) error) error {
-	return s.updateCheckout(ctx, cartID, func(c Cart) error { return CheckCartAccess(ctx, c, callerID) }, true, apply, nil)
+	before, after, err := s.updateCheckout(ctx, cartID, func(c Cart) error { return CheckCartAccess(ctx, c, callerID) }, true, apply, nil)
+	if err == nil {
+		s.publishChoices(ctx, after, choicesOf(before.Checkout), choicesOf(after.Checkout))
+	}
+	return err
+}
+
+// checkoutChoices is what a checkout has chosen to ship and pay with
+type checkoutChoices struct{ shipping, payment string }
+
+func choicesOf(co Checkout) checkoutChoices {
+	var ship []string
+	for _, k := range slices.Sorted(maps.Keys(co.Deliveries)) {
+		switch d := co.Deliveries[k]; {
+		case d.OptionID == uuid.Nil:
+		case d.MethodCode != "":
+			ship = append(ship, d.CarrierSlug+":"+d.MethodCode)
+		default: // an option with no carrier method, such as a pickup
+			ship = append(ship, d.OptionID.String())
+		}
+	}
+	if len(ship) == 0 && co.ShippingMethodCode != "" {
+		ship = append(ship, co.ShippingCarrierSlug+":"+co.ShippingMethodCode)
+	}
+	return checkoutChoices{shipping: strings.Join(ship, ","), payment: co.PaymentProviderSlug}
+}
+
+// changedTo is now's value when it moved to something, else empty - saving the same step again says nothing
+func changedTo(was, now string) string {
+	if now == was {
+		return ""
+	}
+	return now
+}
+
+func (s *Service) publishChoices(ctx context.Context, c Cart, was, now checkoutChoices) {
+	ev := &CheckoutChosen{
+		CartID: c.ID, ChannelID: c.ChannelID, CustomerID: c.CustomerID, AnonID: auth.AnonID(ctx),
+		Shipping: changedTo(was.shipping, now.shipping), Payment: changedTo(was.payment, now.payment),
+		Lines: c.Lines, Shopper: auth.ShopperFromContext(ctx),
+	}
+	if s.bus != nil && (ev.Shipping != "" || ev.Payment != "") {
+		s.bus.Publish(ctx, ev)
+	}
 }
 
 // AdminUpdateCheckout is UpdateCheckout for the console - it fills in an offer's checkout up front, so it neither asks who owns the cart nor stops at the locks the admin is setting up
 func (s *Service) AdminUpdateCheckout(ctx context.Context, cartID uuid.UUID, apply func(c *Cart) error) error {
-	return s.updateCheckout(ctx, cartID, func(c Cart) error {
+	_, _, err := s.updateCheckout(ctx, cartID, func(c Cart) error {
 		if c.Status != "active" {
 			return ErrCartNotActive
 		}
 		return nil
 	}, false, apply, nil)
+	return err
 }
 
-func (s *Service) updateCheckout(ctx context.Context, cartID uuid.UUID, authorize func(Cart) error, enforceLocks bool, apply func(c *Cart) error, offer *OfferSettings) error {
+// updateCheckout returns the cart the saved attempt loaded and the cart it wrote
+func (s *Service) updateCheckout(ctx context.Context, cartID uuid.UUID, authorize func(Cart) error, enforceLocks bool, apply func(c *Cart) error, offer *OfferSettings) (before, after Cart, err error) {
 	for range checkoutSaveAttempts {
-		err := s.updateCheckoutOnce(ctx, cartID, authorize, enforceLocks, apply, offer)
+		before, after, err = s.updateCheckoutOnce(ctx, cartID, authorize, enforceLocks, apply, offer)
 		if !errors.Is(err, errCheckoutMoved) {
-			return err
+			return before, after, err
 		}
 	}
-	return ErrCheckoutConflict
+	return Cart{}, Cart{}, ErrCheckoutConflict
 }
 
-func (s *Service) updateCheckoutOnce(ctx context.Context, cartID uuid.UUID, authorize func(Cart) error, enforceLocks bool, apply func(c *Cart) error, offer *OfferSettings) error {
+func (s *Service) updateCheckoutOnce(ctx context.Context, cartID uuid.UUID, authorize func(Cart) error, enforceLocks bool, apply func(c *Cart) error, offer *OfferSettings) (Cart, Cart, error) {
 	// Prepare - no transaction and no lock
 	cart, err := s.repo.GetCartByID(ctx, cartID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return ErrCartForbidden
+			return Cart{}, Cart{}, ErrCartForbidden
 		}
-		return fmt.Errorf("load cart: %w", err)
+		return Cart{}, Cart{}, fmt.Errorf("load cart: %w", err)
 	}
 	if err := authorize(cart); err != nil {
-		return err
+		return Cart{}, Cart{}, err
 	}
 	if cart.Lines, err = s.repo.ListCartLinesByCart(ctx, cart.ID); err != nil {
-		return fmt.Errorf("load cart lines: %w", err)
+		return Cart{}, Cart{}, fmt.Errorf("load cart lines: %w", err)
 	}
 	next := cart
 	next.Checkout.GiftCardCodes = slices.Clone(cart.Checkout.GiftCardCodes)
 	next.Checkout.BusinessIDs = maps.Clone(cart.Checkout.BusinessIDs)
 	next.Checkout.Deliveries = maps.Clone(cart.Checkout.Deliveries) // a step writes the map in place, and the lock diff needs the before
 	if err := apply(&next); err != nil {
-		return err
+		return Cart{}, Cart{}, err
 	}
 	emailChanged := strings.TrimSpace(next.Email) != cart.Email
 	if emailChanged {
 		if next.Email, err = normalizeCartEmail(next.Email); err != nil {
-			return err
+			return Cart{}, Cart{}, err
 		}
 	}
 
 	// Commit - re-read under the lock and write, nothing slower
-	return s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
+	err = s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
 		r := s.repo.WithTx(sqlTx)
 		locked, err := r.LockCart(ctx, cartID)
 		if err != nil {
@@ -244,6 +309,10 @@ func (s *Service) updateCheckoutOnce(ctx context.Context, cartID uuid.UUID, auth
 		}
 		return r.SetCheckout(ctx, cart.ID, next.Checkout)
 	})
+	if err != nil {
+		return Cart{}, Cart{}, err
+	}
+	return cart, next, nil
 }
 
 func (s *Service) PruneStale(ctx context.Context, olderThan time.Duration) (int64, error) { // retention reaper - a converted cart's durable record lives on its order, so dropping the stale row loses nothing
@@ -478,14 +547,16 @@ func (s *Service) UpdateCartLine(ctx context.Context, cartID, lineID uuid.UUID, 
 	}
 	if s.bus != nil {
 		s.bus.Publish(ctx, &LineUpdated{
-			CartID:     cart.ID,
-			ChannelID:  cart.ChannelID,
-			CustomerID: cart.CustomerID,
-			AnonID:     auth.AnonID(ctx),
-			Shopper:    auth.ShopperFromContext(ctx),
-			LineID:     lineID,
-			ProductSku: line.ProductSku,
-			Quantity:   quantity,
+			CartID:       cart.ID,
+			ChannelID:    cart.ChannelID,
+			CustomerID:   cart.CustomerID,
+			AnonID:       auth.AnonID(ctx),
+			Shopper:      auth.ShopperFromContext(ctx),
+			LineID:       lineID,
+			ProductSku:   line.ProductSku,
+			UnitPrice:    valueOr(repricedUnit, line.UnitPrice),
+			Quantity:     quantity,
+			PrevQuantity: line.Quantity,
 		})
 	}
 	return loadCartWithLines(ctx, s.repo, cart.ID)

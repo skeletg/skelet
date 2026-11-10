@@ -1,6 +1,10 @@
 package ai
 
-import "github.com/skeletg/skelet/apps/backend/core/lib/config"
+import (
+	"fmt"
+
+	"github.com/skeletg/skelet/apps/backend/core/lib/config"
+)
 
 const (
 	cfgEnabled           = "ai/llm/enabled"
@@ -8,6 +12,7 @@ const (
 	cfgAPIKey            = "ai/llm/api_key"
 	cfgModel             = "ai/llm/model"
 	cfgVisionModel       = "ai/llm/vision_model"
+	QuickModelPath       = "ai/llm/quick_model"
 	cfgBaseURL           = "ai/llm/base_url"
 	cfgTools             = "ai/llm/tools"
 	cfgAllowCustomerData = "ai/llm/allow_customer_data"
@@ -58,6 +63,18 @@ func init() { // only this package registers "ai", so no dedup guard - RegisterS
 		Type:    config.TypeString,
 		Default: "",
 		Label:   "Vision model for alt-text (blank = use Model)",
+	})
+	config.Register(config.Definition{
+		Path:        QuickModelPath,
+		Type:        config.TypeString,
+		Label:       "Quick model for short writing (blank = use Model), e.g. claude-haiku-5-5",
+		Description: "A smaller, faster model from the same provider, for pieces that should appear in a second - the overview above a store's search results.",
+	})
+	config.Register(config.Definition{
+		Path:        FallbackModelPath,
+		Type:        config.TypeString,
+		Label:       "Fallback model (blank = none), e.g. claude-sonnet-5-5",
+		Description: fmt.Sprintf("Answers when the main or quick model is overloaded, rate-limited or failing, from the same provider - never for a request the provider turned down. A model that keeps failing rests %d seconds, its calls going straight here. Short writing on the quick model falls back to the main model when this is blank.", int(breakerRest.Seconds())),
 	})
 	config.Register(config.Definition{
 		Path:    cfgBaseURL,

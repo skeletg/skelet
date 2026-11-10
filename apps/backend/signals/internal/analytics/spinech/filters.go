@@ -8,7 +8,7 @@ import (
 )
 
 // filterSQL is the AND of each filter over e.properties, starting " AND ", with its args in the order the SQL binds
-// them - the property text is the funnel's propText, so a value compares the same way in every engine
+// them - the property text is propText, so a value compares the same way in every engine
 func filterSQL(fs []analytics.PropertyFilter) (string, []any, error) {
 	if len(fs) > analytics.MaxFilters {
 		return "", nil, fmt.Errorf("%w: at most %d filters", analytics.ErrBadFilter, analytics.MaxFilters)
@@ -19,25 +19,26 @@ func filterSQL(fs []analytics.PropertyFilter) (string, []any, error) {
 		if strings.TrimSpace(f.Key) == "" {
 			return "", nil, fmt.Errorf("%w: a filter needs a property", analytics.ErrBadFilter)
 		}
+		prop, propArgs := propText(f.Key)
 		switch f.Op {
 		case analytics.FilterEq, "":
 			if len(f.Values) != 1 {
 				return "", nil, fmt.Errorf("%w: %s = takes one value", analytics.ErrBadFilter, f.Key)
 			}
-			b.WriteString(" AND " + propText + " = ?")
-			args = append(args, f.Key, f.Key, f.Key, f.Values[0])
+			b.WriteString(" AND " + prop + " = ?")
+			args = append(append(args, propArgs...), f.Values[0])
 		case analytics.FilterNeq:
 			if len(f.Values) != 1 {
 				return "", nil, fmt.Errorf("%w: %s ≠ takes one value", analytics.ErrBadFilter, f.Key)
 			}
-			b.WriteString(" AND (NOT JSONHas(e.properties, ?) OR " + propText + " != ?)")
-			args = append(args, f.Key, f.Key, f.Key, f.Key, f.Values[0])
+			b.WriteString(" AND (NOT JSONHas(e.properties, ?) OR " + prop + " != ?)")
+			args = append(append(append(args, f.Key), propArgs...), f.Values[0])
 		case analytics.FilterIn:
 			if len(f.Values) == 0 || len(f.Values) > analytics.MaxFilterValues {
 				return "", nil, fmt.Errorf("%w: %s is one of 1 to %d values", analytics.ErrBadFilter, f.Key, analytics.MaxFilterValues)
 			}
-			b.WriteString(" AND " + propText + " IN (" + strings.TrimSuffix(strings.Repeat("?, ", len(f.Values)), ", ") + ")")
-			args = append(args, f.Key, f.Key, f.Key)
+			b.WriteString(" AND " + prop + " IN (" + strings.TrimSuffix(strings.Repeat("?, ", len(f.Values)), ", ") + ")")
+			args = append(args, propArgs...)
 			for _, v := range f.Values {
 				args = append(args, v)
 			}

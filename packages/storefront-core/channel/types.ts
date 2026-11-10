@@ -17,4 +17,6 @@ export type Channel = {
   currencyCode: string;
   currency: Currency;
   publicUrl: string;
+  // Prices already contain tax, so a tax line reads "includes tax" rather than adding to the total
+  taxInclusivePricing: boolean;
 };

@@ -13,7 +13,7 @@ import (
 )
 
 const customerRosterEntry = `-- name: CustomerRosterEntry :one
-SELECT c.id AS customer_id, c.channel_id, c.email, c.first_name,
+SELECT c.id AS customer_id, c.channel_id, c.email, c.first_name, c.locale,
        COALESCE(c.phone, '')::text AS phone, c.is_active, c.customer_group_id,
        COALESCE(g.slug, '')::text AS customer_group_slug,
        COALESCE(k.opted_in, false)::boolean AS marketing_opted_in,
@@ -39,6 +39,7 @@ type CustomerRosterEntryRow struct {
 	ChannelID         uuid.UUID   `json:"channel_id"`
 	Email             string      `json:"email"`
 	FirstName         string      `json:"first_name"`
+	Locale            string      `json:"locale"`
 	Phone             string      `json:"phone"`
 	IsActive          bool        `json:"is_active"`
 	CustomerGroupID   uuid.UUID   `json:"customer_group_id"`
@@ -62,6 +63,7 @@ func (q *Queries) CustomerRosterEntry(ctx context.Context, customerID uuid.UUID)
 		&i.ChannelID,
 		&i.Email,
 		&i.FirstName,
+		&i.Locale,
 		&i.Phone,
 		&i.IsActive,
 		&i.CustomerGroupID,
@@ -79,7 +81,7 @@ func (q *Queries) CustomerRosterEntry(ctx context.Context, customerID uuid.UUID)
 }
 
 const customerRosterForSync = `-- name: CustomerRosterForSync :many
-SELECT c.id AS customer_id, c.channel_id, c.email, c.first_name,
+SELECT c.id AS customer_id, c.channel_id, c.email, c.first_name, c.locale,
        COALESCE(c.phone, '')::text AS phone, c.is_active, c.customer_group_id,
        COALESCE(g.slug, '')::text AS customer_group_slug,
        COALESCE(k.opted_in, false)::boolean AS marketing_opted_in,
@@ -112,6 +114,7 @@ type CustomerRosterForSyncRow struct {
 	ChannelID         uuid.UUID   `json:"channel_id"`
 	Email             string      `json:"email"`
 	FirstName         string      `json:"first_name"`
+	Locale            string      `json:"locale"`
 	Phone             string      `json:"phone"`
 	IsActive          bool        `json:"is_active"`
 	CustomerGroupID   uuid.UUID   `json:"customer_group_id"`
@@ -144,6 +147,7 @@ func (q *Queries) CustomerRosterForSync(ctx context.Context, arg CustomerRosterF
 			&i.ChannelID,
 			&i.Email,
 			&i.FirstName,
+			&i.Locale,
 			&i.Phone,
 			&i.IsActive,
 			&i.CustomerGroupID,

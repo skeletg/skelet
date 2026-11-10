@@ -2,36 +2,6 @@
   "plugins": {
     "example": {
       "enabled": false
-    },
-    "tracking-attentive": {
-      "enabled": false
-    },
-    "tracking-awin": {
-      "enabled": false
-    },
-    "tracking-bing": {
-      "enabled": false
-    },
-    "tracking-cj": {
-      "enabled": false
-    },
-    "tracking-ga4": {
-      "enabled": false
-    },
-    "tracking-google-ads": {
-      "enabled": false
-    },
-    "tracking-klaviyo": {
-      "enabled": false
-    },
-    "tracking-meta": {
-      "enabled": false
-    },
-    "tracking-openai": {
-      "enabled": false
-    },
-    "tracking-webhook": {
-      "enabled": false
     }
   }
 }

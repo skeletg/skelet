@@ -74,5 +74,6 @@ type (
 			ListingRepository
 			ProductRepository
 		}
+		sales saleCache
 	}
 )

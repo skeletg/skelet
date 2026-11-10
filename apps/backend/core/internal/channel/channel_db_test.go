@@ -181,3 +181,25 @@ func TestTheDefaultFlagMovesOnlyToAnActiveChannel(t *testing.T) {
 		t.Fatalf("default = %v, %v", def.Slug, err)
 	}
 }
+
+// Tax-inclusive pricing is set at creation, survives an update that doesn't mention it, and flips when one does
+func TestTaxInclusivePricingIsTheChannelsToSet(t *testing.T) {
+	svc, _ := dbService(t)
+	ctx := context.Background()
+	ch := mustCreate(t, svc, channel.CreateChannelInput{Slug: uniq("gross"), TaxInclusivePricing: true})
+	if !ch.TaxInclusivePricing {
+		t.Fatal("created without the tax-inclusive flag it was given")
+	}
+	name := "Renamed"
+	got, err := svc.Update(ctx, channel.UpdateChannelInput{ID: ch.ID, Name: &name})
+	if err != nil || !got.TaxInclusivePricing {
+		t.Fatalf("an unrelated edit = %v, %v - want the flag kept", got.TaxInclusivePricing, err)
+	}
+	off := false
+	if got, err = svc.Update(ctx, channel.UpdateChannelInput{ID: ch.ID, TaxInclusivePricing: &off}); err != nil || got.TaxInclusivePricing {
+		t.Fatalf("switching it off = %v, %v", got.TaxInclusivePricing, err)
+	}
+	if read, err := svc.GetByID(ctx, ch.ID); err != nil || read.TaxInclusivePricing {
+		t.Fatalf("read back = %v, %v - want off", read.TaxInclusivePricing, err)
+	}
+}

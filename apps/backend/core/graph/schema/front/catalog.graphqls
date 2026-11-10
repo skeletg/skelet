@@ -399,7 +399,7 @@ type Category {
   description:      JSON
   metaTitle:        String
   metaDescription:  String
-  # First 250 published on this store, in merchandising order - browseProducts pages the rest
+  # The category's own products, first 250 published on this store in merchandising order - browseProducts pages the rest, and lists an anchor's whole tree
   products:         [Product!]!
 }
 
@@ -464,6 +464,10 @@ type BrowseProductsResult {
   items:      [Product!]!
   totalCount: Int!
   facets:     [BrowseFacet!]!
+  # True when the query's words matched nothing and these are the products closest in meaning. Worth telling the shopper, and worth reporting apart from the searches the words answered
+  byMeaningOnly: Boolean!
+  # True when the store writes an AI overview for this search - meaning answered it, on a first page with no filters and the default sort. Ask searchOverview only then, so a search that gets none never waits on it
+  aiOverview: Boolean!
 }
 
 # One facet group keyed by the catalog attribute's slug. Each value bucket reports the count of products that would match if the user added that value to the current filter set (with the matching slug's active values excluded - Algolia-style "don't collapse my facet").

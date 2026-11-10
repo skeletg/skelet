@@ -68,21 +68,25 @@ func applyBusinessRankingWeights(query map[string]any, salesWeight, inStockBoost
 
 // Wrapped OUTSIDE the business ranking so an explicit merchandising decision always dominates the automatic sales signal
 // Weights are MULTIPLICATIVE (boost w -> (10+w)/10, bury w -> 10/(10-w)) because additive burial can drive a score negative, which OpenSearch rejects outright
+func merchFactor(w float64) float64 {
+	switch {
+	case w > 0:
+		return (10 + w) / 10
+	case w < 0:
+		return 10 / (10 - w)
+	}
+	return 1
+}
+
 func applyMerchBoosts(query map[string]any, boosts map[uuid.UUID]float64) map[string]any {
 	if len(boosts) == 0 {
 		return query
 	}
 	functions := make([]any, 0, len(boosts))
 	for id, w := range boosts {
-		factor := 1.0
-		if w > 0 {
-			factor = (10 + w) / 10
-		} else if w < 0 {
-			factor = 10 / (10 - w)
-		}
 		functions = append(functions, map[string]any{
 			"filter": map[string]any{"term": map[string]any{"product_id": id.String()}},
-			"weight": factor,
+			"weight": merchFactor(w),
 		})
 	}
 	return map[string]any{

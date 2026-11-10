@@ -38,6 +38,7 @@ const order = {
   shippingAmount: 0,
   discountAmount: 0,
   taxAmount: 0,
+  taxIncluded: false,
   shippingRefundable: 0,
   total: 1000,
   giftCardAmount: 0,

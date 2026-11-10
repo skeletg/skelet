@@ -69,12 +69,9 @@ type rateRefresher interface {
 
 // Refreshes against the configured base - a failed settings read is an error, not a quiet refresh against the default
 func refreshCurrencyRates(ctx context.Context, cfg baseCurrencyReader, rates rateRefresher) error {
-	base, err := cfg.GetString(ctx, config.BaseCurrencyPath, config.DefaultScope)
+	base, err := currency.BaseCode(ctx, cfg)
 	if err != nil {
-		return fmt.Errorf("read base currency: %w", err)
-	}
-	if base == "" {
-		base = config.DefaultBaseCurrency
+		return err
 	}
 	return rates.RefreshRates(ctx, base)
 }

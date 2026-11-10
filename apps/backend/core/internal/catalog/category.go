@@ -25,6 +25,7 @@ type Category struct {
 	Position        int32
 	IsPublished     bool
 	SEONoindex      bool
+	IsAnchor        bool             // its page lists the products of the published categories beneath it too
 	Content         *CategoryContent // populated only when a locale is requested
 	AllContent      []CategoryContent
 	CoverImage      *CategoryCover
@@ -82,6 +83,7 @@ type CreateCategoryInput struct {
 	Position         int32
 	IsPublished      bool
 	SEONoindex       bool
+	IsAnchor         *bool // nil: an anchor, as a new category is unless asked otherwise
 	Metadata         Metadata
 	PrivateMetadata  Metadata
 	Locale           string // initial content follows
@@ -101,6 +103,7 @@ type UpdateCategoryInput struct {
 	Position        *int32
 	IsPublished     *bool
 	SEONoindex      *bool
+	IsAnchor        *bool
 	Metadata        *Metadata
 	PrivateMetadata *Metadata
 }
