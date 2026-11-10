@@ -965,3 +965,30 @@ func TestRefundsWishlistsCheckoutChoicesAndLeadsLand(t *testing.T) {
 		t.Errorf("props: %v %v", fr.calls[3].Props, fr.calls[0].Props)
 	}
 }
+
+// Its lines are another matter: they never went out under an older key, so a backfill books them as nobody - else a
+// refund replayed for the same order would leave the product with only the negative half of its net sales
+func TestABackfillStillBooksTheLinesOfAnOrderPlacedWithoutConsent(t *testing.T) {
+	o, shirt, _ := salesOrder()
+	o.Shopper = &auth.Shopper{}
+	fr := &fakeRecorder{}
+	tr := NewTracker(fr, nil, countsNobody(true), nil, rate(0))
+	if err := tr.BackfillOrder(context.Background(), o, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.BackfillRefund(context.Background(), o, order.CreditMemo{ID: uuid.New(), Lines: []order.CreditMemoLine{{ID: uuid.New(), OrderLineID: shirt, Quantity: 1}}}); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(byName(fr.calls, "order_placed")); n != 0 {
+		t.Errorf("order_placed replayed %d times, want 0 - it already counted", n)
+	}
+	lines, refunds := byName(fr.calls, "order_line"), byName(fr.calls, "refund_line")
+	if len(lines) != 2 || len(refunds) != 1 {
+		t.Fatalf("order lines %d, refund lines %d, want 2 and 1", len(lines), len(refunds))
+	}
+	for _, c := range append(lines, refunds...) {
+		if c.Source != sourceAggregate || c.CustomerID != nil || c.AnonID != "" {
+			t.Errorf("%s went out as %+v, want nobody", c.EventName, c)
+		}
+	}
+}

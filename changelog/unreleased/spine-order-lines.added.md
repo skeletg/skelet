@@ -6,5 +6,6 @@
 - **Amounts in the base currency.** Order totals, order lines, refunds and attributed conversion
   revenue also carry the amount in the platform's base currency at the day's rate (`*_base_cents`).
 - Cart updates and removals now say which SKU they were.
-- `skelet cli signals backfill-orders` also replays past order lines and refunded lines. Edits made
-  before this release can't be replayed.
+- `skelet cli signals backfill-orders` also replays past order lines and refunded lines - for an
+  order placed without analytics consent too, counted as nobody, since only the order itself had
+  counted before. Edits made before this release can't be replayed.

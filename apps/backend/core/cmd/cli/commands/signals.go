@@ -31,7 +31,7 @@ var signalsBackfillOrdersCmd = &cobra.Command{
 		"or guest orders from before guests without a visitor id were recorded - and for the order lines and refunded lines that " +
 		"product reports read, on orders from before they were recorded. Each lands at its original time. Edits made before then " +
 		"can't be replayed: the lines as they stood before an edit weren't kept. " +
-		"Orders placed without analytics consent are skipped - they already count, and a replay would count them twice.",
+		"An order placed without analytics consent already counts, so only its lines and refunds are replayed, as nobody.",
 	Args: cobra.NoArgs,
 	RunE: runSignalsBackfillOrders,
 }
