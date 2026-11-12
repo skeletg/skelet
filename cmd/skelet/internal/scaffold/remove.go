@@ -104,6 +104,7 @@ func remove(root, name string, force, dropVolumes bool) int {
 		}
 	}
 	volumes := ownVolumes(name)
+	port := devPortOf(root, name)
 	out, _ := compose.Command(root, lib.Env(), "ps", "--status", "running", "--format", "{{.Service}}").Output()
 	running := slices.Contains(strings.Fields(string(out)), name)
 
@@ -220,6 +221,9 @@ func remove(root, name string, force, dropVolumes bool) int {
 		}
 	}
 	if err := deselect(root, name); err != nil {
+		return failed(err)
+	}
+	if err := repointPreview(root, port); err != nil {
 		return failed(err)
 	}
 	// The workspace lockfile still lists it - frozen installs don't mind, but a refresh keeps it honest
@@ -348,4 +352,33 @@ func deselect(root, name string) error {
 		fmt.Printf("    .env (dropped %s)\n", name)
 	}
 	return nil
+}
+
+func devPortOf(root, service string) string {
+	for _, f := range []string{overrideFile, devFile} {
+		for _, l := range block(read(root, f), service) {
+			if m := devPort.FindString(l); m != "" {
+				return strings.TrimSuffix(strings.Trim(m, `"`), ":3000")
+			}
+		}
+	}
+	return ""
+}
+
+// repointPreview keeps the dashboard's previews off the port a removed storefront was on, where add channel may have
+// pointed them: they move to the next storefront of the project's own, or back to the default with none left
+func repointPreview(root, port string) error {
+	env := profile.EnvPath(root)
+	v, set, err := envfile.Get(env, previewKey)
+	if err != nil || !set || port == "" || v != localOrigin(port) {
+		return err
+	}
+	for _, s := range storefronts.List(root) {
+		if p := devPortOf(root, s.Name); p != "" && !s.Template() {
+			fmt.Printf("    .env (dashboard previews open %s now)\n", localOrigin(p))
+			return envfile.Set(env, previewKey, localOrigin(p))
+		}
+	}
+	fmt.Println("    .env (dashboard previews are back on the default storefront)")
+	return envfile.Del(env, previewKey)
 }
