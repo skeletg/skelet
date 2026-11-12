@@ -1465,6 +1465,11 @@ type CampaignAudienceEstimate struct {
 	Eligible int32 `json:"eligible"`
 }
 
+type CampaignLimits struct {
+	AbTestPercentMin int32 `json:"abTestPercentMin"`
+	AbTestPercentMax int32 `json:"abTestPercentMax"`
+}
+
 type CampaignVariantStat struct {
 	Variant string `json:"variant"`
 	Sent    int32  `json:"sent"`
@@ -3040,6 +3045,12 @@ type Flow struct {
 	DeletedAt     *time.Time `json:"deletedAt,omitempty"`
 	CreatedAt     time.Time  `json:"createdAt"`
 	UpdatedAt     time.Time  `json:"updatedAt"`
+}
+
+type FlowTrigger struct {
+	Type          string `json:"type"`
+	Transactional bool   `json:"transactional"`
+	OneTimeLink   bool   `json:"oneTimeLink"`
 }
 
 type Fulfillment struct {
@@ -4820,19 +4831,20 @@ type SalesTimeseriesPoint struct {
 }
 
 type SaveCampaignInput struct {
-	ChannelID      string  `json:"channelId"`
-	Name           string  `json:"name"`
-	EmailID        *string `json:"emailId,omitempty"`
-	Subject        string  `json:"subject"`
-	Blocks         any     `json:"blocks"`
-	Styles         any     `json:"styles,omitempty"`
-	AudienceKind   string  `json:"audienceKind"`
-	AudienceID     *string `json:"audienceId,omitempty"`
-	AbEnabled      *bool   `json:"abEnabled,omitempty"`
-	AbSubjectB     *string `json:"abSubjectB,omitempty"`
-	AbTestPercent  *int32  `json:"abTestPercent,omitempty"`
-	AbWinnerMetric *string `json:"abWinnerMetric,omitempty"`
-	AbTestMinutes  *int32  `json:"abTestMinutes,omitempty"`
+	ChannelID      string     `json:"channelId"`
+	Name           string     `json:"name"`
+	EmailID        *string    `json:"emailId,omitempty"`
+	Subject        string     `json:"subject"`
+	Blocks         any        `json:"blocks"`
+	Styles         any        `json:"styles,omitempty"`
+	AudienceKind   string     `json:"audienceKind"`
+	AudienceID     *string    `json:"audienceId,omitempty"`
+	AbEnabled      *bool      `json:"abEnabled,omitempty"`
+	AbSubjectB     *string    `json:"abSubjectB,omitempty"`
+	AbTestPercent  *int32     `json:"abTestPercent,omitempty"`
+	AbWinnerMetric *string    `json:"abWinnerMetric,omitempty"`
+	AbTestMinutes  *int32     `json:"abTestMinutes,omitempty"`
+	ScheduledFor   *time.Time `json:"scheduledFor,omitempty"`
 }
 
 type SaveEmailBlockInput struct {

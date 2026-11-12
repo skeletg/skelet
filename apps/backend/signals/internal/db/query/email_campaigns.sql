@@ -1,8 +1,8 @@
 -- name: CreateEmailCampaign :one
 INSERT INTO email_campaigns (channel_id, name, subject, blocks, styles, audience_kind, audience_id, email_id,
-    ab_enabled, ab_subject_b, ab_test_percent, ab_winner_metric, ab_test_minutes)
+    ab_enabled, ab_subject_b, ab_test_percent, ab_winner_metric, ab_test_minutes, scheduled_for)
 VALUES (sqlc.arg(channel_id), sqlc.arg(name), sqlc.arg(subject), sqlc.arg(blocks), sqlc.arg(styles), sqlc.arg(audience_kind), sqlc.narg(audience_id), sqlc.narg(email_id),
-    sqlc.arg(ab_enabled), sqlc.arg(ab_subject_b), sqlc.arg(ab_test_percent), sqlc.arg(ab_winner_metric), sqlc.arg(ab_test_minutes))
+    sqlc.arg(ab_enabled), sqlc.arg(ab_subject_b), sqlc.arg(ab_test_percent), sqlc.arg(ab_winner_metric), sqlc.arg(ab_test_minutes), sqlc.narg(scheduled_for))
 RETURNING *;
 
 -- name: GetEmailCampaign :one
@@ -15,14 +15,14 @@ WHERE channel_id = sqlc.arg(channel_id)
 ORDER BY created_at DESC;
 
 -- name: UpdateEmailCampaign :execrows
--- Only drafts are editable
+-- Only drafts are editable. A draft's scheduled_for is a plan - the pipeline claims status = 'scheduled' alone
 UPDATE email_campaigns
 SET name = sqlc.arg(name), subject = sqlc.arg(subject), blocks = sqlc.arg(blocks),
     styles = sqlc.arg(styles), audience_kind = sqlc.arg(audience_kind),
     audience_id = sqlc.narg(audience_id), email_id = sqlc.narg(email_id),
     ab_enabled = sqlc.arg(ab_enabled), ab_subject_b = sqlc.arg(ab_subject_b),
     ab_test_percent = sqlc.arg(ab_test_percent), ab_winner_metric = sqlc.arg(ab_winner_metric),
-    ab_test_minutes = sqlc.arg(ab_test_minutes), updated_at = NOW()
+    ab_test_minutes = sqlc.arg(ab_test_minutes), scheduled_for = sqlc.narg(scheduled_for), updated_at = NOW()
 WHERE id = sqlc.arg(id) AND status = 'draft';
 
 -- name: ScheduleEmailCampaign :execrows

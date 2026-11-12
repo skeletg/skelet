@@ -1,18 +1,12 @@
-import { useMemo, useState, useId } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useId, useMemo, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import {
   Dialog,
   DialogContent,
@@ -29,9 +23,16 @@ import {
 } from '@/components/layout/detail-page'
 import { LoadingState } from '@/components/ui/loading-state'
 import { useConfigScope, useUnsavedChangesGuard } from '@/lib/config-scope'
+import { duringCommit } from '@/lib/nav-guard'
+import { formatNumber } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import type { EmailBlock, EmailStyles } from '@/features/email/blocks'
-import { LibraryEmailsDocument, LibraryEmailDocument } from '@/features/emails/Emails.gql'
-import { CampaignAudienceEstimateDocument, CampaignGroupsDocument, CampaignSegmentsDocument, CampaignVariantStatsDocument, CancelEmailCampaignDocument, CreateEmailCampaignDocument, EmailCampaignDocument, EmailCampaignStatsDocument, RenderCampaignPreviewDocument, ScheduleEmailCampaignDocument, SendCampaignTestDocument, UpdateEmailCampaignDocument } from './Campaigns.gql'
+import { LibraryEmailDocument, LibraryEmailNamesDocument, RenderLibraryPreviewDocument } from '@/features/emails/Emails.gql'
+import { PreviewDialog, type Rendered } from '@/features/emails/PreviewDialog'
+import { CampaignAudienceEstimateDocument, CampaignGroupsDocument, CampaignLimitsDocument, CampaignSegmentsDocument, CampaignVariantStatsDocument, CancelEmailCampaignDocument, CreateEmailCampaignDocument, EmailCampaignDocument, EmailCampaignStatsDocument, RenderCampaignPreviewDocument, ScheduleEmailCampaignDocument, SendCampaignTestDocument, UpdateEmailCampaignDocument } from './Campaigns.gql'
+import { AudiencePicker, EmailPicker, MeasurePicker, SharePicker, SubjectPicker, WhenPicker, WindowPicker } from './CampaignPickers'
+import { Landing, Pick, Plan, Reach, Said, SendDate, Sentence, Stage } from './SendSheet'
+import { abSplit, audiencePhrase, hasPassed, localInput, sendPlan, sendTime, whenPhrase, windowPhrase, type When } from './sentence'
 import { PluginSections } from '@/plugins/detail-sections'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
@@ -47,6 +48,8 @@ type Draft = {
   audienceId: string | null
   status: string
   channelId: string
+  scheduledFor: string | null
+  sentAt: string | null
   // inline content, for a campaign that carries its own body instead of referencing a library email
   subject: string
   blocks: EmailBlock[]
@@ -67,6 +70,14 @@ const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
   sent: 'default',
   cancelled: 'outline',
 }
+
+function plannedWhen(scheduledFor: string | null): When {
+  return scheduledFor ? { mode: 'later', at: localInput(new Date(scheduledFor)) } : { mode: 'now' }
+}
+
+const whenKey = (w: When) => (w.mode === 'later' ? w.at : '')
+
+const listed = (items: string[]) => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`)
 
 export function CampaignComposer() {
   const { id } = useParams()
@@ -106,7 +117,7 @@ export function CampaignComposer() {
   }
 
   const initial: Draft = isNew
-    ? { id: null, name: '', emailId: null, audienceKind: 'all', audienceId: null, status: 'draft', channelId: effectiveChannelId ?? '', subject: '', blocks: [], styles: {}, abEnabled: false, abSubjectB: '', abTestPercent: 20, abWinnerMetric: 'open', abTestMinutes: 240, abWinner: '' }
+    ? { id: null, name: '', emailId: null, audienceKind: 'all', audienceId: null, status: 'draft', channelId: effectiveChannelId ?? '', scheduledFor: null, sentAt: null, subject: '', blocks: [], styles: {}, abEnabled: false, abSubjectB: '', abTestPercent: 20, abWinnerMetric: 'open', abTestMinutes: 240, abWinner: '' }
     : {
         id: data!.emailCampaign!.id,
         name: data!.emailCampaign!.name,
@@ -115,6 +126,8 @@ export function CampaignComposer() {
         audienceId: data!.emailCampaign!.audienceId ?? null,
         status: data!.emailCampaign!.status,
         channelId: data!.emailCampaign!.channelId,
+        scheduledFor: data!.emailCampaign!.scheduledFor ?? null,
+        sentAt: data!.emailCampaign!.sentAt ?? null,
         subject: data!.emailCampaign!.subject,
         blocks: (data!.emailCampaign!.blocks as EmailBlock[] | null) ?? [],
         styles: (data!.emailCampaign!.styles as EmailStyles | null) ?? {},
@@ -126,14 +139,18 @@ export function CampaignComposer() {
         abWinner: data!.emailCampaign!.abWinner,
       }
 
-  return <ComposerInner key={initial.id ?? 'new'} initial={initial} onCreated={(newId) => navigate(`/campaigns/${newId}`)} />
+  // Only a draft is edited, and only the editor needs the library, the audiences and the counts
+  if (initial.status !== 'draft') return <ReadOnlyCampaign key={initial.id} initial={initial} />
+  return <ComposerInner key={initial.id ?? 'new'} initial={initial} onCreated={(newId) => void duringCommit(() => navigate(`/campaigns/${newId}`))} />
 }
 
 function ComposerInner({ initial, onCreated }: { initial: Draft; onCreated: (id: string) => void }) {
   const fid = useId()
   // A new email needs emails.manage - editing a campaign or flow doesn't bring it
   const canCreateEmail = usePermissions().has('emails.manage')
-  const editable = initial.status === 'draft'
+  const { channels } = useConfigScope()
+  const channelName = channels.find((c) => c.id === initial.channelId)?.name ?? ''
+  const [now] = useState(() => new Date())
   const [name, setName] = useState(initial.name)
   const [emailId, setEmailId] = useState<string | null>(initial.emailId)
   const [audienceKind, setAudienceKind] = useState(initial.audienceKind)
@@ -144,44 +161,66 @@ function ComposerInner({ initial, onCreated }: { initial: Draft; onCreated: (id:
   const [abTestPercent, setAbTestPercent] = useState(initial.abTestPercent)
   const [abWinnerMetric, setAbWinnerMetric] = useState(initial.abWinnerMetric)
   const [abTestMinutes, setAbTestMinutes] = useState(initial.abTestMinutes)
+  const [when, setWhen] = useState<When>(() => plannedWhen(initial.scheduledFor))
+  const at = sendTime(when)
+  const past = at != null && at.getTime() <= now.getTime()
 
   const baseline = useMemo(
     () =>
       JSON.stringify({
         n: initial.name, e: initial.emailId, ak: initial.audienceKind, ai: initial.audienceId,
         ab: initial.abEnabled, bs: initial.abSubjectB, ap: initial.abTestPercent, am: initial.abWinnerMetric, at: initial.abTestMinutes,
+        w: whenKey(plannedWhen(initial.scheduledFor)),
       }),
     [initial],
   )
   const current = JSON.stringify({
     n: name, e: emailId, ak: audienceKind, ai: audienceId,
     ab: abEnabled, bs: abSubjectB, ap: abTestPercent, am: abWinnerMetric, at: abTestMinutes,
+    w: whenKey(when),
   })
-  const dirty = editable && current !== baseline
+  const dirty = current !== baseline
   useUnsavedChangesGuard(dirty, 'Unsaved campaign changes')
 
-  const { data: emailsData } = useQuery(LibraryEmailsDocument, { variables: { channelId: initial.channelId }, skip: !initial.channelId })
+  const { data: emailsData, refetch: refetchEmails } = useQuery(LibraryEmailNamesDocument, { variables: { channelId: initial.channelId }, skip: !initial.channelId })
+  const { data: limitsData } = useQuery(CampaignLimitsDocument)
   const { data: groupsData } = useQuery(CampaignGroupsDocument)
   const { data: segmentsData } = useQuery(CampaignSegmentsDocument)
-  const libraryEmails = (emailsData?.libraryEmails ?? []).map((e) => ({ id: e.id, name: e.name }))
+  const emails = emailsData?.libraryEmails ?? []
   const groups = (groupsData?.customerGroups ?? []).map((g) => ({ id: g.id, name: g.name, count: g.memberCount }))
   const segments = (segmentsData?.customerSegments.items ?? []).map((s) => ({ id: s.id, name: s.name, count: s.memberCount }))
 
   const audienceReady = audienceKind === 'all' || !!audienceId
-  const { data: estData } = useQuery(CampaignAudienceEstimateDocument, {
+  const { data: estData, error: estError } = useQuery(CampaignAudienceEstimateDocument, {
     variables: { channelId: initial.channelId, audienceKind, audienceId },
     skip: !audienceReady || !initial.channelId,
     fetchPolicy: 'cache-and-network',
   })
-  const estimate = estData?.campaignAudienceEstimate
+  const estimate = audienceReady ? estData?.campaignAudienceEstimate : undefined
 
-  // selected email content (for the preview dialog)
-  const { data: selEmail } = useQuery(LibraryEmailDocument, { variables: { id: emailId ?? '' }, skip: !emailId })
+  const { data: selEmail, loading: emailLoading } = useQuery(LibraryEmailDocument, { variables: { id: emailId ?? '' }, skip: !emailId })
+  const email = emailId ? (selEmail?.libraryEmail ?? null) : null
+  const emailName = emails.find((e) => e.id === emailId)?.name ?? email?.name ?? null
+  const content = email
+    ? { subject: email.subject, preheader: email.preheader, blocks: email.blocks as EmailBlock[], styles: (email.styles ?? {}) as EmailStyles }
+    : !emailId && initial.blocks.length > 0
+      ? { subject: initial.subject, preheader: '', blocks: initial.blocks, styles: initial.styles }
+      : null
+  const emailSet = !!content || (!!emailId && emailLoading)
+
+  const { data: renderData, previousData: renderBefore, error: renderError } = useQuery(RenderLibraryPreviewDocument, {
+    variables: { channelId: initial.channelId, customerId: null, subject: content?.subject ?? '', preheader: content?.preheader ?? '', blocks: content?.blocks ?? [], styles: content?.styles ?? {} },
+    skip: !content,
+    fetchPolicy: 'no-cache',
+  })
+  const shown = content ? (renderData ?? renderBefore)?.renderLibraryPreview : null
+  const rendered: Rendered | null = shown
+    ? { subject: shown.subject, html: shown.html, text: shown.text ?? '', preheader: shown.preheader ?? '', fromName: shown.fromName ?? '', fromAddress: shown.fromAddress ?? '' }
+    : null
 
   const [createCampaign] = useMutation(CreateEmailCampaignDocument)
   const [updateCampaign] = useMutation(UpdateEmailCampaignDocument)
   const [scheduleCampaign] = useMutation(ScheduleEmailCampaignDocument)
-  const [cancelCampaign] = useMutation(CancelEmailCampaignDocument)
   const [sendTest] = useMutation(SendCampaignTestDocument)
 
   const [saving, setSaving] = useState(false)
@@ -192,11 +231,13 @@ function ComposerInner({ initial, onCreated }: { initial: Draft; onCreated: (id:
       channelId: initial.channelId,
       name: name.trim(),
       emailId,
-      subject: '',
-      blocks: [],
-      styles: {},
+      // A campaign that carries its own email keeps it through a save
+      subject: initial.subject,
+      blocks: initial.blocks,
+      styles: initial.styles,
       audienceKind,
       audienceId: audienceKind === 'all' ? null : audienceId,
+      scheduledFor: at ? at.toISOString() : null,
       abEnabled,
       abSubjectB: abSubjectB.trim(),
       abTestPercent,
@@ -230,20 +271,20 @@ function ComposerInner({ initial, onCreated }: { initial: Draft; onCreated: (id:
     if (savedId && !initial.id) onCreated(savedId)
   }
 
-  // schedule dialog
-  const [scheduleOpen, setScheduleOpen] = useState(false)
-  const [when, setWhen] = useState<'now' | 'later'>('now')
-  const [whenAt, setWhenAt] = useState('')
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const [scheduling, setScheduling] = useState(false)
-  async function onConfirmSchedule() {
+  async function onConfirmSend() {
+    if (at && hasPassed(at)) {
+      setError('That send time has passed - pick a later one.')
+      return
+    }
     setScheduling(true)
     setError(null)
     try {
       const savedId = await save()
       if (!savedId) return
-      const scheduledFor = when === 'later' && whenAt ? new Date(whenAt).toISOString() : null
-      await scheduleCampaign({ variables: { id: savedId, scheduledFor } })
-      setScheduleOpen(false)
+      await scheduleCampaign({ variables: { id: savedId, scheduledFor: at ? at.toISOString() : null } })
+      setConfirmOpen(false)
       onCreated(savedId)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Schedule failed.')
@@ -273,275 +314,219 @@ function ComposerInner({ initial, onCreated }: { initial: Draft; onCreated: (id:
     }
   }
 
-  // preview dialog (renders the selected library email)
   const [previewOpen, setPreviewOpen] = useState(false)
-  const { data: previewData, loading: previewLoading } = useQuery(RenderCampaignPreviewDocument, {
-    variables: {
-      channelId: initial.channelId,
-      subject: selEmail?.libraryEmail?.subject ?? '',
-      blocks: selEmail?.libraryEmail?.blocks ?? [],
-      styles: selEmail?.libraryEmail?.styles ?? {},
-    },
-    skip: !previewOpen || !selEmail?.libraryEmail,
-    fetchPolicy: 'no-cache',
-  })
-
-  // cancel
-  const [confirmCancel, setConfirmCancel] = useState(false)
-  async function onConfirmCancel() {
-    if (!campaignId) return
-    await cancelCampaign({ variables: { id: campaignId } })
-    onCreated(campaignId)
-  }
-
-  if (!editable) {
-    return <ReadOnlyCampaign initial={initial} confirmCancel={confirmCancel} setConfirmCancel={setConfirmCancel} onConfirmCancel={onConfirmCancel} />
-  }
 
   const title = name.trim() || (initial.id ? 'Campaign' : 'New campaign')
+  const emailText = emailName ?? (content ? 'its own email' : 'an email')
+  const audienceName = (audienceKind === 'group' ? groups : segments).find((o) => o.id === audienceId)?.name ?? null
+  const audienceText = audiencePhrase(audienceKind, audienceKind === 'all' ? null : audienceName, channelName)
+  const whenText = when.mode === 'later' && !at ? 'at a set time' : whenPhrase(at, now)
+  const subjectB = abSubjectB.trim()
+  const split = abEnabled && estimate ? abSplit(estimate.total, estimate.eligible, abTestPercent) : null
+  const plan = sendPlan({ at, eligible: estimate?.eligible ?? null, ab: abEnabled ? { minutes: abTestMinutes, metric: abWinnerMetric, split } : null, now })
+  const missing = [
+    !name.trim() && 'a name',
+    !emailSet && 'an email',
+    !audienceReady && (audienceKind === 'group' ? 'a customer group' : 'a segment'),
+    abEnabled && !subjectB && 'a second subject',
+    when.mode === 'later' && !at && 'a send time',
+    past && 'a send time that has not passed',
+  ].filter((m): m is string => !!m)
+  const sendLabel = when.mode === 'now' ? 'Send now' : 'Schedule'
 
   return (
-    <DetailPageLayout>
+    <DetailPageLayout toc={false}>
       <DetailPageHeader
         title={title}
         backTo="/campaigns"
         badges={<Badge variant={STATUS_VARIANT[initial.status] ?? 'outline'} className="capitalize">{initial.status}</Badge>}
-        meta={
-          <span className="text-xs text-muted-foreground">
-            Pick the email, choose an audience, then schedule. Only customers opted in to marketing email receive it.
-          </span>
-        }
         actions={
           <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" size="sm" disabled={!emailId} onClick={() => setPreviewOpen(true)}>
+            <Button type="button" variant="outline" size="sm" disabled={!content} onClick={() => setPreviewOpen(true)}>
               Preview
             </Button>
-            <Button type="button" variant="outline" size="sm" disabled={!emailId || (!campaignId && !name.trim())} onClick={() => setTestOpen(true)}>
-              Test
+            <Button type="button" variant="outline" size="sm" disabled={!content || (!campaignId && !name.trim())} onClick={() => setTestOpen(true)}>
+              Send a test
             </Button>
-            <Button type="button" variant="outline" size="sm" disabled={saving} onClick={onSaveClick}>
-              {saving ? 'Saving…' : dirty ? 'Save draft' : 'Saved'}
+            <Button type="button" variant="outline" size="sm" disabled={saving || !name.trim()} title={name.trim() ? undefined : 'Name the campaign to save it'} onClick={onSaveClick}>
+              {saving ? 'Saving…' : dirty || !initial.id ? 'Save draft' : 'Saved'}
             </Button>
-            <Button type="button" size="sm" disabled={!name.trim() || !emailId} onClick={() => setScheduleOpen(true)}>
-              Schedule / send
+            <Button type="button" size="sm" disabled={missing.length > 0} title={missing.length ? `Still needs ${listed(missing)}` : undefined} onClick={() => setConfirmOpen(true)}>
+              {sendLabel}
             </Button>
           </div>
         }
       />
-      {error && (
+      {error && !confirmOpen && (
         <Alert variant="destructive" className="mx-6 mt-4">
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      <DetailPageBody>
-        <DetailPageSection title="Campaign">
-          <div className="grid max-w-md gap-1.5">
-            <Label htmlFor="cname">Name</Label>
-            <Input id="cname" value={name} onChange={(e) => setName(e.target.value)} placeholder="Summer sale" />
-          </div>
-        </DetailPageSection>
-
-        <DetailPageSection title="Email" description="Pick a pre-built email from the library.">
-          <div className="grid max-w-md gap-1.5">
-            <Select value={emailId || undefined} onValueChange={setEmailId}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Pick an email…" />
-              </SelectTrigger>
-              <SelectContent>
-                {libraryEmails.length === 0 ? (
-                  <SelectItem value="__none" disabled>
-                    No emails yet - create one in the library
-                  </SelectItem>
-                ) : (
-                  libraryEmails.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>
-                      {e.name}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-            <div className="flex gap-3 text-xs">
-              {emailId && (
-                <Link to={`/emails/${emailId}`} className="text-primary hover:underline" target="_blank">
-                  Edit this email
-                </Link>
-              )}
-              {canCreateEmail && (
-                <Link to="/emails/new" className="text-primary hover:underline" target="_blank">
-                  New email
-                </Link>
-              )}
-            </div>
-            {initial.emailId == null && initial.blocks.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                This campaign was built with an inline email - pick a library email above to switch.
-              </p>
-            )}
-          </div>
-        </DetailPageSection>
-
-        <DetailPageSection title="Audience">
-          <div className="grid max-w-md gap-2">
-            <Select
-              value={audienceKind}
-              onValueChange={(k) => {
-                setAudienceKind(k)
-                setAudienceId(null)
-              }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All customers</SelectItem>
-                <SelectItem value="group">Customer group</SelectItem>
-                <SelectItem value="segment">Segment</SelectItem>
-              </SelectContent>
-            </Select>
-            {audienceKind === 'group' && (
-              <Select value={audienceId ?? undefined} onValueChange={setAudienceId}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Pick a group…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {groups.map((g) => (
-                    <SelectItem key={g.id} value={g.id}>
-                      {g.name} ({g.count})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            {audienceKind === 'segment' && (
-              <Select value={audienceId ?? undefined} onValueChange={setAudienceId}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Pick a segment…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {segments.length === 0 ? (
-                    <SelectItem value="__none" disabled>
-                      No segments yet
-                    </SelectItem>
-                  ) : (
-                    segments.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.name} ({s.count})
-                      </SelectItem>
-                    ))
+      <DetailPageBody className="divide-y-0">
+        <div className="px-6 pt-6">
+          <Stage
+            aside={
+              at ? (
+                <SendDate at={at} lead={past ? 'Passed' : 'Goes out'} />
+              ) : when.mode === 'later' ? (
+                <SendDate word="Not set" beside={['Pick a time', 'in the sentence']} />
+              ) : (
+                <SendDate word="Now" beside={['As soon as', 'you send it']} note="Starts going out within about a minute" />
+              )
+            }
+            head={
+              <div className="grid gap-1">
+                <Label htmlFor={`${fid}-name`} className="sr-only">
+                  Campaign name
+                </Label>
+                <input
+                  id={`${fid}-name`}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Name this campaign"
+                  autoComplete="off"
+                  className={cn(
+                    'w-full max-w-xl border-b bg-transparent pb-0.5 text-lg font-semibold tracking-tight text-foreground outline-none transition-colors placeholder:font-normal placeholder:text-muted-foreground focus:border-foreground/50',
+                    name.trim() ? 'border-transparent hover:border-foreground/20' : 'border-dashed border-foreground/45',
                   )}
-                </SelectContent>
-              </Select>
-            )}
-            {estimate != null && (
-              <p className="text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">{estimate.eligible}</span> of {estimate.total} will
-                receive this - the rest aren't opted in to marketing email.
-              </p>
-            )}
-          </div>
-        </DetailPageSection>
+                />
+                <p className="truncate text-xs text-muted-foreground">
+                  {rendered ? `From ${rendered.fromName} <${rendered.fromAddress}>` : channelName ? `From ${channelName}` : 'Only you see the name'}
+                </p>
+              </div>
+            }
+          >
+            <Sentence>
+              Send{' '}
+              <Pick what="Email" value={emailText} filled={emailSet} className="w-96" onOpen={() => void refetchEmails()}>
+                {(close) => (
+                  <EmailPicker
+                    emails={emails}
+                    value={emailId}
+                    canCreate={canCreateEmail}
+                    onPick={(v) => {
+                      setEmailId(v)
+                      close()
+                    }}
+                  />
+                )}
+              </Pick>{' '}
+              to{' '}
+              <Pick what="Audience" value={audienceText} filled={audienceReady}>
+                {(close) => (
+                  <AudiencePicker
+                    kind={audienceKind}
+                    id={audienceId}
+                    channel={channelName}
+                    groups={groups}
+                    segments={segments}
+                    close={close}
+                    onChange={(k, v) => {
+                      setAudienceKind(k)
+                      setAudienceId(v)
+                    }}
+                  />
+                )}
+              </Pick>{' '}
+              <Pick what="When" value={whenText} filled={!(when.mode === 'later' && (!at || past))}>
+                {() => <WhenPicker when={when} min={localInput(now)} past={past} onChange={setWhen} />}
+              </Pick>
+              .
+            </Sentence>
 
-        <DetailPageSection title="A/B subject test" description="Test two subject lines on a slice of the audience; the higher-performing subject is sent to the rest.">
-          {editable ? (
-            <div className="grid max-w-md gap-3">
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={abEnabled} onChange={(e) => setAbEnabled(e.target.checked)} className="size-4" />
-                Enable A/B subject test
+            {abEnabled ? (
+              <Sentence minor>
+                First, test the subject{' '}
+                <Pick what="Subject B" value={subjectB ? `"${subjectB}"` : 'a second subject'} filled={!!subjectB}>
+                  {(close) => <SubjectPicker value={abSubjectB} own={content?.subject ?? ''} onChange={setAbSubjectB} close={close} />}
+                </Pick>{' '}
+                on{' '}
+                <Pick what="Share of the audience in the test" value={`${abTestPercent}%`}>
+                  {() => <SharePicker value={abTestPercent} limits={limitsData?.campaignLimits} onChange={setAbTestPercent} />}
+                </Pick>{' '}
+                of them for{' '}
+                <Pick what="How long the test runs" value={windowPhrase(abTestMinutes)}>
+                  {() => <WindowPicker minutes={abTestMinutes} onChange={setAbTestMinutes} />}
+                </Pick>
+                . The one with more{' '}
+                <Pick what="What decides the winner" value={abWinnerMetric === 'click' ? 'clicks' : 'opens'} className="w-64">
+                  {(close) => <MeasurePicker value={abWinnerMetric} onChange={setAbWinnerMetric} close={close} />}
+                </Pick>{' '}
+                goes to the rest.
+              </Sentence>
+            ) : null}
+
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-2 text-sm">
+              <label className="flex items-center gap-2.5 text-foreground">
+                <Switch size="sm" checked={abEnabled} onCheckedChange={setAbEnabled} />
+                Test two subject lines first
               </label>
-              {abEnabled && (
-                <>
-                  <div className="grid gap-1.5">
-                    <Label htmlFor="absubb">Subject B</Label>
-                    <Input id="absubb" value={abSubjectB} onChange={(e) => setAbSubjectB(e.target.value)} placeholder="Alternative subject line" />
-                    <p className="text-xs text-muted-foreground">Subject A is the selected email&apos;s own subject; B replaces it for half the test slice.</p>
-                  </div>
-                  <div className="flex flex-wrap gap-3">
-                    <div className="grid gap-1.5">
-                      <Label htmlFor="abpct">Test audience %</Label>
-                      <Input id="abpct" type="number" min={1} max={90} value={abTestPercent} onChange={(e) => setAbTestPercent(Number(e.target.value))} className="w-28" />
-                    </div>
-                    <div className="grid gap-1.5">
-                      <Label htmlFor="abmin">Test window (min)</Label>
-                      <Input id="abmin" type="number" min={1} value={abTestMinutes} onChange={(e) => setAbTestMinutes(Number(e.target.value))} className="w-32" />
-                    </div>
-                    <div className="grid gap-1.5">
-                      <Label htmlFor={`${fid}-winner-by`}>Winner by</Label>
-                      <Select value={abWinnerMetric} onValueChange={setAbWinnerMetric}>
-                        <SelectTrigger id={`${fid}-winner-by`} className="w-32"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="open">Open rate</SelectItem>
-                          <SelectItem value="click">Click rate</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </>
-              )}
+              {missing.length > 0 ? <p className="text-muted-foreground">Still needs {listed(missing)}.</p> : null}
             </div>
-          ) : initial.abEnabled ? (
-            <ABResults campaignId={initial.id!} winner={initial.abWinner} metric={initial.abWinnerMetric} />
-          ) : (
-            <p className="text-sm text-muted-foreground">No A/B test on this campaign.</p>
-          )}
-        </DetailPageSection>
+          </Stage>
+        </div>
+
+        <div className="@container px-6 py-8">
+          <div className="grid grid-cols-1 gap-x-12 gap-y-10 @4xl:grid-cols-[minmax(0,1.6fr)_minmax(17rem,1fr)]">
+            <Landing
+              r={rendered}
+              subjectB={abEnabled ? subjectB || 'Subject B' : null}
+              empty={renderError ? `The email didn't render: ${renderError.message}` : emailSet ? 'Rendering the email…' : emails.length === 0 ? 'There are no emails in the library yet. Build one, then pick it in the sentence above.' : 'Pick an email in the sentence above, and it shows here the way it lands.'}
+              action={
+                <Button type="button" variant="ghost" size="sm" onClick={() => setPreviewOpen(true)}>
+                  Open full preview
+                </Button>
+              }
+            />
+            <div className="grid content-start gap-10">
+              <Reach
+                total={estimate?.total ?? null}
+                eligible={estimate?.eligible ?? null}
+                split={split}
+                pending={estError ? `The audience couldn't be counted: ${estError.message}` : audienceReady ? 'Counting…' : `Pick ${audienceKind === 'group' ? 'a customer group' : 'a segment'} to see who gets it.`}
+              />
+              <Plan steps={plan} />
+            </div>
+          </div>
+        </div>
       </DetailPageBody>
 
-      {/* Preview dialog */}
-      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Preview</DialogTitle>
-            <DialogDescription>The selected email, rendered with sample data.</DialogDescription>
-          </DialogHeader>
-          <div className="overflow-hidden rounded-md border bg-white">
-            <div className="border-b bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">Subject:</span>{' '}
-              {previewLoading ? '…' : previewData?.renderCampaignPreview.subject || '-'}
-            </div>
-            <iframe title="Email preview" sandbox="" className="h-[440px] w-full bg-white" srcDoc={previewData?.renderCampaignPreview.html ?? ''} />
-          </div>
-        </DialogContent>
-      </Dialog>
+      {content ? (
+        <PreviewDialog open={previewOpen} onOpenChange={setPreviewOpen} channelId={initial.channelId} subject={content.subject} preheader={content.preheader} blocks={content.blocks} styles={content.styles} />
+      ) : null}
 
-      {/* Schedule dialog */}
-      <Dialog open={scheduleOpen} onOpenChange={(o) => !scheduling && setScheduleOpen(o)}>
+      <Dialog open={confirmOpen} onOpenChange={(o) => !scheduling && setConfirmOpen(o)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Schedule campaign</DialogTitle>
+            <DialogTitle>{when.mode === 'now' ? 'Send this campaign now?' : 'Schedule this campaign?'}</DialogTitle>
             <DialogDescription>
-              {estimate
-                ? `${estimate.eligible} of ${estimate.total} customers will receive this (the rest aren't opted in to marketing email).`
-                : 'Choose when to send.'}
+              {emailText.charAt(0).toUpperCase() + emailText.slice(1)} goes to {audienceText} {whenText}.
+              {estimate ? ` ${formatNumber(estimate.eligible)} of ${formatNumber(estimate.total)} are opted in to marketing email and will get it.` : ''}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-3">
-            <label className="flex items-center gap-2 text-sm">
-              <input type="radio" checked={when === 'now'} onChange={() => setWhen('now')} /> Send now
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="radio" checked={when === 'later'} onChange={() => setWhen('later')} /> Schedule for later
-            </label>
-            {when === 'later' && <Input type="datetime-local" value={whenAt} onChange={(e) => setWhenAt(e.target.value)} />}
-          </div>
+          {abEnabled ? <Plan steps={plan} /> : null}
+          {error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : null}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setScheduleOpen(false)} disabled={scheduling}>
+            <Button variant="outline" onClick={() => setConfirmOpen(false)} disabled={scheduling}>
               Cancel
             </Button>
-            <Button onClick={onConfirmSchedule} disabled={scheduling || (when === 'later' && !whenAt)}>
-              {scheduling ? 'Scheduling…' : when === 'now' ? 'Send now' : 'Schedule'}
+            <Button onClick={onConfirmSend} disabled={scheduling}>
+              {scheduling ? (when.mode === 'now' ? 'Sending…' : 'Scheduling…') : sendLabel}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Test-send dialog */}
       <Dialog open={testOpen} onOpenChange={setTestOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Send a test</DialogTitle>
-            <DialogDescription>Saves the draft, then sends the selected email (sample data) to one address.</DialogDescription>
+            <DialogDescription>Saves the draft, then sends the email to one address with sample data filled in.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-1.5">
             <Label htmlFor="ctest">Recipient</Label>
@@ -566,19 +551,27 @@ function ComposerInner({ initial, onCreated }: { initial: Draft; onCreated: (id:
   )
 }
 
-function ReadOnlyCampaign({
-  initial,
-  confirmCancel,
-  setConfirmCancel,
-  onConfirmCancel,
-}: {
-  initial: Draft
-  confirmCancel: boolean
-  setConfirmCancel: (o: boolean) => void
-  onConfirmCancel: () => void
-}) {
+function ReadOnlyCampaign({ initial }: { initial: Draft }) {
+  const [cancelCampaign] = useMutation(CancelEmailCampaignDocument)
+  const [error, setError] = useState<string | null>(null)
+  const [confirmCancel, setConfirmCancel] = useState(false)
+  // The cancelled campaign comes back from the mutation, and the page redraws from it
+  async function onConfirmCancel() {
+    if (!initial.id) return
+    setError(null)
+    try {
+      await cancelCampaign({ variables: { id: initial.id } })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'The send could not be cancelled.')
+    }
+  }
+  const { channels } = useConfigScope()
+  const channelName = channels.find((c) => c.id === initial.channelId)?.name ?? ''
+  const [now] = useState(() => new Date())
   // Prefer the referenced library email's content; fall back to the campaign's own inline body
   const { data: selEmail } = useQuery(LibraryEmailDocument, { variables: { id: initial.emailId ?? '' }, skip: !initial.emailId })
+  const { data: groupsData } = useQuery(CampaignGroupsDocument, { skip: initial.audienceKind !== 'group' })
+  const { data: segmentsData } = useQuery(CampaignSegmentsDocument, { skip: initial.audienceKind !== 'segment' })
   const content = initial.emailId
     ? { subject: selEmail?.libraryEmail?.subject ?? '', blocks: selEmail?.libraryEmail?.blocks ?? [], styles: selEmail?.libraryEmail?.styles ?? {} }
     : { subject: initial.subject, blocks: initial.blocks, styles: initial.styles }
@@ -588,6 +581,21 @@ function ReadOnlyCampaign({
     fetchPolicy: 'no-cache',
   })
   const canCancel = initial.status === 'scheduled' || initial.status === 'sending'
+
+  const audienceName =
+    initial.audienceKind === 'group'
+      ? groupsData?.customerGroups.find((g) => g.id === initial.audienceId)?.name
+      : segmentsData?.customerSegments.items.find((s) => s.id === initial.audienceId)?.name
+  const audience = audiencePhrase(initial.audienceKind, audienceName ?? null, channelName)
+  const emailName = initial.emailId ? selEmail?.libraryEmail?.name : undefined
+  const unnamed = initial.emailId ? 'an email' : 'its own email'
+  const email = emailName ?? unnamed.charAt(0).toUpperCase() + unnamed.slice(1)
+  const stamp = initial.sentAt ?? initial.scheduledFor
+  const at = stamp ? new Date(stamp) : null
+  const began = initial.status === 'sent' ? 'Sent' : initial.status === 'scheduled' ? 'Goes out' : 'Started'
+  const said = at ? whenPhrase(at, now) : ''
+  const lead = said.charAt(0).toUpperCase() + said.slice(1)
+
   return (
     <DetailPageLayout>
       <DetailPageHeader
@@ -602,10 +610,64 @@ function ReadOnlyCampaign({
           ) : undefined
         }
       />
+      {error && (
+        <Alert variant="destructive" className="mx-6 mt-4">
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
       <DetailPageBody>
+        <div className="px-6 py-6">
+          <Stage
+            aside={
+              initial.status === 'cancelled' || !at ? (
+                <SendDate word="Not sent" beside={initial.status === 'cancelled' ? ['Cancelled', 'before it went out'] : ['No send time', 'on record']} />
+              ) : (
+                <SendDate at={at} lead={began} />
+              )
+            }
+            head={
+              <div className="grid gap-1">
+                <p className="truncate text-lg font-semibold tracking-tight text-foreground">{initial.name || 'Campaign'}</p>
+                {channelName ? <p className="truncate text-xs text-muted-foreground">From {channelName}</p> : null}
+              </div>
+            }
+          >
+            <Sentence>
+              {initial.status === 'cancelled' ? (
+                <>
+                  The send of <Said>{emailName ?? unnamed}</Said> to <Said>{audience}</Said> was cancelled.
+                </>
+              ) : lead && (initial.status === 'sent' || initial.status === 'scheduled') ? (
+                <>
+                  <Said>{lead}</Said>, <Said>{emailName ?? unnamed}</Said> {initial.status === 'sent' ? 'went' : 'goes'} to <Said>{audience}</Said>.
+                </>
+              ) : initial.status === 'sent' ? (
+                <>
+                  <Said>{email}</Said> went to <Said>{audience}</Said>.
+                </>
+              ) : (
+                <>
+                  <Said>{email}</Said> is going out to <Said>{audience}</Said>.
+                </>
+              )}
+            </Sentence>
+            {initial.abEnabled ? (
+              <Sentence minor>
+                It tests <Said>"{initial.abSubjectB}"</Said> against the email's own subject on <Said>{initial.abTestPercent}%</Said> for{' '}
+                <Said>{windowPhrase(initial.abTestMinutes)}</Said>, and the one with more <Said>{initial.abWinnerMetric === 'click' ? 'clicks' : 'opens'}</Said> goes to the rest.
+              </Sentence>
+            ) : null}
+          </Stage>
+        </div>
         <DetailPageSection title="Delivery">
           <CampaignStats initial={initial} />
         </DetailPageSection>
+        {initial.abEnabled && initial.id ? (
+          <DetailPageSection title="Subject test">
+            <ABResults campaignId={initial.id} winner={initial.abWinner} metric={initial.abWinnerMetric} />
+          </DetailPageSection>
+        ) : null}
         <DetailPageSection title="Preview" description="Rendered with sample data.">
           <div className="overflow-hidden rounded-md border bg-white">
             <div className="border-b bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground">

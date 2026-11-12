@@ -66,6 +66,13 @@ query CampaignMergeTags {
   campaignMergeTags
 }
 
+query CampaignLimits {
+  campaignLimits {
+    abTestPercentMin
+    abTestPercentMax
+  }
+}
+
 query CampaignAudienceEstimate($channelId: ID!, $audienceKind: String!, $audienceId: ID) {
   campaignAudienceEstimate(channelId: $channelId, audienceKind: $audienceKind, audienceId: $audienceId) {
     total

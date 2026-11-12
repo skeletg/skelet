@@ -14,6 +14,15 @@ type Flow {
   updatedAt:     Time!
 }
 
+# A trigger the composer can offer, with what the suite allows of a flow that starts on it.
+type FlowTrigger {
+  type:          String!
+  # Only these may be marked transactional - any other trigger is refused as one on save.
+  transactional: Boolean!
+  # Carries a sign-in, reset or offer link, so its flows may not call a webhook.
+  oneTimeLink:   Boolean!
+}
+
 input SaveFlowInput {
   channelId:     ID!       # ignored on update (a flow's channel is fixed)
   name:          String!
@@ -25,8 +34,7 @@ input SaveFlowInput {
 extend type Query {
   flows(channelId: ID!, includeDeleted: Boolean): [Flow!]!
   flow(id: ID!): Flow
-  # Trigger types the composer should offer (only the wired ones).
-  flowTriggerTypes: [String!]!
+  flowTriggers: [FlowTrigger!]!
   # Merge tags available to flow email nodes (same set as campaigns).
   flowMergeTags: [String!]!
   # Split-condition kinds the composer should offer. Registered rather than fixed: the suite that owns a condition's data contributes it, so an install without that suite never offers a condition nothing can answer.

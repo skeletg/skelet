@@ -34,7 +34,8 @@ import { useCanvasDnd } from '@/features/email/canvasDnd'
 import { BlockInspector } from '@/features/email/BlockInspector'
 import { BlockStyleControls } from '@/features/email/StyleControls'
 import { RowInspector } from '@/features/email/RowInspector'
-import { FLOATING_PANEL, PANEL_BACKDROP, PANEL_TITLE } from '@/features/email/panel'
+import { PanelHeading, SidePanel } from '@/components/layout/workbench'
+import { WORKBENCH } from '@/components/layout/workbench-styles'
 import { findBlock, moveChild, parseSel, removeBlock, replaceBlock } from '@/features/email/treeops'
 import {
   SAMPLE_VARS,
@@ -417,19 +418,16 @@ function Editor({ initial, onSaved, onDeleted }: { initial: Loaded; onSaved: (sl
   return (
     <DndContext {...dndProps} sensors={canEdit ? dndProps.sensors : []}>
       <DetailPageLayout
-        className={cn('@container/editor', PANEL_BACKDROP)}
+        className={WORKBENCH}
         leftSidebar={bodyMode === 'visual' && canEdit ? <BlockPalette components={components} onAdd={addBlock} /> : undefined}
         rightSidebar={
           bodyMode === 'visual' && canEdit && selectedIsRow && selectedBlock ? (
-            <aside className={cn(FLOATING_PANEL, 'ml-0 w-72 @min-[1200px]/editor:w-80')}>
-              <div className="border-b px-4 py-3.5">
-                <h2 className={PANEL_TITLE}>Columns</h2>
-              </div>
+            <SidePanel footer={actionsFooter}>
+              <PanelHeading>Columns</PanelHeading>
               <div className="flex-1 overflow-y-auto p-4">
                 <RowInspector block={selectedBlock} onChange={updateSelected} />
               </div>
-              <div className="shrink-0 border-t p-3">{actionsFooter}</div>
-            </aside>
+            </SidePanel>
           ) : (
             <BlockInspector
               block={bodyMode === 'visual' && canEdit ? selectedBlock : null}

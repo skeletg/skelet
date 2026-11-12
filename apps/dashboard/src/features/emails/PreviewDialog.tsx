@@ -48,7 +48,7 @@ function Segmented<T extends string>({ label, value, onChange, options }: { labe
   )
 }
 
-function EmailFrame({ html, dark, className }: { html: string; dark: boolean; className?: string }) {
+export function EmailFrame({ html, dark, className }: { html: string; dark: boolean; className?: string }) {
   const ref = useRef<HTMLIFrameElement>(null)
   const observer = useRef<ResizeObserver | null>(null)
   const [height, setHeight] = useState(480)
@@ -87,9 +87,9 @@ function Avatar({ name }: { name: string }) {
   )
 }
 
-type Rendered = { subject: string; html: string; text: string; preheader: string; fromName: string; fromAddress: string }
+export type Rendered = { subject: string; html: string; text: string; preheader: string; fromName: string; fromAddress: string }
 
-function InboxRow({ r, compact }: { r: Rendered; compact?: boolean }) {
+export function InboxRow({ r, compact }: { r: Rendered; compact?: boolean }) {
   return (
     <div className="flex items-start gap-3 rounded-lg border bg-background px-4 py-3">
       <Avatar name={r.fromName} />

@@ -232,6 +232,7 @@ func campaignInput(in *signalsv1.CampaignInput) (campaign.Input, error) {
 		AudienceKind: in.GetAudienceKind(), AudienceID: aid,
 		ABEnabled: in.GetAbEnabled(), ABSubjectB: in.GetAbSubjectB(), ABTestPercent: int(in.GetAbTestPercent()),
 		ABWinnerMetric: in.GetAbWinnerMetric(), ABTestMinutes: int(in.GetAbTestMinutes()),
+		ScheduledFor: timeFromTS(in.GetScheduledFor()),
 	}, nil
 }
 
