@@ -512,6 +512,32 @@ func TestAddFromATemplate(t *testing.T) {
 	}
 }
 
+// Removing the storefront the dashboard's previews open moves them on, and a value add channel didn't write is left alone
+func TestRemoveRepointsThePreviews(t *testing.T) {
+	root := templateClone(t)
+	d := verbtest.NewDocker(t, lockfileDocker)
+	for _, name := range []string{"shop", "two"} {
+		if out, code := d.Run("add", root, "channel", name); code != 0 {
+			t.Fatalf("add %s: exit %d:\n%s", name, code, out)
+		}
+	}
+	out, code := d.Run("rm", root, "channel", "shop", "-y")
+	if got := file(t, root, ".env"); code != 0 || got != "VITE_STOREFRONT_ORIGIN=http://localhost:3002\n" || !strings.Contains(out, "http://localhost:3002") {
+		t.Errorf("rm the previewed shop: exit %d, .env %q\n%s", code, got, out)
+	}
+	if _, code := d.Run("rm", root, "channel", "two", "-y"); code != 0 || strings.Contains(file(t, root, ".env"), "VITE_STOREFRONT_ORIGIN") {
+		t.Errorf("rm the last shop: exit %d, .env %q", code, file(t, root, ".env"))
+	}
+
+	put(t, root, ".env", "VITE_STOREFRONT_ORIGIN=https://shop.test\n", 0o600)
+	if out, code := d.Run("add", root, "channel", "three"); code != 0 {
+		t.Fatalf("add three: exit %d:\n%s", code, out)
+	}
+	if _, code := d.Run("rm", root, "channel", "three", "-y"); code != 0 || file(t, root, ".env") != "VITE_STOREFRONT_ORIGIN=https://shop.test\n" {
+		t.Errorf("rm with a hand-set origin: exit %d, .env %q", code, file(t, root, ".env"))
+	}
+}
+
 // --tracked from a template puts the fork beside it in all three files, its image and Dockerfile its own
 func TestTrackedFromATemplate(t *testing.T) {
 	root := templateClone(t)

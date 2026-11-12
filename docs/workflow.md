@@ -385,6 +385,7 @@ skelet itself and gives up the conflict-free property below. `skelet rm channel
 <your-shop>` reverses it, keeping the Docker volumes unless you pass `--volumes`.
 On a dev clone the first shop you add also becomes what the dashboard's previews
 open, through `VITE_STOREFRONT_ORIGIN` in `.env`, unless that already names one.
+Removing that shop moves the previews to your next one, or back to the default.
 By hand:
 
 1. Create `apps/channels/<your-shop>/` - a copy of `templates/nextjs-vetrina` with its

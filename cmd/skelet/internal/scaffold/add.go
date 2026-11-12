@@ -544,16 +544,20 @@ func previewOrigin(root string, port int) {
 	if t := profile.Current(root)[profile.TargetKey]; t != "" && t != "dev" {
 		return
 	}
-	env, origin := filepath.Join(root, ".env"), "http://localhost:"+strconv.Itoa(port)
-	if _, set, err := envfile.Get(env, "VITE_STOREFRONT_ORIGIN"); err != nil || set {
+	env, origin := profile.EnvPath(root), localOrigin(strconv.Itoa(port))
+	if _, set, err := envfile.Get(env, previewKey); err != nil || set {
 		return
 	}
-	if err := envfile.Set(env, "VITE_STOREFRONT_ORIGIN", origin); err != nil {
+	if err := envfile.Set(env, previewKey, origin); err != nil {
 		fmt.Fprintf(os.Stderr, "    couldn't point the dashboard's previews at it: %v\n", err)
 		return
 	}
-	fmt.Printf("==> Dashboard previews open %s now (VITE_STOREFRONT_ORIGIN in .env)\n", origin)
+	fmt.Printf("==> Dashboard previews open %s now (%s in .env)\n", origin, previewKey)
 }
+
+const previewKey = "VITE_STOREFRONT_ORIGIN"
+
+func localOrigin(port string) string { return "http://localhost:" + port }
 
 // writeKeepingMode replaces a file's content in place, so a compose file keeps its mode
 func writeKeepingMode(path, content string) error {
