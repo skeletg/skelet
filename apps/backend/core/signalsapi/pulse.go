@@ -47,6 +47,24 @@ func IsAuthTrigger(t string) bool {
 	return t == TriggerEmailVerification || t == TriggerPasswordReset || t == TriggerSignupConfirmation || t == TriggerAccountExists || t == TriggerCartOffer
 }
 
+// IsOrderTrigger reports whether a trigger carries an order in its run context
+func IsOrderTrigger(t string) bool {
+	switch t {
+	case TriggerOrderPlaced, TriggerOrderShipped, TriggerOrderCancelled, TriggerPaymentRefunded:
+		return true
+	}
+	return false
+}
+
+// CanBeTransactional names the moments whose mail has to arrive: only a flow on one of them may skip consent
+func CanBeTransactional(t string) bool { return IsOrderTrigger(t) || IsAuthTrigger(t) }
+
+// The share of its audience a campaign's subject test may take, in percent
+const (
+	CampaignABShareMin = 1
+	CampaignABShareMax = 90
+)
+
 // The keys an enrollment payload carries, read back by the run as it renders - what each trigger
 // puts there is the moment's own: the order snapshot, the reset link, the product that came back
 const (

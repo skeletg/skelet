@@ -22,6 +22,7 @@ func campaignInput(in model.SaveCampaignInput) (*signalsv1.CampaignInput, error)
 		AbTestPercent:  optionalInt(in.AbTestPercent),
 		AbWinnerMetric: optionalStr(in.AbWinnerMetric),
 		AbTestMinutes:  optionalInt(in.AbTestMinutes),
+		ScheduledFor:   protoTimeFrom(in.ScheduledFor),
 	}, nil
 }
 

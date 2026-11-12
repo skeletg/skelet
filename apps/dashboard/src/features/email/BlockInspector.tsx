@@ -7,7 +7,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Select,
   SelectContent,
@@ -38,7 +37,7 @@ import { BlockIcon } from './BlockIcon'
 import { productImage, useBlockProducts } from './blockProducts'
 import { insertAtCaret } from './caret'
 import { MergeTagMenu } from './MergeTagMenu'
-import { FLOATING_PANEL } from './panel'
+import { PanelTabs, PanelTitle, SidePanel } from '@/components/layout/workbench'
 import { plainToRich, richToPlain } from './richtext'
 
 /** AI copy-rewrite callback (returns the rewritten text) - When absent, the
@@ -206,53 +205,23 @@ export function BlockInspector({
   )
 
   return (
-    <aside className={cn(FLOATING_PANEL, 'ml-0 w-72 @min-[1200px]/editor:w-80')}>
-      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="flex min-h-0 flex-1 flex-col">
-        <div className="border-b px-3 py-2">
-          <TabsList className={cn('grid h-9 w-full', themeSettings ? 'grid-cols-3' : 'grid-cols-2')}>
-            <TabsTrigger value="block" className="text-xs">
-              Block
-            </TabsTrigger>
-            <TabsTrigger value="email" className="text-xs">
-              {settingsLabel}
-            </TabsTrigger>
-            {themeSettings ? (
-              <TabsTrigger value="theme" className="text-xs">
-                Theme
-              </TabsTrigger>
-            ) : null}
-          </TabsList>
-        </div>
-        <TabsContent value="block" className="mt-0 min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
-          {blockPanel}
-        </TabsContent>
-        <TabsContent value="email" className="mt-0 min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
-          {emailPanel}
-        </TabsContent>
-        {themeSettings ? (
-          <TabsContent value="theme" className="mt-0 min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
-            {themeSettings}
-          </TabsContent>
-        ) : null}
-      </Tabs>
-      {footer && <div className="shrink-0 border-t p-3">{footer}</div>}
-    </aside>
+    <SidePanel footer={footer}>
+      <PanelTabs
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { value: 'block' as Tab, label: 'Block', content: blockPanel },
+          { value: 'email' as Tab, label: settingsLabel, content: emailPanel },
+          ...(themeSettings ? [{ value: 'theme' as Tab, label: 'Theme', content: themeSettings }] : []),
+        ]}
+      />
+    </SidePanel>
   )
 }
 
 function BlockTitle({ block, component }: { block: EmailBlock; component?: BlockComponent }) {
   const hint = component ? 'A block from your reusable library.' : blockDescriptor(block.type)?.hint
-  return (
-    <div className="flex items-start gap-2.5">
-      <span className="grid size-8 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
-        <BlockIcon type={component ? 'ref' : block.type} className="size-4" />
-      </span>
-      <div className="min-w-0">
-        <p className="text-sm font-medium">{component?.name ?? blockLabel(block.type)}</p>
-        {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
-      </div>
-    </div>
-  )
+  return <PanelTitle icon={<BlockIcon type={component ? 'ref' : block.type} className="size-4" />} title={component?.name ?? blockLabel(block.type)} hint={hint} />
 }
 
 function TextOnCanvas({ block, onChangeBlock, aiRewrite }: { block: EmailBlock; onChangeBlock: (b: EmailBlock) => void; aiRewrite?: AiRewriteFn }) {

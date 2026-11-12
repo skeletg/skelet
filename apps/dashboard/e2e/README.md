@@ -51,6 +51,12 @@ The form specs each check one part of the staged-save forms against the real API
 - `translations.spec.ts`: runs every query the dashboard sends over records seeded in two
   locales. It fails any response that lists fewer translation rows than the record has, because
   Apollo would let that short list replace the full one the form's baseline is built from.
+- `pulse.spec.ts`: the campaign composer and the flow builder. A campaign's sentence is filled in through
+  its popovers and has to survive a save and a reload, send time included. A flow takes a recipe, a step
+  dragged from the rail and the keyboard's undo and delete, and the server has to refuse to activate it
+  while nothing follows the trigger. Both saves must reach the record's own address without the
+  leave-page prompt. Campaigns and flows are only ever soft-deleted, so each run leaves one of each
+  behind, deleted, with a name starting `e2e-forms-`.
 
 Some cases skip, and say why, when the e2e admin lacks a permission they need: tax, shipping and
 shipping boxes need `settings.manage`. `dialogs.spec.ts` leaves one cancelled order per run behind,

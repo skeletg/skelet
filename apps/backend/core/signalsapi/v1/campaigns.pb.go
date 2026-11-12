@@ -310,8 +310,10 @@ type CampaignInput struct {
 	AbTestPercent  int32   `protobuf:"varint,11,opt,name=ab_test_percent,json=abTestPercent,proto3" json:"ab_test_percent,omitempty"`
 	AbWinnerMetric string  `protobuf:"bytes,12,opt,name=ab_winner_metric,json=abWinnerMetric,proto3" json:"ab_winner_metric,omitempty"`
 	AbTestMinutes  int32   `protobuf:"varint,13,opt,name=ab_test_minutes,json=abTestMinutes,proto3" json:"ab_test_minutes,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// When a draft plans to go out. Kept with it - nothing sends until the campaign is scheduled
+	ScheduledFor  *timestamppb.Timestamp `protobuf:"bytes,14,opt,name=scheduled_for,json=scheduledFor,proto3,oneof" json:"scheduled_for,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CampaignInput) Reset() {
@@ -433,6 +435,13 @@ func (x *CampaignInput) GetAbTestMinutes() int32 {
 		return x.AbTestMinutes
 	}
 	return 0
+}
+
+func (x *CampaignInput) GetScheduledFor() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ScheduledFor
+	}
+	return nil
 }
 
 type ListCampaignsRequest struct {
@@ -1520,7 +1529,7 @@ const file_skelet_signals_v1_campaigns_proto_rawDesc = "" +
 	"\n" +
 	"\b_sent_atB\x15\n" +
 	"\x13_ab_test_started_atB\r\n" +
-	"\v_deleted_at\"\xe1\x03\n" +
+	"\v_deleted_at\"\xb9\x04\n" +
 	"\rCampaignInput\x12\x1d\n" +
 	"\n" +
 	"channel_id\x18\x01 \x01(\tR\tchannelId\x12\x12\n" +
@@ -1541,9 +1550,11 @@ const file_skelet_signals_v1_campaigns_proto_rawDesc = "" +
 	"abSubjectB\x12&\n" +
 	"\x0fab_test_percent\x18\v \x01(\x05R\rabTestPercent\x12(\n" +
 	"\x10ab_winner_metric\x18\f \x01(\tR\x0eabWinnerMetric\x12&\n" +
-	"\x0fab_test_minutes\x18\r \x01(\x05R\rabTestMinutesB\v\n" +
+	"\x0fab_test_minutes\x18\r \x01(\x05R\rabTestMinutes\x12D\n" +
+	"\rscheduled_for\x18\x0e \x01(\v2\x1a.google.protobuf.TimestampH\x02R\fscheduledFor\x88\x01\x01B\v\n" +
 	"\t_email_idB\x0e\n" +
-	"\f_audience_id\"^\n" +
+	"\f_audience_idB\x10\n" +
+	"\x0e_scheduled_for\"^\n" +
 	"\x14ListCampaignsRequest\x12\x1d\n" +
 	"\n" +
 	"channel_id\x18\x01 \x01(\tR\tchannelId\x12'\n" +
@@ -1665,42 +1676,43 @@ var file_skelet_signals_v1_campaigns_proto_depIdxs = []int32{
 	24, // 3: skelet.signals.v1.Campaign.created_at:type_name -> google.protobuf.Timestamp
 	24, // 4: skelet.signals.v1.Campaign.updated_at:type_name -> google.protobuf.Timestamp
 	24, // 5: skelet.signals.v1.Campaign.deleted_at:type_name -> google.protobuf.Timestamp
-	0,  // 6: skelet.signals.v1.ListCampaignsResponse.campaigns:type_name -> skelet.signals.v1.Campaign
-	0,  // 7: skelet.signals.v1.GetCampaignResponse.campaign:type_name -> skelet.signals.v1.Campaign
-	1,  // 8: skelet.signals.v1.CreateCampaignRequest.campaign:type_name -> skelet.signals.v1.CampaignInput
-	0,  // 9: skelet.signals.v1.CreateCampaignResponse.campaign:type_name -> skelet.signals.v1.Campaign
-	1,  // 10: skelet.signals.v1.UpdateCampaignRequest.campaign:type_name -> skelet.signals.v1.CampaignInput
-	0,  // 11: skelet.signals.v1.UpdateCampaignResponse.campaign:type_name -> skelet.signals.v1.Campaign
-	24, // 12: skelet.signals.v1.ScheduleCampaignRequest.scheduled_for:type_name -> google.protobuf.Timestamp
-	0,  // 13: skelet.signals.v1.ScheduleCampaignResponse.campaign:type_name -> skelet.signals.v1.Campaign
-	0,  // 14: skelet.signals.v1.CancelCampaignResponse.campaign:type_name -> skelet.signals.v1.Campaign
-	2,  // 15: skelet.signals.v1.CampaignService.ListCampaigns:input_type -> skelet.signals.v1.ListCampaignsRequest
-	4,  // 16: skelet.signals.v1.CampaignService.GetCampaign:input_type -> skelet.signals.v1.GetCampaignRequest
-	6,  // 17: skelet.signals.v1.CampaignService.CreateCampaign:input_type -> skelet.signals.v1.CreateCampaignRequest
-	8,  // 18: skelet.signals.v1.CampaignService.UpdateCampaign:input_type -> skelet.signals.v1.UpdateCampaignRequest
-	10, // 19: skelet.signals.v1.CampaignService.DeleteCampaign:input_type -> skelet.signals.v1.DeleteCampaignRequest
-	12, // 20: skelet.signals.v1.CampaignService.RestoreCampaign:input_type -> skelet.signals.v1.RestoreCampaignRequest
-	14, // 21: skelet.signals.v1.CampaignService.ScheduleCampaign:input_type -> skelet.signals.v1.ScheduleCampaignRequest
-	16, // 22: skelet.signals.v1.CampaignService.CancelCampaign:input_type -> skelet.signals.v1.CancelCampaignRequest
-	18, // 23: skelet.signals.v1.CampaignService.SendCampaignTest:input_type -> skelet.signals.v1.SendCampaignTestRequest
-	20, // 24: skelet.signals.v1.CampaignService.EstimateCampaignAudience:input_type -> skelet.signals.v1.EstimateCampaignAudienceRequest
-	22, // 25: skelet.signals.v1.CampaignService.RenderCampaignPreview:input_type -> skelet.signals.v1.RenderCampaignPreviewRequest
-	3,  // 26: skelet.signals.v1.CampaignService.ListCampaigns:output_type -> skelet.signals.v1.ListCampaignsResponse
-	5,  // 27: skelet.signals.v1.CampaignService.GetCampaign:output_type -> skelet.signals.v1.GetCampaignResponse
-	7,  // 28: skelet.signals.v1.CampaignService.CreateCampaign:output_type -> skelet.signals.v1.CreateCampaignResponse
-	9,  // 29: skelet.signals.v1.CampaignService.UpdateCampaign:output_type -> skelet.signals.v1.UpdateCampaignResponse
-	11, // 30: skelet.signals.v1.CampaignService.DeleteCampaign:output_type -> skelet.signals.v1.DeleteCampaignResponse
-	13, // 31: skelet.signals.v1.CampaignService.RestoreCampaign:output_type -> skelet.signals.v1.RestoreCampaignResponse
-	15, // 32: skelet.signals.v1.CampaignService.ScheduleCampaign:output_type -> skelet.signals.v1.ScheduleCampaignResponse
-	17, // 33: skelet.signals.v1.CampaignService.CancelCampaign:output_type -> skelet.signals.v1.CancelCampaignResponse
-	19, // 34: skelet.signals.v1.CampaignService.SendCampaignTest:output_type -> skelet.signals.v1.SendCampaignTestResponse
-	21, // 35: skelet.signals.v1.CampaignService.EstimateCampaignAudience:output_type -> skelet.signals.v1.EstimateCampaignAudienceResponse
-	23, // 36: skelet.signals.v1.CampaignService.RenderCampaignPreview:output_type -> skelet.signals.v1.RenderCampaignPreviewResponse
-	26, // [26:37] is the sub-list for method output_type
-	15, // [15:26] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	24, // 6: skelet.signals.v1.CampaignInput.scheduled_for:type_name -> google.protobuf.Timestamp
+	0,  // 7: skelet.signals.v1.ListCampaignsResponse.campaigns:type_name -> skelet.signals.v1.Campaign
+	0,  // 8: skelet.signals.v1.GetCampaignResponse.campaign:type_name -> skelet.signals.v1.Campaign
+	1,  // 9: skelet.signals.v1.CreateCampaignRequest.campaign:type_name -> skelet.signals.v1.CampaignInput
+	0,  // 10: skelet.signals.v1.CreateCampaignResponse.campaign:type_name -> skelet.signals.v1.Campaign
+	1,  // 11: skelet.signals.v1.UpdateCampaignRequest.campaign:type_name -> skelet.signals.v1.CampaignInput
+	0,  // 12: skelet.signals.v1.UpdateCampaignResponse.campaign:type_name -> skelet.signals.v1.Campaign
+	24, // 13: skelet.signals.v1.ScheduleCampaignRequest.scheduled_for:type_name -> google.protobuf.Timestamp
+	0,  // 14: skelet.signals.v1.ScheduleCampaignResponse.campaign:type_name -> skelet.signals.v1.Campaign
+	0,  // 15: skelet.signals.v1.CancelCampaignResponse.campaign:type_name -> skelet.signals.v1.Campaign
+	2,  // 16: skelet.signals.v1.CampaignService.ListCampaigns:input_type -> skelet.signals.v1.ListCampaignsRequest
+	4,  // 17: skelet.signals.v1.CampaignService.GetCampaign:input_type -> skelet.signals.v1.GetCampaignRequest
+	6,  // 18: skelet.signals.v1.CampaignService.CreateCampaign:input_type -> skelet.signals.v1.CreateCampaignRequest
+	8,  // 19: skelet.signals.v1.CampaignService.UpdateCampaign:input_type -> skelet.signals.v1.UpdateCampaignRequest
+	10, // 20: skelet.signals.v1.CampaignService.DeleteCampaign:input_type -> skelet.signals.v1.DeleteCampaignRequest
+	12, // 21: skelet.signals.v1.CampaignService.RestoreCampaign:input_type -> skelet.signals.v1.RestoreCampaignRequest
+	14, // 22: skelet.signals.v1.CampaignService.ScheduleCampaign:input_type -> skelet.signals.v1.ScheduleCampaignRequest
+	16, // 23: skelet.signals.v1.CampaignService.CancelCampaign:input_type -> skelet.signals.v1.CancelCampaignRequest
+	18, // 24: skelet.signals.v1.CampaignService.SendCampaignTest:input_type -> skelet.signals.v1.SendCampaignTestRequest
+	20, // 25: skelet.signals.v1.CampaignService.EstimateCampaignAudience:input_type -> skelet.signals.v1.EstimateCampaignAudienceRequest
+	22, // 26: skelet.signals.v1.CampaignService.RenderCampaignPreview:input_type -> skelet.signals.v1.RenderCampaignPreviewRequest
+	3,  // 27: skelet.signals.v1.CampaignService.ListCampaigns:output_type -> skelet.signals.v1.ListCampaignsResponse
+	5,  // 28: skelet.signals.v1.CampaignService.GetCampaign:output_type -> skelet.signals.v1.GetCampaignResponse
+	7,  // 29: skelet.signals.v1.CampaignService.CreateCampaign:output_type -> skelet.signals.v1.CreateCampaignResponse
+	9,  // 30: skelet.signals.v1.CampaignService.UpdateCampaign:output_type -> skelet.signals.v1.UpdateCampaignResponse
+	11, // 31: skelet.signals.v1.CampaignService.DeleteCampaign:output_type -> skelet.signals.v1.DeleteCampaignResponse
+	13, // 32: skelet.signals.v1.CampaignService.RestoreCampaign:output_type -> skelet.signals.v1.RestoreCampaignResponse
+	15, // 33: skelet.signals.v1.CampaignService.ScheduleCampaign:output_type -> skelet.signals.v1.ScheduleCampaignResponse
+	17, // 34: skelet.signals.v1.CampaignService.CancelCampaign:output_type -> skelet.signals.v1.CancelCampaignResponse
+	19, // 35: skelet.signals.v1.CampaignService.SendCampaignTest:output_type -> skelet.signals.v1.SendCampaignTestResponse
+	21, // 36: skelet.signals.v1.CampaignService.EstimateCampaignAudience:output_type -> skelet.signals.v1.EstimateCampaignAudienceResponse
+	23, // 37: skelet.signals.v1.CampaignService.RenderCampaignPreview:output_type -> skelet.signals.v1.RenderCampaignPreviewResponse
+	27, // [27:38] is the sub-list for method output_type
+	16, // [16:27] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_skelet_signals_v1_campaigns_proto_init() }

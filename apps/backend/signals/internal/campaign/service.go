@@ -15,6 +15,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/email"
 	"github.com/skeletg/skelet/apps/backend/core/lib/emailtrack"
+	"github.com/skeletg/skelet/apps/backend/core/signalsapi"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/emailtemplate"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/engagement"
@@ -88,6 +89,7 @@ type Input struct {
 	ABTestPercent  int
 	ABWinnerMetric string
 	ABTestMinutes  int
+	ScheduledFor   *time.Time // when a draft plans to go out - nothing sends until Schedule
 }
 
 func (in *Input) normalizeAB() { // fills A/B defaults so a half-specified test still runs sensibly
@@ -122,8 +124,8 @@ func (s *Service) validate(in Input) error {
 		if in.ABWinnerMetric != ABMetricOpen && in.ABWinnerMetric != ABMetricClick {
 			return fmt.Errorf("%w: A/B winner metric must be 'open' or 'click'", ErrInvalid)
 		}
-		if in.ABTestPercent < 1 || in.ABTestPercent > 90 {
-			return fmt.Errorf("%w: A/B test percent must be between 1 and 90", ErrInvalid)
+		if in.ABTestPercent < signalsapi.CampaignABShareMin || in.ABTestPercent > signalsapi.CampaignABShareMax {
+			return fmt.Errorf("%w: A/B test percent must be between %d and %d", ErrInvalid, signalsapi.CampaignABShareMin, signalsapi.CampaignABShareMax)
 		}
 	}
 	if err := s.tmpl.ValidateContent(in.Blocks, in.Styles); err != nil {
@@ -159,7 +161,7 @@ func (s *Service) Create(ctx context.Context, in Input) (Campaign, error) {
 		ChannelID: in.ChannelID, Name: in.Name, EmailID: in.EmailID, Subject: in.Subject,
 		Blocks: in.Blocks, Styles: in.Styles, AudienceKind: in.AudienceKind, AudienceID: in.AudienceID,
 		ABEnabled: in.ABEnabled, ABSubjectB: in.ABSubjectB, ABTestPercent: in.ABTestPercent,
-		ABWinnerMetric: in.ABWinnerMetric, ABTestMinutes: in.ABTestMinutes,
+		ABWinnerMetric: in.ABWinnerMetric, ABTestMinutes: in.ABTestMinutes, ScheduledFor: in.ScheduledFor,
 	})
 }
 
@@ -175,7 +177,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, in Input) (Campaign,
 		ID: id, Name: in.Name, EmailID: in.EmailID, Subject: in.Subject, Blocks: in.Blocks, Styles: in.Styles,
 		AudienceKind: in.AudienceKind, AudienceID: in.AudienceID,
 		ABEnabled: in.ABEnabled, ABSubjectB: in.ABSubjectB, ABTestPercent: in.ABTestPercent,
-		ABWinnerMetric: in.ABWinnerMetric, ABTestMinutes: in.ABTestMinutes,
+		ABWinnerMetric: in.ABWinnerMetric, ABTestMinutes: in.ABTestMinutes, ScheduledFor: in.ScheduledFor,
 	})
 	if err != nil {
 		return Campaign{}, err

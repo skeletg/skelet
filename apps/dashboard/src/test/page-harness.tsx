@@ -2,11 +2,12 @@ import type { ReactNode } from 'react'
 import { render } from '@testing-library/react'
 import type { MockLink } from '@apollo/client/testing'
 import { MockedProvider } from '@apollo/client/testing/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, RouterProvider, Routes, createMemoryRouter } from 'react-router-dom'
 import { ConfigScopeContext, type ConfigScopeContextValue } from '@/lib/config-scope'
 import { PrefsContext } from '@/lib/admin-prefs'
 import { MeDocument } from '@/shared/auth/Me.gql'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { NavGuarded } from './NavGuarded'
 import { SectionHost } from './SectionHost'
 
 // Shared setup for the form page tests - a real page under Apollo's MockedProvider, a router and
@@ -87,6 +88,7 @@ export function renderPage({
   mocks,
   scope = globalScope,
   adminId,
+  guarded,
 }: {
   path: string
   /** Route pattern -> element; add the page a save navigates to, so the test can wait for it */
@@ -95,21 +97,28 @@ export function renderPage({
   scope?: ConfigScopeContextValue
   /** Set to switch stored drafts on - they key on the admin (lib/form-drafts) */
   adminId?: string
+  /** Mounts the app's leave-page guard, for a test that pins whether a navigation asks first */
+  guarded?: boolean
 }) {
   stubResizeObserver()
+  const pages = Object.entries(routes).map(([pattern, element]) => ({ path: pattern, element }))
   return render(
     <MockedProvider mocks={mocks}>
       <PrefsContext.Provider value={adminId ?? null}>
         <ConfigScopeContext.Provider value={scope}>
           {/* App.tsx mounts one around every page, so a page using Tooltip needs it here too */}
           <TooltipProvider>
-            <MemoryRouter initialEntries={[path]}>
-              <Routes>
-                {Object.entries(routes).map(([pattern, element]) => (
-                  <Route key={pattern} path={pattern} element={element} />
-                ))}
-              </Routes>
-            </MemoryRouter>
+            {guarded ? (
+              <RouterProvider router={createMemoryRouter([{ element: <NavGuarded />, children: pages }], { initialEntries: [path] })} />
+            ) : (
+              <MemoryRouter initialEntries={[path]}>
+                <Routes>
+                  {pages.map((p) => (
+                    <Route key={p.path} path={p.path} element={p.element} />
+                  ))}
+                </Routes>
+              </MemoryRouter>
+            )}
           </TooltipProvider>
         </ConfigScopeContext.Provider>
       </PrefsContext.Provider>

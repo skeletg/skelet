@@ -87,6 +87,7 @@ func (r *repo) Create(ctx context.Context, c Campaign) (Campaign, error) {
 		AbTestPercent:  int32(c.ABTestPercent),
 		AbWinnerMetric: c.ABWinnerMetric,
 		AbTestMinutes:  int32(c.ABTestMinutes),
+		ScheduledFor:   nullTime(c.ScheduledFor),
 	})
 	if err != nil {
 		return Campaign{}, err
@@ -143,6 +144,7 @@ func (r *repo) Update(ctx context.Context, c Campaign) (bool, error) {
 		AbTestPercent:  int32(c.ABTestPercent),
 		AbWinnerMetric: c.ABWinnerMetric,
 		AbTestMinutes:  int32(c.ABTestMinutes),
+		ScheduledFor:   nullTime(c.ScheduledFor),
 		ID:             c.ID,
 	})
 	return n > 0, err
@@ -424,6 +426,13 @@ func nullUUID(id *uuid.UUID) uuid.NullUUID {
 		return uuid.NullUUID{}
 	}
 	return uuid.NullUUID{UUID: *id, Valid: true}
+}
+
+func nullTime(t *time.Time) sql.NullTime {
+	if t == nil {
+		return sql.NullTime{}
+	}
+	return sql.NullTime{Time: *t, Valid: true}
 }
 
 // nullTimePtr converts a nullable SQL timestamp into the *time.Time the

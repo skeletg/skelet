@@ -1185,6 +1185,11 @@ type ComplexityRoot struct {
 		Total    func(childComplexity int) int
 	}
 
+	CampaignLimits struct {
+		AbTestPercentMax func(childComplexity int) int
+		AbTestPercentMin func(childComplexity int) int
+	}
+
 	CampaignVariantStat struct {
 		Clicked func(childComplexity int) int
 		Opened  func(childComplexity int) int
@@ -2145,6 +2150,12 @@ type ComplexityRoot struct {
 		TriggerConfig func(childComplexity int) int
 		TriggerType   func(childComplexity int) int
 		UpdatedAt     func(childComplexity int) int
+	}
+
+	FlowTrigger struct {
+		OneTimeLink   func(childComplexity int) int
+		Transactional func(childComplexity int) int
+		Type          func(childComplexity int) int
 	}
 
 	Fulfillment struct {
@@ -3971,6 +3982,7 @@ type ComplexityRoot struct {
 		CacheRevalidations           func(childComplexity int, limit *int32) int
 		CacheSurfaces                func(childComplexity int) int
 		CampaignAudienceEstimate     func(childComplexity int, channelID string, audienceKind string, audienceID *string) int
+		CampaignLimits               func(childComplexity int) int
 		CampaignMergeTags            func(childComplexity int) int
 		CampaignVariantStats         func(childComplexity int, id string) int
 		Cart                         func(childComplexity int, id string) int
@@ -4049,7 +4061,7 @@ type ComplexityRoot struct {
 		Flow                         func(childComplexity int, id string) int
 		FlowConditionKinds           func(childComplexity int) int
 		FlowMergeTags                func(childComplexity int) int
-		FlowTriggerTypes             func(childComplexity int) int
+		FlowTriggers                 func(childComplexity int) int
 		Flows                        func(childComplexity int, channelID string, includeDeleted *bool) int
 		GiftCard                     func(childComplexity int, code string) int
 		GiftCards                    func(childComplexity int, limit *int32, offset *int32) int
@@ -5984,6 +5996,7 @@ type QueryResolver interface {
 	EmailCampaign(ctx context.Context, id string) (*model.EmailCampaign, error)
 	CampaignVariantStats(ctx context.Context, id string) ([]*model.CampaignVariantStat, error)
 	CampaignMergeTags(ctx context.Context) ([]string, error)
+	CampaignLimits(ctx context.Context) (*model.CampaignLimits, error)
 	CampaignAudienceEstimate(ctx context.Context, channelID string, audienceKind string, audienceID *string) (*model.CampaignAudienceEstimate, error)
 	RenderCampaignPreview(ctx context.Context, channelID string, subject string, blocks interface{}, styles interface{}) (*model.EmailPreview, error)
 	Carts(ctx context.Context, channelID string, customerID *string, status *string, kind *model.CartKind, abandoned *bool, search *string, limit *int32, offset *int32) (*model.CartList, error)
@@ -6071,7 +6084,7 @@ type QueryResolver interface {
 	ServerFeatures(ctx context.Context) (*model.ServerFeatures, error)
 	Flows(ctx context.Context, channelID string, includeDeleted *bool) ([]*model.Flow, error)
 	Flow(ctx context.Context, id string) (*model.Flow, error)
-	FlowTriggerTypes(ctx context.Context) ([]string, error)
+	FlowTriggers(ctx context.Context) ([]*model.FlowTrigger, error)
 	FlowMergeTags(ctx context.Context) ([]string, error)
 	FlowConditionKinds(ctx context.Context) ([]string, error)
 	SignupForms(ctx context.Context, channelID string) ([]*model.SignupForm, error)
@@ -10956,6 +10969,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.CampaignAudienceEstimate.Total(childComplexity), true
 
+	case "CampaignLimits.abTestPercentMax":
+		if e.ComplexityRoot.CampaignLimits.AbTestPercentMax == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CampaignLimits.AbTestPercentMax(childComplexity), true
+	case "CampaignLimits.abTestPercentMin":
+		if e.ComplexityRoot.CampaignLimits.AbTestPercentMin == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CampaignLimits.AbTestPercentMin(childComplexity), true
+
 	case "CampaignVariantStat.clicked":
 		if e.ComplexityRoot.CampaignVariantStat.Clicked == nil {
 			break
@@ -15202,6 +15228,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Flow.UpdatedAt(childComplexity), true
+
+	case "FlowTrigger.oneTimeLink":
+		if e.ComplexityRoot.FlowTrigger.OneTimeLink == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FlowTrigger.OneTimeLink(childComplexity), true
+	case "FlowTrigger.transactional":
+		if e.ComplexityRoot.FlowTrigger.Transactional == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FlowTrigger.Transactional(childComplexity), true
+	case "FlowTrigger.type":
+		if e.ComplexityRoot.FlowTrigger.Type == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FlowTrigger.Type(childComplexity), true
 
 	case "Fulfillment.carrier":
 		if e.ComplexityRoot.Fulfillment.Carrier == nil {
@@ -26662,6 +26707,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.CampaignAudienceEstimate(childComplexity, args["channelId"].(string), args["audienceKind"].(string), args["audienceId"].(*string)), true
+	case "Query.campaignLimits":
+		if e.ComplexityRoot.Query.CampaignLimits == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.CampaignLimits(childComplexity), true
 	case "Query.campaignMergeTags":
 		if e.ComplexityRoot.Query.CampaignMergeTags == nil {
 			break
@@ -27435,12 +27486,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.FlowMergeTags(childComplexity), true
-	case "Query.flowTriggerTypes":
-		if e.ComplexityRoot.Query.FlowTriggerTypes == nil {
+	case "Query.flowTriggers":
+		if e.ComplexityRoot.Query.FlowTriggers == nil {
 			break
 		}
 
-		return e.ComplexityRoot.Query.FlowTriggerTypes(childComplexity), true
+		return e.ComplexityRoot.Query.FlowTriggers(childComplexity), true
 	case "Query.flows":
 		if e.ComplexityRoot.Query.Flows == nil {
 			break
@@ -34982,6 +35033,14 @@ input SaveCampaignInput {
   abTestPercent:  Int
   abWinnerMetric: String
   abTestMinutes:  Int
+  # When the draft plans to go out. Kept with it - nothing sends until scheduleEmailCampaign.
+  scheduledFor:   Time
+}
+
+# What the suite accepts of a campaign, so the composer's controls offer no value a save would refuse.
+type CampaignLimits {
+  abTestPercentMin: Int!
+  abTestPercentMax: Int!
 }
 
 extend type Query {
@@ -34991,6 +35050,7 @@ extend type Query {
   campaignVariantStats(id: ID!): [CampaignVariantStat!]!
   # Merge tags available to campaign content (for the composer palette).
   campaignMergeTags: [String!]!
+  campaignLimits: CampaignLimits!
   # Audience size + consent-eligible count, for the composer.
   campaignAudienceEstimate(channelId: ID!, audienceKind: String!, audienceId: ID): CampaignAudienceEstimate!
   # Render campaign content with sample data (reuses EmailPreview).
@@ -39096,6 +39156,15 @@ type Flow {
   updatedAt:     Time!
 }
 
+# A trigger the composer can offer, with what the suite allows of a flow that starts on it.
+type FlowTrigger {
+  type:          String!
+  # Only these may be marked transactional - any other trigger is refused as one on save.
+  transactional: Boolean!
+  # Carries a sign-in, reset or offer link, so its flows may not call a webhook.
+  oneTimeLink:   Boolean!
+}
+
 input SaveFlowInput {
   channelId:     ID!       # ignored on update (a flow's channel is fixed)
   name:          String!
@@ -39107,8 +39176,7 @@ input SaveFlowInput {
 extend type Query {
   flows(channelId: ID!, includeDeleted: Boolean): [Flow!]!
   flow(id: ID!): Flow
-  # Trigger types the composer should offer (only the wired ones).
-  flowTriggerTypes: [String!]!
+  flowTriggers: [FlowTrigger!]!
   # Merge tags available to flow email nodes (same set as campaigns).
   flowMergeTags: [String!]!
   # Split-condition kinds the composer should offer. Registered rather than fixed: the suite that owns a condition's data contributes it, so an install without that suite never offers a condition nothing can answer.
@@ -46373,6 +46441,16 @@ func (ec *executionContext) childFields_CampaignAudienceEstimate(ctx context.Con
 	return nil, fmt.Errorf("no field named %q was found under type CampaignAudienceEstimate", field.Name)
 }
 
+func (ec *executionContext) childFields_CampaignLimits(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "abTestPercentMin":
+		return ec.fieldContext_CampaignLimits_abTestPercentMin(ctx, field)
+	case "abTestPercentMax":
+		return ec.fieldContext_CampaignLimits_abTestPercentMax(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CampaignLimits", field.Name)
+}
+
 func (ec *executionContext) childFields_CampaignVariantStat(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "variant":
@@ -48281,6 +48359,18 @@ func (ec *executionContext) childFields_Flow(ctx context.Context, field graphql.
 		return ec.fieldContext_Flow_updatedAt(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Flow", field.Name)
+}
+
+func (ec *executionContext) childFields_FlowTrigger(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "type":
+		return ec.fieldContext_FlowTrigger_type(ctx, field)
+	case "transactional":
+		return ec.fieldContext_FlowTrigger_transactional(ctx, field)
+	case "oneTimeLink":
+		return ec.fieldContext_FlowTrigger_oneTimeLink(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type FlowTrigger", field.Name)
 }
 
 func (ec *executionContext) childFields_Fulfillment(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -86358,6 +86448,52 @@ func (ec *executionContext) fieldContext_CampaignAudienceEstimate_eligible(_ con
 	return graphql.NewScalarFieldContext("CampaignAudienceEstimate", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _CampaignLimits_abTestPercentMin(ctx context.Context, field graphql.CollectedField, obj *model.CampaignLimits) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CampaignLimits_abTestPercentMin(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AbTestPercentMin, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CampaignLimits_abTestPercentMin(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CampaignLimits", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _CampaignLimits_abTestPercentMax(ctx context.Context, field graphql.CollectedField, obj *model.CampaignLimits) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CampaignLimits_abTestPercentMax(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AbTestPercentMax, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CampaignLimits_abTestPercentMax(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CampaignLimits", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
 func (ec *executionContext) _CampaignVariantStat_variant(ctx context.Context, field graphql.CollectedField, obj *model.CampaignVariantStat) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -103202,6 +103338,75 @@ func (ec *executionContext) _Flow_updatedAt(ctx context.Context, field graphql.C
 }
 func (ec *executionContext) fieldContext_Flow_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Flow", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _FlowTrigger_type(ctx context.Context, field graphql.CollectedField, obj *model.FlowTrigger) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FlowTrigger_type(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Type, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FlowTrigger_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FlowTrigger", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _FlowTrigger_transactional(ctx context.Context, field graphql.CollectedField, obj *model.FlowTrigger) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FlowTrigger_transactional(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Transactional, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FlowTrigger_transactional(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FlowTrigger", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _FlowTrigger_oneTimeLink(ctx context.Context, field graphql.CollectedField, obj *model.FlowTrigger) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FlowTrigger_oneTimeLink(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OneTimeLink, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FlowTrigger_oneTimeLink(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FlowTrigger", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _Fulfillment_id(ctx context.Context, field graphql.CollectedField, obj *model.Fulfillment) (ret graphql.Marshaler) {
@@ -148811,6 +149016,38 @@ func (ec *executionContext) fieldContext_Query_campaignMergeTags(_ context.Conte
 	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _Query_campaignLimits(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_campaignLimits(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().CampaignLimits(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CampaignLimits) graphql.Marshaler {
+			return ec.marshalNCampaignLimits2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCampaignLimits(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_campaignLimits(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CampaignLimits(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_campaignAudienceEstimate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -152471,27 +152708,36 @@ func (ec *executionContext) fieldContext_Query_flow(ctx context.Context, field g
 	return fc, nil
 }
 
-func (ec *executionContext) _Query_flowTriggerTypes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Query_flowTriggers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Query_flowTriggerTypes(ctx, field)
+			return ec.fieldContext_Query_flowTriggers(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return ec.Resolvers.Query().FlowTriggerTypes(ctx)
+			return ec.Resolvers.Query().FlowTriggers(ctx)
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
-			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.FlowTrigger) graphql.Marshaler {
+			return ec.marshalNFlowTrigger2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐFlowTriggerᚄ(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_Query_flowTriggerTypes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type String does not have child fields"))
+func (ec *executionContext) fieldContext_Query_flowTriggers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_FlowTrigger(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _Query_flowMergeTags(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -185907,7 +186153,7 @@ func (ec *executionContext) unmarshalInputSaveCampaignInput(ctx context.Context,
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"channelId", "name", "emailId", "subject", "blocks", "styles", "audienceKind", "audienceId", "abEnabled", "abSubjectB", "abTestPercent", "abWinnerMetric", "abTestMinutes"}
+	fieldsInOrder := [...]string{"channelId", "name", "emailId", "subject", "blocks", "styles", "audienceKind", "audienceId", "abEnabled", "abSubjectB", "abTestPercent", "abWinnerMetric", "abTestMinutes", "scheduledFor"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -186005,6 +186251,13 @@ func (ec *executionContext) unmarshalInputSaveCampaignInput(ctx context.Context,
 				return it, err
 			}
 			it.AbTestMinutes = data
+		case "scheduledFor":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("scheduledFor"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ScheduledFor = data
 		}
 	}
 	return it, nil
@@ -200771,6 +201024,49 @@ func (ec *executionContext) _CampaignAudienceEstimate(ctx context.Context, sel a
 	return out
 }
 
+var campaignLimitsImplementors = []string{"CampaignLimits"}
+
+func (ec *executionContext) _CampaignLimits(ctx context.Context, sel ast.SelectionSet, obj *model.CampaignLimits) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, campaignLimitsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CampaignLimits")
+		case "abTestPercentMin":
+			out.Values[i] = ec._CampaignLimits_abTestPercentMin(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "abTestPercentMax":
+			out.Values[i] = ec._CampaignLimits_abTestPercentMax(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var campaignVariantStatImplementors = []string{"CampaignVariantStat"}
 
 func (ec *executionContext) _CampaignVariantStat(ctx context.Context, sel ast.SelectionSet, obj *model.CampaignVariantStat) graphql.Marshaler {
@@ -207606,6 +207902,54 @@ func (ec *executionContext) _Flow(ctx context.Context, sel ast.SelectionSet, obj
 			}
 		case "updatedAt":
 			out.Values[i] = ec._Flow_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var flowTriggerImplementors = []string{"FlowTrigger"}
+
+func (ec *executionContext) _FlowTrigger(ctx context.Context, sel ast.SelectionSet, obj *model.FlowTrigger) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, flowTriggerImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FlowTrigger")
+		case "type":
+			out.Values[i] = ec._FlowTrigger_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "transactional":
+			out.Values[i] = ec._FlowTrigger_transactional(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "oneTimeLink":
+			out.Values[i] = ec._FlowTrigger_oneTimeLink(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -221658,6 +222002,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "campaignLimits":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_campaignLimits(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "campaignAudienceEstimate":
 			field := field
 
@@ -223572,7 +223938,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "flowTriggerTypes":
+		case "flowTriggers":
 			field := field
 
 			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
@@ -223581,7 +223947,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
-				res = ec._Query_flowTriggerTypes(ctx, field)
+				res = ec._Query_flowTriggers(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -238464,6 +238830,20 @@ func (ec *executionContext) marshalNCampaignAudienceEstimate2ᚖgithubᚗcomᚋs
 	return ec._CampaignAudienceEstimate(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNCampaignLimits2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCampaignLimits(ctx context.Context, sel ast.SelectionSet, v model.CampaignLimits) graphql.Marshaler {
+	return ec._CampaignLimits(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNCampaignLimits2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCampaignLimits(ctx context.Context, sel ast.SelectionSet, v *model.CampaignLimits) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CampaignLimits(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNCampaignVariantStat2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCampaignVariantStatᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CampaignVariantStat) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -240891,6 +241271,32 @@ func (ec *executionContext) marshalNFlow2ᚖgithubᚗcomᚋskeletgᚋskeletᚋap
 		return graphql.Null
 	}
 	return ec._Flow(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNFlowTrigger2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐFlowTriggerᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.FlowTrigger) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNFlowTrigger2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐFlowTrigger(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNFlowTrigger2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐFlowTrigger(ctx context.Context, sel ast.SelectionSet, v *model.FlowTrigger) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FlowTrigger(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNFulfillment2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐFulfillmentᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Fulfillment) graphql.Marshaler {

@@ -23,8 +23,12 @@ query Flow($id: ID!) {
   }
 }
 
-query FlowTriggerTypes {
-  flowTriggerTypes
+query FlowTriggers {
+  flowTriggers {
+    type
+    transactional
+    oneTimeLink
+  }
 }
 
 query FlowConditionKinds {

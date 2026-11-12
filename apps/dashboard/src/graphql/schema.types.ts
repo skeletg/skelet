@@ -1722,6 +1722,12 @@ export type CampaignAudienceEstimate = {
   total: Scalars['Int']['output'];
 };
 
+export type CampaignLimits = {
+  __typename?: 'CampaignLimits';
+  abTestPercentMax: Scalars['Int']['output'];
+  abTestPercentMin: Scalars['Int']['output'];
+};
+
 export type CampaignVariantStat = {
   __typename?: 'CampaignVariantStat';
   clicked: Scalars['Int']['output'];
@@ -3478,6 +3484,13 @@ export type Flow = {
   triggerConfig: Scalars['JSON']['output'];
   triggerType: Scalars['String']['output'];
   updatedAt: Scalars['Time']['output'];
+};
+
+export type FlowTrigger = {
+  __typename?: 'FlowTrigger';
+  oneTimeLink: Scalars['Boolean']['output'];
+  transactional: Scalars['Boolean']['output'];
+  type: Scalars['String']['output'];
 };
 
 export type Fulfillment = {
@@ -8593,6 +8606,7 @@ export type Query = {
   cacheRevalidations: Array<CacheRevalidation>;
   cacheSurfaces: Array<CacheSurface>;
   campaignAudienceEstimate: CampaignAudienceEstimate;
+  campaignLimits: CampaignLimits;
   campaignMergeTags: Array<Scalars['String']['output']>;
   campaignVariantStats: Array<CampaignVariantStat>;
   cart: AdminCart;
@@ -8673,7 +8687,7 @@ export type Query = {
   flow?: Maybe<Flow>;
   flowConditionKinds: Array<Scalars['String']['output']>;
   flowMergeTags: Array<Scalars['String']['output']>;
-  flowTriggerTypes: Array<Scalars['String']['output']>;
+  flowTriggers: Array<FlowTrigger>;
   flows: Array<Flow>;
   giftCard?: Maybe<GiftCard>;
   giftCards: Array<GiftCard>;
@@ -10581,6 +10595,7 @@ export type SaveCampaignInput = {
   channelId: Scalars['ID']['input'];
   emailId?: InputMaybe<Scalars['ID']['input']>;
   name: Scalars['String']['input'];
+  scheduledFor?: InputMaybe<Scalars['Time']['input']>;
   styles?: InputMaybe<Scalars['JSON']['input']>;
   subject: Scalars['String']['input'];
 };

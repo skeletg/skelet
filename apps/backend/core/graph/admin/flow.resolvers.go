@@ -106,11 +106,16 @@ func (r *queryResolver) Flow(ctx context.Context, id string) (*model.Flow, error
 }
 
 // The triggers are the contract's own list - core raises every one of them, so it needs no round trip
-func (r *queryResolver) FlowTriggerTypes(ctx context.Context) ([]string, error) {
+func (r *queryResolver) FlowTriggers(ctx context.Context) ([]*model.FlowTrigger, error) {
 	if _, err := r.signalsScoped(ctx, "flows.view"); err != nil {
 		return nil, err
 	}
-	return signalsapi.FlowTriggerTypes(), nil
+	types := signalsapi.FlowTriggerTypes()
+	out := make([]*model.FlowTrigger, 0, len(types))
+	for _, t := range types {
+		out = append(out, &model.FlowTrigger{Type: t, Transactional: signalsapi.CanBeTransactional(t), OneTimeLink: signalsapi.IsAuthTrigger(t)})
+	}
+	return out, nil
 }
 
 func (r *queryResolver) FlowMergeTags(ctx context.Context) ([]string, error) {
