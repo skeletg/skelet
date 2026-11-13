@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type DragEvent } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useRef, useState, type ClipboardEvent, type DragEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { ChevronRightIcon, FolderIcon, UploadCloudIcon } from 'lucide-react'
@@ -39,6 +39,8 @@ import { AssetGrid } from './picker/AssetGrid'
 import { useUploadQueue } from './picker/useUploadQueue'
 import { useMediaSearch } from './useMediaSearch'
 
+const PhotoEditor = lazy(() => import('./editor/PhotoEditor'))
+
 const parentOf = (path: string) => (path.includes('/') ? path.split('/').slice(0, -1).join('/') : '')
 // A folder's wall shows what is in it and under it
 const under = (folder: string, path: string) => path === '' || folder === path || folder.startsWith(`${path}/`)
@@ -66,6 +68,7 @@ export function MediaLibrary() {
   const [dragging, setDragging] = useState(false)
   const [folderDialog, setFolderDialog] = useState<'new' | 'rename' | null>(null)
   const [working, setWorking] = useState(false)
+  const [editing, setEditing] = useState<MediaAsset | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
 
   // Typed words in the details panel that aren't saved yet. Whatever would take the panel off its file asks first
@@ -266,6 +269,7 @@ export function MediaLibrary() {
               setPicked([])
               leave([a.id])
             }}
+            onEdit={() => setEditing(open)}
             onClose={() => pick([])}
             onDirty={setPanelDirty}
             onError={setError}
@@ -419,6 +423,19 @@ export function MediaLibrary() {
         />
       </div>
 
+      {editing ? (
+        <Suspense fallback={null}>
+          <PhotoEditor
+            asset={editing}
+            onClose={() => setEditing(null)}
+            onSaved={async (id) => {
+              setEditing(null)
+              await refresh()
+              pick([id])
+            }}
+          />
+        </Suspense>
+      ) : null}
       <FolderDialog
         open={folderDialog !== null}
         title={folderDialog === 'rename' ? 'Rename the folder' : 'New folder'}

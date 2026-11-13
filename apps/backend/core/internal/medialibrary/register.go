@@ -21,4 +21,5 @@ func init() {
 	apperr.RegisterSentinel(ErrInvalidSize, "MEDIA_INVALID_SIZE", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrInvalidDimensions, "MEDIA_INVALID_DIMENSIONS", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrInvalidFocalPoint, "MEDIA_INVALID_FOCAL_POINT", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrNotEditable, "MEDIA_NOT_EDITABLE", apperr.ClassValidation)
 }

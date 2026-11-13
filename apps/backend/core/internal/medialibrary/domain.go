@@ -189,4 +189,5 @@ var (
 	ErrInvalidSize          = errors.New("file size must be positive")
 	ErrInvalidDimensions    = errors.New("width and height are required for images")
 	ErrInvalidFocalPoint    = errors.New("a focal point needs both x and y within 0..1, or neither to clear it")
+	ErrNotEditable          = errors.New("only a finished JPEG, PNG or WebP upload can be edited")
 )

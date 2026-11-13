@@ -3,6 +3,7 @@ package medialibrary
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"mime"
 	"path"
@@ -35,6 +36,7 @@ type Storage interface {
 	PutBytes(ctx context.Context, key string, data []byte, contentType string) error
 	PutEmptyObject(ctx context.Context, key string) error
 	Head(ctx context.Context, key string) (int64, string, bool, error)
+	GetStream(ctx context.Context, key string) (io.ReadCloser, error)
 	Copy(ctx context.Context, fromKey, toKey string) error
 	Delete(ctx context.Context, key string) error
 	ListPrefix(ctx context.Context, prefix string) ([]string, error)
@@ -353,6 +355,21 @@ func (s *Service) GetAsset(ctx context.Context, id uuid.UUID) (Asset, error) {
 	}
 	asset.URL = s.storage.PublicURL(asset.ObjectKey)
 	return asset, nil
+}
+
+func (s *Service) OpenForEditing(ctx context.Context, id uuid.UUID) (io.ReadCloser, Asset, error) {
+	asset, err := s.repo.GetAssetByID(ctx, id)
+	if err != nil {
+		return nil, Asset{}, err
+	}
+	if asset.Status != AssetStatusReady || !media.CanResize(asset.MimeType) {
+		return nil, Asset{}, fmt.Errorf("%w: %s", ErrNotEditable, asset.MimeType)
+	}
+	body, err := s.storage.GetStream(ctx, asset.ObjectKey)
+	if err != nil {
+		return nil, Asset{}, fmt.Errorf("open media asset: %w", err)
+	}
+	return body, asset, nil
 }
 
 // GetAssetsByIDs is the batched (DataLoader) form of GetAsset - URL filled in per asset

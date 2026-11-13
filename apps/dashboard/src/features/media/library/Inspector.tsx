@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { useMutation } from '@apollo/client/react'
-import { Trash2Icon, XIcon } from 'lucide-react'
+import { CropIcon, Trash2Icon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 import { DeleteMediaAssetDocument, MoveMediaAssetDocument, type MediaAssetFieldsFragment as MediaAsset } from '../MediaLibrary.gql'
+import { isEditable } from '../editor/output'
 import { AssetPanel } from '../picker/AssetPanel'
 
 // Radix refuses an empty value, and the library's root is the empty path
@@ -19,6 +20,7 @@ export function Inspector({
   folders,
   onChanged,
   onDeleted,
+  onEdit,
   onClose,
   onDirty,
   onError,
@@ -28,6 +30,7 @@ export function Inspector({
   folders: string[]
   onChanged: (a: MediaAsset) => void
   onDeleted: (a: MediaAsset) => void
+  onEdit: () => void
   onClose: () => void
   onDirty: (dirty: boolean) => void
   onError: (message: string | null) => void
@@ -44,6 +47,15 @@ export function Inspector({
         </Button>
       </div>
       <div className="grid flex-1 content-start gap-5 overflow-y-auto p-4">
+        {canManage && isEditable(asset) ? (
+          <Button type="button" variant="outline" size="sm" className="justify-between" onClick={onEdit}>
+            <span className="flex items-center gap-2">
+              <CropIcon className="size-4" />
+              Edit picture
+            </span>
+            <span className="text-xs font-normal text-muted-foreground">crop, turn, colour</span>
+          </Button>
+        ) : null}
         <AssetPanel asset={asset} canManage={canManage} notes libraryLink={false} onChanged={onChanged} onDirty={onDirty} />
         {canManage ? <Filing key={asset.id} asset={asset} folders={folders} onChanged={onChanged} onDeleted={onDeleted} onError={onError} /> : null}
       </div>

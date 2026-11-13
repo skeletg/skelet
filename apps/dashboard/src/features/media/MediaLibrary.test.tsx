@@ -19,6 +19,14 @@ import {
 import { useMediaUpload } from './useImageUpload'
 
 vi.mock('./useImageUpload', () => ({ useMediaUpload: vi.fn() }))
+vi.mock('./editor/PhotoEditor', () => ({
+  default: ({ asset, onClose, onSaved }: { asset: { filename: string }; onClose: () => void; onSaved: (id: string) => void }) => (
+    <div role="dialog" aria-label={`Editing ${asset.filename}`}>
+      <button onClick={() => onSaved('boot-edited')}>save the edit</button>
+      <button onClick={onClose}>leave</button>
+    </div>
+  ),
+}))
 
 Element.prototype.hasPointerCapture ??= () => false
 Element.prototype.releasePointerCapture ??= () => {}
@@ -351,6 +359,54 @@ describe('MediaLibrary one file', () => {
     expect(await screen.findByText('storage is unreachable', {}, SLOW)).toBeDefined()
     expect(within(await details()).getByRole('heading', { name: 'boot.jpg' })).toBeDefined()
     expect(await tile('boot.jpg')).toBeDefined()
+  })
+})
+
+describe('MediaLibrary photo editing', () => {
+  it('offers the editor for a picture it can write back, to someone who may manage the library', async () => {
+    library()
+    fireEvent.click(await tile('boot.jpg'))
+    expect(within(await details()).getByRole('button', { name: /Edit picture/ })).toBeDefined()
+
+    fireEvent.click(await tile('manual.pdf'))
+    await within(await details()).findByRole('heading', { name: 'manual.pdf' })
+    expect(within(await details()).queryByRole('button', { name: /Edit picture/ })).toBeNull()
+  })
+
+  it('offers no editor to someone who may only look', async () => {
+    library([meMock({ superuser: false, permissions: ['media.view'] }), ...reads().slice(1)])
+    fireEvent.click(await tile('boot.jpg'))
+    await within(await details()).findByRole('heading', { name: 'boot.jpg' })
+    expect(within(await details()).queryByRole('button', { name: /Edit picture/ })).toBeNull()
+  })
+
+  it('opens the saved edit beside the wall, with the original still hanging', async () => {
+    const wall = [...WALL]
+    const search = { request: { query: SearchMediaAssetsDocument, variables: () => true }, result: () => ({ data: { searchMediaAssets: { __typename: 'MediaAssetSearchResult', totalCount: wall.length, items: [...wall] } } }), maxUsageCount: 40 }
+    library([...reads().filter((m) => m.request.query !== SearchMediaAssetsDocument), search])
+    fireEvent.click(await tile('boot.jpg'))
+    fireEvent.click(within(await details()).getByRole('button', { name: /Edit picture/ }))
+    const editor = await screen.findByRole('dialog', { name: 'Editing boot.jpg' }, SLOW)
+
+    wall.unshift(asset('boot-edited', { filename: 'boot-edited.jpg' }))
+    fireEvent.click(within(editor).getByRole('button', { name: 'save the edit' }))
+
+    expect(await within(await details()).findByRole('heading', { name: 'boot-edited.jpg' }, SLOW)).toBeDefined()
+    expect(screen.queryByRole('dialog', { name: 'Editing boot.jpg' })).toBeNull()
+    expect(await tile('boot.jpg')).toBeDefined()
+    expect(await tile('boot-edited.jpg')).toBeDefined()
+  })
+
+  it('leaves the library as it was when the editor is left', async () => {
+    const asked: Vars[] = []
+    library(reads(WALL, asked))
+    fireEvent.click(await tile('boot.jpg'))
+    fireEvent.click(within(await details()).getByRole('button', { name: /Edit picture/ }))
+    const searches = asked.length
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Editing boot.jpg' }, SLOW)).getByRole('button', { name: 'leave' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Editing boot.jpg' })).toBeNull())
+    expect(within(await details()).getByRole('heading', { name: 'boot.jpg' })).toBeDefined()
+    expect(asked.length).toBe(searches)
   })
 })
 

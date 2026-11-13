@@ -3,6 +3,7 @@ package medialibrary
 import (
 	"context"
 	"errors"
+	"io"
 	"slices"
 	"sort"
 	"strings"
@@ -47,6 +48,12 @@ func (m *memStore) PutEmptyObject(_ context.Context, key string) error {
 func (m *memStore) Head(_ context.Context, key string) (int64, string, bool, error) {
 	m.heads++
 	return 1, "", m.objects[key], nil
+}
+func (m *memStore) GetStream(_ context.Context, key string) (io.ReadCloser, error) {
+	if !m.objects[key] {
+		return nil, objstore.ErrObjectNotFound
+	}
+	return io.NopCloser(strings.NewReader("bytes of " + key)), nil
 }
 func (m *memStore) Copy(_ context.Context, from, to string) error {
 	if !m.objects[from] {

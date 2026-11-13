@@ -19,5 +19,6 @@ describe('admin HTTP endpoints', () => {
   ])('with the GraphQL endpoint at %s they sit under %s', async (graphqlUrl, base) => {
     const m = await endpoints(graphqlUrl)
     expect(m.ADMIN_MEDIA_SVG_ENDPOINT).toBe(`${base}/media/svg`)
+    expect(m.ADMIN_MEDIA_FILE_ENDPOINT).toBe(`${base}/media/file`)
   })
 })

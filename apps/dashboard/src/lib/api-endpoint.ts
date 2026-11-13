@@ -11,3 +11,5 @@ const ADMIN_HTTP_BASE = ADMIN_GRAPHQL_ENDPOINT.replace(/\/api\/admin\/.*$/, '') 
 // SVG uploads POST here instead of taking the presigned route - the server has to see the bytes to
 // sanitize them (see internal/wiring/media_svg_http.go)
 export const ADMIN_MEDIA_SVG_ENDPOINT = ADMIN_HTTP_BASE + '/media/svg'
+
+export const ADMIN_MEDIA_FILE_ENDPOINT = ADMIN_HTTP_BASE + '/media/file'

@@ -2,9 +2,13 @@ package medialibrary
 
 import (
 	"context"
+	"errors"
+	"io"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/media"
 )
@@ -89,5 +93,35 @@ func TestUploadTypesCoverEverythingTheLibraryTakes(t *testing.T) {
 		if !strings.Contains(strings.Join(types, " "), want) {
 			t.Errorf("%s is accepted on upload but not offered", want)
 		}
+	}
+}
+
+func TestOnlyAFinishedRasterPictureOpensForEditing(t *testing.T) {
+	svc, st, repo := fixture()
+	ctx := context.Background()
+	photo := seedAsset(repo, st, "banners", "a.jpg")
+	photo.Status = AssetStatusReady
+	repo.assets[photo.ID] = photo
+
+	body, got, err := svc.OpenForEditing(ctx, photo.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer body.Close()
+	if raw, _ := io.ReadAll(body); string(raw) != "bytes of banners/a.jpg" || got.ID != photo.ID {
+		t.Fatalf("opened %q for %s", raw, got.ID)
+	}
+
+	pending := seedAsset(repo, st, "banners", "b.jpg")
+	vector := seedAsset(repo, st, "banners", "logo.svg")
+	vector.Status, vector.MimeType = AssetStatusReady, MimeSVG
+	repo.assets[vector.ID] = vector
+	for name, id := range map[string]uuid.UUID{"an unconfirmed upload": pending.ID, "a vector": vector.ID} {
+		if _, _, err := svc.OpenForEditing(ctx, id); !errors.Is(err, ErrNotEditable) {
+			t.Errorf("%s: %v, want ErrNotEditable", name, err)
+		}
+	}
+	if _, _, err := svc.OpenForEditing(ctx, uuid.New()); !errors.Is(err, ErrAssetNotFound) {
+		t.Errorf("an unknown id: %v, want ErrAssetNotFound", err)
 	}
 }

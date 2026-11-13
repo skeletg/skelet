@@ -256,6 +256,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	mux.Handle("/api/admin/data/jobs/", otelx.WrapHTTP(adminAuth(dataDownloadHandler(s.DataJob, s.Admin)), "data.download"))
 	// SVG can't use the GraphQL presign path - see media_svg_http.go for why the bytes come here first
 	mux.Handle(mediaSVGPath, otelx.WrapHTTP(adminAuth(mediaSVGHandler(s.MediaLibrary, s.Admin)), "media.svg"))
+	mux.Handle(mediaFilePath, otelx.WrapHTTP(adminAuth(mediaFileHandler(s.MediaLibrary, s.Admin)), "media.file"))
 
 	adminMCPOn, frontMCPOn := mcpSwitches()
 	if adminMCPOn {
