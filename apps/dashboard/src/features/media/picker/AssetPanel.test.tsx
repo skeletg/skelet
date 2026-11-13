@@ -157,3 +157,45 @@ describe('AssetPanel', () => {
     expect(screen.getByText('application/pdf')).toBeDefined()
   })
 })
+
+// What the library adds to the picker's use: the team's notes, no link back to itself, and word of unsaved typing
+describe('AssetPanel in the library', () => {
+  function inLibrary(onDirty = vi.fn()) {
+    const sent: Record<string, unknown>[] = []
+    render(
+      <MemoryRouter>
+        <MockedProvider
+          mocks={[
+            { request: { query: MediaAiStatusDocument }, result: { data: { aiStatus: { __typename: 'AiStatus', enabled: false } } }, maxUsageCount: 5 },
+            {
+              request: { query: UpdateMediaAssetDocument, variables: (v: { input: Record<string, unknown> }) => (sent.push(v.input), true) },
+              result: (v: { input: object }) => ({ data: { updateMediaAsset: asset(v.input) } }),
+            },
+          ]}
+        >
+          <AssetPanel asset={asset({ notes: 'From the spring shoot' })} canManage notes libraryLink={false} onChanged={() => {}} onDirty={onDirty} />
+        </MockedProvider>
+      </MemoryRouter>,
+    )
+    return { sent, onDirty }
+  }
+
+  it('edits the notes with the other words, and has no link to the library', async () => {
+    const { sent } = inLibrary()
+    expect(field('Notes').value).toBe('From the spring shoot')
+    expect(screen.queryByRole('link', { name: 'In the library' })).toBeNull()
+
+    fireEvent.change(field('Notes'), { target: { value: 'Retouched' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
+    await vi.waitFor(() => expect(sent).toEqual([{ id: 'a1', title: 'Red', altText: 'A red mug', caption: '', notes: 'Retouched' }]), SLOW)
+  })
+
+  it('says when typed words are waiting, and when they no longer are', async () => {
+    const { onDirty } = inLibrary()
+    await vi.waitFor(() => expect(onDirty).toHaveBeenLastCalledWith(false))
+    fireEvent.change(field('Title'), { target: { value: 'Red mug' } })
+    await vi.waitFor(() => expect(onDirty).toHaveBeenLastCalledWith(true))
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    await vi.waitFor(() => expect(onDirty).toHaveBeenLastCalledWith(false))
+  })
+})

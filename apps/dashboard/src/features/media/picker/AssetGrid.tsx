@@ -15,7 +15,7 @@ const typeLabel = (a: MediaAsset) => (a.mimeType.split('/')[1] ?? a.mimeType).re
 const dims = (a: MediaAsset) => (a.width && a.height ? `${a.width}×${a.height}` : null)
 
 // Transparent images read better on a checkerboard than on flat grey
-const CHECKER =
+export const CHECKER =
   'bg-[length:16px_16px] bg-[linear-gradient(45deg,var(--color-muted)_25%,transparent_25%),linear-gradient(-45deg,var(--color-muted)_25%,transparent_25%),linear-gradient(45deg,transparent_75%,var(--color-muted)_75%),linear-gradient(-45deg,transparent_75%,var(--color-muted)_75%)] bg-[position:0_0,0_8px,8px_-8px,-8px_0]'
 
 // Tiles or rows - a click picks, a double click or Enter uses it, the arrows move through it like a grid

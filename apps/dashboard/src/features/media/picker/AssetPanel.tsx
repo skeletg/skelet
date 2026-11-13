@@ -1,4 +1,4 @@
-import { useState, type MouseEvent } from 'react'
+import { useEffect, useState, type MouseEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { CheckIcon, CopyIcon, ExternalLinkIcon, FileTextIcon, SparklesIcon } from 'lucide-react'
@@ -18,18 +18,39 @@ import {
 
 // The focused asset in full - its picture, what it is, and the words that travel with it. Edits save to the library,
 // so every place using the asset gets them
-export function AssetPanel({ asset, canManage, onChanged }: { asset: MediaAsset; canManage: boolean; onChanged: (a: MediaAsset) => void }) {
-  const [draft, setDraft] = useState({ title: asset.title, altText: asset.altText, caption: asset.caption })
+export function AssetPanel({
+  asset,
+  canManage,
+  onChanged,
+  notes = false,
+  libraryLink = true,
+  onDirty,
+}: {
+  asset: MediaAsset
+  canManage: boolean
+  onChanged: (a: MediaAsset) => void
+  /** Also edit the notes kept with the asset - the library does, a picker doesn't need them */
+  notes?: boolean
+  libraryLink?: boolean
+  /** Told whenever typed words are waiting to be saved, so whoever holds the panel can ask before dropping them */
+  onDirty?: (dirty: boolean) => void
+}) {
+  const words = (a: MediaAsset) => ({ title: a.title, altText: a.altText, caption: a.caption, ...(notes ? { notes: a.notes } : {}) })
+  const [draft, setDraft] = useState(() => words(asset))
   const [shownFor, setShownFor] = useState(asset.id)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   // A different asset brings its own words - adjusted during render, not in an effect
   if (shownFor !== asset.id) {
     setShownFor(asset.id)
-    setDraft({ title: asset.title, altText: asset.altText, caption: asset.caption })
+    setDraft(words(asset))
     setError(null)
   }
-  const dirty = draft.title !== asset.title || draft.altText !== asset.altText || draft.caption !== asset.caption
+  const dirty = draft.title !== asset.title || draft.altText !== asset.altText || draft.caption !== asset.caption || (notes && draft.notes !== asset.notes)
+  useEffect(() => {
+    onDirty?.(dirty)
+    return () => onDirty?.(false)
+  }, [dirty, onDirty])
 
   const [update, { loading: saving }] = useMutation(UpdateMediaAssetDocument)
   const [setFocal] = useMutation(SetMediaFocalPointDocument)
@@ -126,9 +147,11 @@ export function AssetPanel({ asset, canManage, onChanged }: { asset: MediaAsset;
             Open
           </a>
         </Button>
-        <Button asChild size="sm" variant="ghost">
-          <Link to={`/media?path=${encodeURIComponent(asset.directoryPath)}`}>In the library</Link>
-        </Button>
+        {libraryLink ? (
+          <Button asChild size="sm" variant="ghost">
+            <Link to={`/media?path=${encodeURIComponent(asset.directoryPath)}`}>In the library</Link>
+          </Button>
+        ) : null}
       </div>
 
       <fieldset disabled={!canManage} className="grid gap-3 border-t pt-4">
@@ -161,6 +184,12 @@ export function AssetPanel({ asset, canManage, onChanged }: { asset: MediaAsset;
           <Label htmlFor="picker-caption">Caption</Label>
           <Textarea id="picker-caption" rows={2} value={draft.caption} onChange={(e) => setDraft({ ...draft, caption: e.target.value })} />
         </div>
+        {notes ? (
+          <div className="grid gap-1.5">
+            <Label htmlFor="picker-notes">Notes</Label>
+            <Textarea id="picker-notes" rows={2} value={draft.notes ?? ''} placeholder="For your team - never shown on the storefront" onChange={(e) => setDraft({ ...draft, notes: e.target.value })} />
+          </div>
+        ) : null}
         {error ? <p className="text-xs text-destructive">{error}</p> : null}
         {canManage ? (
           <div className="flex items-center gap-2">
@@ -171,7 +200,7 @@ export function AssetPanel({ asset, canManage, onChanged }: { asset: MediaAsset;
               {saving ? 'Saving…' : 'Save details'}
             </Button>
             {dirty ? (
-              <Button type="button" size="sm" variant="ghost" onClick={() => setDraft({ title: asset.title, altText: asset.altText, caption: asset.caption })}>
+              <Button type="button" size="sm" variant="ghost" onClick={() => setDraft(words(asset))}>
                 Undo
               </Button>
             ) : null}

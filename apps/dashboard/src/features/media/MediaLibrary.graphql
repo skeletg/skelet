@@ -51,6 +51,19 @@ query SearchMediaAssets($query: String, $path: String, $mimeGroup: MediaMimeGrou
   }
 }
 
+# How many of each kind a search holds, for the library's type filter
+query MediaCounts($query: String, $path: String) {
+  all: searchMediaAssets(query: $query, path: $path, limit: 1) {
+    totalCount
+  }
+  images: searchMediaAssets(query: $query, path: $path, mimeGroup: IMAGE, limit: 1) {
+    totalCount
+  }
+  documents: searchMediaAssets(query: $query, path: $path, mimeGroup: DOCUMENT, limit: 1) {
+    totalCount
+  }
+}
+
 query MediaAssetById($id: ID!) {
   mediaAsset(id: $id) {
     ...MediaAssetFields
