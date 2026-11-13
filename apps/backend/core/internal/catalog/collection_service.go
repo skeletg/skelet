@@ -16,13 +16,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/applog"
 )
 
-const collectionCoverKeyFormat = "catalog/collections/%s/cover/%s%s"
-
 var collectionEntityType = string(urlrewrite.EntityTypeCollection)
-
-func collectionCoverKey(collectionID, coverID uuid.UUID, ext string) string {
-	return fmt.Sprintf(collectionCoverKeyFormat, collectionID, coverID, ext)
-}
 
 // ==================== Collection CRUD ====================
 
@@ -458,7 +452,8 @@ func (s *collectionService) RequestCollectionCoverUpload(ctx context.Context, in
 	if input.SizeBytes > s.media.MaxUploadBytes() {
 		return RequestCollectionCoverResult{}, fmt.Errorf("%w: %d > %d", ErrFileTooLarge, input.SizeBytes, s.media.MaxUploadBytes())
 	}
-	if _, err := s.repo.GetCollectionByID(ctx, input.CollectionID); err != nil {
+	collection, err := s.repo.GetCollectionByID(ctx, input.CollectionID)
+	if err != nil {
 		return RequestCollectionCoverResult{}, err
 	}
 
@@ -466,7 +461,10 @@ func (s *collectionService) RequestCollectionCoverUpload(ctx context.Context, in
 	if err != nil {
 		return RequestCollectionCoverResult{}, fmt.Errorf("generate cover id: %w", err)
 	}
-	s3Key := collectionCoverKey(input.CollectionID, coverID, media.ExtensionForMime(input.MimeType))
+	s3Key := s.mediaKey(ctx, media.CollectionCoverKey, media.KeyValues{
+		ID: coverID, Name: input.Filename, Ext: media.ExtensionForMime(input.MimeType), At: time.Now(),
+		More: map[string]string{"collection_id": input.CollectionID.String(), "slug": collection.Slug},
+	})
 
 	uploadURL, err := s.media.PresignUpload(ctx, s3Key, input.MimeType, input.SizeBytes, presignTTL)
 	if err != nil {

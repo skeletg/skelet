@@ -34,7 +34,8 @@ func (s *mediaService) RequestMediaUpload(ctx context.Context, input RequestMedi
 	if input.SizeBytes > s.media.MaxUploadBytes() {
 		return RequestMediaUploadResult{}, fmt.Errorf("%w: %d > %d", ErrFileTooLarge, input.SizeBytes, s.media.MaxUploadBytes())
 	}
-	if _, err := s.repo.GetProductByID(ctx, input.ProductID); err != nil {
+	product, err := s.repo.GetProductByID(ctx, input.ProductID)
+	if err != nil {
 		return RequestMediaUploadResult{}, err
 	}
 
@@ -42,8 +43,6 @@ func (s *mediaService) RequestMediaUpload(ctx context.Context, input RequestMedi
 	if err != nil {
 		return RequestMediaUploadResult{}, fmt.Errorf("generate media id: %w", err)
 	}
-	ext := media.ExtensionForMime(input.MimeType)
-	// Per-media subdirectory leaves room for future processed variants (thumb.jpg, large.webp) without schema churn
 	typeSegment := string(MediaUploadTargetGallery)
 	if input.Target != nil {
 		typeSegment = string(*input.Target)
@@ -57,7 +56,10 @@ func (s *mediaService) RequestMediaUpload(ctx context.Context, input RequestMedi
 			typeSegment = "og"
 		}
 	}
-	s3Key := fmt.Sprintf("catalog/products/%s/%s/%s%s", input.ProductID, typeSegment, mediaID, ext)
+	s3Key := s.mediaKey(ctx, media.ProductImageKey, media.KeyValues{
+		ID: mediaID, Name: input.Filename, Ext: media.ExtensionForMime(input.MimeType), At: time.Now(),
+		More: map[string]string{"product_id": input.ProductID.String(), "sku": product.SKU, "type": typeSegment},
+	})
 
 	url, err := s.media.PresignUpload(ctx, s3Key, input.MimeType, input.SizeBytes, presignTTL)
 	if err != nil {

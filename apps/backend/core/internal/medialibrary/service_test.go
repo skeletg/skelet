@@ -245,6 +245,22 @@ func TestAMoveDropsTheOldObjectAfterRepointing(t *testing.T) {
 	}
 }
 
+func TestAMoveKeepsTheUploadDateInADatedName(t *testing.T) {
+	svc, st, repo := fixture()
+	svc.SetConfig(savedLayout("{yyyy}-{mm}-{name}-{short_id}{ext}"))
+	a := seedAsset(repo, st, "banners", "a.jpg")
+	a.CreatedAt = time.Date(2024, 2, 29, 12, 0, 0, 0, time.UTC)
+	repo.assets[a.ID] = a
+	moved, err := svc.MoveAsset(context.Background(), MoveAssetInput{ID: a.ID, TargetPath: "archive"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := a.ID.String()
+	if want := "archive/2024-02-a-" + id[len(id)-8:] + ".jpg"; moved.ObjectKey != want || !st.objects[want] {
+		t.Fatalf("moved to %s, want %s", moved.ObjectKey, want)
+	}
+}
+
 // Dropping the row first leaked the object for good when the storage delete then failed
 func TestAFailedStorageDeleteKeepsTheRowToRetryFrom(t *testing.T) {
 	svc, st, repo := fixture()

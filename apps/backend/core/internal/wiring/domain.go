@@ -99,8 +99,10 @@ func newMediaStorage(rc RootContext) (objstore.Storage, error) {
 	return objstore.New(rc.Context, objstore.FromEnv()) // root ctx, not Background - this runs inside fx.New, where a hung endpoint would ignore SIGTERM
 }
 
-func newMediaLibraryService(q *db.Queries, store objstore.Storage) *medialibrary.Service {
-	return medialibrary.NewService(medialibrary.NewRepository(q), store, os.Getenv("MEDIA_LIBRARY_ROOT_PREFIX"))
+func newMediaLibraryService(q *db.Queries, store objstore.Storage, cfg *config.Service) *medialibrary.Service {
+	svc := medialibrary.NewService(medialibrary.NewRepository(q), store, os.Getenv("MEDIA_LIBRARY_ROOT_PREFIX"))
+	svc.SetConfig(cfg)
+	return svc
 }
 
 // Generic, not CMS-specific - logs every purge and busts each channel's storefront Data Cache tags

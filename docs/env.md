@@ -506,6 +506,20 @@ means the whole bucket, minus the prefixes the platform writes itself
 (`catalog/`, `webforms/`, `data/`, `derived/`) - the library won't list,
 upload into, rename or delete those, and won't delete its own root.
 
+How files are named under those prefixes isn't an env var. It's four templates
+in Settings, System, Media files: the name a library file gets inside its
+folder (`{id}-{name}{ext}` unless you change it), and the paths product
+pictures, category covers and collection covers take under `catalog/`. A
+template has to hold `{id}` or `{short_id}`, because resized copies are cached
+under the original's key and a key that came back would show the old picture.
+Changing one moves nothing: what is already stored keeps its key, and a
+library file takes the new name when it's next moved or renamed. The
+placeholders are listed in [settings.md](settings.md).
+
+`{short_id}` is eight random characters: plenty to keep two files apart, not
+enough to stop someone guessing the address of a file nothing links to. If you
+count on unlisted files staying unfound, keep `{id}` in the template.
+
 Moving between stores, `skelet media-migrate` reads the storage vars above as
 the source and takes the destination from its own flags - `--dest-dir` for a
 directory, `--dest-bucket` and friends for S3 - falling back

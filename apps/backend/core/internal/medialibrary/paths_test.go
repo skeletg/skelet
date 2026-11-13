@@ -1,12 +1,30 @@
 package medialibrary
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/internal/media"
+	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
+
+type savedLayout string
+
+func (l savedLayout) GetString(_ context.Context, path string, _ config.Scope) (string, error) {
+	if path != media.LibraryFileKey.Path {
+		return "", errors.New("not a setting the library reads")
+	}
+	return string(l), nil
+}
+
+func keyOf(s *Service, dir string, id uuid.UUID, filename, mime string) string {
+	return s.buildObjectKey(context.Background(), dir, id, filename, mime, time.Date(2026, 3, 9, 23, 0, 0, 0, time.UTC))
+}
 
 // Directory paths come off the admin file browser as free text, so the sanitizer is the only thing
 // between a pasted path and the object keys it would otherwise reach
@@ -136,10 +154,10 @@ func TestBuildObjectKeyTakesItsExtensionFromTheMimeType(t *testing.T) {
 		{"catalog", "evil.php", "image/png", "media/catalog/" + id.String() + "-evil.png"},
 		{"docs", "Terms & Conditions.pdf", "application/pdf", "media/docs/" + id.String() + "-terms-conditions.pdf"},
 		{"", "clip.mov", "video/quicktime", "media/" + id.String() + "-clip.mov"},
-		{"", "----.png", "image/png", "media/" + id.String() + "-asset.png"}, // nothing survives sanitizing
+		{"", "----.png", "image/png", "media/" + id.String() + "-file.png"}, // nothing survives sanitizing
 		{"", "no-ext", "image/webp", "media/" + id.String() + "-no-ext.webp"},
 	} {
-		got := s.buildObjectKey(tc.dir, id, tc.filename, tc.mime)
+		got := keyOf(s, tc.dir, id, tc.filename, tc.mime)
 		if got != tc.want {
 			t.Errorf("buildObjectKey(%q, %q, %q) = %q, want %q", tc.dir, tc.filename, tc.mime, got, tc.want)
 		}
@@ -160,7 +178,7 @@ func TestSanitizedFilenameFeedsASingleExtensionIntoTheKey(t *testing.T) {
 		if err != nil {
 			t.Fatalf("sanitizeFilename(%q): %v", tc.raw, err)
 		}
-		key := s.buildObjectKey("", uuid.Nil, filename, tc.mime)
+		key := keyOf(s, "", uuid.Nil, filename, tc.mime)
 		if !strings.HasSuffix(key, tc.wantSuffix) {
 			t.Errorf("%q -> filename %q -> key %q, want the key to end in %q", tc.raw, filename, key, tc.wantSuffix)
 		}
@@ -170,10 +188,26 @@ func TestSanitizedFilenameFeedsASingleExtensionIntoTheKey(t *testing.T) {
 // Two uploads of the same filename must not collide - the per-asset uuid is what keeps them apart
 func TestBuildObjectKeyIsUniquePerAsset(t *testing.T) {
 	s := &Service{rootPrefix: "media"}
-	a := s.buildObjectKey("catalog", uuid.New(), "banner.png", "image/png")
-	b := s.buildObjectKey("catalog", uuid.New(), "banner.png", "image/png")
+	a := keyOf(s, "catalog", uuid.New(), "banner.png", "image/png")
+	b := keyOf(s, "catalog", uuid.New(), "banner.png", "image/png")
 	if a == b {
 		t.Errorf("two assets with the same filename produced the same key %q", a)
+	}
+}
+
+func TestTheFileNameFollowsTheSavedLayout(t *testing.T) {
+	id := uuid.MustParse("018f0000-0000-7000-8000-0000deadbeef")
+	for _, tc := range []struct{ saved, want string }{
+		{"{name}-{short_id}{ext}", "media/banners/summer-sale-deadbeef.png"},
+		{"{yyyy}{mm}{dd}-{name}-{id}{ext}", "media/banners/20260309-summer-sale-" + id.String() + ".png"},
+		{"", "media/banners/" + id.String() + "-summer-sale.png"},
+		{"{name}{ext}", "media/banners/" + id.String() + "-summer-sale.png"}, // saved before the rules tightened: the default stands in
+	} {
+		s := NewService(nil, nil, "media")
+		s.SetConfig(savedLayout(tc.saved))
+		if got := keyOf(s, "banners", id, "Summer Sale.PNG", "image/png"); got != tc.want {
+			t.Errorf("layout %q named the file %q, want %q", tc.saved, got, tc.want)
+		}
 	}
 }
 

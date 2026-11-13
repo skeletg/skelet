@@ -43,18 +43,21 @@ type Storage interface {
 
 // What the rest of the platform writes into the same bucket - product, category and collection images, customers' form uploads, data export and import files, image derivatives
 // With no root prefix the library spans the whole bucket, so without this a media.view admin browsed customer exports and one recursive delete took every product image with it
-var reservedTopLevel = []string{"catalog", "webforms", "data", "derived"}
+var reservedTopLevel = []string{media.CatalogRoot, "webforms", "data", "derived"}
 
 type Service struct {
 	repo       Repository
 	storage    Storage
 	rootPrefix string
+	cfg        media.KeyConfig
 }
 
 func NewService(repo Repository, storage Storage, rootPrefix string) *Service {
 	rootPrefix = strings.Trim(strings.TrimSpace(rootPrefix), "/")
 	return &Service{repo: repo, storage: storage, rootPrefix: rootPrefix}
 }
+
+func (s *Service) SetConfig(cfg media.KeyConfig) { s.cfg = cfg }
 
 // PublicURL is a storage pass-through, exposed so callers without a Storage ref (e.g. review resolvers) can build URLs
 func (s *Service) PublicURL(objectKey string) string {
@@ -225,7 +228,7 @@ func (s *Service) RequestUpload(ctx context.Context, input RequestUploadInput) (
 	if err != nil {
 		return RequestUploadResult{}, fmt.Errorf("generate asset id: %w", err)
 	}
-	objectKey := s.buildObjectKey(cleanPath, assetID, filename, input.MimeType)
+	objectKey := s.buildObjectKey(ctx, cleanPath, assetID, filename, input.MimeType, time.Now())
 	uploadURL, err := s.storage.PresignUpload(ctx, objectKey, input.MimeType, input.SizeBytes, presignTTL)
 	if err != nil {
 		return RequestUploadResult{}, fmt.Errorf("presign upload: %w", err)
@@ -289,7 +292,7 @@ func (s *Service) UploadSVG(ctx context.Context, input UploadSVGInput) (Asset, e
 	if err != nil {
 		return Asset{}, fmt.Errorf("generate asset id: %w", err)
 	}
-	objectKey := s.buildObjectKey(cleanPath, assetID, filename, MimeSVG)
+	objectKey := s.buildObjectKey(ctx, cleanPath, assetID, filename, MimeSVG, time.Now())
 	if err := s.storage.PutBytes(ctx, objectKey, clean, MimeSVG); err != nil {
 		return Asset{}, fmt.Errorf("store sanitized svg: %w", err)
 	}
@@ -389,7 +392,7 @@ func (s *Service) MoveAsset(ctx context.Context, input MoveAssetInput) (Asset, e
 		}
 	}
 	oldKey := asset.ObjectKey
-	newKey := s.buildObjectKey(targetPath, asset.ID, filename, asset.MimeType)
+	newKey := s.buildObjectKey(ctx, targetPath, asset.ID, filename, asset.MimeType, asset.CreatedAt)
 	// Copy, repoint the row, THEN drop the old object - deleting first left a failed row update pointing at a key that no longer existed
 	if newKey != oldKey {
 		if err := s.storage.Copy(ctx, oldKey, newKey); err != nil {
@@ -598,15 +601,10 @@ func (s *Service) markerKey(dirPath string) string {
 	return s.objectPrefix(dirPath) + ".keep"
 }
 
-func (s *Service) buildObjectKey(dirPath string, id uuid.UUID, filename, mimeType string) string {
-	ext := extensionForMime(mimeType)
-	base := strings.TrimSuffix(filename, path.Ext(filename))
-	base = strings.ToLower(filenameSanitizer.ReplaceAllString(base, "-"))
-	base = strings.Trim(base, "-")
-	if base == "" {
-		base = "asset"
-	}
-	return fmt.Sprintf("%s%s-%s%s", s.objectPrefix(dirPath), id.String(), base, ext)
+// at is when the file was uploaded, so a later move keeps a dated name
+func (s *Service) buildObjectKey(ctx context.Context, dirPath string, id uuid.UUID, filename, mimeType string, at time.Time) string {
+	name := media.LibraryFileKey.Template(ctx, s.cfg).Key(media.KeyValues{ID: id, Name: filename, Ext: extensionForMime(mimeType), At: at})
+	return s.objectPrefix(dirPath) + name
 }
 
 func sanitizeDirectoryPath(dirPath string) (string, error) {

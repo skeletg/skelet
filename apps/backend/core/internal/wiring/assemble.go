@@ -214,7 +214,7 @@ func wireCatalogInventory(d catalogInventoryDeps) {
 	d.Inventory.SetEventBus(d.Bus)
 	d.Catalog.SetInventoryEnsurer(NewCatalogInventoryEnsurer(d.Inventory))
 
-	d.Catalog.SetURLConfig(d.Config) // operator-tunable general/urls/*: auto-redirect on change, redirect type, template fallback
+	d.Catalog.SetConfig(d.Config) // operator-tunable general/urls/* (auto-redirect on change, redirect type, template fallback) and system/media/* paths
 	d.Catalog.SetURLCollisionRecorder(NewAuditURLCollisions(d.Audit))
 	d.URLRewrite.SetEventBus(d.Bus)
 	d.Menu.SetEventBus(d.Bus)

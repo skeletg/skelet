@@ -11,6 +11,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/internal/media"
 	"github.com/skeletg/skelet/apps/backend/core/internal/slug"
 	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
 	"github.com/skeletg/skelet/apps/backend/core/lib/applog"
@@ -61,8 +62,8 @@ type core struct {
 	defaultLocale DefaultLocaleProvider
 	urlRewrites   UrlRewriteSyncer
 	inventory     InventoryEnsurer
-	// urlConfig supplies general/urls/* behavior flags - nil = built-in defaults
-	urlConfig URLConfigReader
+	// cfg supplies what Settings can change, general/urls/* and the media paths - nil = built-in defaults
+	cfg ConfigReader
 	// urlCollisions records when a product couldn't get its intended URL because the path was taken (a suffix was appended) - nil = log only
 	urlCollisions URLCollisionRecorder
 	bus           *events.Bus
@@ -167,14 +168,17 @@ func (s *core) SetInventoryEnsurer(e InventoryEnsurer) {
 	s.inventory = e
 }
 
-// URLConfigReader supplies the operator-tunable URL-behavior flags (general/urls/*) - Optional - a nil reader falls back to the built-in defaults (redirects on, 301, template fallback on)
-type URLConfigReader interface {
+// ConfigReader supplies the operator-tunable URL-behavior flags (general/urls/*) and media paths - Optional - a nil reader falls back to the built-in defaults (redirects on, 301, template fallback on)
+type ConfigReader interface {
 	GetBool(ctx context.Context, path string, scope config.Scope) (bool, error)
 	GetString(ctx context.Context, path string, scope config.Scope) (string, error)
 }
 
-// SetURLConfig wires the config reader used for URL-behavior settings
-func (s *core) SetURLConfig(r URLConfigReader) { s.urlConfig = r }
+func (s *core) SetConfig(r ConfigReader) { s.cfg = r }
+
+func (s *core) mediaKey(ctx context.Context, k media.KeySetting, v media.KeyValues) string {
+	return media.CatalogRoot + "/" + k.Template(ctx, s.cfg).Key(v)
+}
 
 // URLCollisionRecorder persists a durable, operator-reviewable record when a product's intended URL was already taken and a uniqueness suffix had to be used instead - Wired to the audit log in main
 type URLCollisionRecorder interface {
@@ -196,10 +200,10 @@ func (s *core) noteURLCollision(ctx context.Context, entityType, sku string, ent
 
 // boolSetting reads a general/urls bool, defaulting to `def` when unset, unreadable, or no reader is wired
 func (s *core) boolSetting(ctx context.Context, path string, def bool) bool {
-	if s.urlConfig == nil {
+	if s.cfg == nil {
 		return def
 	}
-	v, err := s.urlConfig.GetBool(ctx, path, config.DefaultScope)
+	v, err := s.cfg.GetBool(ctx, path, config.DefaultScope)
 	if err != nil {
 		return def
 	}
@@ -218,10 +222,10 @@ func (s *core) urlFallbackEnabled(ctx context.Context) bool {
 
 // renameRedirectType resolves the configured redirect type for auto rename redirects (301 default, 302 if set)
 func (s *core) renameRedirectType(ctx context.Context) int {
-	if s.urlConfig == nil {
+	if s.cfg == nil {
 		return redirectPermanent
 	}
-	if v, err := s.urlConfig.GetString(ctx, urlConfigRedirectType, config.DefaultScope); err == nil && v == fmt.Sprint(redirectTemporary) {
+	if v, err := s.cfg.GetString(ctx, urlConfigRedirectType, config.DefaultScope); err == nil && v == fmt.Sprint(redirectTemporary) {
 		return redirectTemporary
 	}
 	return redirectPermanent
