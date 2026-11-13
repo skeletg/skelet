@@ -196,6 +196,42 @@ func (r *postgresRepository) ListPages(ctx context.Context, filter PageListFilte
 	return out, nil
 }
 
+// CountPages is how many pages ListPages would return for the filter with no limit - through the channel's listings when it names a channel, as the list goes
+func (r *postgresRepository) CountPages(ctx context.Context, filter PageListFilter) (int64, error) {
+	pageTypeID, parentID := sqlnull.UUID(filter.PageTypeID), sqlnull.UUID(filter.ParentID)
+	var n int64
+	var err error
+	if filter.ChannelID != nil {
+		n, err = r.queries.CountPublishedCMSPagesForChannel(ctx, db.CountPublishedCMSPagesForChannelParams{ChannelID: *filter.ChannelID, PageTypeID: pageTypeID, ParentID: parentID})
+	} else {
+		n, err = r.queries.CountCMSPages(ctx, db.CountCMSPagesParams{
+			PageTypeID:    pageTypeID,
+			ParentID:      parentID,
+			OnlyPublished: sql.NullBool{Bool: filter.OnlyPublished, Valid: true},
+			WorkflowState: sqlnull.StringNonEmpty(filter.WorkflowState),
+		})
+	}
+	if err != nil {
+		return 0, fmt.Errorf("count pages: %w", err)
+	}
+	return n, nil
+}
+
+func (r *postgresRepository) CountPagesSearch(ctx context.Context, filter PageListFilter, locale, query string) (int64, error) {
+	n, err := r.queries.CountCMSPagesSearch(ctx, db.CountCMSPagesSearchParams{
+		Locale:        locale,
+		Q:             query,
+		PageTypeID:    sqlnull.UUID(filter.PageTypeID),
+		ParentID:      sqlnull.UUID(filter.ParentID),
+		OnlyPublished: sql.NullBool{Bool: filter.OnlyPublished, Valid: true},
+		WorkflowState: sqlnull.StringNonEmpty(filter.WorkflowState),
+	})
+	if err != nil {
+		return 0, fmt.Errorf("count searched pages: %w", err)
+	}
+	return n, nil
+}
+
 // PageSlugExists reports whether any page already uses this slug (used to pick
 // a unique slug when cloning)
 func (r *postgresRepository) PageSlugExists(ctx context.Context, slug string) (bool, error) {

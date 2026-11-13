@@ -179,6 +179,37 @@ func (r *postgresRepository) ListPosts(ctx context.Context, filter PostListFilte
 	return out, nil
 }
 
+// postCountArgs is a list filter as the count's arguments, taking the branch ListPosts takes: a channel means published and listed there, only the first of category, tag and author applies, and a status filter counts only with none of them set
+func postCountArgs(f PostListFilter) db.CountBlogPostsParams {
+	var args db.CountBlogPostsParams
+	published := sql.NullString{String: string(PostStatusPublished), Valid: true}
+	if f.ChannelID != nil {
+		args.ChannelID = uuid.NullUUID{UUID: *f.ChannelID, Valid: true}
+		args.Status = published
+	} else if f.OnlyPublished {
+		args.Status = published
+	}
+	switch {
+	case f.CategoryID != nil:
+		args.CategoryID = uuid.NullUUID{UUID: *f.CategoryID, Valid: true}
+	case f.TagID != nil:
+		args.TagID = uuid.NullUUID{UUID: *f.TagID, Valid: true}
+	case f.AuthorID != nil:
+		args.AuthorID = uuid.NullUUID{UUID: *f.AuthorID, Valid: true}
+	case !args.Status.Valid && f.Status != nil:
+		args.Status = sql.NullString{String: string(*f.Status), Valid: true}
+	}
+	return args
+}
+
+func (r *postgresRepository) CountPosts(ctx context.Context, filter PostListFilter) (int64, error) {
+	n, err := r.queries.CountBlogPosts(ctx, postCountArgs(filter))
+	if err != nil {
+		return 0, fmt.Errorf("count blog posts: %w", err)
+	}
+	return n, nil
+}
+
 func (r *postgresRepository) ListDueScheduledPosts(ctx context.Context) ([]Post, error) {
 	rows, err := r.queries.ListDueScheduledBlogPosts(ctx)
 	if err != nil {

@@ -803,6 +803,13 @@ body[data-sidebar-resizing="true"] [data-slot="sidebar-container"] {
   .aurora-caret { animation: none; }
 }
 
+/* CMS home - the site laid out on a table: a dotted ground under the page blueprints, as on the flow canvas */
+.site-board {
+  background-color: color-mix(in oklch, var(--muted) 55%, var(--background));
+  background-image: radial-gradient(circle, color-mix(in oklch, var(--foreground) 16%, transparent) 1px, transparent 1.5px);
+  background-size: 18px 18px;
+}
+
 /* Campaigns - a send reads as an addressed envelope: an airmail edge, and the edge's two inks again for an A/B
    test's two subjects. Chart series colours, so they follow the mode like any chart */
 .send-sheet {
@@ -822,11 +829,12 @@ body[data-sidebar-resizing="true"] [data-slot="sidebar-container"] {
 .send-sheet-either {
   background-image: repeating-linear-gradient(-45deg, var(--mail-a) 0 4px, var(--mail-b) 4px 8px);
 }
-.send-sheet-roll {
+/* A figure or a mark that arrives a step after its neighbour - the campaign's send date, the CMS home's counts */
+.roll-in {
   display: inline-block;
-  animation: send-sheet-roll 340ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: roll-in 340ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
-@keyframes send-sheet-roll {
+@keyframes roll-in {
   from {
     opacity: 0;
     transform: translateY(0.4em);
@@ -834,5 +842,5 @@ body[data-sidebar-resizing="true"] [data-slot="sidebar-container"] {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .send-sheet-roll { animation: none; }
+  .roll-in { animation: none; }
 }

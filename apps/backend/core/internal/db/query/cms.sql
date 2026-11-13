@@ -229,6 +229,13 @@ WHERE (sqlc.narg(page_type_id)::uuid IS NULL OR page_type_id = sqlc.narg(page_ty
 ORDER BY position, created_at DESC
 LIMIT $1 OFFSET $2;
 
+-- name: CountCMSPages :one
+SELECT COUNT(*) FROM cms_pages
+WHERE (sqlc.narg(page_type_id)::uuid IS NULL OR page_type_id = sqlc.narg(page_type_id)::uuid)
+  AND (sqlc.narg(parent_id)::uuid IS NULL OR parent_id = sqlc.narg(parent_id)::uuid)
+  AND (sqlc.narg(only_published)::boolean IS FALSE OR is_published = TRUE)
+  AND (sqlc.narg(workflow_state)::text IS NULL OR workflow_state = sqlc.narg(workflow_state)::text);
+
 -- name: ListCMSPageChildren :many
 SELECT * FROM cms_pages WHERE parent_id = $1 ORDER BY position, slug;
 
@@ -334,6 +341,15 @@ WHERE (sqlc.narg(page_type_id)::uuid IS NULL OR cp.page_type_id = sqlc.narg(page
 ORDER BY ts_rank(c.search_vector, plainto_tsquery('simple', sqlc.arg(q)::text)) DESC,
          cp.updated_at DESC
 LIMIT $1 OFFSET $2;
+
+-- name: CountCMSPagesSearch :one
+SELECT COUNT(*) FROM cms_pages cp
+JOIN cms_page_content c ON c.page_id = cp.id AND c.locale = sqlc.arg(locale)::text
+WHERE (sqlc.narg(page_type_id)::uuid IS NULL OR cp.page_type_id = sqlc.narg(page_type_id)::uuid)
+  AND (sqlc.narg(parent_id)::uuid IS NULL OR cp.parent_id = sqlc.narg(parent_id)::uuid)
+  AND (sqlc.narg(only_published)::boolean IS FALSE OR cp.is_published = TRUE)
+  AND (sqlc.narg(workflow_state)::text IS NULL OR cp.workflow_state = sqlc.narg(workflow_state)::text)
+  AND c.search_vector @@ plainto_tsquery('simple', sqlc.arg(q)::text);
 
 -- name: UpsertCMSPageContent :one
 INSERT INTO cms_page_content (
@@ -470,6 +486,15 @@ WHERE cp.is_published = TRUE
   AND (sqlc.narg(parent_id)::uuid IS NULL OR cp.parent_id = sqlc.narg(parent_id)::uuid)
 ORDER BY cp.position, cp.created_at DESC
 LIMIT $2 OFFSET $3;
+
+-- name: CountPublishedCMSPagesForChannel :one
+SELECT COUNT(*) FROM cms_pages cp
+JOIN cms_page_channel_listings cpsl ON cpsl.page_id = cp.id
+WHERE cp.is_published = TRUE
+  AND cpsl.channel_id = $1
+  AND cpsl.is_published  = TRUE
+  AND (sqlc.narg(page_type_id)::uuid IS NULL OR cp.page_type_id = sqlc.narg(page_type_id)::uuid)
+  AND (sqlc.narg(parent_id)::uuid IS NULL OR cp.parent_id = sqlc.narg(parent_id)::uuid);
 
 -- name: GetPublishedCMSPageForChannel :one
 SELECT cp.* FROM cms_pages cp

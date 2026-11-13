@@ -7,7 +7,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
@@ -374,4 +376,9 @@ func (r *Resolver) withBlogPostTranslations(ctx context.Context, posts []blog.Po
 		posts[i].AllContent = byID[posts[i].ID]
 	}
 	return posts, nil
+}
+
+// The total costs a second query, so it's counted only for a caller that selected it
+func totalCountSelected(ctx context.Context) bool {
+	return slices.Contains(graphql.CollectAllFields(ctx), "totalCount")
 }

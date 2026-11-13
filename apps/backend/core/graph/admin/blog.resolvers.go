@@ -640,7 +640,16 @@ func (r *queryResolver) BlogPosts(ctx context.Context, filter *model.BlogPostFil
 	for i, p := range posts {
 		out[i] = toBlogPostModel(p)
 	}
-	return &model.BlogPostList{Items: out}, nil
+	list := &model.BlogPostList{Items: out}
+	if totalCountSelected(ctx) {
+		n, err := r.BlogSvc.CountPosts(ctx, f)
+		if err != nil {
+			return nil, err
+		}
+		total := int32(n)
+		list.TotalCount = &total
+	}
+	return list, nil
 }
 
 func (r *queryResolver) BlogCategory(ctx context.Context, slug *string, id *string) (*model.BlogCategory, error) {

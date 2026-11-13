@@ -33,6 +33,7 @@ type postStore interface {
 	ListPostContentFor(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]PostContent, error)
 	ListPostTags(ctx context.Context, postID uuid.UUID) ([]Tag, error)
 	ListPosts(ctx context.Context, filter PostListFilter) ([]Post, error)
+	CountPosts(ctx context.Context, filter PostListFilter) (int64, error)
 	ListTagsByPostIDs(ctx context.Context, postIDs []uuid.UUID) (map[uuid.UUID][]Tag, error)
 	SetPostStatus(ctx context.Context, id uuid.UUID, status PostStatus, publishedAt *time.Time) (Post, error)
 	UpdatePost(ctx context.Context, in UpdatePostInput) (Post, error)
@@ -158,6 +159,10 @@ func (s *postService) hydratePostRelations(ctx context.Context, p *Post, locale 
 		s.fillTagListContent(ctx, tags, locale)
 		p.Tags = tags
 	}
+}
+
+func (s *postService) CountPosts(ctx context.Context, filter PostListFilter) (int64, error) {
+	return s.repo.CountPosts(ctx, filter)
 }
 
 func (s *postService) ListPosts(ctx context.Context, filter PostListFilter, locale string) ([]Post, error) {

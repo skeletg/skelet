@@ -123,7 +123,7 @@ function Roll({ text, digits }: { text: string; digits?: boolean }) {
         {pieces.map((piece, i) => (
           <Fragment key={`${i}${piece}`}>
             {i > 0 && !digits ? ' ' : null}
-            <span className="send-sheet-roll" style={{ animationDelay: `${i * (digits ? 28 : 60)}ms` }}>
+            <span className="roll-in" style={{ animationDelay: `${i * (digits ? 28 : 60)}ms` }}>
               {piece}
             </span>
           </Fragment>

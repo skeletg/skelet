@@ -1,0 +1,55 @@
+query CmsHome($filter: CMSPageFilter, $limit: Int) {
+  cmsPageCount(filter: $filter)
+  cmsPages(filter: $filter, limit: $limit) {
+    id
+    pageTypeId
+    urlPath
+    isPublished
+    scheduledAt
+    workflowState
+    updatedAt
+    content {
+      locale
+      title
+      outline
+    }
+    channelListings {
+      channelId
+      isHomepage
+    }
+  }
+  cmsPageTypes {
+    id
+    slug
+    content {
+      locale
+      name
+    }
+  }
+  cmsAttributes {
+    id
+  }
+  cmsSnippets {
+    id
+  }
+  cmsBlockTypes {
+    id
+    key
+    name
+  }
+  menus {
+    id
+  }
+}
+
+query CmsHomeBlog {
+  blogPosts(filter: { includeUnpublished: true }, limit: 1) {
+    totalCount
+  }
+}
+
+query CmsHomeForms($channelId: ID!) {
+  webForms(channelId: $channelId) {
+    id
+  }
+}

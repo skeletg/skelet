@@ -72,6 +72,8 @@ type CMSPageContent {
   locale:           String!
   title:            String!
   body:             JSON
+  # The body's blocks by type, in order, with a container opened onto what it holds. Empty when the body isn't block-built.
+  outline:          [String!]!
   metaTitle:        String
   metaDescription:  String
   metaKeywords:     String
@@ -191,6 +193,8 @@ extend type Query {
   # Locale comes from the `Locale` request header (internal/locale.Middleware).
   cmsPage(slug: String, id: ID, urlPath: String): CMSPage
   cmsPages(filter: CMSPageFilter, limit: Int, offset: Int): [CMSPage!]!
+  # How many pages the filter matches in all - cmsPages hands over at most its limit of them.
+  cmsPageCount(filter: CMSPageFilter): Int!
 }
 
 # ==================== Mutations ====================
