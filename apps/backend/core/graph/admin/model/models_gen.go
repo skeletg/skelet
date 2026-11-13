@@ -3603,6 +3603,7 @@ type MediaAsset struct {
 	DirectoryPath string           `json:"directoryPath"`
 	Filename      string           `json:"filename"`
 	URL           string           `json:"url"`
+	ThumbnailURL  string           `json:"thumbnailUrl"`
 	MimeType      string           `json:"mimeType"`
 	MimeGroup     MediaMimeGroup   `json:"mimeGroup"`
 	SizeBytes     int32            `json:"sizeBytes"`
@@ -3617,6 +3618,7 @@ type MediaAsset struct {
 	Notes         string           `json:"notes"`
 	CreatedAt     time.Time        `json:"createdAt"`
 	UpdatedAt     time.Time        `json:"updatedAt"`
+	ObjectKey     string           `json:"-"`
 }
 
 type MediaAssetSearchResult struct {

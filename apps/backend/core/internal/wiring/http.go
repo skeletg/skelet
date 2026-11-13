@@ -193,7 +193,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	mediaTransformer := media.NewTransformer(s.MediaStorage)
 	mediaTransformer.SetMaxSourcePixels(EnvInt("MEDIA_MAX_SOURCE_PIXELS", 0))
 	mediaTransformer.SetRenderConcurrency(EnvInt("MEDIA_RENDER_SLOTS", 0), 0)
-	mux.Handle("/media/t/", mediahttp.NewTransformHandler(mediaTransformer, mediahttp.Options{
+	transformOpts := mediahttp.Options{
 		AllowRateLimit: func(r *http.Request) bool {
 			return transformLimiter.Allow(r.Context(), "media-transform:"+authpkg.ClientIP(r))
 		},
@@ -204,7 +204,12 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 			}
 			return *asset.FocalX, *asset.FocalY, true
 		},
-	}))
+	}
+	for _, route := range []string{media.TransformRoute, media.AdminTransformRoute} {
+		opts := transformOpts
+		opts.Prefix = route
+		mux.Handle(route, mediahttp.NewTransformHandler(mediaTransformer, opts))
+	}
 
 	// The filesystem driver serves its own objects and takes the browser's uploads, which S3 would have answered
 	if files, ok := s.MediaStorage.(interface{ Handler() http.Handler }); ok {

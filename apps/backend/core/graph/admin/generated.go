@@ -40,6 +40,7 @@ type ResolverRoot interface {
 	Customer() CustomerResolver
 	CustomerSegment() CustomerSegmentResolver
 	InventoryLocation() InventoryLocationResolver
+	MediaAsset() MediaAssetResolver
 	Mutation() MutationResolver
 	OptionTemplate() OptionTemplateResolver
 	Order() OrderResolver
@@ -2682,6 +2683,7 @@ type ComplexityRoot struct {
 		Path          func(childComplexity int) int
 		SizeBytes     func(childComplexity int) int
 		Status        func(childComplexity int) int
+		ThumbnailURL  func(childComplexity int, width int32) int
 		Title         func(childComplexity int) int
 		URL           func(childComplexity int) int
 		UpdatedAt     func(childComplexity int) int
@@ -4100,6 +4102,7 @@ type ComplexityRoot struct {
 		Me                           func(childComplexity int) int
 		MediaAsset                   func(childComplexity int, id string) int
 		MediaDirectory               func(childComplexity int, path string) int
+		MediaUploadTypes             func(childComplexity int) int
 		Menu                         func(childComplexity int, id string) int
 		MenuBySlug                   func(childComplexity int, slug string) int
 		Menus                        func(childComplexity int) int
@@ -5404,6 +5407,9 @@ type CustomerSegmentResolver interface {
 type InventoryLocationResolver interface {
 	Country(ctx context.Context, obj *model.InventoryLocation) (*model.Country, error)
 }
+type MediaAssetResolver interface {
+	ThumbnailURL(ctx context.Context, obj *model.MediaAsset, width int32) (string, error)
+}
 type MutationResolver interface {
 	RunAdminAction(ctx context.Context, slug string, args interface{}) (*model.AdminActionResult, error)
 	AdminLogin(ctx context.Context, input model.AdminLoginInput) (*model.AdminAuthPayload, error)
@@ -6115,6 +6121,7 @@ type QueryResolver interface {
 	MediaAsset(ctx context.Context, id string) (*model.MediaAsset, error)
 	SearchMediaAssets(ctx context.Context, query *string, path *string, mimeGroup *model.MediaMimeGroup, sort *model.MediaAssetSort, limit *int32, offset *int32) (*model.MediaAssetSearchResult, error)
 	AllMediaDirectories(ctx context.Context) ([]*model.MediaDirectoryChild, error)
+	MediaUploadTypes(ctx context.Context) ([]string, error)
 	Menus(ctx context.Context) ([]*model.Menu, error)
 	Menu(ctx context.Context, id string) (*model.Menu, error)
 	MenuBySlug(ctx context.Context, slug string) (*model.Menu, error)
@@ -17420,6 +17427,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.MediaAsset.Status(childComplexity), true
+	case "MediaAsset.thumbnailUrl":
+		if e.ComplexityRoot.MediaAsset.ThumbnailURL == nil {
+			break
+		}
+
+		args, err := ec.field_MediaAsset_thumbnailUrl_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.MediaAsset.ThumbnailURL(childComplexity, args["width"].(int32)), true
 	case "MediaAsset.title":
 		if e.ComplexityRoot.MediaAsset.Title == nil {
 			break
@@ -27894,6 +27912,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.MediaDirectory(childComplexity, args["path"].(string)), true
+	case "Query.mediaUploadTypes":
+		if e.ComplexityRoot.Query.MediaUploadTypes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.MediaUploadTypes(childComplexity), true
 	case "Query.menu":
 		if e.ComplexityRoot.Query.Menu == nil {
 			break
@@ -40085,6 +40109,8 @@ type MediaAsset {
   directoryPath: String!
   filename: String!
   url: String!
+  # A copy no wider than ` + "`" + `width` + "`" + ` for grids: storage's address once it exists, else a path on this API that makes it, else the original's url.
+  thumbnailUrl(width: Int!): String!
   mimeType: String!
   mimeGroup: MediaMimeGroup!
   sizeBytes: Int!
@@ -40160,6 +40186,8 @@ extend type Query {
   mediaAsset(id: ID!): MediaAsset!
   searchMediaAssets(query: String, path: String, mimeGroup: MediaMimeGroup, sort: MediaAssetSort, limit: Int, offset: Int): MediaAssetSearchResult!
   allMediaDirectories: [MediaDirectoryChild!]!
+  # The MIME types the library takes, for a file picker to offer.
+  mediaUploadTypes: [String!]!
 }
 
 extend type Mutation {
@@ -49399,6 +49427,8 @@ func (ec *executionContext) childFields_MediaAsset(ctx context.Context, field gr
 		return ec.fieldContext_MediaAsset_filename(ctx, field)
 	case "url":
 		return ec.fieldContext_MediaAsset_url(ctx, field)
+	case "thumbnailUrl":
+		return ec.fieldContext_MediaAsset_thumbnailUrl(ctx, field)
 	case "mimeType":
 		return ec.fieldContext_MediaAsset_mimeType(ctx, field)
 	case "mimeGroup":
@@ -53336,6 +53366,20 @@ func (ec *executionContext) field_CustomerSegment_members_args(ctx context.Conte
 		return nil, err
 	}
 	args["offset"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_MediaAsset_thumbnailUrl_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "width",
+		func(ctx context.Context, v any) (int32, error) {
+			return ec.unmarshalNInt2int32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["width"] = arg0
 	return args, nil
 }
 
@@ -111765,6 +111809,50 @@ func (ec *executionContext) fieldContext_MediaAsset_url(_ context.Context, field
 	return graphql.NewScalarFieldContext("MediaAsset", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _MediaAsset_thumbnailUrl(ctx context.Context, field graphql.CollectedField, obj *model.MediaAsset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MediaAsset_thumbnailUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.MediaAsset().ThumbnailURL(ctx, obj, fc.Args["width"].(int32))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MediaAsset_thumbnailUrl(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MediaAsset",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_MediaAsset_thumbnailUrl_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _MediaAsset_mimeType(ctx context.Context, field graphql.CollectedField, obj *model.MediaAsset) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -153946,6 +154034,29 @@ func (ec *executionContext) fieldContext_Query_allMediaDirectories(_ context.Con
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _Query_mediaUploadTypes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_mediaUploadTypes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().MediaUploadTypes(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_mediaUploadTypes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _Query_menus(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -211695,97 +211806,135 @@ func (ec *executionContext) _MediaAsset(ctx context.Context, sel ast.SelectionSe
 		case "id":
 			out.Values[i] = ec._MediaAsset_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "path":
 			out.Values[i] = ec._MediaAsset_path(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "directoryPath":
 			out.Values[i] = ec._MediaAsset_directoryPath(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "filename":
 			out.Values[i] = ec._MediaAsset_filename(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "url":
 			out.Values[i] = ec._MediaAsset_url(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "thumbnailUrl":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._MediaAsset_thumbnailUrl(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "mimeType":
 			out.Values[i] = ec._MediaAsset_mimeType(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "mimeGroup":
 			out.Values[i] = ec._MediaAsset_mimeGroup(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "sizeBytes":
 			out.Values[i] = ec._MediaAsset_sizeBytes(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "width":
 			out.Values[i] = ec._MediaAsset_width(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "height":
 			out.Values[i] = ec._MediaAsset_height(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "status":
 			out.Values[i] = ec._MediaAsset_status(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "focalX":
 			out.Values[i] = ec._MediaAsset_focalX(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "focalY":
 			out.Values[i] = ec._MediaAsset_focalY(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "title":
 			out.Values[i] = ec._MediaAsset_title(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "altText":
 			out.Values[i] = ec._MediaAsset_altText(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "caption":
 			out.Values[i] = ec._MediaAsset_caption(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "notes":
 			out.Values[i] = ec._MediaAsset_notes(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "createdAt":
 			out.Values[i] = ec._MediaAsset_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "updatedAt":
 			out.Values[i] = ec._MediaAsset_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -224676,6 +224825,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_allMediaDirectories(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "mediaUploadTypes":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_mediaUploadTypes(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}

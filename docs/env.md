@@ -686,6 +686,10 @@ Two parity notes when `/t` routes to the ingest tier:
   collapse into one bucket.
 
 `/media/t/*` is served by `app` regardless, so routing it is a scaling choice.
+`app` answers the same thing at `/api/media/t/*`, which is how the dashboard gets
+its thumbnails made: it proxies `/api` and nothing else. Once a thumbnail exists
+the admin API hands out storage's own address for it, so that route only sees a
+picture the first time someone looks at it.
 
 Media tier knobs: `MEDIA_PORT` (8083), `MEDIA_MAX_SOURCE_PIXELS` (~40 MP -
 uploads go straight to object storage via presigned PUT so nothing else
@@ -778,7 +782,7 @@ Once it's on, each surface has its own per-minute budget:
 | `AUTH_RATE_LIMIT_PER_MIN` | 10 | login / register / password reset |
 | `FRONT_RATE_LIMIT_PER_MIN` | 600 | the whole storefront GraphQL endpoint |
 | `CHECKOUT_RATE_LIMIT_PER_MIN` | 120 | checkout step saves and checkout reads, each its own budget |
-| `MEDIA_TRANSFORM_RATE_LIMIT_PER_MIN` | 120 | `/media/t/*` |
+| `MEDIA_TRANSFORM_RATE_LIMIT_PER_MIN` | 120 | `/media/t/*` and `/api/media/t/*`, one budget |
 | `TOKEN_RATE_LIMIT_PER_MIN` | 60 | download, unsubscribe, signup confirmation, email open/click |
 | `INGEST_RATE_LIMIT_PER_MIN` | 300 | `/t/*` beacons, per endpoint |
 | `MCP_RATE_LIMIT_PER_MIN` | 120 | MCP tool calls, per integration token or admin ([mcp.md](mcp.md)) |

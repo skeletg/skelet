@@ -22,6 +22,8 @@ type MediaAsset {
   directoryPath: String!
   filename: String!
   url: String!
+  # A copy no wider than `width` for grids: storage's address once it exists, else a path on this API that makes it, else the original's url.
+  thumbnailUrl(width: Int!): String!
   mimeType: String!
   mimeGroup: MediaMimeGroup!
   sizeBytes: Int!
@@ -97,6 +99,8 @@ extend type Query {
   mediaAsset(id: ID!): MediaAsset!
   searchMediaAssets(query: String, path: String, mimeGroup: MediaMimeGroup, sort: MediaAssetSort, limit: Int, offset: Int): MediaAssetSearchResult!
   allMediaDirectories: [MediaDirectoryChild!]!
+  # The MIME types the library takes, for a file picker to offer.
+  mediaUploadTypes: [String!]!
 }
 
 extend type Mutation {

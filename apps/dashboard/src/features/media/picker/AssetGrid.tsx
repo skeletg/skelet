@@ -3,6 +3,7 @@ import { CheckIcon, FileTextIcon, ImageIcon, LoaderIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatBytes } from '@/lib/format'
 import type { MediaAssetFieldsFragment as MediaAsset } from '../MediaLibrary.gql'
+import { AssetImage } from '../AssetImage'
 
 export type GridSize = 'small' | 'large'
 
@@ -14,9 +15,9 @@ const GRID_COLUMNS: Record<GridSize, string> = {
 const typeLabel = (a: MediaAsset) => (a.mimeType.split('/')[1] ?? a.mimeType).replace(/\+xml$/, '').toUpperCase()
 const dims = (a: MediaAsset) => (a.width && a.height ? `${a.width}×${a.height}` : null)
 
-// Transparent images read better on a checkerboard than on flat grey
+// Transparent images read better on a checkerboard than on flat grey - a light one even in the dark, or a black logo sits on black squares
 export const CHECKER =
-  'bg-[length:16px_16px] bg-[linear-gradient(45deg,var(--color-muted)_25%,transparent_25%),linear-gradient(-45deg,var(--color-muted)_25%,transparent_25%),linear-gradient(45deg,transparent_75%,var(--color-muted)_75%),linear-gradient(-45deg,transparent_75%,var(--color-muted)_75%)] bg-[position:0_0,0_8px,8px_-8px,-8px_0]'
+  '[--checker:var(--color-muted)] dark:bg-[color:oklch(0.8_0_0)] dark:[--checker:oklch(0.68_0_0)] bg-[length:16px_16px] bg-[linear-gradient(45deg,var(--checker)_25%,transparent_25%),linear-gradient(-45deg,var(--checker)_25%,transparent_25%),linear-gradient(45deg,transparent_75%,var(--checker)_75%),linear-gradient(-45deg,transparent_75%,var(--checker)_75%)] bg-[position:0_0,0_8px,8px_-8px,-8px_0]'
 
 // Tiles or rows - a click picks, a double click or Enter uses it, the arrows move through it like a grid
 export function AssetGrid({
@@ -178,7 +179,7 @@ export function Thumb({ asset, className }: { asset: MediaAsset; className?: str
   return (
     <span className={cn('block overflow-hidden', CHECKER, className)}>
       {asset.url ? (
-        <img src={asset.url} alt={asset.altText} loading="lazy" className="size-full object-cover" />
+        <AssetImage asset={asset} className="size-full object-cover" />
       ) : (
         <ImageIcon className="m-auto size-6 text-muted-foreground" />
       )}

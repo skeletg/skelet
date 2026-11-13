@@ -63,6 +63,7 @@ func toMediaAssetModel(asset medialibrary.Asset) *model.MediaAsset {
 		DirectoryPath: asset.DirectoryPrefix,
 		Filename:      asset.Filename,
 		URL:           asset.URL,
+		ObjectKey:     asset.ObjectKey,
 		FocalX:        asset.FocalX,
 		FocalY:        asset.FocalY,
 		MimeType:      asset.MimeType,
@@ -78,6 +79,14 @@ func toMediaAssetModel(asset medialibrary.Asset) *model.MediaAsset {
 		CreatedAt:     asset.CreatedAt,
 		UpdatedAt:     asset.UpdatedAt,
 	}
+}
+
+func thumbnailSource(a *model.MediaAsset) medialibrary.Asset {
+	status := medialibrary.AssetStatusPending
+	if a.Status == model.MediaAssetStatusReady {
+		status = medialibrary.AssetStatusReady
+	}
+	return medialibrary.Asset{ObjectKey: a.ObjectKey, MimeType: a.MimeType, Width: a.Width, Status: status}
 }
 
 func toMediaAssetStatusModel(status medialibrary.AssetStatus) model.MediaAssetStatus {

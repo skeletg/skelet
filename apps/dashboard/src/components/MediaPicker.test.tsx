@@ -12,7 +12,7 @@ import { MediaPickerAssetDocument } from './MediaPicker.gql'
 
 const asset = {
   __typename: 'MediaAsset', id: 'a1', path: 'promo/sticker.png', directoryPath: 'promo', filename: 'sticker.png',
-  url: 'https://cdn/sticker.png', mimeType: 'image/png', mimeGroup: 'IMAGE', sizeBytes: 100, width: 10, height: 10,
+  url: 'https://cdn/sticker.png', thumbnailUrl: 'https://cdn/sticker.png', mimeType: 'image/png', mimeGroup: 'IMAGE', sizeBytes: 100, width: 10, height: 10,
   status: 'READY', title: 'Sale sticker', altText: '', caption: '', notes: '', focalX: null, focalY: null,
   createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z',
 }

@@ -5,9 +5,8 @@ export type LibraryPrefs = { view: LibraryView; rowHeight: number; sort: MediaAs
 
 export const ROW_MIN = 110
 export const ROW_MAX = 300
+export const ROW_STEP = 10
 const KEY = 'media-library:view'
-const SORT_VALUES: MediaAssetSort[] = ['NEWEST', 'OLDEST', 'NAME', 'LARGEST']
-
 export const SORTS: { value: MediaAssetSort; label: string }[] = [
   { value: 'NEWEST', label: 'Newest first' },
   { value: 'OLDEST', label: 'Oldest first' },
@@ -23,7 +22,7 @@ export function readPrefs(): LibraryPrefs {
     return {
       view: raw.view === 'list' ? 'list' : 'gallery',
       rowHeight: height >= ROW_MIN && height <= ROW_MAX ? height : fallback.rowHeight,
-      sort: SORT_VALUES.includes(raw.sort as MediaAssetSort) ? (raw.sort as MediaAssetSort) : fallback.sort,
+      sort: SORTS.find((s) => s.value === raw.sort)?.value ?? fallback.sort,
     }
   } catch {
     return fallback

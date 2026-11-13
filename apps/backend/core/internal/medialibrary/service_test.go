@@ -15,6 +15,8 @@ import (
 )
 
 type memStore struct {
+	private    bool // no address a browser can reach, so nothing to hand out but the original
+	heads      int
 	objects    map[string]bool
 	failDelete map[string]bool
 	deleted    []string
@@ -29,6 +31,7 @@ func newMemStore(keys ...string) *memStore {
 }
 
 func (m *memStore) PublicURL(key string) string { return "https://cdn.test/" + key }
+func (m *memStore) HasPublicBase() bool         { return !m.private }
 func (m *memStore) MaxUploadBytes() int64       { return 1 << 20 }
 func (m *memStore) PresignUpload(context.Context, string, string, int64, time.Duration) (string, error) {
 	return "https://upload.test", nil
@@ -42,6 +45,7 @@ func (m *memStore) PutEmptyObject(_ context.Context, key string) error {
 	return nil
 }
 func (m *memStore) Head(_ context.Context, key string) (int64, string, bool, error) {
+	m.heads++
 	return 1, "", m.objects[key], nil
 }
 func (m *memStore) Copy(_ context.Context, from, to string) error {

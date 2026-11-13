@@ -41,6 +41,14 @@ models:
       - github.com/99designs/gqlgen/graphql.Int32
   # Product.partOf membership types - hand-rolled structs (carry the owning product id; leaf fields bind to struct
   # fields populated by the three ProductMemberships resolvers)
+  MediaAsset:
+    # Not in the schema - thumbnailUrl needs the storage key, and reading the row again per picture would be a query each
+    extraFields:
+      ObjectKey:
+        type: string
+    fields:
+      # Lazy - it asks storage whether the copy exists, which only a grid of pictures wants
+      thumbnailUrl: { resolver: true }
   Company:
     fields:
       # Lazy price-list load - a plain model field would force every

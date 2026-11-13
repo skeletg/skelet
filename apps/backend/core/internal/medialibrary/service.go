@@ -29,6 +29,7 @@ var filenameSanitizer = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
 // The object storage the library manages - objstore.Storage in production
 type Storage interface {
 	PublicURL(key string) string
+	HasPublicBase() bool
 	MaxUploadBytes() int64
 	PresignUpload(ctx context.Context, key, contentType string, sizeBytes int64, ttl time.Duration) (string, error)
 	PutBytes(ctx context.Context, key string, data []byte, contentType string) error
@@ -50,6 +51,7 @@ type Service struct {
 	storage    Storage
 	rootPrefix string
 	cfg        media.KeyConfig
+	thumbs     thumbMemo
 }
 
 func NewService(repo Repository, storage Storage, rootPrefix string) *Service {
@@ -663,6 +665,10 @@ func extensionForMime(mimeType string) string {
 		return ".svg"
 	}
 	return ""
+}
+
+func UploadTypes() []string {
+	return slices.Concat(media.AllowedImageMimeTypes, []string{MimeSVG}, media.AllowedVideoMimeTypes, allowedDocumentMimeTypes)
 }
 
 func isAllowedMime(mimeType string) bool {

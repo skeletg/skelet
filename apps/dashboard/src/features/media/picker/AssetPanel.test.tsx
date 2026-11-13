@@ -19,7 +19,7 @@ import { AssetPanel } from './AssetPanel'
 afterEach(() => vi.unstubAllGlobals())
 
 const asset = (over: object = {}) => ({
-  __typename: 'MediaAsset' as const, id: 'a1', path: 'promo/red.png', directoryPath: 'promo', filename: 'red.png', url: 'https://cdn/red.png',
+  __typename: 'MediaAsset' as const, id: 'a1', path: 'promo/red.png', directoryPath: 'promo', filename: 'red.png', url: 'https://cdn/red.png', thumbnailUrl: 'https://cdn/red.png',
   mimeType: 'image/png', mimeGroup: 'IMAGE' as const, sizeBytes: 2048, width: 400, height: 200, status: 'READY' as const,
   title: 'Red', altText: 'A red mug', caption: '', notes: '', focalX: null, focalY: null, createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z',
   ...over,

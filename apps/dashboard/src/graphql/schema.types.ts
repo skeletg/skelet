@@ -4158,10 +4158,16 @@ export type MediaAsset = {
   path: Scalars['String']['output'];
   sizeBytes: Scalars['Int']['output'];
   status: MediaAssetStatus;
+  thumbnailUrl: Scalars['String']['output'];
   title: Scalars['String']['output'];
   updatedAt: Scalars['Time']['output'];
   url: Scalars['String']['output'];
   width?: Maybe<Scalars['Int']['output']>;
+};
+
+
+export type MediaAssetThumbnailUrlArgs = {
+  width: Scalars['Int']['input'];
 };
 
 export type MediaAssetSearchResult = {
@@ -8726,6 +8732,7 @@ export type Query = {
   me: AdminUser;
   mediaAsset: MediaAsset;
   mediaDirectory: MediaDirectory;
+  mediaUploadTypes: Array<Scalars['String']['output']>;
   menu: Menu;
   menuBySlug?: Maybe<Menu>;
   menus: Array<Menu>;

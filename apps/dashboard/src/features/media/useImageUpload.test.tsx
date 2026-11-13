@@ -28,7 +28,7 @@ afterEach(() => {
 
 const asset = (over: object = {}) => ({
   __typename: 'MediaAsset' as const, id: 'm1', path: 'option-pictures/a.png', directoryPath: 'option-pictures', filename: 'a.png',
-  url: 'https://cdn/a.png', mimeType: 'image/png', mimeGroup: 'IMAGE' as const, sizeBytes: 3, width: null, height: null, status: 'PENDING' as const,
+  url: 'https://cdn/a.png', thumbnailUrl: 'https://cdn/a.png', mimeType: 'image/png', mimeGroup: 'IMAGE' as const, sizeBytes: 3, width: null, height: null, status: 'PENDING' as const,
   title: '', altText: '', caption: '', notes: '', focalX: null, focalY: null, createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z',
   ...over,
 })

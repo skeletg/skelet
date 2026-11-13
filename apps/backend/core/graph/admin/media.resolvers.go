@@ -9,6 +9,13 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
+func (r *mediaAssetResolver) ThumbnailURL(ctx context.Context, obj *model.MediaAsset, width int32) (string, error) {
+	if obj.ObjectKey == "" {
+		return obj.URL, nil
+	}
+	return r.MediaLibrarySvc.ThumbnailURL(ctx, thumbnailSource(obj), int(width)), nil
+}
+
 func (r *mutationResolver) SetMediaFocalPoint(ctx context.Context, assetID string, x *float64, y *float64) (*model.MediaAsset, error) {
 	if err := r.requireGlobal(ctx, "media.manage"); err != nil {
 		return nil, err
@@ -220,3 +227,14 @@ func (r *queryResolver) AllMediaDirectories(ctx context.Context) ([]*model.Media
 	}
 	return result, nil
 }
+
+func (r *queryResolver) MediaUploadTypes(ctx context.Context) ([]string, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "media.view"); err != nil {
+		return nil, err
+	}
+	return medialibrary.UploadTypes(), nil
+}
+
+func (r *Resolver) MediaAsset() MediaAssetResolver { return &mediaAssetResolver{r} }
+
+type mediaAssetResolver struct{ *Resolver }

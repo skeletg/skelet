@@ -4,6 +4,7 @@ import { formatBytes } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import type { MediaAssetFieldsFragment as MediaAsset } from '../MediaLibrary.gql'
 import { CHECKER } from '../picker/AssetGrid'
+import { AssetImage } from '../AssetImage'
 
 // A picture keeps its own shape within these bounds; past them it is fitted whole, as a wide logo needs
 const RATIO_MIN = 0.5
@@ -40,6 +41,7 @@ export function Gallery({
   onOpen: (a: MediaAsset) => void
 }) {
   const root = useRef<HTMLDivElement>(null)
+  const tilesOf = () => Array.from(root.current?.querySelectorAll<HTMLElement>('[data-asset]') ?? [])
 
   // Up and down land on the tile nearest above or below, since the rows don't share columns
   const neighbour = (from: number, key: string): number => {
@@ -47,7 +49,7 @@ export function Gallery({
     if (key === 'ArrowLeft') return Math.max(0, from - 1)
     if (key === 'Home') return 0
     if (key === 'End') return assets.length - 1
-    const tiles = Array.from(root.current?.querySelectorAll<HTMLElement>('[data-asset]') ?? [])
+    const tiles = tilesOf()
     const here = tiles[from]?.getBoundingClientRect()
     if (!here) return from
     const centre = here.left + here.width / 2
@@ -73,9 +75,9 @@ export function Gallery({
     const a = assets[from]!
     if (['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) {
       e.preventDefault()
-      const next = assets[neighbour(from, e.key)]!
-      onFocus(next.id)
-      root.current?.querySelector<HTMLElement>(`[data-asset="${next.id}"]`)?.focus()
+      const to = neighbour(from, e.key)
+      onFocus(assets[to]!.id)
+      tilesOf()[to]?.focus()
     } else if (e.key === 'Enter') {
       e.preventDefault()
       onOpen(a)
@@ -119,13 +121,7 @@ export function Gallery({
               </span>
             ) : a.mimeGroup === 'IMAGE' ? (
               <span className={cn('absolute inset-0', whole && cn(CHECKER, 'rounded-lg ring-1 ring-foreground/10 ring-inset'))}>
-                <img
-                  src={a.url}
-                  alt={a.altText}
-                  loading="lazy"
-                  draggable={false}
-                  className={cn('size-full transition-transform duration-300 group-hover:scale-[1.03]', whole ? 'object-contain p-3' : 'object-cover')}
-                />
+                <AssetImage asset={a} draggable={false} className={cn('size-full transition-transform duration-300 group-hover:scale-[1.03]', whole ? 'object-contain p-3' : 'object-cover')} />
               </span>
             ) : (
               <span className="absolute inset-0 grid place-items-center content-center gap-2 text-muted-foreground">

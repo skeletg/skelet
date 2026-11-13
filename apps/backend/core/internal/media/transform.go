@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"image"
 	"math"
+	"net/url"
 	"runtime"
+	"slices"
 	"sort"
 	"time"
 
@@ -22,6 +24,21 @@ import (
 
 // Image derivatives - fit (resized) and cover (focal-cropped) variants built on first request and cached back under derived/<spec>/<key>, so later hits are a plain storage read
 // The decode/resample/encode core is build-selected (render_vips.go behind -tags vips, render_purego.go otherwise) - libvips adds webp output and SIMD speed but costs cgo, so host tooling and untagged CI keep the pure path
+
+// Where the resizer answers. The second is the same handler under /api, the one prefix a dashboard already proxies to core
+const (
+	TransformRoute      = "/media/t/"
+	AdminTransformRoute = "/api/media/t/"
+)
+
+func TransformPath(route, key string, w int) string {
+	return (&url.URL{Path: fmt.Sprintf("%sw%d/%s", route, SnapWidth(w), key)}).EscapedPath()
+}
+
+// What the pure-Go build can read as well as the vips one, so a copy can be promised without knowing the build
+var resizable = []string{"image/jpeg", "image/png", "image/webp"}
+
+func CanResize(mime string) bool { return slices.Contains(resizable, mime) }
 
 // The fixed ladder - requests snap UP to the nearest step so arbitrary ?w= values can't create unbounded cache entries
 var AllowedWidths = []int{160, 320, 480, 640, 960, 1280, 1600, 2048}

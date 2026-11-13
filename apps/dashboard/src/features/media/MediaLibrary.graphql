@@ -1,5 +1,6 @@
 fragment MediaAssetFields on MediaAsset {
   id
+  thumbnailUrl(width: 640)
   path
   directoryPath
   filename
@@ -28,9 +29,6 @@ query MediaDirectory($path: String!) {
       path
       name
     }
-    assets {
-      ...MediaAssetFields
-    }
     untrackedFiles {
       objectKey
       url
@@ -49,6 +47,10 @@ query SearchMediaAssets($query: String, $path: String, $mimeGroup: MediaMimeGrou
       ...MediaAssetFields
     }
   }
+}
+
+query MediaUploadTypes {
+  mediaUploadTypes
 }
 
 # How many of each kind a search holds, for the library's type filter

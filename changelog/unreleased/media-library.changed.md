@@ -10,3 +10,7 @@
 - **Filters and folders.** Everything, images and documents each show their count, the sort order is kept
   between visits, the folders inside the open one are a click away above the wall, and folders are made and
   renamed in a dialog.
+- **The wall and the picker show small copies of pictures**, not the files themselves, so a page of large photos
+  loads in kilobytes. A picture whose copy can't be made shows its original. In the dark, transparent pictures
+  sit on a light checkerboard, so a black logo stays visible.
+- **The file dialog offers what the server takes**, video included, instead of a list kept by hand.

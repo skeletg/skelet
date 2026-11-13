@@ -7,7 +7,7 @@ import { AssetGrid, Thumb } from './AssetGrid'
 // of that reaches a tile that can't be picked
 
 const asset = (id: string, over: object = {}) => ({
-  __typename: 'MediaAsset' as const, id, path: `promo/${id}.png`, directoryPath: 'promo', filename: `${id}.png`, url: `https://cdn/${id}.png`,
+  __typename: 'MediaAsset' as const, id, path: `promo/${id}.png`, directoryPath: 'promo', filename: `${id}.png`, url: `https://cdn/${id}.png`, thumbnailUrl: `https://cdn/small/${id}.png`,
   mimeType: 'image/png', mimeGroup: 'IMAGE' as const, sizeBytes: 2048, width: 40, height: 30, status: 'READY' as const,
   title: '', altText: '', caption: '', notes: '', focalX: null, focalY: null, createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z',
   ...over,
