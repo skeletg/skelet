@@ -1550,6 +1550,7 @@ export type CmsPageContent = {
   metaDescription?: Maybe<Scalars['String']['output']>;
   metaKeywords?: Maybe<Scalars['String']['output']>;
   metaTitle?: Maybe<Scalars['String']['output']>;
+  outline: Array<Scalars['String']['output']>;
   title: Scalars['String']['output'];
   updatedAt: Scalars['Time']['output'];
 };
@@ -8626,6 +8627,7 @@ export type Query = {
   cmsBlockTypes: Array<CmsBlockType>;
   cmsPage?: Maybe<CmsPage>;
   cmsPageComments: Array<CmsPageComment>;
+  cmsPageCount: Scalars['Int']['output'];
   cmsPageRevisions: Array<CmsPageRevision>;
   cmsPageType?: Maybe<CmsPageType>;
   cmsPageTypes: Array<CmsPageType>;
@@ -9083,6 +9085,11 @@ export type QueryCmsPageArgs = {
 
 export type QueryCmsPageCommentsArgs = {
   pageId: Scalars['ID']['input'];
+};
+
+
+export type QueryCmsPageCountArgs = {
+  filter?: InputMaybe<CmsPageFilter>;
 };
 
 

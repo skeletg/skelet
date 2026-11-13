@@ -68,6 +68,41 @@ func (q *Queries) ClearBlogPostTags(ctx context.Context, postID uuid.UUID) error
 	return err
 }
 
+const countBlogPosts = `-- name: CountBlogPosts :one
+SELECT COUNT(*) FROM blog_posts bp
+WHERE ($1::text IS NULL OR bp.status = $1::text)
+  AND ($2::uuid IS NULL OR bp.author_id = $2::uuid)
+  AND ($3::uuid IS NULL OR EXISTS (
+        SELECT 1 FROM blog_post_categories bpc WHERE bpc.post_id = bp.id AND bpc.category_id = $3::uuid))
+  AND ($4::uuid IS NULL OR EXISTS (
+        SELECT 1 FROM blog_post_tags bpt WHERE bpt.post_id = bp.id AND bpt.tag_id = $4::uuid))
+  AND ($5::uuid IS NULL OR EXISTS (
+        SELECT 1 FROM blog_post_channel_listings bpsl
+        WHERE bpsl.post_id = bp.id AND bpsl.channel_id = $5::uuid AND bpsl.is_published = TRUE))
+`
+
+type CountBlogPostsParams struct {
+	Status     sql.NullString `json:"status"`
+	AuthorID   uuid.NullUUID  `json:"author_id"`
+	CategoryID uuid.NullUUID  `json:"category_id"`
+	TagID      uuid.NullUUID  `json:"tag_id"`
+	ChannelID  uuid.NullUUID  `json:"channel_id"`
+}
+
+// How many posts a list filter matches. Every filter is optional, so one query stands in for each ListBlogPosts* variant
+func (q *Queries) CountBlogPosts(ctx context.Context, arg CountBlogPostsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countBlogPosts,
+		arg.Status,
+		arg.AuthorID,
+		arg.CategoryID,
+		arg.TagID,
+		arg.ChannelID,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createBlogAuthor = `-- name: CreateBlogAuthor :one
 
 INSERT INTO blog_authors (

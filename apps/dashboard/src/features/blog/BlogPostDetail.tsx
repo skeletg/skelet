@@ -1,30 +1,20 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { useStore } from '@tanstack/react-form'
-import {
-  ArchiveIcon,
-  ArrowLeftIcon,
-  CheckCircle2Icon,
-  CircleOffIcon,
-  ClockIcon,
-  EyeIcon,
-  Trash2Icon,
-} from 'lucide-react'
+import { ArrowLeftIcon, CheckCircle2Icon, CircleOffIcon, EyeIcon, PanelRightIcon } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { DetailPageLayout } from '@/components/layout/detail-page'
+import { WORKBENCH } from '@/components/layout/workbench-styles'
+import { fieldErrorText } from '@/components/form/field-errors'
 import { LoadingState } from '@/components/ui/loading-state'
 import { LoadError } from '@/shared/errors/LoadError'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { useConfigScope } from '@/lib/config-scope'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import {
   FormRichTextEditor,
+  richTextToPlainText,
   type RichTextImageUploadResult,
   type RichTextValue,
 } from '@/features/catalog/LexicalRichTextEditor'
@@ -36,7 +26,6 @@ import {
   type RequestMediaAssetUploadMutation,
   type RequestMediaAssetUploadMutationVariables,
 } from '@/features/media/MediaLibrary.gql'
-import { TranslationLocales } from '@/components/TranslationLocales'
 import {
   ArchiveBlogPostDocument,
   BlogCategoriesDocument,
@@ -44,49 +33,33 @@ import {
   BlogTagsDocument,
   DeleteBlogPostContentDocument,
   DeleteBlogPostDocument,
-  DeleteBlogPostChannelListingDocument,
   PublishBlogPostDocument,
   ScheduleBlogPostDocument,
   SetBlogPostCategoriesDocument,
-  SetBlogPostChannelListingDocument,
   SetBlogPostTagsDocument,
   UnpublishBlogPostDocument,
   UpdateBlogPostDocument,
   UpsertBlogPostContentDocument,
-  type BlogPostQuery,
   BlogPostsDocument,
 } from './Blog.gql'
-import { ChannelsDocument } from '@/features/channels/Channels.gql'
 import { slugify } from '@/lib/slug'
 import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
 import { RestoredDraftBanner } from '@/shared/saving/RestoredDraftBanner'
-import { SaveRegistryContext, useSaveSection, type SectionDiffEntry } from '@/shared/saving/saveRegistry'
+import { SaveRegistryContext } from '@/shared/saving/saveRegistry'
 import { useRecordForm } from '@/shared/saving/useRecordForm'
-import { changed } from '@/shared/saving/diff'
+import { cn } from '@/lib/utils'
 import { BlogPreviewPanel } from './BlogPreviewPanel'
+import { flattenCategories } from './post/categories'
+import { PostCapsule } from './post/PostCapsule'
+import { PostPanel } from './post/PostPanel'
+import { StoreNoindexSave } from './post/PostStores'
+import { STATUS_DOT, statusLabel } from './post/status'
+import type { Post } from './post/types'
+import { usePageZoom } from './post/zoom'
 import { POST_LABELS, postChanges, postDiff, postSchema, toPostValues } from './schemas/post'
 import { readImageDimensions } from '@/lib/image'
 import { putToSignedUrl } from '@/lib/upload'
 import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
-
-function statusLabel(status: string) {
-  return status.charAt(0) + status.slice(1).toLowerCase()
-}
-
-function statusVariant(status: string) {
-  switch (status) {
-    case 'PUBLISHED':
-      return 'secondary'
-    case 'SCHEDULED':
-      return 'outline'
-    case 'ARCHIVED':
-      return 'destructive'
-    default:
-      return 'outline'
-  }
-}
-
-type Post = NonNullable<BlogPostQuery['blogPost']>
 
 // The locale the form edits: the header's, or in GLOBAL mode the default locale when the post has
 // content for it. Falling through to allContent[0] alone is alphabetical, which hides recent work
@@ -183,7 +156,6 @@ function PostForm({
   const flatCategories = useMemo(() => flattenCategories(catsData?.blogCategories ?? []), [catsData])
   const allTags = useMemo(() => tagsData?.blogTags ?? [], [tagsData])
 
-  const [scheduleAt, setScheduleAt] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
@@ -227,29 +199,11 @@ function PostForm({
   const submitting = useStore(form.store, (s) => s.isSubmitting)
   const totalDirty = registry.dirtySections.reduce((n, s) => n + s.diff.length, 0)
 
-  // Header auto-hides on scroll-down inside the layout's scroll container, comes back on scroll-up
-  const scrollRef = useRef<HTMLDivElement | null>(null)
-  const lastScrollY = useRef(0)
-  const [headerVisible, setHeaderVisible] = useState(true)
-  useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
-    const onScroll = () => {
-      const y = el.scrollTop
-      if (y < 32) {
-        setHeaderVisible(true)
-        lastScrollY.current = y
-        return
-      }
-      const delta = y - lastScrollY.current
-      // A small dead-zone so jitters don't toggle the header
-      if (delta > 6) setHeaderVisible(false)
-      else if (delta < -6) setHeaderVisible(true)
-      lastScrollY.current = y
-    }
-    el.addEventListener('scroll', onScroll, { passive: true })
-    return () => el.removeEventListener('scroll', onScroll)
-  }, [])
+  // The formatting bar is drawn by the body's editor, into this element floating over the page
+  const [bar, setBar] = useState<HTMLElement | null>(null)
+  const [panelOpen, setPanelOpen] = useState(true)
+  const [zoom, setZoom] = usePageZoom()
+  const [noindexEdits, setNoindexEdits] = useState<Map<string, boolean>>(new Map())
 
   const localesWithContent = post.allContent.map((c) => c.locale)
   const displayTitle = post.content?.title?.trim() || post.allContent[0]?.title?.trim() || post.slug
@@ -281,9 +235,6 @@ function PostForm({
     onLocaleRemoved(remaining[0] ?? null)
   }
 
-  const toggle = (field: 'categoryIds' | 'tagIds', id: string) =>
-    form.setFieldValue(field, (prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
-
   // request -> S3 PUT -> confirm, then the shape the editor needs for a figure/caption block. Scoped
   // under blog/posts/<postId> so a per-post bulk delete stays possible
   async function uploadBodyImage(file: File): Promise<RichTextImageUploadResult | null> {
@@ -303,11 +254,15 @@ function PostForm({
   }
 
   const readingMinutes = Number.parseInt(values.readingTime, 10)
+  const written = richTextToPlainText(values.body as RichTextValue).trim()
+  const words = written ? written.split(/\s+/).length : 0
+  const readEstimate = Math.max(1, Math.round(words / WORDS_A_MINUTE))
 
   return (
     <SaveRegistryContext.Provider value={registry.contextValue}>
+      <StoreNoindexSave postId={post.id} listings={post.channelListings} refetchVariables={variables} edits={noindexEdits} onSaved={() => setNoindexEdits(new Map())} />
       <DetailPageLayout
-        scrollRef={scrollRef}
+        className={WORKBENCH}
         rightSidebar={
           previewOpen ? (
             <BlogPreviewPanel
@@ -335,101 +290,88 @@ function PostForm({
                 tags: post.tags.map((t) => ({ id: t.id, slug: t.slug, content: t.content ? { name: t.content.name } : null })),
               }}
             />
+          ) : panelOpen ? (
+            <PostPanel
+              post={post}
+              form={form}
+              values={values}
+              locale={locale}
+              canManage={canManage}
+              canEditTranslations={canEditTranslations}
+              categories={flatCategories}
+              tags={allTags}
+              busy={lifecycleBusy}
+              variables={variables}
+              noindexEdits={noindexEdits}
+              onNoindex={setNoindexEdits}
+              onSchedule={(at) => runAction(() => scheduleMut({ variables: { id: post.id, publishedAt: new Date(at).toISOString() } }), 'Schedule failed.')}
+              onArchive={() => runAction(() => archiveMut({ variables: { id: post.id } }), 'Archive failed.')}
+              onDelete={() => setConfirmDelete(true)}
+              onRemoveTranslation={onRemoveTranslation}
+              onSlugTyped={() => setSlugTouched(true)}
+            />
           ) : null
         }
       >
-        {/* Sticky action header - auto-hides on scroll-down, returns on scroll-up. translate-y, so the
-            rest of the layout doesn't jump when it disappears */}
-        <div
-          className={
-            'sticky top-0 z-10 border-b bg-background/80 backdrop-blur transition-transform duration-200 supports-[backdrop-filter]:bg-background/60 ' +
-            (headerVisible ? 'translate-y-0' : '-translate-y-full')
-          }
-        >
-          <div className="flex flex-wrap items-center gap-3 px-6 py-3">
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <Button asChild variant="ghost" size="icon" className="-ml-2 size-8 shrink-0 text-muted-foreground hover:text-foreground" aria-label="Back to posts">
+        <div className="flex min-h-full flex-col">
+          <div className="sticky top-0 z-10">
+            <div className="flex min-h-[49px] flex-wrap items-center gap-3 border-b border-foreground/10 bg-background/85 px-4 py-2 backdrop-blur-md">
+              <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                <Button asChild variant="ghost" size="icon" className="-ml-1 size-8 shrink-0 rounded-full text-muted-foreground hover:text-foreground" aria-label="Back to posts">
                   <Link to="/blog/posts">
                     <ArrowLeftIcon className="size-4" />
                   </Link>
                 </Button>
-                <h1 className="min-w-0 truncate text-xl font-semibold tracking-tight">{displayTitle}</h1>
-                <Badge variant={statusVariant(post.status)}>{statusLabel(post.status)}</Badge>
-                {post.publishedAt && (
-                  <Badge variant="outline" className="gap-1">
-                    <ClockIcon className="size-3" />
-                    {new Date(post.publishedAt).toLocaleString()}
-                  </Badge>
-                )}
+                <h1 className="min-w-0 truncate text-sm font-medium tracking-tight">{values.title.trim() || displayTitle}</h1>
+                <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                  <span aria-hidden className={cn('size-1.5 rounded-full', STATUS_DOT[post.status] ?? 'bg-muted-foreground/50')} />
+                  {statusLabel(post.status)}
+                </span>
               </div>
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                <code className="font-mono">{post.slug}</code>
-                {post.author && (
+              <div className="flex shrink-0 items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={panelOpen && !previewOpen ? 'secondary' : 'outline'}
+                  aria-pressed={panelOpen && !previewOpen}
+                  onClick={() => {
+                    setPanelOpen(previewOpen ? true : !panelOpen)
+                    setPreviewOpen(false)
+                  }}
+                >
+                  <PanelRightIcon className="size-4" /> Details
+                </Button>
+                <Button type="button" size="sm" variant={previewOpen ? 'secondary' : 'outline'} aria-pressed={previewOpen} onClick={() => setPreviewOpen(!previewOpen)} title="Open live preview side panel">
+                  <EyeIcon className="size-4" /> Preview
+                </Button>
+                {canManage && (
                   <>
-                    <span>·</span>
-                    <span>by {post.author.displayName}</span>
+                    {post.status === 'PUBLISHED' ? (
+                      <Button type="button" size="sm" variant="outline" onClick={() => runAction(() => unpublishMut({ variables: { id: post.id } }), 'Unpublish failed.')} disabled={lifecycleBusy}>
+                        <CircleOffIcon className="size-4" /> Unpublish
+                      </Button>
+                    ) : (
+                      <Button type="button" size="sm" variant="outline" onClick={() => runAction(() => publishMut({ variables: { id: post.id } }), 'Publish failed.')} disabled={lifecycleBusy}>
+                        <CheckCircle2Icon className="size-4" /> Publish
+                      </Button>
+                    )}
+                    <Button type="button" size="sm" disabled={!registry.isDirty || submitting} onClick={record.save}>
+                      {submitting ? 'Saving…' : registry.isDirty ? `Save changes${totalDirty > 0 ? ` (${totalDirty})` : ''}` : 'No changes'}
+                    </Button>
                   </>
                 )}
-                <span>·</span>
-                <span>
-                  {post.allContent.length} locale{post.allContent.length === 1 ? '' : 's'}
-                </span>
-                <span>·</span>
-                <span>
-                  {post.channelListings.filter((l) => l.isPublished).length} store
-                  {post.channelListings.filter((l) => l.isPublished).length === 1 ? '' : 's'}
-                </span>
               </div>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <Button type="button" size="sm" variant="outline" onClick={() => setPreviewOpen(true)} title="Open live preview side panel">
-                <EyeIcon className="size-4" /> Preview
-              </Button>
-              {canManage && (
-                <>
-                  {post.status === 'PUBLISHED' ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => runAction(() => unpublishMut({ variables: { id: post.id } }), 'Unpublish failed.')}
-                      disabled={lifecycleBusy}
-                    >
-                      <CircleOffIcon className="size-4" /> Unpublish
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => runAction(() => publishMut({ variables: { id: post.id } }), 'Publish failed.')}
-                      disabled={lifecycleBusy}
-                    >
-                      <CheckCircle2Icon className="size-4" /> Publish
-                    </Button>
-                  )}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => setConfirmDelete(true)}
-                  >
-                    <Trash2Icon className="size-4" />
-                    Delete
-                  </Button>
-                  <Button type="button" size="sm" disabled={!registry.isDirty || submitting} onClick={record.save}>
-                    {submitting ? 'Saving…' : registry.isDirty ? `Save changes${totalDirty > 0 ? ` (${totalDirty})` : ''}` : 'No changes'}
-                  </Button>
-                </>
-              )}
+            <div className="pointer-events-none flex justify-center px-4 pt-3">
+              <div
+                ref={setBar}
+                role="toolbar"
+                aria-label="Formatting"
+                className="pointer-events-auto max-w-full rounded-full border border-foreground/10 bg-background/90 px-2 py-1 shadow-[0_1px_2px_rgb(0_0_0/0.06),0_10px_30px_-12px_rgb(0_0_0/0.25)] backdrop-blur-md empty:hidden"
+              />
             </div>
           </div>
-        </div>
 
-        {/* Body - edge-to-edge sections divided by horizontal rules, no box wrappers */}
-        <div className="divide-y pb-16">
           {draft.offer !== null && (
             <div className="px-6 pt-4">
               <RestoredDraftBanner draft={draft} labels={POST_LABELS} />
@@ -444,373 +386,93 @@ function PostForm({
             </div>
           )}
 
-          {/* ---- Schedule + Archive (Publish/Unpublish live in the header) ---- */}
-          <section className="px-6 py-6">
-            <div className="mb-3">
-              <h2 className="text-base font-semibold">Schedule & lifecycle</h2>
-              <p className="text-sm text-muted-foreground">Pick a future publish date or archive the post.</p>
-            </div>
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="flex items-end gap-2">
-                <div className="grid gap-1">
-                  <Label htmlFor="schedule" className="text-xs">
-                    Schedule for
-                  </Label>
-                  <Input
-                    id="schedule"
-                    type="datetime-local"
-                    value={scheduleAt}
-                    onChange={(e) => setScheduleAt(e.target.value)}
-                    className="w-56"
-                    disabled={!canManage}
-                  />
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() =>
-                    runAction(() => scheduleMut({ variables: { id: post.id, publishedAt: new Date(scheduleAt).toISOString() } }), 'Schedule failed.')
-                  }
-                  disabled={!canManage || lifecycleBusy || !scheduleAt}
-                >
-                  <ClockIcon className="size-4" /> Schedule
-                </Button>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => runAction(() => archiveMut({ variables: { id: post.id } }), 'Archive failed.')}
-                disabled={!canManage || lifecycleBusy || post.status === 'ARCHIVED'}
+          <div className="@container flex-1 px-4 pt-6 pb-10">
+            <article
+              aria-label="Post"
+              style={{ zoom: zoom / 100 }}
+              className="mx-auto min-h-[60rem] w-full max-w-[50rem] rounded-2xl bg-background px-8 py-12 shadow-[0_1px_1px_rgb(0_0_0/0.04),0_32px_80px_-32px_rgb(0_0_0/0.28)] ring-1 ring-foreground/5 @3xl:px-24 @3xl:py-20"
+            >
+              <form.Field
+                name="title"
+                listeners={{
+                  // Fills a post's missing slug from its title - never overwrites one it has
+                  onChange: ({ value }) => {
+                    if (!slugTouched && !form.getFieldValue('slug')) form.setFieldValue('slug', slugify(value))
+                  },
+                }}
               >
-                <ArchiveIcon className="size-4" /> Archive
-              </Button>
-            </div>
-          </section>
-
-          <fieldset disabled={!canManage} className="contents">
-            {/* ---- Basics ---- */}
-            <section className="px-6 py-6">
-              <div className="mb-3">
-                <h2 className="text-base font-semibold">Basics</h2>
-                <p className="text-sm text-muted-foreground">Slug change creates a 301 redirect from the old path.</p>
-              </div>
-              <div className="grid gap-4">
-                <form.AppField name="slug">{(f) => <f.TextField id="slug" label="Slug" onValueChange={() => setSlugTouched(true)} />}</form.AppField>
-                <form.AppField name="readingTime">{(f) => <f.TextField id="reading-time" label="Reading time (min)" type="number" />}</form.AppField>
-                <form.Field name="seoNoindex">
-                  {(f) => (
-                    <div className="flex items-center gap-2">
-                      <Switch id="seo-noindex" checked={f.state.value} onCheckedChange={f.handleChange} />
-                      <Label htmlFor="seo-noindex">Hide from search engines (noindex)</Label>
+                {(f) => (
+                  <div className="mb-3 grid gap-1">
+                    {/* The title wraps and grows with what is typed: an unseen copy of the text in the same cell sets the height */}
+                    <div data-copy={`${f.state.value} `} className={cn('grid after:invisible after:col-start-1 after:row-start-1 after:break-words after:whitespace-pre-wrap after:content-[attr(data-copy)]', TITLE_TYPE)}>
+                      <textarea
+                        id="title"
+                        aria-label="Title"
+                        rows={1}
+                        value={f.state.value}
+                        disabled={!canManage}
+                        placeholder="Untitled post"
+                        onChange={(e) => f.handleChange(e.target.value.replace(/\n/g, ' '))}
+                        onBlur={f.handleBlur}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') e.preventDefault()
+                        }}
+                        className="col-start-1 row-start-1 w-full resize-none overflow-hidden bg-transparent font-[inherit] tracking-[inherit] text-foreground outline-none placeholder:text-muted-foreground/40"
+                      />
                     </div>
-                  )}
-                </form.Field>
-              </div>
-            </section>
+                    {fieldErrorText(f) ? <p className="text-sm text-destructive">{fieldErrorText(f)}</p> : null}
+                  </div>
+                )}
+              </form.Field>
+              <p className="mb-9 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                {post.author ? <span>{post.author.displayName}</span> : null}
+                {post.publishedAt ? <span>{new Date(post.publishedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}</span> : null}
+                {words > 0 ? <span>{readEstimate} min read</span> : null}
+              </p>
+              <form.Field name="body">
+                {(f) => (
+                  <FormRichTextEditor
+                    value={(f.state.value as RichTextValue) ?? undefined}
+                    fallbackText=""
+                    disabled={!canManage}
+                    placeholder="Start writing…"
+                    page={{ toolbar: bar }}
+                    onChange={(v) => f.handleChange(v)}
+                    onUploadImage={canManage ? uploadBodyImage : undefined}
+                  />
+                )}
+              </form.Field>
+            </article>
+          </div>
 
-            {/* ---- Content (per locale) ---- */}
-            <section className="px-6 py-6">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h2 className="text-base font-semibold">Content</h2>
-                  <p className="text-sm text-muted-foreground">Title, body, excerpt, and SEO meta - per locale.</p>
-                </div>
-                {/* Which locales have content, and the remove action for the one being edited - the
-                    active locale is the header's; there is no in-form picker */}
-                <TranslationLocales
-                  locale={canEditTranslations ? locale : ''}
-                  locales={localesWithContent}
-                  entityLabel="post"
-                  canManage={canManage}
-                  defaultLocaleLocked
-                  onRemove={onRemoveTranslation}
-                />
-              </div>
-              <div className="grid gap-4">
-                <form.AppField
-                  name="title"
-                  listeners={{
-                    // Fills a post's missing slug from its title - never overwrites one it has
-                    onChange: ({ value }) => {
-                      if (!slugTouched && !form.getFieldValue('slug')) form.setFieldValue('slug', slugify(value))
-                    },
-                  }}
-                >
-                  {(f) => <f.TextField id="title" label="Title" />}
-                </form.AppField>
-                <div className="grid gap-1.5">
-                  <Label>Excerpt</Label>
-                  <form.Field name="excerpt">
-                    {(f) => (
-                      <FormRichTextEditor
-                        value={(f.state.value as RichTextValue) ?? undefined}
-                        fallbackText=""
-                        disabled={!canManage}
-                        placeholder="Short summary (used in feeds and listings)…"
-                        onChange={(v) => f.handleChange(v)}
-                      />
-                    )}
-                  </form.Field>
-                </div>
-                <div className="grid gap-1.5">
-                  <Label>Body</Label>
-                  <form.Field name="body">
-                    {(f) => (
-                      <FormRichTextEditor
-                        value={(f.state.value as RichTextValue) ?? undefined}
-                        fallbackText=""
-                        disabled={!canManage}
-                        placeholder="Write the post…"
-                        onChange={(v) => f.handleChange(v)}
-                        onUploadImage={canManage ? uploadBodyImage : undefined}
-                      />
-                    )}
-                  </form.Field>
-                </div>
-                <form.AppField name="metaTitle">
-                  {(f) => (
-                    <f.TextField
-                      id="meta-title"
-                      label="Meta title"
-                      placeholder={values.title || 'Post title'}
-                      note={<LengthHint length={values.metaTitle.length} max={60} />}
-                    />
-                  )}
-                </form.AppField>
-                <form.AppField name="metaDescription">
-                  {(f) => (
-                    <f.TextareaField
-                      id="meta-description"
-                      label="Meta description"
-                      rows={3}
-                      placeholder="Short search-result description…"
-                      note={<LengthHint length={values.metaDescription.length} max={160} />}
-                    />
-                  )}
-                </form.AppField>
-              </div>
-            </section>
-
-            {/* ---- Categories + Tags ---- */}
-            <section className="px-6 py-6">
-              <div className="mb-3">
-                <h2 className="text-base font-semibold">Categories & tags</h2>
-                <p className="text-sm text-muted-foreground">Toggle to attach. Applied with the header Save.</p>
-              </div>
-              <div className="grid gap-6">
-                <div className="grid gap-2">
-                  <Label className="text-xs uppercase tracking-wide text-muted-foreground">Categories</Label>
-                  {flatCategories.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No categories yet.</p>
-                  ) : (
-                    <ul className="grid gap-1 md:grid-cols-2">
-                      {flatCategories.map((c) => (
-                        <li key={c.id} className="flex items-center gap-2 rounded-md border px-2 py-1.5">
-                          <Checkbox id={`cat-${c.id}`} checked={values.categoryIds.includes(c.id)} onCheckedChange={() => toggle('categoryIds', c.id)} />
-                          <Label htmlFor={`cat-${c.id}`} className="flex-1 cursor-pointer text-sm font-normal">
-                            {c.label}
-                          </Label>
-                          <code className="text-xs text-muted-foreground">{c.urlPath}</code>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-                <div className="grid gap-2">
-                  <Label className="text-xs uppercase tracking-wide text-muted-foreground">Tags</Label>
-                  {allTags.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No tags yet.</p>
-                  ) : (
-                    <ul className="flex flex-wrap gap-2">
-                      {allTags.map((t) => {
-                        const checked = values.tagIds.includes(t.id)
-                        return (
-                          <li key={t.id}>
-                            <Button type="button" variant={checked ? 'secondary' : 'outline'} size="sm" aria-pressed={checked} onClick={() => toggle('tagIds', t.id)}>
-                              #{t.content?.name ?? t.slug}
-                            </Button>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  )}
-                </div>
-              </div>
-            </section>
-          </fieldset>
-
-          <PostStoresSection postId={post.id} listings={post.channelListings} canManage={canManage} refetchVariables={variables} />
-
-          <ConfirmDialog
-            open={confirmDelete}
-            onOpenChange={setConfirmDelete}
-            title="Delete post?"
-            description="This permanently removes the post and all its translations. URL redirects are preserved."
-            confirmLabel="Delete"
-            // Not awaited: the dialog closes at once and a failure shows in the page feedback, as it always has
-            onConfirm={() => void onDelete()}
+          <PostCapsule
+            words={words}
+            readEstimate={readEstimate}
+            onUseEstimate={canManage && values.readingTime !== String(readEstimate) ? () => form.setFieldValue('readingTime', String(readEstimate)) : undefined}
+            locale={locale}
+            unsaved={registry.isDirty ? totalDirty : null}
+            zoom={zoom}
+            onZoom={setZoom}
           />
-
-          <SaveConfirmDialog {...confirm.dialogProps} scopeLabel={`Locale ${locale}`} sections={registry.dirtySections} />
         </div>
+
+        <ConfirmDialog
+          open={confirmDelete}
+          onOpenChange={setConfirmDelete}
+          title="Delete post?"
+          description="This permanently removes the post and all its translations. URL redirects are preserved."
+          confirmLabel="Delete"
+          // Not awaited: the dialog closes at once and a failure shows in the page feedback, as it always has
+          onConfirm={() => void onDelete()}
+        />
+
+        <SaveConfirmDialog {...confirm.dialogProps} scopeLabel={`Locale ${locale}`} sections={registry.dirtySections} />
       </DetailPageLayout>
     </SaveRegistryContext.Provider>
   )
 }
 
-// Search engines truncate past these lengths - a count beside the field, red once over
-function LengthHint({ length, max }: { length: number; max: number }) {
-  return <span className={`text-xs tabular-nums ${length > max ? 'text-destructive' : 'text-muted-foreground'}`}>{length}/{max}</span>
-}
+// Shared by the title and the unseen copy that sizes it, which must wrap exactly alike
+const TITLE_TYPE = 'text-[2.6rem] leading-[1.1] font-semibold tracking-[-0.025em]'
 
-type FlatCategory = { id: string; label: string; urlPath: string }
-
-// Structural shape of the category tree nodes this flattener walks; the generated query types inline each nesting
-// level, so a recursive hand-written type is the practical way to accept the whole tree
-type CategoryTreeNode = {
-  id: string
-  slug: string
-  urlPath: string
-  content?: { name: string } | null
-  children?: CategoryTreeNode[] | null
-}
-
-function flattenCategories(roots: CategoryTreeNode[], depth = 0, out: FlatCategory[] = []): FlatCategory[] {
-  for (const c of roots) {
-    const name = c.content?.name ?? c.slug
-    out.push({
-      id: c.id,
-      label: `${'– '.repeat(depth)}${name}`,
-      urlPath: c.urlPath,
-    })
-    if (c.children?.length) flattenCategories(c.children, depth + 1, out)
-  }
-  return out
-}
-
-// PostStoresCard renders one row per active channel, exposing the is_published / seo_noindex listing toggles and a
-// "remove from store" action - Stores without a listing display as off; toggling on creates the listing on first save
-function PostStoresSection({
-  postId,
-  listings,
-  canManage,
-  refetchVariables,
-}: {
-  postId: string
-  listings: { channelId: string; isPublished: boolean; seoNoindex: boolean }[]
-  canManage: boolean
-  refetchVariables: { id: string; locale?: string; includeUnpublished: boolean }
-}) {
-  const { data, loading } = useQuery(ChannelsDocument)
-  const stores = data?.channels ?? []
-  const refetch = [{ query: BlogPostDocument, variables: refetchVariables }]
-  const [setListing, { loading: saving }] = useMutation(SetBlogPostChannelListingDocument, {
-    refetchQueries: refetch,
-  })
-  const [deleteListing, { loading: deleting }] = useMutation(DeleteBlogPostChannelListingDocument, {
-    refetchQueries: refetch,
-  })
-
-  const byStore = new Map(listings.map((l) => [l.channelId, l]))
-  const active = stores.filter((s) => s.isActive)
-
-  // Noindex is an SEO field, so it stages for the header Save - Published stays immediate, it's the post's lifecycle
-  const [noindexEdits, setNoindexEdits] = useState<Map<string, boolean>>(new Map())
-  const noindexDiff = active
-    .map((sv) =>
-      noindexEdits.has(sv.id) ? changed(`Store · ${sv.name} · noindex`, !!byStore.get(sv.id)?.seoNoindex, noindexEdits.get(sv.id)) : null,
-    )
-    .filter((e): e is SectionDiffEntry => e !== null)
-  useSaveSection({
-    id: 'store-noindex',
-    title: 'Available on stores',
-    diff: noindexDiff,
-    save: async () => {
-      for (const [channelId, seoNoindex] of noindexEdits) {
-        const listing = byStore.get(channelId)
-        if (!listing || listing.seoNoindex === seoNoindex) continue
-        await setListing({ variables: { input: { postId, channelId, isPublished: listing.isPublished, seoNoindex } } })
-      }
-      setNoindexEdits(new Map())
-    },
-  })
-
-  return (
-    <section className="px-6 py-6">
-      <div className="mb-3">
-        <h2 className="text-base font-semibold">Available on stores</h2>
-        <p className="text-sm text-muted-foreground">
-          The post is global. Toggle a store on to publish it there, then optionally hide it from search.
-        </p>
-      </div>
-      <div className="grid gap-2">
-        {loading ? (
-          <p className="text-sm text-muted-foreground">Loading stores…</p>
-        ) : active.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No active channels configured.</p>
-        ) : (
-          <ul className="grid gap-2">
-            {active.map((sv) => {
-              const listing = byStore.get(sv.id)
-              const enabled = !!listing?.isPublished
-              const noindex = !!listing?.seoNoindex
-              return (
-                <li key={sv.id} className="flex flex-wrap items-center gap-3 rounded-md border px-3 py-2">
-                  <div className="min-w-40 flex-1">
-                    <p className="text-sm font-medium">{sv.name}</p>
-                    <code className="text-xs text-muted-foreground">{sv.slug}</code>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Switch
-                      id={`pub-${sv.id}`}
-                      checked={enabled}
-                      onCheckedChange={(v) =>
-                        setListing({
-                          variables: {
-                            input: {
-                              postId,
-                              channelId: sv.id,
-                              isPublished: v,
-                              seoNoindex: noindex,
-                            },
-                          },
-                        })
-                      }
-                      disabled={!canManage || saving}
-                    />
-                    <Label htmlFor={`pub-${sv.id}`} className="text-xs">
-                      Published
-                    </Label>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Switch
-                      id={`ni-${sv.id}`}
-                      checked={noindexEdits.get(sv.id) ?? noindex}
-                      onCheckedChange={(v) => setNoindexEdits((prev) => new Map(prev).set(sv.id, v))}
-                      disabled={!canManage || saving || !listing}
-                    />
-                    <Label htmlFor={`ni-${sv.id}`} className="text-xs">
-                      Noindex
-                    </Label>
-                  </div>
-                  {listing && canManage && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        deleteListing({ variables: { postId, channelId: sv.id } })
-                      }
-                      disabled={deleting}
-                    >
-                      Remove
-                    </Button>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </div>
-    </section>
-  )
-}
+const WORDS_A_MINUTE = 220

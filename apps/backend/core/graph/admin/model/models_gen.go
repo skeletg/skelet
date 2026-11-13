@@ -1317,6 +1317,7 @@ type CMSPageContent struct {
 	Locale          string    `json:"locale"`
 	Title           string    `json:"title"`
 	Body            any       `json:"body,omitempty"`
+	Outline         []string  `json:"outline"`
 	MetaTitle       *string   `json:"metaTitle,omitempty"`
 	MetaDescription *string   `json:"metaDescription,omitempty"`
 	MetaKeywords    *string   `json:"metaKeywords,omitempty"`

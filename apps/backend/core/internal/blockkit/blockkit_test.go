@@ -3,6 +3,7 @@ package blockkit
 import (
 	"encoding/json"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 )
@@ -18,6 +19,42 @@ func TestParseDocument(t *testing.T) {
 	doc, ok := ParseDocument(json.RawMessage(`{"version":1,"blocks":[{"id":"a","type":"hero"}]}`))
 	if !ok || len(doc.Blocks) != 1 || doc.Blocks[0].Type != "hero" {
 		t.Fatalf("expected a 1-block document, got ok=%v doc=%+v", ok, doc)
+	}
+}
+
+func TestOutline(t *testing.T) {
+	decoded := func(raw string) any {
+		var v any
+		_ = json.Unmarshal([]byte(raw), &v)
+		return v
+	}
+	body := `{"version":1,"blocks":[
+		{"id":"a","type":"hero"},
+		{"id":"b","type":"section","blocks":[{"id":"c","type":"rich_text"},{"id":"d","type":"columns","blocks":[{"id":"e","type":"product_grid"}]}]},
+		{"id":"f","type":"section"},
+		{"id":"g","type":"my_custom"},
+		{"id":"h"},
+		"not a block"
+	]}`
+	want := []string{"hero", "rich_text", "product_grid", "section", "my_custom"}
+	if got := Outline(decoded(body)); !slices.Equal(got, want) {
+		t.Errorf("outline %v, want %v", got, want)
+	}
+	for name, raw := range map[string]string{"empty": ``, "rich text": `{"root":{"children":[]}}`, "not json": `<p>hi</p>`, "a list": `[{"type":"hero"}]`, "blocks that aren't a list": `{"blocks":"hero"}`} {
+		if got := Outline(decoded(raw)); got != nil {
+			t.Errorf("%s: outline %v, want none", name, got)
+		}
+	}
+	if got := Outline(decoded(`{"version":1,"blocks":[]}`)); len(got) != 0 {
+		t.Errorf("a page with no blocks: outline %v", got)
+	}
+	// A tree nested past the bound stops opening containers there instead of walking on
+	deep := `{"type":"leaf"}`
+	for range maxDepth + 3 {
+		deep = `{"type":"section","blocks":[` + deep + `]}`
+	}
+	if got := Outline(decoded(`{"blocks":[` + deep + `]}`)); !slices.Equal(got, []string{"section"}) {
+		t.Errorf("past the depth bound: outline %v", got)
 	}
 }
 

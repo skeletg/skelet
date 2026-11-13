@@ -234,6 +234,19 @@ WHERE author_id = $1
 ORDER BY COALESCE(published_at, created_at) DESC, created_at DESC
 LIMIT $2 OFFSET $3;
 
+-- name: CountBlogPosts :one
+-- How many posts a list filter matches. Every filter is optional, so one query stands in for each ListBlogPosts* variant
+SELECT COUNT(*) FROM blog_posts bp
+WHERE (sqlc.narg(status)::text IS NULL OR bp.status = sqlc.narg(status)::text)
+  AND (sqlc.narg(author_id)::uuid IS NULL OR bp.author_id = sqlc.narg(author_id)::uuid)
+  AND (sqlc.narg(category_id)::uuid IS NULL OR EXISTS (
+        SELECT 1 FROM blog_post_categories bpc WHERE bpc.post_id = bp.id AND bpc.category_id = sqlc.narg(category_id)::uuid))
+  AND (sqlc.narg(tag_id)::uuid IS NULL OR EXISTS (
+        SELECT 1 FROM blog_post_tags bpt WHERE bpt.post_id = bp.id AND bpt.tag_id = sqlc.narg(tag_id)::uuid))
+  AND (sqlc.narg(channel_id)::uuid IS NULL OR EXISTS (
+        SELECT 1 FROM blog_post_channel_listings bpsl
+        WHERE bpsl.post_id = bp.id AND bpsl.channel_id = sqlc.narg(channel_id)::uuid AND bpsl.is_published = TRUE));
+
 -- name: UpdateBlogPost :one
 UPDATE blog_posts
 SET slug                 = $2,

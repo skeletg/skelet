@@ -101,6 +101,37 @@ func ParseDocument(raw json.RawMessage) (doc Document, ok bool) {
 	return doc, doc.Blocks != nil || doc.Version > 0 // a block document is identified by a blocks array or an explicit version - plain rich-text and Lexical bodies are objects with neither
 }
 
+// Outline is a body's blocks by type, in order, with a container opened onto what it holds - enough to show how a page is built without its content. It reads a body that is already decoded, so a caller that decoded it to serve it doesn't parse it twice. Nil for a body that isn't block-built
+func Outline(body any) []string {
+	doc, ok := body.(map[string]any)
+	if !ok {
+		return nil
+	}
+	blocks, ok := doc["blocks"].([]any)
+	if !ok {
+		return nil
+	}
+	var out []string
+	var walk func(blocks []any, depth int)
+	walk = func(blocks []any, depth int) {
+		for _, raw := range blocks {
+			b, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			if inner, _ := b["blocks"].([]any); len(inner) > 0 && depth < maxDepth {
+				walk(inner, depth+1)
+				continue
+			}
+			if t, _ := b["type"].(string); t != "" {
+				out = append(out, t)
+			}
+		}
+	}
+	walk(blocks, 0)
+	return out
+}
+
 // A JSON object carrying a blocks key is claiming to be a Document, so it must parse as one or be refused - never stored or served as freeform
 func ClaimsDocument(raw json.RawMessage) bool {
 	trimmed := bytes.TrimSpace(raw)
