@@ -112,6 +112,68 @@ describe('BlogPostDetail', () => {
   })
 })
 
+describe('BlogPostDetail writing page', () => {
+  const written = {
+    root: { type: 'root', version: 1, direction: null, format: '', indent: 0, children: [{ type: 'paragraph', version: 1, direction: null, format: '', indent: 0, children: [{ type: 'text', version: 1, text: 'One two three four five', detail: 0, format: 0, mode: 'normal', style: '' }] }] },
+  }
+  const withBody = { ...post, allContent: [{ ...post.allContent[0]!, body: written }] }
+
+  function renderWritten() {
+    const settings = vi.fn()
+    renderPage({
+      path: '/blog/posts/p1',
+      adminId: 'admin-1',
+      scope: { ...globalScope, effectiveLocale: 'en' },
+      routes: { '/blog/posts/:id': <BlogPostDetail /> },
+      mocks: [
+        meMock(),
+        { request: { query: BlogPostDocument, variables: () => true }, result: { data: { blogPost: withBody } }, maxUsageCount: 5 },
+        { request: { query: BlogCategoriesDocument, variables: () => true }, result: { data: { blogCategories: [] } }, maxUsageCount: 3 },
+        { request: { query: BlogTagsDocument }, result: { data: { blogTags: [] } }, maxUsageCount: 3 },
+        { request: { query: ChannelsDocument }, result: { data: { channels: [] } }, maxUsageCount: 3 },
+        { request: { query: UpdateBlogPostDocument, variables: recorder(settings) }, result: { data: { updateBlogPost: withBody } } },
+      ],
+    })
+    return settings
+  }
+
+  it('draws the formatting bar over the page, with the styles named in plain words', async () => {
+    renderWritten()
+    const bar = await screen.findByRole('toolbar', { name: 'Formatting' }, SLOW)
+    expect(await within(bar).findByRole('button', { name: 'Undo' }, SLOW)).toHaveProperty('disabled', true)
+    expect(within(bar).getByRole('button', { name: 'Bold' })).toBeDefined()
+    expect(within(bar).getByRole('button', { name: 'Style' })).toBeDefined()
+    expect(within(screen.getByRole('article', { name: 'Post' })).getByLabelText('Title')).toHaveProperty('value', 'Hello')
+  })
+
+  it('counts the words, and its reading estimate stages as the reading time', async () => {
+    const settings = renderWritten()
+    expect(await screen.findByText('5', {}, SLOW)).toBeDefined()
+    expect(screen.getByText('Saved')).toBeDefined()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use as reading time' }))
+    expect((screen.getByLabelText('Reading time (min)') as HTMLInputElement).value).toBe('1')
+    expect(screen.getByText('1 unsaved change')).toBeDefined()
+    expect(screen.queryByRole('button', { name: 'Use as reading time' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /Save changes/ }))
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: /Apply 1 change/ }))
+    await vi.waitFor(() => expect(settings).toHaveBeenCalledWith({ input: expect.objectContaining({ id: 'p1', readingTimeMinutes: 1 }) }), SLOW)
+  })
+
+  it('makes the page larger and smaller, and remembers the size', async () => {
+    renderWritten()
+    const page = await screen.findByRole('article', { name: 'Post' }, SLOW)
+    expect(page.style.zoom).toBe('1')
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }))
+    expect(page.style.zoom).toBe('1.2')
+    expect(localStorage.getItem('skelet:blog-editor:zoom')).toBe('120')
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom' }))
+    expect(page.style.zoom).toBe('1')
+  })
+})
+
 // Delete confirms through the shared ConfirmDialog without waiting on the server: it closes as soon as it is
 // confirmed, a refused delete reports in the page feedback, and a successful one goes back to the list
 describe('BlogPostDetail delete', () => {
@@ -175,6 +237,9 @@ describe('BlogPostDetail store noindex', () => {
     await vi.waitFor(() => expect((noindex as HTMLButtonElement).disabled).toBe(false), SLOW)
     fireEvent.click(noindex)
     expect(listed).not.toHaveBeenCalled()
+    // Closing the panel the switch sits in doesn't drop what it staged
+    fireEvent.click(screen.getByRole('button', { name: 'Details' }))
+    expect(screen.queryByRole('switch', { name: 'Noindex' })).toBeNull()
 
     fireEvent.click(await screen.findByRole('button', { name: /Save changes/ }))
     const dialog = await screen.findByRole('alertdialog')
