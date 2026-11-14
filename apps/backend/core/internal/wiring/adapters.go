@@ -159,6 +159,10 @@ func (a WebformFileStore) PresignUpload(ctx context.Context, key, contentType st
 	return a.storage.PresignUpload(ctx, key, contentType, sizeBytes, ttl)
 }
 
+func (a WebformFileStore) Open(ctx context.Context, key string) (io.ReadCloser, error) {
+	return a.storage.GetStream(ctx, key)
+}
+
 func (a WebformFileStore) MaxUploadBytes() int64 {
 	return a.storage.MaxUploadBytes()
 }

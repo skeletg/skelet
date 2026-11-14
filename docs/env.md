@@ -524,21 +524,34 @@ count on unlisted files staying unfound, keep `{id}` in the template.
 
 The media store is usually public: anyone with a file's address can fetch it.
 That's right for product pictures and wrong for an export of your customers,
-which until now sat in the same bucket behind nothing but a random address.
+or a CV someone sent through a form, which until now sat in the same bucket
+behind nothing but a random address.
 
 Set `PRIVATE_S3_BUCKET` (or `PRIVATE_STORAGE_DIR` on the filesystem driver)
-and exports and import uploads go to a second store instead. It uses the same
-endpoint and credentials as the media store, and it has no public address at
-all. Nothing in it is ever linked to, and the only way to read a file is a
-route that checks the admin's permission first - the job download, for an
-export.
+and three kinds of file go to a second store instead: exports, import uploads,
+and whatever shoppers upload through forms. It uses the same endpoint and
+credentials as the media store, and it has no public address at all. Nothing
+in it is ever linked to, and the only way to read a file is a route that
+checks the admin's permission first: the job download for exports, and
+`/api/admin/webforms/submissions/<id>/files/<field>` for a form upload, which
+the dashboard's submissions page uses.
 
 - **S3:** make a second bucket that the same access key can read and write,
   and give it no public-read policy, no website hosting and no CDN in front.
-  On Garage that just means not running `bucket website --allow` on it.
+  On Garage that just means not running `bucket website --allow` on it. A
+  shopper's browser sends a form upload straight to it with a signed link, so
+  it needs a CORS rule that allows `PUT` from your storefront's origin, and
+  nothing else: a signed link can write one file and can't read any. One
+  Garage trap: a bucket made over the S3 API is named for that access key
+  alone, and Garage then can't find it for a browser's preflight, which
+  arrives unsigned. Uploads fail with a CORS error that looks like a missing
+  rule. Make the bucket with `garage bucket create`, or give it a global
+  alias, the way the dev stack's `garage-init` does.
 - **Filesystem:** a second directory, mounted on `app` and `worker`. It can't
   be the media directory, inside it or around it, since `/files/` serves that
-  one.
+  one. Form uploads arrive at `/private-files/` on core, a route that takes a
+  signed `PUT` and answers nothing else, so `STORAGE_UPLOAD_URL` has to be set
+  for shoppers to upload at all, same as for media.
 
 The app doesn't take your word for it. At boot it writes a small marker into
 the private store and asks for it back without credentials: at the store's own
@@ -553,7 +566,8 @@ Production refuses to start without it, since these files would otherwise sit
 in the media store behind nothing but a random address. Development carries on
 without one and keeps them in the media store. Turning it on only affects files
 written from then on: an export made before stays where it was until its
-retention runs out. In dev,
+retention runs out, and a form upload made before can no longer be downloaded
+from the dashboard, since it's looked for in the private store. In dev,
 `skelet up` creates a bucket called `private` in the local Garage, and
 `env/go.env.example` already points at it. An older checkout needs that one
 line copied into its `env/go.env`.

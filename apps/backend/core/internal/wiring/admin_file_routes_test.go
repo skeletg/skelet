@@ -20,6 +20,7 @@ func TestTheAdminFileRoutesAskForASessionFirst(t *testing.T) {
 	}{
 		"a library file":     {mediaFileHandler(nil, nil), http.MethodGet, mediaFilePath + id},
 		"an SVG upload":      {mediaSVGHandler(nil, nil), http.MethodPost, mediaSVGPath},
+		"a form upload":      {webformFileHandler(nil, nil), http.MethodGet, webformFilePath + id + "/files/cv"},
 		"an export":          {dataDownloadHandler(nil, nil), http.MethodGet, "/api/admin/data/jobs/" + id + "/file"},
 		"an import":          {dataImportHandler(nil, nil), http.MethodPost, "/api/admin/data/import"},
 		"an import template": {dataTemplateHandler(nil, nil), http.MethodGet, "/api/admin/data/template?resource=products"},

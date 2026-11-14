@@ -214,6 +214,9 @@ func (s *S3Store) GetStream(ctx context.Context, key string) (io.ReadCloser, err
 		Key:    aws.String(key),
 	})
 	if err != nil {
+		if isNotFound(err) {
+			return nil, fmt.Errorf("%w: %s", ErrObjectNotFound, key)
+		}
 		return nil, fmt.Errorf("media: get stream: %w", err)
 	}
 	return out.Body, nil

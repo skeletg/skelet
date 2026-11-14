@@ -18,3 +18,5 @@ export const ADMIN_MEDIA_FILE_ENDPOINT = ADMIN_HTTP_BASE + '/media/file'
 export const ADMIN_DOWNLOAD_TICKET_ENDPOINT = ADMIN_HTTP_BASE + '/download-ticket'
 
 export const mediaFileUrl = (assetId: string, width?: number) => `${ADMIN_MEDIA_FILE_ENDPOINT}/${assetId}${width ? `?w=${width}` : ''}`
+
+export const webformFileUrl = (submissionId: string, fieldKey: string) => `${ADMIN_HTTP_BASE}/webforms/submissions/${submissionId}/files/${encodeURIComponent(fieldKey)}`

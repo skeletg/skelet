@@ -18,7 +18,7 @@ const downloadTicketPath = "/api/admin/download-ticket"
 
 const downloadTicketTTL = time.Minute
 
-var ticketRoutes = []string{mediaFilePath, dataJobsPath, dataTemplatePath}
+var ticketRoutes = []string{mediaFilePath, webformFilePath, dataJobsPath, dataTemplatePath}
 
 func downloadTicketHandler(keys auth.AdminKeys) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

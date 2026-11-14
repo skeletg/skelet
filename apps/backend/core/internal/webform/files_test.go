@@ -3,6 +3,7 @@ package webform
 import (
 	"context"
 	"errors"
+	"io"
 	"testing"
 	"time"
 
@@ -18,6 +19,9 @@ func (s *anyObjectStore) PresignUpload(context.Context, string, string, int64, t
 func (s *anyObjectStore) Head(_ context.Context, key string) (int64, string, error) {
 	s.heads = append(s.heads, key)
 	return 1234, "application/pdf", nil
+}
+func (s *anyObjectStore) Open(context.Context, string) (io.ReadCloser, error) {
+	return nil, errors.New("unused")
 }
 func (s *anyObjectStore) MaxUploadBytes() int64 { return 1 << 20 }
 

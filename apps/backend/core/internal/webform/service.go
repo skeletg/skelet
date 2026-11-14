@@ -3,7 +3,9 @@ package webform
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/mail"
 	"net/url"
@@ -16,7 +18,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/internal/media"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
+	"github.com/skeletg/skelet/apps/backend/core/lib/objstore"
 )
 
 // Publisher is the slice of the event bus this package emits to
@@ -35,6 +39,7 @@ type ConfigReader interface {
 type FileStore interface {
 	PresignUpload(ctx context.Context, key, contentType string, sizeBytes int64, ttl time.Duration) (url string, err error)
 	Head(ctx context.Context, objectKey string) (size int64, mime string, err error)
+	Open(ctx context.Context, objectKey string) (io.ReadCloser, error)
 	MaxUploadBytes() int64
 }
 
@@ -187,6 +192,27 @@ func (s *Service) ListSubmissions(ctx context.Context, formID uuid.UUID, limit, 
 
 func (s *Service) GetSubmission(ctx context.Context, id uuid.UUID) (Submission, error) {
 	return s.repo.GetSubmission(ctx, id)
+}
+
+// The key is checked against where this form's uploads are signed into, so a submission row can't be made to name any other file in the store
+func (s *Service) OpenSubmissionFile(ctx context.Context, sub Submission, fieldKey string) (io.ReadCloser, SubmissionFile, error) {
+	if s.files == nil {
+		return nil, SubmissionFile{}, ErrFileNotFound
+	}
+	for _, f := range sub.Files {
+		if f.FieldKey != fieldKey || !strings.HasPrefix(f.ObjectKey, uploadPrefix(sub.FormID, fieldKey)) {
+			continue
+		}
+		body, err := s.files.Open(ctx, f.ObjectKey)
+		if errors.Is(err, objstore.ErrObjectNotFound) {
+			return nil, SubmissionFile{}, fmt.Errorf("%w: %w", ErrFileNotFound, err)
+		}
+		if err != nil {
+			return nil, SubmissionFile{}, fmt.Errorf("open a submitted file: %w", err)
+		}
+		return body, f, nil
+	}
+	return nil, SubmissionFile{}, ErrFileNotFound
 }
 
 func (s *Service) CountSubmissions(ctx context.Context, formID uuid.UUID) (int64, error) {
@@ -593,7 +619,7 @@ func validateRepeater(f Field, v any, add func(key, msg string)) {
 
 // Where PresignUpload puts a field's uploads - submit accepts only keys under it, so a submission can't point at another form's file or anything else in the bucket
 func uploadPrefix(formID uuid.UUID, fieldKey string) string {
-	return fmt.Sprintf("webforms/%s/%s/", formID, fieldKey)
+	return fmt.Sprintf("%s/%s/%s/", media.FormsRoot, formID, fieldKey)
 }
 
 func (s *Service) validateFiles(ctx context.Context, formID uuid.UUID, visible []Field, provided []SubmissionFile) ([]SubmissionFile, []FieldError) {

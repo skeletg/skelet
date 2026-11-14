@@ -98,9 +98,9 @@ edge behind `--profile edge`; leave the profile off to put your own proxy in fro
   (vhost-addressed: `http://media.localhost:9902/<key>`), bucket
   `media` + `skeletdev` key auto-provisioned, CORS + website
   access applied by `garage-init`, which also makes the `private`
-  bucket that exports and import uploads go to - that one gets a CORS rule
-  for `PUT` alone and no website access, so nothing in it is reachable
-  without credentials. CLI ops via
+  bucket that exports, import uploads and form uploads go to - that one gets
+  a CORS rule for `PUT` alone and no website access, so nothing in it is
+  reachable without credentials. CLI ops via
   `docker compose exec garage /garage <cmd>`.
 
 ### Optional dev tools

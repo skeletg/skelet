@@ -36,7 +36,7 @@ func TestADownloadTicketIsOnlyMadeForAFileRoute(t *testing.T) {
 	if u.Path != file || u.Query().Get("w") != "640" || u.Query().Get("ticket") == "" {
 		t.Errorf("the link %q, want the same path and query with a ticket on it", got.URL)
 	}
-	for _, p := range []string{dataJobsPath + uuid.NewString() + "/download", dataTemplatePath + "?resource=products&format=csv"} {
+	for _, p := range []string{webformFilePath + uuid.NewString() + "/files/cv", dataJobsPath + uuid.NewString() + "/download", dataTemplatePath + "?resource=products&format=csv"} {
 		if rec := ask(true, http.MethodPost, `{"path": "`+p+`"}`); rec.Code != http.StatusOK {
 			t.Errorf("%s: %d, want a link", p, rec.Code)
 		}

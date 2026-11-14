@@ -236,7 +236,7 @@ func PrivateStorage(getenv Getenv) (errs, warnings []string) {
 	case err != nil:
 		errs = append(errs, err.Error())
 	case !asked:
-		errs = append(errs, objstore.PrivateBucketEnv+" (or "+objstore.PrivateDirEnv+" on the filesystem driver) is not set - without it exports and import uploads would sit in the media store, where only a random address stands between them and anyone")
+		errs = append(errs, objstore.PrivateBucketEnv+" (or "+objstore.PrivateDirEnv+" on the filesystem driver) is not set - without it exports, import uploads and the files shoppers send through forms would sit in the media store, where only a random address stands between them and anyone")
 	}
 	return errs, warnings
 }
