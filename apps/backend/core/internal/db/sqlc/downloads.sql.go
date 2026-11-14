@@ -27,8 +27,8 @@ type CreateDownloadGrantParams struct {
 	OrderID      uuid.NullUUID `json:"order_id"`
 	CustomerID   uuid.NullUUID `json:"customer_id"`
 	Email        string        `json:"email"`
-	ProductID    uuid.UUID     `json:"product_id"`
-	DownloadID   uuid.UUID     `json:"download_id"`
+	ProductID    uuid.NullUUID `json:"product_id"`
+	DownloadID   uuid.NullUUID `json:"download_id"`
 	Title        string        `json:"title"`
 	Url          string        `json:"url"`
 	MaxDownloads sql.NullInt32 `json:"max_downloads"`
@@ -94,6 +94,29 @@ func (q *Queries) CreateProductDownload(ctx context.Context, arg CreateProductDo
 	return i, err
 }
 
+const deleteAssetDownloadGrant = `-- name: DeleteAssetDownloadGrant :execrows
+DELETE FROM download_grants WHERE id = $1 AND asset_id IS NOT NULL
+`
+
+// Only a grant made by sharing a file - one an order earned is revoked with the order, never from here
+func (q *Queries) DeleteAssetDownloadGrant(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteAssetDownloadGrant, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteCustomerAssetShares = `-- name: DeleteCustomerAssetShares :exec
+DELETE FROM download_grants WHERE customer_id = $1 AND asset_id IS NOT NULL
+`
+
+// A shared file was handed to an account, so it goes when the account does - what an order earned stays
+func (q *Queries) DeleteCustomerAssetShares(ctx context.Context, customerID uuid.NullUUID) error {
+	_, err := q.db.ExecContext(ctx, deleteCustomerAssetShares, customerID)
+	return err
+}
+
 const deleteProductDownload = `-- name: DeleteProductDownload :exec
 DELETE FROM catalog_product_downloads WHERE id = $1
 `
@@ -104,7 +127,7 @@ func (q *Queries) DeleteProductDownload(ctx context.Context, id uuid.UUID) error
 }
 
 const getDownloadGrantByToken = `-- name: GetDownloadGrantByToken :one
-SELECT id, token, order_id, customer_id, email, product_id, download_id, title, url, downloads_used, max_downloads, expires_at, created_at FROM download_grants WHERE token = $1
+SELECT id, token, order_id, customer_id, email, product_id, download_id, title, url, downloads_used, max_downloads, expires_at, created_at, asset_id FROM download_grants WHERE token = $1
 `
 
 func (q *Queries) GetDownloadGrantByToken(ctx context.Context, token string) (DownloadGrant, error) {
@@ -124,12 +147,13 @@ func (q *Queries) GetDownloadGrantByToken(ctx context.Context, token string) (Do
 		&i.MaxDownloads,
 		&i.ExpiresAt,
 		&i.CreatedAt,
+		&i.AssetID,
 	)
 	return i, err
 }
 
 const getDownloadGrantByTokenForUpdate = `-- name: GetDownloadGrantByTokenForUpdate :one
-SELECT id, token, order_id, customer_id, email, product_id, download_id, title, url, downloads_used, max_downloads, expires_at, created_at FROM download_grants WHERE token = $1 FOR UPDATE
+SELECT id, token, order_id, customer_id, email, product_id, download_id, title, url, downloads_used, max_downloads, expires_at, created_at, asset_id FROM download_grants WHERE token = $1 FOR UPDATE
 `
 
 // Row-locked read used when consuming a download so the use-count check is
@@ -151,6 +175,7 @@ func (q *Queries) GetDownloadGrantByTokenForUpdate(ctx context.Context, token st
 		&i.MaxDownloads,
 		&i.ExpiresAt,
 		&i.CreatedAt,
+		&i.AssetID,
 	)
 	return i, err
 }
@@ -179,7 +204,7 @@ const incrementDownloadGrantUse = `-- name: IncrementDownloadGrantUse :one
 UPDATE download_grants
 SET downloads_used = downloads_used + 1
 WHERE id = $1
-RETURNING id, token, order_id, customer_id, email, product_id, download_id, title, url, downloads_used, max_downloads, expires_at, created_at
+RETURNING id, token, order_id, customer_id, email, product_id, download_id, title, url, downloads_used, max_downloads, expires_at, created_at, asset_id
 `
 
 func (q *Queries) IncrementDownloadGrantUse(ctx context.Context, id uuid.UUID) (DownloadGrant, error) {
@@ -199,12 +224,55 @@ func (q *Queries) IncrementDownloadGrantUse(ctx context.Context, id uuid.UUID) (
 		&i.MaxDownloads,
 		&i.ExpiresAt,
 		&i.CreatedAt,
+		&i.AssetID,
 	)
 	return i, err
 }
 
+const listDownloadGrantsByAsset = `-- name: ListDownloadGrantsByAsset :many
+SELECT id, token, order_id, customer_id, email, product_id, download_id, title, url, downloads_used, max_downloads, expires_at, created_at, asset_id FROM download_grants WHERE asset_id = $1 ORDER BY created_at DESC
+`
+
+func (q *Queries) ListDownloadGrantsByAsset(ctx context.Context, assetID uuid.NullUUID) ([]DownloadGrant, error) {
+	rows, err := q.db.QueryContext(ctx, listDownloadGrantsByAsset, assetID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DownloadGrant{}
+	for rows.Next() {
+		var i DownloadGrant
+		if err := rows.Scan(
+			&i.ID,
+			&i.Token,
+			&i.OrderID,
+			&i.CustomerID,
+			&i.Email,
+			&i.ProductID,
+			&i.DownloadID,
+			&i.Title,
+			&i.Url,
+			&i.DownloadsUsed,
+			&i.MaxDownloads,
+			&i.ExpiresAt,
+			&i.CreatedAt,
+			&i.AssetID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDownloadGrantsByCustomer = `-- name: ListDownloadGrantsByCustomer :many
-SELECT id, token, order_id, customer_id, email, product_id, download_id, title, url, downloads_used, max_downloads, expires_at, created_at FROM download_grants
+SELECT id, token, order_id, customer_id, email, product_id, download_id, title, url, downloads_used, max_downloads, expires_at, created_at, asset_id FROM download_grants
 WHERE customer_id = $1
 ORDER BY created_at DESC
 `
@@ -232,6 +300,7 @@ func (q *Queries) ListDownloadGrantsByCustomer(ctx context.Context, customerID u
 			&i.MaxDownloads,
 			&i.ExpiresAt,
 			&i.CreatedAt,
+			&i.AssetID,
 		); err != nil {
 			return nil, err
 		}
@@ -247,7 +316,7 @@ func (q *Queries) ListDownloadGrantsByCustomer(ctx context.Context, customerID u
 }
 
 const listDownloadGrantsByOrder = `-- name: ListDownloadGrantsByOrder :many
-SELECT id, token, order_id, customer_id, email, product_id, download_id, title, url, downloads_used, max_downloads, expires_at, created_at FROM download_grants WHERE order_id = $1 ORDER BY created_at
+SELECT id, token, order_id, customer_id, email, product_id, download_id, title, url, downloads_used, max_downloads, expires_at, created_at, asset_id FROM download_grants WHERE order_id = $1 ORDER BY created_at
 `
 
 func (q *Queries) ListDownloadGrantsByOrder(ctx context.Context, orderID uuid.NullUUID) ([]DownloadGrant, error) {
@@ -273,6 +342,7 @@ func (q *Queries) ListDownloadGrantsByOrder(ctx context.Context, orderID uuid.Nu
 			&i.MaxDownloads,
 			&i.ExpiresAt,
 			&i.CreatedAt,
+			&i.AssetID,
 		); err != nil {
 			return nil, err
 		}
@@ -338,6 +408,56 @@ func (q *Queries) RevokeOrderDownloadGrants(ctx context.Context, orderID uuid.Nu
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const shareAssetWithCustomer = `-- name: ShareAssetWithCustomer :one
+INSERT INTO download_grants (token, customer_id, email, asset_id, title, max_downloads, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT (asset_id, customer_id) WHERE asset_id IS NOT NULL
+DO UPDATE SET email = EXCLUDED.email, title = EXCLUDED.title, max_downloads = EXCLUDED.max_downloads, expires_at = EXCLUDED.expires_at,
+              downloads_used = 0
+RETURNING id, token, order_id, customer_id, email, product_id, download_id, title, url, downloads_used, max_downloads, expires_at, created_at, asset_id
+`
+
+type ShareAssetWithCustomerParams struct {
+	Token        string        `json:"token"`
+	CustomerID   uuid.NullUUID `json:"customer_id"`
+	Email        string        `json:"email"`
+	AssetID      uuid.NullUUID `json:"asset_id"`
+	Title        string        `json:"title"`
+	MaxDownloads sql.NullInt32 `json:"max_downloads"`
+	ExpiresAt    sql.NullTime  `json:"expires_at"`
+}
+
+// One grant per customer and file - sharing again keeps the link and starts it over under the new limits
+func (q *Queries) ShareAssetWithCustomer(ctx context.Context, arg ShareAssetWithCustomerParams) (DownloadGrant, error) {
+	row := q.db.QueryRowContext(ctx, shareAssetWithCustomer,
+		arg.Token,
+		arg.CustomerID,
+		arg.Email,
+		arg.AssetID,
+		arg.Title,
+		arg.MaxDownloads,
+		arg.ExpiresAt,
+	)
+	var i DownloadGrant
+	err := row.Scan(
+		&i.ID,
+		&i.Token,
+		&i.OrderID,
+		&i.CustomerID,
+		&i.Email,
+		&i.ProductID,
+		&i.DownloadID,
+		&i.Title,
+		&i.Url,
+		&i.DownloadsUsed,
+		&i.MaxDownloads,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.AssetID,
+	)
+	return i, err
 }
 
 const updateProductDownload = `-- name: UpdateProductDownload :one

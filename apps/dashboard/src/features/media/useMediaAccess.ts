@@ -17,5 +17,7 @@ export function useMediaAccess() {
     settled: !loading && (!mayOpen || store.data !== undefined || store.error !== undefined),
     canManage: (area: MediaVisibility) => (area === 'PRIVATE' ? managesPrivate : has('media.manage')),
     canCross: managesPrivate,
+    canShare: has('media.view') && everywhere('media.share'),
+    canSeeCustomers: has('customers.view'),
   }
 }

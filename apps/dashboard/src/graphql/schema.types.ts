@@ -4206,6 +4206,17 @@ export type MediaMimeGroup =
   | 'DOCUMENT'
   | 'IMAGE';
 
+export type MediaShare = {
+  __typename?: 'MediaShare';
+  createdAt: Scalars['Time']['output'];
+  customerId?: Maybe<Scalars['ID']['output']>;
+  downloadsUsed: Scalars['Int']['output'];
+  email: Scalars['String']['output'];
+  expiresAt?: Maybe<Scalars['Time']['output']>;
+  id: Scalars['ID']['output'];
+  maxDownloads?: Maybe<Scalars['Int']['output']>;
+};
+
 export type MediaVisibility =
   | 'PRIVATE'
   | 'PUBLIC';
@@ -4590,6 +4601,7 @@ export type Mutation = {
   restoreWebForm: Scalars['Boolean']['output'];
   resumeSubscription: CustomerSubscription;
   retryWebhookDeadLetter: WebhookQueueItem;
+  revokeMediaShare: Scalars['Boolean']['output'];
   rewriteEmailText: Scalars['String']['output'];
   rotateRemoteProviderSecret: RotateRemoteProviderSecretPayload;
   rotateWebhookSecret: RotateWebhookSecretPayload;
@@ -4679,6 +4691,7 @@ export type Mutation = {
   setSubscriptionTerms: Product;
   setTrackingDestinationEnabled: TrackingDestination;
   setWebhookActive: Webhook;
+  shareMediaAsset: MediaShare;
   signalsChat: SignalsChatReply;
   /** Queues an export - poll the returned job, then download it from /api/admin/data/jobs/{id}/download */
   startDataExport: DataJob;
@@ -6485,6 +6498,11 @@ export type MutationRetryWebhookDeadLetterArgs = {
 };
 
 
+export type MutationRevokeMediaShareArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
 export type MutationRewriteEmailTextArgs = {
   instruction?: InputMaybe<Scalars['String']['input']>;
   text: Scalars['String']['input'];
@@ -7033,6 +7051,11 @@ export type MutationSetTrackingDestinationEnabledArgs = {
 export type MutationSetWebhookActiveArgs = {
   active: Scalars['Boolean']['input'];
   id: Scalars['ID']['input'];
+};
+
+
+export type MutationShareMediaAssetArgs = {
+  input: ShareMediaAssetInput;
 };
 
 
@@ -8740,6 +8763,7 @@ export type Query = {
   mcpOverview: McpOverview;
   me: AdminUser;
   mediaAsset: MediaAsset;
+  mediaAssetShares: Array<MediaShare>;
   mediaDirectory: MediaDirectory;
   mediaPrivateArea: Scalars['Boolean']['output'];
   mediaUploadTypes: Array<Scalars['String']['output']>;
@@ -9569,6 +9593,11 @@ export type QueryMcpOverviewArgs = {
 
 export type QueryMediaAssetArgs = {
   id: Scalars['ID']['input'];
+};
+
+
+export type QueryMediaAssetSharesArgs = {
+  assetId: Scalars['ID']['input'];
 };
 
 
@@ -11078,6 +11107,13 @@ export type SetSubscriptionTermsInput = {
   intervalUnit: SubscriptionInterval;
   productId: Scalars['ID']['input'];
   trialDays?: InputMaybe<Scalars['Int']['input']>;
+};
+
+export type ShareMediaAssetInput = {
+  assetId: Scalars['ID']['input'];
+  customerId: Scalars['ID']['input'];
+  expiresAt?: InputMaybe<Scalars['Time']['input']>;
+  maxDownloads?: InputMaybe<Scalars['Int']['input']>;
 };
 
 export type ShippingBox = {

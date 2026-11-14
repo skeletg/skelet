@@ -201,6 +201,13 @@ type fakeFiles struct {
 
 func (f fakeFiles) KeyFor(u string) (string, bool) { return strings.CutPrefix(u, f.prefix) }
 
+func (f fakeFiles) OpenAsset(context.Context, uuid.UUID) (io.ReadCloser, string, string, error) {
+	if f.err != nil {
+		return nil, "", "", f.err
+	}
+	return io.NopCloser(strings.NewReader(f.body)), "Price list 2027.pdf", "application/pdf", nil
+}
+
 func (f fakeFiles) Open(context.Context, string) (io.ReadCloser, int64, string, error) {
 	if f.err != nil {
 		return nil, 0, "", f.err

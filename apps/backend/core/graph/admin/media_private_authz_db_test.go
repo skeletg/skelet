@@ -13,11 +13,14 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	adminpkg "github.com/skeletg/skelet/apps/backend/core/internal/admin"
+	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/medialibrary"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/objstore"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
+	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
 type heldStore struct{ keys map[string]bool }
@@ -74,6 +77,8 @@ func newLibraryDoors(t *testing.T) libraryDoors {
 	root := &Resolver{
 		AdminSvc:        f.svc,
 		MediaLibrarySvc: lib,
+		DownloadSvc:     download.NewService(download.NewRepository(q), txrunner.New(conn)),
+		CustomerSvc:     customer.NewService(customer.NewRepository(q, nil, txrunner.New(conn)), nil, nil, nil, nil, nil, nil, nil),
 	}
 	folder := "authz-" + uuid.NewString()[:8]
 	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM media_assets WHERE starts_with(object_key, $1)`, folder+"/") })
@@ -114,6 +119,10 @@ func (d libraryDoors) privateReads(t *testing.T) map[string]door {
 		"list the folders": func(ctx context.Context) error { _, err := d.q.AllMediaDirectories(ctx, &private); return err },
 		"one file by id": func(ctx context.Context) error {
 			_, err := d.q.MediaAsset(ctx, d.file(t, "private", "ready"))
+			return err
+		},
+		"who it is shared with": func(ctx context.Context) error {
+			_, err := d.q.MediaAssetShares(ctx, d.file(t, "private", "ready"))
 			return err
 		},
 	}
@@ -269,5 +278,101 @@ func TestAPrivatePictureIsNotSentToTheAIProvider(t *testing.T) {
 	}
 	if _, err := d.m.GenerateMediaAltText(both, d.file(t, "public", "ready")); stoppedAt(err) != "" || errors.Is(err, medialibrary.ErrPrivateAsset) {
 		t.Errorf("a public picture was refused: %v", err)
+	}
+}
+
+func TestSharingIsItsOwnGrantAndNeedsTheCustomersChannel(t *testing.T) {
+	d := newLibraryDoors(t)
+	own := d.f.channel
+	var other uuid.UUID
+	if err := d.conn.QueryRow(`INSERT INTO channels (slug, name, currency_code, default_locale)
+		SELECT $1, $1, currency_code, default_locale FROM channels WHERE id = $2 RETURNING id`, "sh-"+uuid.NewString()[:8], own).Scan(&other); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = d.conn.Exec(`DELETE FROM channels WHERE id = $1`, other) })
+	near, nearEmail := seedChannelCustomer(t, d.conn, own)
+	far, _ := seedChannelCustomer(t, d.conn, other)
+
+	view, privateView, share := everywhere("media.view"), everywhere(medialibrary.PermPrivateView), everywhere(medialibrary.PermShare)
+	customersHere := adminpkg.RolePermissionScopeInput{PermissionSlug: "customers.view", ChannelID: &own}
+	sharer := d.caller(t, view, privateView, share, customersHere)
+	hidden := d.file(t, "private", "ready")
+	give := func(ctx context.Context, file string, to uuid.UUID) (*model.MediaShare, error) {
+		return d.m.ShareMediaAsset(ctx, model.ShareMediaAssetInput{AssetID: file, CustomerID: to.String()})
+	}
+
+	for name, tc := range map[string]struct {
+		ctx  context.Context
+		to   uuid.UUID
+		want string
+	}{
+		"sees and manages both halves, but may not share": {d.caller(t, everywhere("media.manage"), everywhere(medialibrary.PermPrivateManage), customersHere), near, medialibrary.PermShare},
+		"may share, but not see the private half":         {d.caller(t, view, share, customersHere), near, medialibrary.PermPrivateView},
+		"may share on one channel only":                   {d.caller(t, view, privateView, customersHere, adminpkg.RolePermissionScopeInput{PermissionSlug: medialibrary.PermShare, ChannelID: &own}), near, medialibrary.PermShare},
+		"may share, but not see customers":                {d.caller(t, view, privateView, share), near, "customers.view"},
+		"a customer on a channel out of reach":            {sharer, far, "customers.view"},
+	} {
+		if _, err := give(tc.ctx, hidden, tc.to); stoppedAt(err) != tc.want {
+			t.Errorf("%s: stopped at %q (%v), want %q", name, stoppedAt(err), err, tc.want)
+		}
+	}
+	closed, _ := seedChannelCustomer(t, d.conn, own)
+	if _, err := d.conn.Exec(`UPDATE customers SET is_active = false WHERE id = $1`, closed); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := give(sharer, hidden, closed); !errors.Is(err, download.ErrInactiveCustomer) {
+		t.Errorf("sharing with a closed account: %v, want it refused", err)
+	}
+	var made int
+	if err := d.conn.QueryRow(`SELECT count(*) FROM download_grants WHERE asset_id = $1`, hidden).Scan(&made); err != nil || made != 0 {
+		t.Fatalf("%d shares were made by callers who were refused (%v)", made, err)
+	}
+
+	if _, err := give(sharer, d.file(t, "private", "pending"), near); !errors.Is(err, medialibrary.ErrUploadNotReceived) {
+		t.Errorf("sharing a file whose upload never finished: %v, want it refused", err)
+	}
+	if _, err := give(sharer, d.file(t, "public", "ready"), near); !errors.Is(err, medialibrary.ErrSharePublic) {
+		t.Errorf("sharing a public file: %v, want it refused", err)
+	}
+	mine, err := give(sharer, hidden, near)
+	if err != nil || mine.Email != nearEmail {
+		t.Fatalf("sharing with a customer in reach: %+v %v", mine, err)
+	}
+	if _, err := d.m.DownloadSvc.ShareAsset(context.Background(), download.ShareInput{AssetID: uuid.MustParse(hidden), CustomerID: far, Email: "far@example.invalid", Title: "deed"}); err != nil {
+		t.Fatal(err)
+	}
+
+	listed := func(ctx context.Context) map[string]bool {
+		shares, err := d.q.MediaAssetShares(ctx, hidden)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(shares) != 2 {
+			t.Fatalf("listed %d shares, want both", len(shares))
+		}
+		named := map[string]bool{}
+		for _, s := range shares {
+			if (s.Email == "") != (s.CustomerID == nil) {
+				t.Errorf("a share kept back half of who it is for: %+v", s)
+			}
+			named[s.Email] = true
+		}
+		return named
+	}
+	if got := listed(sharer); !got[nearEmail] || got["far@example.invalid"] || !got[""] {
+		t.Errorf("with customers in reach on one channel, the list names %v - want that channel's customer and the other kept back", got)
+	}
+	if got := listed(d.caller(t, view, privateView)); len(got) != 1 || !got[""] {
+		t.Errorf("with no grant to see customers, the list names %v - want every customer kept back", got)
+	}
+	if got := listed(d.caller(t, view, privateView, everywhere("customers.view"))); !got[nearEmail] || !got["far@example.invalid"] {
+		t.Errorf("with customers in reach everywhere, the list names %v - want both", got)
+	}
+
+	if _, err := d.m.RevokeMediaShare(d.caller(t, everywhere("media.manage"), everywhere(medialibrary.PermPrivateManage)), mine.ID); stoppedAt(err) != medialibrary.PermShare {
+		t.Errorf("taking a share back without the grant to share: %v", err)
+	}
+	if ok, err := d.m.RevokeMediaShare(sharer, mine.ID); err != nil || !ok {
+		t.Errorf("taking a share back: %v %v", ok, err)
 	}
 }

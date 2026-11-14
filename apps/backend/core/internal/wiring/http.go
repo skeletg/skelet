@@ -228,7 +228,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	tokenLimiter := ratelimit.NewRedis(infra.Limits.Client, RateLimitPerMin("TOKEN_RATE_LIMIT_PER_MIN", 60), time.Minute)
 	var downloadFiles download.FileStore
 	if s.MediaStorage != nil {
-		downloadFiles = storedDownloads{s.MediaStorage}
+		downloadFiles = storedDownloads{st: s.MediaStorage, lib: s.MediaLibrary}
 	}
 	mux.Handle("/download/", s.Download.Handler(downloadFiles, func(r *http.Request) bool {
 		return tokenLimiter.Allow(r.Context(), "download:"+authpkg.ClientIP(r))

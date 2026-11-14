@@ -60,3 +60,23 @@ SELECT * FROM download_grants WHERE order_id = $1 ORDER BY created_at;
 SELECT * FROM download_grants
 WHERE customer_id = $1
 ORDER BY created_at DESC;
+
+-- name: ShareAssetWithCustomer :one
+-- One grant per customer and file - sharing again keeps the link and starts it over under the new limits
+INSERT INTO download_grants (token, customer_id, email, asset_id, title, max_downloads, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT (asset_id, customer_id) WHERE asset_id IS NOT NULL
+DO UPDATE SET email = EXCLUDED.email, title = EXCLUDED.title, max_downloads = EXCLUDED.max_downloads, expires_at = EXCLUDED.expires_at,
+              downloads_used = 0
+RETURNING *;
+
+-- name: ListDownloadGrantsByAsset :many
+SELECT * FROM download_grants WHERE asset_id = $1 ORDER BY created_at DESC;
+
+-- name: DeleteCustomerAssetShares :exec
+-- A shared file was handed to an account, so it goes when the account does - what an order earned stays
+DELETE FROM download_grants WHERE customer_id = $1 AND asset_id IS NOT NULL;
+
+-- name: DeleteAssetDownloadGrant :execrows
+-- Only a grant made by sharing a file - one an order earned is revoked with the order, never from here
+DELETE FROM download_grants WHERE id = $1 AND asset_id IS NOT NULL;

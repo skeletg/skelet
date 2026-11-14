@@ -9,6 +9,7 @@ import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 import { DeleteMediaAssetDocument, MoveMediaAssetDocument, type MediaAssetFieldsFragment as MediaAsset } from '../MediaLibrary.gql'
 import { isEditable } from '../editor/output'
 import { AssetPanel } from '../picker/AssetPanel'
+import { Shares } from './Shares'
 
 // Radix refuses an empty value, and the library's root is the empty path
 const ROOT = '__library__'
@@ -18,6 +19,7 @@ export function Inspector({
   asset,
   canManage,
   folders,
+  sharing,
   canCross,
   dirty,
   onChanged,
@@ -26,11 +28,13 @@ export function Inspector({
   onEdit,
   onClose,
   onDirty,
+  onShareDirty,
   onError,
 }: {
   asset: MediaAsset
   canManage: boolean
   folders: string[]
+  sharing: { canShare: boolean; canSeeCustomers: boolean } | null
   canCross: boolean
   dirty: boolean
   onChanged: (a: MediaAsset) => void
@@ -39,6 +43,7 @@ export function Inspector({
   onEdit: () => void
   onClose: () => void
   onDirty: (dirty: boolean) => void
+  onShareDirty: (dirty: boolean) => void
   onError: (message: string | null) => void
 }) {
   return (
@@ -63,6 +68,7 @@ export function Inspector({
           </Button>
         ) : null}
         <AssetPanel asset={asset} canManage={canManage} notes libraryLink={false} onChanged={onChanged} onDirty={onDirty} />
+        {sharing ? <Shares key={`shares-${asset.id}`} assetId={asset.id} {...sharing} onlyIfAny={asset.visibility !== 'PRIVATE'} onDirty={onShareDirty} /> : null}
         {canManage ? <Filing key={asset.id} asset={asset} folders={folders} canCross={canCross} detailsDirty={dirty} onChanged={onChanged} onDeleted={onDeleted} onLeft={onLeft} onError={onError} /> : null}
       </div>
     </aside>

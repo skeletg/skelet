@@ -149,3 +149,29 @@ mutation DeleteMediaDirectory($path: String!, $recursive: Boolean!, $visibility:
 query MediaPrivateArea {
   mediaPrivateArea
 }
+
+fragment MediaShareFields on MediaShare {
+  id
+  customerId
+  email
+  downloadsUsed
+  maxDownloads
+  expiresAt
+  createdAt
+}
+
+query MediaAssetShares($assetId: ID!) {
+  mediaAssetShares(assetId: $assetId) {
+    ...MediaShareFields
+  }
+}
+
+mutation ShareMediaAsset($input: ShareMediaAssetInput!) {
+  shareMediaAsset(input: $input) {
+    ...MediaShareFields
+  }
+}
+
+mutation RevokeMediaShare($id: ID!) {
+  revokeMediaShare(id: $id)
+}

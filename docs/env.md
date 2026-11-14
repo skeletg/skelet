@@ -555,13 +555,23 @@ left public and the admin is told to try again, since a file still at its
 address isn't private.
 
 The private half has permissions of its own, on top of the library's:
-`media.private.view` to open it, and `media.private.manage` to change it or
-move a file across. An admin with only `media.view`
+`media.private.view` to open it, `media.private.manage` to change it or move a
+file across, and `media.share` to share one. An admin with only `media.view`
 or `media.manage` doesn't see the switch at all. They count only when granted
 globally, and [permissions.md](permissions.md) has the role to build. Two
 things stay shut whatever the grants: a private picture is never sent to the
 AI provider for alt text, and the library can't reach the other files in the
 private store, so form uploads and exports stay behind their own permissions.
+
+The one way out for a private file is sharing it with a customer, from the
+same panel, with an optional download limit and last day. The customer finds
+it under Downloads in their account, next to anything they bought, and the
+file is streamed to them through the same token link a digital purchase
+uses. Sharing takes `media.share` and `customers.view` on the customer's
+channel, and nothing is sent to the customer, so tell them it's there. Sharing
+the same file with the same customer again keeps their link and starts it over
+under the new limits. A share ends when the customer's account is deleted or
+erased.
 
 - **S3:** make a second bucket that the same access key can read and write,
   and give it no public-read policy, no website hosting and no CDN in front.

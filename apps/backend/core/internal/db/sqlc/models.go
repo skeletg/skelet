@@ -1517,14 +1517,15 @@ type DownloadGrant struct {
 	OrderID       uuid.NullUUID `json:"order_id"`
 	CustomerID    uuid.NullUUID `json:"customer_id"`
 	Email         string        `json:"email"`
-	ProductID     uuid.UUID     `json:"product_id"`
-	DownloadID    uuid.UUID     `json:"download_id"`
+	ProductID     uuid.NullUUID `json:"product_id"`
+	DownloadID    uuid.NullUUID `json:"download_id"`
 	Title         string        `json:"title"`
 	Url           string        `json:"url"`
 	DownloadsUsed int32         `json:"downloads_used"`
 	MaxDownloads  sql.NullInt32 `json:"max_downloads"`
 	ExpiresAt     sql.NullTime  `json:"expires_at"`
 	CreatedAt     time.Time     `json:"created_at"`
+	AssetID       uuid.NullUUID `json:"asset_id"`
 }
 
 type EmailOptIn struct {

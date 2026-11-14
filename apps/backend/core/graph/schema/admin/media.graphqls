@@ -102,6 +102,24 @@ input UpdateMediaAssetInput {
   notes: String
 }
 
+# A private file handed to one customer: it shows in their account's downloads and opens through /download/<token>.
+type MediaShare {
+  id: ID!
+  customerId: ID
+  email: String!
+  downloadsUsed: Int!
+  maxDownloads: Int
+  expiresAt: Time
+  createdAt: Time!
+}
+
+input ShareMediaAssetInput {
+  assetId: ID!
+  customerId: ID!
+  maxDownloads: Int
+  expiresAt: Time
+}
+
 extend type Query {
   # The two halves of the library keep separate folders, so each of these looks at one - PUBLIC when left out.
   mediaDirectory(path: String!, visibility: MediaVisibility): MediaDirectory!
@@ -109,6 +127,7 @@ extend type Query {
   searchMediaAssets(query: String, path: String, mimeGroup: MediaMimeGroup, sort: MediaAssetSort, limit: Int, offset: Int, visibility: MediaVisibility): MediaAssetSearchResult!
   allMediaDirectories(visibility: MediaVisibility): [MediaDirectoryChild!]!
   mediaPrivateArea: Boolean!
+  mediaAssetShares(assetId: ID!): [MediaShare!]!
   # The MIME types the library takes, for a file picker to offer.
   mediaUploadTypes: [String!]!
 }
@@ -125,4 +144,7 @@ extend type Mutation {
   deleteMediaAsset(id: ID!, deleteFromStorage: Boolean): Boolean!
   deleteMediaDirectory(path: String!, recursive: Boolean!, visibility: MediaVisibility): Boolean!
   renameMediaDirectory(path: String!, newName: String!, visibility: MediaVisibility): MediaDirectoryChild!
+  # Sharing again with the same customer replaces the limits.
+  shareMediaAsset(input: ShareMediaAssetInput!): MediaShare!
+  revokeMediaShare(id: ID!): Boolean!
 }

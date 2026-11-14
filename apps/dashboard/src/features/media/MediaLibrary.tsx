@@ -78,8 +78,10 @@ export function MediaLibrary() {
   const [editing, setEditing] = useState<MediaAsset | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
 
-  // Typed words in the details panel that aren't saved yet. Whatever would take the panel off its file asks first
-  const [panelDirty, setPanelDirty] = useState(false)
+  // Typed words in the details panel, or a share being filled in, not saved yet. Whatever would take the panel off its file asks first
+  const [detailsDirty, setDetailsDirty] = useState(false)
+  const [shareDirty, setShareDirty] = useState(false)
+  const panelDirty = detailsDirty || shareDirty
   const [afterDiscard, setAfterDiscard] = useState<(() => void) | null>(null)
   useUnsavedChangesGuard(panelDirty, 'Media asset')
   const dirtyNow = useRef(false)
@@ -279,6 +281,7 @@ export function MediaLibrary() {
             asset={open}
             canManage={canManage}
             folders={folders}
+            sharing={hasPrivate ? { canShare: access.canShare, canSeeCustomers: access.canSeeCustomers } : null}
             canCross={access.canCross}
             dirty={panelDirty}
             onLeft={(a) => {
@@ -295,7 +298,8 @@ export function MediaLibrary() {
             }}
             onEdit={() => setEditing(open)}
             onClose={() => pick([])}
-            onDirty={setPanelDirty}
+            onDirty={setDetailsDirty}
+            onShareDirty={setShareDirty}
             onError={setError}
           />
         ) : null
@@ -479,11 +483,12 @@ export function MediaLibrary() {
         open={afterDiscard !== null}
         onOpenChange={(o) => !o && setAfterDiscard(null)}
         title="Discard changes to this file?"
-        description="The words you typed for it haven't been saved."
+        description="What you typed for it hasn't been saved."
         confirmLabel="Discard"
         destructive
         onConfirm={() => {
-          setPanelDirty(false)
+          setDetailsDirty(false)
+          setShareDirty(false)
           afterDiscard?.()
           setAfterDiscard(null)
         }}

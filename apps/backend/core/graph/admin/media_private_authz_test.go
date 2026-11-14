@@ -13,6 +13,7 @@ import (
 var halfBlindLibraryResolvers = map[string]string{
 	"MediaPrivateArea": "says whether the install has a private store, and nothing of what is in it",
 	"MediaUploadTypes": "a list of MIME types",
+	"RevokeMediaShare": "takes a share back on media.share alone, and reads no file",
 }
 
 var libraryResolversElsewhere = []string{"GenerateMediaAltText"}

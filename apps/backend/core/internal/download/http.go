@@ -10,6 +10,8 @@ import (
 	"path"
 	"strconv"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 // The object storage a grant's file may live in - a file there is streamed, so its URL never reaches the buyer and the use cap holds
@@ -17,6 +19,7 @@ type FileStore interface {
 	// The storage key behind a URL this store serves, false for anything hosted elsewhere
 	KeyFor(url string) (string, bool)
 	Open(ctx context.Context, key string) (body io.ReadCloser, size int64, contentType string, err error)
+	OpenAsset(ctx context.Context, assetID uuid.UUID) (body io.ReadCloser, filename, contentType string, err error)
 }
 
 // Serves /download/<token>: one use per hit, a stored file streamed as an attachment, an external one redirected to
@@ -35,6 +38,10 @@ func (s *Service) Handler(files FileStore, allow func(*http.Request) bool) http.
 		grant, err := s.Get(r.Context(), token)
 		if err != nil {
 			writeGrantError(w, r, err)
+			return
+		}
+		if grant.AssetID != nil {
+			s.serveSharedAsset(w, r, files, grant, token)
 			return
 		}
 		var key string
@@ -77,6 +84,36 @@ func (s *Service) Handler(files FileStore, allow func(*http.Request) bool) http.
 			log.Printf("[download] stream grant %s: %v", grant.ID, err)
 		}
 	})
+}
+
+// Opened before the use is spent, as with a stored file, and never redirected: a private file has no address to send anyone to
+func (s *Service) serveSharedAsset(w http.ResponseWriter, r *http.Request, files FileStore, grant Grant, token string) {
+	if files == nil {
+		http.Error(w, "file unavailable", http.StatusBadGateway)
+		return
+	}
+	body, filename, contentType, err := files.OpenAsset(r.Context(), *grant.AssetID)
+	if err != nil {
+		log.Printf("[download] open asset %s for grant %s: %v", *grant.AssetID, grant.ID, err)
+		http.Error(w, "file unavailable", http.StatusBadGateway)
+		return
+	}
+	defer func() { _ = body.Close() }()
+	if _, err := s.Consume(r.Context(), token); err != nil {
+		writeGrantError(w, r, err)
+		return
+	}
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	h := w.Header()
+	h.Set("Content-Type", contentType)
+	h.Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("Cache-Control", "private, no-store")
+	if _, err := io.Copy(w, body); err != nil {
+		log.Printf("[download] stream grant %s: %v", grant.ID, err)
+	}
 }
 
 func writeGrantError(w http.ResponseWriter, r *http.Request, err error) {

@@ -7,6 +7,7 @@ import {
   AllMediaDirectoriesDocument,
   CreateMediaDirectoryDocument,
   MediaAiStatusDocument,
+  MediaAssetSharesDocument,
   MediaCountsDocument,
   MediaDirectoryDocument,
   MediaPrivateAreaDocument,
@@ -47,7 +48,7 @@ const asset = (id: string, over: Vars = {}) => ({
 const hidden = (id: string, over: Vars = {}) => asset(id, { visibility: 'PRIVATE', url: '', thumbnailUrl: '', ...over })
 const folder = (path: string) => ({ __typename: 'MediaDirectoryChild', path, name: path })
 
-function reads({ privateStore = true, asked = {} as Record<string, Vars[]>, kept = 'deed' } = {}): MockLink.MockedResponse[] {
+function reads({ privateStore = true, asked = {} as Record<string, Vars[]>, kept = 'deed', shares = [] as object[] } = {}): MockLink.MockedResponse[] {
   const note = (op: string) => (v: Vars) => {
     ;(asked[op] ??= []).push(v)
     return true
@@ -76,6 +77,7 @@ function reads({ privateStore = true, asked = {} as Record<string, Vars[]>, kept
       result: (v: Vars) => ({ data: { searchMediaAssets: { __typename: 'MediaAssetSearchResult', totalCount: 1, items: [inPrivate(v) ? hidden(kept) : asset('boot')] } } }),
       maxUsageCount: 40,
     },
+    { request: { query: MediaAssetSharesDocument, variables: () => true }, result: { data: { mediaAssetShares: shares } }, maxUsageCount: 20 },
     { request: { query: MediaAiStatusDocument }, result: { data: { aiStatus: { __typename: 'AiStatus', enabled: false } } }, maxUsageCount: 20 },
     { request: { query: MediaUploadTypesDocument }, result: { data: { mediaUploadTypes: ['image/jpeg', 'application/pdf'] } }, maxUsageCount: 20 },
   ]
@@ -202,7 +204,7 @@ describe('MediaLibrary crossing halves', () => {
     expect(moved).toEqual([{ id: 'boot', targetPath: '', filename: 'boot.jpg', visibility: 'PRIVATE' }])
   })
 
-  it('makes a private file public', async () => {
+  it('makes a private file public, and shows who it is shared with until then', async () => {
     const moved: Vars[] = []
     library(
       [
@@ -213,7 +215,8 @@ describe('MediaLibrary crossing halves', () => {
     )
     fireEvent.click(await tile('deed.jpg'))
     const panel = await details()
-    fireEvent.click(await within(panel).findByRole('button', { name: /Make public/ }, SLOW))
+    expect(await within(panel).findByRole('region', { name: 'Shared with' }, SLOW)).toBeDefined()
+    fireEvent.click(within(panel).getByRole('button', { name: /Make public/ }))
     fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Make public' }))
 
     await waitFor(() => expect(screen.queryByRole('option', { name: 'deed.jpg' })).toBeNull(), SLOW)
@@ -231,10 +234,20 @@ describe('MediaLibrary crossing halves', () => {
     expect(within(await details()).getByRole('heading', { name: 'boot.jpg' })).toBeDefined()
   })
 
-  it('offers no crossing to someone who may only look', async () => {
+  it('still lists the shares of a file that was made public, so they can be taken back', async () => {
+    const share = { __typename: 'MediaShare', id: 's1', customerId: 'c1', email: 'bo@example.com', downloadsUsed: 1, maxDownloads: null, expiresAt: null, createdAt: '2026-11-01T00:00:00Z' }
+    library(reads({ shares: [share] }))
+    fireEvent.click(await tile('boot.jpg'))
+    const shared = await within(await details()).findByRole('region', { name: 'Shared with' }, SLOW)
+    expect(within(shared).getByRole('button', { name: 'Stop sharing with bo@example.com' })).toBeDefined()
+    expect(within(shared).queryByRole('button', { name: 'Share with a customer' })).toBeNull()
+  })
+
+  it('offers no shares on a public file, and no crossing to someone who may only look', async () => {
     library([meMock({ superuser: false, permissions: ['media.view'] }), ...reads().slice(1)])
     fireEvent.click(await tile('boot.jpg'))
     const panel = await details()
+    expect(within(panel).queryByRole('region', { name: 'Shared with' })).toBeNull()
     expect(within(panel).queryByRole('button', { name: /Make private/ })).toBeNull()
   })
 })
@@ -252,16 +265,19 @@ describe('MediaLibrary private half grants', () => {
     expect(screen.queryByRole('group', { name: 'Which files' })).toBeNull()
     expect(within(panel).getByLabelText('File name')).toBeDefined()
     expect(within(panel).queryByRole('button', { name: /Make private/ })).toBeNull()
+    expect(within(panel).queryByRole('region', { name: 'Shared with' })).toBeNull()
   })
 
   it('lets someone who may see the private half look, and change nothing', async () => {
     library(as('media.view', 'media.private.view'), '/media?area=private')
     fireEvent.click(await tile('deed.jpg'))
     const panel = await details()
-    expect(await within(panel).findByRole('button', { name: 'Download' }, SLOW)).toBeDefined()
+    expect(await within(panel).findByRole('region', { name: 'Shared with' }, SLOW)).toBeDefined()
+    expect(within(panel).getByRole('button', { name: 'Download' })).toBeDefined()
     expect(upload()).toBeNull()
     expect(within(panel).queryByLabelText('File name')).toBeNull()
     expect(within(panel).queryByRole('button', { name: /Make public/ })).toBeNull()
+    expect(within(panel).queryByRole('button', { name: 'Share with a customer' })).toBeNull()
   })
 
   it('keeps a manager of the public half from uploading to the private one or moving a file across', async () => {
@@ -278,12 +294,20 @@ describe('MediaLibrary private half grants', () => {
     expect(within(panel).queryByRole('button', { name: /Make private/ })).toBeNull()
   })
 
-  it('offers everything in both halves to someone who manages both', async () => {
-    library(as('media.manage', 'media.private.manage'), '/media?area=private')
+  it('offers everything in both halves to someone who manages both, but sharing only with its own grant', async () => {
+    library(as('media.manage', 'media.private.manage', 'customers.view'), '/media?area=private')
     fireEvent.click(await tile('deed.jpg'))
     const panel = await details()
-    expect(await within(panel).findByRole('button', { name: /Make public/ }, SLOW)).toBeDefined()
+    expect(await within(panel).findByRole('region', { name: 'Shared with' }, SLOW)).toBeDefined()
     expect(upload()).not.toBeNull()
+    expect(within(panel).getByRole('button', { name: /Make public/ })).toBeDefined()
+    expect(within(panel).queryByRole('button', { name: 'Share with a customer' })).toBeNull()
+  })
+
+  it('offers sharing with the grant to share and to see customers', async () => {
+    library(as('media.view', 'media.private.view', 'media.share', 'customers.view'), '/media?area=private')
+    fireEvent.click(await tile('deed.jpg'))
+    expect(await within(await details()).findByRole('button', { name: 'Share with a customer' }, SLOW)).toBeDefined()
   })
 
   it('does not count a private grant given on one channel', async () => {
@@ -310,5 +334,18 @@ describe('MediaLibrary private half grants', () => {
     await waitFor(() => expect(within(panel).getByRole('button', { name: /Make private/ })).toHaveProperty('disabled', false))
     fireEvent.change(within(panel).getByLabelText('File name'), { target: { value: 'boots.jpg' } })
     expect(within(panel).getByRole('button', { name: /Make private/ })).toHaveProperty('disabled', true)
+  })
+
+  it('asks before dropping a share being filled in, as it does for unsaved words', async () => {
+    library(as('media.view', 'media.private.view', 'media.share', 'customers.view'), '/media?area=private')
+    fireEvent.click(await tile('deed.jpg'))
+    fireEvent.click(await within(await details()).findByRole('button', { name: 'Share with a customer' }, SLOW))
+    fireEvent.change(screen.getByLabelText('Download limit'), { target: { value: '3' } })
+    fireEvent.click(within((await halves())[0]!).getByRole('button', { name: 'Public' }))
+
+    const ask = await screen.findByRole('alertdialog')
+    expect(within(ask).getByText("What you typed for it hasn't been saved.")).toBeDefined()
+    fireEvent.click(within(ask).getByRole('button', { name: 'Discard' }))
+    expect(await tile('boot.jpg')).toBeDefined()
   })
 })

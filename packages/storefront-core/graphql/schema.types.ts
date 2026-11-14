@@ -1049,7 +1049,7 @@ export type DownloadGrant = {
   expiresAt?: Maybe<Scalars['Time']['output']>;
   id: Scalars['ID']['output'];
   maxDownloads?: Maybe<Scalars['Int']['output']>;
-  productId: Scalars['ID']['output'];
+  productId?: Maybe<Scalars['ID']['output']>;
   title: Scalars['String']['output'];
 };
 

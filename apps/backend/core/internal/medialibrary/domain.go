@@ -40,11 +40,19 @@ func init() {
 		Description: "Upload to, organise and delete in the private half, and move a file between the halves. Making a private file public gives it an address anyone can open, so grant it separately from Manage media library. Counts only when granted on all channels.",
 		SortOrder:   4,
 	})
+	permission.Register(permission.Definition{
+		Group:       "media",
+		Slug:        PermShare,
+		Name:        "Share media with customers",
+		Description: "Hand a customer a private file through their account's downloads, and take it back. A file leaves the shop on this permission. Also needs View Customers for the customer's channel, and counts only when granted on all channels.",
+		SortOrder:   5,
+	})
 }
 
 const (
 	PermPrivateView   = "media.private.view"
 	PermPrivateManage = "media.private.manage"
+	PermShare         = "media.share"
 )
 
 type AssetStatus string
@@ -236,5 +244,6 @@ var (
 	ErrNotEditable          = errors.New("only a finished JPEG, PNG or WebP upload can be edited")
 	ErrNoPrivateStore       = errors.New("this install has no private store, so the library has no private half")
 	ErrPrivateAsset         = errors.New("a private file can't be used here - it has no address, and it isn't sent anywhere outside the shop")
+	ErrSharePublic          = errors.New("only a private file is shared - a public one already has an address anyone can open")
 	ErrStillPublic          = errors.New("the file couldn't be made private: its public copy couldn't be removed, so it can still be opened at its address - try again")
 )

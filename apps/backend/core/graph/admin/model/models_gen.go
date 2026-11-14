@@ -3640,6 +3640,16 @@ type MediaDirectoryChild struct {
 	Name string `json:"name"`
 }
 
+type MediaShare struct {
+	ID            string     `json:"id"`
+	CustomerID    *string    `json:"customerId,omitempty"`
+	Email         string     `json:"email"`
+	DownloadsUsed int32      `json:"downloadsUsed"`
+	MaxDownloads  *int32     `json:"maxDownloads,omitempty"`
+	ExpiresAt     *time.Time `json:"expiresAt,omitempty"`
+	CreatedAt     time.Time  `json:"createdAt"`
+}
+
 type Menu struct {
 	ID         string      `json:"id"`
 	Slug       string      `json:"slug"`
@@ -5222,6 +5232,13 @@ type SetSubscriptionTermsInput struct {
 	IntervalUnit  SubscriptionInterval `json:"intervalUnit"`
 	IntervalCount int32                `json:"intervalCount"`
 	TrialDays     *int32               `json:"trialDays,omitempty"`
+}
+
+type ShareMediaAssetInput struct {
+	AssetID      string     `json:"assetId"`
+	CustomerID   string     `json:"customerId"`
+	MaxDownloads *int32     `json:"maxDownloads,omitempty"`
+	ExpiresAt    *time.Time `json:"expiresAt,omitempty"`
 }
 
 type ShippingBox struct {

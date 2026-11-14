@@ -25,4 +25,5 @@ func init() {
 	apperr.RegisterSentinel(ErrNoPrivateStore, "MEDIA_NO_PRIVATE_STORE", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrPrivateAsset, "MEDIA_PRIVATE", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrStillPublic, "MEDIA_STILL_PUBLIC", apperr.ClassUnavailable)
+	apperr.RegisterSentinel(ErrSharePublic, "MEDIA_SHARE_PUBLIC", apperr.ClassValidation)
 }

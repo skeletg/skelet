@@ -336,7 +336,7 @@
     },
     "downloads": {
       "title": "Downloads",
-      "description": "Files from your digital purchases. Links stay valid for as long as the seller allows.",
+      "description": "Files from your digital purchases, and files the shop has shared with you. Links stay valid for as long as the seller allows.",
       "loadFailed": "We couldn't load your downloads just now. Please try again in a moment.",
       "emptyTitle": "No downloads yet",
       "emptyBody": "Buy anything digital and the file shows up here the moment the order goes through.",

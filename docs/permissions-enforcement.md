@@ -227,7 +227,7 @@ scope, being global config with no listings of their own.
 ### 8. Library files, and the private half
 
 The media library has two halves, and the private one has grants of its own:
-`media.private.view` and `media.private.manage`, each asked for
+`media.private.view`, `media.private.manage` and `media.share`, each asked for
 *on top of* the library's `media.view` / `media.manage`, and only through
 `RequireGlobalPermission`. The library isn't split by channel, so a channel-scoped
 grant would open every private file.

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/medialibrary"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
@@ -184,6 +185,62 @@ func (r *mutationResolver) RenameMediaDirectory(ctx context.Context, path string
 	return toMediaDirectoryChildModel(dir), nil
 }
 
+func (r *mutationResolver) ShareMediaAsset(ctx context.Context, input model.ShareMediaAssetInput) (*model.MediaShare, error) {
+	if err := r.requireSharing(ctx); err != nil {
+		return nil, err
+	}
+	asset, err := r.libraryAsset(ctx, input.AssetID, medialibrary.PermPrivateView)
+	if err != nil {
+		return nil, err
+	}
+	if asset.Status != medialibrary.AssetStatusReady {
+		return nil, medialibrary.ErrUploadNotReceived
+	}
+	if asset.Visibility != medialibrary.Private {
+		return nil, medialibrary.ErrSharePublic
+	}
+	customerID, err := parseID(input.CustomerID, "customer")
+	if err != nil {
+		return nil, err
+	}
+	buyer, err := r.CustomerSvc.GetByID(ctx, customerID)
+	if err != nil {
+		return nil, err
+	}
+	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "customers.view", buyer.ChannelID, nil); err != nil {
+		return nil, err
+	}
+	if !buyer.IsActive {
+		return nil, download.ErrInactiveCustomer
+	}
+	title := asset.Title
+	if title == "" {
+		title = asset.Filename
+	}
+	grant, err := r.DownloadSvc.ShareAsset(ctx, download.ShareInput{
+		AssetID: asset.ID, CustomerID: customerID, Email: buyer.Email, Title: title,
+		MaxDownloads: input.MaxDownloads, ExpiresAt: input.ExpiresAt,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return toMediaShareModel(grant), nil
+}
+
+func (r *mutationResolver) RevokeMediaShare(ctx context.Context, id string) (bool, error) {
+	if err := r.requireSharing(ctx); err != nil {
+		return false, err
+	}
+	shareID, err := parseID(id, "share")
+	if err != nil {
+		return false, err
+	}
+	if err := r.DownloadSvc.Unshare(ctx, shareID); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func (r *queryResolver) MediaDirectory(ctx context.Context, path string, visibility *model.MediaVisibility) (*model.MediaDirectory, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "media.view"); err != nil {
 		return nil, err
@@ -266,6 +323,21 @@ func (r *queryResolver) MediaPrivateArea(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	return r.MediaLibrarySvc.HasPrivate(), nil
+}
+
+func (r *queryResolver) MediaAssetShares(ctx context.Context, assetID string) ([]*model.MediaShare, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "media.view"); err != nil {
+		return nil, err
+	}
+	asset, err := r.libraryAsset(ctx, assetID, medialibrary.PermPrivateView)
+	if err != nil {
+		return nil, err
+	}
+	grants, err := r.DownloadSvc.SharesOf(ctx, asset.ID)
+	if err != nil {
+		return nil, err
+	}
+	return r.sharesFor(ctx, grants)
 }
 
 func (r *queryResolver) MediaUploadTypes(ctx context.Context) ([]string, error) {

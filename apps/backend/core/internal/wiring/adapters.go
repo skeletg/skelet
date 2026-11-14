@@ -1294,7 +1294,21 @@ func publishedOn(listings []catalog.ProductChannelListing, channelID uuid.UUID) 
 }
 
 // Adapts objstore to download.FileStore - a grant URL under the bucket's public base is one of ours and streams from its key
-type storedDownloads struct{ st objstore.Storage }
+type storedDownloads struct {
+	st  objstore.Storage
+	lib *medialibrary.Service
+}
+
+func (d storedDownloads) OpenAsset(ctx context.Context, assetID uuid.UUID) (io.ReadCloser, string, string, error) {
+	if d.lib == nil {
+		return nil, "", "", errors.New("the media library isn't available to downloads")
+	}
+	body, asset, err := d.lib.Open(ctx, assetID)
+	if err != nil {
+		return nil, "", "", err
+	}
+	return body, asset.Filename, asset.MimeType, nil
+}
 
 func (d storedDownloads) KeyFor(u string) (string, bool) {
 	rest, ok := strings.CutPrefix(u, d.st.PublicURL(""))
