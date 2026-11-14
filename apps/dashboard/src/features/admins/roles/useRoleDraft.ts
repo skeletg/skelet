@@ -9,7 +9,7 @@ export type Scope = {
   locale: string | null
 }
 
-export type PermissionRow = { id: string; slug: string; name: string }
+export type PermissionRow = { id: string; slug: string; name: string; description: string }
 export type GroupRow = { id: string; slug: string; name: string; permissions: PermissionRow[] }
 
 type SetScopes = (update: (prev: Scope[]) => Scope[]) => void

@@ -94,6 +94,7 @@ export function GroupPanel({
                     {permission.slug}
                   </code>
                   <p className="truncate text-xs text-muted-foreground">{permission.name}</p>
+                  {permission.description ? <p className="mt-1 text-xs text-muted-foreground/80">{permission.description}</p> : null}
                 </div>
                 <Switch
                   checked={granted}

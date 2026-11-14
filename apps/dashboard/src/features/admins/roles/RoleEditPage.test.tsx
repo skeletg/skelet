@@ -10,7 +10,7 @@ import { CreateRoleDocument, RoleDocument, UpdateRoleDocument } from './Roles.gq
 // What these pin: a role with no grants is refused before anything is sent, a create lands on the
 // new role's edit page, and an edit reviews each grant added or removed before writing the list
 
-const permission = (slug: string) => ({ __typename: 'Permission' as const, id: `perm-${slug}`, slug, name: slug })
+const permission = (slug: string, description = '') => ({ __typename: 'Permission' as const, id: `perm-${slug}`, slug, name: slug, description })
 
 const shared: MockLink.MockedResponse[] = [
   {
@@ -18,7 +18,7 @@ const shared: MockLink.MockedResponse[] = [
     result: {
       data: {
         permissionGroups: [
-          { __typename: 'PermissionGroup', id: 'g-orders', slug: 'orders', name: 'Orders', permissions: [permission('orders.read'), permission('orders.write')] },
+          { __typename: 'PermissionGroup', id: 'g-orders', slug: 'orders', name: 'Orders', permissions: [permission('orders.read'), permission('orders.write', 'Counts only when granted on all channels.')] },
         ],
       },
     },
@@ -62,6 +62,7 @@ describe('RoleEditPage', () => {
     expect(onCreate).not.toHaveBeenCalled()
 
     fireEvent.click(await screen.findByRole('switch', { name: 'Grant orders.read' }))
+    expect(screen.getByText('Counts only when granted on all channels.')).toBeDefined()
     fireEvent.click(screen.getByRole('button', { name: 'Create role' }))
     expect(await screen.findByText('role edit page', {}, SLOW)).toBeDefined()
     expect(onCreate).toHaveBeenCalledWith({
