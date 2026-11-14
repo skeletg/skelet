@@ -27,7 +27,12 @@ spreadsheet, and a hashed email can't be turned back into a customer.
 ## How a run works
 
 Every transfer is a **job**, not a request/response. You queue one, it runs in the
-background, and the file lands in object storage.
+background, and the file lands in object storage, at `data/exports/<job id>/` or
+`data/imports/<job id>/`. Those files hold customer data, so point
+`PRIVATE_S3_BUCKET` at a bucket that isn't public and they're kept there instead
+of beside your product pictures - see [env.md](env.md#private-store). Either way
+they're only handed out through the download route, which checks the admin's
+permission for that resource.
 
 That matters more than it sounds. A 100k-product export as a GraphQL string is an
 allocation bomb; as a job it streams row by row through a pipe into the store and never

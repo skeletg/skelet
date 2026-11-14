@@ -520,6 +520,44 @@ placeholders are listed in [settings.md](settings.md).
 enough to stop someone guessing the address of a file nothing links to. If you
 count on unlisted files staying unfound, keep `{id}` in the template.
 
+### Private store
+
+The media store is usually public: anyone with a file's address can fetch it.
+That's right for product pictures and wrong for an export of your customers,
+which until now sat in the same bucket behind nothing but a random address.
+
+Set `PRIVATE_S3_BUCKET` (or `PRIVATE_STORAGE_DIR` on the filesystem driver)
+and exports and import uploads go to a second store instead. It uses the same
+endpoint and credentials as the media store, and it has no public address at
+all. Nothing in it is ever linked to, and the only way to read a file is a
+route that checks the admin's permission first - the job download, for an
+export.
+
+- **S3:** make a second bucket that the same access key can read and write,
+  and give it no public-read policy, no website hosting and no CDN in front.
+  On Garage that just means not running `bucket website --allow` on it.
+- **Filesystem:** a second directory, mounted on `app` and `worker`. It can't
+  be the media directory, inside it or around it, since `/files/` serves that
+  one.
+
+The app doesn't take your word for it. At boot it writes a small marker into
+the private store and asks for it back without credentials: at the store's own
+endpoint, at the media store's public address, and at that address with the
+private bucket's name swapped in. If any of them hands the marker over,
+production refuses to start and development logs a warning. An address the
+app can't reach from where it runs proves nothing either way, so it's logged
+as unchecked. A CDN that only your visitors can see is the usual case, and
+worth one manual `curl` after setup.
+
+Production refuses to start without it, since these files would otherwise sit
+in the media store behind nothing but a random address. Development carries on
+without one and keeps them in the media store. Turning it on only affects files
+written from then on: an export made before stays where it was until its
+retention runs out. In dev,
+`skelet up` creates a bucket called `private` in the local Garage, and
+`env/go.env.example` already points at it. An older checkout needs that one
+line copied into its `env/go.env`.
+
 Moving between stores, `skelet media-migrate` reads the storage vars above as
 the source and takes the destination from its own flags - `--dest-dir` for a
 directory, `--dest-bucket` and friends for S3 - falling back

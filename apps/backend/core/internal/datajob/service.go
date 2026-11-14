@@ -16,6 +16,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/dataio"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
+	"github.com/skeletg/skelet/apps/backend/core/internal/media"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
@@ -335,11 +336,11 @@ func (s *Service) OpenArtifact(ctx context.Context, id uuid.UUID) (io.ReadCloser
 }
 
 func importKey(id uuid.UUID, resource, ext string) string {
-	return fmt.Sprintf("data/imports/%s/%s.%s", id, resource, ext)
+	return fmt.Sprintf("%s/imports/%s/%s.%s", media.DataJobsRoot, id, resource, ext)
 }
 
 func exportKey(id uuid.UUID, resource, ext string) string {
-	return fmt.Sprintf("data/exports/%s/%s.%s", id, resource, ext)
+	return fmt.Sprintf("%s/exports/%s/%s.%s", media.DataJobsRoot, id, resource, ext)
 }
 
 func withLocale(opts map[string]string, locale string) map[string]string {

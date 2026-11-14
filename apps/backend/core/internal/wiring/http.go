@@ -216,6 +216,10 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 		mux.Handle(objstore.FilesPath, otelx.WrapHTTP(files.Handler(), "media.files"))
 	}
 
+	if uploads, ok := privateUploadRoute(s.PrivateStorage, s.MediaStorage); ok {
+		mux.Handle(objstore.PrivateUploadPath, otelx.WrapHTTP(uploads, "private.upload"))
+	}
+
 	// XML doesn't fit the GraphQL surface, so the product feed is plain HTTP, scoped by the channel middleware
 	feed := catalogio.NewMerchantFeed(infra.Queries, s.MediaStorage, s.Inventory, s.Catalog)
 	mux.Handle("/feeds/products.xml", channel.Middleware(s.Channel)(merchantFeedHandler(feed))) // Google Merchant product feed: channel-priced, channel-scoped - operators point Merchant Center at https://<store-host>/feeds/products.xml
@@ -350,7 +354,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 			maxBodyBytes = n
 		}
 	}
-	rootHandler := httpx.Recover(httpx.SecurityHeaders(httpx.LimitBody(maxBodyBytes, httpx.RequestID(sentryMw(corsHandler)), dataImportPath, objstore.FilesPath)))
+	rootHandler := httpx.Recover(httpx.SecurityHeaders(httpx.LimitBody(maxBodyBytes, httpx.RequestID(sentryMw(corsHandler)), dataImportPath, objstore.FilesPath, objstore.PrivateUploadPath)))
 	return RootHandler{rootHandler}
 }
 

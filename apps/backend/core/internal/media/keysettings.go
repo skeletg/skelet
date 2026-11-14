@@ -8,8 +8,12 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
 
-// The top-level prefix everything the catalog uploads sits under, which the media library keeps out of
-const CatalogRoot = "catalog"
+// The top-level folders of the object stores, each owned by one part of the platform - the media library refuses them
+const (
+	CatalogRoot  = "catalog"
+	FormsRoot    = "webforms"
+	DataJobsRoot = "data"
+)
 
 type KeySetting struct {
 	Path    string
