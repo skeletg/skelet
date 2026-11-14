@@ -11,15 +11,15 @@ import (
 
 // What bin/_lib exported for each case, recorded from the script itself with a fake docker before it was retired
 var libCases = []struct {
-	name                string
-	env                 map[string]string
-	apps, tools, goEnv  *string
-	profiles            string
-	wantApps, wantTools string
+	name               string
+	env                map[string]string
+	apps, tools, goEnv *string
+	profiles           string
+	wantTools          string
 }{
 	{name: "bare", profiles: "search,signals"},
-	{name: "selected", apps: new("dashboard,vetrina-demo"), tools: new("mailpit,grafana"), profiles: "search,dashboard,vetrina-demo,mailpit,grafana,signals", wantApps: "dashboard,vetrina-demo", wantTools: "mailpit,grafana"},
-	{name: "lean", env: map[string]string{"SKELET_SIDECARS": "", "SKELET_TOOLS": ""}, apps: new("dashboard"), tools: new("mailpit"), profiles: "dashboard", wantApps: "dashboard"},
+	{name: "selected", apps: new("dashboard,vetrina-demo"), tools: new("mailpit,grafana"), profiles: "search,mailpit,grafana,signals", wantTools: "mailpit,grafana"},
+	{name: "lean", env: map[string]string{"SKELET_SIDECARS": "", "SKELET_TOOLS": ""}, apps: new("dashboard"), tools: new("mailpit"), profiles: ""},
 	{name: "signals off", goEnv: new("SIGNALS_ENABLED=false\n"), profiles: "search"},
 	{name: "signals off, loosely written", goEnv: new("  signals_enabled =  Off  \n"), profiles: "search"},
 	{name: "signals off, commented out", goEnv: new("# SIGNALS_ENABLED=false\n"), profiles: "search,signals"},
@@ -27,8 +27,8 @@ var libCases = []struct {
 	{name: "inherited", env: map[string]string{"COMPOSE_PROFILES": "mine"}, profiles: "mine"},
 	{name: "inherited empty", env: map[string]string{"COMPOSE_PROFILES": ""}, profiles: ""},
 	{name: "tools from env", env: map[string]string{"SKELET_TOOLS": "grafana"}, tools: new("mailpit"), profiles: "search,grafana,signals", wantTools: "grafana"},
-	{name: "whitespace", apps: new(" dashboard , vetrina-demo "), profiles: "search,dashboard,vetrina-demo,signals", wantApps: "dashboard,vetrina-demo"},
-	{name: "no apps in Docker", apps: new(""), profiles: "search,signals"},
+	{name: "whitespace", tools: new(" mailpit , grafana "), profiles: "search,mailpit,grafana,signals", wantTools: "mailpit,grafana"},
+	{name: "frontends left in COMPOSE_PROFILES start nothing", apps: new("dashboard"), profiles: "search,signals"},
 	{name: "custom sidecars", env: map[string]string{"SKELET_SIDECARS": "search,extra"}, profiles: "search,extra,signals"},
 }
 
@@ -65,8 +65,8 @@ func TestLoadMatchesLib(t *testing.T) {
 				t.Setenv(k, v)
 			}
 			l := Load(root)
-			if l.Profiles != c.profiles || l.Apps != c.wantApps || l.Tools != c.wantTools {
-				t.Errorf("profiles %q apps %q tools %q\n_lib said %q %q %q", l.Profiles, l.Apps, l.Tools, c.profiles, c.wantApps, c.wantTools)
+			if l.Profiles != c.profiles || l.Tools != c.wantTools {
+				t.Errorf("profiles %q tools %q, want %q %q", l.Profiles, l.Tools, c.profiles, c.wantTools)
 			}
 		})
 	}

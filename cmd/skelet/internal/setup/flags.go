@@ -14,8 +14,8 @@ type list struct {
 }
 
 type flags struct {
-	apps, dockerApps, tools list
-	keepCode, yes, noBoot   bool
+	apps, tools           list
+	keepCode, yes, noBoot bool
 	// profile is the file answers are replayed from
 	profile string
 	// shop and template ask for a storefront of the project's own, copied from a template - either one is enough
@@ -47,7 +47,7 @@ func parseFlags(args []string, c catalog) (flags, error) {
 			f.apps = list{true, c.apps()}
 		case "--backend-only":
 			f.apps = list{true, nil}
-		case "--apps", "--docker-apps":
+		case "--apps":
 			v, ok := value()
 			if !ok {
 				return f, usagef("%s needs a value (e.g. %s or none)", name, all)
@@ -56,11 +56,7 @@ func parseFlags(args []string, c catalog) (flags, error) {
 			if err != nil {
 				return f, err
 			}
-			if name == "--apps" {
-				f.apps = l
-			} else {
-				f.dockerApps = l
-			}
+			f.apps = l
 		case "--tools":
 			v, ok := value()
 			if !ok {
@@ -102,7 +98,7 @@ func parseFlags(args []string, c catalog) (flags, error) {
 			}
 			f.profile, f.yes = v, true
 		default:
-			return f, usagef("Unknown flag: %s (try --all, --backend-only, --apps LIST, --docker-apps LIST, --tools LIST, --shop NAME, --template NAME, --keep-code, --yes, --profile FILE)", args[i])
+			return f, usagef("Unknown flag: %s (try --all, --backend-only, --apps LIST, --tools LIST, --shop NAME, --template NAME, --keep-code, --yes, --profile FILE)", args[i])
 		}
 	}
 	return f, nil

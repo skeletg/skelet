@@ -15,7 +15,6 @@ import (
 
 const (
 	AppsKey   = "SKELET_APPS_SELECTED"
-	DockerKey = "SKELET_DOCKER_APPS"
 	ToolsKey  = "SKELET_TOOLS_SELECTED"
 	TargetKey = "SKELET_TARGET"
 )
@@ -27,8 +26,6 @@ const (
 )
 
 var DevTools = []string{"mailpit", "webhook-tester", "grafana", "garage-webui"}
-
-var infra = []string{"bundled", "edge", "ingest", "media", "queue", "search", "signals", "worker"}
 
 var signalsOff = regexp.MustCompile(`(?im)^[ \t]*SIGNALS_ENABLED[ \t]*=[ \t]*(false|0|f|no|off)[ \t]*$`)
 
@@ -53,23 +50,20 @@ func Current(root string) Profile {
 		p[AppsKey] = v
 	}
 	if v, ok, _ := envfile.Get(env, EnvProfiles); ok {
-		var docker, tools []string
+		var tools []string
 		for _, name := range split(v) {
-			switch {
-			case slices.Contains(DevTools, name):
+			if slices.Contains(DevTools, name) {
 				tools = append(tools, name)
-			case !slices.Contains(infra, name):
-				docker = append(docker, name)
 			}
 		}
-		p[DockerKey], p[ToolsKey] = strings.Join(docker, ","), strings.Join(tools, ",")
+		p[ToolsKey] = strings.Join(tools, ",")
 	}
 	return p
 }
 
 // DevProfiles takes in the sidecars skelet up adds itself, so a bare docker compose up starts the same stack
-func DevProfiles(docker, tools []string, signals bool) string {
-	p := append(append([]string{"search"}, docker...), tools...)
+func DevProfiles(tools []string, signals bool) string {
+	p := append([]string{"search"}, tools...)
 	if signals {
 		p = append(p, "signals")
 	}

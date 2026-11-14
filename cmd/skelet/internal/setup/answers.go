@@ -31,8 +31,7 @@ type answers struct {
 	adminSlug bool
 	apps      []string
 	// the subset of apps that runs in containers; the rest run on the host
-	dockerApps []string
-	tools      []string
+	tools []string
 	// fromProfile is a selection replayed rather than chosen now, which leaves the working tree as it is
 	fromProfile bool
 	// prune is whether the working tree follows the selection at all, removeDeselected whether that may take apps out
@@ -49,7 +48,6 @@ const (
 	kGates   = "SKELET_GATEWAYS"
 	kSlug    = "SKELET_ADMIN_SLUG"
 	kApps    = profile.AppsKey
-	kDocker  = profile.DockerKey
 	kTools   = profile.ToolsKey
 )
 
@@ -262,51 +260,16 @@ func answer(root string, c catalog, f flags, prof profile.Profile, profilePath s
 	// Ahead of where the frontends run, so the new shop is placed with them and the pnpm check covers it
 	firstShop(&a, c, f, ask, out)
 
-	// Where they run is a separate question from whether you have them, and the default is the host
-	switch {
-	case f.dockerApps.set:
-		a.dockerApps = f.dockerApps.items
-	case len(a.apps) == 0:
-	case has(prof, kDocker):
-		a.dockerApps = split(prof[kDocker])
-	default:
-		// No answer on record, so the placement the clone already runs with stands rather than being emptied
-		current := placement(root)
-		if ask.prior != nil {
-			current = ask.prior.dockerApps
-		}
-		if ask.on {
-			ask.section(out, "Where should the frontends run?",
-				"    On the host the dev server and the gates share one node_modules, so",
-				"    a lint run checks the same tree the dev server is serving. In Docker",
-				"    they are two separate trees, but you need no Node installed.")
-			if ask.yesNo("    Run them in Docker instead of on the host?", len(current) > 0) {
-				current = a.apps
-			} else {
-				current = nil
-			}
-		}
-		a.dockerApps = current
-	}
-	if a.shop != "" && len(a.dockerApps) > 0 && !slices.Contains(a.dockerApps, a.shop) {
-		a.dockerApps = append(a.dockerApps, a.shop)
-	}
-	// Only apps you selected, so --docker-apps can't containerize one that isn't here
-	a.dockerApps = slices.DeleteFunc(slices.Clone(a.dockerApps), func(app string) bool { return !slices.Contains(a.apps, app) })
-
 	// A host app needs pnpm at its pinned version - refused before anything is written, since finding out at the
 	// install step leaves a half-set-up clone and a frontend that won't start
-	hosts := a.hostApps()
+	hosts := slices.Clone(a.apps)
 	if i := slices.Index(hosts, a.shop); a.shop != "" && i >= 0 {
 		hosts[i] = a.shopTemplate
 	}
 	if problem := pnpmProblem(root, hosts); problem != "" {
-		fmt.Fprintf(os.Stderr, "==> The frontends on the host need pnpm: %s\n", problem)
-		if !ask.yesNo("    Run them in Docker instead, which needs no pnpm on the host?", ask.on) {
-			fmt.Fprintf(os.Stderr, "    Install it and re-run, or re-run with --docker-apps %s\n", join(a.apps))
-			return a, errRefused
-		}
-		a.dockerApps = a.apps
+		fmt.Fprintf(os.Stderr, "==> The frontends run on the host and need pnpm: %s\n", problem)
+		fmt.Fprintln(os.Stderr, "    Install it and re-run, or re-run with --backend-only")
+		return a, errRefused
 	}
 
 	a.prune = !f.keepCode && !a.fromProfile
@@ -429,16 +392,6 @@ func shape(a *answers, c catalog, ask prompter, out io.Writer) {
 	a.adminSlug = ask.yesNo("    Move the admin API off /api/admin/graphql to an unguessable path?", a.adminSlug)
 }
 
-func (a answers) hostApps() []string {
-	var host []string
-	for _, app := range a.apps {
-		if !slices.Contains(a.dockerApps, app) {
-			host = append(host, app)
-		}
-	}
-	return host
-}
-
 // excluded is the sparse-checkout patterns that take the deselected apps out of the working tree
 func excluded(a answers, c catalog) []string {
 	var out []string
@@ -466,11 +419,6 @@ func known(v string, apps []string, from string, out io.Writer) []string {
 		}
 	}
 	return keep
-}
-
-func placement(root string) []string {
-	docker, _ := profile.Current(root).List(kDocker)
-	return docker
 }
 
 func orNone(list []string, none string) string {

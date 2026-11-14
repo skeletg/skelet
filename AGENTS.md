@@ -8,7 +8,8 @@ things that are easy to get wrong - it does not repeat the docs.
 ## 1. What this is
 
 A self-hosted ecommerce platform in one repo: a Go GraphQL backend, a React admin
-dashboard, and one or more Next.js storefronts. Everything runs in Docker.
+dashboard, and one or more Next.js storefronts. The backend runs in Docker; the frontends run on the
+host with `skelet dev`.
 
 | Path | What |
 |---|---|
@@ -41,6 +42,7 @@ verbs - but it reports any failure as exit 1, and relative paths in arguments re
 ```bash
 skelet setup            # first run: picks apps, writes env, migrates, boots
 skelet up               # start the dev stack     (--lean skips OpenSearch, the dev tools and the Signals process with its ClickHouse)
+skelet dev              # the frontends on the host, each on its dev script's port
 skelet check            # every gate that can fail a commit, in about a second
 skelet test             # go test + frontend typechecks + unit tests
 skelet lint             # gofmt + golangci-lint (hard) + eslint (reports only)
@@ -118,8 +120,8 @@ let sqlc generate the Go.
 - Dashboard: Vitest, `*.test.tsx` beside the component. `skelet pnpm dashboard run test`
 - Storefront: Vitest. `skelet pnpm <name> run test`
 - E2E money paths: `skelet test e2e`, own databases, dropped and recreated each run (`--keep` to reuse), ~40 seconds
-- Storefront browser tests: `skelet test storefront [name]`, Playwright against the running dev container,
-  ~1.5 minutes. Writes throwaway customers to the dev database. Needs `skelet up` first
+- Storefront browser tests: `skelet test storefront [name]`, Playwright against the storefront's dev server,
+  ~1.5 minutes. Writes throwaway customers to the dev database. Needs `skelet up` and `skelet dev <name>` first
 
 **Dashboard typecheck trap:** `tsc --noEmit` on its own is a no-op here. Use
 `skelet pnpm dashboard run typecheck:all`, or `pnpm exec tsc -p tsconfig.app.json --noEmit`.
@@ -194,9 +196,9 @@ codegen outright.
 ## 8. Environment traps
 
 - `rg <pattern> apps/backend` silently skips `cmd/server` - use `grep -r` for sweeps
-- A Docker frontend's dev server runs under `watchexec` (the CMD of its dev Dockerfile), which reinstalls
-  and restarts it within a couple of seconds of `package.json` or the lockfile changing - no manual
-  install into the container. A Dockerfile change still needs `skelet up`, which rebuilds
+- The frontends need Node and pnpm on the host - `skelet doctor` checks the pinned versions. A port in
+  use when `skelet dev` starts is often a frontend container from before they left Docker; `skelet up`
+  removes those
 - The frontends use pnpm. The storefronts, templates and `packages/` are one workspace with the
   root `pnpm-workspace.yaml` (its settings and the version catalog) and one root `pnpm-lock.yaml`;
   the dashboard is a project of its own with both files beside its `package.json`. pnpm ignores

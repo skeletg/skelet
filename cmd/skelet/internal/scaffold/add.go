@@ -24,24 +24,19 @@ import (
 )
 
 const AddAbout = `Makes a storefront in apps/channels/<name> from a template - or from a storefront of your own - with
-its own port, volumes and env templates.
+its own dev port and env templates. It runs on the host like every frontend: skelet dev <name>.
 
   --template   which template to start from (default: nextjs-vetrina, the full one)
   --from       copy one of your own storefronts instead
-  --tracked    wire it into the tracked compose files instead of the override
+  --tracked    also wire it into the tracked docker-compose.prod.yml and docker-compose.small.yml
   --workspace  link the shared packages in packages/ instead of taking them from npm
 
 The copy is yours, and it takes the packages it's built on (@skelet/storefront-*) from npm at this
 checkout's release, so merging a later release changes nothing in it until you bump them - skelet
 doctor says when they're behind the backend. A checkout ahead of its last release links packages/
-instead, since npm can't have what it adds yet. Every compose
-block is copied from the source service rather than templated, so a change to its wiring reaches the
-next storefront instead of drifting from a copy kept here. By default the
-dev service goes in docker-compose.override.yml, which is git-ignored and auto-merged - so pulling from
-upstream skelet never conflicts with your shops (docs/workflow.md). Prod deployment stays yours to wire.
-
---tracked edits docker-compose{,.prod,.small}.yml instead. That's for adding a storefront to skelet
-itself, and it's what makes upstream pulls conflict.
+instead, since npm can't have what it adds yet. Its dev script gets the first port no other app uses,
+so two storefronts run side by side. --tracked is for adding a storefront to skelet itself, and it's
+what makes upstream pulls conflict.
 
 Nothing is written until every generated compose file parses, so a failure leaves the repo untouched.`
 
@@ -79,8 +74,8 @@ func unusable(root string, known []storefronts.Storefront, name string) string {
 }
 
 var (
-	devPort  = regexp.MustCompile(`"[0-9]{4,5}:3000"`)
-	hostPort = regexp.MustCompile(`127\.0\.0\.1:[0-9]{4,5}:3000`)
+	hostPort  = regexp.MustCompile(`127\.0\.0\.1:[0-9]{4,5}:3000`)
+	devScript = regexp.MustCompile(`("dev":\s*"[^"]*?)(?:\s+(?:-p|--port)[ =][0-9]{2,5})?(")`)
 )
 
 type addOptions struct {
@@ -175,23 +170,6 @@ func add(root string, o addOptions) int {
 	} else {
 		fmt.Printf("==> Copying %s into apps/channels/%s\n", from.Dir, name)
 	}
-	devSrc := ""
-	for _, f := range []string{devFile, overrideFile} {
-		if declares(read(root, f), src) {
-			devSrc = f
-			break
-		}
-	}
-	if devSrc == "" {
-		fmt.Fprintf(os.Stderr, "No %q service in %s or %s - can't copy its wiring\n", src, devFile, overrideFile)
-		return 1
-	}
-	devBlock := rename(block(read(root, devSrc), src), m, devPort, `"`+strconv.Itoa(dev)+`:3000"`)
-	if len(devBlock) == 0 {
-		fmt.Fprintf(os.Stderr, "Could not read the %q service out of %s\n", src, devSrc)
-		return 1
-	}
-
 	writes := map[string]string{}
 	var targets []string
 	if o.tracked {
@@ -203,24 +181,9 @@ func add(root string, o addOptions) int {
 				return 1
 			}
 		}
-		// The dev file also declares the two named volumes that shadow node_modules and .next
-		writes[devFile] = addVolumes(spliceAfter(read(root, devFile), src, devBlock), src, name)
 		writes[prodFile] = spliceAfter(read(root, prodFile), src, prodBlock)
 		writes[smallFile] = spliceAfter(read(root, smallFile), src, smallBlock)
-		targets = []string{devFile, prodFile, smallFile}
-	} else {
-		var existing *string
-		if raw, err := os.ReadFile(filepath.Join(root, overrideFile)); err == nil {
-			s := string(raw)
-			existing = &s
-		}
-		text, ok := override(existing, devBlock, anchors(devBlock, read(root, devFile), deref(existing)), name)
-		if !ok {
-			fmt.Fprintf(os.Stderr, "%s has no services: section to add %q to - nothing written\n", overrideFile, name)
-			return 1
-		}
-		writes[overrideFile] = text
-		targets = []string{overrideFile}
+		targets = []string{prodFile, smallFile}
 	}
 
 	fmt.Println("==> Checking the generated compose files parse")
@@ -248,6 +211,10 @@ func add(root string, o addOptions) int {
 	}
 	copied := filepath.Join(staging, name)
 	if err := copyFork(root, m, copied); err != nil {
+		fmt.Fprintln(os.Stderr, "skelet add:", err)
+		return 1
+	}
+	if err := devOn(filepath.Join(copied, "package.json"), dev); err != nil {
 		fmt.Fprintln(os.Stderr, "skelet add:", err)
 		return 1
 	}
@@ -328,13 +295,6 @@ func smallPortOf(small, service string) string {
 	return ""
 }
 
-func deref(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
-
 func read(root, file string) string {
 	raw, _ := os.ReadFile(filepath.Join(root, file))
 	return string(raw)
@@ -343,10 +303,6 @@ func read(root, file string) string {
 func defaultSource(root string, known []storefronts.Storefront) (storefronts.Storefront, bool) {
 	if s, ok := storefronts.Default(known); ok {
 		return s, true
-	}
-	dev := read(root, devFile)
-	if i := slices.IndexFunc(known, func(s storefronts.Storefront) bool { return declares(dev, s.Name) }); i >= 0 {
-		return known[i], true
 	}
 	if len(known) == 0 {
 		return storefronts.Storefront{}, false
@@ -360,6 +316,9 @@ func portFiles(root string) string {
 	var b strings.Builder
 	for _, f := range []string{devFile, prodFile, smallFile, overrideFile} {
 		b.WriteString(read(root, f))
+	}
+	for _, s := range storefronts.List(root) {
+		b.WriteString(read(root, s.Dir+"/package.json"))
 	}
 	for _, pat := range []string{"env/small-*.env.example", "env/prod-*.env.example"} {
 		matches, _ := filepath.Glob(filepath.Join(root, pat))
@@ -375,10 +334,22 @@ func portFiles(root string) string {
 // (localhost:13001) - so deleting a storefront leaves no hole for the next one to collide with
 func freePort(base int, files string) int {
 	for p := base; ; p++ {
-		if !regexp.MustCompile(`(?m)["':]` + strconv.Itoa(p) + `([^0-9]|$)`).MatchString(files) {
+		if !regexp.MustCompile(`(?m)(["':]|-p |--port[ =])` + strconv.Itoa(p) + `([^0-9]|$)`).MatchString(files) {
 			return p
 		}
 	}
+}
+
+func devOn(manifest string, port int) error {
+	raw, err := os.ReadFile(manifest)
+	if err != nil {
+		return err
+	}
+	if !devScript.Match(raw) {
+		return nil
+	}
+	out := devScript.ReplaceAll(raw, []byte("${1} --port "+strconv.Itoa(port)+"${2}"))
+	return os.WriteFile(manifest, out, 0o644)
 }
 
 // valid runs docker compose config over a would-be file. The override is only valid merged with the base, the way
@@ -571,11 +542,11 @@ func writeKeepingMode(path, content string) error {
 }
 
 func summary(root string, tracked bool, src, name string, dev, small int) {
-	wrote := fmt.Sprintf("%s       service + volumes on :%d (git-ignored)", overrideFile, dev)
+	wrote := fmt.Sprintf("apps/channels/%s/package.json   dev script on :%d", name, dev)
 	deploy := fmt.Sprintf("Prod is yours to wire: docker-compose.prod.yml's %q block is the shape,\n"+
 		"and STOREFRONT_UPSTREAM in env/prod-caddy.env routes the edge to it. docs/deploying.md covers both.", src)
 	if tracked {
-		wrote = fmt.Sprintf("docker-compose{,.prod,.small}.yml   service + volumes, dev :%d, small :%d", dev, small)
+		wrote = fmt.Sprintf("docker-compose{.prod,.small}.yml   service, prod :%d, small :%d", dev, small)
 		deploy = "The edge serves it once STOREFRONT_UPSTREAM in env/prod-caddy.env names it - skelet setup does that for the storefront you deploy."
 	}
 	// The suggestion adds the new shop to what this clone runs now rather than replacing it - .env's SKELET_APPS,
@@ -602,11 +573,10 @@ Wrote:
 
 Next:
   1. Create the channel in admin > channels, and put its uuid in
-     STOREFRONT_CHANNEL_ID (or map hosts to channels in
-     STOREFRONT_CHANNEL_HOSTS to serve several from one deployment). The dev
-     block inherited %[2]s's default uuid, so change it there too.
+     STOREFRONT_CHANNEL_ID in .env (or map hosts to channels in
+     STOREFRONT_CHANNEL_HOSTS to serve several from one deployment).
   2. skelet setup --apps %[4]s
-  3. skelet up, then http://localhost:%[5]d
+  3. skelet up, then skelet dev %[1]s - http://localhost:%[5]d
 
 %[6]s
 `, name, src, wrote, apps, dev, deploy)

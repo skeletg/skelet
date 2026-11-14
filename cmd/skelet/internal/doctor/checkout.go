@@ -21,8 +21,6 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 )
 
-var writableCheckout = regexp.MustCompile(`(?m)^\s*-\s*\.:/var/www/skelet\s*$`)
-
 func checkout(root string, out io.Writer, p probes) int {
 	r := &report{out: out}
 	docker(r)
@@ -53,30 +51,19 @@ func checkout(root string, out io.Writer, p probes) int {
 	}
 
 	r.section("app selection")
-	inDocker := ""
-	if docker, ok := prof.List(profile.DockerKey); ok {
-		inDocker = strings.Join(docker, ",")
-		r.pass("in Docker: %s (.env's COMPOSE_PROFILES; change with skelet setup --docker-apps ...)", or(inDocker, "none - the frontends run on the host"))
+	apps, chosen := prof.Apps()
+	if chosen {
+		r.pass("%s - on the host, with skelet dev (change with skelet setup --apps ...)", or(strings.Join(apps, ","), "backend only"))
 	} else {
-		r.pass("none in Docker - the frontends run on the host (skelet setup --docker-apps ... to containerize)")
+		r.pass("no selection recorded - skelet dev runs the dashboard and every storefront")
 	}
 	// A name no storefront goes by - one renamed or removed - starts nothing, quietly
-	for app := range strings.SplitSeq(inDocker, ",") {
-		if app != "" && app != "dashboard" && !slices.Contains(storefronts.Names(root), app) {
-			r.note(".env's COMPOSE_PROFILES names %q, which isn't an app here - storefronts: %s (skelet setup --docker-apps ...)", app, or(strings.Join(storefronts.Names(root), ", "), "none"))
+	for _, app := range apps {
+		if app != "dashboard" && !slices.Contains(storefronts.Names(root), app) {
+			r.note(".env's SKELET_APPS names %q, which isn't an app here - storefronts: %s (skelet setup --apps ...)", app, or(strings.Join(storefronts.Names(root), ", "), "none"))
 		}
 	}
-	// Storefronts mount the whole workspace at /var/www/skelet - a service of your own on the /var/www/storefront mount
-	// sees only its own directory, so the shared packages don't resolve
-	if raw, err := os.ReadFile(filepath.Join(root, "docker-compose.override.yml")); err == nil {
-		switch {
-		case strings.Contains(string(raw), "/var/www/storefront"):
-			r.note("docker-compose.override.yml mounts a storefront at /var/www/storefront, the old layout - copy the volumes of the %s service in docker-compose.yml", storefronts.DefaultTemplate)
-		case writableCheckout.Match(raw):
-			r.note("docker-compose.override.yml mounts the whole checkout writable into a storefront - copy the volumes of the %s service in docker-compose.yml", storefronts.DefaultTemplate)
-		}
-	}
-	hostFrontends(r, root, strings.Split(inDocker, ","))
+	hostFrontends(r, root)
 	sharedPackages(r, root)
 
 	shape(r, root, prof, files)
@@ -109,19 +96,17 @@ func optionalEnv(root, target string) []string {
 	return out
 }
 
-func hostFrontends(r *report, root string, inDocker []string) {
+func hostFrontends(r *report, root string) {
 	r.section("host frontends")
 	var host []string
-	if exists(filepath.Join(root, "apps", "dashboard", "package.json")) && !slices.Contains(inDocker, "dashboard") {
+	if exists(filepath.Join(root, "apps", "dashboard", "package.json")) {
 		host = append(host, filepath.Join("apps", "dashboard"))
 	}
 	for _, sf := range storefronts.List(root) {
-		if !slices.Contains(inDocker, sf.Name) {
-			host = append(host, filepath.FromSlash(sf.Dir))
-		}
+		host = append(host, filepath.FromSlash(sf.Dir))
 	}
 	if len(host) == 0 {
-		r.pass("none - every frontend runs in Docker")
+		r.pass("none in this checkout")
 		return
 	}
 	manifest, _ := os.ReadFile(filepath.Join(root, host[0], "package.json"))
@@ -143,10 +128,12 @@ func hostFrontends(r *report, root string, inDocker []string) {
 		r.pass("node %s", dotted(have))
 	}
 	for _, d := range host {
-		switch node.Tree(filepath.Join(root, d)) {
-		case "none":
+		switch tree := node.Tree(filepath.Join(root, d)); {
+		case node.Unwritable(filepath.Join(root, d)):
+			r.bad("%s/node_modules isn't yours to write - a frontend container left it behind. skelet fixperms gives it back", d)
+		case tree == "none":
 			r.note("%s not installed - skelet setup, or: cd %s && pnpm install", d, d)
-		case "pnpm":
+		case tree == "pnpm":
 			r.pass("%s installed with pnpm", d)
 		default:
 			r.bad("%s/node_modules is an npm install from before the switch to pnpm - rm -rf it, then pnpm install", d)
@@ -301,24 +288,12 @@ func ports(r *report, root string, lib compose.Lib, p probes) []string {
 	if v, ok, _ := envfile.Get(filepath.Join(root, ".env"), "DB_HOST_PORT"); ok && regexp.MustCompile(`^[0-9]+$`).MatchString(v) {
 		db = v
 	}
-	specs := []spec{{"8080", "backend"}, {"5173", "dashboard"}, {db, "postgres"}, {"9900", "garage-s3"}, {"9902", "garage-web"}}
+	specs := []spec{{"8080", "backend"}, {db, "postgres"}, {"9900", "garage-s3"}, {"9902", "garage-web"}}
 	// The dev tools are opt-in, so only the picked ones are expected to answer
 	toolPorts := map[string]string{"mailpit": "8025", "webhook-tester": "8081", "grafana": "3030", "garage-webui": "9901"}
 	for t := range strings.SplitSeq(lib.Tools, ",") {
 		if port, ok := toolPorts[t]; ok {
 			specs = append(specs, spec{port, t})
-		}
-	}
-	// A storefront's published port is its own business, so compose is asked rather than assuming the demo's 3000
-	for _, name := range storefronts.Names(root) {
-		out, _ := compose.Command(root, lib.Env(), "port", name, "3000").Output()
-		switch s := strings.TrimSpace(string(out)); {
-		case s != "":
-			specs = append(specs, spec{s[strings.LastIndex(s, ":")+1:], name})
-		case lib.Apps == "":
-			r.pass("%s not in Docker - run it on the host (skelet serve %s)", name, name)
-		default:
-			r.note("%s has no published port (not running, or not in .env's COMPOSE_PROFILES)", name)
 		}
 	}
 	// Only ports this project publishes count as ours. Probing localhost alone can't tell this stack from another

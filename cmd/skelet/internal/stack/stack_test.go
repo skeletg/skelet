@@ -24,11 +24,11 @@ func TestPassthroughs(t *testing.T) {
 	_ = os.Unsetenv("COMPOSE_PROFILES")
 	t.Setenv("SKELET_SIDECARS", "search")
 	for verb, want := range map[string]string{
-		"down":    "compose down --remove-orphans -v|search,dashboard,signals",
-		"stop":    "compose stop -v|search,dashboard,signals",
-		"restart": "compose restart -v|search,dashboard,signals",
-		"ps":      "compose ps -v|search,dashboard,signals",
-		"logs":    "compose logs -f -v|search,dashboard,signals",
+		"down":    "compose down --remove-orphans -v|search,signals",
+		"stop":    "compose stop -v|search,signals",
+		"restart": "compose restart -v|search,signals",
+		"ps":      "compose ps -v|search,signals",
+		"logs":    "compose logs -f -v|search,signals",
 	} {
 		d := verbtest.NewDocker(t, "")
 		if _, code := d.Run(verb, root, "-v"); code != 0 || !slices.Equal(d.Calls(), []string{want}) {

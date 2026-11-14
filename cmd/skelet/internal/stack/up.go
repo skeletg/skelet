@@ -10,7 +10,6 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/compose"
 	"github.com/skeletg/skelet/cmd/skelet/internal/envfile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
-	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
@@ -20,8 +19,8 @@ your apps still start. Any other argument goes to docker compose up - skelet up 
 
 Before starting it syncs env/signals.env from env/go.env and points the env files at the dev tools you
 picked, then checks the ports the stack publishes: one something else holds is listed with whoever holds
-it, and on a terminal you can free it or move the service through .env. Frontends that run on the host get
-the commands that start them, and a container left holding one of their ports is stopped.`
+it, and on a terminal you can free it or move the service through .env. The frontends run on the host, with
+skelet dev - a container this project no longer defines, one left holding their ports, is removed.`
 
 func Up(root string, args []string) int {
 	lean := len(args) > 0 && args[0] == "--lean"
@@ -51,36 +50,18 @@ func Up(root string, args []string) int {
 	// project name is pinned, so another clone's counts) runs on after a pull changed its Dockerfile or go.mod. A cache
 	// hit only keeps the containers if the image ID holds too, and buildx's default provenance attestation gives every
 	// build a new one, which recreated the app on every run. These images never leave the machine
-	mountpoints(root, lib)
 	env := lib.CreateEnv()
 	if _, set := os.LookupEnv("BUILDX_NO_DEFAULT_ATTESTATIONS"); !set {
 		env = append(env, "BUILDX_NO_DEFAULT_ATTESTATIONS=1")
 	}
-	up := compose.Call(root, env, append([]string{"up", "-d", "--build"}, args...)...)
+	up := compose.Call(root, env, append([]string{"up", "-d", "--build", "--remove-orphans"}, args...)...)
 	if err := up.Run(); err != nil {
 		return sys.ExitCode(err)
 	}
-	if lib.Apps == "" && len(args) == 0 {
-		hostFrontends(root, lib)
+	if len(args) == 0 {
+		hostFrontends(root)
 	}
 	return 0
-}
-
-// mountpoints makes what a Docker storefront's mounts land on - a missing one Docker makes as root, or can't make at all under the read-only mount
-func mountpoints(root string, lib compose.Lib) {
-	list := storefronts.List(root)
-	for app := range strings.SplitSeq(lib.Apps, ",") {
-		s, ok := storefronts.Named(list, app)
-		if !ok {
-			continue
-		}
-		for _, dir := range []string{"node_modules", "apps/channels", s.Dir + "/.next"} {
-			_ = os.MkdirAll(filepath.Join(root, filepath.FromSlash(dir)), 0o755)
-		}
-		if f, err := os.OpenFile(filepath.Join(root, ".env"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600); err == nil {
-			_ = f.Close()
-		}
-	}
 }
 
 // needsDevEnv refuses a clone without the env files the dev compose file names, which only setup's dev target
@@ -183,41 +164,16 @@ func syncToolEnv(root, picked string) error {
 	return nil
 }
 
-// hostFrontends says how to start the frontends that run on the host, and stops a container of theirs left over from
-// when they ran in Docker - it holds the port, which reads as a host dev server that won't start
-func hostFrontends(root string, lib compose.Lib) {
+func hostFrontends(root string) {
+	apps := defaultApps(root)
+	if len(apps) == 0 {
+		return
+	}
 	fmt.Println()
-	fmt.Println("Frontends are not in Docker (none in .env's COMPOSE_PROFILES) - run them on the host:")
-	if _, err := os.Stat(filepath.Join(root, "apps", "dashboard", "package.json")); err == nil {
-		fmt.Println("    skelet serve dashboard        → http://localhost:5173")
-	}
-	fronts := []string{"dashboard"}
-	for _, s := range storefronts.List(root) {
-		fmt.Printf("    skelet serve %s     → http://localhost:3000\n", s.Name)
-		fronts = append(fronts, s.Name)
-	}
-	fmt.Println("To run them in Docker instead, run skelet setup --docker-apps <names>")
-	// Every frontend this checkout could run, since a shop skelet add made leaves a container holding its port too
-	for _, f := range leftovers(root, lib, fronts) {
-		fmt.Printf("    stopping the %s container - not in .env's COMPOSE_PROFILES, and it holds the port\n", f)
-		_ = compose.Command(root, lib.Env(), "--profile", f, "stop", f).Run()
-	}
-}
-
-// leftovers is which of fronts this project has a running container for. Asked with each one's profile, since a
-// frontend not in .env's COMPOSE_PROFILES is outside the profiles compose would otherwise look at
-func leftovers(root string, lib compose.Lib, fronts []string) []string {
-	args := []string{}
-	for _, f := range fronts {
-		args = append(args, "--profile", f)
-	}
-	out, _ := compose.Command(root, lib.Env(), append(args, "ps", "--services", "--status", "running")...).Output()
-	running := strings.Fields(string(out))
-	var found []string
-	for _, f := range fronts {
-		if slices.Contains(running, f) {
-			found = append(found, f)
+	fmt.Println("The frontends run on the host - start them with skelet dev:")
+	for _, name := range apps {
+		if app, ok := findApp(root, name); ok {
+			fmt.Printf("    %-24s http://localhost:%s\n", name, app.port)
 		}
 	}
-	return found
 }

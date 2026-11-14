@@ -40,7 +40,7 @@ browsing pages.
 skelet pnpm astro-shop run codegen     # GraphQL types from the live front schema
 skelet pnpm astro-shop run typecheck
 skelet pnpm astro-shop run test        # Vitest: lib, components, motion, pages (Container API) - no backend
-skelet test storefront astro-shop      # Playwright against the running dev container - places real orders
+skelet test storefront astro-shop      # Playwright against skelet dev astro-shop - places real orders
 ```
 
 ## Not built yet

@@ -16,6 +16,7 @@ import (
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/compose"
 	"github.com/skeletg/skelet/cmd/skelet/internal/envfile"
+	"github.com/skeletg/skelet/cmd/skelet/internal/node"
 	"github.com/skeletg/skelet/cmd/skelet/internal/pnpm"
 	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
@@ -355,14 +356,11 @@ func deselect(root, name string) error {
 }
 
 func devPortOf(root, service string) string {
-	for _, f := range []string{overrideFile, devFile} {
-		for _, l := range block(read(root, f), service) {
-			if m := devPort.FindString(l); m != "" {
-				return strings.TrimSuffix(strings.Trim(m, `"`), ":3000")
-			}
-		}
+	s, ok := storefronts.Find(root, service)
+	if !ok {
+		return ""
 	}
-	return ""
+	return node.DevPort([]byte(read(root, s.Dir+"/package.json")), "")
 }
 
 // repointPreview keeps the dashboard's previews off the port a removed storefront was on, where add channel may have

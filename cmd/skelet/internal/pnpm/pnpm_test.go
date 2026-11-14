@@ -11,7 +11,7 @@ import (
 
 func TestMain(m *testing.M) {
 	verbtest.Main(m, map[string]func(string, []string) int{
-		"dashboard": Dashboard, "channel": Channel, "package": Package,
+		"dashboard": Dashboard, "channel": Channel, "package": Package, "lockfile": Lockfile,
 		"rundir": func(root string, args []string) int {
 			if RunDir(root, args[0], args[1:]...) != nil {
 				return 1
@@ -58,61 +58,40 @@ func cmds(d *verbtest.Docker) []string {
 	return out
 }
 
-const user = "-e LC_ALL=C.UTF-8 -e LANG=C.UTF-8"
-
-func TestInTheContainer(t *testing.T) {
-	t.Setenv("SKELET_FORCE_DOCKER", "")
-	root := t.TempDir()
-	app(t, root, "apps/dashboard", "none")
-	app(t, root, "apps/channels/shop", "none")
-	app(t, root, "templates/vetrina", "none")
-	for _, c := range []struct {
-		verb, answer string
-		args         []string
-		want         string
-	}{
-		{"dashboard", `case "$*" in "compose ps --services --status running") echo dashboard ;; esac`, []string{"run", "lint"},
-			"compose exec " + user + " dashboard pnpm run lint"},
-		// A storefront's container starts at the workspace root - pnpm runs in the storefront's own directory
-		{"channel", "", []string{"shop", "install"}, "compose run --rm " + user + " -w /var/www/skelet/apps/channels/shop shop pnpm install"},
-		{"channel", "", []string{"vetrina", "run", "dev"}, "compose run --rm " + user + " -w /var/www/skelet/templates/vetrina vetrina pnpm run dev"},
-	} {
-		d := verbtest.NewDocker(t, c.answer)
-		d.Fake("pnpm", "")
-		calls := func() []string { return cmds(d) }
-		if _, code := d.Run(c.verb, root, c.args...); code != 0 || calls()[len(calls())-1] != c.want {
-			t.Errorf("%s %q: exit %d, calls %q, want last %q", c.verb, c.args, code, calls(), c.want)
-		}
-	}
-}
-
-// A host install runs the host's pnpm, in the app - unless SKELET_FORCE_DOCKER says otherwise
 func TestOnTheHost(t *testing.T) {
-	t.Setenv("SKELET_FORCE_DOCKER", "")
 	root := t.TempDir()
 	app(t, root, "apps/dashboard", "pnpm")
-	app(t, root, "apps/channels/shop", "pnpm")
+	app(t, root, "apps/channels/shop", "none")
+	app(t, root, "packages/storefront-core", "none")
 	d := verbtest.NewDocker(t, "")
 	d.Fake("pnpm", `echo "url=$GRAPHQL_CODEGEN_URL"`)
-	if _, code := d.Run("dashboard", root, "run", "lint"); code != 0 || strings.Join(d.Calls(), "\n") != "pnpm run lint|"+filepath.Join(root, "apps/dashboard") {
-		t.Errorf("exit %d, calls %q", code, d.Calls())
+	for _, c := range []struct {
+		verb string
+		args []string
+		want string
+	}{
+		{"dashboard", []string{"run", "lint"}, "pnpm run lint|" + filepath.Join(root, "apps/dashboard")},
+		{"channel", []string{"shop", "add", "x"}, "pnpm add x|" + filepath.Join(root, "apps/channels/shop")},
+		{"package", []string{"storefront-core", "test"}, "pnpm test|" + filepath.Join(root, "packages/storefront-core")},
+		{"rundir", []string{"packages/storefront-core", "run", "test"}, "pnpm run test|" + filepath.Join(root, "packages/storefront-core")},
+	} {
+		before := len(d.Calls())
+		if _, code := d.Run(c.verb, root, c.args...); code != 0 || len(d.Calls()) != before+1 || d.Calls()[before] != c.want {
+			t.Errorf("%s %q: exit %d, calls %q, want %q", c.verb, c.args, code, d.Calls()[before:], c.want)
+		}
 	}
-	// The codegen endpoint reaches a host install
 	if out, code := d.Run("codegen", root, "shop"); code != 0 || !strings.Contains(out, "url=http://x") {
 		t.Errorf("codegen: exit %d, %q", code, out)
 	}
-
-	t.Setenv("SKELET_FORCE_DOCKER", "1")
-	forced := verbtest.NewDocker(t, "")
-	forced.Fake("pnpm", "")
-	if _, code := forced.Run("dashboard", root, "run", "lint"); code != 0 || cmds(forced)[len(cmds(forced))-1] != "compose run --rm "+user+" dashboard pnpm run lint" {
-		t.Errorf("forced: exit %d, calls %q", code, forced.Calls())
+	for _, c := range cmds(d) {
+		if strings.HasPrefix(c, "compose ") || strings.HasPrefix(c, "run ") {
+			t.Errorf("reached for a container: %q", c)
+		}
 	}
 }
 
 // An app that isn't here, or holds an npm install pnpm won't take over without a terminal, runs nothing
 func TestRefusals(t *testing.T) {
-	t.Setenv("SKELET_FORCE_DOCKER", "")
 	root := t.TempDir()
 	app(t, root, "apps/channels/old", "npm")
 	for _, args := range [][]string{{"old", "install"}, {"gone", "install"}} {
@@ -128,62 +107,11 @@ func TestRefusals(t *testing.T) {
 	}
 }
 
-// A package has no container: the host's pnpm when the workspace is installed there, else a storefront's container
-// pointed at the package
-func TestRunDir(t *testing.T) {
-	t.Setenv("SKELET_FORCE_DOCKER", "")
+func TestLockfileGoesThroughTheManifests(t *testing.T) {
 	root := t.TempDir()
 	app(t, root, "templates/vetrina", "none")
-	app(t, root, "packages/storefront-next", "none")
-	d := verbtest.NewDocker(t, "")
-	d.Fake("pnpm", "")
-	if _, code := d.Run("rundir", root, "packages/storefront-next", "run", "test"); code != 0 ||
-		cmds(d)[len(cmds(d))-1] != "compose run --rm "+user+" -w /var/www/skelet/packages/storefront-next vetrina pnpm run test" {
-		t.Errorf("in a container: exit %d, calls %q", code, d.Calls())
-	}
-	// Installed on the host - the workspace root holds the record
-	if err := os.WriteFile(filepath.Join(root, "pnpm-workspace.yaml"), nil, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	app(t, root, ".", "pnpm")
-	app(t, root, "packages/storefront-next", "none")
-	if err := os.MkdirAll(filepath.Join(root, "packages/storefront-next/node_modules/vitest"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	host := verbtest.NewDocker(t, "")
-	host.Fake("pnpm", "")
-	if _, code := host.Run("rundir", root, "packages/storefront-next", "run", "test"); code != 0 ||
-		strings.Join(host.Calls(), "\n") != "pnpm run test|"+filepath.Join(root, "packages/storefront-next") {
-		t.Errorf("on the host: exit %d, calls %q", code, host.Calls())
-	}
-}
-
-// skelet pnpm <package> is the same, by the package's directory name
-func TestPackage(t *testing.T) {
-	t.Setenv("SKELET_FORCE_DOCKER", "")
-	root := t.TempDir()
-	app(t, root, "templates/vetrina", "none")
-	app(t, root, "packages/storefront-core", "none")
-	d := verbtest.NewDocker(t, "")
-	if _, code := d.Run("package", root, "storefront-core", "test"); code != 0 ||
-		cmds(d)[len(cmds(d))-1] != "compose run --rm "+user+" -w /var/www/skelet/packages/storefront-core vetrina pnpm test" {
-		t.Errorf("exit %d, calls %q", code, d.Calls())
-	}
-	// No storefront to run it in, and no host install: refused rather than guessed at
-	bare := t.TempDir()
-	app(t, bare, "packages/storefront-core", "none")
-	if _, code := verbtest.NewDocker(t, "").Run("package", bare, "storefront-core", "test"); code == 0 {
-		t.Error("ran with no storefront and no host install")
-	}
-}
-
-func TestEditsGoThroughTheManifests(t *testing.T) {
-	t.Setenv("SKELET_FORCE_DOCKER", "")
-	root := t.TempDir()
-	app(t, root, "templates/vetrina", "none")
-	app(t, root, "packages/storefront-core", "none")
 	for f, body := range map[string]string{
-		"pnpm-workspace.yaml": "packages:\n  - templates/*\n  - packages/*\n", "pnpm-lock.yaml": "old\n", ".nvmrc": "24\n",
+		"pnpm-workspace.yaml": "packages:\n  - templates/*\n", "pnpm-lock.yaml": "old\n", ".nvmrc": "24\n",
 		"templates/vetrina/package.json": `{"packageManager": "pnpm@12.6.0"}`,
 	} {
 		if err := os.WriteFile(filepath.Join(root, f), []byte(body), 0o644); err != nil {
@@ -192,33 +120,15 @@ func TestEditsGoThroughTheManifests(t *testing.T) {
 	}
 	d := verbtest.NewDocker(t, `case "$*" in *--lockfile-only*)
   for a in "$@"; do case "$a" in *:/w) d="${a%:/w}";; esac; done
-  echo new > "$d/pnpm-lock.yaml"; echo '{"packageManager": "pnpm@12.6.0", "x": 1}' > "$d/templates/vetrina/package.json";;
+  echo new > "$d/pnpm-lock.yaml";;
 esac`)
-	if out, code := d.Run("channel", root, "vetrina", "add", "x"); code != 0 {
+	if out, code := d.Run("lockfile", root); code != 0 {
 		t.Fatalf("exit %d:\n%s", code, out)
 	}
-	last := cmds(d)[len(cmds(d))-1]
-	if !strings.Contains(last, ":/w -w /w/templates/vetrina node:24-alpine npx -y pnpm@12.6.0 add x --lockfile-only") {
+	if last := cmds(d)[len(cmds(d))-1]; !strings.Contains(last, "node:24-alpine npx -y pnpm@12.6.0 install --lockfile-only") {
 		t.Errorf("ran %q", last)
 	}
-	for f, want := range map[string]string{"pnpm-lock.yaml": "new\n", "templates/vetrina/package.json": "{\"packageManager\": \"pnpm@12.6.0\", \"x\": 1}\n"} {
-		if raw, _ := os.ReadFile(filepath.Join(root, f)); string(raw) != want {
-			t.Errorf("%s = %q, want %q", f, raw, want)
-		}
-	}
-	if _, code := d.Run("package", root, "storefront-core", "remove", "y"); code != 0 ||
-		!strings.Contains(cmds(d)[len(cmds(d))-1], "-w /w/packages/storefront-core node:24-alpine npx -y pnpm@12.6.0 remove y --lockfile-only") {
-		t.Errorf("exit %d, calls %q", code, cmds(d))
-	}
-}
-
-func TestEditsLockfile(t *testing.T) {
-	for args, want := range map[string]bool{
-		"add x": true, "-D add x": true, "remove x": true, "up": true, "update --latest": true, "dedupe": true,
-		"install x": true, "i x": true, "install": false, "install --frozen-lockfile": false, "run add": false, "test": false, "": false,
-	} {
-		if got := editsLockfile(strings.Fields(args)); got != want {
-			t.Errorf("editsLockfile(%q) = %v, want %v", args, got, want)
-		}
+	if raw, _ := os.ReadFile(filepath.Join(root, "pnpm-lock.yaml")); string(raw) != "new\n" {
+		t.Errorf("pnpm-lock.yaml = %q", raw)
 	}
 }

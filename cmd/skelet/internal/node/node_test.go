@@ -57,3 +57,27 @@ func TestTree(t *testing.T) {
 		t.Errorf("WorkspaceRoot: %q %q", WorkspaceRoot(app), WorkspaceRoot(solo))
 	}
 }
+
+func TestUnwritable(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root writes anywhere")
+	}
+	dir := t.TempDir()
+	if Unwritable(dir) {
+		t.Error("no node_modules at all reads as unwritable")
+	}
+	nm := filepath.Join(dir, "node_modules")
+	if err := os.Mkdir(nm, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if Unwritable(dir) {
+		t.Error("an empty node_modules of yours reads as unwritable")
+	}
+	if err := os.Chmod(nm, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(nm, 0o755) })
+	if !Unwritable(dir) {
+		t.Error("a node_modules you can't write reads as fine")
+	}
+}

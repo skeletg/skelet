@@ -3,8 +3,8 @@ package testrun
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,17 +14,19 @@ import (
 	"time"
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/compose"
+	"github.com/skeletg/skelet/cmd/skelet/internal/envfile"
+	"github.com/skeletg/skelet/cmd/skelet/internal/node"
 	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
 const StorefrontAbout = `Browser tests for a storefront: skelet test storefront [name] [playwright args] - the name is optional
-when only one storefront has them. Playwright runs in Microsoft's image, inside the storefront dev
-container's network namespace, so the host needs no Node and no browser and the page is served as
-localhost. The image tag comes from the storefront's @playwright/test pin, since the runner and its
-browsers refuse to talk across versions. Writes real customers, addresses and questions to the dev
-database - each run signs up throwaway accounts and makes one throwaway superuser for the specs
-that set the store up.`
+when only one storefront has them. Start it first with skelet dev. Playwright runs in Microsoft's image on
+the stack's network, so the host needs no browser: the page comes from your dev server through
+host.docker.internal, the admin API from the app container. The image tag comes from the storefront's
+@playwright/test pin, since the runner and its browsers refuse to talk across versions. Writes real
+customers, addresses and questions to the dev database - each run signs up throwaway accounts and makes one
+throwaway superuser for the specs that set the store up.`
 
 var playwrightPin = regexp.MustCompile(`"@playwright/test":\s*"([0-9]+(\.[0-9]+)+)"`)
 
@@ -67,17 +69,20 @@ func Storefront(root string, args []string) int {
 		return 1
 	}
 	lib := compose.Load(root)
-	id, _ := compose.Command(root, lib.Env(), "ps", "-q", name).Output()
-	container := strings.TrimSpace(string(id))
-	if container == "" || !running(container) {
-		fmt.Fprintf(os.Stderr, "%s isn't running - start the stack with skelet up\n", name)
+	id, _ := compose.Command(root, lib.Env(), "ps", "-q", "app").Output()
+	app := strings.TrimSpace(string(id))
+	if app == "" || !running(app) {
+		fmt.Fprintln(os.Stderr, "The backend isn't running - start the stack with skelet up")
 		return 1
 	}
-	mnt, err := mounts(container)
+	network, _ := exec.Command("docker", "inspect", "-f", "{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}", app).Output()
+	port := node.DevPort(manifest, "3000")
+	conn, err := net.Dial("tcp", "localhost:"+port)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Can't read the %s container's mounts: %v\n", name, err)
+		fmt.Fprintf(os.Stderr, "%s isn't answering on :%s - start it with skelet dev %s\n", name, port, name)
 		return 1
 	}
+	_ = conn.Close()
 
 	// Specs that set the store up sign in to the admin API as a superuser made for this run - like the throwaway
 	// customers, one inert e2e-storefront-* admin account per run stays behind
@@ -94,12 +99,9 @@ func Storefront(root string, args []string) int {
 	if s := strings.TrimSpace(string(slug)); s != "" {
 		admin = "http://app:8080/api/admin/" + s + "/graphql"
 	}
-	envs, _ := exec.Command("docker", "inspect", "-f", "{{range .Config.Env}}{{println .}}{{end}}", container).Output()
-	channel := ""
-	for line := range strings.Lines(string(envs)) {
-		if v, ok := strings.CutPrefix(strings.TrimSpace(line), "STOREFRONT_CHANNEL_ID="); ok {
-			channel = v
-		}
+	channel, _, _ := envfile.Get(filepath.Join(root, ".env"), "STOREFRONT_CHANNEL_ID")
+	if channel == "" {
+		channel = defaultChannel
 	}
 	uid, gid, ok := compose.IDs()
 	if !ok {
@@ -107,12 +109,9 @@ func Storefront(root string, args []string) int {
 	}
 	base := os.Getenv("E2E_BASE_URL")
 	if base == "" {
-		base = "http://localhost:3000"
+		base = "http://host.docker.internal:" + port
 	}
 
-	// The container's own mounts bring the source and its node_modules volume, so the specs resolve @playwright/test
-	// from the tree the dev server uses. --network container: shares the storefront's network namespace, so the
-	// browser reaches it as localhost - next dev serves its chunks only there
 	argv := []string{"docker", "run", "--rm"}
 	if sys.IsTerminal(os.Stdin.Fd()) {
 		argv = append(argv, "-it")
@@ -121,60 +120,18 @@ func Storefront(root string, args []string) int {
 		"-u", uid+":"+gid, "-e", "HOME=/tmp", "-e", "CI="+os.Getenv("CI"),
 		"-e", "E2E_BASE_URL="+base, "-e", "E2E_ADMIN_GRAPHQL="+admin,
 		"-e", "E2E_ADMIN_EMAIL="+email, "-e", "E2E_ADMIN_PASSWORD="+password, "-e", "E2E_CHANNEL_ID="+channel,
-		"--network", "container:"+container)
-	argv = append(append(argv, mnt...), "--ipc=host",
-		"-w", sf.ContainerDir(), "mcr.microsoft.com/playwright:v"+string(pin[1])+"-noble",
+		"--network", strings.Fields(string(network) + " bridge")[0], "--add-host", "host.docker.internal:host-gateway",
+		"--mount", "type=bind,src="+root+",dst="+storefronts.Mount+",readonly",
+		"--mount", "type=tmpfs,dst="+storefronts.Mount+"/env",
+		"--mount", "type=bind,src=/dev/null,dst="+storefronts.Mount+"/.env,readonly",
+		"--mount", "type=tmpfs,dst="+storefronts.Mount+"/apps/backend",
+		"--mount", "type=bind,src="+filepath.Join(root, filepath.FromSlash(sf.Dir))+",dst="+sf.ContainerDir(),
+		"--ipc=host", "-w", sf.ContainerDir(), "mcr.microsoft.com/playwright:v"+string(pin[1])+"-noble",
 		"node", "node_modules/@playwright/test/cli.js", "test")
 	return sys.Call{Path: sys.Lookup("docker"), Argv: append(argv, args...), Env: sys.Env()}.Replace()
 }
 
-// mounts is a container's mounts as docker run flags. --volumes-from can't take them over: it looks a tmpfs up as a
-// volume and finds none, and the tmpfs over env/ is what keeps the backend's secrets from the specs, as from the server
-func mounts(container string) ([]string, error) {
-	raw, err := exec.Command("docker", "inspect", "-f", "{{json .Mounts}}", container).Output()
-	if err != nil {
-		return nil, err
-	}
-	var ms []mount
-	if err := json.Unmarshal(raw, &ms); err != nil {
-		return nil, err
-	}
-	return mountFlags(ms)
-}
-
-type mount struct {
-	Type, Name, Source, Destination string
-	RW                              bool
-}
-
-// mountFlags refuses a mount kind it doesn't know - a dropped mask would hand the specs what it hid
-func mountFlags(ms []mount) ([]string, error) {
-	var out []string
-	for _, m := range ms {
-		var spec []string
-		switch m.Type {
-		case "bind":
-			spec = []string{"type=bind", "src=" + m.Source}
-		case "volume":
-			spec = []string{"type=volume", "src=" + m.Name}
-		case "tmpfs":
-			spec = []string{"type=tmpfs"}
-		default:
-			return nil, fmt.Errorf("a %s mount at %s, which the test container can't be given", m.Type, m.Destination)
-		}
-		spec = append(spec, "dst="+m.Destination)
-		if !m.RW && m.Type != "tmpfs" {
-			spec = append(spec, "readonly")
-		}
-		for i, f := range spec {
-			if strings.ContainsAny(f, `,"`) {
-				spec[i] = `"` + strings.ReplaceAll(f, `"`, `""`) + `"`
-			}
-		}
-		out = append(out, "--mount", strings.Join(spec, ","))
-	}
-	return out, nil
-}
+const defaultChannel = "56d051bc-0131-4476-bc0b-121d80290684"
 
 func running(container string) bool {
 	state, _ := exec.Command("docker", "inspect", "-f", "{{.State.Running}}", container).Output()

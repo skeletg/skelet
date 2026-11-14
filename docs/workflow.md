@@ -17,6 +17,7 @@ through Docker.
 | `skelet check [--codegen] [--list]` | **Every gate that can fail a commit, in one command** - version pins, repo structure, cross-app contracts. Under a second, no Docker, no backend. What the pre-commit hook and CI both run; `--list` explains each gate, `--codegen` adds the generated-file check |
 | `skelet hooks` | Install a pre-commit hook that runs `skelet check`. Opt-in, and deliberately not the `--codegen` variant: needing a running backend to make a commit is a bad trade |
 | `skelet up` | Start the full dev stack (ports exposed, hot reload, `APP_ENV=development`, all sidecars) |
+| `skelet dev [app...]` | The frontends on the host - the clone's apps, or the ones named - side by side until Ctrl-C |
 | `skelet stop` | `docker compose stop` - halt without removing |
 | `skelet down` | `docker compose down` - remove containers (volumes preserved) |
 | `skelet restart` | `docker compose restart` - restart in place |
@@ -71,9 +72,6 @@ the one-box files that include them. Both one-box files carry a Caddy edge behin
 
 **Core services**:
 - `app` - Go API, exposes :8080, mounts `./apps/backend` → `/var/www/backend` and works from `core/` under it.
-- `nextjs-vetrina` - Next.js on `:3000`, `depends_on: app`. Image built from
-  `templates/nextjs-vetrina/Dockerfile`. Each storefront is its own service,
-  named after its directory under `apps/channels/` or `templates/`.
 - `db` - Postgres 18 (alpine).
 - `valkey` - Redis-compatible KV; JWT refresh tokens + caches.
 
@@ -81,19 +79,6 @@ the one-box files that include them. Both one-box files carry a Caddy edge behin
 - `signals` - the Signals process, HTTP on `:8090` and the gRPC contract on `:8092`,
   started whenever `SIGNALS_ENABLED` is on in `env/go.env`. Core proxies `/t` and
   `/e` to it; the separate `ingest` tier is a scale-out option, off in dev.
-- `nextjs-vetrina` - `next dev`, with the repo bind-mounted read-only at `/var/www/skelet`
-  (the storefronts and `packages/` are one pnpm workspace). Only its own directory and
-  `packages/` are writable, so no dependency the dev server runs can change what the host
-  runs next - the CLI, git hooks, compose files - and `env/`, the root `.env` and the rest of
-  `apps/` (the dashboard's e2e session) are masked, so none can read the backend's secrets.
-  The container installs frozen: a manifest the lockfile doesn't match yet waits for
-  `skelet pnpm --lockfile`, and `skelet pnpm <name> add|remove|update` runs over the
-  workspace's manifests in a throwaway container instead of the read-only one. Named volumes
-  shadow the workspace's `node_modules` and the app's `.next` (so host-built
-  Windows/macOS artifacts can't poison the Linux/musl install or the SWC native
-  binary) - an app's or a package's own `node_modules` is only links into the root one. `CHOKIDAR_USEPOLLING=true` +
-  `WATCHPACK_POLLING=true` because inotify is unreliable over bind mounts
-  on WSL2/macOS.
 - `garage` + `garage-init` - S3-compatible storage (Garage); S3 API at
   `:9900`, public reads via the web endpoint at `:9902`
   (vhost-addressed: `http://media.localhost:9902/<key>`), bucket
@@ -143,26 +128,25 @@ site render without a request - on a `force-static` route, which is every pretty
 URL, a switcher would do nothing at all, so previewing a channel would appear to
 work while actually rendering the pinned one.
 
-The storefront container reads two URLs to bridge SSR vs CSR:
-`BACKEND_INTERNAL_URL=http://app:8080` (server-side fetches from RSC /
-route handlers - Docker-network hostname) and
-`NEXT_PUBLIC_BACKEND_URL=http://localhost:8080` (client-side fallback -
-host port). Mixing these up gets you "fetch failed" on the server or
-CORS in the browser.
+A storefront reads two URLs to bridge SSR vs CSR: `BACKEND_INTERNAL_URL`
+(server-side fetches from RSC / route handlers) and `NEXT_PUBLIC_BACKEND_URL`
+(the client-side fallback). In dev both are `http://localhost:8080`, since the
+dev server runs on the host beside the published API; on a server the first
+can be an address only the storefront reaches. Mixing these up gets you "fetch
+failed" on the server or CORS in the browser.
 
-`skelet up` runs `docker compose up -d --build` - the default file is the dev stack.
-Source edits hot-reload through the bind mounts - air for the app and the Signals process, Vite
-and Next for the frontends. A frontend container also watches its own `package.json` and
-lockfile, reinstalling and restarting its dev server when either changes (`watchexec` in its dev
-Dockerfile's CMD). What still needs you is a Dockerfile change - `skelet up` rebuilds the
-images. A new migration doesn't: the app applies it the next time it rebuilds or restarts.
+`skelet up` runs `docker compose up -d --build` - the default file is the dev stack, which is
+the backend and its datastores. Source edits hot-reload through the bind mounts - air for the
+app and the Signals process. What still needs you is a Dockerfile change - `skelet up` rebuilds
+the images. A new migration doesn't: the app applies it the next time it rebuilds or restarts.
 
-Where the frontends run is your choice, recorded in `COMPOSE_PROFILES` in your `.env`. Listed
-there, `skelet up` starts them in Docker on <http://localhost:5173> and
-<http://localhost:3000>; left out, they stay on the host and `skelet serve
-dashboard` runs one - the default, because the dev server and the gates then
-share one `node_modules`. Either way `skelet pnpm dashboard` / `skelet pnpm` run pnpm against
-whichever tree is live. Every command is documented in [scripts.md](scripts.md).
+The frontends run on the host, with `skelet dev`: the apps this clone was set up with, side by
+side, their output prefixed, until Ctrl-C - or name them, `skelet dev dashboard shop`. Each
+listens on the port its `package.json` dev script names (the dashboard on 5173, nextjs-vetrina
+on 3000, astro-shop on 3001), so `pnpm run dev` in the app's own directory does the same thing
+without the CLI. The dev server and the gates share one `node_modules`, so `skelet pnpm
+dashboard run lint` checks the tree Vite is serving. Every command is documented in
+[scripts.md](scripts.md).
 
 ## Codegen flow
 
@@ -237,8 +221,8 @@ Secrets are generated, never prompted, and an existing non-placeholder value is 
 so re-running is safe and never rotates a key. Setup is part of the Go CLI, so generating them
 needs nothing on the host - no OpenSSL. The env files it creates are readable by you alone. There's no separate record of
 the answers: what this clone is for lives in the root `.env` with the rest of its settings -
-`SKELET_TARGET`, `SKELET_APPS`, and on dev `COMPOSE_PROFILES` (the apps in Docker and the dev
-tools, plus the sidecars `skelet up` adds, so a bare `docker compose up` starts the same stack) -
+`SKELET_TARGET`, `SKELET_APPS`, and on dev `COMPOSE_PROFILES` (the dev tools, plus the
+sidecars `skelet up` adds, so a bare `docker compose up` starts the same stack) -
 and the next run takes its defaults from what the files say now. `skelet doctor` reads the same
 files back to tell you what this clone is meant to be. A clone set up by an older version kept
 `.skelet-profile`, `.skelet-apps` and `.skelet-tools` in its root, and the first `skelet` run
@@ -247,8 +231,7 @@ after updating moves them into `.env`.
 Non-interactive: `skelet setup --yes` takes the defaults; `skelet setup --profile <file>` replays a
 file of answers (`SKELET_TARGET=prod`, `SKELET_APPS_SELECTED=dashboard`, ...), which is what a
 second clone wants. The file is only read - the answers land in this clone's `.env` like any other
-run's. Where it has no answer for where the frontends run, the clone keeps the placement its `.env`
-already has rather than emptying it.
+run's.
 
 ## Which apps run
 
@@ -261,23 +244,19 @@ Deselected apps are removed from your working tree via `git sparse-checkout` - t
 in history, where `skelet add channel` still copies a template from, and `--keep-code`
 keeps the source without running it.
 
-Where they run is a second, independent answer, and the default is the host - there
-the dev server and the gates share one `node_modules`, so a lint run checks the tree
-vite is actually serving. `COMPOSE_PROFILES` lists only the ones you asked to containerize,
-so with none listed every frontend runs on the host with `skelet serve <app>`.
+They all run on the host, with `skelet dev`, so the dev server and the gates share one
+`node_modules` and a lint run checks the tree Vite is actually serving.
 
 When the project has no storefront of its own yet, setup offers one: pick a template and a
 name, and it's copied into `apps/channels/<name>` the way `skelet add channel` copies one,
-selected and run where your other frontends run. `--template <name>` and `--shop <name>`
+selected and run with your other frontends. `--template <name>` and `--shop <name>`
 make it without asking - and since `skelet new` hands setup its flags, `skelet new my-store
 --template astro-shop` starts a project with its own Astro shop.
 
 Non-interactive variants: `skelet setup --all` (templates too), `--backend-only`, or
-`skelet setup --apps dashboard,nextjs-vetrina` (comma list), with `--docker-apps LIST|none` for the placement and
-`--tools LIST|none` for the optional dev tools.
-Both answers live in the clone's git-ignored `.env`; re-run
-`skelet setup --apps ...` then `skelet down && skelet up` to change them. Selecting an app
-again restores its source.
+`skelet setup --apps dashboard,nextjs-vetrina` (comma list), with `--tools LIST|none` for the
+optional dev tools. Both answers live in the clone's git-ignored `.env`; re-run `skelet setup
+--apps ...` to change them. Selecting an app again restores its source.
 
 ### pnpm
 
@@ -288,9 +267,9 @@ package and the app using it resolve the same React), and the root `pnpm-lock.ya
 their one lockfile. The dashboard is a project of its own, with both files beside its
 `package.json`. A host app needs the pnpm version its
 `packageManager` field pins: `corepack enable`, or `npm install -g pnpm@<version>`, or
-`pnpm self-update <version>` over an older one. `skelet setup` refuses to start when a host
-app has no pnpm, or not the pinned one, before it writes anything - offering to run the
-frontends in Docker instead when it is interactive. `skelet doctor` checks it from inside an
+`pnpm self-update <version>` over an older one. `skelet setup` refuses to start when a
+frontend is selected and there's no pnpm, or not the pinned one, before it writes anything -
+`--backend-only` needs none. `skelet doctor` checks it from inside an
 app, because that is where pnpm switches itself to the pinned version - and on Windows a
 10.x switching itself to 12 has been seen to leave a pnpm that won't start, which
 `self-update` fixes.
@@ -303,19 +282,9 @@ dashboard or delete the lockfile and run `skelet pnpm <app> install` (the dashbo
 the root one for the storefronts). An override in `pnpm-workspace.yaml` is only for a fix the parent's range excludes - check with
 `pnpm why <pkg>` - and its comment names the parent, so it can go once that parent widens.
 
-A clone from before the switch to pnpm needs two things done once:
-
-- **Host apps**: the old npm `node_modules` has to go - `skelet setup` replaces it, and
-  `skelet pnpm` and `skelet serve` refuse to run on it with the command to use.
-- **Docker apps**: Docker fills a named volume from the image only while the volume is
-  empty, so the container keeps serving the old npm tree after a rebuild. Drop the volume
-  and rebuild:
-
-  ```bash
-  docker compose rm -sf dashboard nextjs-vetrina
-  docker volume rm skelet_dashboard-node-modules skelet_nextjs-vetrina-node-modules
-  skelet up --build
-  ```
+A clone from before the switch to pnpm has to drop the old npm `node_modules` once - `skelet
+setup` replaces it, and `skelet pnpm` and `skelet dev` refuse to run on it with the command to
+use.
 
 For the smallest possible backend-only clone, skipping even the *download* of the
 frontends' file history:

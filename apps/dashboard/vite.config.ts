@@ -52,11 +52,6 @@ export default defineConfig({
     // (still maps to all local interfaces)
     host: true,
     proxy: {
-      // API_PROXY is set to http://app:8080 inside the dashboard
-      // container; on the host it defaults to localhost:8080. Not
-      // VITE_-prefixed on purpose - read here at config time, never
-      // surfaced to the browser bundle. ws:true forwards the WebSocket
-      // upgrade for GraphQL subscriptions (live notifications).
       '/api': {
         target: process.env.API_PROXY ?? 'http://localhost:8080',
         ws: true,

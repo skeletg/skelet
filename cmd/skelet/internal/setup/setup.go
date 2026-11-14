@@ -18,10 +18,10 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/tui"
 )
 
-const Flags = "[--yes] [--all | --backend-only | --apps LIST|none] [--docker-apps LIST|none] [--tools LIST|none] [--keep-code] [--profile FILE]"
+const Flags = "[--yes] [--all | --backend-only | --apps LIST|none] [--tools LIST|none] [--keep-code] [--profile FILE]"
 
 const About = `The guided first run, and safe to re-run - each run defaults to how the clone is set up now,
-read from .env and the env files. It asks which frontends this clone runs and whether in Docker or on the host, the
+read from .env and the env files. It asks which frontends this clone runs - they run on the host, with skelet dev - the
 target (dev, small or prod), the suites, the search engine, the payment gateways, whether to hide
 the admin API and which dev tools to run. Then it writes that target's env files with generated
 secrets - a value that isn't a placeholder is never replaced - the root .env, plugins.json and the
@@ -30,7 +30,6 @@ admin login.
 
   --all, --backend-only, --apps LIST|none   which frontends this clone runs - the backend always does. A
                                             template runs only when named, or with --all
-  --docker-apps LIST|none                   which of those run in Docker rather than on the host
   --tools LIST|none                         dev tools: mailpit, webhook-tester, grafana, garage-webui
   --shop NAME, --template NAME              a storefront of your own, copied from a template (default: shop,
                                             and the template docker-compose.yml runs) - offered when you have none
@@ -153,9 +152,6 @@ func review(a answers, c catalog) [][2]string {
 		return strings.Join(l, ", ")
 	}
 	rows := [][2]string{{"target", a.target}, {"apps", list(a.apps, "backend only")}}
-	if len(a.apps) > 0 {
-		rows = append(rows, [2]string{"in Docker", list(a.dockerApps, "none - they run on the host")})
-	}
 	if a.shop != "" {
 		rows = append(rows, [2]string{"new shop", a.shop + ", copied from " + a.shopTemplate})
 	}

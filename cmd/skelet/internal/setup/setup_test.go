@@ -44,6 +44,13 @@ func fixture(t *testing.T) string {
 		copyFile(f)
 	}
 	mkfile(t, root, plugins.Dir+"/example/plugin.go", "package example\nfunc init() { sdk.RegisterPlugin(nil) }\n")
+	// The frontends run on the host, so setup asks for a pnpm before it writes anything
+	bin := t.TempDir()
+	mkfile(t, bin, "pnpm", "#!/bin/sh\necho 12.6.0\n")
+	if err := os.Chmod(filepath.Join(bin, "pnpm"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	mkfile(t, root, plugins.Dir+"/payment-stub/plugin.go", "package stub\nfunc init() { sdk.RegisterPlugin(nil) }\n")
 	return root
 }
@@ -60,7 +67,7 @@ func mkfile(t *testing.T, root, rel, body string) {
 }
 
 func dev() answers {
-	return answers{target: "dev", signals: true, ai: true, search: "opensearch", apps: []string{"dashboard"}, dockerApps: []string{"dashboard"}}
+	return answers{target: "dev", signals: true, ai: true, search: "opensearch", apps: []string{"dashboard"}}
 }
 
 func write(t *testing.T, root string, a answers) written {
@@ -149,7 +156,7 @@ func TestDevWritesWhatTheBackendAccepts(t *testing.T) {
 		}
 	}
 	prof := profile.Current(root)
-	if prof[kTarget] != "dev" || prof[kApps] != "dashboard" || prof[kDocker] != "dashboard" {
+	if prof[kTarget] != "dev" || prof[kApps] != "dashboard" {
 		t.Errorf("the clone's .env records %v", prof)
 	}
 }
@@ -342,8 +349,7 @@ func TestSearchAndAdminSlugFollowTheAnswerBothWays(t *testing.T) {
 		t.Errorf("slug %q", w.adminSlug)
 	}
 	d := env(t, root, ".env")
-	if d["ADMIN_API_SLUG"] != w.adminSlug || d["VITE_GRAPHQL_URL"] != "/api/admin/"+w.adminSlug+"/graphql" ||
-		d["GRAPHQL_CODEGEN_URL"] != "http://app:8080/api/admin/"+w.adminSlug+"/graphql" {
+	if _, codegen := d["GRAPHQL_CODEGEN_URL"]; d["ADMIN_API_SLUG"] != w.adminSlug || d["VITE_GRAPHQL_URL"] != "/api/admin/"+w.adminSlug+"/graphql" || codegen {
 		t.Errorf(".env slug keys: %v", d)
 	}
 
@@ -407,9 +413,9 @@ func TestPluginsJSONIsMergedInPluginsetsForm(t *testing.T) {
 
 func TestParseFlags(t *testing.T) {
 	c := catalog{storefronts: []storefronts.Storefront{{Name: "vetrina-demo", Dir: "apps/channels/vetrina-demo"}}}
-	f, err := parseFlags([]string{"--apps", "vetrina-demo,dashboard", "--docker-apps=none", "--tools", "mailpit", "--keep-code", "-y"}, c)
+	f, err := parseFlags([]string{"--apps", "vetrina-demo,dashboard", "--tools", "mailpit", "--keep-code", "-y"}, c)
 	if err != nil || !reflect.DeepEqual(f.apps, list{true, []string{"vetrina-demo", "dashboard"}}) ||
-		!reflect.DeepEqual(f.dockerApps, list{true, nil}) || !reflect.DeepEqual(f.tools, list{true, []string{"mailpit"}}) || !f.keepCode || !f.yes {
+		!reflect.DeepEqual(f.tools, list{true, []string{"mailpit"}}) || !f.keepCode || !f.yes {
 		t.Errorf("parsed %+v, %v", f, err)
 	}
 	if f, _ := parseFlags([]string{"--backend-only"}, c); !f.apps.set || f.apps.items != nil {
@@ -432,7 +438,7 @@ func TestParseFlags(t *testing.T) {
 		"--tools jaeger":  `Unknown tool "jaeger" (valid: mailpit, webhook-tester, grafana, garage-webui, none)`,
 		"--profile":       "--profile needs a file",
 		"--profile /nope": "No such profile: /nope",
-		"--bogus":         "Unknown flag: --bogus (try --all, --backend-only, --apps LIST, --docker-apps LIST, --tools LIST, --shop NAME, --template NAME, --keep-code, --yes, --profile FILE)",
+		"--bogus":         "Unknown flag: --bogus (try --all, --backend-only, --apps LIST, --tools LIST, --shop NAME, --template NAME, --keep-code, --yes, --profile FILE)",
 	} {
 		if _, err := parseFlags(strings.Fields(args), c); err == nil || err.Error() != want {
 			t.Errorf("%s: %v\nwant %s", args, err, want)
@@ -442,21 +448,10 @@ func TestParseFlags(t *testing.T) {
 
 func quiet() prompter { return prompter{in: bufio.NewReader(strings.NewReader("")), out: io.Discard} }
 
-// A replayed profile with no SKELET_DOCKER_APPS keeps the placement .env has, not none
-func TestYesKeepsTheDockerPlacementTheProfileDoesntRecord(t *testing.T) {
-	root := fixture(t)
-	mkfile(t, root, ".env", "COMPOSE_PROFILES=search,dashboard\n")
-	c, _ := scan(root)
-	a, err := answer(root, c, flags{yes: true}, profile.Profile{kTarget: "dev"}, "p", quiet(), io.Discard)
-	if err != nil || !reflect.DeepEqual(a.dockerApps, []string{"dashboard"}) {
-		t.Errorf("docker apps %v, %v - want the dashboard kept in Docker", a.dockerApps, err)
-	}
-}
-
 func TestProfileAnswers(t *testing.T) {
 	root := fixture(t)
 	c, _ := scan(root)
-	p := profile.Profile{kTarget: "small", kSignals: "false", kSearch: "postgres", kApps: "dashboard,gone", kDocker: "dashboard", kSlug: "1", kTools: "mailpit"}
+	p := profile.Profile{kTarget: "small", kSignals: "false", kSearch: "postgres", kApps: "dashboard,gone", kSlug: "1", kTools: "mailpit"}
 	a, err := answer(root, c, flags{yes: true}, p, "p", quiet(), io.Discard)
 	if err != nil || a.target != "small" || a.signals || a.search != "postgres" || !a.adminSlug ||
 		!reflect.DeepEqual(a.apps, []string{"dashboard"}) || !a.fromProfile || a.prune || !reflect.DeepEqual(a.tools, []string{"mailpit"}) {
@@ -472,7 +467,7 @@ func TestProfileAnswers(t *testing.T) {
 func TestRunReplaysAProfileIntoTheEnv(t *testing.T) {
 	root := fixture(t)
 	replay := filepath.Join(t.TempDir(), "shop.profile")
-	body := "SKELET_TARGET=prod\nSKELET_APPS_SELECTED=dashboard\nSKELET_DOCKER_APPS=dashboard\n"
+	body := "SKELET_TARGET=prod\nSKELET_APPS_SELECTED=dashboard\n"
 	if err := os.WriteFile(replay, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -542,15 +537,14 @@ func TestFirstShopIsOffered(t *testing.T) {
 		return prompter{on: true, in: bufio.NewReader(strings.NewReader(input)), out: out}
 	}
 	var out strings.Builder
-	// dashboard yes, both templates no, then: a shop, the second template, a bad name and a good one, then Docker
-	a, err := answer(root, c, flags{}, profile.Profile{kTarget: "dev"}, "p", ask("\nn\nn\ny\n2\nShop!\neu-shop\ny\n"+strings.Repeat("\n", 40), &out), &out)
+	// dashboard yes, both templates no, then: a shop, the second template, a bad name and a good one
+	a, err := answer(root, c, flags{}, profile.Profile{kTarget: "dev"}, "p", ask("\nn\nn\ny\n2\nShop!\neu-shop\n"+strings.Repeat("\n", 40), &out), &out)
 	if err != nil || a.shop != "eu-shop" || a.shopTemplate != "astro-shop" ||
-		!slices.Contains(a.apps, "eu-shop") || !slices.Contains(a.dockerApps, "eu-shop") || !strings.Contains(out.String(), `"Shop!" won't do`) {
+		!slices.Contains(a.apps, "eu-shop") || !strings.Contains(out.String(), `"Shop!" won't do`) {
 		t.Errorf("answers %+v, %v\n%s", a, err, out.String())
 	}
 	// Flags need no terminal, and name the shop "shop" when only the template is given
-	docker := list{true, []string{"dashboard"}}
-	a, err = answer(root, c, flags{yes: true, template: "nextjs-vetrina", dockerApps: docker}, profile.Profile{kTarget: "dev"}, "p", quiet(), io.Discard)
+	a, err = answer(root, c, flags{yes: true, template: "nextjs-vetrina"}, profile.Profile{kTarget: "dev"}, "p", quiet(), io.Discard)
 	if err != nil || a.shop != "shop" || a.shopTemplate != "nextjs-vetrina" || !slices.Contains(a.apps, "shop") {
 		t.Errorf("--template alone: %+v, %v", a, err)
 	}
@@ -590,14 +584,14 @@ func TestRunMakesTheShop(t *testing.T) {
 	root := fixture(t)
 	var made []string
 	forkShop = func(root, name, template string) int {
-		if _, ok := profile.Current(root).Get(kDocker); !ok {
+		if _, ok := profile.Current(root).Get(kApps); !ok {
 			t.Error("the shop was made before the selection was written")
 		}
 		made = append(made, name+" from "+template)
 		return 0
 	}
 	t.Cleanup(func() { forkShop = scaffold.Fork })
-	if code := Run(root, []string{"--yes", "--no-boot", "--docker-apps", "dashboard", "--shop", "mine"}); code != 0 {
+	if code := Run(root, []string{"--yes", "--no-boot", "--apps", "dashboard", "--shop", "mine"}); code != 0 {
 		t.Fatalf("exit %d", code)
 	}
 	if !slices.Equal(made, []string{"mine from "}) {
@@ -608,7 +602,7 @@ func TestRunMakesTheShop(t *testing.T) {
 	}
 	// A copy that fails stops setup there
 	forkShop = func(string, string, string) int { return 1 }
-	if code := Run(root, []string{"--yes", "--no-boot", "--docker-apps", "dashboard", "--shop", "other"}); code != 1 {
+	if code := Run(root, []string{"--yes", "--no-boot", "--apps", "dashboard", "--shop", "other"}); code != 1 {
 		t.Errorf("a failed copy: exit %d", code)
 	}
 }
@@ -652,7 +646,7 @@ func TestCurrentReadsTheAnswersOffTheFiles(t *testing.T) {
 	c, _ := scan(root)
 	got := current(root, c)
 	for k, want := range map[string]string{
-		kTarget: "dev", kApps: "dashboard", kDocker: "dashboard", kTools: "mailpit",
+		kTarget: "dev", kApps: "dashboard", kTools: "mailpit",
 		kSignals: "false", kAI: "true", kSearch: "postgres", kSlug: "1", kGates: "payment-stub",
 	} {
 		if got[k] != want {

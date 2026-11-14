@@ -37,7 +37,6 @@ func Write(root string, a answers, c catalog, rnd io.Reader, out io.Writer) (wri
 	path := func(rel string) string { return filepath.Join(root, rel) }
 
 	fmt.Fprintf(out, "==> Apps: %s\n", orNone(a.apps, "backend only"))
-	fmt.Fprintf(out, "    in Docker: %s\n", orNone(a.dockerApps, "none - they run on the host with `skelet serve <app>`"))
 	fmt.Fprintf(out, "==> Dev tools: %s  (start one ad hoc with skelet up <name>)\n", orNone(a.tools, "none"))
 	fmt.Fprintf(out, "==> Shape: %s, signals=%t ai=%t, search=%s\n", a.target, a.signals, a.ai, a.search)
 
@@ -115,9 +114,7 @@ func Write(root string, a answers, c catalog, rnd io.Reader, out io.Writer) (wri
 		}
 		e.set(knobs, "ADMIN_API_SLUG", w.adminSlug)
 		e.set(".env", "VITE_GRAPHQL_URL", "/api/admin/"+w.adminSlug+"/graphql")
-		if a.target == "dev" {
-			e.set(".env", "GRAPHQL_CODEGEN_URL", "http://app:8080/api/admin/"+w.adminSlug+"/graphql")
-		}
+		e.del(".env", "GRAPHQL_CODEGEN_URL")
 	} else {
 		// All three read ${VAR:-default} in compose, so deleting them puts the API back at /api/admin/graphql
 		for _, k := range []string{"ADMIN_API_SLUG", "VITE_GRAPHQL_URL", "GRAPHQL_CODEGEN_URL"} {
@@ -130,7 +127,7 @@ func Write(root string, a answers, c catalog, rnd io.Reader, out io.Writer) (wri
 	e.set(".env", profile.EnvTarget, a.target)
 	e.set(".env", profile.EnvApps, join(a.apps))
 	if a.target == "dev" {
-		e.set(".env", profile.EnvProfiles, profile.DevProfiles(a.dockerApps, a.tools, a.signals))
+		e.set(".env", profile.EnvProfiles, profile.DevProfiles(a.tools, a.signals))
 	} else {
 		e.deployment(a, c, backend, files)
 	}

@@ -17,9 +17,8 @@ import (
 type Lib struct {
 	root     string
 	Profiles string
-	// Apps is what runs in Docker, Tools the dev tools in effect - SKELET_TOOLS when set, even empty, else .env's.
 	// Picked is .env's whatever is in effect, so a --lean run doesn't unwire the tools it leaves out
-	Apps, Tools, Picked string
+	Tools, Picked string
 }
 
 // Load works the profiles out. Set-but-empty and unset differ: SKELET_SIDECARS= is --lean, while an unset one means
@@ -31,9 +30,8 @@ func LoadLean(root string) Lib { return load(root, true) }
 
 func load(root string, lean bool) Lib {
 	cur := profile.Current(root)
-	docker, _ := cur.List(profile.DockerKey)
 	tools, _ := cur.List(profile.ToolsKey)
-	l := Lib{root: root, Apps: strings.Join(docker, ","), Picked: strings.Join(tools, ",")}
+	l := Lib{root: root, Picked: strings.Join(tools, ",")}
 	l.Tools = l.Picked
 	if v, ok := os.LookupEnv("SKELET_TOOLS"); ok {
 		l.Tools = v
@@ -46,7 +44,7 @@ func load(root string, lean bool) Lib {
 		sidecars, l.Tools = "", ""
 	}
 	var p []string
-	for _, v := range []string{sidecars, l.Apps, l.Tools} {
+	for _, v := range []string{sidecars, l.Tools} {
 		if v != "" {
 			p = append(p, v)
 		}

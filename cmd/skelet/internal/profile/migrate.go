@@ -30,7 +30,7 @@ func Migrate(root string) (bool, error) {
 		if err != nil {
 			return false, err
 		}
-		docker, hasDocker := listFile(root, oldFiles[1], old, DockerKey)
+		_, hasDocker := listFile(root, oldFiles[1], old, "SKELET_DOCKER_APPS")
 		tools, hasTools := listFile(root, oldFiles[2], old, ToolsKey)
 		target := old[TargetKey]
 		if target == "" {
@@ -41,7 +41,7 @@ func Migrate(root string) (bool, error) {
 			set = append(set, [2]string{EnvApps, apps})
 		}
 		if _, ok, _ := envfile.Get(env, EnvProfiles); target == "dev" && !ok && (hasDocker || hasTools) {
-			set = append(set, [2]string{EnvProfiles, DevProfiles(docker, tools, SignalsOn(root))})
+			set = append(set, [2]string{EnvProfiles, DevProfiles(tools, SignalsOn(root))})
 		}
 		for _, kv := range set {
 			if err := envfile.Set(env, kv[0], kv[1]); err != nil {
