@@ -83,6 +83,29 @@ func TestAPrivateStoreAnyoneCanReadStopsProductionAndWarnsInDevelopment(t *testi
 	}
 }
 
+func TestAPrivateStoreThatCannotBeReachedStopsOnlyProduction(t *testing.T) {
+	gone := httptest.NewServer(http.NotFoundHandler())
+	gone.Close()
+	for name, value := range map[string]string{
+		"STORAGE_DRIVER": objstore.DriverS3, "S3_BUCKET_NAME": "media", "S3_ENDPOINT_URL": gone.URL, "S3_USE_PATH_STYLE": "true",
+		objstore.PrivateBucketEnv: "private", "AWS_ACCESS_KEY_ID": "test", "AWS_SECRET_ACCESS_KEY": "test", "AWS_MAX_ATTEMPTS": "1",
+	} {
+		t.Setenv(name, value)
+	}
+	media, err := objstore.New(context.Background(), objstore.FromEnv())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := newPrivateStorage(RootContext{context.Background()}, Config{Env: "production"}, media); err == nil {
+		t.Fatal("production with a private store it can't reach started anyway")
+	}
+	got, err := newPrivateStorage(RootContext{context.Background()}, Config{Env: "development"}, media)
+	if err != nil || got.Storage == media || got.Storage == nil {
+		t.Fatalf("development with a private store that isn't up yet: err=%v, want it up, warned, and still on its own store", err)
+	}
+}
+
 func TestOnlyAPrivateDirectoryGetsItsOwnUploadRoute(t *testing.T) {
 	vault := filepath.Join(t.TempDir(), "vault")
 	media, _ := privateRig(t, vault, nil)

@@ -122,6 +122,9 @@ func newPrivateStorage(rc RootContext, wcfg Config, media objstore.Storage) (Pri
 	switch {
 	case errors.Is(err, objstore.ErrPrivateReadable) && wcfg.IsDev():
 		slog.Warn("the private store is readable without credentials - production refuses to start like this", "err", err)
+	// A store that isn't up - Garage not started, say - leaves development running, and only what needs it fails
+	case err != nil && wcfg.IsDev():
+		slog.Warn("the private store couldn't be checked - production refuses to start like this", "err", err)
 	case err != nil:
 		return PrivateStorage{}, fmt.Errorf("private store: %w", err)
 	}
