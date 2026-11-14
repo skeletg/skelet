@@ -7,12 +7,8 @@ import { ErrorLink } from '@apollo/client/link/error'
 import { HttpLink } from '@apollo/client/link/http'
 import { GraphQLWsLink } from '@apollo/client/link/subscriptions'
 import { createClient as createWsClient } from 'graphql-ws'
-import {
-  getAccessToken,
-  getAuthStoredState,
-  setAuthStoredState,
-  type AuthState,
-} from '@/shared/auth/auth'
+import { getAccessToken, setAuthStoredState } from '@/shared/auth/auth'
+import { refreshSession } from '@/shared/auth/refresh'
 import { getEffectiveLocale } from '@/lib/locale-store'
 import { getEffectiveChannelId } from '@/lib/channel-store'
 import { devMonitorLink } from '@/lib/dev-monitor'
@@ -59,63 +55,6 @@ const channelLink = new SetContextLink((prevContext) => {
   }
 })
 
-// ---------- Silent refresh ---------- Access tokens live 15 min - on an unauthenticated error, exchange the refresh
-// token and retry - Concurrent 401s share one refresh promise, so the server sees one call per wave
-
-const REFRESH_MUTATION = /* GraphQL */ `
-  mutation RefreshToken($token: String!) {
-    refreshToken(token: $token) {
-      accessToken
-      refreshToken
-      admin {
-        id
-        email
-        firstName
-        lastName
-        isSuperuser
-        roles {
-          id
-          slug
-          name
-        }
-      }
-    }
-  }
-`
-
-let refreshPromise: Promise<AuthState | null> | null = null
-
-async function performRefresh(): Promise<AuthState | null> {
-  const auth = getAuthStoredState()
-  if (!auth?.refreshToken) return null
-  try {
-    const res = await fetch(ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query: REFRESH_MUTATION,
-        variables: { token: auth.refreshToken },
-      }),
-    })
-    const json = await res.json()
-    if (!res.ok || json.errors || !json.data?.refreshToken) return null
-    const p = json.data.refreshToken as AuthState
-    setAuthStoredState(p)
-    return p
-  } catch {
-    return null
-  }
-}
-
-function getOrStartRefresh(): Promise<AuthState | null> {
-  if (!refreshPromise) {
-    refreshPromise = performRefresh().finally(() => {
-      refreshPromise = null
-    })
-  }
-  return refreshPromise
-}
-
 function isUnauthError(error: unknown): boolean {
   if (!error) return false
   if (CombinedGraphQLErrors.is(error)) {
@@ -142,7 +81,7 @@ const errorLink = new ErrorLink(({ error, operation, forward }) => {
   if (!isUnauthError(error)) return
 
   return new Observable<import('@apollo/client').ApolloLink.Result>((observer) => {
-    getOrStartRefresh().then((next) => {
+    refreshSession().then((next) => {
       if (!next) {
         setAuthStoredState(null)
         observer.error(error)

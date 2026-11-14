@@ -22,6 +22,11 @@ import (
 // Files move over HTTP rather than GraphQL: a multipart upload streams straight into the object store, and a
 // download streams straight back out, neither ever becoming a base64 string in a JSON document
 
+const (
+	dataJobsPath     = "/api/admin/data/jobs/"
+	dataTemplatePath = "/api/admin/data/template"
+)
+
 const dataImportPath = "/api/admin/data/import" // exempt from the global body cap in http.go - that cap is sized for JSON payloads, and this store's own export is well past it
 
 const maxImportUpload = 200 << 20 // bigger than any sane spreadsheet, small enough that a mis-click can't fill the disk
@@ -50,6 +55,19 @@ func (f failAfter) Read(p []byte) (int, error) {
 
 func forbidden(w http.ResponseWriter) { http.Error(w, "forbidden", http.StatusForbidden) }
 
+// 401 for no session, so the dashboard renews it and asks again, 403 for a missing grant, 502 when the grants couldn't be read
+func refuse(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, auth.ErrUnauthenticated):
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	case errors.Is(err, auth.ErrForbidden), errors.Is(err, auth.ErrAdminOnly):
+		forbidden(w)
+	default:
+		slog.Error("admin route: checking the caller's grants", "err", err)
+		http.Error(w, "couldn't check your permissions", http.StatusBadGateway)
+	}
+}
+
 func holdsAnywhere(r *http.Request, adminSvc *admin.Service, slug string) bool {
 	return auth.HoldsAnywhere(r.Context(), adminSvc, slug)
 }
@@ -65,7 +83,7 @@ func dataImportHandler(svc *datajob.Service, adminSvc *admin.Service) http.Handl
 			return
 		}
 		if err := auth.RequirePermission(r.Context(), adminSvc, "data.view"); err != nil {
-			forbidden(w)
+			refuse(w, err)
 			return
 		}
 		// This route is exempt from the global body cap, so bound it here: ParseMultipartForm spills non-file parts past its memory budget to disk, and without a ceiling a request made entirely of form FIELDS (no file part, so `capped` never sees it) fills the disk
@@ -178,7 +196,7 @@ func isTruthy(s string) bool {
 func dataDownloadHandler(svc *datajob.Service, adminSvc *admin.Service) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := auth.RequirePermission(r.Context(), adminSvc, "data.view"); err != nil {
-			forbidden(w)
+			refuse(w, err)
 			return
 		}
 		id, err := uuid.Parse(jobIDFromPath(r.URL.Path))
@@ -223,7 +241,7 @@ func dataDownloadHandler(svc *datajob.Service, adminSvc *admin.Service) http.Han
 func dataTemplateHandler(svc *datajob.Service, adminSvc *admin.Service) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := auth.RequirePermission(r.Context(), adminSvc, "data.view"); err != nil {
-			forbidden(w)
+			refuse(w, err)
 			return
 		}
 		slug := r.URL.Query().Get("resource")

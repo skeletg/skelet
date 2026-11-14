@@ -255,12 +255,17 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	adminAuth := func(h http.Handler) http.Handler {
 		return authpkg.AdminMiddleware(infra.Config.AdminKeys)(integration.Middleware(s.Integration)(authpkg.AdminSessionGuard(s.AdminRefresh.RefreshStore)(h)))
 	}
+	// The routes that hand out a file also take a download ticket, so the browser can save it straight to disk
+	fileAuth := func(h http.Handler) http.Handler {
+		return authpkg.AdminMiddleware(infra.Config.AdminKeys)(authpkg.DownloadTicket(infra.Config.AdminKeys)(integration.Middleware(s.Integration)(authpkg.AdminSessionGuard(s.AdminRefresh.RefreshStore)(h))))
+	}
+	mux.Handle(downloadTicketPath, otelx.WrapHTTP(adminAuth(downloadTicketHandler(infra.Config.AdminKeys)), "download.ticket"))
 	mux.Handle(dataImportPath, otelx.WrapHTTP(adminAuth(dataImportHandler(s.DataJob, s.Admin)), "data.import"))
-	mux.Handle("/api/admin/data/template", otelx.WrapHTTP(adminAuth(dataTemplateHandler(s.DataJob, s.Admin)), "data.template"))
-	mux.Handle("/api/admin/data/jobs/", otelx.WrapHTTP(adminAuth(dataDownloadHandler(s.DataJob, s.Admin)), "data.download"))
+	mux.Handle(dataTemplatePath, otelx.WrapHTTP(fileAuth(dataTemplateHandler(s.DataJob, s.Admin)), "data.template"))
+	mux.Handle(dataJobsPath, otelx.WrapHTTP(fileAuth(dataDownloadHandler(s.DataJob, s.Admin)), "data.download"))
 	// SVG can't use the GraphQL presign path - see media_svg_http.go for why the bytes come here first
 	mux.Handle(mediaSVGPath, otelx.WrapHTTP(adminAuth(mediaSVGHandler(s.MediaLibrary, s.Admin)), "media.svg"))
-	mux.Handle(mediaFilePath, otelx.WrapHTTP(adminAuth(mediaFileHandler(s.MediaLibrary, s.Admin)), "media.file"))
+	mux.Handle(mediaFilePath, otelx.WrapHTTP(fileAuth(mediaFileHandler(s.MediaLibrary, s.Admin)), "media.file"))
 
 	adminMCPOn, frontMCPOn := mcpSwitches()
 	if adminMCPOn {

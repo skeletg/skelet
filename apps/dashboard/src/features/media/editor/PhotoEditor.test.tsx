@@ -102,7 +102,7 @@ describe('PhotoEditor', () => {
     const { fetching } = open()
     expect((await size()).textContent).toBe('1200 × 800 px')
     const [url, init] = fetching.mock.calls[0] as unknown as [string, { headers: Record<string, string> }]
-    expect([url, init.headers.Authorization]).toEqual(['/api/admin/media/file/boot', 'Bearer tok'])
+    expect([url, init.headers.authorization]).toEqual(['/api/admin/media/file/boot', 'Bearer tok'])
     expect(screen.getByTestId('stage').dataset.src).toBe('blob:original')
     expect(within(editor()).getByText('Edit boot.jpg')).toBeDefined()
     expect(save().disabled).toBe(true)

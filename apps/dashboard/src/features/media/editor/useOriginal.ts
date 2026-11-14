@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { ADMIN_MEDIA_FILE_ENDPOINT } from '@/lib/api-endpoint'
-import { getAuthStoredState } from '@/shared/auth/auth'
+import { mediaFileUrl } from '@/lib/api-endpoint'
+import { fetchWithSession } from '@/lib/authed-download'
 
 type Original = { url: string | null; error: string | null }
 
@@ -10,8 +10,7 @@ export function useOriginal(assetId: string): Original {
   useEffect(() => {
     const stop = new AbortController()
     let url: string | null = null
-    const token = getAuthStoredState()?.accessToken
-    fetch(`${ADMIN_MEDIA_FILE_ENDPOINT}/${assetId}`, { headers: token ? { Authorization: `Bearer ${token}` } : undefined, signal: stop.signal })
+    fetchWithSession(mediaFileUrl(assetId), { signal: stop.signal })
       .then((res) => (res.ok ? res.blob() : Promise.reject(new Error(res.status === 415 ? "This kind of file can't be edited." : `The picture couldn't be opened (HTTP ${res.status}).`))))
       .then((blob) => {
         url = URL.createObjectURL(blob)

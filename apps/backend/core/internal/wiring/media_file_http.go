@@ -25,7 +25,7 @@ func mediaFileHandler(lib *medialibrary.Service, adminSvc *admin.Service) http.H
 	})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := auth.RequirePermission(r.Context(), adminSvc, "media.view"); err != nil {
-			forbidden(w)
+			refuse(w, err)
 			return
 		}
 		serve(w, r)

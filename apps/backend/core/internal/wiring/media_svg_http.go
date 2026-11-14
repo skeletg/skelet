@@ -28,7 +28,7 @@ func mediaSVGHandler(lib *medialibrary.Service, adminSvc *admin.Service) http.Ha
 		}
 		// the same grant the GraphQL upload mutation wants - this is another door to one action
 		if err := auth.RequirePermission(r.Context(), adminSvc, "media.manage"); err != nil {
-			forbidden(w)
+			refuse(w, err)
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, maxSVGUpload)

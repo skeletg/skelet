@@ -118,7 +118,7 @@ describe('useMediaUpload', () => {
     expect(progress).toEqual([1])
     expect(requested).toEqual([])
     const [url, init] = fetchMock.mock.calls[0] as [string, { method: string; headers: Record<string, string>; body: FormData }]
-    expect([url, init.method, init.headers.Authorization]).toEqual([ADMIN_MEDIA_SVG_ENDPOINT, 'POST', 'Bearer tok'])
+    expect([url, init.method, init.headers.authorization]).toEqual([ADMIN_MEDIA_SVG_ENDPOINT, 'POST', 'Bearer tok'])
     expect(init.body.get('path')).toBe('brand')
   })
 

@@ -3,7 +3,7 @@ import { useMutation } from '@apollo/client/react'
 import { ADMIN_MEDIA_SVG_ENDPOINT } from '@/lib/api-endpoint'
 import { readImageDimensions } from '@/lib/image'
 import { putToSignedUrlWithProgress } from '@/lib/upload'
-import { getAuthStoredState } from '@/shared/auth/auth'
+import { fetchWithSession } from '@/lib/authed-download'
 import { ConfirmMediaAssetUploadDocument, RequestMediaAssetUploadDocument, type MediaAssetFieldsFragment } from './MediaLibrary.gql'
 
 export type UploadedImage = { assetId: string; url: string }
@@ -18,12 +18,7 @@ export function useMediaUpload(path: string) {
         const body = new FormData()
         body.append('file', file)
         body.append('path', path)
-        const token = getAuthStoredState()?.accessToken
-        const res = await fetch(ADMIN_MEDIA_SVG_ENDPOINT, {
-          method: 'POST',
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-          body,
-        })
+        const res = await fetchWithSession(ADMIN_MEDIA_SVG_ENDPOINT, { method: 'POST', body })
         const payload = (await res.json().catch(() => null)) as { id?: string; url?: string; error?: string } | null
         if (!res.ok || !payload?.id || !payload.url) throw new Error(payload?.error ?? `Upload failed (HTTP ${res.status}).`)
         onProgress(1)
