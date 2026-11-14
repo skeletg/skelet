@@ -7,7 +7,7 @@ import { ErrorLink } from '@apollo/client/link/error'
 import { HttpLink } from '@apollo/client/link/http'
 import { GraphQLWsLink } from '@apollo/client/link/subscriptions'
 import { createClient as createWsClient } from 'graphql-ws'
-import { getAccessToken, setAuthStoredState } from '@/shared/auth/auth'
+import { getAccessToken, onAdminChange, setAuthStoredState } from '@/shared/auth/auth'
 import { refreshSession } from '@/shared/auth/refresh'
 import { getEffectiveLocale } from '@/lib/locale-store'
 import { getEffectiveChannelId } from '@/lib/channel-store'
@@ -148,4 +148,10 @@ export const apolloClient = new ApolloClient({
     watchQuery: { fetchPolicy: 'network-only', nextFetchPolicy: 'network-only' },
     query: { fetchPolicy: 'network-only' },
   },
+})
+
+// The cache holds what the admin before could see: a sign-out empties it, someone else signing in reloads the tab
+onAdminChange((before, now) => {
+  if (before && now) window.location.reload()
+  else void apolloClient.clearStore().catch(() => {})
 })
