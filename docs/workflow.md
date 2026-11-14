@@ -63,10 +63,11 @@ It can only see what Go and vitest can trace. A test that depends on the date, o
 
 ## Docker setup
 
-Three compose files - `docker-compose.yml` is the dev stack (`docker compose
-up` is enough, no `-f` needed), `docker-compose.small.yml` the one-box tenant and
-`docker-compose.prod.yml` the split-tier shape. Both deployment files carry a Caddy
-edge behind `--profile edge`; leave the profile off to put your own proxy in front.
+`docker-compose.yml` is the dev stack (`docker compose up` is enough, no `-f`
+needed). On a server each backend has its own `compose.yaml` under
+`apps/backend/`, and `docker-compose.small.yml` and `docker-compose.prod.yml` are
+the one-box files that include them. Both one-box files carry a Caddy edge behind
+`--profile edge`; leave the profile off to put your own proxy in front.
 
 **Core services**:
 - `app` - Go API, exposes :8080, mounts `./apps/backend` → `/var/www/backend` and works from `core/` under it.

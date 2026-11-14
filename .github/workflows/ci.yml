@@ -140,7 +140,7 @@ jobs:
       - id: list
         run: |
           # Both Go images build from apps/backend as a whole, since the modules replace each other by relative path
-          images='{"image":"backend","context":"apps/backend","file":"apps/backend/core/Dockerfile.prod"},{"image":"signals","context":"apps/backend","file":"apps/backend/signals/Dockerfile.prod"},{"image":"dashboard","context":"apps/dashboard"}'
+          images='{"image":"core","context":"apps/backend","file":"apps/backend/core/Dockerfile.prod"},{"image":"signals","context":"apps/backend","file":"apps/backend/signals/Dockerfile.prod"},{"image":"dashboard","context":"apps/dashboard"}'
           for d in apps/channels/*/ templates/*/; do
             d=${d%/}
             [ -f "$d/package.json" ] && [ -f "$d/Dockerfile.prod" ] || continue

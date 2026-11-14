@@ -1,75 +1,96 @@
 # Deploying
 
-Two shapes, same images - the difference is env, not a build. Both bind every
-service to loopback, so something has to sit in front and terminate TLS.
+Each backend deploys on its own, the way it would from a repo of its own: core
+and Signals each have a `compose.yaml` and a `.env.example` at their root, beside
+their `Dockerfile.prod`. They know each other only by the addresses in those
+files, so they can share a box or sit on different servers. Every service binds
+to loopback by default, so something has to sit in front and terminate TLS.
 
-## The two shapes
-
-`docker-compose.small.yml` is the minimum deployable tenant: one app container
-running every backend role (API, WS, media transforms, scheduler, webhook
-delivery, outbox relay) and one Postgres. No Valkey, no NATS, no OpenSearch, and
-no Signals - the suite, with the ClickHouse its spine lives in, is the prod
-shape's. Its ports are offset (18080/18081/13000/15432) so it runs beside the
-dev stack.
+## One backend
 
 ```bash
-cp env/small.env.example env/small.env
-cp env/small-nextjs-vetrina.env.example env/small-nextjs-vetrina.env
-cp .env.example .env    # session and link keys, SIGNALS_SERVICE_SECRET, CONFIG_ENCRYPTION_KEY, DB_PASSWORD - skelet setup fills them
-docker compose -f docker-compose.small.yml up -d
+cd apps/backend/core          # or apps/backend/signals
+cp .env.example .env          # fill it in - skelet setup does it for you
+docker compose up -d
 ```
 
+That `.env` holds everything the app reads, secrets included. `COMPOSE_PROFILES`
+in it starts the datastores it can bring along - `bundled` for Postgres (and
+ClickHouse on Signals), `valkey` for the Valkeys - and drops one once you point
+its URL at a managed instance. A new image is a new `CORE_IMAGE` or
+`SIGNALS_IMAGE` line and another `docker compose up -d`, which touches nothing
+else.
+
+Across machines, the addresses are settings:
+
+| On | Setting | Points at |
+|---|---|---|
+| core | `SIGNALS_GRPC_ADDR` | Signals' contract, port 8092 |
+| core | `SIGNALS_INGEST_URL`, `SIGNALS_URL` | Signals' `/t` and `/e`, port 8090 |
+| Signals | `CORE_FRONT_API_URL` | core's storefront API |
+| Signals | `INGEST_FALLBACK_URL` | core, for the beacons only it answers |
+| Signals | `VALKEY_URL` | core's primary Valkey - optional, it's how Signals hears about revoked admin sessions at once |
+
+Signals publishes 8090, 8091 and 8092 on `SIGNALS_BIND` (loopback by default) -
+set it to an address core can reach. The contract runs plaintext unless TLS is
+on ([env.md](env.md)); put the two on a private network either way.
+
+## One box
+
+`docker-compose.prod.yml` includes both backends, each still reading its own
+`.env`, plus the frontends and the optional edge. `docker compose -f
+docker-compose.prod.yml up -d` starts it all, and naming services redeploys
+only those: `docker compose -f docker-compose.prod.yml up -d signals ingest`.
+
+The root `.env` is read first and wins over the backends' own, so it holds only
+what the frontend blocks and the edge use. `skelet setup` with the prod target
+writes all three files and moves any backend key it finds in the root one.
+
+`docker-compose.small.yml` is the minimum deployable tenant: core alone, its
+`.env` set so one app container runs every backend role (API, WS, media
+transforms, scheduler, webhook delivery, outbox relay) against one Postgres - no
+worker or media replicas, `JOBS_EXTERNAL=false`, `VALKEY_URL` empty. No NATS, no
+OpenSearch and no Signals. Its ports are offset (18080/18081/13000) so it runs
+beside the dev stack, and `skelet setup` with the small target writes it.
+
 Each storefront runs under a compose profile of its own name, so the demo one
-also needs `COMPOSE_PROFILES=bundled,nextjs-vetrina` in `.env`. `skelet setup`
-with the small or prod target does all of this for the storefronts you pick: it
-copies only their env files, turns their profiles on, and points
-`STOREFRONT_REVALIDATE_URL` and the edge at the one it serves.
+also needs `nextjs-vetrina` in the root `.env`'s `COMPOSE_PROFILES`. `skelet
+setup` copies only the env files of the storefronts you pick, turns their
+profiles on, and points `STOREFRONT_REVALIDATE_URL` and the edge at the one it
+serves.
 
-`docker-compose.prod.yml` is the full shape: the tiers split into their own
-containers (worker, media, signals, ingest), pgbouncer per database, three split
-Valkeys (primary, cache, rate limits), ClickHouse for the spine, and the optional
-NATS profile. Same env contract - secrets in the root `.env`, everything else in `env/prod.env`, plus an optional
-`env/prod-signals.env` for what only the Signals process reads (the retention
-archive's bucket, `CORE_FRONT_API_URL`). `skelet release`
-builds and pushes the four images it reads: the backend (`APP_IMAGE`, also the
-worker and media tiers), the Signals module (`SIGNALS_IMAGE`, the signals and
-ingest tiers plus the ClickHouse schema), the dashboard and each storefront.
-
-Scaling from one to the other is that env changing: set `VALKEY_URL` for
-multi-replica, then `JOBS_EXTERNAL` to split the
-background tiers back out.
+`skelet release <app>...` builds and pushes the images you name - `core`,
+`signals`, `dashboard` or a storefront - and prints the line each `.env` takes.
 
 Both shapes need a second bucket besides the media one, with no public access,
 named in `PRIVATE_S3_BUCKET` - exports, uploads and private media live there,
 and production won't start without it. [env.md](env.md#private-store) has what
 it needs.
 
-The root `.env` is the only file docker compose interpolates, which is why the
-secrets that have to appear twice (a datastore *and* the URL reaching it) live
-there rather than in `env/`. Everything else is bulk config handed to one
-container through `env_file:`. See [env.md](env.md).
-
 ## Managed datastores
 
-The bundled Postgres, pgbouncer, Valkey and ClickHouse containers sit behind the
-`bundled` compose profile, and `.env.example` ships `COMPOSE_PROFILES=bundled` - so a
-self-hosted box gets them by default and nothing changes.
+Each backend's bundled datastores sit behind profiles in its own `.env`:
+Postgres and its pooler (and ClickHouse on Signals) behind `bundled`, the
+Valkeys behind `valkey`. Both are on in `.env.example`, so a self-hosted box
+gets them by default.
 
-Moving to managed services is dropping that line and pointing the URLs outward:
+Moving one to a managed service is dropping its profile and pointing the URL
+outward, in the file of the app that uses it:
 
 ```bash
-# .env
-# COMPOSE_PROFILES=bundled          <- removed
+# apps/backend/core/.env
+COMPOSE_PROFILES=valkey             # bundled dropped - Postgres is managed now
 DATABASE_URL=postgres://...@your-managed-pg:5432/skelet?sslmode=require
+
+# apps/backend/signals/.env
+COMPOSE_PROFILES=valkey
 SIGNALS_DB_URL=postgres://...@your-managed-pg:5432/skelet_signals?sslmode=require
-VALKEY_URL=rediss://...
 SIGNALS_CH_URL=clickhouse://user:password@your-managed-ch:9440/signals?secure=true
 ```
 
-The eight containers (two Postgres, two pgbouncers, three Valkeys and ClickHouse)
-then never start, instead of idling beside the databases you are actually paying
-for. The `*_PASSWORD` lines go unused too, so leave them empty. Everything else -
-app, worker, media, signals and ingest - is the same image and the same file.
+On one box the profiles come from the root `.env` instead, since that's the
+project compose runs. The containers behind a dropped profile then never start,
+and their `*_PASSWORD` lines go unused.
 
 The signals process migrates the spine on whatever `SIGNALS_CH_URL` names as it
 boots, so the schema lands on the managed server without a second URL - a TLS
@@ -77,9 +98,9 @@ endpoint is `clickhouse://user:password@host:9440/signals?secure=true`.
 
 Two things that bite:
 
-- It's all or nothing: with `bundled` still on, every bundled container starts
-  and refuses an empty password, including the ones whose URL you pointed
-  elsewhere. Going half managed means keeping the passwords set.
+- A profile is all or nothing: with `bundled` still on, every container behind
+  it starts and refuses an empty password, including the ones whose URL you
+  pointed elsewhere. Going half managed means keeping the passwords set.
 - Every `depends_on` on those services carries `required: false`. Without it
   compose rejects the entire file the moment the profile is off, because the app
   tiers declare a dependency on a service that no longer exists.

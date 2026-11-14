@@ -137,7 +137,8 @@ func collect(root string) fileSet {
 	}
 	slices.Sort(f.dockerfiles)
 	slices.Sort(f.packageJSONs)
-	f.compose = []string{"docker-compose.yml", "docker-compose.small.yml", "docker-compose.prod.yml"}
+	f.compose = []string{"docker-compose.yml", "docker-compose.small.yml", "docker-compose.prod.yml",
+		"apps/backend/core/compose.yaml", "apps/backend/signals/compose.yaml"}
 	f.workflows, _ = filepath.Glob(filepath.Join(root, ".github", "workflows", "*.yml"))
 	for i, w := range f.workflows {
 		f.workflows[i], _ = filepath.Rel(root, w)

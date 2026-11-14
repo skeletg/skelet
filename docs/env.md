@@ -13,41 +13,45 @@ most a one-line hint. Everything that needs a paragraph lives here.
 
 ## The files
 
+On a server, each backend keeps everything it reads in one `.env` beside its
+`compose.yaml` - settings and secrets together - the way it would if it were
+its own repo:
+
 | File | Copy to | Read by |
 |---|---|---|
-| `../.env.example` | `../.env` | docker compose itself (prod and small) - see below |
+| `apps/backend/core/.env.example` | `apps/backend/core/.env` | core: `app`, `worker`, `media`, and its bundled Postgres and Valkeys |
+| `apps/backend/signals/.env.example` | `apps/backend/signals/.env` | Signals: `signals`, `ingest`, and its bundled Postgres, ClickHouse, Valkey and NATS |
+| `../.env.example` | `../.env` | the one-box files, `docker-compose.prod.yml` and `docker-compose.small.yml` - the frontends and the edge only |
 | `go.env.example` | `go.env` | core in dev (`app`, `worker`, `media`, `migrate`) |
 | `signals.env.example` | `signals.env` | the Signals processes in dev (`signals`, `ingest`) - `skelet up` writes it and copies `CUSTOMER_JWT_PUBLIC_KEY` / `EMAIL_LINK_SECRET` / `SIGNALS_SERVICE_SECRET` over from `go.env` |
 | `db.env.example` | `db.env` | the dev Postgres container |
-| `prod.env.example` | `prod.env` | `app`, `worker`, `media`, `signals`, `ingest`, `migrate` - one shared file |
-| `prod-signals.env.example` | `prod-signals.env` | `signals` only, on top of `prod.env` - the retention archive's bucket and `CORE_FRONT_API_URL`; optional |
 | `prod-nextjs-vetrina.env.example` | `prod-nextjs-vetrina.env` | the storefront container |
-| `small.env.example` | `small.env` | the single app container in the small profile |
-| `small-nextjs-vetrina.env.example` | `small-nextjs-vetrina.env` | its storefront container |
+| `small-nextjs-vetrina.env.example` | `small-nextjs-vetrina.env` | its storefront container in the small profile |
 | `prod-caddy.env.example` | `prod-caddy.env` | the opt-in Caddy edge (`--profile edge`), in both prod and small |
 
-The two `small.*` files belong to `docker-compose.small.yml`, the
-minimum deployable tenant (one app container, one Postgres, no Valkey /
-NATS / ClickHouse / OpenSearch). They follow the same split as the prod
-pair: secrets and DSNs come from the root `.env`, everything else from
-the file.
+The small profile is core's `compose.yaml` with its `.env` set small: no worker
+or media replicas, `JOBS_EXTERNAL=false` and `VALKEY_URL` empty, so one app
+container does every job against Postgres alone. `skelet setup` with the small
+target writes those for you.
 
-### Why the root .env exists
+A few values have to match across apps, and `skelet setup` writes the same one
+into each: `SIGNALS_SERVICE_SECRET`, `EMAIL_LINK_SECRET`, `CUSTOMER_JWT_PUBLIC_KEY`
+and `TRUSTED_PROXY_KEY` between core and Signals, and `REVIEW_VOTER_TOKEN_SECRET`,
+`STOREFRONT_REVALIDATE_SECRET` and `TRUSTED_PROXY_KEY` between core and the
+storefront.
 
-Compose interpolates `${VAR}` from the root `.env` (or the shell) and from
-nowhere else - never from an `env_file`. That's the whole reason it's a
-separate file.
+### How a backend's .env works
 
-Passwords are the one thing that has to appear twice: once on the
-datastore container, once inside the URL that connects to it. Putting them
-in the root `.env` lets compose derive both from a single value, so they
-can't drift. A file per datastore would mean keeping each password in step
-with a DSN in `prod.env` by hand, which is the failure this avoids.
+Compose reads the `.env` beside a `compose.yaml` twice: to fill in `${VAR}` in
+the file, and, through `env_file:`, as the containers' environment. The first
+is what lets a password appear once and land in two places - on the datastore
+container and inside the URL that reaches it - so the two can't drift.
 
-The split is: secrets in the root `.env`, everything else in
-`env/prod.env`.
+When the one-box files include both backends, the root `.env` is read first and
+wins over the backends' own, which is why it must not hold any of their keys.
+`skelet setup` moves any it finds there into the backend's file.
 
-Each URL stays overridable in full. Set `DATABASE_URL` in the root `.env`
+Each URL stays overridable in full. Set `DATABASE_URL` in core's `.env`
 and it wins over the derived one, so a managed or external datastore is a
 one-line change and the matching `*_PASSWORD` just goes unused.
 
@@ -62,21 +66,21 @@ instead, so it fires only when the profile is actually on.
 The storefront still keeps its own file. That's a security boundary, not
 duplication: the most internet-exposed container holds no DB password, S3
 key or SMTP credential, and no session key either. The two values it shares
-with the backend (`REVIEW_VOTER_TOKEN_SECRET`, `STOREFRONT_REVALIDATE_SECRET`)
-come from the root `.env` via compose, so they aren't written twice either.
+with core (`REVIEW_VOTER_TOKEN_SECRET`, `STOREFRONT_REVALIDATE_SECRET`,
+`TRUSTED_PROXY_KEY`) come from the root `.env` via compose.
 
 One gotcha on a machine that runs both stacks: the root `.env` is shared
 between `docker-compose.yml` and `docker-compose.prod.yml`, so dev values
 there apply to prod commands too.
 
-It also says what the clone is for, which `skelet setup` writes and every
+The root `.env` also says what the clone is for, which `skelet setup` writes and every
 `skelet` command reads - there's no separate settings file:
 
 | Variable | Holds |
 | --- | --- |
 | `SKELET_TARGET` | `dev`, `small` or `prod` - which stack this clone runs |
 | `SKELET_APPS` | the frontends this clone runs, wherever they run |
-| `COMPOSE_PROFILES` | what compose starts. On dev: the apps in Docker, the dev tools and the sidecars `skelet up` adds, so a bare `docker compose up` starts the same stack. On a server: `bundled` and the storefront it serves |
+| `COMPOSE_PROFILES` | what compose starts. On dev: the apps in Docker, the dev tools and the sidecars `skelet up` adds, so a bare `docker compose up` starts the same stack. On a server: `bundled`, `valkey` and the storefront it serves - and each backend's own `.env` has its own, for when it runs alone |
 
 ### Dev host ports
 
@@ -110,10 +114,13 @@ nothing changed that's a cache hit, and it's what keeps an image from an
 older checkout from running on after a pull changed its Dockerfile or
 `go.mod` - the project name is pinned, so another clone's image counts.
 
-`prod.env` is shared by every backend role, which is why role-specific
-settings belong in the compose service and not in here - the app has to
+Core's `.env` is shared by every core role, which is why role-specific
+settings belong in the compose service and not in there - the app has to
 stay a server. That's `SKELET_ROLE` (`worker`, default `server`) and
-`WORKER_PORT` (8081, its `/healthz`).
+`WORKER_PORT` (8081, its `/healthz`). How many workers and image-transform
+containers run is `WORKER_REPLICAS` and `MEDIA_REPLICAS` - pair a worker
+with `JOBS_EXTERNAL=true`, and zero of them with `false`, or nothing runs the
+background jobs.
 
 Prod boot fails while a REQUIRED var is blank. That's deliberate - a
 silent default in production is worse than a refusal to start.
@@ -122,12 +129,12 @@ silent default in production is worse than a refusal to start.
 
 | Var | Notes |
 |---|---|
-| `ADMIN_JWT_SECRET` | `openssl rand -hex 32`, in the root `.env`. Signs admin sessions, and only core holds it. See [Session and link keys](#session-and-link-keys). |
-| `CUSTOMER_JWT_PRIVATE_KEY` / `CUSTOMER_JWT_PUBLIC_KEY` | An Ed25519 pair, base64, in the root `.env` - `skelet setup` generates it, or `skelet cli keys customer` prints one. Core signs customer sessions with the private key; the Signals processes get the public key and can check a session but never mint one. |
-| `EMAIL_LINK_SECRET` | `openssl rand -hex 32`, in the root `.env`. Signs the unsubscribe, open and click links, shared by core and the Signals processes. |
-| `REVIEW_VOTER_TOKEN_SECRET` | `openssl rand -hex 32`, in the root `.env`. Signs anonymous review votes, shared by core and the storefront. |
-| `SIGNALS_SERVICE_SECRET` | `openssl rand -hex 32`, in the root `.env`. Core signs every call on the Signals wire contract with it and the suite verifies with the same value - core and the Signals processes alone. |
-| `CONFIG_ENCRYPTION_KEY` | `openssl rand -base64 32`, in the root `.env`. Keep it stable - rotating it orphans every stored secret. |
+| `ADMIN_JWT_SECRET` | `openssl rand -hex 32`, in core's `.env`. Signs admin sessions, and only core holds it. See [Session and link keys](#session-and-link-keys). |
+| `CUSTOMER_JWT_PRIVATE_KEY` / `CUSTOMER_JWT_PUBLIC_KEY` | An Ed25519 pair, base64, in core's `.env` (the public half in Signals' too) - `skelet setup` generates it, or `skelet cli keys customer` prints one. Core signs customer sessions with the private key; the Signals processes get the public key and can check a session but never mint one. |
+| `EMAIL_LINK_SECRET` | `openssl rand -hex 32`, in core's and Signals' `.env`. Signs the unsubscribe, open and click links, shared by core and the Signals processes. |
+| `REVIEW_VOTER_TOKEN_SECRET` | `openssl rand -hex 32`, in core's `.env` and the root one. Signs anonymous review votes, shared by core and the storefront. |
+| `SIGNALS_SERVICE_SECRET` | `openssl rand -hex 32`, in core's and Signals' `.env`. Core signs every call on the Signals wire contract with it and the suite verifies with the same value - core and the Signals processes alone. |
+| `CONFIG_ENCRYPTION_KEY` | `openssl rand -base64 32`, in core's `.env`. Keep it stable - rotating it orphans every stored secret. |
 | `CORS_ALLOWED_ORIGINS` | Storefront + dashboard origins, comma-separated. Empty in dev means localhost defaults. |
 | `DB_PASSWORD` | Commerce Postgres. `DATABASE_URL` derives from it, or set that directly for an external database. |
 | `SIGNALS_DB_PASSWORD` | Signals Postgres, same deal via `SIGNALS_DB_URL`. Only the Signals processes read it - see below. |
@@ -187,9 +194,9 @@ TLS on the contract itself:
 
 | Variable | File | What it does |
 | --- | --- | --- |
-| `SIGNALS_GRPC_TLS_CERT`, `SIGNALS_GRPC_TLS_KEY` | `env/prod-signals.env` | The suite's certificate and key, both PEM. Set both and the contract serves TLS only. A renewed pair is picked up on the next connection with no restart, and one that doesn't load leaves the previous pair serving |
-| `SIGNALS_GRPC_TLS` | `env/prod.env` | `true` makes core dial with TLS and check the suite's certificate |
-| `SIGNALS_GRPC_TLS_CA` | `env/prod.env` | A PEM bundle core trusts instead of the system roots, for a private CA. Needs `SIGNALS_GRPC_TLS=true` |
+| `SIGNALS_GRPC_TLS_CERT`, `SIGNALS_GRPC_TLS_KEY` | Signals' `.env` | The suite's certificate and key, both PEM. Set both and the contract serves TLS only. A renewed pair is picked up on the next connection with no restart, and one that doesn't load leaves the previous pair serving |
+| `SIGNALS_GRPC_TLS` | core's `.env` | `true` makes core dial with TLS and check the suite's certificate |
+| `SIGNALS_GRPC_TLS_CA` | core's `.env` | A PEM bundle core trusts instead of the system roots, for a private CA. Needs `SIGNALS_GRPC_TLS=true` |
 
 The certificate has to name the host in `SIGNALS_GRPC_ADDR` (`signals` in
 compose, or the name your replicas share), and the files have to be in the
@@ -247,8 +254,8 @@ writes. Unset means the Signals primary. It is NOT `DATABASE_REPLICA_URL`
 - that's the commerce replica and doesn't hold spine tables.
 
 `CORE_FRONT_API_URL` is where the suite reads core's public storefront API -
-`http://app:8080/api/front/graphql` in compose, set in `signals.env` (dev) or
-`prod-signals.env` (prod). The email builder's products
+`http://app:8080/api/front/graphql` on one box, set in `signals.env` (dev) or
+Signals' `.env` (prod). The email builder's products
 block prices and links products the way the storefront does, and this is the
 one call the suite makes into core. Unset, the block renders nothing and every
 other email renders as before.
@@ -318,7 +325,7 @@ A malformed URL is still a boot error. That's a typo, not a choice.
 Multi-replica deployments should keep Valkey: per-process rate limits and
 single-replica notification fan-out both get weaker as you scale out.
 
-In prod, set `VALKEY_PASSWORD` in the root `.env` and `VALKEY_URL` derives
+In prod, set `VALKEY_PASSWORD` in core's `.env` and `VALKEY_URL` derives
 from it. To run Postgres-only, set `VALKEY_URL=` explicitly - that wins
 over the derived value.
 
@@ -358,7 +365,7 @@ Every query runs under `max_execution_time` 60 seconds and `max_memory_usage` 4 
 unless the URL sets them, for example `?max_execution_time=120`, so one runaway
 report can't starve the others. The archive export is exempt from the time limit.
 
-Set `CLICKHOUSE_PASSWORD` in the root `.env`; the server credentials and
+Set `CLICKHOUSE_PASSWORD` in Signals' `.env`; the server credentials and
 the ClickHouse URL derive from it. Backing the spine up is
 `BACKUP DATABASE` on a schedule of your own, see [backups.md](backups.md).
 
@@ -385,7 +392,7 @@ land on disk before the request returns, and the signals worker (REQUIRED
 with this on) drains them into the engine. Unset means the direct spine
 path.
 
-Set `NATS_PASSWORD` in the root `.env`; the server credentials and
+Set `NATS_PASSWORD` in Signals' `.env`; the server credentials and
 `SIGNALS_QUEUE_URL` both derive from it.
 
 ## Search
@@ -464,7 +471,7 @@ directory.
   core does (below).
 - `STORAGE_SIGNING_KEY` - signs the upload URLs the way S3 signs a presigned
   PUT: one key, one content type, one exact size, fifteen minutes. It lives
-  in the root `.env`, `skelet setup` generates it, and production refuses
+  in core's `.env`, `skelet setup` generates it, and production refuses
   to boot without a strong one. Dev falls back to a fixed key.
 
 Every process that touches files reads the directory, so in the prod shape
@@ -625,8 +632,8 @@ they control, past every permission scope. So there is no admin config for
 this - only `BACKUP_*` env vars, readable solely by whoever controls the
 deployment.
 
-They go in `prod-signals.env`, which only the `signals` service loads, so the
-archive credential never reaches the commerce containers.
+They go in Signals' `.env`, so the archive credential never reaches core, and
+the `ingest` tier gets the file with them blanked.
 
 - `BACKUP_S3_BUCKET` - the analytics retention archive's destination, not a
   database backup. skelet takes no backups; see [backups.md](backups.md) for
@@ -941,9 +948,11 @@ events. A bad path is logged, not fatal - geo just doesn't appear.
 
 ## Image tags
 
-`APP_IMAGE`, `DASHBOARD_IMAGE` and `NEXTJS_VETRINA_IMAGE` are set in the
-SHELL, not in an env file - compose interpolates them from the process
-env. `skelet release` prints the values after a push.
+`CORE_IMAGE` goes in core's `.env`, `SIGNALS_IMAGE` in Signals', and
+`DASHBOARD_IMAGE` and `NEXTJS_VETRINA_IMAGE` in the root `.env` - compose
+interpolates each from the file beside the compose file that uses it.
+`skelet release <app>` builds and pushes the apps you name and prints the
+line each file takes.
 
 ---
 

@@ -18,6 +18,11 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 )
 
+const (
+	CoreEnv    = "apps/backend/core/.env"
+	SignalsEnv = "apps/backend/signals/.env"
+)
+
 // What a write leaves for the boot and the summary
 type written struct {
 	pluginsChanged bool
@@ -64,6 +69,9 @@ func Write(root string, a answers, c catalog, rnd io.Reader, out io.Writer) (wri
 		}
 	}
 	e := editor{root: root, rnd: rnd, out: out}
+	if a.target != "dev" {
+		e.rehome(a.target)
+	}
 	e.set(backend, "SIGNALS_ENABLED", strconv.FormatBool(a.signals))
 	e.set(backend, "AI_ENABLED", strconv.FormatBool(a.ai))
 	e.secrets(backend, a.target)
@@ -79,32 +87,44 @@ func Write(root string, a answers, c catalog, rnd io.Reader, out io.Writer) (wri
 			e.set(".env", k, e.get(backend, k))
 		}
 	}
+	knobs := ".env"
+	if a.target != "dev" {
+		knobs = backend
+	}
 	// Written on every run, not only when they leave the default - otherwise re-running and changing an answer back
 	// would silently do nothing
-	if a.search == "postgres" {
-		e.set(".env", "OPENSEARCH_URL", "")
+	switch {
+	case a.search == "postgres":
+		e.set(knobs, "OPENSEARCH_URL", "")
 		fmt.Fprintln(out, "    search pinned to the Postgres tier")
-	} else {
+	case a.target == "dev":
 		// compose reads ${OPENSEARCH_URL-http://opensearch:9200}: absent means the bundled cluster, set-but-empty
 		// pins search to Postgres
 		e.del(".env", "OPENSEARCH_URL")
 		fmt.Fprintln(out, "    search on the bundled OpenSearch")
+	default:
+		fmt.Fprintf(out, "    search on OpenSearch - OPENSEARCH_URL in %s names the cluster\n", backend)
 	}
 	if a.adminSlug {
-		w.adminSlug = e.get(".env", "ADMIN_API_SLUG")
+		w.adminSlug = e.get(knobs, "ADMIN_API_SLUG")
 		if w.adminSlug == "" {
 			w.adminSlug = "admin-" + e.hex(8)
 			fmt.Fprintf(out, "    admin API moved to /api/admin/%s/graphql\n", w.adminSlug)
 		} else {
 			fmt.Fprintln(out, "    admin API slug already set, left alone")
 		}
-		e.set(".env", "ADMIN_API_SLUG", w.adminSlug)
+		e.set(knobs, "ADMIN_API_SLUG", w.adminSlug)
 		e.set(".env", "VITE_GRAPHQL_URL", "/api/admin/"+w.adminSlug+"/graphql")
-		e.set(".env", "GRAPHQL_CODEGEN_URL", "http://app:8080/api/admin/"+w.adminSlug+"/graphql")
+		if a.target == "dev" {
+			e.set(".env", "GRAPHQL_CODEGEN_URL", "http://app:8080/api/admin/"+w.adminSlug+"/graphql")
+		}
 	} else {
 		// All three read ${VAR:-default} in compose, so deleting them puts the API back at /api/admin/graphql
 		for _, k := range []string{"ADMIN_API_SLUG", "VITE_GRAPHQL_URL", "GRAPHQL_CODEGEN_URL"} {
 			e.del(".env", k)
+		}
+		if a.target != "dev" {
+			e.set(backend, "ADMIN_API_SLUG", "")
 		}
 	}
 	e.set(".env", profile.EnvTarget, a.target)
@@ -141,9 +161,14 @@ func (e *editor) deployment(a answers, c catalog, backend string, files []string
 			profiles = append(profiles, app)
 		}
 	}
+	if a.target == "small" {
+		profiles = slices.DeleteFunc(profiles, func(p string) bool { return p == "valkey" })
+		e.set(backend, "COMPOSE_PROFILES", join(slices.DeleteFunc(split(e.get(backend, "COMPOSE_PROFILES")), func(p string) bool { return p == "valkey" })))
+	}
 	if join(profiles) != cur {
 		e.set(".env", "COMPOSE_PROFILES", join(profiles))
 	}
+	e.shape(a.target, backend)
 	shop := primaryStorefront(a, c)
 	if shop == "" {
 		return
@@ -180,8 +205,10 @@ func EnvFiles(root, target string, runs func(app string) bool) (string, []string
 	if target == "dev" {
 		return "env/go.env", []string{"env/go.env", "env/db.env", "env/signals.env"}, nil
 	}
-	backend := "env/" + target + ".env"
-	files := []string{backend}
+	files := []string{CoreEnv}
+	if target == "prod" {
+		files = append(files, SignalsEnv)
+	}
 	raw, err := os.ReadFile(filepath.Join(root, "docker-compose."+target+".yml"))
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return "", nil, err
@@ -200,7 +227,7 @@ func EnvFiles(root, target string, runs func(app string) bool) (string, []string
 		named = append(named, f)
 	}
 	slices.Sort(named)
-	return backend, append(files, named...), nil
+	return CoreEnv, append(files, named...), nil
 }
 
 // fromTemplate copies tmpl to file when file doesn't exist yet - owner-only, since these hold secrets
@@ -319,29 +346,97 @@ func (e *editor) secrets(backend, target string) {
 		e.set(backend, "BACKUP_ENCRYPTION_PASSPHRASE", e.hex(32))
 		fmt.Fprintln(e.out, "    BACKUP_ENCRYPTION_PASSPHRASE generated - store it somewhere you can restore from")
 	}
-	// The root .env is the only file compose interpolates, and small and prod build their datastore URLs and their
-	// containers' secrets out of it - a secret only in env_file is invisible to ${VAR:?}, and compose's environment:
-	// beats env_file, so one missing here reaches the container empty
-	e.del(".env", "JWT_SECRET")
-	shared := []string{"ADMIN_JWT_SECRET", "CUSTOMER_JWT_PRIVATE_KEY", "CUSTOMER_JWT_PUBLIC_KEY", "EMAIL_LINK_SECRET",
-		"REVIEW_VOTER_TOKEN_SECRET", "CONFIG_ENCRYPTION_KEY", "SIGNALS_SERVICE_SECRET", "STOREFRONT_REVALIDATE_SECRET",
-		"TRUSTED_PROXY_KEY"}
-	for _, k := range append(slices.Clone(shared), "STORAGE_SIGNING_KEY", "DB_PASSWORD",
-		"SIGNALS_DB_PASSWORD", "VALKEY_PASSWORD", "CLICKHOUSE_PASSWORD") {
-		if !placeholder(e.get(".env", k)) {
-			fmt.Fprintf(e.out, "    .env %s already set, left alone\n", k)
+	own := []string{"TRUSTED_PROXY_KEY", "STORAGE_SIGNING_KEY", "DB_PASSWORD"}
+	if target == "prod" {
+		own = append(own, "VALKEY_PASSWORD")
+	}
+	e.generateMissing(backend, own...)
+	if target == "prod" {
+		for _, k := range []string{"CUSTOMER_JWT_PUBLIC_KEY", "EMAIL_LINK_SECRET", "SIGNALS_SERVICE_SECRET", "TRUSTED_PROXY_KEY"} {
+			e.set(SignalsEnv, k, e.get(backend, k))
+		}
+		e.generateMissing(SignalsEnv, "SIGNALS_DB_PASSWORD", "CLICKHOUSE_PASSWORD", "SIGNALS_VALKEY_PASSWORD")
+		if placeholder(e.get(SignalsEnv, "VALKEY_URL")) {
+			e.set(SignalsEnv, "VALKEY_URL", "redis://:"+e.get(backend, "VALKEY_PASSWORD")+"@valkey:6379")
+		}
+	}
+	for _, k := range []string{"REVIEW_VOTER_TOKEN_SECRET", "STOREFRONT_REVALIDATE_SECRET", "TRUSTED_PROXY_KEY"} {
+		e.set(".env", k, e.get(backend, k))
+	}
+}
+
+func (e *editor) generateMissing(file string, keys ...string) {
+	for _, k := range keys {
+		if placeholder(e.get(file, k)) {
+			e.set(file, k, e.generate(k))
+			fmt.Fprintf(e.out, "    %s %s generated\n", file, k)
+		}
+	}
+}
+
+// What a root .env held before each backend had its own file - left there it would override the app's, so it moves
+var rehomed = []struct {
+	key, app string
+	stays    bool
+}{
+	{"ADMIN_JWT_SECRET", CoreEnv, false}, {"CUSTOMER_JWT_PRIVATE_KEY", CoreEnv, false}, {"CUSTOMER_JWT_PUBLIC_KEY", CoreEnv, false},
+	{"EMAIL_LINK_SECRET", CoreEnv, false}, {"CONFIG_ENCRYPTION_KEY", CoreEnv, false}, {"SIGNALS_SERVICE_SECRET", CoreEnv, false},
+	{"STORAGE_SIGNING_KEY", CoreEnv, false}, {"DB_PASSWORD", CoreEnv, false}, {"VALKEY_PASSWORD", CoreEnv, false},
+	{"DATABASE_URL", CoreEnv, false}, {"VALKEY_URL", CoreEnv, false}, {"VALKEY_CACHE_URL", CoreEnv, false}, {"VALKEY_LIMITS_URL", CoreEnv, false},
+	{"VALKEY_CACHE_MAXMEMORY", CoreEnv, false}, {"VALKEY_CACHE_MEMORY_LIMIT", CoreEnv, false},
+	{"REVIEW_VOTER_TOKEN_SECRET", CoreEnv, true}, {"STOREFRONT_REVALIDATE_SECRET", CoreEnv, true}, {"TRUSTED_PROXY_KEY", CoreEnv, true},
+	{"SIGNALS_DB_PASSWORD", SignalsEnv, false}, {"CLICKHOUSE_PASSWORD", SignalsEnv, false}, {"NATS_PASSWORD", SignalsEnv, false},
+	{"SIGNALS_DB_URL", SignalsEnv, false}, {"SIGNALS_QUEUE_URL", SignalsEnv, false}, {"SIGNALS_CH_URL", SignalsEnv, false},
+}
+
+func (e *editor) rehome(target string) {
+	for _, r := range rehomed {
+		v, found, err := envfile.Get(filepath.Join(e.root, ".env"), r.key)
+		if e.err == nil {
+			e.err = err
+		}
+		if !found {
 			continue
 		}
-		// The ones the backend also reads must match it there, not be generated twice
-		v := ""
-		if slices.Contains(shared, k) {
-			v = e.get(backend, k)
+		if v != "" && (r.app == CoreEnv || target == "prod") && placeholder(e.get(r.app, r.key)) {
+			e.set(r.app, r.key, v)
+			fmt.Fprintf(e.out, "    %s moved from .env to %s\n", r.key, r.app)
 		}
-		if v == "" {
-			v = e.generate(k)
+		if !r.stays {
+			e.del(".env", r.key)
 		}
-		e.set(".env", k, v)
-		fmt.Fprintf(e.out, "    .env %s set\n", k)
+	}
+	for _, old := range []string{"env/" + target + ".env", "env/prod-signals.env"} {
+		if _, err := os.Stat(filepath.Join(e.root, old)); err == nil {
+			fmt.Fprintf(e.out, "    %s is no longer read - its settings belong in %s or %s\n", old, CoreEnv, SignalsEnv)
+		}
+	}
+}
+
+// The small shape is one app container doing every job against Postgres alone - a later prod run puts the tiers back
+var smallShape = [][2]string{{"WORKER_REPLICAS", "0"}, {"MEDIA_REPLICAS", "0"}, {"JOBS_EXTERNAL", "false"},
+	{"VALKEY_URL", ""}, {"VALKEY_CACHE_URL", ""}, {"VALKEY_LIMITS_URL", ""}}
+
+func (e *editor) shape(target, backend string) {
+	if target == "small" {
+		for _, kv := range smallShape {
+			e.set(backend, kv[0], kv[1])
+		}
+		if e.get(backend, "CORE_PORT") == "" {
+			e.set(backend, "CORE_PORT", "18080")
+		}
+		return
+	}
+	for _, kv := range smallShape {
+		if v, found, _ := envfile.Get(filepath.Join(e.root, backend), kv[0]); !found || v != kv[1] {
+			return
+		}
+	}
+	e.set(backend, "WORKER_REPLICAS", "1")
+	e.set(backend, "MEDIA_REPLICAS", "1")
+	e.set(backend, "JOBS_EXTERNAL", "true")
+	for _, k := range []string{"VALKEY_URL", "VALKEY_CACHE_URL", "VALKEY_LIMITS_URL"} {
+		e.del(backend, k)
 	}
 }
 

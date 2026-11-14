@@ -110,7 +110,11 @@ func Run(root string, args []string) int {
 	}
 
 	if a.target != "dev" {
-		ask.section(os.Stdout, fmt.Sprintf("Files written. %s target: fill the hostnames and credentials in env/%s.env,", a.target, a.target),
+		files := CoreEnv
+		if a.target == "prod" {
+			files += " and " + SignalsEnv
+		}
+		ask.section(os.Stdout, fmt.Sprintf("Files written. %s target: fill the hostnames and credentials in %s,", a.target, files),
 			fmt.Sprintf("    then deploy with docker-compose.%s.yml", a.target))
 		return 0
 	}

@@ -40,7 +40,7 @@ func fixture(t *testing.T) string {
 	for _, f := range templates {
 		copyFile("env/" + filepath.Base(f))
 	}
-	for _, f := range []string{".env.example", "docker-compose.small.yml", "docker-compose.prod.yml", plugins.File} {
+	for _, f := range []string{".env.example", CoreEnv + ".example", SignalsEnv + ".example", "docker-compose.small.yml", "docker-compose.prod.yml", plugins.File} {
 		copyFile(f)
 	}
 	mkfile(t, root, plugins.Dir+"/example/plugin.go", "package example\nfunc init() { sdk.RegisterPlugin(nil) }\n")
@@ -195,17 +195,23 @@ func TestASecondRunChangesNothing(t *testing.T) {
 
 var required = regexp.MustCompile(`\$\{([A-Z_]+):\?`)
 
-func TestSmallAndProdFillTheRootEnvComposeReads(t *testing.T) {
+func TestEachBackendOwnsItsSecretsAndTheRootOnlyTheFrontends(t *testing.T) {
+	hex64 := regexp.MustCompile(`^[0-9a-f]{64}$`)
 	for _, target := range []string{"small", "prod"} {
 		root := fixture(t)
+		mkfile(t, root, ".env", "DB_PASSWORD=volume-made-with-this\nADMIN_JWT_SECRET=\nCOMPOSE_PROFILES=bundled,valkey\n")
 		a := dev()
 		a.target = target
 		write(t, root, a)
-		backend := env(t, root, "env/"+target+".env")
-		dotenv := env(t, root, ".env")
-		checkSecrets(t, target+" .env", dotenv)
-		if dotenv["COMPOSE_PROFILES"] != "bundled" {
-			t.Errorf("%s: .env COMPOSE_PROFILES = %q - without bundled the datastores never start", target, dotenv["COMPOSE_PROFILES"])
+		core, dotenv := env(t, root, CoreEnv), env(t, root, ".env")
+		checkSecrets(t, target+" "+CoreEnv, core)
+		if core["DB_PASSWORD"] != "volume-made-with-this" {
+			t.Errorf("%s: DB_PASSWORD = %q - the root .env's value, which the volume was made with, should have moved", target, core["DB_PASSWORD"])
+		}
+		for _, r := range rehomed {
+			if _, left := dotenv[r.key]; left && !r.stays {
+				t.Errorf("%s: .env still holds %s, which would override %s's", target, r.key, r.app)
+			}
 		}
 		compose, _ := os.ReadFile(filepath.Join(root, "docker-compose."+target+".yml"))
 		for _, m := range required.FindAllSubmatch(compose, -1) {
@@ -213,29 +219,68 @@ func TestSmallAndProdFillTheRootEnvComposeReads(t *testing.T) {
 				t.Errorf("%s: compose demands %s, and .env leaves it empty", target, m[1])
 			}
 		}
-		for _, k := range []string{"ADMIN_JWT_SECRET", "CUSTOMER_JWT_PRIVATE_KEY", "CUSTOMER_JWT_PUBLIC_KEY", "EMAIL_LINK_SECRET",
-			"REVIEW_VOTER_TOKEN_SECRET", "CONFIG_ENCRYPTION_KEY", "SIGNALS_SERVICE_SECRET", "STOREFRONT_REVALIDATE_SECRET"} {
-			if dotenv[k] != backend[k] {
-				t.Errorf("%s: .env %s differs from env/%s.env's - compose's environment: would override it", target, k, target)
+		for _, k := range []string{"REVIEW_VOTER_TOKEN_SECRET", "STOREFRONT_REVALIDATE_SECRET", "TRUSTED_PROXY_KEY"} {
+			if dotenv[k] == "" || dotenv[k] != core[k] {
+				t.Errorf("%s: .env %s = %q, core's %q - the storefront and core must agree", target, k, dotenv[k], core[k])
 			}
 		}
-		for _, k := range []string{"DB_PASSWORD", "SIGNALS_DB_PASSWORD", "VALKEY_PASSWORD", "CLICKHOUSE_PASSWORD", "STORAGE_SIGNING_KEY"} {
-			if len(dotenv[k]) != 64 {
-				t.Errorf("%s: .env %s = %q", target, k, dotenv[k])
-			}
-		}
-		if len(backend["BACKUP_ENCRYPTION_PASSPHRASE"]) != 64 {
-			t.Errorf("%s: no backup passphrase", target)
+		if !hex64.MatchString(core["STORAGE_SIGNING_KEY"]) || len(core["BACKUP_ENCRYPTION_PASSPHRASE"]) != 64 {
+			t.Errorf("%s: core's own keys weren't generated", target)
 		}
 		_, files, _ := EnvFiles(root, target, nil)
-		if len(files) < 2 {
-			t.Errorf("%s: only %v - the compose file's env_file list was not read", target, files)
-		}
 		for _, f := range files {
 			if fi, err := os.Stat(filepath.Join(root, f)); err != nil || fi.Mode().Perm() != 0o600 {
 				t.Errorf("%s: %s: %v", target, f, err)
 			}
 		}
+		if target == "small" {
+			for k, want := range map[string]string{"WORKER_REPLICAS": "0", "MEDIA_REPLICAS": "0", "JOBS_EXTERNAL": "false", "VALKEY_URL": "",
+				"CORE_PORT": "18080", "COMPOSE_PROFILES": "bundled"} {
+				if v, ok := core[k]; !ok || v != want {
+					t.Errorf("small: core %s = %q, want %q", k, v, want)
+				}
+			}
+			if dotenv["COMPOSE_PROFILES"] != "bundled" {
+				t.Errorf("small: .env COMPOSE_PROFILES = %q - the Valkeys would start and refuse their empty password", dotenv["COMPOSE_PROFILES"])
+			}
+			continue
+		}
+		signals := env(t, root, SignalsEnv)
+		for _, k := range []string{"CUSTOMER_JWT_PUBLIC_KEY", "EMAIL_LINK_SECRET", "SIGNALS_SERVICE_SECRET", "TRUSTED_PROXY_KEY"} {
+			if signals[k] == "" || signals[k] != core[k] {
+				t.Errorf("prod: Signals' %s differs from core's", k)
+			}
+		}
+		for _, k := range []string{"SIGNALS_DB_PASSWORD", "CLICKHOUSE_PASSWORD", "SIGNALS_VALKEY_PASSWORD"} {
+			if !hex64.MatchString(signals[k]) {
+				t.Errorf("prod: Signals' %s = %q", k, signals[k])
+			}
+		}
+		if _, held := signals["CUSTOMER_JWT_PRIVATE_KEY"]; held {
+			t.Error("prod: Signals holds the customer signing key")
+		}
+		if !hex64.MatchString(core["VALKEY_PASSWORD"]) || signals["VALKEY_URL"] != "redis://:"+core["VALKEY_PASSWORD"]+"@valkey:6379" {
+			t.Errorf("prod: Signals' VALKEY_URL = %q, core's password %q", signals["VALKEY_URL"], core["VALKEY_PASSWORD"])
+		}
+		if dotenv["COMPOSE_PROFILES"] != "bundled,valkey" {
+			t.Errorf("prod: .env COMPOSE_PROFILES = %q", dotenv["COMPOSE_PROFILES"])
+		}
+	}
+}
+
+func TestAProdRunPutsBackWhatTheSmallShapeTookOut(t *testing.T) {
+	root := fixture(t)
+	a := dev()
+	a.target = "small"
+	write(t, root, a)
+	a.target = "prod"
+	write(t, root, a)
+	core := env(t, root, CoreEnv)
+	if core["WORKER_REPLICAS"] != "1" || core["MEDIA_REPLICAS"] != "1" || core["JOBS_EXTERNAL"] != "true" {
+		t.Errorf("tiers %q/%q, JOBS_EXTERNAL %q", core["WORKER_REPLICAS"], core["MEDIA_REPLICAS"], core["JOBS_EXTERNAL"])
+	}
+	if _, pinned := core["VALKEY_URL"]; pinned {
+		t.Error("VALKEY_URL is still pinned empty, so prod would run without its Valkeys")
 	}
 }
 
@@ -255,14 +300,15 @@ func TestADeploymentRunsTheStorefrontPicked(t *testing.T) {
 			if got := env(t, root, ".env")["COMPOSE_PROFILES"]; got != profiles {
 				t.Errorf("%s %s: COMPOSE_PROFILES = %q, want %q", target, when, got, profiles)
 			}
-			if got := env(t, root, "env/"+target+".env")["STOREFRONT_REVALIDATE_URL"]; got != "http://"+shop+":3000/api/revalidate" {
+			if got := env(t, root, CoreEnv)["STOREFRONT_REVALIDATE_URL"]; got != "http://"+shop+":3000/api/revalidate" {
 				t.Errorf("%s %s: STOREFRONT_REVALIDATE_URL = %q", target, when, got)
 			}
 			if got := env(t, root, "env/prod-caddy.env")["STOREFRONT_UPSTREAM"]; got != shop+":3000" {
 				t.Errorf("%s %s: STOREFRONT_UPSTREAM = %q", target, when, got)
 			}
 		}
-		check("first", "bundled,astro-shop", "astro-shop")
+		first := map[string]string{"small": "bundled,astro-shop", "prod": "bundled,valkey,astro-shop"}[target]
+		check("first", first, "astro-shop")
 
 		mkfile(t, root, ".env", "COMPOSE_PROFILES=bundled,astro-shop,edge\n")
 		a.apps = []string{"dashboard", "nextjs-vetrina"}

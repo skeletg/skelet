@@ -112,6 +112,11 @@ func envTemplates(r *report, root string) {
 			}
 		}
 	}
+	apps, _ := filepath.Glob(filepath.Join(root, "apps", "*", "*", "compose.yaml"))
+	for _, c := range apps {
+		rel, _ := filepath.Rel(root, filepath.Join(filepath.Dir(c), ".env"))
+		files = append(files, filepath.ToSlash(rel))
+	}
 	slices.Sort(files)
 	missing := false
 	for _, f := range files {

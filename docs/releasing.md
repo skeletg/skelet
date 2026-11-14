@@ -109,7 +109,7 @@ the PATCH. There is no compatibility promise until `1.0.0`.
 8. **Publish images**, if you are shipping them:
 
    ```
-   REGISTRY=registry.example.com skelet release v0.1.0
+   REGISTRY=registry.example.com skelet release core signals dashboard --tag v0.1.0
    ```
 
 9. **Merge `main` back into `develop`** so the changelog and any release-time

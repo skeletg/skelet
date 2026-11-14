@@ -97,6 +97,7 @@ var subs = map[string]string{
 	"new":       "channel <name> [--template <template> | --from <storefront>] [--tracked] [--workspace]",
 	"rm":        "channel <name> [-y] [--volumes]",
 	"changelog": "(preview) | check | release <version> [date]",
+	"release":   "<app>... [--tag T]",
 }
 
 // Routes is the table, for the tests that hold it together

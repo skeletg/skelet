@@ -121,12 +121,12 @@ for. The individual scripts exist so you can rerun one while fixing it.
 
 | Command | What it does |
 |---|---|
-| `skelet release` | Build the prod images - backend, and the frontends this clone runs: the app selection `skelet setup` recorded, or without one the dashboard and every storefront under `apps/channels/` or `templates/` with a `Dockerfile.prod`, built from the repo root since the storefronts share `packages/` - and push them to a container registry (e.g. DigitalOcean Container Registry). `REGISTRY=registry.digitalocean.com/<name> skelet release [tag]` - tag defaults to the git short sha, images build for linux/amd64. Prints the `*_IMAGE` vars `docker-compose.prod.yml` reads, one per image, the storefront ones named after the directory. Authenticate first with `doctl registry login`. |
+| `skelet release` | Build the prod images of the apps you name and push them to a container registry (e.g. DigitalOcean Container Registry): `REGISTRY=registry.digitalocean.com/<name> skelet release <app>... [--tag T]`. Apps are `core`, `signals`, `dashboard` and every storefront with a `Dockerfile.prod`; only the ones named ship, so releasing one storefront leaves the backends alone. The tag defaults to `git describe` - the release version plus the commit - and images build for linux/amd64. Prints the line each app's `.env` takes: `CORE_IMAGE` in core's, `SIGNALS_IMAGE` in Signals', the frontends' in the root one. Authenticate first with `doctl registry login`. |
 
-The two shapes those images go into - `docker-compose.small.yml` (one
-container, one Postgres) and `docker-compose.prod.yml` (split tiers) - are
-in the README under Operations > Deploying. Neither has a `skelet` verb:
-they take a plain `docker compose -f <file> up -d` on the server.
+Where those images go is in [deploying.md](deploying.md): each backend's own
+`compose.yaml`, or the one-box `docker-compose.small.yml` and
+`docker-compose.prod.yml` that include them. None has a `skelet` verb: they take a
+plain `docker compose up -d` on the server.
 
 ## Other tools
 

@@ -169,8 +169,11 @@ func shape(r *report, root string, prof profile.Profile, files []string) {
 			}
 			return "(unset, on)"
 		}
-		search := "opensearch"
-		if v, ok, _ := envfile.Get(filepath.Join(root, ".env"), "OPENSEARCH_URL"); ok && v == "" {
+		search, knobs := "opensearch", ".env"
+		if t := prof[profile.TargetKey]; t != "dev" && len(files) > 0 {
+			knobs = files[0]
+		}
+		if v, ok, _ := envfile.Get(filepath.Join(root, knobs), "OPENSEARCH_URL"); ok && v == "" {
 			search = "postgres"
 		}
 		r.pass("target=%s signals=%s ai=%s search=%s", prof[profile.TargetKey], switched("SIGNALS_ENABLED"), switched("AI_ENABLED"), search)
