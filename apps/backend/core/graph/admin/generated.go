@@ -2687,6 +2687,7 @@ type ComplexityRoot struct {
 		Title         func(childComplexity int) int
 		URL           func(childComplexity int) int
 		UpdatedAt     func(childComplexity int) int
+		Visibility    func(childComplexity int) int
 		Width         func(childComplexity int) int
 	}
 
@@ -2858,7 +2859,7 @@ type ComplexityRoot struct {
 		CreateIntegration                 func(childComplexity int, input model.CreateIntegrationInput) int
 		CreateInventoryLocation           func(childComplexity int, input model.CreateInventoryLocationInput) int
 		CreateLocale                      func(childComplexity int, input model.CreateLocaleInput) int
-		CreateMediaDirectory              func(childComplexity int, path string, name string) int
+		CreateMediaDirectory              func(childComplexity int, path string, name string, visibility *model.MediaVisibility) int
 		CreateMenu                        func(childComplexity int, input model.CreateMenuInput) int
 		CreateMenuItem                    func(childComplexity int, input model.CreateMenuItemInput) int
 		CreateOptionTemplate              func(childComplexity int, input model.OptionTemplateInput) int
@@ -2932,7 +2933,7 @@ type ComplexityRoot struct {
 		DeleteLibraryEmail                func(childComplexity int, id string) int
 		DeleteLocale                      func(childComplexity int, code string) int
 		DeleteMediaAsset                  func(childComplexity int, id string, deleteFromStorage *bool) int
-		DeleteMediaDirectory              func(childComplexity int, path string, recursive bool) int
+		DeleteMediaDirectory              func(childComplexity int, path string, recursive bool, visibility *model.MediaVisibility) int
 		DeleteMenu                        func(childComplexity int, id string) int
 		DeleteMenuItem                    func(childComplexity int, id string) int
 		DeleteMenuItemTranslation         func(childComplexity int, itemID string, locale string) int
@@ -3001,7 +3002,7 @@ type ComplexityRoot struct {
 		MintBlogPostPreviewToken          func(childComplexity int, input model.MintBlogPostPreviewTokenInput) int
 		MintCMSPagePreviewToken           func(childComplexity int, input model.MintCMSPagePreviewTokenInput) int
 		MoveAttributeToGroup              func(childComplexity int, productTypeID string, attributeID string, groupID *string) int
-		MoveMediaAsset                    func(childComplexity int, id string, targetPath string, filename *string) int
+		MoveMediaAsset                    func(childComplexity int, id string, targetPath string, filename *string, visibility *model.MediaVisibility) int
 		PauseSubscription                 func(childComplexity int, id string) int
 		PlaceDraftOrder                   func(childComplexity int, id string) int
 		PublishBlogPost                   func(childComplexity int, id string) int
@@ -3032,7 +3033,7 @@ type ComplexityRoot struct {
 		RemoveProductFromCollection       func(childComplexity int, collectionID string, productID string) int
 		RenameCMSTag                      func(childComplexity int, slug string, name string) int
 		RenameEmailGroup                  func(childComplexity int, id string, name string) int
-		RenameMediaDirectory              func(childComplexity int, path string, newName string) int
+		RenameMediaDirectory              func(childComplexity int, path string, newName string, visibility *model.MediaVisibility) int
 		ReopenCMSPage                     func(childComplexity int, id string) int
 		ReorderCollectionProducts         func(childComplexity int, collectionID string, productIds []string) int
 		ReorderMenuItems                  func(childComplexity int, menuID string, items []*model.ReorderMenuItemInput) int
@@ -3961,7 +3962,7 @@ type ComplexityRoot struct {
 		AgenticStatus                func(childComplexity int, channelID string) int
 		AiInsights                   func(childComplexity int, channelID string, days *int32) int
 		AiStatus                     func(childComplexity int) int
-		AllMediaDirectories          func(childComplexity int) int
+		AllMediaDirectories          func(childComplexity int, visibility *model.MediaVisibility) int
 		AssistantConversation        func(childComplexity int, channelID string, id string) int
 		AssistantConversations       func(childComplexity int, channelID string, search *string, customerID *string, unanswered *model.AssistantUnansweredFilter, after *string, limit *int32) int
 		AssistantReport              func(childComplexity int, channelID string, days *int32) int
@@ -4101,7 +4102,8 @@ type ComplexityRoot struct {
 		McpOverview                  func(childComplexity int, channelID string) int
 		Me                           func(childComplexity int) int
 		MediaAsset                   func(childComplexity int, id string) int
-		MediaDirectory               func(childComplexity int, path string) int
+		MediaDirectory               func(childComplexity int, path string, visibility *model.MediaVisibility) int
+		MediaPrivateArea             func(childComplexity int) int
 		MediaUploadTypes             func(childComplexity int) int
 		Menu                         func(childComplexity int, id string) int
 		MenuBySlug                   func(childComplexity int, slug string) int
@@ -4163,7 +4165,7 @@ type ComplexityRoot struct {
 		SalesReport                  func(childComplexity int, channelID *string, startDate *time.Time, endDate *time.Time, bucket *string, topProductsLimit *int32) int
 		ScheduledJobRuns             func(childComplexity int, jobID string, limit *int32) int
 		ScheduledJobs                func(childComplexity int) int
-		SearchMediaAssets            func(childComplexity int, query *string, path *string, mimeGroup *model.MediaMimeGroup, sort *model.MediaAssetSort, limit *int32, offset *int32) int
+		SearchMediaAssets            func(childComplexity int, query *string, path *string, mimeGroup *model.MediaMimeGroup, sort *model.MediaAssetSort, limit *int32, offset *int32, visibility *model.MediaVisibility) int
 		SearchMerchandising          func(childComplexity int, channelID string) int
 		SearchOverviewPreview        func(childComplexity int, channelID string, query string, locale *string, mode *model.SearchByMeaningMode, strictness *model.SearchByMeaningStrictness) int
 		SearchPreview                func(childComplexity int, channelID string, query string, locale *string, mode *model.SearchByMeaningMode, strictness *model.SearchByMeaningStrictness) int
@@ -5753,14 +5755,14 @@ type MutationResolver interface {
 	UpdateLocale(ctx context.Context, input model.UpdateLocaleInput) (*model.Locale, error)
 	DeleteLocale(ctx context.Context, code string) (bool, error)
 	SetMediaFocalPoint(ctx context.Context, assetID string, x *float64, y *float64) (*model.MediaAsset, error)
-	CreateMediaDirectory(ctx context.Context, path string, name string) (*model.MediaDirectoryChild, error)
+	CreateMediaDirectory(ctx context.Context, path string, name string, visibility *model.MediaVisibility) (*model.MediaDirectoryChild, error)
 	RequestMediaAssetUpload(ctx context.Context, input model.RequestMediaAssetUploadInput) (*model.RequestMediaAssetUploadPayload, error)
 	ConfirmMediaAssetUpload(ctx context.Context, assetID string, width *int32, height *int32) (*model.MediaAsset, error)
 	UpdateMediaAsset(ctx context.Context, input model.UpdateMediaAssetInput) (*model.MediaAsset, error)
-	MoveMediaAsset(ctx context.Context, id string, targetPath string, filename *string) (*model.MediaAsset, error)
+	MoveMediaAsset(ctx context.Context, id string, targetPath string, filename *string, visibility *model.MediaVisibility) (*model.MediaAsset, error)
 	DeleteMediaAsset(ctx context.Context, id string, deleteFromStorage *bool) (bool, error)
-	DeleteMediaDirectory(ctx context.Context, path string, recursive bool) (bool, error)
-	RenameMediaDirectory(ctx context.Context, path string, newName string) (*model.MediaDirectoryChild, error)
+	DeleteMediaDirectory(ctx context.Context, path string, recursive bool, visibility *model.MediaVisibility) (bool, error)
+	RenameMediaDirectory(ctx context.Context, path string, newName string, visibility *model.MediaVisibility) (*model.MediaDirectoryChild, error)
 	CreateMenu(ctx context.Context, input model.CreateMenuInput) (*model.Menu, error)
 	UpdateMenu(ctx context.Context, input model.UpdateMenuInput) (*model.Menu, error)
 	DeleteMenu(ctx context.Context, id string) (bool, error)
@@ -6117,10 +6119,11 @@ type QueryResolver interface {
 	Locales(ctx context.Context, activeOnly *bool) ([]*model.Locale, error)
 	Locale(ctx context.Context, code string) (*model.Locale, error)
 	McpOverview(ctx context.Context, channelID string) (*model.McpOverview, error)
-	MediaDirectory(ctx context.Context, path string) (*model.MediaDirectory, error)
+	MediaDirectory(ctx context.Context, path string, visibility *model.MediaVisibility) (*model.MediaDirectory, error)
 	MediaAsset(ctx context.Context, id string) (*model.MediaAsset, error)
-	SearchMediaAssets(ctx context.Context, query *string, path *string, mimeGroup *model.MediaMimeGroup, sort *model.MediaAssetSort, limit *int32, offset *int32) (*model.MediaAssetSearchResult, error)
-	AllMediaDirectories(ctx context.Context) ([]*model.MediaDirectoryChild, error)
+	SearchMediaAssets(ctx context.Context, query *string, path *string, mimeGroup *model.MediaMimeGroup, sort *model.MediaAssetSort, limit *int32, offset *int32, visibility *model.MediaVisibility) (*model.MediaAssetSearchResult, error)
+	AllMediaDirectories(ctx context.Context, visibility *model.MediaVisibility) ([]*model.MediaDirectoryChild, error)
+	MediaPrivateArea(ctx context.Context) (bool, error)
 	MediaUploadTypes(ctx context.Context) ([]string, error)
 	Menus(ctx context.Context) ([]*model.Menu, error)
 	Menu(ctx context.Context, id string) (*model.Menu, error)
@@ -17456,6 +17459,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.MediaAsset.UpdatedAt(childComplexity), true
+	case "MediaAsset.visibility":
+		if e.ComplexityRoot.MediaAsset.Visibility == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MediaAsset.Visibility(childComplexity), true
 	case "MediaAsset.width":
 		if e.ComplexityRoot.MediaAsset.Width == nil {
 			break
@@ -18911,7 +18920,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.CreateMediaDirectory(childComplexity, args["path"].(string), args["name"].(string)), true
+		return e.ComplexityRoot.Mutation.CreateMediaDirectory(childComplexity, args["path"].(string), args["name"].(string), args["visibility"].(*model.MediaVisibility)), true
 	case "Mutation.createMenu":
 		if e.ComplexityRoot.Mutation.CreateMenu == nil {
 			break
@@ -19725,7 +19734,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.DeleteMediaDirectory(childComplexity, args["path"].(string), args["recursive"].(bool)), true
+		return e.ComplexityRoot.Mutation.DeleteMediaDirectory(childComplexity, args["path"].(string), args["recursive"].(bool), args["visibility"].(*model.MediaVisibility)), true
 	case "Mutation.deleteMenu":
 		if e.ComplexityRoot.Mutation.DeleteMenu == nil {
 			break
@@ -20479,7 +20488,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.MoveMediaAsset(childComplexity, args["id"].(string), args["targetPath"].(string), args["filename"].(*string)), true
+		return e.ComplexityRoot.Mutation.MoveMediaAsset(childComplexity, args["id"].(string), args["targetPath"].(string), args["filename"].(*string), args["visibility"].(*model.MediaVisibility)), true
 	case "Mutation.pauseSubscription":
 		if e.ComplexityRoot.Mutation.PauseSubscription == nil {
 			break
@@ -20820,7 +20829,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.RenameMediaDirectory(childComplexity, args["path"].(string), args["newName"].(string)), true
+		return e.ComplexityRoot.Mutation.RenameMediaDirectory(childComplexity, args["path"].(string), args["newName"].(string), args["visibility"].(*model.MediaVisibility)), true
 	case "Mutation.reopenCMSPage":
 		if e.ComplexityRoot.Mutation.ReopenCMSPage == nil {
 			break
@@ -26500,7 +26509,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			break
 		}
 
-		return e.ComplexityRoot.Query.AllMediaDirectories(childComplexity), true
+		args, err := ec.field_Query_allMediaDirectories_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.AllMediaDirectories(childComplexity, args["visibility"].(*model.MediaVisibility)), true
 	case "Query.assistantConversation":
 		if e.ComplexityRoot.Query.AssistantConversation == nil {
 			break
@@ -27911,7 +27925,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.MediaDirectory(childComplexity, args["path"].(string)), true
+		return e.ComplexityRoot.Query.MediaDirectory(childComplexity, args["path"].(string), args["visibility"].(*model.MediaVisibility)), true
+	case "Query.mediaPrivateArea":
+		if e.ComplexityRoot.Query.MediaPrivateArea == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.MediaPrivateArea(childComplexity), true
 	case "Query.mediaUploadTypes":
 		if e.ComplexityRoot.Query.MediaUploadTypes == nil {
 			break
@@ -28523,7 +28543,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.SearchMediaAssets(childComplexity, args["query"].(*string), args["path"].(*string), args["mimeGroup"].(*model.MediaMimeGroup), args["sort"].(*model.MediaAssetSort), args["limit"].(*int32), args["offset"].(*int32)), true
+		return e.ComplexityRoot.Query.SearchMediaAssets(childComplexity, args["query"].(*string), args["path"].(*string), args["mimeGroup"].(*model.MediaMimeGroup), args["sort"].(*model.MediaAssetSort), args["limit"].(*int32), args["offset"].(*int32), args["visibility"].(*model.MediaVisibility)), true
 	case "Query.searchMerchandising":
 		if e.ComplexityRoot.Query.SearchMerchandising == nil {
 			break
@@ -40095,6 +40115,12 @@ enum MediaMimeGroup {
   DOCUMENT
 }
 
+# PRIVATE files are kept in the private store, have no address (url is empty) and are read only through this API.
+enum MediaVisibility {
+  PUBLIC
+  PRIVATE
+}
+
 # Newest is recently changed first, the default
 enum MediaAssetSort {
   NEWEST
@@ -40111,6 +40137,7 @@ type MediaAsset {
   url: String!
   # A copy no wider than ` + "`" + `width` + "`" + ` for grids: storage's address once it exists, else a path on this API that makes it, else the original's url.
   thumbnailUrl(width: Int!): String!
+  visibility: MediaVisibility!
   mimeType: String!
   mimeGroup: MediaMimeGroup!
   sizeBytes: Int!
@@ -40164,6 +40191,7 @@ type RequestMediaAssetUploadPayload {
 
 input RequestMediaAssetUploadInput {
   path: String!
+  visibility: MediaVisibility
   filename: String!
   mimeType: String!
   sizeBytes: Int!
@@ -40182,10 +40210,12 @@ input UpdateMediaAssetInput {
 }
 
 extend type Query {
-  mediaDirectory(path: String!): MediaDirectory!
+  # The two halves of the library keep separate folders, so each of these looks at one - PUBLIC when left out.
+  mediaDirectory(path: String!, visibility: MediaVisibility): MediaDirectory!
   mediaAsset(id: ID!): MediaAsset!
-  searchMediaAssets(query: String, path: String, mimeGroup: MediaMimeGroup, sort: MediaAssetSort, limit: Int, offset: Int): MediaAssetSearchResult!
-  allMediaDirectories: [MediaDirectoryChild!]!
+  searchMediaAssets(query: String, path: String, mimeGroup: MediaMimeGroup, sort: MediaAssetSort, limit: Int, offset: Int, visibility: MediaVisibility): MediaAssetSearchResult!
+  allMediaDirectories(visibility: MediaVisibility): [MediaDirectoryChild!]!
+  mediaPrivateArea: Boolean!
   # The MIME types the library takes, for a file picker to offer.
   mediaUploadTypes: [String!]!
 }
@@ -40193,14 +40223,15 @@ extend type Query {
 extend type Mutation {
   # Set (or clear, with nulls) the smart-crop focal point.
   setMediaFocalPoint(assetId: ID!, x: Float, y: Float): MediaAsset!
-  createMediaDirectory(path: String!, name: String!): MediaDirectoryChild!
+  createMediaDirectory(path: String!, name: String!, visibility: MediaVisibility): MediaDirectoryChild!
   requestMediaAssetUpload(input: RequestMediaAssetUploadInput!): RequestMediaAssetUploadPayload!
   confirmMediaAssetUpload(assetId: ID!, width: Int, height: Int): MediaAsset!
   updateMediaAsset(input: UpdateMediaAssetInput!): MediaAsset!
-  moveMediaAsset(id: ID!, targetPath: String!, filename: String): MediaAsset!
+  # visibility set to the other half carries the file to that store: its address changes, or goes.
+  moveMediaAsset(id: ID!, targetPath: String!, filename: String, visibility: MediaVisibility): MediaAsset!
   deleteMediaAsset(id: ID!, deleteFromStorage: Boolean): Boolean!
-  deleteMediaDirectory(path: String!, recursive: Boolean!): Boolean!
-  renameMediaDirectory(path: String!, newName: String!): MediaDirectoryChild!
+  deleteMediaDirectory(path: String!, recursive: Boolean!, visibility: MediaVisibility): Boolean!
+  renameMediaDirectory(path: String!, newName: String!, visibility: MediaVisibility): MediaDirectoryChild!
 }
 `, BuiltIn: false},
 	{Name: "../schema/admin/menus.graphqls", Input: `# Admin-curated navigation menus. Each Menu is a slug-addressable tree of items used by the storefront for header / footer / mobile navigation. A MenuItem points either to a typed entity (PRODUCT/CATEGORY/COLLECTION/BLOG_POST/CMS_PAGE) - whose URL the storefront resolves via the url_rewrites table at render - or to a free-form URL. Never both.
@@ -49429,6 +49460,8 @@ func (ec *executionContext) childFields_MediaAsset(ctx context.Context, field gr
 		return ec.fieldContext_MediaAsset_url(ctx, field)
 	case "thumbnailUrl":
 		return ec.fieldContext_MediaAsset_thumbnailUrl(ctx, field)
+	case "visibility":
+		return ec.fieldContext_MediaAsset_visibility(ctx, field)
 	case "mimeType":
 		return ec.fieldContext_MediaAsset_mimeType(ctx, field)
 	case "mimeGroup":
@@ -55468,6 +55501,14 @@ func (ec *executionContext) field_Mutation_createMediaDirectory_args(ctx context
 		return nil, err
 	}
 	args["name"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "visibility",
+		func(ctx context.Context, v any) (*model.MediaVisibility, error) {
+			return ec.unmarshalOMediaVisibility2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaVisibility(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["visibility"] = arg2
 	return args, nil
 }
 
@@ -56648,6 +56689,14 @@ func (ec *executionContext) field_Mutation_deleteMediaDirectory_args(ctx context
 		return nil, err
 	}
 	args["recursive"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "visibility",
+		func(ctx context.Context, v any) (*model.MediaVisibility, error) {
+			return ec.unmarshalOMediaVisibility2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaVisibility(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["visibility"] = arg2
 	return args, nil
 }
 
@@ -57912,6 +57961,14 @@ func (ec *executionContext) field_Mutation_moveMediaAsset_args(ctx context.Conte
 		return nil, err
 	}
 	args["filename"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "visibility",
+		func(ctx context.Context, v any) (*model.MediaVisibility, error) {
+			return ec.unmarshalOMediaVisibility2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaVisibility(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["visibility"] = arg3
 	return args, nil
 }
 
@@ -58450,6 +58507,14 @@ func (ec *executionContext) field_Mutation_renameMediaDirectory_args(ctx context
 		return nil, err
 	}
 	args["newName"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "visibility",
+		func(ctx context.Context, v any) (*model.MediaVisibility, error) {
+			return ec.unmarshalOMediaVisibility2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaVisibility(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["visibility"] = arg2
 	return args, nil
 }
 
@@ -63259,6 +63324,20 @@ func (ec *executionContext) field_Query_aiInsights_args(ctx context.Context, raw
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_allMediaDirectories_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "visibility",
+		func(ctx context.Context, v any) (*model.MediaVisibility, error) {
+			return ec.unmarshalOMediaVisibility2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaVisibility(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["visibility"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_assistantConversation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -65636,6 +65715,14 @@ func (ec *executionContext) field_Query_mediaDirectory_args(ctx context.Context,
 		return nil, err
 	}
 	args["path"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "visibility",
+		func(ctx context.Context, v any) (*model.MediaVisibility, error) {
+			return ec.unmarshalOMediaVisibility2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaVisibility(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["visibility"] = arg1
 	return args, nil
 }
 
@@ -66796,6 +66883,14 @@ func (ec *executionContext) field_Query_searchMediaAssets_args(ctx context.Conte
 		return nil, err
 	}
 	args["offset"] = arg5
+	arg6, err := graphql.ProcessArgField(ctx, rawArgs, "visibility",
+		func(ctx context.Context, v any) (*model.MediaVisibility, error) {
+			return ec.unmarshalOMediaVisibility2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaVisibility(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["visibility"] = arg6
 	return args, nil
 }
 
@@ -111853,6 +111948,29 @@ func (ec *executionContext) fieldContext_MediaAsset_thumbnailUrl(ctx context.Con
 	return fc, nil
 }
 
+func (ec *executionContext) _MediaAsset_visibility(ctx context.Context, field graphql.CollectedField, obj *model.MediaAsset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MediaAsset_visibility(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Visibility, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.MediaVisibility) graphql.Marshaler {
+			return ec.marshalNMediaVisibility2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaVisibility(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MediaAsset_visibility(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MediaAsset", field, false, false, errors.New("field of type MediaVisibility does not have child fields"))
+}
+
 func (ec *executionContext) _MediaAsset_mimeType(ctx context.Context, field graphql.CollectedField, obj *model.MediaAsset) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -128075,7 +128193,7 @@ func (ec *executionContext) _Mutation_createMediaDirectory(ctx context.Context, 
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateMediaDirectory(ctx, fc.Args["path"].(string), fc.Args["name"].(string))
+			return ec.Resolvers.Mutation().CreateMediaDirectory(ctx, fc.Args["path"].(string), fc.Args["name"].(string), fc.Args["visibility"].(*model.MediaVisibility))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.MediaDirectoryChild) graphql.Marshaler {
@@ -128251,7 +128369,7 @@ func (ec *executionContext) _Mutation_moveMediaAsset(ctx context.Context, field 
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().MoveMediaAsset(ctx, fc.Args["id"].(string), fc.Args["targetPath"].(string), fc.Args["filename"].(*string))
+			return ec.Resolvers.Mutation().MoveMediaAsset(ctx, fc.Args["id"].(string), fc.Args["targetPath"].(string), fc.Args["filename"].(*string), fc.Args["visibility"].(*model.MediaVisibility))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.MediaAsset) graphql.Marshaler {
@@ -128339,7 +128457,7 @@ func (ec *executionContext) _Mutation_deleteMediaDirectory(ctx context.Context, 
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().DeleteMediaDirectory(ctx, fc.Args["path"].(string), fc.Args["recursive"].(bool))
+			return ec.Resolvers.Mutation().DeleteMediaDirectory(ctx, fc.Args["path"].(string), fc.Args["recursive"].(bool), fc.Args["visibility"].(*model.MediaVisibility))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
@@ -128383,7 +128501,7 @@ func (ec *executionContext) _Mutation_renameMediaDirectory(ctx context.Context, 
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().RenameMediaDirectory(ctx, fc.Args["path"].(string), fc.Args["newName"].(string))
+			return ec.Resolvers.Mutation().RenameMediaDirectory(ctx, fc.Args["path"].(string), fc.Args["newName"].(string), fc.Args["visibility"].(*model.MediaVisibility))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.MediaDirectoryChild) graphql.Marshaler {
@@ -153882,7 +154000,7 @@ func (ec *executionContext) _Query_mediaDirectory(ctx context.Context, field gra
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().MediaDirectory(ctx, fc.Args["path"].(string))
+			return ec.Resolvers.Query().MediaDirectory(ctx, fc.Args["path"].(string), fc.Args["visibility"].(*model.MediaVisibility))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.MediaDirectory) graphql.Marshaler {
@@ -153970,7 +154088,7 @@ func (ec *executionContext) _Query_searchMediaAssets(ctx context.Context, field 
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().SearchMediaAssets(ctx, fc.Args["query"].(*string), fc.Args["path"].(*string), fc.Args["mimeGroup"].(*model.MediaMimeGroup), fc.Args["sort"].(*model.MediaAssetSort), fc.Args["limit"].(*int32), fc.Args["offset"].(*int32))
+			return ec.Resolvers.Query().SearchMediaAssets(ctx, fc.Args["query"].(*string), fc.Args["path"].(*string), fc.Args["mimeGroup"].(*model.MediaMimeGroup), fc.Args["sort"].(*model.MediaAssetSort), fc.Args["limit"].(*int32), fc.Args["offset"].(*int32), fc.Args["visibility"].(*model.MediaVisibility))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.MediaAssetSearchResult) graphql.Marshaler {
@@ -154013,7 +154131,8 @@ func (ec *executionContext) _Query_allMediaDirectories(ctx context.Context, fiel
 			return ec.fieldContext_Query_allMediaDirectories(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return ec.Resolvers.Query().AllMediaDirectories(ctx)
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().AllMediaDirectories(ctx, fc.Args["visibility"].(*model.MediaVisibility))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.MediaDirectoryChild) graphql.Marshaler {
@@ -154023,7 +154142,7 @@ func (ec *executionContext) _Query_allMediaDirectories(ctx context.Context, fiel
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_Query_allMediaDirectories(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_allMediaDirectories(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -154033,7 +154152,41 @@ func (ec *executionContext) fieldContext_Query_allMediaDirectories(_ context.Con
 			return ec.childFields_MediaDirectoryChild(ctx, field)
 		},
 	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_allMediaDirectories_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
 	return fc, nil
+}
+
+func (ec *executionContext) _Query_mediaPrivateArea(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_mediaPrivateArea(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().MediaPrivateArea(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_mediaPrivateArea(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _Query_mediaUploadTypes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -186009,7 +186162,7 @@ func (ec *executionContext) unmarshalInputRequestMediaAssetUploadInput(ctx conte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"path", "filename", "mimeType", "sizeBytes", "title", "altText", "caption", "notes"}
+	fieldsInOrder := [...]string{"path", "visibility", "filename", "mimeType", "sizeBytes", "title", "altText", "caption", "notes"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -186023,6 +186176,13 @@ func (ec *executionContext) unmarshalInputRequestMediaAssetUploadInput(ctx conte
 				return it, err
 			}
 			it.Path = data
+		case "visibility":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("visibility"))
+			data, err := ec.unmarshalOMediaVisibility2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaVisibility(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Visibility = data
 		case "filename":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("filename"))
 			data, err := ec.unmarshalNString2string(ctx, v)
@@ -211866,6 +212026,11 @@ func (ec *executionContext) _MediaAsset(ctx context.Context, sel ast.SelectionSe
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "visibility":
+			out.Values[i] = ec._MediaAsset_visibility(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "mimeType":
 			out.Values[i] = ec._MediaAsset_mimeType(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -224825,6 +224990,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_allMediaDirectories(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "mediaPrivateArea":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_mediaPrivateArea(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -243259,6 +243446,16 @@ func (ec *executionContext) marshalNMediaMimeGroup2githubᚗcomᚋskeletgᚋskel
 	return v
 }
 
+func (ec *executionContext) unmarshalNMediaVisibility2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaVisibility(ctx context.Context, v any) (model.MediaVisibility, error) {
+	var res model.MediaVisibility
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMediaVisibility2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaVisibility(ctx context.Context, sel ast.SelectionSet, v model.MediaVisibility) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) marshalNMenu2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMenu(ctx context.Context, sel ast.SelectionSet, v model.Menu) graphql.Marshaler {
 	return ec._Menu(ctx, sel, &v)
 }
@@ -250246,6 +250443,22 @@ func (ec *executionContext) unmarshalOMediaMimeGroup2ᚖgithubᚗcomᚋskeletg�
 }
 
 func (ec *executionContext) marshalOMediaMimeGroup2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaMimeGroup(ctx context.Context, sel ast.SelectionSet, v *model.MediaMimeGroup) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
+func (ec *executionContext) unmarshalOMediaVisibility2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaVisibility(ctx context.Context, v any) (*model.MediaVisibility, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.MediaVisibility)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOMediaVisibility2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaVisibility(ctx context.Context, sel ast.SelectionSet, v *model.MediaVisibility) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}

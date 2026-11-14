@@ -4162,6 +4162,7 @@ export type MediaAsset = {
   title: Scalars['String']['output'];
   updatedAt: Scalars['Time']['output'];
   url: Scalars['String']['output'];
+  visibility: MediaVisibility;
   width?: Maybe<Scalars['Int']['output']>;
 };
 
@@ -4204,6 +4205,10 @@ export type MediaDirectoryChild = {
 export type MediaMimeGroup =
   | 'DOCUMENT'
   | 'IMAGE';
+
+export type MediaVisibility =
+  | 'PRIVATE'
+  | 'PUBLIC';
 
 export type Menu = {
   __typename?: 'Menu';
@@ -5407,6 +5412,7 @@ export type MutationCreateLocaleArgs = {
 export type MutationCreateMediaDirectoryArgs = {
   name: Scalars['String']['input'];
   path: Scalars['String']['input'];
+  visibility?: InputMaybe<MediaVisibility>;
 };
 
 
@@ -5795,6 +5801,7 @@ export type MutationDeleteMediaAssetArgs = {
 export type MutationDeleteMediaDirectoryArgs = {
   path: Scalars['String']['input'];
   recursive: Scalars['Boolean']['input'];
+  visibility?: InputMaybe<MediaVisibility>;
 };
 
 
@@ -6174,6 +6181,7 @@ export type MutationMoveMediaAssetArgs = {
   filename?: InputMaybe<Scalars['String']['input']>;
   id: Scalars['ID']['input'];
   targetPath: Scalars['String']['input'];
+  visibility?: InputMaybe<MediaVisibility>;
 };
 
 
@@ -6342,6 +6350,7 @@ export type MutationRenameEmailGroupArgs = {
 export type MutationRenameMediaDirectoryArgs = {
   newName: Scalars['String']['input'];
   path: Scalars['String']['input'];
+  visibility?: InputMaybe<MediaVisibility>;
 };
 
 
@@ -8732,6 +8741,7 @@ export type Query = {
   me: AdminUser;
   mediaAsset: MediaAsset;
   mediaDirectory: MediaDirectory;
+  mediaPrivateArea: Scalars['Boolean']['output'];
   mediaUploadTypes: Array<Scalars['String']['output']>;
   menu: Menu;
   menuBySlug?: Maybe<Menu>;
@@ -8891,6 +8901,11 @@ export type QueryAgenticStatusArgs = {
 export type QueryAiInsightsArgs = {
   channelId: Scalars['ID']['input'];
   days?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type QueryAllMediaDirectoriesArgs = {
+  visibility?: InputMaybe<MediaVisibility>;
 };
 
 
@@ -9559,6 +9574,7 @@ export type QueryMediaAssetArgs = {
 
 export type QueryMediaDirectoryArgs = {
   path: Scalars['String']['input'];
+  visibility?: InputMaybe<MediaVisibility>;
 };
 
 
@@ -9860,6 +9876,7 @@ export type QuerySearchMediaAssetsArgs = {
   path?: InputMaybe<Scalars['String']['input']>;
   query?: InputMaybe<Scalars['String']['input']>;
   sort?: InputMaybe<MediaAssetSort>;
+  visibility?: InputMaybe<MediaVisibility>;
 };
 
 
@@ -10290,6 +10307,7 @@ export type RequestMediaAssetUploadInput = {
   path: Scalars['String']['input'];
   sizeBytes: Scalars['Int']['input'];
   title?: InputMaybe<Scalars['String']['input']>;
+  visibility?: InputMaybe<MediaVisibility>;
 };
 
 export type RequestMediaAssetUploadPayload = {

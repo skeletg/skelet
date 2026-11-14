@@ -1,19 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@apollo/client/react'
-import type { MediaAssetSort, MediaMimeGroup } from '@/graphql/schema.types'
+import type { MediaAssetSort, MediaMimeGroup, MediaVisibility } from '@/graphql/schema.types'
 import { SearchMediaAssetsDocument } from './MediaLibrary.gql'
 
 export const MEDIA_PAGE = 48
 
-export type MediaSearch = { query: string; path: string; type: MediaMimeGroup | 'ALL'; sort: MediaAssetSort }
+// visibility is left out for the public half, so a search of it is word for word what it always was
+export type MediaSearch = { query: string; path: string; type: MediaMimeGroup | 'ALL'; sort: MediaAssetSort; visibility?: MediaVisibility; skip?: boolean }
 
 // The library's assets for a search, a page at a time: the picker and the library page both scroll through it.
 // The server caps one search at 200, so it pages by offset; a page that brings nothing new (a delete since the
 // count) ends it, or the sentinel would ask forever. A page that fails stops the sentinel too, and waits to be asked again
-export function useMediaSearch({ query, path, type, sort }: MediaSearch) {
-  const variables = { query: query || null, path: path || null, mimeGroup: type === 'ALL' ? null : type, sort, limit: MEDIA_PAGE, offset: 0 }
-  const results = useQuery(SearchMediaAssetsDocument, { variables, fetchPolicy: 'cache-and-network', notifyOnNetworkStatusChange: true })
-  const items = useMemo(() => results.data?.searchMediaAssets.items ?? results.previousData?.searchMediaAssets.items ?? [], [results.data, results.previousData])
+export function useMediaSearch({ query, path, type, sort, visibility, skip = false }: MediaSearch) {
+  const variables = { query: query || null, path: path || null, mimeGroup: type === 'ALL' ? null : type, sort, limit: MEDIA_PAGE, offset: 0, ...(visibility === 'PRIVATE' ? { visibility } : {}) }
+  const results = useQuery(SearchMediaAssetsDocument, { variables, skip, fetchPolicy: 'cache-and-network', notifyOnNetworkStatusChange: true })
+  // The last answer stands in while the next one comes - but only from the same half, never the other's files under this one's name
+  const half = visibility ?? 'PUBLIC'
+  const items = useMemo(
+    () => results.data?.searchMediaAssets.items ?? results.previousData?.searchMediaAssets.items.filter((a) => a.visibility === half) ?? [],
+    [results.data, results.previousData, half],
+  )
   const total = results.data?.searchMediaAssets.totalCount ?? items.length
 
   const pageKey = `${JSON.stringify(variables)}@${items.length}`

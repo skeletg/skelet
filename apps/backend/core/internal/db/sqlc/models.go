@@ -1738,6 +1738,7 @@ type MediaAsset struct {
 	UpdatedAt       time.Time       `json:"updated_at"`
 	FocalX          sql.NullFloat64 `json:"focal_x"`
 	FocalY          sql.NullFloat64 `json:"focal_y"`
+	Visibility      string          `json:"visibility"`
 }
 
 type Menu struct {

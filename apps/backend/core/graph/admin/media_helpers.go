@@ -1,6 +1,8 @@
 package admin
 
 import (
+	"context"
+
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/medialibrary"
 )
@@ -63,6 +65,7 @@ func toMediaAssetModel(asset medialibrary.Asset) *model.MediaAsset {
 		DirectoryPath: asset.DirectoryPrefix,
 		Filename:      asset.Filename,
 		URL:           asset.URL,
+		Visibility:    toMediaVisibilityModel(asset.Visibility),
 		ObjectKey:     asset.ObjectKey,
 		FocalX:        asset.FocalX,
 		FocalY:        asset.FocalY,
@@ -86,7 +89,41 @@ func thumbnailSource(a *model.MediaAsset) medialibrary.Asset {
 	if a.Status == model.MediaAssetStatusReady {
 		status = medialibrary.AssetStatusReady
 	}
-	return medialibrary.Asset{ObjectKey: a.ObjectKey, MimeType: a.MimeType, Width: a.Width, Status: status}
+	return medialibrary.Asset{ObjectKey: a.ObjectKey, MimeType: a.MimeType, Width: a.Width, Status: status, Visibility: mediaVisibilityFromGQL(&a.Visibility)}
+}
+
+func toMediaVisibilityModel(v medialibrary.Visibility) model.MediaVisibility {
+	if v == medialibrary.Private {
+		return model.MediaVisibilityPrivate
+	}
+	return model.MediaVisibilityPublic
+}
+
+func mediaVisibilityFromGQL(v *model.MediaVisibility) medialibrary.Visibility {
+	if v != nil && *v == model.MediaVisibilityPrivate {
+		return medialibrary.Private
+	}
+	return medialibrary.Public
+}
+
+func (r *Resolver) requirePrivate(ctx context.Context, slug string, halves ...medialibrary.Visibility) error {
+	return medialibrary.RequireHalf(ctx, r.AdminSvc, slug, halves...)
+}
+
+// The only by-id read of a library file in this package, so a private one never reaches a caller without slug
+func (r *Resolver) libraryAsset(ctx context.Context, rawID, slug string) (medialibrary.Asset, error) {
+	id, err := parseID(rawID, "media asset")
+	if err != nil {
+		return medialibrary.Asset{}, err
+	}
+	asset, err := r.MediaLibrarySvc.GetAnyAsset(ctx, id)
+	if err != nil {
+		return medialibrary.Asset{}, err
+	}
+	if err := r.requirePrivate(ctx, slug, asset.Visibility); err != nil {
+		return medialibrary.Asset{}, err
+	}
+	return asset, nil
 }
 
 func toMediaAssetStatusModel(status medialibrary.AssetStatus) model.MediaAssetStatus {

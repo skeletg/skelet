@@ -178,7 +178,7 @@ export function Thumb({ asset, className }: { asset: MediaAsset; className?: str
   }
   return (
     <span className={cn('block overflow-hidden', CHECKER, className)}>
-      {asset.url ? (
+      {asset.url || asset.visibility === 'PRIVATE' ? (
         <AssetImage asset={asset} className="size-full object-cover" />
       ) : (
         <ImageIcon className="m-auto size-6 text-muted-foreground" />

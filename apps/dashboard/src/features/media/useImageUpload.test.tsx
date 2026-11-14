@@ -28,7 +28,7 @@ afterEach(() => {
 
 const asset = (over: object = {}) => ({
   __typename: 'MediaAsset' as const, id: 'm1', path: 'option-pictures/a.png', directoryPath: 'option-pictures', filename: 'a.png',
-  url: 'https://cdn/a.png', thumbnailUrl: 'https://cdn/a.png', mimeType: 'image/png', mimeGroup: 'IMAGE' as const, sizeBytes: 3, width: null, height: null, status: 'PENDING' as const,
+  url: 'https://cdn/a.png', thumbnailUrl: 'https://cdn/a.png', visibility: 'PUBLIC' as const, mimeType: 'image/png', mimeGroup: 'IMAGE' as const, sizeBytes: 3, width: null, height: null, status: 'PENDING' as const,
   title: '', altText: '', caption: '', notes: '', focalX: null, focalY: null, createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z',
   ...over,
 })
@@ -120,6 +120,30 @@ describe('useMediaUpload', () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, { method: string; headers: Record<string, string>; body: FormData }]
     expect([url, init.method, init.headers.authorization]).toEqual([ADMIN_MEDIA_SVG_ENDPOINT, 'POST', 'Bearer tok'])
     expect(init.body.get('path')).toBe('brand')
+  })
+
+  it('asks for a slot in the private half, and sends an SVG there too', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ id: 's1', url: '' }) })
+    vi.stubGlobal('fetch', fetchMock)
+    const { requested, wrapper } = rig()
+    const { result } = renderHook(() => useMediaUpload('contracts', 'PRIVATE'), { wrapper })
+    await result.current(new File(['abc'], 'deed.bin'))
+    expect(requested).toEqual([{ path: 'contracts', filename: 'deed.bin', mimeType: 'application/octet-stream', sizeBytes: 3, altText: '', visibility: 'PRIVATE' }])
+
+    await result.current(new File(['<svg/>'], 'seal.svg', { type: 'image/svg+xml' }))
+    const [, init] = fetchMock.mock.calls[0] as [string, { body: FormData }]
+    expect([init.body.get('path'), init.body.get('visibility')]).toEqual(['contracts', 'private'])
+  })
+
+  it('names no half for a public upload, so the request is the one it always was', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ id: 's1', url: 'https://cdn/logo.svg' }) })
+    vi.stubGlobal('fetch', fetchMock)
+    const { requested, wrapper } = rig()
+    const { result } = renderHook(() => useMediaUpload('brand', 'PUBLIC'), { wrapper })
+    await result.current(new File(['abc'], 'a.bin'))
+    await result.current(new File(['<svg/>'], 'logo.svg', { type: 'image/svg+xml' }))
+    expect(requested[0]).not.toHaveProperty('visibility')
+    expect((fetchMock.mock.calls[0] as [string, { body: FormData }])[1].body.has('visibility')).toBe(false)
   })
 
   it("passes on the server's reason when it refuses an SVG", async () => {

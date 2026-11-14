@@ -3604,6 +3604,7 @@ type MediaAsset struct {
 	Filename      string           `json:"filename"`
 	URL           string           `json:"url"`
 	ThumbnailURL  string           `json:"thumbnailUrl"`
+	Visibility    MediaVisibility  `json:"visibility"`
 	MimeType      string           `json:"mimeType"`
 	MimeGroup     MediaMimeGroup   `json:"mimeGroup"`
 	SizeBytes     int32            `json:"sizeBytes"`
@@ -4561,14 +4562,15 @@ type RequestCoverUploadPayload struct {
 }
 
 type RequestMediaAssetUploadInput struct {
-	Path      string  `json:"path"`
-	Filename  string  `json:"filename"`
-	MimeType  string  `json:"mimeType"`
-	SizeBytes int32   `json:"sizeBytes"`
-	Title     *string `json:"title,omitempty"`
-	AltText   *string `json:"altText,omitempty"`
-	Caption   *string `json:"caption,omitempty"`
-	Notes     *string `json:"notes,omitempty"`
+	Path       string           `json:"path"`
+	Visibility *MediaVisibility `json:"visibility,omitempty"`
+	Filename   string           `json:"filename"`
+	MimeType   string           `json:"mimeType"`
+	SizeBytes  int32            `json:"sizeBytes"`
+	Title      *string          `json:"title,omitempty"`
+	AltText    *string          `json:"altText,omitempty"`
+	Caption    *string          `json:"caption,omitempty"`
+	Notes      *string          `json:"notes,omitempty"`
 }
 
 type RequestMediaAssetUploadPayload struct {
@@ -9042,6 +9044,61 @@ func (e *MediaMimeGroup) UnmarshalJSON(b []byte) error {
 }
 
 func (e MediaMimeGroup) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type MediaVisibility string
+
+const (
+	MediaVisibilityPublic  MediaVisibility = "PUBLIC"
+	MediaVisibilityPrivate MediaVisibility = "PRIVATE"
+)
+
+var AllMediaVisibility = []MediaVisibility{
+	MediaVisibilityPublic,
+	MediaVisibilityPrivate,
+}
+
+func (e MediaVisibility) IsValid() bool {
+	switch e {
+	case MediaVisibilityPublic, MediaVisibilityPrivate:
+		return true
+	}
+	return false
+}
+
+func (e MediaVisibility) String() string {
+	return string(e)
+}
+
+func (e *MediaVisibility) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MediaVisibility(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MediaVisibility", str)
+	}
+	return nil
+}
+
+func (e MediaVisibility) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MediaVisibility) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MediaVisibility) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

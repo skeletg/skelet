@@ -133,7 +133,7 @@ func parseTransformPath(prefix, p string) (transformSpec, string, bool) {
 		return transformSpec{}, "", false
 	}
 	specStr, key, ok := strings.Cut(rest, "/")
-	if !ok || key == "" || strings.HasPrefix(key, "derived/") || strings.Contains(key, "..") {
+	if !ok || key == "" || strings.HasPrefix(key, media.DerivedRoot) || strings.Contains(key, "..") {
 		return transformSpec{}, "", false
 	}
 	var spec transformSpec

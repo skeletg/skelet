@@ -30,6 +30,9 @@ func (m *thumbMemo) add(key string) {
 
 // Storage's own address for a copy no wider than width when it is already there, else the path that makes it - and the original where a copy gains nothing
 func (s *Service) ThumbnailURL(ctx context.Context, a Asset, width int) string {
+	if a.Visibility == Private {
+		return ""
+	}
 	width = media.SnapWidth(width)
 	if a.Status != AssetStatusReady || !media.CanResize(a.MimeType) || a.Width == nil || int(*a.Width) <= width || !s.storage.HasPublicBase() {
 		return s.storage.PublicURL(a.ObjectKey)

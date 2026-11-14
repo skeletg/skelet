@@ -20,22 +20,26 @@ func (r *mutationResolver) SetMediaFocalPoint(ctx context.Context, assetID strin
 	if err := r.requireGlobal(ctx, "media.manage"); err != nil {
 		return nil, err
 	}
-	id, err := parseID(assetID, "asset")
+	current, err := r.libraryAsset(ctx, assetID, medialibrary.PermPrivateManage)
 	if err != nil {
 		return nil, err
 	}
-	asset, err := r.MediaLibrarySvc.SetFocalPoint(ctx, id, x, y)
+	asset, err := r.MediaLibrarySvc.SetFocalPoint(ctx, current.ID, current.Visibility, x, y)
 	if err != nil {
 		return nil, err
 	}
 	return toMediaAssetModel(asset), nil
 }
 
-func (r *mutationResolver) CreateMediaDirectory(ctx context.Context, path string, name string) (*model.MediaDirectoryChild, error) {
+func (r *mutationResolver) CreateMediaDirectory(ctx context.Context, path string, name string, visibility *model.MediaVisibility) (*model.MediaDirectoryChild, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "media.manage"); err != nil {
 		return nil, err
 	}
-	dir, err := r.MediaLibrarySvc.CreateDirectory(ctx, path, name)
+	in := mediaVisibilityFromGQL(visibility)
+	if err := r.requirePrivate(ctx, medialibrary.PermPrivateManage, in); err != nil {
+		return nil, err
+	}
+	dir, err := r.MediaLibrarySvc.CreateDirectory(ctx, path, name, in)
 	if err != nil {
 		return nil, err
 	}
@@ -46,15 +50,20 @@ func (r *mutationResolver) RequestMediaAssetUpload(ctx context.Context, input mo
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "media.manage"); err != nil {
 		return nil, err
 	}
+	in := mediaVisibilityFromGQL(input.Visibility)
+	if err := r.requirePrivate(ctx, medialibrary.PermPrivateManage, in); err != nil {
+		return nil, err
+	}
 	result, err := r.MediaLibrarySvc.RequestUpload(ctx, medialibrary.RequestUploadInput{
-		Path:      input.Path,
-		Filename:  input.Filename,
-		MimeType:  input.MimeType,
-		SizeBytes: int64(input.SizeBytes),
-		Title:     stringOr(input.Title, ""),
-		AltText:   stringOr(input.AltText, ""),
-		Caption:   stringOr(input.Caption, ""),
-		Notes:     stringOr(input.Notes, ""),
+		Path:       input.Path,
+		Visibility: in,
+		Filename:   input.Filename,
+		MimeType:   input.MimeType,
+		SizeBytes:  int64(input.SizeBytes),
+		Title:      stringOr(input.Title, ""),
+		AltText:    stringOr(input.AltText, ""),
+		Caption:    stringOr(input.Caption, ""),
+		Notes:      stringOr(input.Notes, ""),
 	})
 	if err != nil {
 		return nil, err
@@ -70,14 +79,15 @@ func (r *mutationResolver) ConfirmMediaAssetUpload(ctx context.Context, assetID 
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "media.manage"); err != nil {
 		return nil, err
 	}
-	id, err := parseID(assetID, "media asset")
+	pending, err := r.libraryAsset(ctx, assetID, medialibrary.PermPrivateManage)
 	if err != nil {
 		return nil, err
 	}
 	asset, err := r.MediaLibrarySvc.ConfirmUpload(ctx, medialibrary.ConfirmUploadInput{
-		AssetID: id,
-		Width:   width,
-		Height:  height,
+		AssetID:    pending.ID,
+		Visibility: pending.Visibility,
+		Width:      width,
+		Height:     height,
 	})
 	if err != nil {
 		return nil, err
@@ -89,16 +99,17 @@ func (r *mutationResolver) UpdateMediaAsset(ctx context.Context, input model.Upd
 	if err := r.requireGlobal(ctx, "media.manage"); err != nil {
 		return nil, err
 	}
-	id, err := parseID(input.ID, "media asset")
+	current, err := r.libraryAsset(ctx, input.ID, medialibrary.PermPrivateManage)
 	if err != nil {
 		return nil, err
 	}
 	asset, err := r.MediaLibrarySvc.UpdateAsset(ctx, medialibrary.UpdateAssetInput{
-		ID:      id,
-		Title:   input.Title,
-		AltText: input.AltText,
-		Caption: input.Caption,
-		Notes:   input.Notes,
+		ID:         current.ID,
+		Visibility: current.Visibility,
+		Title:      input.Title,
+		AltText:    input.AltText,
+		Caption:    input.Caption,
+		Notes:      input.Notes,
 	})
 	if err != nil {
 		return nil, err
@@ -106,19 +117,24 @@ func (r *mutationResolver) UpdateMediaAsset(ctx context.Context, input model.Upd
 	return toMediaAssetModel(asset), nil
 }
 
-func (r *mutationResolver) MoveMediaAsset(ctx context.Context, id string, targetPath string, filename *string) (*model.MediaAsset, error) {
+func (r *mutationResolver) MoveMediaAsset(ctx context.Context, id string, targetPath string, filename *string, visibility *model.MediaVisibility) (*model.MediaAsset, error) {
 	if err := r.requireGlobal(ctx, "media.manage"); err != nil {
 		return nil, err
 	}
-	assetID, err := parseID(id, "media asset")
+	current, err := r.libraryAsset(ctx, id, medialibrary.PermPrivateManage)
 	if err != nil {
 		return nil, err
 	}
-	asset, err := r.MediaLibrarySvc.MoveAsset(ctx, medialibrary.MoveAssetInput{
-		ID:         assetID,
-		TargetPath: targetPath,
-		Filename:   filename,
-	})
+	move := medialibrary.MoveAssetInput{ID: current.ID, From: current.Visibility, TargetPath: targetPath, Filename: filename}
+	if visibility != nil {
+		to := mediaVisibilityFromGQL(visibility)
+		// Crossing takes the grant for both halves: into the private one, or out of it to an address anyone can open
+		if err := r.requirePrivate(ctx, medialibrary.PermPrivateManage, to); err != nil {
+			return nil, err
+		}
+		move.Visibility = &to
+	}
+	asset, err := r.MediaLibrarySvc.MoveAsset(ctx, move)
 	if err != nil {
 		return nil, err
 	}
@@ -129,42 +145,54 @@ func (r *mutationResolver) DeleteMediaAsset(ctx context.Context, id string, dele
 	if err := r.requireGlobal(ctx, "media.manage"); err != nil {
 		return false, err
 	}
-	assetID, err := parseID(id, "media asset")
+	current, err := r.libraryAsset(ctx, id, medialibrary.PermPrivateManage)
 	if err != nil {
 		return false, err
 	}
-	if err := r.MediaLibrarySvc.DeleteAsset(ctx, assetID, boolOrDefault(deleteFromStorage, true)); err != nil {
+	if err := r.MediaLibrarySvc.DeleteAsset(ctx, current.ID, current.Visibility, boolOrDefault(deleteFromStorage, true)); err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-func (r *mutationResolver) DeleteMediaDirectory(ctx context.Context, path string, recursive bool) (bool, error) {
+func (r *mutationResolver) DeleteMediaDirectory(ctx context.Context, path string, recursive bool, visibility *model.MediaVisibility) (bool, error) {
 	if err := r.requireGlobal(ctx, "media.manage"); err != nil {
 		return false, err
 	}
-	if err := r.MediaLibrarySvc.DeleteDirectory(ctx, path, recursive); err != nil {
+	in := mediaVisibilityFromGQL(visibility)
+	if err := r.requirePrivate(ctx, medialibrary.PermPrivateManage, in); err != nil {
+		return false, err
+	}
+	if err := r.MediaLibrarySvc.DeleteDirectory(ctx, path, recursive, in); err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-func (r *mutationResolver) RenameMediaDirectory(ctx context.Context, path string, newName string) (*model.MediaDirectoryChild, error) {
+func (r *mutationResolver) RenameMediaDirectory(ctx context.Context, path string, newName string, visibility *model.MediaVisibility) (*model.MediaDirectoryChild, error) {
 	if err := r.requireGlobal(ctx, "media.manage"); err != nil {
 		return nil, err
 	}
-	dir, err := r.MediaLibrarySvc.RenameDirectory(ctx, path, newName)
+	in := mediaVisibilityFromGQL(visibility)
+	if err := r.requirePrivate(ctx, medialibrary.PermPrivateManage, in); err != nil {
+		return nil, err
+	}
+	dir, err := r.MediaLibrarySvc.RenameDirectory(ctx, path, newName, in)
 	if err != nil {
 		return nil, err
 	}
 	return toMediaDirectoryChildModel(dir), nil
 }
 
-func (r *queryResolver) MediaDirectory(ctx context.Context, path string) (*model.MediaDirectory, error) {
+func (r *queryResolver) MediaDirectory(ctx context.Context, path string, visibility *model.MediaVisibility) (*model.MediaDirectory, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "media.view"); err != nil {
 		return nil, err
 	}
-	dir, err := r.MediaLibrarySvc.GetDirectory(ctx, path)
+	in := mediaVisibilityFromGQL(visibility)
+	if err := r.requirePrivate(ctx, medialibrary.PermPrivateView, in); err != nil {
+		return nil, err
+	}
+	dir, err := r.MediaLibrarySvc.GetDirectory(ctx, path, in)
 	if err != nil {
 		return nil, err
 	}
@@ -175,19 +203,19 @@ func (r *queryResolver) MediaAsset(ctx context.Context, id string) (*model.Media
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "media.view"); err != nil {
 		return nil, err
 	}
-	assetID, err := parseID(id, "media asset")
-	if err != nil {
-		return nil, err
-	}
-	asset, err := r.MediaLibrarySvc.GetAsset(ctx, assetID)
+	asset, err := r.libraryAsset(ctx, id, medialibrary.PermPrivateView)
 	if err != nil {
 		return nil, err
 	}
 	return toMediaAssetModel(asset), nil
 }
 
-func (r *queryResolver) SearchMediaAssets(ctx context.Context, query *string, path *string, mimeGroup *model.MediaMimeGroup, sort *model.MediaAssetSort, limit *int32, offset *int32) (*model.MediaAssetSearchResult, error) {
+func (r *queryResolver) SearchMediaAssets(ctx context.Context, query *string, path *string, mimeGroup *model.MediaMimeGroup, sort *model.MediaAssetSort, limit *int32, offset *int32, visibility *model.MediaVisibility) (*model.MediaAssetSearchResult, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "media.view"); err != nil {
+		return nil, err
+	}
+	in := mediaVisibilityFromGQL(visibility)
+	if err := r.requirePrivate(ctx, medialibrary.PermPrivateView, in); err != nil {
 		return nil, err
 	}
 	var group *medialibrary.MimeGroup
@@ -200,12 +228,13 @@ func (r *queryResolver) SearchMediaAssets(ctx context.Context, query *string, pa
 		order = strings.ToLower(string(*sort))
 	}
 	result, err := r.MediaLibrarySvc.SearchAssets(ctx, medialibrary.SearchInput{
-		Query:     query,
-		Path:      path,
-		MimeGroup: group,
-		Sort:      order,
-		Limit:     int32Or(limit, 50),
-		Offset:    int32Or(offset, 0),
+		Query:      query,
+		Path:       path,
+		Visibility: in,
+		MimeGroup:  group,
+		Sort:       order,
+		Limit:      int32Or(limit, 50),
+		Offset:     int32Or(offset, 0),
 	})
 	if err != nil {
 		return nil, err
@@ -213,11 +242,15 @@ func (r *queryResolver) SearchMediaAssets(ctx context.Context, query *string, pa
 	return toMediaAssetSearchResultModel(result), nil
 }
 
-func (r *queryResolver) AllMediaDirectories(ctx context.Context) ([]*model.MediaDirectoryChild, error) {
+func (r *queryResolver) AllMediaDirectories(ctx context.Context, visibility *model.MediaVisibility) ([]*model.MediaDirectoryChild, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "media.view"); err != nil {
 		return nil, err
 	}
-	dirs, err := r.MediaLibrarySvc.ListAllDirectories(ctx)
+	in := mediaVisibilityFromGQL(visibility)
+	if err := r.requirePrivate(ctx, medialibrary.PermPrivateView, in); err != nil {
+		return nil, err
+	}
+	dirs, err := r.MediaLibrarySvc.ListAllDirectories(ctx, in)
 	if err != nil {
 		return nil, err
 	}
@@ -226,6 +259,13 @@ func (r *queryResolver) AllMediaDirectories(ctx context.Context) ([]*model.Media
 		result[i] = toMediaDirectoryChildModel(d)
 	}
 	return result, nil
+}
+
+func (r *queryResolver) MediaPrivateArea(ctx context.Context) (bool, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "media.view"); err != nil {
+		return false, err
+	}
+	return r.MediaLibrarySvc.HasPrivate(), nil
 }
 
 func (r *queryResolver) MediaUploadTypes(ctx context.Context) ([]string, error) {

@@ -57,7 +57,7 @@ vi.mock('react-advanced-cropper', () => ({
 vi.mock('../useImageUpload', () => ({ useMediaUpload: vi.fn() }))
 
 const boot = {
-  __typename: 'MediaAsset' as const, id: 'boot', path: 'shoes/boot.jpg', directoryPath: 'shoes', filename: 'boot.jpg', url: 'https://cdn/boot.jpg', thumbnailUrl: 'https://cdn/boot.jpg',
+  __typename: 'MediaAsset' as const, id: 'boot', path: 'shoes/boot.jpg', directoryPath: 'shoes', filename: 'boot.jpg', url: 'https://cdn/boot.jpg', thumbnailUrl: 'https://cdn/boot.jpg', visibility: 'PUBLIC' as const,
   mimeType: 'image/jpeg', mimeGroup: 'IMAGE' as const, sizeBytes: 2048, width: 1200, height: 800, status: 'READY' as const,
   title: 'Chelsea boot', altText: 'A brown leather boot', caption: '', notes: 'shot in May', focalX: null, focalY: null, createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z',
 }

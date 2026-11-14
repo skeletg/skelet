@@ -35,7 +35,7 @@ const wholePicture = ({ imageSize, transforms }: CropperState) => (sideways(tran
 export default function PhotoEditor({ asset, onClose, onSaved }: { asset: MediaAsset; onClose: () => void; onSaved: (assetId: string) => void }) {
   const original = useOriginal(asset.id)
   const cropper = useRef<CropperRef>(null)
-  const upload = useMediaUpload(asset.directoryPath)
+  const upload = useMediaUpload(asset.directoryPath, asset.visibility)
   const [updateAsset] = useMutation(UpdateMediaAssetDocument)
 
   const [ratio, setRatio] = useState('free')

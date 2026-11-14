@@ -96,32 +96,35 @@ func TestUploadTypesCoverEverythingTheLibraryTakes(t *testing.T) {
 	}
 }
 
-func TestOnlyAFinishedRasterPictureOpensForEditing(t *testing.T) {
+func TestAFinishedFileOpensFromItsOwnStore(t *testing.T) {
 	svc, st, repo := fixture()
+	vault := newMemStore()
+	svc.SetPrivateStore(vault)
 	ctx := context.Background()
-	photo := seedAsset(repo, st, "banners", "a.jpg")
-	photo.Status = AssetStatusReady
-	repo.assets[photo.ID] = photo
-
-	body, got, err := svc.OpenForEditing(ctx, photo.ID)
-	if err != nil {
-		t.Fatal(err)
+	ready := func(dir, file string, in Visibility) Asset {
+		a := seedAsset(repo, st, dir, file)
+		a.Status, a.Visibility = AssetStatusReady, in
+		repo.assets[a.ID] = a
+		return a
 	}
-	defer body.Close()
-	if raw, _ := io.ReadAll(body); string(raw) != "bytes of banners/a.jpg" || got.ID != photo.ID {
-		t.Fatalf("opened %q for %s", raw, got.ID)
+	photo, contract := ready("banners", "a.jpg", Public), ready("contracts", "acme.pdf", Private)
+	delete(st.objects, contract.ObjectKey)
+	vault.objects[contract.ObjectKey] = true
+
+	for _, a := range []Asset{photo, contract} {
+		body, got, err := svc.Open(ctx, a.ID)
+		if err != nil {
+			t.Fatalf("%s: %v", a.Filename, err)
+		}
+		if raw, _ := io.ReadAll(body); string(raw) != "bytes of "+a.ObjectKey || got.ID != a.ID {
+			t.Errorf("%s opened as %q", a.Filename, raw)
+		}
 	}
 
 	pending := seedAsset(repo, st, "banners", "b.jpg")
-	vector := seedAsset(repo, st, "banners", "logo.svg")
-	vector.Status, vector.MimeType = AssetStatusReady, MimeSVG
-	repo.assets[vector.ID] = vector
-	for name, id := range map[string]uuid.UUID{"an unconfirmed upload": pending.ID, "a vector": vector.ID} {
-		if _, _, err := svc.OpenForEditing(ctx, id); !errors.Is(err, ErrNotEditable) {
-			t.Errorf("%s: %v, want ErrNotEditable", name, err)
+	for name, id := range map[string]uuid.UUID{"an unconfirmed upload": pending.ID, "an unknown id": uuid.New()} {
+		if _, _, err := svc.Open(ctx, id); !errors.Is(err, ErrAssetNotFound) {
+			t.Errorf("%s: %v, want ErrAssetNotFound", name, err)
 		}
-	}
-	if _, _, err := svc.OpenForEditing(ctx, uuid.New()); !errors.Is(err, ErrAssetNotFound) {
-		t.Errorf("an unknown id: %v, want ErrAssetNotFound", err)
 	}
 }

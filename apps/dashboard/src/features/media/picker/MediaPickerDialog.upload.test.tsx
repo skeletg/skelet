@@ -24,7 +24,7 @@ globalThis.IntersectionObserver ??= class {
 afterEach(() => vi.clearAllMocks())
 
 const asset = (id: string, filename: string, over: object = {}) => ({
-  __typename: 'MediaAsset' as const, id, path: `promo/${filename}`, directoryPath: 'promo', filename, url: `https://cdn/${filename}`, thumbnailUrl: `https://cdn/${filename}`,
+  __typename: 'MediaAsset' as const, id, path: `promo/${filename}`, directoryPath: 'promo', filename, url: `https://cdn/${filename}`, thumbnailUrl: `https://cdn/${filename}`, visibility: 'PUBLIC' as const,
   mimeType: 'image/png', mimeGroup: 'IMAGE' as const, sizeBytes: 2048, width: 40, height: 40, status: 'READY' as 'READY' | 'PENDING',
   title: '', altText: '', caption: '', notes: '', focalX: null, focalY: null, createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z',
   ...over,

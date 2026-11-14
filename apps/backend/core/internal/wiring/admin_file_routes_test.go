@@ -1,7 +1,9 @@
 package wiring
 
 import (
+	"context"
 	"errors"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -18,7 +20,8 @@ func TestTheAdminFileRoutesAskForASessionFirst(t *testing.T) {
 		h              http.Handler
 		method, target string
 	}{
-		"a library file":     {mediaFileHandler(nil, nil), http.MethodGet, mediaFilePath + id},
+		"a library file":     {mediaFileHandler(nil, nil, nil, nil), http.MethodGet, mediaFilePath + id},
+		"a smaller copy":     {mediaFileHandler(nil, nil, nil, nil), http.MethodGet, mediaFilePath + id + "?w=640"},
 		"an SVG upload":      {mediaSVGHandler(nil, nil), http.MethodPost, mediaSVGPath},
 		"a form upload":      {webformFileHandler(nil, nil), http.MethodGet, webformFilePath + id + "/files/cv"},
 		"an export":          {dataDownloadHandler(nil, nil), http.MethodGet, "/api/admin/data/jobs/" + id + "/file"},
@@ -46,4 +49,32 @@ func TestARefusalSaysWhetherASessionWouldHelp(t *testing.T) {
 			t.Errorf("%v: %d, want %d", err, rec.Code, want)
 		}
 	}
+}
+
+func TestTheSVGRouteRefusesAHalfItDoesNotKnow(t *testing.T) {
+	for _, half := range []string{"PRIVATE", "secret", " private"} {
+		body := &strings.Builder{}
+		form := multipart.NewWriter(body)
+		part, _ := form.CreateFormFile("file", "seal.svg")
+		_, _ = part.Write([]byte(`<svg xmlns="http://www.w3.org/2000/svg"/>`))
+		_ = form.WriteField("visibility", half)
+		_ = form.Close()
+		req := httptest.NewRequest(http.MethodPost, mediaSVGPath, strings.NewReader(body.String()))
+		req.Header.Set("Content-Type", form.FormDataContentType())
+		rec := httptest.NewRecorder()
+		mediaSVGHandler(nil, grantsAll{}).ServeHTTP(rec, req.WithContext(auth.WithAdmin(req.Context(), &auth.Claims{AdminID: uuid.New()})))
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("visibility %q: %d, want 400", half, rec.Code)
+		}
+	}
+}
+
+type grantsAll struct{}
+
+func (grantsAll) HasPermission(context.Context, uuid.UUID, string) (bool, error) { return true, nil }
+func (grantsAll) HasGlobalPermission(context.Context, uuid.UUID, string) (bool, error) {
+	return true, nil
+}
+func (grantsAll) HasChannelPermission(context.Context, uuid.UUID, string, uuid.UUID, *string) (bool, error) {
+	return true, nil
 }

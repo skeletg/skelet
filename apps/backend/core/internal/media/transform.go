@@ -29,6 +29,7 @@ import (
 const (
 	TransformRoute      = "/media/t/"
 	AdminTransformRoute = "/api/media/t/"
+	DerivedRoot         = "derived/"
 )
 
 func TransformPath(route, key string, w int) string {
@@ -68,7 +69,7 @@ var ErrSourceTooLarge = errors.New("media: source image exceeds the pixel cap")
 var ErrUnsupportedSource = errors.New("media: source image format can't be rendered")
 
 // How long one shared render may run - it's detached from the request that started it, so it needs its own bound
-const renderTimeout = 30 * time.Second
+const RenderTimeout = 30 * time.Second
 
 // The object storage a Transformer reads originals from and caches derivatives into
 type Store interface {
@@ -110,6 +111,11 @@ func (t *Transformer) SetMaxSourcePixels(n int) {
 	}
 }
 
+// The same limits and the same render slots over another store, so a second store doesn't double what the box decodes at once
+func (t *Transformer) ForStore(s Store) *Transformer {
+	return &Transformer{storage: s, maxSourcePixels: t.maxSourcePixels, sem: t.sem, renderWait: t.renderWait}
+}
+
 // How many decodes run at once and how long a caller queues before ErrBusy - zeros keep the defaults
 func (t *Transformer) SetRenderConcurrency(slots int, wait time.Duration) {
 	if slots > 0 {
@@ -130,7 +136,7 @@ func DerivedKey(key string, w, h int, webp bool) string {
 	if webp {
 		spec += "-webp"
 	}
-	return "derived/" + spec + "/" + key
+	return DerivedRoot + spec + "/" + key
 }
 
 func SnapSpec(w, h int) (int, int) {
@@ -185,7 +191,7 @@ func (t *Transformer) Transform(ctx context.Context, key string, w, h int, focal
 		ctype string
 	}
 	ch := t.inflight.DoChan(dkey, func() (any, error) {
-		rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), renderTimeout)
+		rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), RenderTimeout)
 		defer cancel()
 		if data, ctype, ok := t.cached(rctx, dkey); ok {
 			return rendered{data, ctype}, nil

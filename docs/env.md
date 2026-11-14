@@ -536,11 +536,39 @@ checks the admin's permission first: the job download for exports, and
 `/api/admin/webforms/submissions/<id>/files/<field>` for a form upload, which
 the dashboard's submissions page uses.
 
+It also gives the media library a second half. With a private store set, the
+library page gets a Public / Private switch, and the private half is a
+library of its own: its own folders, uploads that go straight to the private
+store, and files with no address. The dashboard shows them by asking
+`/api/admin/media/file/<id>` with the admin's session (`?w=` for a resized
+copy, which is cached in the private store too), so a private picture never
+has a link to copy, can't be picked for a product or a page, and isn't in the
+storefront's reach at all. Downloading one asks
+`/api/admin/download-ticket` for a link to that one file, good for a minute and
+on the admin's own session, and the browser saves it straight to disk - the file
+never passes through the page's memory, however big it is. Exports and form
+uploads download the same way. A file's details panel moves it between the
+halves. Making one private carries it to the private store, deletes the
+public original and every resized copy of it, and breaks whatever was showing
+it, which is the point. If the public original can't be removed, the file is
+left public and the admin is told to try again, since a file still at its
+address isn't private.
+
+The private half has permissions of its own, on top of the library's:
+`media.private.view` to open it, and `media.private.manage` to change it or
+move a file across. An admin with only `media.view`
+or `media.manage` doesn't see the switch at all. They count only when granted
+globally, and [permissions.md](permissions.md) has the role to build. Two
+things stay shut whatever the grants: a private picture is never sent to the
+AI provider for alt text, and the library can't reach the other files in the
+private store, so form uploads and exports stay behind their own permissions.
+
 - **S3:** make a second bucket that the same access key can read and write,
   and give it no public-read policy, no website hosting and no CDN in front.
   On Garage that just means not running `bucket website --allow` on it. A
-  shopper's browser sends a form upload straight to it with a signed link, so
-  it needs a CORS rule that allows `PUT` from your storefront's origin, and
+  browser sends a file straight to it with a signed link - a shopper's form
+  upload, an admin's upload into the private half - so it needs a CORS rule
+  that allows `PUT` from your storefront's and your dashboard's origins, and
   nothing else: a signed link can write one file and can't read any. One
   Garage trap: a bucket made over the S3 API is named for that access key
   alone, and Garage then can't find it for a browser's preflight, which
@@ -564,10 +592,11 @@ worth one manual `curl` after setup.
 
 Production refuses to start without it, since these files would otherwise sit
 in the media store behind nothing but a random address. Development carries on
-without one and keeps them in the media store. Turning it on only affects files
-written from then on: an export made before stays where it was until its
-retention runs out, and a form upload made before can no longer be downloaded
-from the dashboard, since it's looked for in the private store. In dev,
+without one and keeps them in the media store, with no private half in the
+library. Turning it on only affects files written from then on: an
+export made before stays where it was until its retention runs out, and a
+form upload made before can no longer be downloaded from the dashboard, since
+it's looked for in the private store. In dev,
 `skelet up` creates a bucket called `private` in the local Garage, and
 `env/go.env.example` already points at it. An older checkout needs that one
 line copied into its `env/go.env`.

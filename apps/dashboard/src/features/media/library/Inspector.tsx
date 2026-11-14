@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation } from '@apollo/client/react'
-import { CropIcon, Trash2Icon, XIcon } from 'lucide-react'
+import { CropIcon, GlobeIcon, LockIcon, Trash2Icon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,8 +18,11 @@ export function Inspector({
   asset,
   canManage,
   folders,
+  canCross,
+  dirty,
   onChanged,
   onDeleted,
+  onLeft,
   onEdit,
   onClose,
   onDirty,
@@ -28,8 +31,11 @@ export function Inspector({
   asset: MediaAsset
   canManage: boolean
   folders: string[]
+  canCross: boolean
+  dirty: boolean
   onChanged: (a: MediaAsset) => void
   onDeleted: (a: MediaAsset) => void
+  onLeft: (a: MediaAsset) => void
   onEdit: () => void
   onClose: () => void
   onDirty: (dirty: boolean) => void
@@ -57,7 +63,7 @@ export function Inspector({
           </Button>
         ) : null}
         <AssetPanel asset={asset} canManage={canManage} notes libraryLink={false} onChanged={onChanged} onDirty={onDirty} />
-        {canManage ? <Filing key={asset.id} asset={asset} folders={folders} onChanged={onChanged} onDeleted={onDeleted} onError={onError} /> : null}
+        {canManage ? <Filing key={asset.id} asset={asset} folders={folders} canCross={canCross} detailsDirty={dirty} onChanged={onChanged} onDeleted={onDeleted} onLeft={onLeft} onError={onError} /> : null}
       </div>
     </aside>
   )
@@ -66,23 +72,33 @@ export function Inspector({
 function Filing({
   asset,
   folders,
+  canCross,
+  detailsDirty,
   onChanged,
   onDeleted,
+  onLeft,
   onError,
 }: {
   asset: MediaAsset
   folders: string[]
+  canCross: boolean
+  detailsDirty: boolean
   onChanged: (a: MediaAsset) => void
   onDeleted: (a: MediaAsset) => void
+  onLeft: (a: MediaAsset) => void
   onError: (message: string | null) => void
 }) {
   const [filename, setFilename] = useState(asset.filename)
   const [folder, setFolder] = useState(asset.directoryPath)
   const [confirming, setConfirming] = useState(false)
+  const [crossing, setCrossing] = useState(false)
+  const hidden = asset.visibility === 'PRIVATE'
   const [move, { loading: moving }] = useMutation(MoveMediaAssetDocument)
   const [remove] = useMutation(DeleteMediaAssetDocument)
   const renamed = filename.trim() !== asset.filename
   const refiled = folder !== asset.directoryPath
+  // A move to the other half carries the file as it is saved, so anything still being typed for it would be dropped
+  const held = detailsDirty || renamed || refiled
   const options = [...new Set(['', ...folders, asset.directoryPath])].sort()
 
   async function apply() {
@@ -90,6 +106,16 @@ function Filing({
     try {
       const res = await move({ variables: { id: asset.id, targetPath: folder, filename: filename.trim() } })
       if (res.data?.moveMediaAsset) onChanged(res.data.moveMediaAsset)
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "The file couldn't be moved.")
+    }
+  }
+
+  async function cross() {
+    onError(null)
+    try {
+      const res = await move({ variables: { id: asset.id, targetPath: asset.directoryPath, filename: asset.filename, visibility: hidden ? 'PUBLIC' : 'PRIVATE' } })
+      if (res.data?.moveMediaAsset) onLeft(res.data.moveMediaAsset)
     } catch (e) {
       onError(e instanceof Error ? e.message : "The file couldn't be moved.")
     }
@@ -135,6 +161,41 @@ function Filing({
           Delete
         </Button>
       </div>
+      {canCross ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="justify-between"
+          disabled={moving || held}
+          aria-describedby={held ? 'crossing-held' : undefined}
+          onClick={() => setCrossing(true)}
+        >
+          <span className="flex items-center gap-2">
+            {hidden ? <GlobeIcon className="size-4" /> : <LockIcon className="size-4" />}
+            {hidden ? 'Make public' : 'Make private'}
+          </span>
+          <span className="text-xs font-normal text-muted-foreground">{hidden ? 'gives it an address' : 'takes its address away'}</span>
+        </Button>
+      ) : null}
+      {canCross && held ? (
+        <p id="crossing-held" className="-mt-1 text-xs text-muted-foreground">
+          Save or undo your other changes to this file before moving it to the other half.
+        </p>
+      ) : null}
+      <ConfirmDialog
+        open={crossing}
+        onOpenChange={setCrossing}
+        title={hidden ? 'Make this file public?' : 'Make this file private?'}
+        description={
+          hidden
+            ? 'It moves to the public half of the library and gets an address anyone can open. Customers it is shared with keep their access.'
+            : 'It moves to the private half and loses its address. Anything on the storefront that shows it will stop showing it, and links to it will break.'
+        }
+        confirmLabel={hidden ? 'Make public' : 'Make private'}
+        destructive={!hidden}
+        onConfirm={() => void cross()}
+      />
       <ConfirmDialog
         open={confirming}
         onOpenChange={setConfirming}

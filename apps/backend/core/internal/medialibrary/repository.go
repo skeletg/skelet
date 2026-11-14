@@ -38,6 +38,7 @@ func (r *postgresRepository) CreateAsset(ctx context.Context, asset Asset) (Asse
 		Notes:           asset.Notes,
 		CreatedBy:       sqlnull.UUID(asset.CreatedBy),
 		UpdatedBy:       sqlnull.UUID(asset.UpdatedBy),
+		Visibility:      string(asset.Visibility.OrPublic()),
 	})
 	if err != nil {
 		if pgdb.IsUniqueViolation(err) {
@@ -75,16 +76,16 @@ func (r *postgresRepository) GetAssetsByIDs(ctx context.Context, ids []uuid.UUID
 	return out, nil
 }
 
-func (r *postgresRepository) ListAssetsByDirectory(ctx context.Context, path string) ([]Asset, error) {
-	rows, err := r.queries.ListMediaAssetsByDirectory(ctx, path)
+func (r *postgresRepository) ListAssetsByDirectory(ctx context.Context, path string, in Visibility) ([]Asset, error) {
+	rows, err := r.queries.ListMediaAssetsByDirectory(ctx, db.ListMediaAssetsByDirectoryParams{Column1: path, Visibility: string(in.OrPublic())})
 	if err != nil {
 		return nil, fmt.Errorf("list media assets by directory: %w", err)
 	}
 	return toAssets(rows), nil
 }
 
-func (r *postgresRepository) ListAssetsByPathRecursive(ctx context.Context, path string) ([]Asset, error) {
-	rows, err := r.queries.ListMediaAssetsByPathRecursive(ctx, path)
+func (r *postgresRepository) ListAssetsByPathRecursive(ctx context.Context, path string, in Visibility) ([]Asset, error) {
+	rows, err := r.queries.ListMediaAssetsByPathRecursive(ctx, db.ListMediaAssetsByPathRecursiveParams{Column1: path, Visibility: string(in.OrPublic())})
 	if err != nil {
 		return nil, fmt.Errorf("list media assets by path prefix: %w", err)
 	}
@@ -112,21 +113,24 @@ func (r *postgresRepository) SearchAssets(ctx context.Context, input SearchInput
 	if input.Query != nil {
 		query = *input.Query
 	}
+	in := string(input.Visibility.OrPublic())
 	rows, err := r.queries.SearchMediaAssets(ctx, db.SearchMediaAssetsParams{
-		Column1: path,
-		Column2: mimePrefix,
-		Column3: query,
-		Column6: input.Sort,
-		Limit:   input.Limit,
-		Offset:  input.Offset,
+		Column1:    path,
+		Column2:    mimePrefix,
+		Column3:    query,
+		Column6:    input.Sort,
+		Limit:      input.Limit,
+		Offset:     input.Offset,
+		Visibility: in,
 	})
 	if err != nil {
 		return SearchResult{}, fmt.Errorf("search media assets: %w", err)
 	}
 	total, err := r.queries.CountSearchMediaAssets(ctx, db.CountSearchMediaAssetsParams{
-		Column1: path,
-		Column2: mimePrefix,
-		Column3: query,
+		Column1:    path,
+		Column2:    mimePrefix,
+		Column3:    query,
+		Visibility: in,
 	})
 	if err != nil {
 		return SearchResult{}, fmt.Errorf("count media assets: %w", err)
@@ -181,13 +185,14 @@ func (r *postgresRepository) UpdateAssetMetadata(ctx context.Context, input Upda
 	return toAsset(row), nil
 }
 
-func (r *postgresRepository) UpdateAssetLocation(ctx context.Context, id uuid.UUID, path, filename, objectKey string, updatedBy *uuid.UUID) (Asset, error) {
+func (r *postgresRepository) UpdateAssetLocation(ctx context.Context, id uuid.UUID, path, filename, objectKey string, in Visibility, updatedBy *uuid.UUID) (Asset, error) {
 	row, err := r.queries.UpdateMediaAssetLocation(ctx, db.UpdateMediaAssetLocationParams{
 		ID:              id,
 		DirectoryPrefix: path,
 		Filename:        filename,
 		ObjectKey:       objectKey,
 		UpdatedBy:       sqlnull.UUID(updatedBy),
+		Visibility:      string(in.OrPublic()),
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -205,8 +210,8 @@ func (r *postgresRepository) DeleteAsset(ctx context.Context, id uuid.UUID) erro
 	return nil
 }
 
-func (r *postgresRepository) DeleteAssetsByDirectoryPrefix(ctx context.Context, path string) error {
-	if err := r.queries.DeleteMediaAssetsByDirectoryPrefix(ctx, path); err != nil {
+func (r *postgresRepository) DeleteAssetsByDirectoryPrefix(ctx context.Context, path string, in Visibility) error {
+	if err := r.queries.DeleteMediaAssetsByDirectoryPrefix(ctx, db.DeleteMediaAssetsByDirectoryPrefixParams{Column1: path, Visibility: string(in.OrPublic())}); err != nil {
 		return fmt.Errorf("delete media assets by directory prefix: %w", err)
 	}
 	return nil
@@ -226,6 +231,7 @@ func toAsset(row db.MediaAsset) Asset {
 		DirectoryPrefix: row.DirectoryPrefix,
 		Filename:        row.Filename,
 		ObjectKey:       row.ObjectKey,
+		Visibility:      Visibility(row.Visibility).OrPublic(),
 		MimeType:        row.MimeType,
 		SizeBytes:       row.SizeBytes,
 		Width:           sqlnull.Int32Ptr(row.Width),

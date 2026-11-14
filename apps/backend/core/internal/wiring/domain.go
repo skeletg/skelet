@@ -140,9 +140,12 @@ func privateUploadRoute(private PrivateStorage, media objstore.Storage) (http.Ha
 	return uploads.UploadHandler(objstore.PrivateUploadPath), true
 }
 
-func newMediaLibraryService(q *db.Queries, store objstore.Storage, cfg *config.Service) *medialibrary.Service {
+func newMediaLibraryService(q *db.Queries, store objstore.Storage, private PrivateStorage, cfg *config.Service) *medialibrary.Service {
 	svc := medialibrary.NewService(medialibrary.NewRepository(q), store, os.Getenv("MEDIA_LIBRARY_ROOT_PREFIX"))
 	svc.SetConfig(cfg)
+	if private.Storage != nil {
+		svc.SetPrivateStore(private.Storage)
+	}
 	return svc
 }
 

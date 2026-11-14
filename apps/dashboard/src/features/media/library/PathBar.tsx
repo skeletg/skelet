@@ -1,14 +1,18 @@
-import { FolderPlusIcon, MoreHorizontalIcon, PencilIcon, Trash2Icon, UploadIcon } from 'lucide-react'
+import { FolderPlusIcon, LockIcon, MoreHorizontalIcon, PencilIcon, Trash2Icon, UploadIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import type { MediaVisibility } from '@/graphql/schema.types'
 import { cn } from '@/lib/utils'
 import { buildBreadcrumbs } from '../directory-paths'
+import { AreaSwitch } from './AreaSwitch'
 
 // Where the wall stands in the library, with what can be done to that folder and the way to add files to it
 export function PathBar({
   path,
   canManage,
   uploading,
+  area,
+  onArea,
   onNavigate,
   onRename,
   onDelete,
@@ -18,6 +22,8 @@ export function PathBar({
   path: string
   canManage: boolean
   uploading: boolean
+  area: MediaVisibility
+  onArea?: (area: MediaVisibility) => void
   onNavigate: (path: string) => void
   onRename: () => void
   onDelete: (recursive: boolean) => void
@@ -25,10 +31,13 @@ export function PathBar({
   onUpload: () => void
 }) {
   const breadcrumbs = buildBreadcrumbs(path)
+  if (area === 'PRIVATE') breadcrumbs[0] = { ...breadcrumbs[0]!, name: 'Private files' }
   return (
     <div className="sticky top-0 z-10 border-b border-foreground/10 bg-background/85 backdrop-blur-md">
       <div className="flex min-h-[49px] flex-wrap items-center justify-between gap-3 px-4 py-2">
+        {onArea ? <AreaSwitch area={area} onArea={onArea} className="@min-[56rem]/media:hidden" /> : null}
         <nav aria-label="Folder" className="flex min-w-0 flex-wrap items-center gap-0.5 text-sm">
+          {area === 'PRIVATE' ? <LockIcon aria-hidden className="mr-1 size-3.5 text-muted-foreground" /> : null}
           {breadcrumbs.map((crumb, i) => {
             const here = i === breadcrumbs.length - 1
             return (

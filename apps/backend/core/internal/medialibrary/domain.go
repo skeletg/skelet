@@ -25,7 +25,27 @@ func init() {
 		Slug:  "media.manage",
 		Name:  "Manage media library",
 	})
+	// The private half asks for these on top of the two above, and only a grant on all channels counts
+	permission.Register(permission.Definition{
+		Group:       "media",
+		Slug:        PermPrivateView,
+		Name:        "View private media",
+		Description: "See and download the files in the media library's private half. Needs View media library as well, and counts only when granted on all channels.",
+		SortOrder:   3,
+	})
+	permission.Register(permission.Definition{
+		Group:       "media",
+		Slug:        PermPrivateManage,
+		Name:        "Manage private media",
+		Description: "Upload to, organise and delete in the private half, and move a file between the halves. Making a private file public gives it an address anyone can open, so grant it separately from Manage media library. Counts only when granted on all channels.",
+		SortOrder:   4,
+	})
 }
+
+const (
+	PermPrivateView   = "media.private.view"
+	PermPrivateManage = "media.private.manage"
+)
 
 type AssetStatus string
 
@@ -33,6 +53,22 @@ const (
 	AssetStatusPending AssetStatus = "pending"
 	AssetStatusReady   AssetStatus = "ready"
 )
+
+// A private file is kept in the private store, has no address, and is read only through a route that checks who is asking
+type Visibility string
+
+const (
+	Public  Visibility = "public"
+	Private Visibility = "private"
+)
+
+// The zero value is public, which is what every caller that predates the private half means
+func (v Visibility) OrPublic() Visibility {
+	if v == Private {
+		return Private
+	}
+	return Public
+}
 
 type MimeGroup string
 
@@ -47,6 +83,7 @@ type Asset struct {
 	Filename        string
 	ObjectKey       string
 	URL             string
+	Visibility      Visibility
 	MimeType        string
 	SizeBytes       int64
 	Width           *int32
@@ -109,14 +146,15 @@ type SearchResult struct {
 }
 
 type RequestUploadInput struct {
-	Path      string
-	Filename  string
-	MimeType  string
-	SizeBytes int64
-	Title     string
-	AltText   string
-	Caption   string
-	Notes     string
+	Path       string
+	Visibility Visibility
+	Filename   string
+	MimeType   string
+	SizeBytes  int64
+	Title      string
+	AltText    string
+	Caption    string
+	Notes      string
 }
 
 type RequestUploadResult struct {
@@ -125,30 +163,36 @@ type RequestUploadResult struct {
 	ExpiresAt time.Time
 }
 
+// Visibility on a by-id writer is the half the caller was checked against, public when left out - a file in the other isn't found
 type ConfirmUploadInput struct {
-	AssetID uuid.UUID
-	Width   *int32
-	Height  *int32
+	AssetID    uuid.UUID
+	Visibility Visibility
+	Width      *int32
+	Height     *int32
 }
 
 type UpdateAssetInput struct {
-	ID      uuid.UUID
-	Title   *string
-	AltText *string
-	Caption *string
-	Notes   *string
+	ID         uuid.UUID
+	Visibility Visibility
+	Title      *string
+	AltText    *string
+	Caption    *string
+	Notes      *string
 }
 
 type MoveAssetInput struct {
 	ID         uuid.UUID
+	From       Visibility
 	TargetPath string
 	Filename   *string
+	Visibility *Visibility
 }
 
 type SearchInput struct {
-	Query     *string
-	Path      *string
-	MimeGroup *MimeGroup
+	Query      *string
+	Path       *string
+	Visibility Visibility
+	MimeGroup  *MimeGroup
 	// newest (the default), oldest, name or largest
 	Sort   string
 	Limit  int32
@@ -161,15 +205,15 @@ type Repository interface {
 	GetByObjectKey(ctx context.Context, key string) (Asset, bool, error)
 	GetAssetByID(ctx context.Context, id uuid.UUID) (Asset, error)
 	GetAssetsByIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]Asset, error)
-	ListAssetsByDirectory(ctx context.Context, path string) ([]Asset, error)
-	ListAssetsByPathRecursive(ctx context.Context, path string) ([]Asset, error)
+	ListAssetsByDirectory(ctx context.Context, path string, in Visibility) ([]Asset, error)
+	ListAssetsByPathRecursive(ctx context.Context, path string, in Visibility) ([]Asset, error)
 	ListOrphanProductOptionAssets(ctx context.Context, cutoff time.Time, maxRows int32) ([]Asset, error)
 	SearchAssets(ctx context.Context, input SearchInput) (SearchResult, error)
 	ConfirmAssetUpload(ctx context.Context, id uuid.UUID, width, height *int32, updatedBy *uuid.UUID) (Asset, error)
 	UpdateAssetMetadata(ctx context.Context, input UpdateAssetInput, updatedBy *uuid.UUID) (Asset, error)
-	UpdateAssetLocation(ctx context.Context, id uuid.UUID, path, filename, objectKey string, updatedBy *uuid.UUID) (Asset, error)
+	UpdateAssetLocation(ctx context.Context, id uuid.UUID, path, filename, objectKey string, in Visibility, updatedBy *uuid.UUID) (Asset, error)
 	DeleteAsset(ctx context.Context, id uuid.UUID) error
-	DeleteAssetsByDirectoryPrefix(ctx context.Context, path string) error
+	DeleteAssetsByDirectoryPrefix(ctx context.Context, path string, in Visibility) error
 }
 
 var (
@@ -190,4 +234,7 @@ var (
 	ErrInvalidDimensions    = errors.New("width and height are required for images")
 	ErrInvalidFocalPoint    = errors.New("a focal point needs both x and y within 0..1, or neither to clear it")
 	ErrNotEditable          = errors.New("only a finished JPEG, PNG or WebP upload can be edited")
+	ErrNoPrivateStore       = errors.New("this install has no private store, so the library has no private half")
+	ErrPrivateAsset         = errors.New("a private file can't be used here - it has no address, and it isn't sent anywhere outside the shop")
+	ErrStillPublic          = errors.New("the file couldn't be made private: its public copy couldn't be removed, so it can still be opened at its address - try again")
 )

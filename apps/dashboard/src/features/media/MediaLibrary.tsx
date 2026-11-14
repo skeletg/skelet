@@ -5,9 +5,9 @@ import { ChevronRightIcon, FolderIcon, UploadCloudIcon } from 'lucide-react'
 import { DetailPageLayout } from '@/components/layout/detail-page'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import type { MediaVisibility } from '@/graphql/schema.types'
 import { formatNumber } from '@/lib/format'
 import { useUnsavedChangesGuard } from '@/lib/unsaved-changes'
-import { usePermissions } from '@/shared/auth/usePermissions'
 import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 import { useConfirmDialog } from '@/shared/dialogs/useConfirmDialog'
 import { useDebounced } from '@/shared/hooks/useDebounced'
@@ -37,6 +37,7 @@ import {
 } from './MediaLibrary.gql'
 import { AssetGrid } from './picker/AssetGrid'
 import { useUploadQueue } from './picker/useUploadQueue'
+import { useMediaAccess } from './useMediaAccess'
 import { useMediaSearch } from './useMediaSearch'
 
 const PhotoEditor = lazy(() => import('./editor/PhotoEditor'))
@@ -52,8 +53,14 @@ export function MediaLibrary() {
   const path = searchParams.get('path') ?? ''
   const search = searchParams.get('q') ?? ''
   const query = useDebounced(search.trim(), 250)
-  const { has } = usePermissions()
-  const canManage = has('media.manage')
+  const access = useMediaAccess()
+  const { hasPrivate } = access
+  // The halves keep separate folders and files, so everything below asks about one. The public half asks exactly what it always did
+  const area: MediaVisibility = hasPrivate && searchParams.get('area') === 'private' ? 'PRIVATE' : 'PUBLIC'
+  // An address that asks for the private half waits to learn whether it may have it, rather than show the public one first
+  const waiting = searchParams.get('area') === 'private' && !access.settled
+  const canManage = access.canManage(area)
+  const inArea = area === 'PRIVATE' ? { visibility: area } : {}
 
   const [type, setType] = useState<TypeFilter>('ALL')
   const [prefs, setPrefsState] = useState(readPrefs)
@@ -81,7 +88,7 @@ export function MediaLibrary() {
   }, [panelDirty])
 
   // Another folder or search lets several picks go, but one open file stays open, so nothing typed for it is lost
-  const wall = `${path}\n${query}\n${type}`
+  const wall = `${area}\n${path}\n${query}\n${type}`
   const [shownWall, setShownWall] = useState(wall)
   if (shownWall !== wall) {
     setShownWall(wall)
@@ -89,12 +96,12 @@ export function MediaLibrary() {
     setAnchorId(null)
   }
 
-  const dirs = useQuery(AllMediaDirectoriesDocument)
+  const dirs = useQuery(AllMediaDirectoriesDocument, { variables: inArea, skip: waiting })
   const folders = (dirs.data?.allMediaDirectories ?? []).map((d) => d.path)
-  const directory = useQuery(MediaDirectoryDocument, { variables: { path } })
+  const directory = useQuery(MediaDirectoryDocument, { variables: { path, ...inArea }, skip: waiting })
   const uploadTypes = useQuery(MediaUploadTypesDocument, { skip: !canManage }).data?.mediaUploadTypes
-  const counts = useQuery(MediaCountsDocument, { variables: { query: query || null, path: path || null }, fetchPolicy: 'cache-and-network' })
-  const results = useMediaSearch({ query, path, type, sort: prefs.sort })
+  const counts = useQuery(MediaCountsDocument, { variables: { query: query || null, path: path || null, ...inArea }, fetchPolicy: 'cache-and-network', skip: waiting })
+  const results = useMediaSearch({ query, path, type, sort: prefs.sort, visibility: area, skip: waiting })
   const { items, total, loading, hasMore, moreFailed, loadMore, sentinel, drop } = results
 
   const byId = new Map(items.map((a) => [a.id, a]))
@@ -118,6 +125,16 @@ export function MediaLibrary() {
     else params.delete('path')
     setSearchParams(params)
   }
+  // The other half is another place: its own folders, nothing picked, and no search carried over
+  function switchArea(next: MediaVisibility) {
+    const go = () => {
+      setPicked([])
+      setSearchParams(next === 'PRIVATE' ? { area: 'private' } : {})
+    }
+    if (panelDirty) setAfterDiscard(() => go)
+    else go()
+  }
+  const onArea = hasPrivate ? switchArea : undefined
   function setSearch(next: string) {
     const params = new URLSearchParams(searchParams)
     if (next) params.set('q', next)
@@ -157,6 +174,7 @@ export function MediaLibrary() {
       },
       [refresh],
     ),
+    area,
   )
   function addFiles(files: File[]) {
     if (canManage && files.length > 0) void uploads.add(files, () => null)
@@ -192,13 +210,13 @@ export function MediaLibrary() {
   const onFolderName = (name: string) =>
     run(folderDialog === 'rename' ? 'Renaming the folder' : 'Making the folder', async () => {
       if (folderDialog === 'rename') {
-        const res = await renameDirectory({ variables: { path, newName: name } })
+        const res = await renameDirectory({ variables: { path, newName: name, ...inArea } })
         setFolderDialog(null)
         await refetchDirs()
         navigateTo(res.data?.renameMediaDirectory.path ?? parentOf(path))
         return
       }
-      await createDirectory({ variables: { path, name } })
+      await createDirectory({ variables: { path, name, ...inArea } })
       setFolderDialog(null)
       await refresh()
     })
@@ -211,7 +229,7 @@ export function MediaLibrary() {
       destructive: true,
       onConfirm: () =>
         run('Deleting the folder', async () => {
-          await deleteDirectory({ variables: { path, recursive } })
+          await deleteDirectory({ variables: { path, recursive, ...inArea } })
           await refetchDirs()
           navigateTo(parentOf(path))
         }),
@@ -254,13 +272,19 @@ export function MediaLibrary() {
   return (
     <DetailPageLayout
       className="relative @container/media"
-      leftSidebar={<FolderRail tree={tree} path={path} canManage={canManage} onNavigate={navigateTo} onNewFolder={() => setFolderDialog('new')} />}
+      leftSidebar={<FolderRail tree={tree} path={path} canManage={canManage} area={area} onArea={onArea} onNavigate={navigateTo} onNewFolder={() => setFolderDialog('new')} />}
       rightSidebar={
         open ? (
           <Inspector
             asset={open}
             canManage={canManage}
             folders={folders}
+            canCross={access.canCross}
+            dirty={panelDirty}
+            onLeft={(a) => {
+              setPicked([])
+              leave([a.id])
+            }}
             onChanged={(a) => {
               setSeen(a)
               if (!under(a.directoryPath, path)) leave([a.id])
@@ -299,6 +323,8 @@ export function MediaLibrary() {
           path={path}
           canManage={canManage}
           uploading={uploads.busy}
+          area={area}
+          onArea={onArea}
           onNavigate={navigateTo}
           onRename={() => setFolderDialog('rename')}
           onDelete={askDeleteFolder}
@@ -339,7 +365,7 @@ export function MediaLibrary() {
             <p className="text-xs text-muted-foreground">
               {loading && items.length === 0
                 ? 'Loading…'
-                : `${formatNumber(total)} ${total === 1 ? 'file' : 'files'}${query ? ` for "${query}"` : ''} in ${path || 'the library'}${path ? ', its folders included' : ''}`}
+                : `${formatNumber(total)} ${area === 'PRIVATE' ? 'private ' : ''}${total === 1 ? 'file' : 'files'}${query ? ` for "${query}"` : ''} in ${path || 'the library'}${path ? ', its folders included' : ''}`}
             </p>
             {items.length === 0 && !loading ? (
               <EmptyWall
@@ -403,7 +429,10 @@ export function MediaLibrary() {
             <div className="sticky top-3 grid h-[min(70vh,32rem)] place-items-center rounded-2xl border-2 border-dashed border-foreground/60 bg-background/90 backdrop-blur-sm">
               <div className="grid justify-items-center gap-2 text-center">
                 <UploadCloudIcon className="size-10" />
-                <p className="text-2xl font-light tracking-tight">Drop to add to {path || 'the library'}</p>
+                <p className="text-2xl font-light tracking-tight">
+                  Drop to add to {path || 'the library'}
+                  {area === 'PRIVATE' ? ', privately' : ''}
+                </p>
               </div>
             </div>
           </div>

@@ -40,7 +40,7 @@ multi-replica, then `JOBS_EXTERNAL` to split the
 background tiers back out.
 
 Both shapes need a second bucket besides the media one, with no public access,
-named in `PRIVATE_S3_BUCKET` - exports and uploads live there,
+named in `PRIVATE_S3_BUCKET` - exports, uploads and private media live there,
 and production won't start without it. [env.md](env.md#private-store) has what
 it needs.
 

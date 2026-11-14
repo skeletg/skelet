@@ -28,7 +28,7 @@ export function Untracked({ files }: { files: UntrackedFile[] }) {
               title={file.filename}
               className="group relative block aspect-square w-full overflow-hidden rounded-lg border border-warning/40 bg-muted text-left outline-none focus-visible:ring-2 focus-visible:ring-warning"
             >
-              {file.mimeType.startsWith('image/') ? (
+              {file.url && file.mimeType.startsWith('image/') ? (
                 <img src={file.url} alt={file.filename} loading="lazy" className="size-full object-cover opacity-80" />
               ) : (
                 <span className="grid size-full place-items-center text-muted-foreground">
@@ -49,7 +49,7 @@ export function Untracked({ files }: { files: UntrackedFile[] }) {
               </SheetHeader>
               <div className="grid gap-4 px-4">
                 <div className="overflow-hidden rounded-lg border bg-muted">
-                  {open.mimeType.startsWith('image/') ? (
+                  {open.url && open.mimeType.startsWith('image/') ? (
                     <img src={open.url} alt={open.filename} className="max-h-80 w-full object-contain" />
                   ) : (
                     <div className="grid aspect-video place-items-center text-muted-foreground">
@@ -63,12 +63,14 @@ export function Untracked({ files }: { files: UntrackedFile[] }) {
                   </Badge>
                   <Badge variant="outline">{open.mimeType}</Badge>
                   <span>{formatBytes(open.sizeBytes)}</span>
-                  <Button variant="ghost" size="xs" asChild>
-                    <a href={open.url} target="_blank" rel="noreferrer">
-                      <ExternalLinkIcon className="size-3" />
-                      Open
-                    </a>
-                  </Button>
+                  {open.url ? (
+                    <Button variant="ghost" size="xs" asChild>
+                      <a href={open.url} target="_blank" rel="noreferrer">
+                        <ExternalLinkIcon className="size-3" />
+                        Open
+                      </a>
+                    </Button>
+                  ) : null}
                 </div>
                 <div className="grid gap-1 text-sm">
                   <p className="text-xs font-medium text-muted-foreground">Storage key</p>

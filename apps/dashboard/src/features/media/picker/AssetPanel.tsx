@@ -1,11 +1,13 @@
 import { useEffect, useState, type MouseEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
-import { CheckIcon, CopyIcon, ExternalLinkIcon, FileTextIcon, SparklesIcon } from 'lucide-react'
+import { CheckIcon, CopyIcon, DownloadIcon, ExternalLinkIcon, FileTextIcon, LockIcon, SparklesIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { mediaFileUrl } from '@/lib/api-endpoint'
+import { useDownload } from '@/lib/authed-download'
 import { formatBytes } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import {
@@ -15,6 +17,9 @@ import {
   UpdateMediaAssetDocument,
   type MediaAssetFieldsFragment as MediaAsset,
 } from '../MediaLibrary.gql'
+import { usePrivatePicture } from '../private-image'
+
+const PREVIEW_WIDTH = 960
 
 // The focused asset in full - its picture, what it is, and the words that travel with it. Edits save to the library,
 // so every place using the asset gets them
@@ -57,6 +62,11 @@ export function AssetPanel({
   const ai = useQuery(MediaAiStatusDocument).data?.aiStatus.enabled ?? false
   const [generate, { loading: generating }] = useMutation(GenerateMediaAltTextDocument)
   const isImage = asset.mimeGroup === 'IMAGE'
+  const isPrivate = asset.visibility === 'PRIVATE'
+  const picture = usePrivatePicture(asset, PREVIEW_WIDTH)
+  const src = isPrivate ? picture.url : asset.url
+  const [broken, setBroken] = useState<string | null>(null)
+  const download = useDownload((e) => setError(e instanceof Error ? e.message : "The file couldn't be downloaded."))
 
   const run = async (fn: () => Promise<MediaAsset | undefined | null>) => {
     setError(null)
@@ -77,12 +87,13 @@ export function AssetPanel({
   return (
     <div className="grid content-start gap-4">
       <div className="grid place-items-center overflow-hidden rounded-md border bg-muted/40 p-2">
-        {isImage ? (
+        {isImage && src && broken !== src ? (
           <div className="relative">
             <img
-              src={asset.url}
+              src={src}
               alt={asset.altText || asset.filename}
               onClick={canManage ? pickFocal : undefined}
+              onError={() => setBroken(src)}
               className={cn('max-h-64 max-w-full rounded', canManage && 'cursor-crosshair')}
             />
             {asset.focalX != null && asset.focalY != null ? (
@@ -93,6 +104,8 @@ export function AssetPanel({
               />
             ) : null}
           </div>
+        ) : isPrivate && picture.shown && !picture.failed && !picture.url ? (
+          <p className="my-10 text-xs text-muted-foreground">Loading the picture…</p>
         ) : (
           <FileTextIcon className="my-10 size-12 text-muted-foreground" />
         )}
@@ -128,25 +141,40 @@ export function AssetPanel({
         </dl>
       </div>
 
+      {isPrivate ? (
+        <p className="flex items-start gap-2 rounded-md border border-info/40 bg-info-soft px-3 py-2 text-xs">
+          <LockIcon className="mt-0.5 size-3.5 shrink-0 text-info" />
+          Private. It has no address, so it can't be linked to or put on the storefront - only admins, and customers it is shared with, can open it.
+        </p>
+      ) : null}
       <div className="flex flex-wrap gap-2">
-        <Button
-          type="button" size="sm" variant="outline"
-          onClick={() => {
-            void navigator.clipboard?.writeText(asset.url).then(() => {
-              setCopied(true)
-              setTimeout(() => setCopied(false), 1500)
-            })
-          }}
-        >
-          {copied ? <CheckIcon className="size-3.5" /> : <CopyIcon className="size-3.5" />}
-          {copied ? 'Copied' : 'Copy link'}
-        </Button>
-        <Button asChild size="sm" variant="ghost">
-          <a href={asset.url} target="_blank" rel="noreferrer">
-            <ExternalLinkIcon className="size-3.5" />
-            Open
-          </a>
-        </Button>
+        {isPrivate ? (
+          <Button type="button" size="sm" variant="outline" disabled={download.busy !== null} onClick={() => download.start(mediaFileUrl(asset.id), asset.filename)}>
+            <DownloadIcon className="size-3.5" />
+            {download.busy ? 'Downloading…' : 'Download'}
+          </Button>
+        ) : (
+          <>
+            <Button
+              type="button" size="sm" variant="outline"
+              onClick={() => {
+                void navigator.clipboard?.writeText(asset.url).then(() => {
+                  setCopied(true)
+                  setTimeout(() => setCopied(false), 1500)
+                })
+              }}
+            >
+              {copied ? <CheckIcon className="size-3.5" /> : <CopyIcon className="size-3.5" />}
+              {copied ? 'Copied' : 'Copy link'}
+            </Button>
+            <Button asChild size="sm" variant="ghost">
+              <a href={asset.url} target="_blank" rel="noreferrer">
+                <ExternalLinkIcon className="size-3.5" />
+                Open
+              </a>
+            </Button>
+          </>
+        )}
         {libraryLink ? (
           <Button asChild size="sm" variant="ghost">
             <Link to={`/media?path=${encodeURIComponent(asset.directoryPath)}`}>In the library</Link>
@@ -158,7 +186,7 @@ export function AssetPanel({
         <div className="grid gap-1.5">
           <div className="flex items-center justify-between gap-2">
             <Label htmlFor="picker-alt">Alt text</Label>
-            {ai && isImage && canManage ? (
+            {ai && isImage && canManage && !isPrivate ? (
               <Button
                 type="button" size="sm" variant="ghost" className="h-6 px-2 text-xs" disabled={generating}
                 onClick={() =>

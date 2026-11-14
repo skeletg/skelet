@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { useMutation } from '@apollo/client/react'
+import type { MediaVisibility } from '@/graphql/schema.types'
 import { ADMIN_MEDIA_SVG_ENDPOINT } from '@/lib/api-endpoint'
 import { readImageDimensions } from '@/lib/image'
 import { putToSignedUrlWithProgress } from '@/lib/upload'
@@ -8,8 +9,8 @@ import { ConfirmMediaAssetUploadDocument, RequestMediaAssetUploadDocument, type 
 
 export type UploadedImage = { assetId: string; url: string }
 
-// One file into the library under path - an SVG goes through the server, which sanitizes it, the rest to storage
-export function useMediaUpload(path: string) {
+// One file into the library under path, in the half visibility names - an SVG goes through the server, which sanitizes it, the rest to storage
+export function useMediaUpload(path: string, visibility?: MediaVisibility) {
   const [requestUpload] = useMutation(RequestMediaAssetUploadDocument)
   const [confirmUpload] = useMutation(ConfirmMediaAssetUploadDocument)
   return useCallback(
@@ -18,16 +19,19 @@ export function useMediaUpload(path: string) {
         const body = new FormData()
         body.append('file', file)
         body.append('path', path)
+        if (visibility === 'PRIVATE') body.append('visibility', 'private')
         const res = await fetchWithSession(ADMIN_MEDIA_SVG_ENDPOINT, { method: 'POST', body })
         const payload = (await res.json().catch(() => null)) as { id?: string; url?: string; error?: string } | null
-        if (!res.ok || !payload?.id || !payload.url) throw new Error(payload?.error ?? `Upload failed (HTTP ${res.status}).`)
+        // a private file comes back with no address, and that isn't a failure
+        const url = payload?.url ?? ''
+        if (!res.ok || !payload?.id || (!url && visibility !== 'PRIVATE')) throw new Error(payload?.error ?? `Upload failed (HTTP ${res.status}).`)
         onProgress(1)
-        return { id: payload.id, url: payload.url }
+        return { id: payload.id, url }
       }
       // Best-effort: an image the browser can't decode still uploads, just without stamped dimensions
       const dims = file.type.startsWith('image/') ? await readImageDimensions(file).catch(() => ({ width: 0, height: 0 })) : null
       const req = await requestUpload({
-        variables: { input: { path, filename: file.name, mimeType: file.type || 'application/octet-stream', sizeBytes: file.size, altText: '' } },
+        variables: { input: { path, filename: file.name, mimeType: file.type || 'application/octet-stream', sizeBytes: file.size, altText: '', ...(visibility === 'PRIVATE' ? { visibility } : {}) } },
       })
       const payload = req.data?.requestMediaAssetUpload
       if (!payload) throw new Error('Upload request did not return a signed URL.')
@@ -39,7 +43,7 @@ export function useMediaUpload(path: string) {
       if (!asset) throw new Error('Upload confirmation failed.')
       return asset
     },
-    [path, requestUpload, confirmUpload],
+    [path, visibility, requestUpload, confirmUpload],
   )
 }
 

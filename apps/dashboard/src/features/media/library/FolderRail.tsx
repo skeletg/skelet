@@ -1,19 +1,25 @@
 import { FolderPlusIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import type { MediaVisibility } from '@/graphql/schema.types'
 import type { DirTreeNode } from '../directory-paths'
 import { DirectoryTree, RootRow } from '../directory-tree'
+import { AreaSwitch } from './AreaSwitch'
 
 // The folders, docked on the left. A narrow page drops the rail and leans on the breadcrumbs and folder tiles
 export function FolderRail({
   tree,
   path,
   canManage,
+  area,
+  onArea,
   onNavigate,
   onNewFolder,
 }: {
   tree: DirTreeNode[]
   path: string
   canManage: boolean
+  area: MediaVisibility
+  onArea?: (area: MediaVisibility) => void
   onNavigate: (path: string) => void
   onNewFolder: () => void
 }) {
@@ -27,8 +33,9 @@ export function FolderRail({
           </Button>
         ) : null}
       </div>
+      {onArea ? <AreaSwitch area={area} onArea={onArea} className="mx-2 mt-2" /> : null}
       <div role="tree" aria-label="Folders" className="scrollbar-accent flex-1 overflow-y-auto p-2">
-        <RootRow isActive={path === ''} tabbable={path === ''} onClick={() => onNavigate('')} />
+        <RootRow isActive={path === ''} tabbable={path === ''} onClick={() => onNavigate('')} label={area === 'PRIVATE' ? 'Private files' : 'Library'} />
         {tree.length > 0 ? <DirectoryTree nodes={tree} activePath={path} onNavigate={onNavigate} /> : null}
       </div>
     </aside>

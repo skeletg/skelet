@@ -1,4 +1,4 @@
-- **Downloads in the dashboard are saved by the browser.** Exports, import templates and form uploads used to be fetched into the
+- **Downloads in the dashboard are saved by the browser.** Exports, import templates, form uploads and private library files used to be fetched into the
   page's memory before being saved, which strained the browser on large files. The dashboard now asks
   `/api/admin/download-ticket` for a link to the one file, good for a minute and tied to the admin's session, and
   the browser streams it to disk.
