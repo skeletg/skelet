@@ -80,9 +80,10 @@ not, they spin up a one-off. Works either way.
 
 **`skelet check` is the one you need to know.** It runs every gate below, takes
 about a second, needs no running backend, and is exactly what the pre-commit
-hook and CI run. The one step that wants Docker is the proto compatibility check
-against `main`, which runs in the app container when the stack is up and says it
-skipped when it isn't - CI runs it on the host toolchain instead. `skelet check --list` prints what each gate is
+hook and CI run. The steps that want Docker are the compatibility checks against
+`main` - the Signals proto and the GraphQL schemas - which run in the app container
+when the stack is up and say they skipped when it isn't - CI runs them on the host
+toolchain instead. `skelet check --list` prints what each gate is
 for. The individual scripts exist so you can rerun one while fixing it.
 
 | Script | What it protects |
@@ -90,7 +91,7 @@ for. The individual scripts exist so you can rerun one while fixing it.
 | `skelet check` | All three gates, in one command. `--codegen` adds the generated-file check (needs the container, and the backend for its TS half). `--list` explains each gate. |
 | `skelet check pins` | Version pins that live in several files at once: postgres, clickhouse, dbmate, golangci-lint, node (plus `.nvmrc`), alpine, and the `golang:` images against `go.mod`. Prints every site when they disagree. Add a pin here when you introduce one more than one file has to know. |
 | `skelet check structure` | Structural invariants a fresh clone or a forked storefront leans on: every `bin/*` script parses and is executable, no doc or workflow names a script that doesn't exist, every compose `env_file` has a committed `.example`. |
-| `skelet check contracts` | The cross-app contracts the `SYNC` comments describe: every path a SYNC comment names still exists, CMS block types agree across backend / dashboard / storefront, the anonymous-cacheable operation lists match, every lexical node the dashboard authors has a renderer, the two conditional-option evaluators are still the same code, the security-header copies match, and the Signals proto has no breaking change against `main` (`origin/main` in CI, where a missing ref fails rather than passing), or against `develop` while `main` has no proto yet. Each check fails if its extractor matches nothing, so it can't rot into a no-op. |
+| `skelet check contracts` | The cross-app contracts the `SYNC` comments describe: every path a SYNC comment names still exists, CMS block types agree across backend / dashboard / storefront, the anonymous-cacheable operation lists match, every lexical node the dashboard authors has a renderer, the two conditional-option evaluators are still the same code, the security-header copies match, the Signals proto has no breaking change against `main` (`origin/main` in CI, where a missing ref fails rather than passing), or against `develop` while `main` has no proto yet, and neither do the admin and storefront GraphQL schemas - a field removed without being deprecated in `main` first, an output that can now be null, a new required argument or input field. A break taken on purpose goes in `apps/backend/core/graph/schema/accepted-breaks`, one line as the check printed it. Each check fails if its extractor matches nothing, so it can't rot into a no-op. |
 | `skelet hooks` | Installs a pre-commit hook that runs `skelet check`. Opt-in; skip it once with `git commit --no-verify`. The hook finds the CLI on its own - `skelet` on the PATH, `~/.local/bin/skelet`, the one you installed it with, then `go run` from the checkout - because git GUIs often run hooks without your shell's PATH. A hook of your own is left alone unless you pass `--force`, and the hook an older `skelet hooks` wrote, which ran a script that's gone, is updated the next time you run any `skelet` command. |
 
 ## Codegen, lint and tests

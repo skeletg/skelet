@@ -48,6 +48,14 @@ product reaching v0.4 does not mean the SDK did.
 While the product is `0.x`, breaking changes ride the MINOR and everything else
 the PATCH. There is no compatibility promise until `1.0.0`.
 
+The apps deploy separately, though, so a dashboard or storefront can run against an
+older or newer core than the one it was built with. `skelet check contracts` holds
+the admin and storefront GraphQL schemas compatible with `main`'s: deprecate a field
+or enum value in one release and remove it in the next. A break taken on purpose is
+listed in `apps/backend/core/graph/schema/accepted-breaks`, exactly as the check
+printed it - once the release that ships it is `main`, the check calls the line stale
+and it can go.
+
 ## Cutting a release
 
 1. **Land everything.** `develop` is green, the working tree is clean, and no

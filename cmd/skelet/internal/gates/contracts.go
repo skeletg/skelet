@@ -70,6 +70,7 @@ func contractCheck(root string, out io.Writer) int {
 	c.headers()
 	c.widgets()
 	c.proto()
+	c.schemas()
 	fmt.Fprintln(out)
 	if r.failed {
 		fmt.Fprintln(out, "==> contract-check FAILED")
@@ -690,6 +691,73 @@ func (c contracts) proto() {
 		for line := range strings.SplitSeq(strings.TrimRight(string(out), "\n"), "\n") {
 			fmt.Fprintf(c.r.out, "        %s\n", line)
 		}
+		return
+	}
+	c.r.pass("no breaking changes against %s", baseline)
+}
+
+// schemas - the frontends deploy apart from core, so the admin and storefront GraphQL schemas must stay compatible with main's
+func (c contracts) schemas() {
+	c.r.section("the admin and storefront GraphQL schemas stay backward compatible")
+	ci := os.Getenv("CI") != ""
+	baseline := ""
+	for _, ref := range []string{"origin/main", "main"} {
+		if _, err := c.git("rev-parse", "--verify", "-q", ref+"^{commit}"); err == nil {
+			baseline = ref
+			break
+		}
+	}
+	const schema = "apps/backend/core/graph/schema"
+	switch {
+	case baseline == "" && ci:
+		c.r.bad("no main branch to compare the GraphQL schemas against - the checkout needs origin/main (fetch-depth: 0)")
+		return
+	case baseline == "":
+		c.skip("no main or origin/main here - the GraphQL schemas have nothing to compare against")
+		return
+	}
+	if _, err := c.git("cat-file", "-e", baseline+":"+schema); err != nil {
+		c.r.pass("%s has no GraphQL schema yet - nothing deployed to stay compatible with", baseline)
+		return
+	}
+	lib := compose.Load(c.root)
+	if !ci && !lib.Running("app") {
+		c.skip("GraphQL schema compatibility against %s skipped - the app container isn't running (skelet up, then skelet check contracts)", baseline)
+		return
+	}
+	tar, err := exec.Command("git", "-C", c.root, "archive", "--format=tar", baseline, schema).Output()
+	if err != nil {
+		c.r.bad("couldn't read %s's GraphQL schemas: %v", baseline, err)
+		return
+	}
+	var cmd *exec.Cmd
+	if ci {
+		cmd = exec.Command("go", "run", "./cmd/schemacompat")
+		cmd.Dir = filepath.Join(c.root, "apps", "backend", "core")
+	} else {
+		cmd = compose.Command(c.root, lib.Env(), "exec", "-T", "app", "go", "run", "./cmd/schemacompat")
+	}
+	cmd.Stdin = bytes.NewReader(tar)
+	out, err := cmd.CombinedOutput()
+	var breaks, stale []string
+	for line := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
+		switch {
+		case line == "" || strings.HasPrefix(line, "exit status "):
+		case strings.HasPrefix(line, "stale: "):
+			stale = append(stale, strings.TrimPrefix(line, "stale: "))
+		default:
+			breaks = append(breaks, line)
+		}
+	}
+	for _, line := range stale {
+		c.skip("graph/schema/accepted-breaks still lists %q, which %s no longer reports - drop it", line, baseline)
+	}
+	if err != nil {
+		c.r.bad("the GraphQL schemas break clients built against %s:", baseline)
+		for _, line := range breaks {
+			fmt.Fprintf(c.r.out, "        %s\n", line)
+		}
+		fmt.Fprintln(c.r.out, "        deprecate first and remove in a later release, or list a break taken on purpose in graph/schema/accepted-breaks")
 		return
 	}
 	c.r.pass("no breaking changes against %s", baseline)

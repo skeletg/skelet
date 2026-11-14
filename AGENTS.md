@@ -139,6 +139,8 @@ server process, with entirely separate schemas, generated executables and resolv
 The admin middleware is non-blocking, so an ungated admin resolver answers anonymous
 callers - every admin resolver must gate explicitly, and `authz_coverage_test.go` enforces
 it. The gRPC contract works the same way: the interceptor injects, the handler refuses.
+The frontends deploy apart from core, so `skelet check contracts` holds both schemas compatible
+with `main`'s - deprecate a field before removing it, or list the break in `graph/schema/accepted-breaks`.
 
 **The dashboard talks to core and nothing else.** Signals runs as its own service and
 answers only over the wire contract, so an admin resolver that needs it calls

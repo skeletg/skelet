@@ -93,6 +93,10 @@ the storefront's directory when it takes the packages from npm.
 **The Astro storefront** builds the same way and runs with `node
 --env-file=.env.production dist/server/entry.mjs`.
 
+Deploy core before a frontend that needs something new from it. The other way
+round is safe: `skelet check` holds core's GraphQL schemas compatible with the last
+release, so a dashboard or storefront built against it keeps working on a newer core.
+
 A storefront that isn't on the same private network as core needs
 `TRUSTED_PROXY_KEY` on both, or core can't tell its shoppers apart for rate
 limiting ([env.md](env.md#networking)).
