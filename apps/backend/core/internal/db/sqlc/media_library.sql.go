@@ -23,7 +23,7 @@ SET
     updated_by = $4,
     updated_at = now()
 WHERE id = $1
-RETURNING id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y
+RETURNING id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y, visibility
 `
 
 type ConfirmMediaAssetUploadParams struct {
@@ -61,6 +61,7 @@ func (q *Queries) ConfirmMediaAssetUpload(ctx context.Context, arg ConfirmMediaA
 		&i.UpdatedAt,
 		&i.FocalX,
 		&i.FocalY,
+		&i.Visibility,
 	)
 	return i, err
 }
@@ -78,16 +79,23 @@ WHERE
         OR caption ILIKE '%' || escape_like($3::text) || '%'
         OR notes ILIKE '%' || escape_like($3::text) || '%'
     )
+    AND visibility = $4
 `
 
 type CountSearchMediaAssetsParams struct {
-	Column1 string `json:"column_1"`
-	Column2 string `json:"column_2"`
-	Column3 string `json:"column_3"`
+	Column1    string `json:"column_1"`
+	Column2    string `json:"column_2"`
+	Column3    string `json:"column_3"`
+	Visibility string `json:"visibility"`
 }
 
 func (q *Queries) CountSearchMediaAssets(ctx context.Context, arg CountSearchMediaAssetsParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countSearchMediaAssets, arg.Column1, arg.Column2, arg.Column3)
+	row := q.db.QueryRowContext(ctx, countSearchMediaAssets,
+		arg.Column1,
+		arg.Column2,
+		arg.Column3,
+		arg.Visibility,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -97,13 +105,13 @@ const createMediaAsset = `-- name: CreateMediaAsset :one
 INSERT INTO media_assets (
     id, directory_prefix, filename, object_key,
     mime_type, size_bytes, width, height, status,
-    title, alt_text, caption, notes, created_by, updated_by
+    title, alt_text, caption, notes, created_by, updated_by, visibility
 ) VALUES (
     $1, $2, $3, $4,
     $5, $6, $7, $8, $9,
-    $10, $11, $12, $13, $14, $15
+    $10, $11, $12, $13, $14, $15, $16
 )
-RETURNING id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y
+RETURNING id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y, visibility
 `
 
 type CreateMediaAssetParams struct {
@@ -122,6 +130,7 @@ type CreateMediaAssetParams struct {
 	Notes           string        `json:"notes"`
 	CreatedBy       uuid.NullUUID `json:"created_by"`
 	UpdatedBy       uuid.NullUUID `json:"updated_by"`
+	Visibility      string        `json:"visibility"`
 }
 
 func (q *Queries) CreateMediaAsset(ctx context.Context, arg CreateMediaAssetParams) (MediaAsset, error) {
@@ -141,6 +150,7 @@ func (q *Queries) CreateMediaAsset(ctx context.Context, arg CreateMediaAssetPara
 		arg.Notes,
 		arg.CreatedBy,
 		arg.UpdatedBy,
+		arg.Visibility,
 	)
 	var i MediaAsset
 	err := row.Scan(
@@ -163,6 +173,7 @@ func (q *Queries) CreateMediaAsset(ctx context.Context, arg CreateMediaAssetPara
 		&i.UpdatedAt,
 		&i.FocalX,
 		&i.FocalY,
+		&i.Visibility,
 	)
 	return i, err
 }
@@ -178,16 +189,21 @@ func (q *Queries) DeleteMediaAsset(ctx context.Context, id uuid.UUID) error {
 
 const deleteMediaAssetsByDirectoryPrefix = `-- name: DeleteMediaAssetsByDirectoryPrefix :exec
 DELETE FROM media_assets
-WHERE starts_with(object_key, $1::text)
+WHERE starts_with(object_key, $1::text) AND visibility = $2
 `
 
-func (q *Queries) DeleteMediaAssetsByDirectoryPrefix(ctx context.Context, dollar_1 string) error {
-	_, err := q.db.ExecContext(ctx, deleteMediaAssetsByDirectoryPrefix, dollar_1)
+type DeleteMediaAssetsByDirectoryPrefixParams struct {
+	Column1    string `json:"column_1"`
+	Visibility string `json:"visibility"`
+}
+
+func (q *Queries) DeleteMediaAssetsByDirectoryPrefix(ctx context.Context, arg DeleteMediaAssetsByDirectoryPrefixParams) error {
+	_, err := q.db.ExecContext(ctx, deleteMediaAssetsByDirectoryPrefix, arg.Column1, arg.Visibility)
 	return err
 }
 
 const getMediaAssetByID = `-- name: GetMediaAssetByID :one
-SELECT id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y FROM media_assets WHERE id = $1
+SELECT id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y, visibility FROM media_assets WHERE id = $1
 `
 
 func (q *Queries) GetMediaAssetByID(ctx context.Context, id uuid.UUID) (MediaAsset, error) {
@@ -213,12 +229,13 @@ func (q *Queries) GetMediaAssetByID(ctx context.Context, id uuid.UUID) (MediaAss
 		&i.UpdatedAt,
 		&i.FocalX,
 		&i.FocalY,
+		&i.Visibility,
 	)
 	return i, err
 }
 
 const getMediaAssetByObjectKey = `-- name: GetMediaAssetByObjectKey :one
-SELECT id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y FROM media_assets WHERE object_key = $1 AND status = 'ready'
+SELECT id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y, visibility FROM media_assets WHERE object_key = $1 AND status = 'ready'
 `
 
 func (q *Queries) GetMediaAssetByObjectKey(ctx context.Context, objectKey string) (MediaAsset, error) {
@@ -244,12 +261,13 @@ func (q *Queries) GetMediaAssetByObjectKey(ctx context.Context, objectKey string
 		&i.UpdatedAt,
 		&i.FocalX,
 		&i.FocalY,
+		&i.Visibility,
 	)
 	return i, err
 }
 
 const getMediaAssetsByIDs = `-- name: GetMediaAssetsByIDs :many
-SELECT id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y FROM media_assets WHERE id = ANY($1::uuid[])
+SELECT id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y, visibility FROM media_assets WHERE id = ANY($1::uuid[])
 `
 
 func (q *Queries) GetMediaAssetsByIDs(ctx context.Context, ids []uuid.UUID) ([]MediaAsset, error) {
@@ -281,6 +299,7 @@ func (q *Queries) GetMediaAssetsByIDs(ctx context.Context, ids []uuid.UUID) ([]M
 			&i.UpdatedAt,
 			&i.FocalX,
 			&i.FocalY,
+			&i.Visibility,
 		); err != nil {
 			return nil, err
 		}
@@ -296,14 +315,20 @@ func (q *Queries) GetMediaAssetsByIDs(ctx context.Context, ids []uuid.UUID) ([]M
 }
 
 const listMediaAssetsByDirectory = `-- name: ListMediaAssetsByDirectory :many
-SELECT id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y FROM media_assets
+SELECT id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y, visibility FROM media_assets
 WHERE starts_with(object_key, $1::text) AND strpos(substr(object_key, length($1::text) + 1), '/') = 0
+  AND visibility = $2
 ORDER BY created_at DESC, filename
 `
 
+type ListMediaAssetsByDirectoryParams struct {
+	Column1    string `json:"column_1"`
+	Visibility string `json:"visibility"`
+}
+
 // The folder's own files, not its subfolders' - starts_with because a folder name may hold LIKE's _ wildcard
-func (q *Queries) ListMediaAssetsByDirectory(ctx context.Context, dollar_1 string) ([]MediaAsset, error) {
-	rows, err := q.db.QueryContext(ctx, listMediaAssetsByDirectory, dollar_1)
+func (q *Queries) ListMediaAssetsByDirectory(ctx context.Context, arg ListMediaAssetsByDirectoryParams) ([]MediaAsset, error) {
+	rows, err := q.db.QueryContext(ctx, listMediaAssetsByDirectory, arg.Column1, arg.Visibility)
 	if err != nil {
 		return nil, err
 	}
@@ -331,6 +356,7 @@ func (q *Queries) ListMediaAssetsByDirectory(ctx context.Context, dollar_1 strin
 			&i.UpdatedAt,
 			&i.FocalX,
 			&i.FocalY,
+			&i.Visibility,
 		); err != nil {
 			return nil, err
 		}
@@ -346,13 +372,19 @@ func (q *Queries) ListMediaAssetsByDirectory(ctx context.Context, dollar_1 strin
 }
 
 const listMediaAssetsByPathRecursive = `-- name: ListMediaAssetsByPathRecursive :many
-SELECT id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y FROM media_assets
-WHERE starts_with(object_key, $1::text)
+SELECT id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y, visibility FROM media_assets
+WHERE starts_with(object_key, $1::text) AND visibility = $2
 ORDER BY object_key, filename
 `
 
-func (q *Queries) ListMediaAssetsByPathRecursive(ctx context.Context, dollar_1 string) ([]MediaAsset, error) {
-	rows, err := q.db.QueryContext(ctx, listMediaAssetsByPathRecursive, dollar_1)
+type ListMediaAssetsByPathRecursiveParams struct {
+	Column1    string `json:"column_1"`
+	Visibility string `json:"visibility"`
+}
+
+// The two stores are separate key spaces, so a prefix is only ever one store's
+func (q *Queries) ListMediaAssetsByPathRecursive(ctx context.Context, arg ListMediaAssetsByPathRecursiveParams) ([]MediaAsset, error) {
+	rows, err := q.db.QueryContext(ctx, listMediaAssetsByPathRecursive, arg.Column1, arg.Visibility)
 	if err != nil {
 		return nil, err
 	}
@@ -380,6 +412,7 @@ func (q *Queries) ListMediaAssetsByPathRecursive(ctx context.Context, dollar_1 s
 			&i.UpdatedAt,
 			&i.FocalX,
 			&i.FocalY,
+			&i.Visibility,
 		); err != nil {
 			return nil, err
 		}
@@ -395,7 +428,7 @@ func (q *Queries) ListMediaAssetsByPathRecursive(ctx context.Context, dollar_1 s
 }
 
 const listOrphanProductOptionAssets = `-- name: ListOrphanProductOptionAssets :many
-SELECT id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y FROM media_assets
+SELECT id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y, visibility FROM media_assets
 WHERE media_assets.object_key LIKE 'product-options/%'
   AND media_assets.created_at < $1
   AND NOT EXISTS (
@@ -448,6 +481,7 @@ func (q *Queries) ListOrphanProductOptionAssets(ctx context.Context, arg ListOrp
 			&i.UpdatedAt,
 			&i.FocalX,
 			&i.FocalY,
+			&i.Visibility,
 		); err != nil {
 			return nil, err
 		}
@@ -463,7 +497,7 @@ func (q *Queries) ListOrphanProductOptionAssets(ctx context.Context, arg ListOrp
 }
 
 const searchMediaAssets = `-- name: SearchMediaAssets :many
-SELECT id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y FROM media_assets
+SELECT id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y, visibility FROM media_assets
 WHERE
     starts_with(object_key, $1::text)
     AND ($2::text = '' OR starts_with(mime_type, $2::text || '/'))
@@ -475,6 +509,7 @@ WHERE
         OR caption ILIKE '%' || escape_like($3::text) || '%'
         OR notes ILIKE '%' || escape_like($3::text) || '%'
     )
+    AND visibility = $7
 ORDER BY
     CASE WHEN $6::text = 'name' THEN lower(filename) END ASC,
     CASE WHEN $6::text = 'largest' THEN size_bytes END DESC,
@@ -484,12 +519,13 @@ LIMIT $4 OFFSET $5
 `
 
 type SearchMediaAssetsParams struct {
-	Column1 string `json:"column_1"`
-	Column2 string `json:"column_2"`
-	Column3 string `json:"column_3"`
-	Limit   int32  `json:"limit"`
-	Offset  int32  `json:"offset"`
-	Column6 string `json:"column_6"`
+	Column1    string `json:"column_1"`
+	Column2    string `json:"column_2"`
+	Column3    string `json:"column_3"`
+	Limit      int32  `json:"limit"`
+	Offset     int32  `json:"offset"`
+	Column6    string `json:"column_6"`
+	Visibility string `json:"visibility"`
 }
 
 // $6 picks the order: ” or newest, oldest, name, largest. The picker pages by offset, so id settles every tie
@@ -501,6 +537,7 @@ func (q *Queries) SearchMediaAssets(ctx context.Context, arg SearchMediaAssetsPa
 		arg.Limit,
 		arg.Offset,
 		arg.Column6,
+		arg.Visibility,
 	)
 	if err != nil {
 		return nil, err
@@ -529,6 +566,7 @@ func (q *Queries) SearchMediaAssets(ctx context.Context, arg SearchMediaAssetsPa
 			&i.UpdatedAt,
 			&i.FocalX,
 			&i.FocalY,
+			&i.Visibility,
 		); err != nil {
 			return nil, err
 		}
@@ -547,7 +585,7 @@ const setMediaFocalPoint = `-- name: SetMediaFocalPoint :one
 UPDATE media_assets
 SET focal_x = $2, focal_y = $3
 WHERE id = $1
-RETURNING id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y
+RETURNING id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y, visibility
 `
 
 type SetMediaFocalPointParams struct {
@@ -579,6 +617,7 @@ func (q *Queries) SetMediaFocalPoint(ctx context.Context, arg SetMediaFocalPoint
 		&i.UpdatedAt,
 		&i.FocalX,
 		&i.FocalY,
+		&i.Visibility,
 	)
 	return i, err
 }
@@ -590,9 +629,10 @@ SET
     filename = $3,
     object_key = $4,
     updated_by = $5,
+    visibility = $6,
     updated_at = now()
 WHERE id = $1
-RETURNING id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y
+RETURNING id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y, visibility
 `
 
 type UpdateMediaAssetLocationParams struct {
@@ -601,6 +641,7 @@ type UpdateMediaAssetLocationParams struct {
 	Filename        string        `json:"filename"`
 	ObjectKey       string        `json:"object_key"`
 	UpdatedBy       uuid.NullUUID `json:"updated_by"`
+	Visibility      string        `json:"visibility"`
 }
 
 func (q *Queries) UpdateMediaAssetLocation(ctx context.Context, arg UpdateMediaAssetLocationParams) (MediaAsset, error) {
@@ -610,6 +651,7 @@ func (q *Queries) UpdateMediaAssetLocation(ctx context.Context, arg UpdateMediaA
 		arg.Filename,
 		arg.ObjectKey,
 		arg.UpdatedBy,
+		arg.Visibility,
 	)
 	var i MediaAsset
 	err := row.Scan(
@@ -632,6 +674,7 @@ func (q *Queries) UpdateMediaAssetLocation(ctx context.Context, arg UpdateMediaA
 		&i.UpdatedAt,
 		&i.FocalX,
 		&i.FocalY,
+		&i.Visibility,
 	)
 	return i, err
 }
@@ -646,7 +689,7 @@ SET
     updated_by = $6,
     updated_at = now()
 WHERE id = $1
-RETURNING id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y
+RETURNING id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y, visibility
 `
 
 type UpdateMediaAssetMetadataParams struct {
@@ -688,6 +731,7 @@ func (q *Queries) UpdateMediaAssetMetadata(ctx context.Context, arg UpdateMediaA
 		&i.UpdatedAt,
 		&i.FocalX,
 		&i.FocalY,
+		&i.Visibility,
 	)
 	return i, err
 }

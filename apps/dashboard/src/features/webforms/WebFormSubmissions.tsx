@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
@@ -12,14 +12,27 @@ import {
   DetailPageLayout,
   DetailPageSection,
 } from '@/components/layout/detail-page'
+import { webformFileUrl } from '@/lib/api-endpoint'
+import { useDownload } from '@/lib/authed-download'
+import { formatBytes } from '@/lib/format'
 import { WebFormDocument, WebFormSubmissionsDocument } from './WebForms.gql'
 import type { Field } from './types'
 
+type SubmissionFile = { fieldKey: string; name: string; size: number }
 type SubmissionRow = {
   id: string
   answers: Record<string, unknown>
-  files: unknown
+  files: SubmissionFile[]
   createdAt: string
+}
+
+// What a shopper uploaded with a submission. The API hands these out as loose JSON, so anything misshapen is dropped
+function filesOf(raw: unknown): SubmissionFile[] {
+  if (!Array.isArray(raw)) return []
+  return raw.flatMap((f: unknown) => {
+    const { fieldKey, name, size } = (f ?? {}) as Record<string, unknown>
+    return typeof fieldKey === 'string' && fieldKey ? [{ fieldKey, name: typeof name === 'string' && name ? name : fieldKey, size: typeof size === 'number' ? size : 0 }] : []
+  })
 }
 
 function stringify(v: unknown): string {
@@ -55,11 +68,15 @@ export function WebFormSubmissions() {
       (data?.webFormSubmissions ?? []).map((s) => ({
         id: s.id,
         answers: (s.answers as Record<string, unknown>) ?? {},
-        files: s.files,
+        files: filesOf(s.files),
         createdAt: s.createdAt as string,
       })),
     [data],
   )
+
+  const [fileError, setFileError] = useState<string | null>(null)
+  const download = useDownload((e, name) => setFileError(`${name}: ${e instanceof Error ? e.message : "couldn't be downloaded"}`))
+  const hasFiles = rows.some((r) => r.files.length > 0)
 
   const columns = useMemo<ColumnDef<SubmissionRow>[]>(() => {
     const cols: ColumnDef<SubmissionRow>[] = [
@@ -73,7 +90,7 @@ export function WebFormSubmissions() {
         ),
       },
     ]
-    for (const f of inputFields.slice(0, 6)) {
+    for (const f of inputFields.filter((x) => x.type !== 'file').slice(0, 6)) {
       cols.push({
         id: `f_${f.key}`,
         header: ({ column }) => <DataTableColumnHeader column={column} title={f.label || f.key} />,
@@ -82,14 +99,42 @@ export function WebFormSubmissions() {
         ),
       })
     }
+    if (hasFiles) {
+      cols.push({
+        id: 'files',
+        header: 'Files',
+        cell: ({ row }) => (
+          <div className="flex flex-wrap gap-1">
+            {row.original.files.map((f) => (
+              <Button
+                key={f.fieldKey}
+                type="button"
+                variant="outline"
+                size="xs"
+                title={`Download ${f.name}`}
+                disabled={download.busy === webformFileUrl(row.original.id, f.fieldKey)}
+                onClick={() => {
+                  setFileError(null)
+                  download.start(webformFileUrl(row.original.id, f.fieldKey), f.name)
+                }}
+              >
+                <DownloadIcon className="size-3" />
+                <span className="max-w-40 truncate">{f.name}</span>
+                {f.size > 0 ? <span className="text-muted-foreground">{formatBytes(f.size)}</span> : null}
+              </Button>
+            ))}
+          </div>
+        ),
+      })
+    }
     return cols
-  }, [inputFields])
+  }, [inputFields, hasFiles, download])
 
   function exportCsv() {
     const headers = ['submitted_at', ...inputFields.map((f) => f.key)]
     const lines = [headers.join(',')]
     for (const r of rows) {
-      const cells = [new Date(r.createdAt).toISOString(), ...inputFields.map((f) => stringify(r.answers[f.key]))]
+      const cells = [new Date(r.createdAt).toISOString(), ...inputFields.map((f) => (f.type === 'file' ? (r.files.find((x) => x.fieldKey === f.key)?.name ?? '') : stringify(r.answers[f.key])))]
       lines.push(cells.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
     }
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' })
@@ -123,6 +168,12 @@ export function WebFormSubmissions() {
           </DetailPageSection>
         ) : (
           <DetailPageSection>
+            {fileError ? (
+              <Alert variant="destructive" className="mb-3">
+                <AlertTitle>That file didn't download</AlertTitle>
+                <AlertDescription>{fileError}</AlertDescription>
+              </Alert>
+            ) : null}
             <DataTable
               urlState={urlState}
               columns={columns}

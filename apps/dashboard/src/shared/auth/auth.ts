@@ -48,7 +48,33 @@ export function getAuthStoredState(): AuthState | null {
 export function setAuthStoredState(next: AuthState | null) {
   if (next) localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
   else localStorage.removeItem(STORAGE_KEY)
+  announce(next)
+}
+
+let signedIn = readStored()?.admin?.id ?? null
+type AdminChange = (before: string | null, now: string | null) => void
+const adminListeners = new Set<AdminChange>()
+
+function announce(next: AuthState | null) {
   for (const l of listeners) l(next)
+  const now = next?.admin?.id ?? null
+  if (now === signedIn) return
+  const before = signedIn
+  signedIn = now
+  for (const l of adminListeners) l(before, now)
+}
+
+// Another tab signing in or out writes the same storage, and this tab has to hear it as if it were its own
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => e.key === STORAGE_KEY && announce(readStored()))
+}
+
+// When the admin behind this tab changes - signed out, or someone else in, here or in another tab - and not on a renewal
+export function onAdminChange(fn: AdminChange): () => void {
+  adminListeners.add(fn)
+  return () => {
+    adminListeners.delete(fn)
+  }
 }
 
 export function subscribeAuth(fn: Listener): () => void {

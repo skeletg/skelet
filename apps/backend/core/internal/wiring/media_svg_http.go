@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/skeletg/skelet/apps/backend/core/internal/admin"
 	"github.com/skeletg/skelet/apps/backend/core/internal/media"
 	"github.com/skeletg/skelet/apps/backend/core/internal/medialibrary"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
@@ -20,7 +19,7 @@ const mediaSVGPath = "/api/admin/media/svg"
 
 const maxSVGUpload = 2 << 20 // generous for a logo, and the storage cap still applies underneath
 
-func mediaSVGHandler(lib *medialibrary.Service, adminSvc *admin.Service) http.Handler {
+func mediaSVGHandler(lib *medialibrary.Service, adminSvc auth.ScopeAwareChecker) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -28,7 +27,7 @@ func mediaSVGHandler(lib *medialibrary.Service, adminSvc *admin.Service) http.Ha
 		}
 		// the same grant the GraphQL upload mutation wants - this is another door to one action
 		if err := auth.RequirePermission(r.Context(), adminSvc, "media.manage"); err != nil {
-			forbidden(w)
+			refuse(w, err)
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, maxSVGUpload)
@@ -52,12 +51,22 @@ func mediaSVGHandler(lib *medialibrary.Service, adminSvc *admin.Service) http.Ha
 			return
 		}
 
+		in, known := map[string]medialibrary.Visibility{"": medialibrary.Public, "public": medialibrary.Public, "private": medialibrary.Private}[r.FormValue("visibility")]
+		if !known {
+			http.Error(w, "visibility must be public or private", http.StatusBadRequest)
+			return
+		}
+		if err := medialibrary.RequireHalf(r.Context(), adminSvc, medialibrary.PermPrivateManage, in); err != nil {
+			refuse(w, err)
+			return
+		}
 		asset, err := lib.UploadSVG(r.Context(), medialibrary.UploadSVGInput{
-			Path:     r.FormValue("path"),
-			Filename: header.Filename,
-			Data:     raw,
-			Title:    strings.TrimSpace(r.FormValue("title")),
-			AltText:  strings.TrimSpace(r.FormValue("altText")),
+			Path:       r.FormValue("path"),
+			Visibility: in,
+			Filename:   header.Filename,
+			Data:       raw,
+			Title:      strings.TrimSpace(r.FormValue("title")),
+			AltText:    strings.TrimSpace(r.FormValue("altText")),
 		})
 		if err != nil {
 			// a rejected SVG describes the uploader's own file, so the reason is safe to echo back

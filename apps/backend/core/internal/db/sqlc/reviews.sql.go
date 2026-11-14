@@ -1266,7 +1266,7 @@ func (q *Queries) ListReviewChannelsForProduct(ctx context.Context, productID uu
 const listReviewMediaByReviewIDs = `-- name: ListReviewMediaByReviewIDs :many
 SELECT rm.id, rm.review_id, rm.asset_id, rm.sort_order, rm.created_at, ma.object_key, ma.mime_type, ma.width, ma.height, ma.size_bytes
 FROM review_media rm
-JOIN media_assets ma ON ma.id = rm.asset_id
+JOIN media_assets ma ON ma.id = rm.asset_id AND ma.visibility = 'public'
 WHERE rm.review_id = ANY($1::uuid[])
 ORDER BY rm.review_id, rm.sort_order
 `
@@ -1321,7 +1321,7 @@ func (q *Queries) ListReviewMediaByReviewIDs(ctx context.Context, reviewIds []uu
 const listReviewMediaForReview = `-- name: ListReviewMediaForReview :many
 SELECT rm.id, rm.review_id, rm.asset_id, rm.sort_order, rm.created_at, ma.object_key, ma.mime_type, ma.width, ma.height, ma.size_bytes
 FROM review_media rm
-JOIN media_assets ma ON ma.id = rm.asset_id
+JOIN media_assets ma ON ma.id = rm.asset_id AND ma.visibility = 'public'
 WHERE rm.review_id = $1
 ORDER BY rm.sort_order, rm.created_at
 `

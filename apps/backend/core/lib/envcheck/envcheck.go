@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
+
+	"github.com/skeletg/skelet/apps/backend/core/lib/objstore"
 )
 
 // Getenv is os.Getenv in production and a map in tests
@@ -226,6 +228,17 @@ func Storage(getenv Getenv) (errs, warnings []string) {
 		warnings = append(warnings, "S3_BUCKET_NAME is empty - media uploads will fail")
 	}
 	return nil, warnings
+}
+
+func PrivateStorage(getenv Getenv) (errs, warnings []string) {
+	_, asked, err := objstore.PrivateConfigFromEnv(getenv)
+	switch {
+	case err != nil:
+		errs = append(errs, err.Error())
+	case !asked:
+		errs = append(errs, objstore.PrivateBucketEnv+" (or "+objstore.PrivateDirEnv+" on the filesystem driver) is not set - without it exports, import uploads and the files shoppers send through forms would sit in the media store, where only a random address stands between them and anyone")
+	}
+	return errs, warnings
 }
 
 // RateLimiting and LoginLockout warn instead of refusing - both ship off by default, and a proxy in front may already be metering

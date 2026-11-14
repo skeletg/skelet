@@ -171,6 +171,7 @@ func subscribeOrderReactors(d subscriberDeps) {
 	d.Loyalty.SubscribeToOrderEvents(bus)     // earned on placement, revoked on cancel or refund
 	d.Referral.SubscribeToOrderEvents(bus)    // give-get payout on the referee's first order
 	d.Download.SubscribeToOrderEvents(bus)    // grants the buyer access to a purchased product's downloads
+	d.Download.SubscribeToCustomerEvents(bus) // a file shared with an account goes when the account does
 	d.Subscription.SubscribeToOrderEvents(bus)
 }
 

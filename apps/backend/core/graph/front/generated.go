@@ -11463,7 +11463,8 @@ extend type Query {
 type DownloadGrant {
   id:            ID!
   title:         String!
-  productId:     ID!
+  # Null for a file the shop shared with the customer directly, which no product stands behind.
+  productId:     ID
   downloadUrl:   String!
   downloadsUsed: Int!
   maxDownloads:  Int
@@ -30728,11 +30729,11 @@ func (ec *executionContext) _DownloadGrant_productId(ctx context.Context, field 
 			return obj.ProductID, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNID2string(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
 		},
 		true,
-		true,
+		false,
 	)
 }
 func (ec *executionContext) fieldContext_DownloadGrant_productId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -56311,7 +56312,7 @@ func (ec *executionContext) _DownloadGrant(ctx context.Context, sel ast.Selectio
 			}
 		case "productId":
 			out.Values[i] = ec._DownloadGrant_productId(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		case "downloadUrl":

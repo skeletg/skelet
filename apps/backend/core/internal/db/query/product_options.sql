@@ -155,4 +155,5 @@ WHERE value_id = ANY(sqlc.arg(value_ids)::uuid[])
 ORDER BY value_id, channel_id;
 
 -- name: MediaAssetReady :one
-SELECT EXISTS (SELECT 1 FROM media_assets WHERE id = $1 AND status = 'ready');
+-- Public only: a private file has no address for the storefront to show
+SELECT EXISTS (SELECT 1 FROM media_assets WHERE id = $1 AND status = 'ready' AND visibility = 'public');

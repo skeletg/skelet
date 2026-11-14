@@ -9,7 +9,7 @@ import { AdminSearchDocument } from './AdminSearch.gql'
 // palette's own filter would - never shows an earlier term's rows under what is typed now, says when the lookup failed,
 // asks nothing under three characters, and starts empty however it was closed
 vi.mock('@/nav/use-visible-pages', () => ({ useVisiblePages: () => ({ pages: [{ path: '/orders', title: 'All orders' }], loading: false }) }))
-vi.mock('@/shared/auth/auth', () => ({ useAuth: () => ({ auth: null }) }))
+vi.mock('@/shared/auth/auth', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/shared/auth/auth')>()), useAuth: () => ({ auth: null }) }))
 
 const { AdminSearch } = await import('./admin-search')
 

@@ -49,13 +49,11 @@ func (s *Service) Consume(ctx context.Context, token string) (Grant, error) {
 		return Grant{}, err
 	}
 	if s.bus != nil {
-		s.bus.Publish(ctx, &Accessed{
-			GrantID:    out.ID,
-			CustomerID: out.CustomerID,
-			OrderID:    out.OrderID,
-			ProductID:  out.ProductID,
-			Title:      out.Title,
-		})
+		accessed := &Accessed{GrantID: out.ID, CustomerID: out.CustomerID, OrderID: out.OrderID, AssetID: out.AssetID, Title: out.Title}
+		if out.AssetID == nil {
+			accessed.ProductID = &out.ProductID
+		}
+		s.bus.Publish(ctx, accessed)
 	}
 	return out, nil
 }
@@ -72,6 +70,35 @@ func (s *Service) ListForCustomer(ctx context.Context, customerID uuid.UUID) ([]
 // The grants created for an order, for guest download access
 func (s *Service) ListForOrder(ctx context.Context, orderID uuid.UUID) ([]Grant, error) {
 	return s.repo.ListByOrder(ctx, orderID)
+}
+
+func (s *Service) ShareAsset(ctx context.Context, in ShareInput) (Grant, error) {
+	if in.MaxDownloads != nil && *in.MaxDownloads <= 0 {
+		return Grant{}, ErrInvalidShare
+	}
+	if in.ExpiresAt != nil && !in.ExpiresAt.After(s.now()) {
+		return Grant{}, ErrInvalidShare
+	}
+	token, err := newToken()
+	if err != nil {
+		return Grant{}, err
+	}
+	return s.repo.ShareAsset(ctx, token, in)
+}
+
+func (s *Service) SharesOf(ctx context.Context, assetID uuid.UUID) ([]Grant, error) {
+	return s.repo.ListByAsset(ctx, assetID)
+}
+
+func (s *Service) Unshare(ctx context.Context, id uuid.UUID) error {
+	gone, err := s.repo.DeleteShare(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !gone {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // Validates a grant for use - pure, with expired grants and those at their cap refused, and now as the reference time

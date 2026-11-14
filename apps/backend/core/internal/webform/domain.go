@@ -32,11 +32,13 @@ var (
 	ErrSpamRejected       = errors.New("submission rejected")
 	ErrFormInactive       = errors.New("form is not accepting submissions")
 	ErrSubmissionNotFound = errors.New("submission not found")
+	ErrFileNotFound       = errors.New("submission file not found")
 )
 
 func init() {
 	apperr.RegisterSentinel(ErrFormNotFound, "NOT_FOUND", apperr.ClassNotFound)
 	apperr.RegisterSentinel(ErrSubmissionNotFound, "NOT_FOUND", apperr.ClassNotFound)
+	apperr.RegisterSentinel(ErrFileNotFound, "NOT_FOUND", apperr.ClassNotFound)
 	apperr.RegisterSentinel(ErrSlugTaken, "CONFLICT", apperr.ClassConflict)
 	apperr.RegisterSentinel(ErrInvalidSchema, "VALIDATION", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrInvalidSubmission, "VALIDATION", apperr.ClassValidation)

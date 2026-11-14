@@ -1,5 +1,7 @@
 fragment MediaAssetFields on MediaAsset {
   id
+  visibility
+  thumbnailUrl(width: 640)
   path
   directoryPath
   filename
@@ -20,16 +22,13 @@ fragment MediaAssetFields on MediaAsset {
   updatedAt
 }
 
-query MediaDirectory($path: String!) {
-  mediaDirectory(path: $path) {
+query MediaDirectory($path: String!, $visibility: MediaVisibility) {
+  mediaDirectory(path: $path, visibility: $visibility) {
     path
     name
     directories {
       path
       name
-    }
-    assets {
-      ...MediaAssetFields
     }
     untrackedFiles {
       objectKey
@@ -42,12 +41,29 @@ query MediaDirectory($path: String!) {
   }
 }
 
-query SearchMediaAssets($query: String, $path: String, $mimeGroup: MediaMimeGroup, $sort: MediaAssetSort, $limit: Int, $offset: Int) {
-  searchMediaAssets(query: $query, path: $path, mimeGroup: $mimeGroup, sort: $sort, limit: $limit, offset: $offset) {
+query SearchMediaAssets($query: String, $path: String, $mimeGroup: MediaMimeGroup, $sort: MediaAssetSort, $limit: Int, $offset: Int, $visibility: MediaVisibility) {
+  searchMediaAssets(query: $query, path: $path, mimeGroup: $mimeGroup, sort: $sort, limit: $limit, offset: $offset, visibility: $visibility) {
     totalCount
     items {
       ...MediaAssetFields
     }
+  }
+}
+
+query MediaUploadTypes {
+  mediaUploadTypes
+}
+
+# How many of each kind a search holds, for the library's type filter
+query MediaCounts($query: String, $path: String, $visibility: MediaVisibility) {
+  all: searchMediaAssets(query: $query, path: $path, limit: 1, visibility: $visibility) {
+    totalCount
+  }
+  images: searchMediaAssets(query: $query, path: $path, mimeGroup: IMAGE, limit: 1, visibility: $visibility) {
+    totalCount
+  }
+  documents: searchMediaAssets(query: $query, path: $path, mimeGroup: DOCUMENT, limit: 1, visibility: $visibility) {
+    totalCount
   }
 }
 
@@ -57,15 +73,15 @@ query MediaAssetById($id: ID!) {
   }
 }
 
-query AllMediaDirectories {
-  allMediaDirectories {
+query AllMediaDirectories($visibility: MediaVisibility) {
+  allMediaDirectories(visibility: $visibility) {
     path
     name
   }
 }
 
-mutation CreateMediaDirectory($path: String!, $name: String!) {
-  createMediaDirectory(path: $path, name: $name) {
+mutation CreateMediaDirectory($path: String!, $name: String!, $visibility: MediaVisibility) {
+  createMediaDirectory(path: $path, name: $name, visibility: $visibility) {
     path
     name
   }
@@ -109,8 +125,8 @@ mutation GenerateMediaAltText($assetId: ID!) {
   generateMediaAltText(assetId: $assetId)
 }
 
-mutation MoveMediaAsset($id: ID!, $targetPath: String!, $filename: String) {
-  moveMediaAsset(id: $id, targetPath: $targetPath, filename: $filename) {
+mutation MoveMediaAsset($id: ID!, $targetPath: String!, $filename: String, $visibility: MediaVisibility) {
+  moveMediaAsset(id: $id, targetPath: $targetPath, filename: $filename, visibility: $visibility) {
     ...MediaAssetFields
   }
 }
@@ -119,13 +135,43 @@ mutation DeleteMediaAsset($id: ID!, $deleteFromStorage: Boolean) {
   deleteMediaAsset(id: $id, deleteFromStorage: $deleteFromStorage)
 }
 
-mutation RenameMediaDirectory($path: String!, $newName: String!) {
-  renameMediaDirectory(path: $path, newName: $newName) {
+mutation RenameMediaDirectory($path: String!, $newName: String!, $visibility: MediaVisibility) {
+  renameMediaDirectory(path: $path, newName: $newName, visibility: $visibility) {
     path
     name
   }
 }
 
-mutation DeleteMediaDirectory($path: String!, $recursive: Boolean!) {
-  deleteMediaDirectory(path: $path, recursive: $recursive)
+mutation DeleteMediaDirectory($path: String!, $recursive: Boolean!, $visibility: MediaVisibility) {
+  deleteMediaDirectory(path: $path, recursive: $recursive, visibility: $visibility)
+}
+
+query MediaPrivateArea {
+  mediaPrivateArea
+}
+
+fragment MediaShareFields on MediaShare {
+  id
+  customerId
+  email
+  downloadsUsed
+  maxDownloads
+  expiresAt
+  createdAt
+}
+
+query MediaAssetShares($assetId: ID!) {
+  mediaAssetShares(assetId: $assetId) {
+    ...MediaShareFields
+  }
+}
+
+mutation ShareMediaAsset($input: ShareMediaAssetInput!) {
+  shareMediaAsset(input: $input) {
+    ...MediaShareFields
+  }
+}
+
+mutation RevokeMediaShare($id: ID!) {
+  revokeMediaShare(id: $id)
 }

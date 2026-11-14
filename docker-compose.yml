@@ -623,6 +623,8 @@ services:
 
   # The bucket setup --default-bucket misses: CORS + website access
   # (Garage has no ACLs, so public reads = website hosting) - idempotent
+  # The private bucket: no website access and CORS for PUT alone. Made through the admin API, since a bucket made over S3
+  # is named for the key alone, and Garage can't then find it for a browser's unsigned preflight
   garage-init:
     image: amazon/aws-cli:latest
     depends_on:
@@ -632,11 +634,15 @@ services:
       - AWS_ACCESS_KEY_ID=skeletdev
       - AWS_SECRET_ACCESS_KEY=skeletdev-secret-not-for-prod
       - AWS_DEFAULT_REGION=us-east-1
+      - GARAGE_ADMIN_TOKEN=skelet-dev-admin-token-not-for-prod   # env/garage.toml's
     entrypoint: >
       /bin/sh -c "
       until aws --endpoint-url http://garage:3900 s3api head-bucket --bucket media 2>/dev/null; do sleep 1; done &&
       aws --endpoint-url http://garage:3900 s3api put-bucket-cors --bucket media --cors-configuration '{\"CORSRules\":[{\"AllowedOrigins\":[\"*\"],\"AllowedMethods\":[\"GET\",\"PUT\",\"HEAD\"],\"AllowedHeaders\":[\"*\"]}]}' &&
       aws --endpoint-url http://garage:3900 s3api put-bucket-website --bucket media --website-configuration '{\"IndexDocument\":{\"Suffix\":\"index.html\"}}' &&
+      curl -s -o /dev/null --oauth2-bearer $$GARAGE_ADMIN_TOKEN --json '{\"globalAlias\":\"private\"}' http://garage:3903/v2/CreateBucket &&
+      curl -sf --oauth2-bearer $$GARAGE_ADMIN_TOKEN 'http://garage:3903/v2/GetBucketInfo?globalAlias=private' | jq '{bucketId: .id, accessKeyId: env.AWS_ACCESS_KEY_ID, permissions: {read: true, write: true, owner: true}}' | curl -sf -o /dev/null --oauth2-bearer $$GARAGE_ADMIN_TOKEN --json @- http://garage:3903/v2/AllowBucketKey &&
+      aws --endpoint-url http://garage:3900 s3api put-bucket-cors --bucket private --cors-configuration '{\"CORSRules\":[{\"AllowedOrigins\":[\"*\"],\"AllowedMethods\":[\"PUT\"],\"AllowedHeaders\":[\"*\"]}]}' &&
       echo done
       "
     restart: "no"

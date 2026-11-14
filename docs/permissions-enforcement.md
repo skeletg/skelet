@@ -224,6 +224,43 @@ the product-row resolver files has to reach a channel-aware gate, so a bare
 `RequirePermission` fails the build. Product *types* are deliberately out of
 scope, being global config with no listings of their own.
 
+### 8. Library files, and the private half
+
+The media library has two halves, and the private one has grants of its own:
+`media.private.view`, `media.private.manage` and `media.share`, each asked for
+*on top of* the library's `media.view` / `media.manage`, and only through
+`RequireGlobalPermission`. The library isn't split by channel, so a channel-scoped
+grant would open every private file.
+
+Two things keep a private file from leaking through a resolver that never thought
+about it:
+
+- **The plain getters are public-only.** `medialibrary.Service.GetAsset` and
+  `GetAssetsByIDs` don't return a private file, so a promotion badge, an option
+  picture, the cart and the whole storefront can't hand one out by accident.
+  `GetAnyAsset` and `Open` do return one, and are for a caller that then checks
+  who is asking. The by-id writers (`ConfirmUpload`, `MoveAsset`, `DeleteAsset`)
+  take the half the caller was checked against, and a file found in the other
+  half isn't found - the zero value is public, so the storefront confirming a
+  review photo can't reach a private upload, and a file that went private
+  between the check and the write isn't touched.
+- **In `graph/admin`, by-id reads go through `libraryAsset(ctx, id, slug)`** in
+  `media_helpers.go`, which loads the file and asks for `slug` when it turns out
+  to be private. Calls that name a half instead of a file (browse, search, upload,
+  folder work) use `requirePrivate(ctx, slug, half)`. A move between the halves
+  asks for `media.private.manage` whichever direction it goes. Both end in
+  `medialibrary.RequireHalf`, the one statement of the rule.
+
+`media_private_authz_test.go` fails on a library resolver that reaches neither
+helper, on `GetAnyAsset` anywhere but that helper, and (in `graph/front`) on the
+storefront calling either private-capable getter. `media_private_authz_db_test.go`
+runs real roles against every private door. The two HTTP routes
+(`/api/admin/media/file/`, `/api/admin/media/svg`) call `RequireHalf` too.
+
+The private store also holds form uploads and exports, which sit behind their own
+permissions. The library refuses those paths (`ErrReservedPath`), so the private
+half's grants never reach them.
+
 ## The "no channel at all" admin
 
 An admin whose roles grant `orders.view` only on Channel A will:

@@ -45,6 +45,7 @@ var parentGatedFieldResolvers = map[string]string{
 	"Attribute.Descriptions":             "the parent attribute's own localized copy",
 	"AttributeValue.Descriptions":        "the parent value's own localized copy",
 	"CMSPageType.PageCount":              "a count over the parent page type",
+	"MediaAsset.ThumbnailURL":            "a smaller copy of the parent asset's own picture, at an address as public as its url",
 	"Product.Downloads":                  "digital assets attached to the parent product",
 	"Product.ProductOptions":             "the parent product's own option set",
 	"Product.OptionRules":                "the parent product's own option rules",

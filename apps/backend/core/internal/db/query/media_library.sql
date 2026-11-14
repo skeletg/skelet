@@ -2,11 +2,11 @@
 INSERT INTO media_assets (
     id, directory_prefix, filename, object_key,
     mime_type, size_bytes, width, height, status,
-    title, alt_text, caption, notes, created_by, updated_by
+    title, alt_text, caption, notes, created_by, updated_by, visibility
 ) VALUES (
     $1, $2, $3, $4,
     $5, $6, $7, $8, $9,
-    $10, $11, $12, $13, $14, $15
+    $10, $11, $12, $13, $14, $15, $16
 )
 RETURNING *;
 
@@ -20,11 +20,13 @@ SELECT * FROM media_assets WHERE id = ANY(sqlc.arg(ids)::uuid[]);
 SELECT * FROM media_assets
 -- The folder's own files, not its subfolders' - starts_with because a folder name may hold LIKE's _ wildcard
 WHERE starts_with(object_key, $1::text) AND strpos(substr(object_key, length($1::text) + 1), '/') = 0
+  AND visibility = $2
 ORDER BY created_at DESC, filename;
 
 -- name: ListMediaAssetsByPathRecursive :many
+-- The two stores are separate key spaces, so a prefix is only ever one store's
 SELECT * FROM media_assets
-WHERE starts_with(object_key, $1::text)
+WHERE starts_with(object_key, $1::text) AND visibility = $2
 ORDER BY object_key, filename;
 
 -- name: SearchMediaAssets :many
@@ -40,6 +42,7 @@ WHERE
         OR caption ILIKE '%' || escape_like($3::text) || '%'
         OR notes ILIKE '%' || escape_like($3::text) || '%'
     )
+    AND visibility = $7
 -- $6 picks the order: '' or newest, oldest, name, largest. The picker pages by offset, so id settles every tie
 ORDER BY
     CASE WHEN $6::text = 'name' THEN lower(filename) END ASC,
@@ -60,7 +63,8 @@ WHERE
         OR alt_text ILIKE '%' || escape_like($3::text) || '%'
         OR caption ILIKE '%' || escape_like($3::text) || '%'
         OR notes ILIKE '%' || escape_like($3::text) || '%'
-    );
+    )
+    AND visibility = $4;
 
 -- name: ConfirmMediaAssetUpload :one
 UPDATE media_assets
@@ -92,6 +96,7 @@ SET
     filename = $3,
     object_key = $4,
     updated_by = $5,
+    visibility = $6,
     updated_at = now()
 WHERE id = $1
 RETURNING *;
@@ -101,7 +106,7 @@ DELETE FROM media_assets WHERE id = $1;
 
 -- name: DeleteMediaAssetsByDirectoryPrefix :exec
 DELETE FROM media_assets
-WHERE starts_with(object_key, $1::text);
+WHERE starts_with(object_key, $1::text) AND visibility = $2;
 
 -- name: SetMediaFocalPoint :one
 UPDATE media_assets

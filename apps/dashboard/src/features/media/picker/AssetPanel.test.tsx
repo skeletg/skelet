@@ -3,6 +3,9 @@ import { MockedProvider } from '@apollo/client/testing/react'
 import type { MockLink } from '@apollo/client/testing'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { ADMIN_MEDIA_FILE_ENDPOINT } from '@/lib/api-endpoint'
+import { STORAGE_KEY } from '@/shared/auth/auth'
+import { downloadServer } from '@/test/downloads'
 import { SLOW } from '@/test/page-harness'
 import {
   GenerateMediaAltTextDocument,
@@ -16,10 +19,14 @@ import { AssetPanel } from './AssetPanel'
 // picture sets the focal point as a 0..1 fraction (and Reset clears it), AI writes alt text into the draft without
 // saving it, a different asset brings its own words, and without media.manage it only shows
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
+  localStorage.clear()
+})
 
 const asset = (over: object = {}) => ({
-  __typename: 'MediaAsset' as const, id: 'a1', path: 'promo/red.png', directoryPath: 'promo', filename: 'red.png', url: 'https://cdn/red.png',
+  __typename: 'MediaAsset' as const, id: 'a1', path: 'promo/red.png', directoryPath: 'promo', filename: 'red.png', url: 'https://cdn/red.png', thumbnailUrl: 'https://cdn/red.png', visibility: 'PUBLIC' as const,
   mimeType: 'image/png', mimeGroup: 'IMAGE' as const, sizeBytes: 2048, width: 400, height: 200, status: 'READY' as const,
   title: 'Red', altText: 'A red mug', caption: '', notes: '', focalX: null, focalY: null, createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z',
   ...over,
@@ -150,10 +157,95 @@ describe('AssetPanel', () => {
     expect(await screen.findByRole('button', { name: 'Copied' })).toBeDefined()
   })
 
+  it('shows a private file through the API and downloads it with the session, with no link to copy', async () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ accessToken: 'tok', refreshToken: 'r', admin: {} }))
+    URL.createObjectURL = vi.fn(() => 'blob:kept')
+    URL.revokeObjectURL = vi.fn()
+    const { asked, saved } = downloadServer(() => new Response('png', { headers: { 'content-disposition': 'attachment; filename="red.png"' } }))
+    rig({ value: asset({ id: 'hidden', visibility: 'PRIVATE', url: '', thumbnailUrl: '' }) })
+
+    expect(screen.queryByRole('img', { name: 'A red mug' })).toBeNull()
+    expect(screen.getByText('Loading the picture…')).toBeDefined()
+    expect(((await screen.findByRole('img', { name: 'A red mug' })) as HTMLImageElement).src).toBe('blob:kept')
+    expect(screen.getByText(/It has no address/)).toBeDefined()
+    expect(screen.queryByRole('button', { name: 'Copy link' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Open' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }))
+    expect(screen.getByRole('button', { name: 'Downloading…' })).toHaveProperty('disabled', true)
+    await vi.waitFor(() => expect(saved).toEqual([{ href: `${ADMIN_MEDIA_FILE_ENDPOINT}/hidden?ticket=t1`, name: 'red.png' }]))
+    expect(screen.getByRole('button', { name: 'Download' })).toHaveProperty('disabled', false)
+    expect(asked.map((a) => [a.method, a.url.replace(window.location.origin, ''), a.authorization])).toEqual([
+      ['GET', `${ADMIN_MEDIA_FILE_ENDPOINT}/hidden?w=960`, 'Bearer tok'],
+      ['POST', '/api/admin/download-ticket', 'Bearer tok'],
+      ['GET', `${ADMIN_MEDIA_FILE_ENDPOINT}/hidden?ticket=t1`, undefined],
+    ])
+  })
+
+  it('offers no AI alt text for a private picture, which is never sent to the provider', async () => {
+    URL.createObjectURL = vi.fn(() => 'blob:kept')
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(new Blob(['png']))))
+    const { rerender } = rig({ ai: true })
+    expect(await screen.findByRole('button', { name: /Write with AI/ }, SLOW)).toBeDefined()
+    rerender(asset({ id: 'hidden-3', visibility: 'PRIVATE', url: '', thumbnailUrl: '' }))
+    expect(screen.queryByRole('button', { name: /Write with AI/ })).toBeNull()
+  })
+
+  it('says why a private file could not be downloaded', async () => {
+    URL.createObjectURL = vi.fn(() => 'blob:kept')
+    const { saved } = downloadServer((url) => (url.includes('?w=') ? new Response('png') : new Response('the private store is unreachable', { status: 502 })))
+    rig({ value: asset({ id: 'hidden-2', visibility: 'PRIVATE', url: '', thumbnailUrl: '' }) })
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }))
+    expect(await screen.findByText('the private store is unreachable')).toBeDefined()
+    expect(saved).toEqual([])
+  })
+
   it('shows a document as a file, with no focal point to set', () => {
     rig({ value: asset({ mimeGroup: 'DOCUMENT', mimeType: 'application/pdf', filename: 'terms.pdf' }) })
     expect(screen.queryByRole('img')).toBeNull()
     expect(screen.getByText('terms.pdf')).toBeDefined()
     expect(screen.getByText('application/pdf')).toBeDefined()
+  })
+})
+
+// What the library adds to the picker's use: the team's notes, no link back to itself, and word of unsaved typing
+describe('AssetPanel in the library', () => {
+  function inLibrary(onDirty = vi.fn()) {
+    const sent: Record<string, unknown>[] = []
+    render(
+      <MemoryRouter>
+        <MockedProvider
+          mocks={[
+            { request: { query: MediaAiStatusDocument }, result: { data: { aiStatus: { __typename: 'AiStatus', enabled: false } } }, maxUsageCount: 5 },
+            {
+              request: { query: UpdateMediaAssetDocument, variables: (v: { input: Record<string, unknown> }) => (sent.push(v.input), true) },
+              result: (v: { input: object }) => ({ data: { updateMediaAsset: asset(v.input) } }),
+            },
+          ]}
+        >
+          <AssetPanel asset={asset({ notes: 'From the spring shoot' })} canManage notes libraryLink={false} onChanged={() => {}} onDirty={onDirty} />
+        </MockedProvider>
+      </MemoryRouter>,
+    )
+    return { sent, onDirty }
+  }
+
+  it('edits the notes with the other words, and has no link to the library', async () => {
+    const { sent } = inLibrary()
+    expect(field('Notes').value).toBe('From the spring shoot')
+    expect(screen.queryByRole('link', { name: 'In the library' })).toBeNull()
+
+    fireEvent.change(field('Notes'), { target: { value: 'Retouched' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
+    await vi.waitFor(() => expect(sent).toEqual([{ id: 'a1', title: 'Red', altText: 'A red mug', caption: '', notes: 'Retouched' }]), SLOW)
+  })
+
+  it('says when typed words are waiting, and when they no longer are', async () => {
+    const { onDirty } = inLibrary()
+    await vi.waitFor(() => expect(onDirty).toHaveBeenLastCalledWith(false))
+    fireEvent.change(field('Title'), { target: { value: 'Red mug' } })
+    await vi.waitFor(() => expect(onDirty).toHaveBeenLastCalledWith(true))
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    await vi.waitFor(() => expect(onDirty).toHaveBeenLastCalledWith(false))
   })
 })

@@ -21,4 +21,9 @@ func init() {
 	apperr.RegisterSentinel(ErrInvalidSize, "MEDIA_INVALID_SIZE", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrInvalidDimensions, "MEDIA_INVALID_DIMENSIONS", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrInvalidFocalPoint, "MEDIA_INVALID_FOCAL_POINT", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrNotEditable, "MEDIA_NOT_EDITABLE", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrNoPrivateStore, "MEDIA_NO_PRIVATE_STORE", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrPrivateAsset, "MEDIA_PRIVATE", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrStillPublic, "MEDIA_STILL_PUBLIC", apperr.ClassUnavailable)
+	apperr.RegisterSentinel(ErrSharePublic, "MEDIA_SHARE_PUBLIC", apperr.ClassValidation)
 }

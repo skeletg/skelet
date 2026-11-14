@@ -225,6 +225,11 @@ func (s *Service) Set(ctx context.Context, path, value string, scope Scope) (Ent
 	if def.MaxLen > 0 && utf8.RuneCountInString(normalized) > def.MaxLen {
 		return Entry{}, apperr.New("CONFIG_VALUE_TOO_LONG", apperr.ClassValidation, fmt.Sprintf("%s takes at most %d characters", def.Label, def.MaxLen))
 	}
+	if def.Check != nil {
+		if err := def.Check(normalized); err != nil {
+			return Entry{}, apperr.New("CONFIG_VALUE_INVALID", apperr.ClassValidation, fmt.Sprintf("%s: %s", def.Label, err))
+		}
+	}
 	// Encrypt secret values at rest, storing plaintext when no cipher is configured (dev) - the returned Entry always carries the plaintext, so callers like the admin resolver computing "is set" never see ciphertext
 	toStore := normalized
 	if def.Type == TypeSecret && s.cipher != nil && normalized != "" {

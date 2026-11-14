@@ -13,7 +13,7 @@ func TestAStoredDownloadIsRecognisedByItsPublicBase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	files := storedDownloads{st}
+	files := storedDownloads{st: st}
 	for u, want := range map[string]string{
 		st.PublicURL("books/the book.pdf"):           "books/the book.pdf",
 		"https://cdn.example.test/media/a/b.zip?v=2": "a/b.zip",

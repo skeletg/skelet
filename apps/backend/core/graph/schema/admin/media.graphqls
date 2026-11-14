@@ -8,6 +8,12 @@ enum MediaMimeGroup {
   DOCUMENT
 }
 
+# PRIVATE files are kept in the private store, have no address (url is empty) and are read only through this API.
+enum MediaVisibility {
+  PUBLIC
+  PRIVATE
+}
+
 # Newest is recently changed first, the default
 enum MediaAssetSort {
   NEWEST
@@ -22,6 +28,9 @@ type MediaAsset {
   directoryPath: String!
   filename: String!
   url: String!
+  # A copy no wider than `width` for grids: storage's address once it exists, else a path on this API that makes it, else the original's url.
+  thumbnailUrl(width: Int!): String!
+  visibility: MediaVisibility!
   mimeType: String!
   mimeGroup: MediaMimeGroup!
   sizeBytes: Int!
@@ -75,6 +84,7 @@ type RequestMediaAssetUploadPayload {
 
 input RequestMediaAssetUploadInput {
   path: String!
+  visibility: MediaVisibility
   filename: String!
   mimeType: String!
   sizeBytes: Int!
@@ -92,22 +102,49 @@ input UpdateMediaAssetInput {
   notes: String
 }
 
+# A private file handed to one customer: it shows in their account's downloads and opens through /download/<token>.
+type MediaShare {
+  id: ID!
+  customerId: ID
+  email: String!
+  downloadsUsed: Int!
+  maxDownloads: Int
+  expiresAt: Time
+  createdAt: Time!
+}
+
+input ShareMediaAssetInput {
+  assetId: ID!
+  customerId: ID!
+  maxDownloads: Int
+  expiresAt: Time
+}
+
 extend type Query {
-  mediaDirectory(path: String!): MediaDirectory!
+  # The two halves of the library keep separate folders, so each of these looks at one - PUBLIC when left out.
+  mediaDirectory(path: String!, visibility: MediaVisibility): MediaDirectory!
   mediaAsset(id: ID!): MediaAsset!
-  searchMediaAssets(query: String, path: String, mimeGroup: MediaMimeGroup, sort: MediaAssetSort, limit: Int, offset: Int): MediaAssetSearchResult!
-  allMediaDirectories: [MediaDirectoryChild!]!
+  searchMediaAssets(query: String, path: String, mimeGroup: MediaMimeGroup, sort: MediaAssetSort, limit: Int, offset: Int, visibility: MediaVisibility): MediaAssetSearchResult!
+  allMediaDirectories(visibility: MediaVisibility): [MediaDirectoryChild!]!
+  mediaPrivateArea: Boolean!
+  mediaAssetShares(assetId: ID!): [MediaShare!]!
+  # The MIME types the library takes, for a file picker to offer.
+  mediaUploadTypes: [String!]!
 }
 
 extend type Mutation {
   # Set (or clear, with nulls) the smart-crop focal point.
   setMediaFocalPoint(assetId: ID!, x: Float, y: Float): MediaAsset!
-  createMediaDirectory(path: String!, name: String!): MediaDirectoryChild!
+  createMediaDirectory(path: String!, name: String!, visibility: MediaVisibility): MediaDirectoryChild!
   requestMediaAssetUpload(input: RequestMediaAssetUploadInput!): RequestMediaAssetUploadPayload!
   confirmMediaAssetUpload(assetId: ID!, width: Int, height: Int): MediaAsset!
   updateMediaAsset(input: UpdateMediaAssetInput!): MediaAsset!
-  moveMediaAsset(id: ID!, targetPath: String!, filename: String): MediaAsset!
+  # visibility set to the other half carries the file to that store: its address changes, or goes.
+  moveMediaAsset(id: ID!, targetPath: String!, filename: String, visibility: MediaVisibility): MediaAsset!
   deleteMediaAsset(id: ID!, deleteFromStorage: Boolean): Boolean!
-  deleteMediaDirectory(path: String!, recursive: Boolean!): Boolean!
-  renameMediaDirectory(path: String!, newName: String!): MediaDirectoryChild!
+  deleteMediaDirectory(path: String!, recursive: Boolean!, visibility: MediaVisibility): Boolean!
+  renameMediaDirectory(path: String!, newName: String!, visibility: MediaVisibility): MediaDirectoryChild!
+  # Sharing again with the same customer replaces the limits.
+  shareMediaAsset(input: ShareMediaAssetInput!): MediaShare!
+  revokeMediaShare(id: ID!): Boolean!
 }

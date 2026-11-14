@@ -150,3 +150,16 @@ func TestSetMaxSourcePixelsIgnoresNonPositive(t *testing.T) {
 		t.Fatalf("got %d, want 5", tr.maxSourcePixels)
 	}
 }
+
+func TestASecondStoreSharesTheRenderSlots(t *testing.T) {
+	first := NewTransformer(nil)
+	first.SetRenderConcurrency(3, 2*time.Second)
+	first.SetMaxSourcePixels(1000)
+	second := first.ForStore(nil)
+	if second.sem != first.sem || second.renderWait != first.renderWait || second.maxSourcePixels != first.maxSourcePixels {
+		t.Errorf("the second store renders with %d slots of its own (shared %v), wait %s, cap %d", cap(second.sem), second.sem == first.sem, second.renderWait, second.maxSourcePixels)
+	}
+	if &second.inflight == &first.inflight {
+		t.Error("the two stores share in-flight renders, so one store's copy could land in the other")
+	}
+}

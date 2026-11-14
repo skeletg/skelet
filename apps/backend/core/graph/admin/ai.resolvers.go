@@ -10,6 +10,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/blockkit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cms"
+	"github.com/skeletg/skelet/apps/backend/core/internal/medialibrary"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
@@ -47,16 +48,16 @@ func (r *mutationResolver) GenerateMediaAltText(ctx context.Context, assetID str
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "media.manage"); err != nil {
 		return "", err
 	}
-	if r.AISvc == nil {
-		return "", errNotConfigured("ai")
-	}
-	aid, err := uuid.Parse(assetID)
-	if err != nil {
-		return "", errInvalidID("id", err)
-	}
-	asset, err := r.MediaLibrarySvc.GetAsset(ctx, aid)
+	asset, err := r.libraryAsset(ctx, assetID, medialibrary.PermPrivateManage)
 	if err != nil {
 		return "", err
+	}
+	// The picture goes to the AI provider, and a private file is never sent out of the shop
+	if asset.Visibility == medialibrary.Private {
+		return "", medialibrary.ErrPrivateAsset
+	}
+	if r.AISvc == nil {
+		return "", errNotConfigured("ai")
 	}
 	image, err := fetchImageBytes(ctx, asset.URL)
 	if err != nil {

@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import type { MediaVisibility } from '@/graphql/schema.types'
 import { randomId } from '@/lib/random-id'
 import { useMediaUpload } from '../useImageUpload'
 
@@ -12,8 +13,8 @@ export type UploadItem = {
 }
 
 // Several files at once, each with its own progress - a failure stays in the list with its reason until dismissed
-export function useUploadQueue(path: string, onUploaded: (assetIds: string[]) => void) {
-  const upload = useMediaUpload(path)
+export function useUploadQueue(path: string, onUploaded: (assetIds: string[]) => void, visibility?: MediaVisibility) {
+  const upload = useMediaUpload(path, visibility)
   const [items, setItems] = useState<UploadItem[]>([])
   const patch = (key: string, p: Partial<UploadItem>) => setItems((list) => list.map((i) => (i.key === key ? { ...i, ...p } : i)))
 

@@ -3,10 +3,12 @@ package download
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"log"
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 )
@@ -40,11 +42,23 @@ type Accessed struct {
 	GrantID    uuid.UUID
 	CustomerID *uuid.UUID
 	OrderID    *uuid.UUID
-	ProductID  uuid.UUID
-	Title      string
+	// One or the other: the product a bought file belongs to, or the library file the shop shared
+	ProductID *uuid.UUID
+	AssetID   *uuid.UUID
+	Title     string
 }
 
 func (*Accessed) Type() string { return EventAccessed }
+
+// What leaves the process - a webhook body. A shared file's title is the shop's own name for a private file, so it stays in
+func (a Accessed) MarshalJSON() ([]byte, error) {
+	type sent Accessed
+	out := sent(a)
+	if a.AssetID != nil {
+		out.Title = ""
+	}
+	return json.Marshal(out)
+}
 
 // Wires grants to the order lifecycle, durable through the outbox and at-least-once: placement or a payment advance grants a paid-for
 // order its files, and cancellation, a void or a full refund expires them - it retains the bus so Consume can publish download.accessed
@@ -56,6 +70,28 @@ func (s *Service) SubscribeToOrderEvents(bus *events.Bus) {
 	bus.Subscribe(order.EventPlaced, s.onOrderPlaced)
 	bus.Subscribe(order.EventPaymentStatusChanged, s.onPaymentStatusChanged)
 	bus.Subscribe(order.EventCancelled, s.onOrderCancelled)
+}
+
+// A shared file was handed to an account, so its link stops working when the account is deleted or erased
+func (s *Service) SubscribeToCustomerEvents(bus *events.Bus) {
+	if bus == nil {
+		return
+	}
+	bus.Subscribe(customer.EventDeleted, s.onCustomerGone)
+	bus.Subscribe(customer.EventErased, s.onCustomerGone)
+}
+
+func (s *Service) onCustomerGone(ctx context.Context, e events.Event) error {
+	var gone uuid.UUID
+	switch ev := e.(type) {
+	case *customer.CustomerDeleted:
+		gone = ev.CustomerID
+	case *customer.CustomerErased:
+		gone = ev.CustomerID
+	default:
+		return nil
+	}
+	return s.repo.DeleteSharesWith(ctx, gone)
 }
 
 func (s *Service) onOrderPlaced(ctx context.Context, e events.Event) error {

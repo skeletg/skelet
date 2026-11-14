@@ -433,7 +433,7 @@ type DeliveryShipment struct {
 type DownloadGrant struct {
 	ID            string     `json:"id"`
 	Title         string     `json:"title"`
-	ProductID     string     `json:"productId"`
+	ProductID     *string    `json:"productId,omitempty"`
 	DownloadURL   string     `json:"downloadUrl"`
 	DownloadsUsed int32      `json:"downloadsUsed"`
 	MaxDownloads  *int32     `json:"maxDownloads,omitempty"`

@@ -39,6 +39,11 @@ Scaling from one to the other is that env changing: set `VALKEY_URL` for
 multi-replica, then `JOBS_EXTERNAL` to split the
 background tiers back out.
 
+Both shapes need a second bucket besides the media one, with no public access,
+named in `PRIVATE_S3_BUCKET` - exports, uploads and private media live there,
+and production won't start without it. [env.md](env.md#private-store) has what
+it needs.
+
 The root `.env` is the only file docker compose interpolates, which is why the
 secrets that have to appear twice (a datastore *and* the URL reaching it) live
 there rather than in `env/`. Everything else is bulk config handed to one

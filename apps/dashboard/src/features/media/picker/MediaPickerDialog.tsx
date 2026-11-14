@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent } from 'react'
+import { useCallback, useMemo, useRef, useState, type ClipboardEvent, type DragEvent } from 'react'
 import { useApolloClient, useMutation, useQuery } from '@apollo/client/react'
 import {
   FolderPlusIcon,
@@ -23,11 +23,11 @@ import {
   AllMediaDirectoriesDocument,
   CreateMediaDirectoryDocument,
   MediaAssetByIdDocument,
-  SearchMediaAssetsDocument,
   type MediaAssetFieldsFragment as MediaAsset,
 } from '../MediaLibrary.gql'
 import { AssetGrid, Thumb, type GridSize } from './AssetGrid'
 import { AssetPanel } from './AssetPanel'
+import { useMediaSearch } from '../useMediaSearch'
 import { useUploadQueue } from './useUploadQueue'
 
 export type MediaPickerProps = {
@@ -44,7 +44,6 @@ export type MediaPickerProps = {
   selectedIds?: readonly string[]
 }
 
-const PAGE = 48
 const SORTS: { value: MediaAssetSort; label: string }[] = [
   { value: 'NEWEST', label: 'Newest first' },
   { value: 'OLDEST', label: 'Oldest first' },
@@ -91,7 +90,6 @@ function PickerBody({ onOpenChange, onSelect, multiple = false, onSelectMany, ac
   const [dragging, setDragging] = useState(false)
   const [newFolder, setNewFolder] = useState<string | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
-  const sentinel = useRef<HTMLDivElement>(null)
 
   const savePrefs = (next: typeof prefs) => {
     setPrefs(next)
@@ -104,53 +102,14 @@ function PickerBody({ onOpenChange, onSelect, multiple = false, onSelectMany, ac
 
   const dirs = useQuery(AllMediaDirectoriesDocument)
   const tree = useMemo(() => buildDirectoryTree((dirs.data?.allMediaDirectories ?? []).map((d) => d.path)), [dirs.data])
-  const variables = { query: query || null, path: folder || null, mimeGroup: type === 'ALL' ? null : type, sort, limit: PAGE, offset: 0 }
-  const results = useQuery(SearchMediaAssetsDocument, { variables, fetchPolicy: 'cache-and-network', notifyOnNetworkStatusChange: true })
-  const items = useMemo(() => results.data?.searchMediaAssets.items ?? results.previousData?.searchMediaAssets.items ?? [], [results.data, results.previousData])
-  const total = results.data?.searchMediaAssets.totalCount ?? items.length
+  const results = useMediaSearch({ query, path: folder, type, sort })
+  const { items, total, hasMore, loadMore, sentinel } = results
   // What's already in use when the picker opens may sit outside the first page
   const current = useQuery(MediaAssetByIdDocument, { variables: { id: selectedIds[0] ?? '' }, skip: !selectedIds[0] }).data?.mediaAsset
   const byId = useMemo(
     () => ({ ...(current ? { [current.id]: current } : {}), ...known, ...Object.fromEntries(items.map((a) => [a.id, a])) }),
     [current, known, items],
   )
-
-  // Page by offset - the server caps one search at 200, so asking for a longer first page stalled there.
-  // A page that brings nothing new (a delete since the count) ends it, or the sentinel would ask forever
-  const pageKey = `${JSON.stringify(variables)}@${items.length}`
-  const [stalledAt, setStalledAt] = useState<string | null>(null)
-  const hasMore = items.length < total && stalledAt !== pageKey
-  const asking = useRef(false)
-  const { fetchMore } = results
-  const loadMore = useCallback(async () => {
-    if (asking.current) return
-    asking.current = true
-    const seen = new Set(items.map((a) => a.id))
-    try {
-      const res = await fetchMore({
-        variables: { offset: items.length },
-        updateQuery: (prev, { fetchMoreResult }) => ({
-          searchMediaAssets: {
-            ...fetchMoreResult.searchMediaAssets,
-            items: [...prev.searchMediaAssets.items, ...fetchMoreResult.searchMediaAssets.items.filter((a) => !seen.has(a.id))],
-          },
-        }),
-      })
-      if (!res.data?.searchMediaAssets.items.some((a) => !seen.has(a.id))) setStalledAt(pageKey)
-    } catch {
-      setStalledAt(pageKey)
-    } finally {
-      asking.current = false
-    }
-  }, [fetchMore, items, pageKey])
-
-  useEffect(() => {
-    const el = sentinel.current
-    if (!el || !hasMore || results.loading) return
-    const watch = new IntersectionObserver(([entry]) => entry?.isIntersecting && void loadMore(), { rootMargin: '200px' })
-    watch.observe(el)
-    return () => watch.disconnect()
-  }, [hasMore, results.loading, loadMore])
 
   const pickable = useCallback(
     (a: MediaAsset) => {

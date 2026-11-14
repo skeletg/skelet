@@ -193,7 +193,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	mediaTransformer := media.NewTransformer(s.MediaStorage)
 	mediaTransformer.SetMaxSourcePixels(EnvInt("MEDIA_MAX_SOURCE_PIXELS", 0))
 	mediaTransformer.SetRenderConcurrency(EnvInt("MEDIA_RENDER_SLOTS", 0), 0)
-	mux.Handle("/media/t/", mediahttp.NewTransformHandler(mediaTransformer, mediahttp.Options{
+	transformOpts := mediahttp.Options{
 		AllowRateLimit: func(r *http.Request) bool {
 			return transformLimiter.Allow(r.Context(), "media-transform:"+authpkg.ClientIP(r))
 		},
@@ -204,11 +204,20 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 			}
 			return *asset.FocalX, *asset.FocalY, true
 		},
-	}))
+	}
+	for _, route := range []string{media.TransformRoute, media.AdminTransformRoute} {
+		opts := transformOpts
+		opts.Prefix = route
+		mux.Handle(route, mediahttp.NewTransformHandler(mediaTransformer, opts))
+	}
 
 	// The filesystem driver serves its own objects and takes the browser's uploads, which S3 would have answered
 	if files, ok := s.MediaStorage.(interface{ Handler() http.Handler }); ok {
 		mux.Handle(objstore.FilesPath, otelx.WrapHTTP(files.Handler(), "media.files"))
+	}
+
+	if uploads, ok := privateUploadRoute(s.PrivateStorage, s.MediaStorage); ok {
+		mux.Handle(objstore.PrivateUploadPath, otelx.WrapHTTP(uploads, "private.upload"))
 	}
 
 	// XML doesn't fit the GraphQL surface, so the product feed is plain HTTP, scoped by the channel middleware
@@ -219,7 +228,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	tokenLimiter := ratelimit.NewRedis(infra.Limits.Client, RateLimitPerMin("TOKEN_RATE_LIMIT_PER_MIN", 60), time.Minute)
 	var downloadFiles download.FileStore
 	if s.MediaStorage != nil {
-		downloadFiles = storedDownloads{s.MediaStorage}
+		downloadFiles = storedDownloads{st: s.MediaStorage, lib: s.MediaLibrary}
 	}
 	mux.Handle("/download/", s.Download.Handler(downloadFiles, func(r *http.Request) bool {
 		return tokenLimiter.Allow(r.Context(), "download:"+authpkg.ClientIP(r))
@@ -246,11 +255,22 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	adminAuth := func(h http.Handler) http.Handler {
 		return authpkg.AdminMiddleware(infra.Config.AdminKeys)(integration.Middleware(s.Integration)(authpkg.AdminSessionGuard(s.AdminRefresh.RefreshStore)(h)))
 	}
+	// The routes that hand out a file also take a download ticket, so the browser can save it straight to disk
+	fileAuth := func(h http.Handler) http.Handler {
+		return authpkg.AdminMiddleware(infra.Config.AdminKeys)(authpkg.DownloadTicket(infra.Config.AdminKeys)(integration.Middleware(s.Integration)(authpkg.AdminSessionGuard(s.AdminRefresh.RefreshStore)(h))))
+	}
+	mux.Handle(downloadTicketPath, otelx.WrapHTTP(adminAuth(downloadTicketHandler(infra.Config.AdminKeys)), "download.ticket"))
 	mux.Handle(dataImportPath, otelx.WrapHTTP(adminAuth(dataImportHandler(s.DataJob, s.Admin)), "data.import"))
-	mux.Handle("/api/admin/data/template", otelx.WrapHTTP(adminAuth(dataTemplateHandler(s.DataJob, s.Admin)), "data.template"))
-	mux.Handle("/api/admin/data/jobs/", otelx.WrapHTTP(adminAuth(dataDownloadHandler(s.DataJob, s.Admin)), "data.download"))
+	mux.Handle(dataTemplatePath, otelx.WrapHTTP(fileAuth(dataTemplateHandler(s.DataJob, s.Admin)), "data.template"))
+	mux.Handle(dataJobsPath, otelx.WrapHTTP(fileAuth(dataDownloadHandler(s.DataJob, s.Admin)), "data.download"))
 	// SVG can't use the GraphQL presign path - see media_svg_http.go for why the bytes come here first
 	mux.Handle(mediaSVGPath, otelx.WrapHTTP(adminAuth(mediaSVGHandler(s.MediaLibrary, s.Admin)), "media.svg"))
+	var privateTransformer *media.Transformer
+	if s.MediaLibrary.HasPrivate() {
+		privateTransformer = mediaTransformer.ForStore(s.PrivateStorage.Storage)
+	}
+	mux.Handle(mediaFilePath, otelx.WrapHTTP(fileAuth(mediaFileHandler(s.MediaLibrary, s.Admin, mediaTransformer, privateTransformer)), "media.file"))
+	mux.Handle(webformFilePath, otelx.WrapHTTP(fileAuth(webformFileHandler(s.WebForm, s.Admin)), "webforms.file"))
 
 	adminMCPOn, frontMCPOn := mcpSwitches()
 	if adminMCPOn {
@@ -344,7 +364,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 			maxBodyBytes = n
 		}
 	}
-	rootHandler := httpx.Recover(httpx.SecurityHeaders(httpx.LimitBody(maxBodyBytes, httpx.RequestID(sentryMw(corsHandler)), dataImportPath, objstore.FilesPath)))
+	rootHandler := httpx.Recover(httpx.SecurityHeaders(httpx.LimitBody(maxBodyBytes, httpx.RequestID(sentryMw(corsHandler)), dataImportPath, objstore.FilesPath, objstore.PrivateUploadPath)))
 	return RootHandler{rootHandler}
 }
 

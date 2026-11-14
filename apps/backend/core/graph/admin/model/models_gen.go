@@ -3603,6 +3603,8 @@ type MediaAsset struct {
 	DirectoryPath string           `json:"directoryPath"`
 	Filename      string           `json:"filename"`
 	URL           string           `json:"url"`
+	ThumbnailURL  string           `json:"thumbnailUrl"`
+	Visibility    MediaVisibility  `json:"visibility"`
 	MimeType      string           `json:"mimeType"`
 	MimeGroup     MediaMimeGroup   `json:"mimeGroup"`
 	SizeBytes     int32            `json:"sizeBytes"`
@@ -3617,6 +3619,7 @@ type MediaAsset struct {
 	Notes         string           `json:"notes"`
 	CreatedAt     time.Time        `json:"createdAt"`
 	UpdatedAt     time.Time        `json:"updatedAt"`
+	ObjectKey     string           `json:"-"`
 }
 
 type MediaAssetSearchResult struct {
@@ -3635,6 +3638,16 @@ type MediaDirectory struct {
 type MediaDirectoryChild struct {
 	Path string `json:"path"`
 	Name string `json:"name"`
+}
+
+type MediaShare struct {
+	ID            string     `json:"id"`
+	CustomerID    *string    `json:"customerId,omitempty"`
+	Email         string     `json:"email"`
+	DownloadsUsed int32      `json:"downloadsUsed"`
+	MaxDownloads  *int32     `json:"maxDownloads,omitempty"`
+	ExpiresAt     *time.Time `json:"expiresAt,omitempty"`
+	CreatedAt     time.Time  `json:"createdAt"`
 }
 
 type Menu struct {
@@ -4559,14 +4572,15 @@ type RequestCoverUploadPayload struct {
 }
 
 type RequestMediaAssetUploadInput struct {
-	Path      string  `json:"path"`
-	Filename  string  `json:"filename"`
-	MimeType  string  `json:"mimeType"`
-	SizeBytes int32   `json:"sizeBytes"`
-	Title     *string `json:"title,omitempty"`
-	AltText   *string `json:"altText,omitempty"`
-	Caption   *string `json:"caption,omitempty"`
-	Notes     *string `json:"notes,omitempty"`
+	Path       string           `json:"path"`
+	Visibility *MediaVisibility `json:"visibility,omitempty"`
+	Filename   string           `json:"filename"`
+	MimeType   string           `json:"mimeType"`
+	SizeBytes  int32            `json:"sizeBytes"`
+	Title      *string          `json:"title,omitempty"`
+	AltText    *string          `json:"altText,omitempty"`
+	Caption    *string          `json:"caption,omitempty"`
+	Notes      *string          `json:"notes,omitempty"`
 }
 
 type RequestMediaAssetUploadPayload struct {
@@ -5218,6 +5232,13 @@ type SetSubscriptionTermsInput struct {
 	IntervalUnit  SubscriptionInterval `json:"intervalUnit"`
 	IntervalCount int32                `json:"intervalCount"`
 	TrialDays     *int32               `json:"trialDays,omitempty"`
+}
+
+type ShareMediaAssetInput struct {
+	AssetID      string     `json:"assetId"`
+	CustomerID   string     `json:"customerId"`
+	MaxDownloads *int32     `json:"maxDownloads,omitempty"`
+	ExpiresAt    *time.Time `json:"expiresAt,omitempty"`
 }
 
 type ShippingBox struct {
@@ -9040,6 +9061,61 @@ func (e *MediaMimeGroup) UnmarshalJSON(b []byte) error {
 }
 
 func (e MediaMimeGroup) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type MediaVisibility string
+
+const (
+	MediaVisibilityPublic  MediaVisibility = "PUBLIC"
+	MediaVisibilityPrivate MediaVisibility = "PRIVATE"
+)
+
+var AllMediaVisibility = []MediaVisibility{
+	MediaVisibilityPublic,
+	MediaVisibilityPrivate,
+}
+
+func (e MediaVisibility) IsValid() bool {
+	switch e {
+	case MediaVisibilityPublic, MediaVisibilityPrivate:
+		return true
+	}
+	return false
+}
+
+func (e MediaVisibility) String() string {
+	return string(e)
+}
+
+func (e *MediaVisibility) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MediaVisibility(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MediaVisibility", str)
+	}
+	return nil
+}
+
+func (e MediaVisibility) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MediaVisibility) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MediaVisibility) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

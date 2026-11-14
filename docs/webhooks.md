@@ -247,7 +247,7 @@ The event picker in Settings shows what your install actually has.
 
 | Event | Kind | What it means |
 |---|---|---|
-| `download.accessed` | async | Fires when a buyer redeems a download token (a file is served). |
+| `download.accessed` | async | Fires when a download link is redeemed and the file is served - one a customer bought (ProductID set) or one the shop shared with them from the media library (AssetID set, ProductID null). |
 
 ### giftcard
 

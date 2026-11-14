@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { SLOW, meMock, renderDialog } from '@/test/page-harness'
 import { useMediaUpload } from '../useImageUpload'
-import { AllMediaDirectoriesDocument, MediaAssetByIdDocument, SearchMediaAssetsDocument } from '../MediaLibrary.gql'
+import { AllMediaDirectoriesDocument, MediaAiStatusDocument, MediaAssetByIdDocument, SearchMediaAssetsDocument } from '../MediaLibrary.gql'
 import { MediaPickerDialog } from './MediaPickerDialog'
 
 // What these pin: a file goes into the open folder or else the caller's, shows its progress, holds Use until it lands,
@@ -24,7 +24,7 @@ globalThis.IntersectionObserver ??= class {
 afterEach(() => vi.clearAllMocks())
 
 const asset = (id: string, filename: string, over: object = {}) => ({
-  __typename: 'MediaAsset' as const, id, path: `promo/${filename}`, directoryPath: 'promo', filename, url: `https://cdn/${filename}`,
+  __typename: 'MediaAsset' as const, id, path: `promo/${filename}`, directoryPath: 'promo', filename, url: `https://cdn/${filename}`, thumbnailUrl: `https://cdn/${filename}`, visibility: 'PUBLIC' as const,
   mimeType: 'image/png', mimeGroup: 'IMAGE' as const, sizeBytes: 2048, width: 40, height: 40, status: 'READY' as 'READY' | 'PENDING',
   title: '', altText: '', caption: '', notes: '', focalX: null, focalY: null, createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z',
   ...over,
@@ -67,6 +67,7 @@ function rig(props: Partial<Parameters<typeof MediaPickerDialog>[0]> = {}, lande
         maxUsageCount: refreshFails ? 1 : 20,
       },
       ...(refreshFails ? [{ request: { query: SearchMediaAssetsDocument, variables: () => true }, error: new Error('Network down'), maxUsageCount: 5 }] : []),
+      { request: { query: MediaAiStatusDocument }, result: { data: { aiStatus: { __typename: 'AiStatus' as const, enabled: false } } }, maxUsageCount: 50 },
       ...Object.entries(landed).map(([id, a]) => ({ request: { query: MediaAssetByIdDocument, variables: { id } }, result: { data: { mediaAsset: a } } })),
     ],
   )

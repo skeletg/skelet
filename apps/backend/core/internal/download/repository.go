@@ -30,8 +30,8 @@ func (r *postgresRepository) CreateGrant(ctx context.Context, in GrantInput) (bo
 		OrderID:      sqlnull.UUID(in.OrderID),
 		CustomerID:   sqlnull.UUID(in.CustomerID),
 		Email:        in.Email,
-		ProductID:    in.ProductID,
-		DownloadID:   in.DownloadID,
+		ProductID:    uuid.NullUUID{UUID: in.ProductID, Valid: true},
+		DownloadID:   uuid.NullUUID{UUID: in.DownloadID, Valid: true},
 		Title:        in.Title,
 		Url:          in.URL,
 		MaxDownloads: sqlnull.Int32(in.MaxDownloads),
@@ -97,6 +97,45 @@ func (r *postgresRepository) ListByCustomer(ctx context.Context, customerID uuid
 	return toGrants(rows), nil
 }
 
+func (r *postgresRepository) ShareAsset(ctx context.Context, token string, in ShareInput) (Grant, error) {
+	row, err := r.queries.ShareAssetWithCustomer(ctx, db.ShareAssetWithCustomerParams{
+		Token:        token,
+		CustomerID:   uuid.NullUUID{UUID: in.CustomerID, Valid: true},
+		Email:        in.Email,
+		AssetID:      uuid.NullUUID{UUID: in.AssetID, Valid: true},
+		Title:        in.Title,
+		MaxDownloads: sqlnull.Int32(in.MaxDownloads),
+		ExpiresAt:    sqlnull.Time(in.ExpiresAt),
+	})
+	if err != nil {
+		return Grant{}, fmt.Errorf("share asset: %w", err)
+	}
+	return toGrant(row), nil
+}
+
+func (r *postgresRepository) ListByAsset(ctx context.Context, assetID uuid.UUID) ([]Grant, error) {
+	rows, err := r.queries.ListDownloadGrantsByAsset(ctx, uuid.NullUUID{UUID: assetID, Valid: true})
+	if err != nil {
+		return nil, fmt.Errorf("list shares of asset: %w", err)
+	}
+	return toGrants(rows), nil
+}
+
+func (r *postgresRepository) DeleteSharesWith(ctx context.Context, customerID uuid.UUID) error {
+	if err := r.queries.DeleteCustomerAssetShares(ctx, uuid.NullUUID{UUID: customerID, Valid: true}); err != nil {
+		return fmt.Errorf("delete a customer's shares: %w", err)
+	}
+	return nil
+}
+
+func (r *postgresRepository) DeleteShare(ctx context.Context, id uuid.UUID) (bool, error) {
+	n, err := r.queries.DeleteAssetDownloadGrant(ctx, id)
+	if err != nil {
+		return false, fmt.Errorf("delete share: %w", err)
+	}
+	return n == 1, nil
+}
+
 func toGrants(rows []db.DownloadGrant) []Grant {
 	out := make([]Grant, len(rows))
 	for i, row := range rows {
@@ -110,8 +149,8 @@ func toGrant(row db.DownloadGrant) Grant {
 		ID:            row.ID,
 		Token:         row.Token,
 		Email:         row.Email,
-		ProductID:     row.ProductID,
-		DownloadID:    row.DownloadID,
+		ProductID:     row.ProductID.UUID,
+		DownloadID:    row.DownloadID.UUID,
 		Title:         row.Title,
 		URL:           row.Url,
 		DownloadsUsed: row.DownloadsUsed,
@@ -120,6 +159,10 @@ func toGrant(row db.DownloadGrant) Grant {
 	if row.OrderID.Valid {
 		id := row.OrderID.UUID
 		g.OrderID = &id
+	}
+	if row.AssetID.Valid {
+		id := row.AssetID.UUID
+		g.AssetID = &id
 	}
 	if row.CustomerID.Valid {
 		id := row.CustomerID.UUID

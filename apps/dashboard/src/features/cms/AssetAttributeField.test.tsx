@@ -26,6 +26,7 @@ const asset = {
   directoryPath: 'a',
   filename: 'shoe.jpg',
   url: '/files/a/shoe.jpg',
+  thumbnailUrl: '/files/a/shoe.jpg', visibility: 'PUBLIC',
   mimeType: 'image/jpeg',
   mimeGroup: 'image',
   sizeBytes: 1,
