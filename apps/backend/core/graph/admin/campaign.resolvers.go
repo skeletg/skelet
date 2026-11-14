@@ -153,6 +153,13 @@ func (r *queryResolver) CampaignMergeTags(ctx context.Context) ([]string, error)
 	return signalsapi.CampaignMergeTags(), nil
 }
 
+func (r *queryResolver) CampaignLimits(ctx context.Context) (*model.CampaignLimits, error) {
+	if _, err := r.signalsScoped(ctx, "campaigns.view"); err != nil {
+		return nil, err
+	}
+	return &model.CampaignLimits{AbTestPercentMin: signalsapi.CampaignABShareMin, AbTestPercentMax: signalsapi.CampaignABShareMax}, nil
+}
+
 func (r *queryResolver) CampaignAudienceEstimate(ctx context.Context, channelID string, audienceKind string, audienceID *string) (*model.CampaignAudienceEstimate, error) {
 	authed, err := r.signalsChannel(ctx, "campaigns.view", channelID)
 	if err != nil {

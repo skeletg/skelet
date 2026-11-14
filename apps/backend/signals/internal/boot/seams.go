@@ -59,12 +59,12 @@ func backupBucket(ctx context.Context) (objstore.Storage, string) {
 // rather than refusing to boot. A dedicated store is private - it gets no public URL base, since nothing in it is ever linked to
 func lensStoreConfig(getenv func(string) string) objstore.Config {
 	cfg := objstore.ConfigFromEnv(getenv)
+	name := "LENS_S3_BUCKET"
 	if cfg.Driver == objstore.DriverFilesystem {
-		if own := strings.TrimSpace(getenv("LENS_STORAGE_DIR")); own != "" {
-			cfg.Dir, cfg.PublicURLBase, cfg.PresignEndpoint = own, "", ""
-		}
-	} else if own := strings.TrimSpace(getenv("LENS_S3_BUCKET")); own != "" {
-		cfg.Bucket, cfg.PublicURLBase, cfg.PresignEndpoint = own, "", ""
+		name = "LENS_STORAGE_DIR"
+	}
+	if own := strings.TrimSpace(getenv(name)); own != "" {
+		return cfg.Private(own)
 	}
 	return cfg
 }

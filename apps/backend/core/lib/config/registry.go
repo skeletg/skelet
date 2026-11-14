@@ -70,6 +70,8 @@ type Definition struct {
 	// Which settings store holds the value - unset is core's, and a Signals path is written and read
 	// through the suite, whose processes are the ones reading it on their hot paths
 	Store Store
+	// Refuses a value the type alone can't judge, in words shown to the admin - kept out of JSON, which is how an Entry is cached
+	Check func(value string) error `json:"-"`
 }
 
 type Store string
@@ -195,6 +197,11 @@ func Validate() error {
 		// pairing would serve a decrypted credential to anonymous callers. Refusing to boot beats discovering it in a public response
 		if d.Public && d.Type == TypeSecret {
 			problems = append(problems, fmt.Sprintf("path %q is both public and secret, which would expose its decrypted value to unauthenticated callers", d.Path))
+		}
+		if d.Check != nil && d.Default != "" {
+			if err := d.Check(d.Default); err != nil {
+				problems = append(problems, fmt.Sprintf("path %q ships a default its own check refuses: %v", d.Path, err))
+			}
 		}
 	}
 	if len(problems) == 0 {

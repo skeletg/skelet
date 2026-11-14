@@ -3,6 +3,7 @@ package medialibrary
 import (
 	"context"
 	"errors"
+	"io"
 	"slices"
 	"sort"
 	"strings"
@@ -15,9 +16,14 @@ import (
 )
 
 type memStore struct {
+	private    bool // no address a browser can reach, so nothing to hand out but the original
+	heads      int
 	objects    map[string]bool
 	failDelete map[string]bool
+	cancelled  bool
 	deleted    []string
+	signed     []string
+	written    map[string]string
 }
 
 func newMemStore(keys ...string) *memStore {
@@ -29,8 +35,10 @@ func newMemStore(keys ...string) *memStore {
 }
 
 func (m *memStore) PublicURL(key string) string { return "https://cdn.test/" + key }
+func (m *memStore) HasPublicBase() bool         { return !m.private }
 func (m *memStore) MaxUploadBytes() int64       { return 1 << 20 }
-func (m *memStore) PresignUpload(context.Context, string, string, int64, time.Duration) (string, error) {
+func (m *memStore) PresignUpload(_ context.Context, key, _ string, _ int64, _ time.Duration) (string, error) {
+	m.signed = append(m.signed, key)
 	return "https://upload.test", nil
 }
 func (m *memStore) PutBytes(_ context.Context, key string, _ []byte, _ string) error {
@@ -42,7 +50,25 @@ func (m *memStore) PutEmptyObject(_ context.Context, key string) error {
 	return nil
 }
 func (m *memStore) Head(_ context.Context, key string) (int64, string, bool, error) {
+	m.heads++
 	return 1, "", m.objects[key], nil
+}
+func (m *memStore) GetStream(_ context.Context, key string) (io.ReadCloser, error) {
+	if !m.objects[key] {
+		return nil, objstore.ErrObjectNotFound
+	}
+	return io.NopCloser(strings.NewReader("bytes of " + key)), nil
+}
+func (m *memStore) UploadStream(_ context.Context, key, _ string, body io.Reader) error {
+	raw, err := io.ReadAll(body)
+	if err != nil {
+		return err
+	}
+	if m.written == nil {
+		m.written = map[string]string{}
+	}
+	m.objects[key], m.written[key] = true, string(raw)
+	return nil
 }
 func (m *memStore) Copy(_ context.Context, from, to string) error {
 	if !m.objects[from] {
@@ -51,9 +77,12 @@ func (m *memStore) Copy(_ context.Context, from, to string) error {
 	m.objects[to] = true
 	return nil
 }
-func (m *memStore) Delete(_ context.Context, key string) error {
+func (m *memStore) Delete(ctx context.Context, key string) error {
 	if m.failDelete[key] {
 		return errors.New("storage down")
+	}
+	if m.cancelled && ctx.Err() != nil {
+		return ctx.Err()
 	}
 	delete(m.objects, key)
 	m.deleted = append(m.deleted, key)
@@ -110,6 +139,44 @@ func (r *memRepo) GetAssetByID(_ context.Context, id uuid.UUID) (Asset, error) {
 	}
 	return a, nil
 }
+func (r *memRepo) GetAssetsByIDs(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]Asset, error) {
+	out := map[uuid.UUID]Asset{}
+	for _, id := range ids {
+		if a, ok := r.assets[id]; ok {
+			out[id] = a
+		}
+	}
+	return out, nil
+}
+func (r *memRepo) SetFocalPoint(_ context.Context, id uuid.UUID, x, y *float64) (Asset, error) {
+	a := r.assets[id]
+	a.FocalX, a.FocalY = x, y
+	r.assets[id] = a
+	return a, nil
+}
+func (r *memRepo) UpdateAssetMetadata(_ context.Context, in UpdateAssetInput, _ *uuid.UUID) (Asset, error) {
+	a := r.assets[in.ID]
+	if in.Title != nil {
+		a.Title = *in.Title
+	}
+	r.assets[in.ID] = a
+	return a, nil
+}
+func (r *memRepo) ConfirmAssetUpload(_ context.Context, id uuid.UUID, _, _ *int32, _ *uuid.UUID) (Asset, error) {
+	a := r.assets[id]
+	a.Status = AssetStatusReady
+	r.assets[id] = a
+	return a, nil
+}
+func (r *memRepo) ListOrphanProductOptionAssets(context.Context, time.Time, int32) ([]Asset, error) {
+	var out []Asset
+	for _, a := range r.assets {
+		if strings.HasPrefix(a.DirectoryPrefix, "product-options/") {
+			out = append(out, a)
+		}
+	}
+	return out, nil
+}
 func (r *memRepo) CreateAsset(_ context.Context, a Asset) (Asset, error) {
 	r.assets[a.ID] = a
 	return a, nil
@@ -118,27 +185,29 @@ func (r *memRepo) DeleteAsset(_ context.Context, id uuid.UUID) error {
 	delete(r.assets, id)
 	return nil
 }
-func (r *memRepo) UpdateAssetLocation(_ context.Context, id uuid.UUID, p, filename, key string, _ *uuid.UUID) (Asset, error) {
+func (r *memRepo) UpdateAssetLocation(_ context.Context, id uuid.UUID, p, filename, key string, in Visibility, _ *uuid.UUID) (Asset, error) {
 	if r.failMove {
 		return Asset{}, errors.New("db down")
 	}
 	a := r.assets[id]
-	a.DirectoryPrefix, a.Filename, a.ObjectKey = p, filename, key
+	a.DirectoryPrefix, a.Filename, a.ObjectKey, a.Visibility = p, filename, key, in
 	r.assets[id] = a
 	return a, nil
 }
-func (r *memRepo) ListAssetsByPathRecursive(_ context.Context, prefix string) ([]Asset, error) {
+func (r *memRepo) ListAssetsByPathRecursive(_ context.Context, prefix string, in Visibility) ([]Asset, error) {
 	var out []Asset
 	for _, a := range r.assets {
-		if strings.HasPrefix(a.ObjectKey, prefix) {
+		if strings.HasPrefix(a.ObjectKey, prefix) && a.Visibility.OrPublic() == in.OrPublic() {
 			out = append(out, a)
 		}
 	}
 	return out, nil
 }
-func (r *memRepo) ListAssetsByDirectory(context.Context, string) ([]Asset, error) { return nil, nil }
-func (r *memRepo) DeleteAssetsByDirectoryPrefix(_ context.Context, prefix string) error {
-	r.deletedBy = append(r.deletedBy, prefix)
+func (r *memRepo) ListAssetsByDirectory(context.Context, string, Visibility) ([]Asset, error) {
+	return nil, nil
+}
+func (r *memRepo) DeleteAssetsByDirectoryPrefix(_ context.Context, prefix string, in Visibility) error {
+	r.deletedBy = append(r.deletedBy, string(in.OrPublic())+":"+prefix)
 	return nil
 }
 
@@ -157,7 +226,7 @@ func TestPlatformPrefixesAreOffLimits(t *testing.T) {
 	svc, st, _ := fixture(systemKeys...)
 	ctx := context.Background()
 
-	dir, err := svc.GetDirectory(ctx, "")
+	dir, err := svc.GetDirectory(ctx, "", Public)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,21 +237,21 @@ func TestPlatformPrefixesAreOffLimits(t *testing.T) {
 	if !slices.Equal(names, []string{"banners"}) {
 		t.Errorf("root lists %v, want only the library's own banners", names)
 	}
-	all, err := svc.ListAllDirectories(ctx)
+	all, err := svc.ListAllDirectories(ctx, Public)
 	if err != nil || len(all) != 1 || all[0].Path != "banners" {
 		t.Errorf("directory tree = %+v (%v), want banners alone", all, err)
 	}
 
 	for name, err := range map[string]error{
-		"browse exports":   func() error { _, err := svc.GetDirectory(ctx, "data/exports"); return err }(),
-		"delete catalog":   svc.DeleteDirectory(ctx, "catalog", true),
-		"rename webforms":  func() error { _, err := svc.RenameDirectory(ctx, "webforms", "x"); return err }(),
-		"rename onto data": func() error { _, err := svc.RenameDirectory(ctx, "banners", "data"); return err }(),
+		"browse exports":   func() error { _, err := svc.GetDirectory(ctx, "data/exports", Public); return err }(),
+		"delete catalog":   svc.DeleteDirectory(ctx, "catalog", true, Public),
+		"rename webforms":  func() error { _, err := svc.RenameDirectory(ctx, "webforms", "x", Public); return err }(),
+		"rename onto data": func() error { _, err := svc.RenameDirectory(ctx, "banners", "data", Public); return err }(),
 		"upload into catalog": func() error {
 			_, err := svc.RequestUpload(ctx, RequestUploadInput{Path: "catalog/x", Filename: "a.jpg", MimeType: "image/jpeg", SizeBytes: 10})
 			return err
 		}(),
-		"make derived": func() error { _, err := svc.CreateDirectory(ctx, "", "derived"); return err }(),
+		"make derived": func() error { _, err := svc.CreateDirectory(ctx, "", "derived", Public); return err }(),
 	} {
 		if !errors.Is(err, ErrReservedPath) {
 			t.Errorf("%s = %v, want ErrReservedPath", name, err)
@@ -196,7 +265,7 @@ func TestPlatformPrefixesAreOffLimits(t *testing.T) {
 // One recursive delete at the root used to empty the whole bucket
 func TestTheRootCannotBeDeletedRecursively(t *testing.T) {
 	svc, st, _ := fixture(systemKeys...)
-	if err := svc.DeleteDirectory(context.Background(), "", true); !errors.Is(err, ErrRootDeleteNotAllowed) {
+	if err := svc.DeleteDirectory(context.Background(), "", true, Public); !errors.Is(err, ErrRootDeleteNotAllowed) {
 		t.Fatalf("root delete = %v, want ErrRootDeleteNotAllowed", err)
 	}
 	if len(st.deleted) != 0 {
@@ -208,7 +277,7 @@ func TestTheRootCannotBeDeletedRecursively(t *testing.T) {
 func TestARootedLibraryReservesNothing(t *testing.T) {
 	st, repo := newMemStore("library/catalog/x.jpg"), &memRepo{assets: map[uuid.UUID]Asset{}}
 	svc := NewService(repo, st, "library")
-	if _, err := svc.GetDirectory(context.Background(), "catalog"); err != nil {
+	if _, err := svc.GetDirectory(context.Background(), "catalog", Public); err != nil {
 		t.Fatalf("a library folder named catalog = %v", err)
 	}
 }
@@ -245,12 +314,28 @@ func TestAMoveDropsTheOldObjectAfterRepointing(t *testing.T) {
 	}
 }
 
+func TestAMoveKeepsTheUploadDateInADatedName(t *testing.T) {
+	svc, st, repo := fixture()
+	svc.SetConfig(savedLayout("{yyyy}-{mm}-{name}-{short_id}{ext}"))
+	a := seedAsset(repo, st, "banners", "a.jpg")
+	a.CreatedAt = time.Date(2024, 2, 29, 12, 0, 0, 0, time.UTC)
+	repo.assets[a.ID] = a
+	moved, err := svc.MoveAsset(context.Background(), MoveAssetInput{ID: a.ID, TargetPath: "archive"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := a.ID.String()
+	if want := "archive/2024-02-a-" + id[len(id)-8:] + ".jpg"; moved.ObjectKey != want || !st.objects[want] {
+		t.Fatalf("moved to %s, want %s", moved.ObjectKey, want)
+	}
+}
+
 // Dropping the row first leaked the object for good when the storage delete then failed
 func TestAFailedStorageDeleteKeepsTheRowToRetryFrom(t *testing.T) {
 	svc, st, repo := fixture()
 	a := seedAsset(repo, st, "banners", "a.jpg")
 	st.failDelete[a.ObjectKey] = true
-	if err := svc.DeleteAsset(context.Background(), a.ID, true); err == nil {
+	if err := svc.DeleteAsset(context.Background(), a.ID, Public, true); err == nil {
 		t.Fatal("the delete reported success")
 	}
 	if _, ok := repo.assets[a.ID]; !ok {
@@ -261,7 +346,7 @@ func TestAFailedStorageDeleteKeepsTheRowToRetryFrom(t *testing.T) {
 func TestRenamingOntoAnExistingDirectoryIsRefused(t *testing.T) {
 	svc, st, repo := fixture("archive/old.jpg")
 	seedAsset(repo, st, "banners", "a.jpg")
-	if _, err := svc.RenameDirectory(context.Background(), "banners", "archive"); !errors.Is(err, ErrPathTaken) {
+	if _, err := svc.RenameDirectory(context.Background(), "banners", "archive", Public); !errors.Is(err, ErrPathTaken) {
 		t.Fatalf("rename onto archive = %v, want ErrPathTaken", err)
 	}
 	if !st.objects["banners/a.jpg"] {
@@ -272,7 +357,7 @@ func TestRenamingOntoAnExistingDirectoryIsRefused(t *testing.T) {
 func TestARenameRepointsEveryRowBeforeDroppingOriginals(t *testing.T) {
 	svc, st, repo := fixture()
 	a := seedAsset(repo, st, "banners", "a.jpg")
-	if _, err := svc.RenameDirectory(context.Background(), "banners", "promos"); err != nil {
+	if _, err := svc.RenameDirectory(context.Background(), "banners", "promos", Public); err != nil {
 		t.Fatal(err)
 	}
 	got := repo.assets[a.ID]
@@ -290,7 +375,7 @@ func TestInputErrorsAreTyped(t *testing.T) {
 		t.Errorf("confirm without dimensions = %v", err)
 	}
 	x := 2.0
-	if _, err := svc.SetFocalPoint(ctx, a.ID, &x, &x); !errors.Is(err, ErrInvalidFocalPoint) {
+	if _, err := svc.SetFocalPoint(ctx, a.ID, Public, &x, &x); !errors.Is(err, ErrInvalidFocalPoint) {
 		t.Errorf("focal 2,2 = %v", err)
 	}
 	if _, err := svc.RequestUpload(ctx, RequestUploadInput{Path: "banners", Filename: "a.jpg", MimeType: "image/jpeg"}); !errors.Is(err, ErrInvalidSize) {

@@ -155,7 +155,7 @@ func (s *Service) validate(in Input) error {
 		if tc.EnrollmentFilter != nil && !s.validConditionKind(tc.EnrollmentFilter.Kind) {
 			return fmt.Errorf("%w: enrollment filter: choose a valid condition", ErrInvalid)
 		}
-		if tc.Transactional && !transactionalTrigger(in.TriggerType) {
+		if tc.Transactional && !signalsapi.CanBeTransactional(in.TriggerType) {
 			return fmt.Errorf("%w: only order and account flows can be transactional", ErrInvalid)
 		}
 	}
@@ -235,7 +235,6 @@ func (s *Service) SoftDelete(ctx context.Context, id uuid.UUID) error {
 
 func (s *Service) Restore(ctx context.Context, id uuid.UUID) error { return s.repo.Restore(ctx, id) }
 
-// Activating requires a trigger node wired to something
 func (s *Service) SetStatus(ctx context.Context, id uuid.UUID, status string) (Flow, error) {
 	switch status {
 	case StatusDraft, StatusActive, StatusPaused, StatusArchived:
@@ -249,8 +248,10 @@ func (s *Service) SetStatus(ctx context.Context, id uuid.UUID, status string) (F
 	if !ok {
 		return Flow{}, ErrNotFound
 	}
-	if _, hasTrigger := f.Graph.triggerNode(); status == StatusActive && !hasTrigger {
-		return Flow{}, fmt.Errorf("%w: it needs a trigger node before it can be activated", ErrInvalid)
+	if status == StatusActive {
+		if err := f.Graph.runnable(); err != nil {
+			return Flow{}, err
+		}
 	}
 	if _, err := s.repo.SetStatus(ctx, id, status); err != nil {
 		return Flow{}, err
@@ -629,7 +630,7 @@ func (s *Service) execEmail(ctx context.Context, f Flow, node Node, run FlowRun)
 	var subj, html, text string
 	switch {
 	// A transactional order flow renders the chosen email from the snapshot its enrollment carried - items, totals, tracking, ship-to blocks
-	case transactional && isOrderTrigger(f.TriggerType) && hasOrderSnapshot(run):
+	case transactional && signalsapi.IsOrderTrigger(f.TriggerType) && hasOrderSnapshot(run):
 		subj, html, text, err = s.renderOrderEmail(ctx, ch, f, node, run, locale)
 	case strings.TrimSpace(node.Data.EmailID) != "":
 		e, ok := s.ownEmail(ctx, f.ChannelID, node.Data.EmailID)

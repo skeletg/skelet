@@ -214,7 +214,7 @@ func wireCatalogInventory(d catalogInventoryDeps) {
 	d.Inventory.SetEventBus(d.Bus)
 	d.Catalog.SetInventoryEnsurer(NewCatalogInventoryEnsurer(d.Inventory))
 
-	d.Catalog.SetURLConfig(d.Config) // operator-tunable general/urls/*: auto-redirect on change, redirect type, template fallback
+	d.Catalog.SetConfig(d.Config) // operator-tunable general/urls/* (auto-redirect on change, redirect type, template fallback) and system/media/* paths
 	d.Catalog.SetURLCollisionRecorder(NewAuditURLCollisions(d.Audit))
 	d.URLRewrite.SetEventBus(d.Bus)
 	d.Menu.SetEventBus(d.Bus)
@@ -280,8 +280,12 @@ func wirePluginRuntime(conn *sql.DB, ord *order.Service, cust *customer.Service,
 	pluginhost.SetCartReader(c)
 }
 
-func wireWebForms(wf *webform.Service, bus *events.Bus, ms objstore.Storage) { // admin-built CMS forms - submissions and their file uploads land through the object store
-	wf.SetDeps(bus, NewWebformFileStore(ms))
+func wireWebForms(wf *webform.Service, bus *events.Bus, private PrivateStorage) { // admin-built CMS forms - what shoppers upload through them is theirs, so it goes to the private store
+	if private.Storage == nil {
+		wf.SetDeps(bus, nil)
+		return
+	}
+	wf.SetDeps(bus, NewWebformFileStore(private.Storage))
 }
 
 // The services whose only seam is the bus - membership is that criterion, so anything needing a second seam gets its own group above

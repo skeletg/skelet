@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -170,6 +171,29 @@ func TestFindersMissUnknownKeys(t *testing.T) {
 
 // Values are stored as strings, so normalizing at write time is what makes "007" and "7" compare
 // equal later - without it every read has to re-parse to know whether anything changed
+func TestValidateRejectsADefaultItsOwnCheckRefuses(t *testing.T) {
+	isolateRegistries(t)
+	RegisterSection(Section{Slug: "shop"})
+	RegisterGroup(Group{Section: "shop", Slug: "keys"})
+	short := func(v string) error {
+		if len(v) > 3 {
+			return errors.New("too long")
+		}
+		return nil
+	}
+
+	Register(Definition{Path: "shop/keys/fits", Type: TypeString, Default: "abc", Check: short})
+	Register(Definition{Path: "shop/keys/unset", Type: TypeString, Check: short})
+	if err := Validate(); err != nil {
+		t.Fatalf("defaults their checks accept = %v, want nil", err)
+	}
+
+	Register(Definition{Path: "shop/keys/overlong", Type: TypeString, Default: "abcd", Check: short})
+	if err := Validate(); err == nil || !strings.Contains(err.Error(), "shop/keys/overlong") || !strings.Contains(err.Error(), "too long") {
+		t.Fatalf("Validate = %v, want the refused default named with its reason", err)
+	}
+}
+
 func TestParseAndValidateNormalizes(t *testing.T) {
 	for name, tc := range map[string]struct {
 		typ  Type

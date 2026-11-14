@@ -596,3 +596,32 @@ func (r *Resolver) withCMSPageTranslations(ctx context.Context, pages []cms.Page
 	}
 	return pages, nil
 }
+
+// cmsPageListFilter is the GraphQL page filter as the domain's, shared by the list and its count so the two can't drift apart
+func cmsPageListFilter(filter *model.CMSPageFilter) (cms.PageListFilter, error) {
+	f := cms.PageListFilter{OnlyPublished: true}
+	if filter == nil {
+		return f, nil
+	}
+	if filter.OnlyPublished != nil {
+		f.OnlyPublished = *filter.OnlyPublished
+	}
+	var err error
+	if f.PageTypeID, err = parseUUIDOpt(filter.PageTypeID); err != nil {
+		return f, err
+	}
+	if f.ParentID, err = parseUUIDOpt(filter.ParentID); err != nil {
+		return f, err
+	}
+	if f.ChannelID, err = parseUUIDOpt(filter.ChannelID); err != nil {
+		return f, err
+	}
+	if filter.WorkflowState != nil {
+		s := strings.ToLower(string(*filter.WorkflowState)) // the GraphQL enum is UPPER (IN_REVIEW), the domain state lower_snake
+		f.WorkflowState = &s
+	}
+	if filter.Search != nil {
+		f.Search = strings.TrimSpace(*filter.Search)
+	}
+	return f, nil
+}

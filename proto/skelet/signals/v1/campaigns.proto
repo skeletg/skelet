@@ -81,6 +81,8 @@ message CampaignInput {
   int32 ab_test_percent = 11;
   string ab_winner_metric = 12;
   int32 ab_test_minutes = 13;
+  // When a draft plans to go out. Kept with it - nothing sends until the campaign is scheduled
+  optional google.protobuf.Timestamp scheduled_for = 14;
 }
 
 message ListCampaignsRequest {

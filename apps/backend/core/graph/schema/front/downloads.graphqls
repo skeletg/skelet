@@ -3,7 +3,8 @@
 type DownloadGrant {
   id:            ID!
   title:         String!
-  productId:     ID!
+  # Null for a file the shop shared with the customer directly, which no product stands behind.
+  productId:     ID
   downloadUrl:   String!
   downloadsUsed: Int!
   maxDownloads:  Int

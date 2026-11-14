@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/core/internal/blockkit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cms"
 )
 
@@ -52,10 +53,12 @@ func CMSMetadataItems(m map[string]string) []*model.MetadataItem {
 // ==================== Conversions ====================
 
 func CMSPageContentModel(c cms.PageContent) *model.CMSPageContent {
+	body := unmarshalJSON(c.Body)
 	return &model.CMSPageContent{
 		Locale:          c.Locale,
 		Title:           c.Title,
-		Body:            unmarshalJSON(c.Body),
+		Body:            body,
+		Outline:         append([]string{}, blockkit.Outline(body)...),
 		MetaTitle:       c.MetaTitle,
 		MetaDescription: c.MetaDescription,
 		MetaKeywords:    c.MetaKeywords,

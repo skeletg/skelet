@@ -105,6 +105,7 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 		AdminSvc:          s.Admin,
 		IntegrationSvc:    s.Integration,
 		CustomerSvc:       s.Customer,
+		DownloadSvc:       s.Download,
 		StoreCreditSvc:    s.StoreCredit,
 		LoyaltySvc:        s.Loyalty,
 		QnaSvc:            s.QnA,

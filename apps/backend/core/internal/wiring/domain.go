@@ -2,7 +2,10 @@ package wiring
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 
 	"go.uber.org/fx"
@@ -56,6 +59,7 @@ var Domain = fx.Module("domain",
 		newSignalsClient,
 
 		newMediaStorage,
+		newPrivateStorage,
 		newMediaLibraryService,
 		newRevalidateClient,
 		newRevalidateQueue,
@@ -99,8 +103,50 @@ func newMediaStorage(rc RootContext) (objstore.Storage, error) {
 	return objstore.New(rc.Context, objstore.FromEnv()) // root ctx, not Background - this runs inside fx.New, where a hung endpoint would ignore SIGTERM
 }
 
-func newMediaLibraryService(q *db.Queries, store objstore.Storage) *medialibrary.Service {
-	return medialibrary.NewService(medialibrary.NewRepository(q), store, os.Getenv("MEDIA_LIBRARY_ROOT_PREFIX"))
+// Where files that are never linked to are kept - the media store itself when no private one is configured
+type PrivateStorage struct{ objstore.Storage }
+
+func newPrivateStorage(rc RootContext, wcfg Config, media objstore.Storage) (PrivateStorage, error) {
+	cfg, asked, err := objstore.PrivateConfigFromEnv(os.Getenv)
+	if err != nil {
+		return PrivateStorage{}, err
+	}
+	if !asked {
+		return PrivateStorage{media}, nil
+	}
+	store, err := objstore.New(rc.Context, cfg)
+	if err != nil {
+		return PrivateStorage{}, fmt.Errorf("private store: %w", err)
+	}
+	unchecked, err := objstore.ProbePrivate(rc.Context, store, cfg, objstore.FromEnv(), nil)
+	switch {
+	case errors.Is(err, objstore.ErrPrivateReadable) && wcfg.IsDev():
+		slog.Warn("the private store is readable without credentials - production refuses to start like this", "err", err)
+	case err != nil:
+		return PrivateStorage{}, fmt.Errorf("private store: %w", err)
+	}
+	if len(unchecked) > 0 {
+		slog.Info("private store: these addresses didn't answer from here, so whether they serve it went unchecked", "addresses", unchecked)
+	}
+	return PrivateStorage{store}, nil
+}
+
+// Only a private directory needs a route for signed uploads - S3 signs straight to the private bucket
+func privateUploadRoute(private PrivateStorage, media objstore.Storage) (http.Handler, bool) {
+	uploads, ok := private.Storage.(interface{ UploadHandler(string) http.Handler })
+	if !ok || private.Storage == media {
+		return nil, false
+	}
+	return uploads.UploadHandler(objstore.PrivateUploadPath), true
+}
+
+func newMediaLibraryService(q *db.Queries, store objstore.Storage, private PrivateStorage, cfg *config.Service) *medialibrary.Service {
+	svc := medialibrary.NewService(medialibrary.NewRepository(q), store, os.Getenv("MEDIA_LIBRARY_ROOT_PREFIX"))
+	svc.SetConfig(cfg)
+	if private.Storage != nil {
+		svc.SetPrivateStore(private.Storage)
+	}
+	return svc
 }
 
 // Generic, not CMS-specific - logs every purge and busts each channel's storefront Data Cache tags

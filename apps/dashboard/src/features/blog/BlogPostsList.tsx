@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import {
@@ -29,6 +29,7 @@ import {
   type BlogPostRowFragment,
 } from './Blog.gql'
 import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
+import { NewPostDialog } from './NewPostDialog'
 
 function postTitle(p: BlogPostRowFragment) {
   return (
@@ -67,7 +68,14 @@ function statusBadge(status: BlogPostRowFragment['status']) {
   }
 }
 
-export function BlogPostsList() {
+// The posts list with the new-post dialog already open - what /blog/posts/new shows
+export function BlogPostsNew() {
+  return <BlogPostsList startCreating />
+}
+
+export function BlogPostsList({ startCreating = false }: { startCreating?: boolean }) {
+  const navigate = useNavigate()
+  const [creating, setCreating] = useState(startCreating)
   // URL-backed, so a filtered view survives navigation and can be pasted to someone else
   const urlState = useListUrlState()
   const { has } = usePermissions()
@@ -292,14 +300,21 @@ export function BlogPostsList() {
         ]}
         toolbarRightSlot={
           canManage && (
-            <Button size="sm" asChild>
-              <Link to="/blog/posts/new">
-                <PlusIcon className="size-4" />
-                New post
-              </Link>
+            <Button size="sm" onClick={() => setCreating(true)}>
+              <PlusIcon className="size-4" />
+              New post
             </Button>
           )
         }
+      />
+
+      <NewPostDialog
+        open={creating && canManage}
+        onOpenChange={(open) => {
+          setCreating(open)
+          // Reached by its own address, closing the dialog leaves that address for the list's
+          if (!open && startCreating) navigate('/blog/posts', { replace: true })
+        }}
       />
 
       <ConfirmDialog

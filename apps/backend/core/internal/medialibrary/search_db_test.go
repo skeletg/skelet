@@ -118,3 +118,48 @@ func TestASearchReturnsAtMost200ButCountsThemAll(t *testing.T) {
 		t.Fatalf("the next page held %d, want the last 5 ending on the smallest", len(rest.Items))
 	}
 }
+
+func TestEachHalfSeesOnlyItsOwnFiles(t *testing.T) {
+	r := newSearchRig(t)
+	r.svc.SetPrivateStore(newMemStore())
+	ctx := context.Background()
+	add := func(filename, visibility string) {
+		r.exec(`INSERT INTO media_assets (id, directory_prefix, filename, object_key, mime_type, size_bytes, status, visibility) VALUES ($1, $2, $3, $4, 'application/pdf', 1, 'ready', $5)`,
+			uuid.New(), r.folder, filename, r.folder+"/"+filename, visibility)
+	}
+	add("terms.pdf", "public")
+	add("acme-contract.pdf", "private")
+	add("price-list.pdf", "private")
+
+	for in, want := range map[Visibility][]string{Public: {"terms.pdf"}, Private: {"acme-contract.pdf", "price-list.pdf"}} {
+		res, err := r.svc.SearchAssets(ctx, SearchInput{Path: &r.folder, Visibility: in, Sort: "name"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := names(res.Items); !slices.Equal(got, want) || int(res.TotalCount) != len(want) {
+			t.Errorf("searching the %s half found %v (count %d), want %v", in, got, res.TotalCount, want)
+		}
+		for _, a := range res.Items {
+			if a.Visibility != in || (in == Private) != (a.URL == "") {
+				t.Errorf("%s came back as %s with address %q", a.Filename, a.Visibility, a.URL)
+			}
+		}
+		dir, err := r.svc.GetDirectory(ctx, r.folder, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		listed := names(dir.Assets)
+		slices.Sort(listed)
+		if !slices.Equal(listed, want) {
+			t.Errorf("opening the folder in the %s half lists %v, want %v", in, listed, want)
+		}
+	}
+
+	if err := r.svc.DeleteDirectory(ctx, r.folder, true, Public); err != nil {
+		t.Fatal(err)
+	}
+	left, err := r.svc.SearchAssets(ctx, SearchInput{Path: &r.folder, Visibility: Private})
+	if err != nil || left.TotalCount != 2 {
+		t.Errorf("deleting the public folder left %d private files of the same folder name, want both: %v", left.TotalCount, err)
+	}
+}

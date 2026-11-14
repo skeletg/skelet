@@ -327,12 +327,95 @@ func (q *Queries) CountCMSPageRelationshipsForAttribute(ctx context.Context, att
 	return count, err
 }
 
+const countCMSPages = `-- name: CountCMSPages :one
+SELECT COUNT(*) FROM cms_pages
+WHERE ($1::uuid IS NULL OR page_type_id = $1::uuid)
+  AND ($2::uuid IS NULL OR parent_id = $2::uuid)
+  AND ($3::boolean IS FALSE OR is_published = TRUE)
+  AND ($4::text IS NULL OR workflow_state = $4::text)
+`
+
+type CountCMSPagesParams struct {
+	PageTypeID    uuid.NullUUID  `json:"page_type_id"`
+	ParentID      uuid.NullUUID  `json:"parent_id"`
+	OnlyPublished sql.NullBool   `json:"only_published"`
+	WorkflowState sql.NullString `json:"workflow_state"`
+}
+
+func (q *Queries) CountCMSPages(ctx context.Context, arg CountCMSPagesParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countCMSPages,
+		arg.PageTypeID,
+		arg.ParentID,
+		arg.OnlyPublished,
+		arg.WorkflowState,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countCMSPagesByType = `-- name: CountCMSPagesByType :one
 SELECT COUNT(*) FROM cms_pages WHERE page_type_id = $1
 `
 
 func (q *Queries) CountCMSPagesByType(ctx context.Context, pageTypeID uuid.UUID) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countCMSPagesByType, pageTypeID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countCMSPagesSearch = `-- name: CountCMSPagesSearch :one
+SELECT COUNT(*) FROM cms_pages cp
+JOIN cms_page_content c ON c.page_id = cp.id AND c.locale = $1::text
+WHERE ($2::uuid IS NULL OR cp.page_type_id = $2::uuid)
+  AND ($3::uuid IS NULL OR cp.parent_id = $3::uuid)
+  AND ($4::boolean IS FALSE OR cp.is_published = TRUE)
+  AND ($5::text IS NULL OR cp.workflow_state = $5::text)
+  AND c.search_vector @@ plainto_tsquery('simple', $6::text)
+`
+
+type CountCMSPagesSearchParams struct {
+	Locale        string         `json:"locale"`
+	PageTypeID    uuid.NullUUID  `json:"page_type_id"`
+	ParentID      uuid.NullUUID  `json:"parent_id"`
+	OnlyPublished sql.NullBool   `json:"only_published"`
+	WorkflowState sql.NullString `json:"workflow_state"`
+	Q             string         `json:"q"`
+}
+
+func (q *Queries) CountCMSPagesSearch(ctx context.Context, arg CountCMSPagesSearchParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countCMSPagesSearch,
+		arg.Locale,
+		arg.PageTypeID,
+		arg.ParentID,
+		arg.OnlyPublished,
+		arg.WorkflowState,
+		arg.Q,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countPublishedCMSPagesForChannel = `-- name: CountPublishedCMSPagesForChannel :one
+SELECT COUNT(*) FROM cms_pages cp
+JOIN cms_page_channel_listings cpsl ON cpsl.page_id = cp.id
+WHERE cp.is_published = TRUE
+  AND cpsl.channel_id = $1
+  AND cpsl.is_published  = TRUE
+  AND ($2::uuid IS NULL OR cp.page_type_id = $2::uuid)
+  AND ($3::uuid IS NULL OR cp.parent_id = $3::uuid)
+`
+
+type CountPublishedCMSPagesForChannelParams struct {
+	ChannelID  uuid.UUID     `json:"channel_id"`
+	PageTypeID uuid.NullUUID `json:"page_type_id"`
+	ParentID   uuid.NullUUID `json:"parent_id"`
+}
+
+func (q *Queries) CountPublishedCMSPagesForChannel(ctx context.Context, arg CountPublishedCMSPagesForChannelParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countPublishedCMSPagesForChannel, arg.ChannelID, arg.PageTypeID, arg.ParentID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err

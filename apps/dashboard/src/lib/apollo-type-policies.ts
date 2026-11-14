@@ -64,6 +64,12 @@ for (const [rows, merge] of [[LOCALE_ROWS, mergeByLocale], [ATTRIBUTE_ROWS, merg
   }
 }
 
+// A page's or a page type's `content` is one id-less row, for the locale the request asked in: a list selecting
+// only its title replaced the body an open editor had fetched. Merged while the locale is the same, replaced when it isn't
+const mergeSameLocale: FieldMergeFunction<LocaleRow | null, LocaleRow | null> = (existing, incoming) =>
+  existing && incoming && existing.locale === incoming.locale ? { ...existing, ...incoming } : incoming
+for (const type of ['CMSPage', 'CMSPageType']) (typePolicies[type] ??= { fields: {} }).fields!.content = { merge: mergeSameLocale }
+
 // An order's addresses carry no id either: the orders list's `shippingAddress { firstName lastName }` replaced the address
 // an open order page had fetched in full, which left that page's query incomplete, so it refetched and showed its loading
 // state over the order. Merged field by field instead

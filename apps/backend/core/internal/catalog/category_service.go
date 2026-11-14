@@ -20,15 +20,10 @@ import (
 const (
 	categoryTreeCacheTTL    = 20 * time.Minute
 	categoryTreeCachePrefix = "tree:"
-	categoryCoverKeyFormat  = "catalog/categories/%s/cover/%s%s"
 	maxFacetOverrides       = 200 // far past any real facet sidebar, low enough that one save stays one small tx
 )
 
 var categoryEntityType = string(urlrewrite.EntityTypeCategory)
-
-func categoryCoverKey(categoryID, coverID uuid.UUID, ext string) string {
-	return fmt.Sprintf(categoryCoverKeyFormat, categoryID, coverID, ext)
-}
 
 // ==================== Category CRUD ====================
 
@@ -700,7 +695,8 @@ func (s *categoryService) RequestCategoryCoverUpload(ctx context.Context, input 
 	if input.SizeBytes > s.media.MaxUploadBytes() {
 		return RequestCategoryCoverResult{}, fmt.Errorf("%w: %d > %d", ErrFileTooLarge, input.SizeBytes, s.media.MaxUploadBytes())
 	}
-	if _, err := s.repo.GetCategoryByID(ctx, input.CategoryID); err != nil {
+	category, err := s.repo.GetCategoryByID(ctx, input.CategoryID)
+	if err != nil {
 		return RequestCategoryCoverResult{}, err
 	}
 
@@ -708,7 +704,10 @@ func (s *categoryService) RequestCategoryCoverUpload(ctx context.Context, input 
 	if err != nil {
 		return RequestCategoryCoverResult{}, fmt.Errorf("generate cover id: %w", err)
 	}
-	s3Key := categoryCoverKey(input.CategoryID, coverID, media.ExtensionForMime(input.MimeType))
+	s3Key := s.mediaKey(ctx, media.CategoryCoverKey, media.KeyValues{
+		ID: coverID, Name: input.Filename, Ext: media.ExtensionForMime(input.MimeType), At: time.Now(),
+		More: map[string]string{"category_id": input.CategoryID.String(), "slug": category.Slug},
+	})
 
 	uploadURL, err := s.media.PresignUpload(ctx, s3Key, input.MimeType, input.SizeBytes, presignTTL)
 	if err != nil {

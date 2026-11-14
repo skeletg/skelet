@@ -29,7 +29,7 @@ type Options struct {
 func NewTransformHandler(t *media.Transformer, opts Options) http.Handler {
 	prefix := opts.Prefix
 	if prefix == "" {
-		prefix = "/media/t/"
+		prefix = media.TransformRoute
 	}
 	clientCache := opts.ClientCacheSeconds
 	if clientCache <= 0 {
@@ -133,7 +133,7 @@ func parseTransformPath(prefix, p string) (transformSpec, string, bool) {
 		return transformSpec{}, "", false
 	}
 	specStr, key, ok := strings.Cut(rest, "/")
-	if !ok || key == "" || strings.HasPrefix(key, "derived/") || strings.Contains(key, "..") {
+	if !ok || key == "" || strings.HasPrefix(key, media.DerivedRoot) || strings.Contains(key, "..") {
 		return transformSpec{}, "", false
 	}
 	var spec transformSpec

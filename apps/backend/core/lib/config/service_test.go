@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -240,6 +241,34 @@ func TestSetHoldsAValueToItsLength(t *testing.T) {
 	}
 	if v := repo.rows[scopeKey(DefaultScope, "shop/general/motto")].Value; v != "héllo" {
 		t.Errorf("stored %q - a refused value must not replace the last good one", v)
+	}
+}
+
+func TestSetAsksTheFieldsOwnCheck(t *testing.T) {
+	even := func(v string) error {
+		if len(v)%2 != 0 {
+			return errors.New("it takes an even number of letters")
+		}
+		return nil
+	}
+	svc, repo := newTestService(t, Definition{Path: "shop/general/pairs", Type: TypeString, Label: "Pairs", Check: even})
+	ctx := context.Background()
+	if _, err := svc.Set(ctx, "shop/general/pairs", "abcd", DefaultScope); err != nil {
+		t.Fatalf("a value the check accepts: %v", err)
+	}
+	_, err := svc.Set(ctx, "shop/general/pairs", "abc", DefaultScope)
+	if e, ok := errors.AsType[*apperr.Error](err); !ok || e.Code != "CONFIG_VALUE_INVALID" || e.Error() != "Pairs: it takes an even number of letters" {
+		t.Fatalf("Set past the check = %v", err)
+	}
+	if v := repo.rows[scopeKey(DefaultScope, "shop/general/pairs")].Value; v != "abcd" {
+		t.Errorf("stored %q - a refused value must not replace the last good one", v)
+	}
+	entry, err := svc.Get(ctx, "shop/general/pairs", DefaultScope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := json.Marshal(entry); err != nil {
+		t.Errorf("an entry with a check can't be cached: %v", err)
 	}
 }
 

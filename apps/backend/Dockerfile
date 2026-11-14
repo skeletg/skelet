@@ -1,4 +1,4 @@
-FROM golang:1.27.3-alpine
+FROM golang:1.27.4-alpine
 
 # Pin a locale Alpine actually has - stops bash whining when the host
 # leaks LC_ALL=en_US.UTF-8 in

@@ -61,6 +61,14 @@ input SaveCampaignInput {
   abTestPercent:  Int
   abWinnerMetric: String
   abTestMinutes:  Int
+  # When the draft plans to go out. Kept with it - nothing sends until scheduleEmailCampaign.
+  scheduledFor:   Time
+}
+
+# What the suite accepts of a campaign, so the composer's controls offer no value a save would refuse.
+type CampaignLimits {
+  abTestPercentMin: Int!
+  abTestPercentMax: Int!
 }
 
 extend type Query {
@@ -70,6 +78,7 @@ extend type Query {
   campaignVariantStats(id: ID!): [CampaignVariantStat!]!
   # Merge tags available to campaign content (for the composer palette).
   campaignMergeTags: [String!]!
+  campaignLimits: CampaignLimits!
   # Audience size + consent-eligible count, for the composer.
   campaignAudienceEstimate(channelId: ID!, audienceKind: String!, audienceId: ID): CampaignAudienceEstimate!
   # Render campaign content with sample data (reuses EmailPreview).

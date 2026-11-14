@@ -1550,6 +1550,7 @@ export type CmsPageContent = {
   metaDescription?: Maybe<Scalars['String']['output']>;
   metaKeywords?: Maybe<Scalars['String']['output']>;
   metaTitle?: Maybe<Scalars['String']['output']>;
+  outline: Array<Scalars['String']['output']>;
   title: Scalars['String']['output'];
   updatedAt: Scalars['Time']['output'];
 };
@@ -1720,6 +1721,12 @@ export type CampaignAudienceEstimate = {
   __typename?: 'CampaignAudienceEstimate';
   eligible: Scalars['Int']['output'];
   total: Scalars['Int']['output'];
+};
+
+export type CampaignLimits = {
+  __typename?: 'CampaignLimits';
+  abTestPercentMax: Scalars['Int']['output'];
+  abTestPercentMin: Scalars['Int']['output'];
 };
 
 export type CampaignVariantStat = {
@@ -3480,6 +3487,13 @@ export type Flow = {
   updatedAt: Scalars['Time']['output'];
 };
 
+export type FlowTrigger = {
+  __typename?: 'FlowTrigger';
+  oneTimeLink: Scalars['Boolean']['output'];
+  transactional: Scalars['Boolean']['output'];
+  type: Scalars['String']['output'];
+};
+
 export type Fulfillment = {
   __typename?: 'Fulfillment';
   carrier: Scalars['String']['output'];
@@ -4144,10 +4158,17 @@ export type MediaAsset = {
   path: Scalars['String']['output'];
   sizeBytes: Scalars['Int']['output'];
   status: MediaAssetStatus;
+  thumbnailUrl: Scalars['String']['output'];
   title: Scalars['String']['output'];
   updatedAt: Scalars['Time']['output'];
   url: Scalars['String']['output'];
+  visibility: MediaVisibility;
   width?: Maybe<Scalars['Int']['output']>;
+};
+
+
+export type MediaAssetThumbnailUrlArgs = {
+  width: Scalars['Int']['input'];
 };
 
 export type MediaAssetSearchResult = {
@@ -4184,6 +4205,21 @@ export type MediaDirectoryChild = {
 export type MediaMimeGroup =
   | 'DOCUMENT'
   | 'IMAGE';
+
+export type MediaShare = {
+  __typename?: 'MediaShare';
+  createdAt: Scalars['Time']['output'];
+  customerId?: Maybe<Scalars['ID']['output']>;
+  downloadsUsed: Scalars['Int']['output'];
+  email: Scalars['String']['output'];
+  expiresAt?: Maybe<Scalars['Time']['output']>;
+  id: Scalars['ID']['output'];
+  maxDownloads?: Maybe<Scalars['Int']['output']>;
+};
+
+export type MediaVisibility =
+  | 'PRIVATE'
+  | 'PUBLIC';
 
 export type Menu = {
   __typename?: 'Menu';
@@ -4565,6 +4601,7 @@ export type Mutation = {
   restoreWebForm: Scalars['Boolean']['output'];
   resumeSubscription: CustomerSubscription;
   retryWebhookDeadLetter: WebhookQueueItem;
+  revokeMediaShare: Scalars['Boolean']['output'];
   rewriteEmailText: Scalars['String']['output'];
   rotateRemoteProviderSecret: RotateRemoteProviderSecretPayload;
   rotateWebhookSecret: RotateWebhookSecretPayload;
@@ -4654,6 +4691,7 @@ export type Mutation = {
   setSubscriptionTerms: Product;
   setTrackingDestinationEnabled: TrackingDestination;
   setWebhookActive: Webhook;
+  shareMediaAsset: MediaShare;
   signalsChat: SignalsChatReply;
   /** Queues an export - poll the returned job, then download it from /api/admin/data/jobs/{id}/download */
   startDataExport: DataJob;
@@ -5387,6 +5425,7 @@ export type MutationCreateLocaleArgs = {
 export type MutationCreateMediaDirectoryArgs = {
   name: Scalars['String']['input'];
   path: Scalars['String']['input'];
+  visibility?: InputMaybe<MediaVisibility>;
 };
 
 
@@ -5775,6 +5814,7 @@ export type MutationDeleteMediaAssetArgs = {
 export type MutationDeleteMediaDirectoryArgs = {
   path: Scalars['String']['input'];
   recursive: Scalars['Boolean']['input'];
+  visibility?: InputMaybe<MediaVisibility>;
 };
 
 
@@ -6154,6 +6194,7 @@ export type MutationMoveMediaAssetArgs = {
   filename?: InputMaybe<Scalars['String']['input']>;
   id: Scalars['ID']['input'];
   targetPath: Scalars['String']['input'];
+  visibility?: InputMaybe<MediaVisibility>;
 };
 
 
@@ -6322,6 +6363,7 @@ export type MutationRenameEmailGroupArgs = {
 export type MutationRenameMediaDirectoryArgs = {
   newName: Scalars['String']['input'];
   path: Scalars['String']['input'];
+  visibility?: InputMaybe<MediaVisibility>;
 };
 
 
@@ -6452,6 +6494,11 @@ export type MutationResumeSubscriptionArgs = {
 
 
 export type MutationRetryWebhookDeadLetterArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type MutationRevokeMediaShareArgs = {
   id: Scalars['ID']['input'];
 };
 
@@ -7004,6 +7051,11 @@ export type MutationSetTrackingDestinationEnabledArgs = {
 export type MutationSetWebhookActiveArgs = {
   active: Scalars['Boolean']['input'];
   id: Scalars['ID']['input'];
+};
+
+
+export type MutationShareMediaAssetArgs = {
+  input: ShareMediaAssetInput;
 };
 
 
@@ -8593,6 +8645,7 @@ export type Query = {
   cacheRevalidations: Array<CacheRevalidation>;
   cacheSurfaces: Array<CacheSurface>;
   campaignAudienceEstimate: CampaignAudienceEstimate;
+  campaignLimits: CampaignLimits;
   campaignMergeTags: Array<Scalars['String']['output']>;
   campaignVariantStats: Array<CampaignVariantStat>;
   cart: AdminCart;
@@ -8612,6 +8665,7 @@ export type Query = {
   cmsBlockTypes: Array<CmsBlockType>;
   cmsPage?: Maybe<CmsPage>;
   cmsPageComments: Array<CmsPageComment>;
+  cmsPageCount: Scalars['Int']['output'];
   cmsPageRevisions: Array<CmsPageRevision>;
   cmsPageType?: Maybe<CmsPageType>;
   cmsPageTypes: Array<CmsPageType>;
@@ -8673,7 +8727,7 @@ export type Query = {
   flow?: Maybe<Flow>;
   flowConditionKinds: Array<Scalars['String']['output']>;
   flowMergeTags: Array<Scalars['String']['output']>;
-  flowTriggerTypes: Array<Scalars['String']['output']>;
+  flowTriggers: Array<FlowTrigger>;
   flows: Array<Flow>;
   giftCard?: Maybe<GiftCard>;
   giftCards: Array<GiftCard>;
@@ -8709,7 +8763,10 @@ export type Query = {
   mcpOverview: McpOverview;
   me: AdminUser;
   mediaAsset: MediaAsset;
+  mediaAssetShares: Array<MediaShare>;
   mediaDirectory: MediaDirectory;
+  mediaPrivateArea: Scalars['Boolean']['output'];
+  mediaUploadTypes: Array<Scalars['String']['output']>;
   menu: Menu;
   menuBySlug?: Maybe<Menu>;
   menus: Array<Menu>;
@@ -8868,6 +8925,11 @@ export type QueryAgenticStatusArgs = {
 export type QueryAiInsightsArgs = {
   channelId: Scalars['ID']['input'];
   days?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type QueryAllMediaDirectoriesArgs = {
+  visibility?: InputMaybe<MediaVisibility>;
 };
 
 
@@ -9069,6 +9131,11 @@ export type QueryCmsPageArgs = {
 
 export type QueryCmsPageCommentsArgs = {
   pageId: Scalars['ID']['input'];
+};
+
+
+export type QueryCmsPageCountArgs = {
+  filter?: InputMaybe<CmsPageFilter>;
 };
 
 
@@ -9529,8 +9596,14 @@ export type QueryMediaAssetArgs = {
 };
 
 
+export type QueryMediaAssetSharesArgs = {
+  assetId: Scalars['ID']['input'];
+};
+
+
 export type QueryMediaDirectoryArgs = {
   path: Scalars['String']['input'];
+  visibility?: InputMaybe<MediaVisibility>;
 };
 
 
@@ -9832,6 +9905,7 @@ export type QuerySearchMediaAssetsArgs = {
   path?: InputMaybe<Scalars['String']['input']>;
   query?: InputMaybe<Scalars['String']['input']>;
   sort?: InputMaybe<MediaAssetSort>;
+  visibility?: InputMaybe<MediaVisibility>;
 };
 
 
@@ -10262,6 +10336,7 @@ export type RequestMediaAssetUploadInput = {
   path: Scalars['String']['input'];
   sizeBytes: Scalars['Int']['input'];
   title?: InputMaybe<Scalars['String']['input']>;
+  visibility?: InputMaybe<MediaVisibility>;
 };
 
 export type RequestMediaAssetUploadPayload = {
@@ -10581,6 +10656,7 @@ export type SaveCampaignInput = {
   channelId: Scalars['ID']['input'];
   emailId?: InputMaybe<Scalars['ID']['input']>;
   name: Scalars['String']['input'];
+  scheduledFor?: InputMaybe<Scalars['Time']['input']>;
   styles?: InputMaybe<Scalars['JSON']['input']>;
   subject: Scalars['String']['input'];
 };
@@ -11031,6 +11107,13 @@ export type SetSubscriptionTermsInput = {
   intervalUnit: SubscriptionInterval;
   productId: Scalars['ID']['input'];
   trialDays?: InputMaybe<Scalars['Int']['input']>;
+};
+
+export type ShareMediaAssetInput = {
+  assetId: Scalars['ID']['input'];
+  customerId: Scalars['ID']['input'];
+  expiresAt?: InputMaybe<Scalars['Time']['input']>;
+  maxDownloads?: InputMaybe<Scalars['Int']['input']>;
 };
 
 export type ShippingBox = {

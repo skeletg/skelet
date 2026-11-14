@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test'
-import { configField, configValue, restoreConfig, setConfigValue, startClean, test } from './helpers'
+import { configField, configValue, jumpTo, restoreConfig, setConfigValue, startClean, test } from './helpers'
 
 // A store-information string nothing computes from, so a run that dies mid-edit disturbs nothing - free text, so any
 // value saves (the store's phone fields are validated as phone numbers now). Whatever it was is captured and put back
@@ -127,11 +127,7 @@ test('leaving a page with staged settings asks first', async ({ page }) => {
     prompts.push(d.message())
     void d.dismiss()
   })
-  await page.keyboard.press('Control+k')
-  const search = page.getByPlaceholder('Search pages and settings…')
-  await expect(search).toBeVisible()
-  await search.fill('All orders')
-  await page.locator('[role=option]', { hasText: 'All orders' }).first().click()
+  await jumpTo(page, 'All orders')
 
   await expect.poll(() => prompts.length).toBeGreaterThan(0)
   expect(prompts[0]).toMatch(/unsaved changes/i)

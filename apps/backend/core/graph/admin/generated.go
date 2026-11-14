@@ -40,6 +40,7 @@ type ResolverRoot interface {
 	Customer() CustomerResolver
 	CustomerSegment() CustomerSegmentResolver
 	InventoryLocation() InventoryLocationResolver
+	MediaAsset() MediaAssetResolver
 	Mutation() MutationResolver
 	OptionTemplate() OptionTemplateResolver
 	Order() OrderResolver
@@ -1066,6 +1067,7 @@ type ComplexityRoot struct {
 		MetaDescription func(childComplexity int) int
 		MetaKeywords    func(childComplexity int) int
 		MetaTitle       func(childComplexity int) int
+		Outline         func(childComplexity int) int
 		Title           func(childComplexity int) int
 		UpdatedAt       func(childComplexity int) int
 	}
@@ -1183,6 +1185,11 @@ type ComplexityRoot struct {
 	CampaignAudienceEstimate struct {
 		Eligible func(childComplexity int) int
 		Total    func(childComplexity int) int
+	}
+
+	CampaignLimits struct {
+		AbTestPercentMax func(childComplexity int) int
+		AbTestPercentMin func(childComplexity int) int
 	}
 
 	CampaignVariantStat struct {
@@ -2147,6 +2154,12 @@ type ComplexityRoot struct {
 		UpdatedAt     func(childComplexity int) int
 	}
 
+	FlowTrigger struct {
+		OneTimeLink   func(childComplexity int) int
+		Transactional func(childComplexity int) int
+		Type          func(childComplexity int) int
+	}
+
 	Fulfillment struct {
 		Carrier           func(childComplexity int) int
 		CreatedAt         func(childComplexity int) int
@@ -2670,9 +2683,11 @@ type ComplexityRoot struct {
 		Path          func(childComplexity int) int
 		SizeBytes     func(childComplexity int) int
 		Status        func(childComplexity int) int
+		ThumbnailURL  func(childComplexity int, width int32) int
 		Title         func(childComplexity int) int
 		URL           func(childComplexity int) int
 		UpdatedAt     func(childComplexity int) int
+		Visibility    func(childComplexity int) int
 		Width         func(childComplexity int) int
 	}
 
@@ -2692,6 +2707,16 @@ type ComplexityRoot struct {
 	MediaDirectoryChild struct {
 		Name func(childComplexity int) int
 		Path func(childComplexity int) int
+	}
+
+	MediaShare struct {
+		CreatedAt     func(childComplexity int) int
+		CustomerID    func(childComplexity int) int
+		DownloadsUsed func(childComplexity int) int
+		Email         func(childComplexity int) int
+		ExpiresAt     func(childComplexity int) int
+		ID            func(childComplexity int) int
+		MaxDownloads  func(childComplexity int) int
 	}
 
 	Menu struct {
@@ -2844,7 +2869,7 @@ type ComplexityRoot struct {
 		CreateIntegration                 func(childComplexity int, input model.CreateIntegrationInput) int
 		CreateInventoryLocation           func(childComplexity int, input model.CreateInventoryLocationInput) int
 		CreateLocale                      func(childComplexity int, input model.CreateLocaleInput) int
-		CreateMediaDirectory              func(childComplexity int, path string, name string) int
+		CreateMediaDirectory              func(childComplexity int, path string, name string, visibility *model.MediaVisibility) int
 		CreateMenu                        func(childComplexity int, input model.CreateMenuInput) int
 		CreateMenuItem                    func(childComplexity int, input model.CreateMenuItemInput) int
 		CreateOptionTemplate              func(childComplexity int, input model.OptionTemplateInput) int
@@ -2918,7 +2943,7 @@ type ComplexityRoot struct {
 		DeleteLibraryEmail                func(childComplexity int, id string) int
 		DeleteLocale                      func(childComplexity int, code string) int
 		DeleteMediaAsset                  func(childComplexity int, id string, deleteFromStorage *bool) int
-		DeleteMediaDirectory              func(childComplexity int, path string, recursive bool) int
+		DeleteMediaDirectory              func(childComplexity int, path string, recursive bool, visibility *model.MediaVisibility) int
 		DeleteMenu                        func(childComplexity int, id string) int
 		DeleteMenuItem                    func(childComplexity int, id string) int
 		DeleteMenuItemTranslation         func(childComplexity int, itemID string, locale string) int
@@ -2987,7 +3012,7 @@ type ComplexityRoot struct {
 		MintBlogPostPreviewToken          func(childComplexity int, input model.MintBlogPostPreviewTokenInput) int
 		MintCMSPagePreviewToken           func(childComplexity int, input model.MintCMSPagePreviewTokenInput) int
 		MoveAttributeToGroup              func(childComplexity int, productTypeID string, attributeID string, groupID *string) int
-		MoveMediaAsset                    func(childComplexity int, id string, targetPath string, filename *string) int
+		MoveMediaAsset                    func(childComplexity int, id string, targetPath string, filename *string, visibility *model.MediaVisibility) int
 		PauseSubscription                 func(childComplexity int, id string) int
 		PlaceDraftOrder                   func(childComplexity int, id string) int
 		PublishBlogPost                   func(childComplexity int, id string) int
@@ -3018,7 +3043,7 @@ type ComplexityRoot struct {
 		RemoveProductFromCollection       func(childComplexity int, collectionID string, productID string) int
 		RenameCMSTag                      func(childComplexity int, slug string, name string) int
 		RenameEmailGroup                  func(childComplexity int, id string, name string) int
-		RenameMediaDirectory              func(childComplexity int, path string, newName string) int
+		RenameMediaDirectory              func(childComplexity int, path string, newName string, visibility *model.MediaVisibility) int
 		ReopenCMSPage                     func(childComplexity int, id string) int
 		ReorderCollectionProducts         func(childComplexity int, collectionID string, productIds []string) int
 		ReorderMenuItems                  func(childComplexity int, menuID string, items []*model.ReorderMenuItemInput) int
@@ -3043,6 +3068,7 @@ type ComplexityRoot struct {
 		RestoreWebForm                    func(childComplexity int, id string) int
 		ResumeSubscription                func(childComplexity int, id string) int
 		RetryWebhookDeadLetter            func(childComplexity int, id string) int
+		RevokeMediaShare                  func(childComplexity int, id string) int
 		RewriteEmailText                  func(childComplexity int, text string, instruction *string) int
 		RotateRemoteProviderSecret        func(childComplexity int, id string) int
 		RotateWebhookSecret               func(childComplexity int, id string) int
@@ -3132,6 +3158,7 @@ type ComplexityRoot struct {
 		SetSubscriptionTerms              func(childComplexity int, input model.SetSubscriptionTermsInput) int
 		SetTrackingDestinationEnabled     func(childComplexity int, id string, enabled bool) int
 		SetWebhookActive                  func(childComplexity int, id string, active bool) int
+		ShareMediaAsset                   func(childComplexity int, input model.ShareMediaAssetInput) int
 		SignalsChat                       func(childComplexity int, channelID string, sinceDays *int32, page *model.SignalsChatPage, messages []*model.SignalsChatMessage) int
 		StartDataExport                   func(childComplexity int, input model.StartDataExportInput) int
 		StartSiteCrawl                    func(childComplexity int, input model.StartSiteCrawlInput) int
@@ -3947,7 +3974,7 @@ type ComplexityRoot struct {
 		AgenticStatus                func(childComplexity int, channelID string) int
 		AiInsights                   func(childComplexity int, channelID string, days *int32) int
 		AiStatus                     func(childComplexity int) int
-		AllMediaDirectories          func(childComplexity int) int
+		AllMediaDirectories          func(childComplexity int, visibility *model.MediaVisibility) int
 		AssistantConversation        func(childComplexity int, channelID string, id string) int
 		AssistantConversations       func(childComplexity int, channelID string, search *string, customerID *string, unanswered *model.AssistantUnansweredFilter, after *string, limit *int32) int
 		AssistantReport              func(childComplexity int, channelID string, days *int32) int
@@ -3971,6 +3998,7 @@ type ComplexityRoot struct {
 		CacheRevalidations           func(childComplexity int, limit *int32) int
 		CacheSurfaces                func(childComplexity int) int
 		CampaignAudienceEstimate     func(childComplexity int, channelID string, audienceKind string, audienceID *string) int
+		CampaignLimits               func(childComplexity int) int
 		CampaignMergeTags            func(childComplexity int) int
 		CampaignVariantStats         func(childComplexity int, id string) int
 		Cart                         func(childComplexity int, id string) int
@@ -3990,6 +4018,7 @@ type ComplexityRoot struct {
 		CmsBlockTypes                func(childComplexity int) int
 		CmsPage                      func(childComplexity int, slug *string, id *string, urlPath *string) int
 		CmsPageComments              func(childComplexity int, pageID string) int
+		CmsPageCount                 func(childComplexity int, filter *model.CMSPageFilter) int
 		CmsPageRevisions             func(childComplexity int, pageID string, locale string) int
 		CmsPageType                  func(childComplexity int, slug *string, id *string) int
 		CmsPageTypes                 func(childComplexity int) int
@@ -4049,7 +4078,7 @@ type ComplexityRoot struct {
 		Flow                         func(childComplexity int, id string) int
 		FlowConditionKinds           func(childComplexity int) int
 		FlowMergeTags                func(childComplexity int) int
-		FlowTriggerTypes             func(childComplexity int) int
+		FlowTriggers                 func(childComplexity int) int
 		Flows                        func(childComplexity int, channelID string, includeDeleted *bool) int
 		GiftCard                     func(childComplexity int, code string) int
 		GiftCards                    func(childComplexity int, limit *int32, offset *int32) int
@@ -4085,7 +4114,10 @@ type ComplexityRoot struct {
 		McpOverview                  func(childComplexity int, channelID string) int
 		Me                           func(childComplexity int) int
 		MediaAsset                   func(childComplexity int, id string) int
-		MediaDirectory               func(childComplexity int, path string) int
+		MediaAssetShares             func(childComplexity int, assetID string) int
+		MediaDirectory               func(childComplexity int, path string, visibility *model.MediaVisibility) int
+		MediaPrivateArea             func(childComplexity int) int
+		MediaUploadTypes             func(childComplexity int) int
 		Menu                         func(childComplexity int, id string) int
 		MenuBySlug                   func(childComplexity int, slug string) int
 		Menus                        func(childComplexity int) int
@@ -4146,7 +4178,7 @@ type ComplexityRoot struct {
 		SalesReport                  func(childComplexity int, channelID *string, startDate *time.Time, endDate *time.Time, bucket *string, topProductsLimit *int32) int
 		ScheduledJobRuns             func(childComplexity int, jobID string, limit *int32) int
 		ScheduledJobs                func(childComplexity int) int
-		SearchMediaAssets            func(childComplexity int, query *string, path *string, mimeGroup *model.MediaMimeGroup, sort *model.MediaAssetSort, limit *int32, offset *int32) int
+		SearchMediaAssets            func(childComplexity int, query *string, path *string, mimeGroup *model.MediaMimeGroup, sort *model.MediaAssetSort, limit *int32, offset *int32, visibility *model.MediaVisibility) int
 		SearchMerchandising          func(childComplexity int, channelID string) int
 		SearchOverviewPreview        func(childComplexity int, channelID string, query string, locale *string, mode *model.SearchByMeaningMode, strictness *model.SearchByMeaningStrictness) int
 		SearchPreview                func(childComplexity int, channelID string, query string, locale *string, mode *model.SearchByMeaningMode, strictness *model.SearchByMeaningStrictness) int
@@ -5390,6 +5422,9 @@ type CustomerSegmentResolver interface {
 type InventoryLocationResolver interface {
 	Country(ctx context.Context, obj *model.InventoryLocation) (*model.Country, error)
 }
+type MediaAssetResolver interface {
+	ThumbnailURL(ctx context.Context, obj *model.MediaAsset, width int32) (string, error)
+}
 type MutationResolver interface {
 	RunAdminAction(ctx context.Context, slug string, args interface{}) (*model.AdminActionResult, error)
 	AdminLogin(ctx context.Context, input model.AdminLoginInput) (*model.AdminAuthPayload, error)
@@ -5733,14 +5768,16 @@ type MutationResolver interface {
 	UpdateLocale(ctx context.Context, input model.UpdateLocaleInput) (*model.Locale, error)
 	DeleteLocale(ctx context.Context, code string) (bool, error)
 	SetMediaFocalPoint(ctx context.Context, assetID string, x *float64, y *float64) (*model.MediaAsset, error)
-	CreateMediaDirectory(ctx context.Context, path string, name string) (*model.MediaDirectoryChild, error)
+	CreateMediaDirectory(ctx context.Context, path string, name string, visibility *model.MediaVisibility) (*model.MediaDirectoryChild, error)
 	RequestMediaAssetUpload(ctx context.Context, input model.RequestMediaAssetUploadInput) (*model.RequestMediaAssetUploadPayload, error)
 	ConfirmMediaAssetUpload(ctx context.Context, assetID string, width *int32, height *int32) (*model.MediaAsset, error)
 	UpdateMediaAsset(ctx context.Context, input model.UpdateMediaAssetInput) (*model.MediaAsset, error)
-	MoveMediaAsset(ctx context.Context, id string, targetPath string, filename *string) (*model.MediaAsset, error)
+	MoveMediaAsset(ctx context.Context, id string, targetPath string, filename *string, visibility *model.MediaVisibility) (*model.MediaAsset, error)
 	DeleteMediaAsset(ctx context.Context, id string, deleteFromStorage *bool) (bool, error)
-	DeleteMediaDirectory(ctx context.Context, path string, recursive bool) (bool, error)
-	RenameMediaDirectory(ctx context.Context, path string, newName string) (*model.MediaDirectoryChild, error)
+	DeleteMediaDirectory(ctx context.Context, path string, recursive bool, visibility *model.MediaVisibility) (bool, error)
+	RenameMediaDirectory(ctx context.Context, path string, newName string, visibility *model.MediaVisibility) (*model.MediaDirectoryChild, error)
+	ShareMediaAsset(ctx context.Context, input model.ShareMediaAssetInput) (*model.MediaShare, error)
+	RevokeMediaShare(ctx context.Context, id string) (bool, error)
 	CreateMenu(ctx context.Context, input model.CreateMenuInput) (*model.Menu, error)
 	UpdateMenu(ctx context.Context, input model.UpdateMenuInput) (*model.Menu, error)
 	DeleteMenu(ctx context.Context, id string) (bool, error)
@@ -5984,6 +6021,7 @@ type QueryResolver interface {
 	EmailCampaign(ctx context.Context, id string) (*model.EmailCampaign, error)
 	CampaignVariantStats(ctx context.Context, id string) ([]*model.CampaignVariantStat, error)
 	CampaignMergeTags(ctx context.Context) ([]string, error)
+	CampaignLimits(ctx context.Context) (*model.CampaignLimits, error)
 	CampaignAudienceEstimate(ctx context.Context, channelID string, audienceKind string, audienceID *string) (*model.CampaignAudienceEstimate, error)
 	RenderCampaignPreview(ctx context.Context, channelID string, subject string, blocks interface{}, styles interface{}) (*model.EmailPreview, error)
 	Carts(ctx context.Context, channelID string, customerID *string, status *string, kind *model.CartKind, abandoned *bool, search *string, limit *int32, offset *int32) (*model.CartList, error)
@@ -6025,6 +6063,7 @@ type QueryResolver interface {
 	CmsBlockType(ctx context.Context, id string) (*model.CMSBlockType, error)
 	CmsPage(ctx context.Context, slug *string, id *string, urlPath *string) (*model.CMSPage, error)
 	CmsPages(ctx context.Context, filter *model.CMSPageFilter, limit *int32, offset *int32) ([]*model.CMSPage, error)
+	CmsPageCount(ctx context.Context, filter *model.CMSPageFilter) (int32, error)
 	CmsPageRevisions(ctx context.Context, pageID string, locale string) ([]*model.CMSPageRevision, error)
 	CmsAttribute(ctx context.Context, slug *string, id *string) (*model.CMSAttribute, error)
 	CmsAttributes(ctx context.Context) ([]*model.CMSAttribute, error)
@@ -6071,7 +6110,7 @@ type QueryResolver interface {
 	ServerFeatures(ctx context.Context) (*model.ServerFeatures, error)
 	Flows(ctx context.Context, channelID string, includeDeleted *bool) ([]*model.Flow, error)
 	Flow(ctx context.Context, id string) (*model.Flow, error)
-	FlowTriggerTypes(ctx context.Context) ([]string, error)
+	FlowTriggers(ctx context.Context) ([]*model.FlowTrigger, error)
 	FlowMergeTags(ctx context.Context) ([]string, error)
 	FlowConditionKinds(ctx context.Context) ([]string, error)
 	SignupForms(ctx context.Context, channelID string) ([]*model.SignupForm, error)
@@ -6095,10 +6134,13 @@ type QueryResolver interface {
 	Locales(ctx context.Context, activeOnly *bool) ([]*model.Locale, error)
 	Locale(ctx context.Context, code string) (*model.Locale, error)
 	McpOverview(ctx context.Context, channelID string) (*model.McpOverview, error)
-	MediaDirectory(ctx context.Context, path string) (*model.MediaDirectory, error)
+	MediaDirectory(ctx context.Context, path string, visibility *model.MediaVisibility) (*model.MediaDirectory, error)
 	MediaAsset(ctx context.Context, id string) (*model.MediaAsset, error)
-	SearchMediaAssets(ctx context.Context, query *string, path *string, mimeGroup *model.MediaMimeGroup, sort *model.MediaAssetSort, limit *int32, offset *int32) (*model.MediaAssetSearchResult, error)
-	AllMediaDirectories(ctx context.Context) ([]*model.MediaDirectoryChild, error)
+	SearchMediaAssets(ctx context.Context, query *string, path *string, mimeGroup *model.MediaMimeGroup, sort *model.MediaAssetSort, limit *int32, offset *int32, visibility *model.MediaVisibility) (*model.MediaAssetSearchResult, error)
+	AllMediaDirectories(ctx context.Context, visibility *model.MediaVisibility) ([]*model.MediaDirectoryChild, error)
+	MediaPrivateArea(ctx context.Context) (bool, error)
+	MediaAssetShares(ctx context.Context, assetID string) ([]*model.MediaShare, error)
+	MediaUploadTypes(ctx context.Context) ([]string, error)
 	Menus(ctx context.Context) ([]*model.Menu, error)
 	Menu(ctx context.Context, id string) (*model.Menu, error)
 	MenuBySlug(ctx context.Context, slug string) (*model.Menu, error)
@@ -10491,6 +10533,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CMSPageContent.MetaTitle(childComplexity), true
+	case "CMSPageContent.outline":
+		if e.ComplexityRoot.CMSPageContent.Outline == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CMSPageContent.Outline(childComplexity), true
 	case "CMSPageContent.title":
 		if e.ComplexityRoot.CMSPageContent.Title == nil {
 			break
@@ -10955,6 +11003,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CampaignAudienceEstimate.Total(childComplexity), true
+
+	case "CampaignLimits.abTestPercentMax":
+		if e.ComplexityRoot.CampaignLimits.AbTestPercentMax == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CampaignLimits.AbTestPercentMax(childComplexity), true
+	case "CampaignLimits.abTestPercentMin":
+		if e.ComplexityRoot.CampaignLimits.AbTestPercentMin == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CampaignLimits.AbTestPercentMin(childComplexity), true
 
 	case "CampaignVariantStat.clicked":
 		if e.ComplexityRoot.CampaignVariantStat.Clicked == nil {
@@ -15203,6 +15264,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Flow.UpdatedAt(childComplexity), true
 
+	case "FlowTrigger.oneTimeLink":
+		if e.ComplexityRoot.FlowTrigger.OneTimeLink == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FlowTrigger.OneTimeLink(childComplexity), true
+	case "FlowTrigger.transactional":
+		if e.ComplexityRoot.FlowTrigger.Transactional == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FlowTrigger.Transactional(childComplexity), true
+	case "FlowTrigger.type":
+		if e.ComplexityRoot.FlowTrigger.Type == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FlowTrigger.Type(childComplexity), true
+
 	case "Fulfillment.carrier":
 		if e.ComplexityRoot.Fulfillment.Carrier == nil {
 			break
@@ -17366,6 +17446,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.MediaAsset.Status(childComplexity), true
+	case "MediaAsset.thumbnailUrl":
+		if e.ComplexityRoot.MediaAsset.ThumbnailURL == nil {
+			break
+		}
+
+		args, err := ec.field_MediaAsset_thumbnailUrl_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.MediaAsset.ThumbnailURL(childComplexity, args["width"].(int32)), true
 	case "MediaAsset.title":
 		if e.ComplexityRoot.MediaAsset.Title == nil {
 			break
@@ -17384,6 +17475,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.MediaAsset.UpdatedAt(childComplexity), true
+	case "MediaAsset.visibility":
+		if e.ComplexityRoot.MediaAsset.Visibility == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MediaAsset.Visibility(childComplexity), true
 	case "MediaAsset.width":
 		if e.ComplexityRoot.MediaAsset.Width == nil {
 			break
@@ -17447,6 +17544,49 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.MediaDirectoryChild.Path(childComplexity), true
+
+	case "MediaShare.createdAt":
+		if e.ComplexityRoot.MediaShare.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MediaShare.CreatedAt(childComplexity), true
+	case "MediaShare.customerId":
+		if e.ComplexityRoot.MediaShare.CustomerID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MediaShare.CustomerID(childComplexity), true
+	case "MediaShare.downloadsUsed":
+		if e.ComplexityRoot.MediaShare.DownloadsUsed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MediaShare.DownloadsUsed(childComplexity), true
+	case "MediaShare.email":
+		if e.ComplexityRoot.MediaShare.Email == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MediaShare.Email(childComplexity), true
+	case "MediaShare.expiresAt":
+		if e.ComplexityRoot.MediaShare.ExpiresAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MediaShare.ExpiresAt(childComplexity), true
+	case "MediaShare.id":
+		if e.ComplexityRoot.MediaShare.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MediaShare.ID(childComplexity), true
+	case "MediaShare.maxDownloads":
+		if e.ComplexityRoot.MediaShare.MaxDownloads == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MediaShare.MaxDownloads(childComplexity), true
 
 	case "Menu.channelIds":
 		if e.ComplexityRoot.Menu.ChannelIds == nil {
@@ -18839,7 +18979,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.CreateMediaDirectory(childComplexity, args["path"].(string), args["name"].(string)), true
+		return e.ComplexityRoot.Mutation.CreateMediaDirectory(childComplexity, args["path"].(string), args["name"].(string), args["visibility"].(*model.MediaVisibility)), true
 	case "Mutation.createMenu":
 		if e.ComplexityRoot.Mutation.CreateMenu == nil {
 			break
@@ -19653,7 +19793,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.DeleteMediaDirectory(childComplexity, args["path"].(string), args["recursive"].(bool)), true
+		return e.ComplexityRoot.Mutation.DeleteMediaDirectory(childComplexity, args["path"].(string), args["recursive"].(bool), args["visibility"].(*model.MediaVisibility)), true
 	case "Mutation.deleteMenu":
 		if e.ComplexityRoot.Mutation.DeleteMenu == nil {
 			break
@@ -20407,7 +20547,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.MoveMediaAsset(childComplexity, args["id"].(string), args["targetPath"].(string), args["filename"].(*string)), true
+		return e.ComplexityRoot.Mutation.MoveMediaAsset(childComplexity, args["id"].(string), args["targetPath"].(string), args["filename"].(*string), args["visibility"].(*model.MediaVisibility)), true
 	case "Mutation.pauseSubscription":
 		if e.ComplexityRoot.Mutation.PauseSubscription == nil {
 			break
@@ -20748,7 +20888,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.RenameMediaDirectory(childComplexity, args["path"].(string), args["newName"].(string)), true
+		return e.ComplexityRoot.Mutation.RenameMediaDirectory(childComplexity, args["path"].(string), args["newName"].(string), args["visibility"].(*model.MediaVisibility)), true
 	case "Mutation.reopenCMSPage":
 		if e.ComplexityRoot.Mutation.ReopenCMSPage == nil {
 			break
@@ -21013,6 +21153,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RetryWebhookDeadLetter(childComplexity, args["id"].(string)), true
+	case "Mutation.revokeMediaShare":
+		if e.ComplexityRoot.Mutation.RevokeMediaShare == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_revokeMediaShare_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RevokeMediaShare(childComplexity, args["id"].(string)), true
 	case "Mutation.rewriteEmailText":
 		if e.ComplexityRoot.Mutation.RewriteEmailText == nil {
 			break
@@ -21992,6 +22143,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetWebhookActive(childComplexity, args["id"].(string), args["active"].(bool)), true
+	case "Mutation.shareMediaAsset":
+		if e.ComplexityRoot.Mutation.ShareMediaAsset == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_shareMediaAsset_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ShareMediaAsset(childComplexity, args["input"].(model.ShareMediaAssetInput)), true
 	case "Mutation.signalsChat":
 		if e.ComplexityRoot.Mutation.SignalsChat == nil {
 			break
@@ -26428,7 +26590,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			break
 		}
 
-		return e.ComplexityRoot.Query.AllMediaDirectories(childComplexity), true
+		args, err := ec.field_Query_allMediaDirectories_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.AllMediaDirectories(childComplexity, args["visibility"].(*model.MediaVisibility)), true
 	case "Query.assistantConversation":
 		if e.ComplexityRoot.Query.AssistantConversation == nil {
 			break
@@ -26662,6 +26829,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.CampaignAudienceEstimate(childComplexity, args["channelId"].(string), args["audienceKind"].(string), args["audienceId"].(*string)), true
+	case "Query.campaignLimits":
+		if e.ComplexityRoot.Query.CampaignLimits == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.CampaignLimits(childComplexity), true
 	case "Query.campaignMergeTags":
 		if e.ComplexityRoot.Query.CampaignMergeTags == nil {
 			break
@@ -26846,6 +27019,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.CmsPageComments(childComplexity, args["pageId"].(string)), true
+	case "Query.cmsPageCount":
+		if e.ComplexityRoot.Query.CmsPageCount == nil {
+			break
+		}
+
+		args, err := ec.field_Query_cmsPageCount_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.CmsPageCount(childComplexity, args["filter"].(*model.CMSPageFilter)), true
 	case "Query.cmsPageRevisions":
 		if e.ComplexityRoot.Query.CmsPageRevisions == nil {
 			break
@@ -27435,12 +27619,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.FlowMergeTags(childComplexity), true
-	case "Query.flowTriggerTypes":
-		if e.ComplexityRoot.Query.FlowTriggerTypes == nil {
+	case "Query.flowTriggers":
+		if e.ComplexityRoot.Query.FlowTriggers == nil {
 			break
 		}
 
-		return e.ComplexityRoot.Query.FlowTriggerTypes(childComplexity), true
+		return e.ComplexityRoot.Query.FlowTriggers(childComplexity), true
 	case "Query.flows":
 		if e.ComplexityRoot.Query.Flows == nil {
 			break
@@ -27812,6 +27996,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.MediaAsset(childComplexity, args["id"].(string)), true
+	case "Query.mediaAssetShares":
+		if e.ComplexityRoot.Query.MediaAssetShares == nil {
+			break
+		}
+
+		args, err := ec.field_Query_mediaAssetShares_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.MediaAssetShares(childComplexity, args["assetId"].(string)), true
 	case "Query.mediaDirectory":
 		if e.ComplexityRoot.Query.MediaDirectory == nil {
 			break
@@ -27822,7 +28017,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.MediaDirectory(childComplexity, args["path"].(string)), true
+		return e.ComplexityRoot.Query.MediaDirectory(childComplexity, args["path"].(string), args["visibility"].(*model.MediaVisibility)), true
+	case "Query.mediaPrivateArea":
+		if e.ComplexityRoot.Query.MediaPrivateArea == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.MediaPrivateArea(childComplexity), true
+	case "Query.mediaUploadTypes":
+		if e.ComplexityRoot.Query.MediaUploadTypes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.MediaUploadTypes(childComplexity), true
 	case "Query.menu":
 		if e.ComplexityRoot.Query.Menu == nil {
 			break
@@ -28428,7 +28635,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.SearchMediaAssets(childComplexity, args["query"].(*string), args["path"].(*string), args["mimeGroup"].(*model.MediaMimeGroup), args["sort"].(*model.MediaAssetSort), args["limit"].(*int32), args["offset"].(*int32)), true
+		return e.ComplexityRoot.Query.SearchMediaAssets(childComplexity, args["query"].(*string), args["path"].(*string), args["mimeGroup"].(*model.MediaMimeGroup), args["sort"].(*model.MediaAssetSort), args["limit"].(*int32), args["offset"].(*int32), args["visibility"].(*model.MediaVisibility)), true
 	case "Query.searchMerchandising":
 		if e.ComplexityRoot.Query.SearchMerchandising == nil {
 			break
@@ -33713,6 +33920,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputSetProductAttributeSlugInput,
 		ec.unmarshalInputSetProductListingInput,
 		ec.unmarshalInputSetSubscriptionTermsInput,
+		ec.unmarshalInputShareMediaAssetInput,
 		ec.unmarshalInputShippingBoxInput,
 		ec.unmarshalInputShippingMethodTypeRateInput,
 		ec.unmarshalInputShippingRateTierInput,
@@ -34982,6 +35190,14 @@ input SaveCampaignInput {
   abTestPercent:  Int
   abWinnerMetric: String
   abTestMinutes:  Int
+  # When the draft plans to go out. Kept with it - nothing sends until scheduleEmailCampaign.
+  scheduledFor:   Time
+}
+
+# What the suite accepts of a campaign, so the composer's controls offer no value a save would refuse.
+type CampaignLimits {
+  abTestPercentMin: Int!
+  abTestPercentMax: Int!
 }
 
 extend type Query {
@@ -34991,6 +35207,7 @@ extend type Query {
   campaignVariantStats(id: ID!): [CampaignVariantStat!]!
   # Merge tags available to campaign content (for the composer palette).
   campaignMergeTags: [String!]!
+  campaignLimits: CampaignLimits!
   # Audience size + consent-eligible count, for the composer.
   campaignAudienceEstimate(channelId: ID!, audienceKind: String!, audienceId: ID): CampaignAudienceEstimate!
   # Render campaign content with sample data (reuses EmailPreview).
@@ -37589,6 +37806,8 @@ type CMSPageContent {
   locale:           String!
   title:            String!
   body:             JSON
+  # The body's blocks by type, in order, with a container opened onto what it holds. Empty when the body isn't block-built.
+  outline:          [String!]!
   metaTitle:        String
   metaDescription:  String
   metaKeywords:     String
@@ -37708,6 +37927,8 @@ extend type Query {
   # Locale comes from the ` + "`" + `Locale` + "`" + ` request header (internal/locale.Middleware).
   cmsPage(slug: String, id: ID, urlPath: String): CMSPage
   cmsPages(filter: CMSPageFilter, limit: Int, offset: Int): [CMSPage!]!
+  # How many pages the filter matches in all - cmsPages hands over at most its limit of them.
+  cmsPageCount(filter: CMSPageFilter): Int!
 }
 
 # ==================== Mutations ====================
@@ -39096,6 +39317,15 @@ type Flow {
   updatedAt:     Time!
 }
 
+# A trigger the composer can offer, with what the suite allows of a flow that starts on it.
+type FlowTrigger {
+  type:          String!
+  # Only these may be marked transactional - any other trigger is refused as one on save.
+  transactional: Boolean!
+  # Carries a sign-in, reset or offer link, so its flows may not call a webhook.
+  oneTimeLink:   Boolean!
+}
+
 input SaveFlowInput {
   channelId:     ID!       # ignored on update (a flow's channel is fixed)
   name:          String!
@@ -39107,8 +39337,7 @@ input SaveFlowInput {
 extend type Query {
   flows(channelId: ID!, includeDeleted: Boolean): [Flow!]!
   flow(id: ID!): Flow
-  # Trigger types the composer should offer (only the wired ones).
-  flowTriggerTypes: [String!]!
+  flowTriggers: [FlowTrigger!]!
   # Merge tags available to flow email nodes (same set as campaigns).
   flowMergeTags: [String!]!
   # Split-condition kinds the composer should offer. Registered rather than fixed: the suite that owns a condition's data contributes it, so an install without that suite never offers a condition nothing can answer.
@@ -39979,6 +40208,12 @@ enum MediaMimeGroup {
   DOCUMENT
 }
 
+# PRIVATE files are kept in the private store, have no address (url is empty) and are read only through this API.
+enum MediaVisibility {
+  PUBLIC
+  PRIVATE
+}
+
 # Newest is recently changed first, the default
 enum MediaAssetSort {
   NEWEST
@@ -39993,6 +40228,9 @@ type MediaAsset {
   directoryPath: String!
   filename: String!
   url: String!
+  # A copy no wider than ` + "`" + `width` + "`" + ` for grids: storage's address once it exists, else a path on this API that makes it, else the original's url.
+  thumbnailUrl(width: Int!): String!
+  visibility: MediaVisibility!
   mimeType: String!
   mimeGroup: MediaMimeGroup!
   sizeBytes: Int!
@@ -40046,6 +40284,7 @@ type RequestMediaAssetUploadPayload {
 
 input RequestMediaAssetUploadInput {
   path: String!
+  visibility: MediaVisibility
   filename: String!
   mimeType: String!
   sizeBytes: Int!
@@ -40063,24 +40302,51 @@ input UpdateMediaAssetInput {
   notes: String
 }
 
+# A private file handed to one customer: it shows in their account's downloads and opens through /download/<token>.
+type MediaShare {
+  id: ID!
+  customerId: ID
+  email: String!
+  downloadsUsed: Int!
+  maxDownloads: Int
+  expiresAt: Time
+  createdAt: Time!
+}
+
+input ShareMediaAssetInput {
+  assetId: ID!
+  customerId: ID!
+  maxDownloads: Int
+  expiresAt: Time
+}
+
 extend type Query {
-  mediaDirectory(path: String!): MediaDirectory!
+  # The two halves of the library keep separate folders, so each of these looks at one - PUBLIC when left out.
+  mediaDirectory(path: String!, visibility: MediaVisibility): MediaDirectory!
   mediaAsset(id: ID!): MediaAsset!
-  searchMediaAssets(query: String, path: String, mimeGroup: MediaMimeGroup, sort: MediaAssetSort, limit: Int, offset: Int): MediaAssetSearchResult!
-  allMediaDirectories: [MediaDirectoryChild!]!
+  searchMediaAssets(query: String, path: String, mimeGroup: MediaMimeGroup, sort: MediaAssetSort, limit: Int, offset: Int, visibility: MediaVisibility): MediaAssetSearchResult!
+  allMediaDirectories(visibility: MediaVisibility): [MediaDirectoryChild!]!
+  mediaPrivateArea: Boolean!
+  mediaAssetShares(assetId: ID!): [MediaShare!]!
+  # The MIME types the library takes, for a file picker to offer.
+  mediaUploadTypes: [String!]!
 }
 
 extend type Mutation {
   # Set (or clear, with nulls) the smart-crop focal point.
   setMediaFocalPoint(assetId: ID!, x: Float, y: Float): MediaAsset!
-  createMediaDirectory(path: String!, name: String!): MediaDirectoryChild!
+  createMediaDirectory(path: String!, name: String!, visibility: MediaVisibility): MediaDirectoryChild!
   requestMediaAssetUpload(input: RequestMediaAssetUploadInput!): RequestMediaAssetUploadPayload!
   confirmMediaAssetUpload(assetId: ID!, width: Int, height: Int): MediaAsset!
   updateMediaAsset(input: UpdateMediaAssetInput!): MediaAsset!
-  moveMediaAsset(id: ID!, targetPath: String!, filename: String): MediaAsset!
+  # visibility set to the other half carries the file to that store: its address changes, or goes.
+  moveMediaAsset(id: ID!, targetPath: String!, filename: String, visibility: MediaVisibility): MediaAsset!
   deleteMediaAsset(id: ID!, deleteFromStorage: Boolean): Boolean!
-  deleteMediaDirectory(path: String!, recursive: Boolean!): Boolean!
-  renameMediaDirectory(path: String!, newName: String!): MediaDirectoryChild!
+  deleteMediaDirectory(path: String!, recursive: Boolean!, visibility: MediaVisibility): Boolean!
+  renameMediaDirectory(path: String!, newName: String!, visibility: MediaVisibility): MediaDirectoryChild!
+  # Sharing again with the same customer replaces the limits.
+  shareMediaAsset(input: ShareMediaAssetInput!): MediaShare!
+  revokeMediaShare(id: ID!): Boolean!
 }
 `, BuiltIn: false},
 	{Name: "../schema/admin/menus.graphqls", Input: `# Admin-curated navigation menus. Each Menu is a slug-addressable tree of items used by the storefront for header / footer / mobile navigation. A MenuItem points either to a typed entity (PRODUCT/CATEGORY/COLLECTION/BLOG_POST/CMS_PAGE) - whose URL the storefront resolves via the url_rewrites table at render - or to a free-form URL. Never both.
@@ -46129,6 +46395,8 @@ func (ec *executionContext) childFields_CMSPageContent(ctx context.Context, fiel
 		return ec.fieldContext_CMSPageContent_title(ctx, field)
 	case "body":
 		return ec.fieldContext_CMSPageContent_body(ctx, field)
+	case "outline":
+		return ec.fieldContext_CMSPageContent_outline(ctx, field)
 	case "metaTitle":
 		return ec.fieldContext_CMSPageContent_metaTitle(ctx, field)
 	case "metaDescription":
@@ -46371,6 +46639,16 @@ func (ec *executionContext) childFields_CampaignAudienceEstimate(ctx context.Con
 		return ec.fieldContext_CampaignAudienceEstimate_eligible(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type CampaignAudienceEstimate", field.Name)
+}
+
+func (ec *executionContext) childFields_CampaignLimits(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "abTestPercentMin":
+		return ec.fieldContext_CampaignLimits_abTestPercentMin(ctx, field)
+	case "abTestPercentMax":
+		return ec.fieldContext_CampaignLimits_abTestPercentMax(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CampaignLimits", field.Name)
 }
 
 func (ec *executionContext) childFields_CampaignVariantStat(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -48283,6 +48561,18 @@ func (ec *executionContext) childFields_Flow(ctx context.Context, field graphql.
 	return nil, fmt.Errorf("no field named %q was found under type Flow", field.Name)
 }
 
+func (ec *executionContext) childFields_FlowTrigger(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "type":
+		return ec.fieldContext_FlowTrigger_type(ctx, field)
+	case "transactional":
+		return ec.fieldContext_FlowTrigger_transactional(ctx, field)
+	case "oneTimeLink":
+		return ec.fieldContext_FlowTrigger_oneTimeLink(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type FlowTrigger", field.Name)
+}
+
 func (ec *executionContext) childFields_Fulfillment(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -49283,6 +49573,10 @@ func (ec *executionContext) childFields_MediaAsset(ctx context.Context, field gr
 		return ec.fieldContext_MediaAsset_filename(ctx, field)
 	case "url":
 		return ec.fieldContext_MediaAsset_url(ctx, field)
+	case "thumbnailUrl":
+		return ec.fieldContext_MediaAsset_thumbnailUrl(ctx, field)
+	case "visibility":
+		return ec.fieldContext_MediaAsset_visibility(ctx, field)
 	case "mimeType":
 		return ec.fieldContext_MediaAsset_mimeType(ctx, field)
 	case "mimeGroup":
@@ -49349,6 +49643,26 @@ func (ec *executionContext) childFields_MediaDirectoryChild(ctx context.Context,
 		return ec.fieldContext_MediaDirectoryChild_name(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type MediaDirectoryChild", field.Name)
+}
+
+func (ec *executionContext) childFields_MediaShare(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_MediaShare_id(ctx, field)
+	case "customerId":
+		return ec.fieldContext_MediaShare_customerId(ctx, field)
+	case "email":
+		return ec.fieldContext_MediaShare_email(ctx, field)
+	case "downloadsUsed":
+		return ec.fieldContext_MediaShare_downloadsUsed(ctx, field)
+	case "maxDownloads":
+		return ec.fieldContext_MediaShare_maxDownloads(ctx, field)
+	case "expiresAt":
+		return ec.fieldContext_MediaShare_expiresAt(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_MediaShare_createdAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MediaShare", field.Name)
 }
 
 func (ec *executionContext) childFields_Menu(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -53223,6 +53537,20 @@ func (ec *executionContext) field_CustomerSegment_members_args(ctx context.Conte
 	return args, nil
 }
 
+func (ec *executionContext) field_MediaAsset_thumbnailUrl_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "width",
+		func(ctx context.Context, v any) (int32, error) {
+			return ec.unmarshalNInt2int32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["width"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_addAttributeValue_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -55308,6 +55636,14 @@ func (ec *executionContext) field_Mutation_createMediaDirectory_args(ctx context
 		return nil, err
 	}
 	args["name"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "visibility",
+		func(ctx context.Context, v any) (*model.MediaVisibility, error) {
+			return ec.unmarshalOMediaVisibility2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaVisibility(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["visibility"] = arg2
 	return args, nil
 }
 
@@ -56488,6 +56824,14 @@ func (ec *executionContext) field_Mutation_deleteMediaDirectory_args(ctx context
 		return nil, err
 	}
 	args["recursive"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "visibility",
+		func(ctx context.Context, v any) (*model.MediaVisibility, error) {
+			return ec.unmarshalOMediaVisibility2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaVisibility(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["visibility"] = arg2
 	return args, nil
 }
 
@@ -57752,6 +58096,14 @@ func (ec *executionContext) field_Mutation_moveMediaAsset_args(ctx context.Conte
 		return nil, err
 	}
 	args["filename"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "visibility",
+		func(ctx context.Context, v any) (*model.MediaVisibility, error) {
+			return ec.unmarshalOMediaVisibility2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaVisibility(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["visibility"] = arg3
 	return args, nil
 }
 
@@ -58290,6 +58642,14 @@ func (ec *executionContext) field_Mutation_renameMediaDirectory_args(ctx context
 		return nil, err
 	}
 	args["newName"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "visibility",
+		func(ctx context.Context, v any) (*model.MediaVisibility, error) {
+			return ec.unmarshalOMediaVisibility2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaVisibility(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["visibility"] = arg2
 	return args, nil
 }
 
@@ -58704,6 +59064,20 @@ func (ec *executionContext) field_Mutation_resumeSubscription_args(ctx context.C
 }
 
 func (ec *executionContext) field_Mutation_retryWebhookDeadLetter_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_revokeMediaShare_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
@@ -60808,6 +61182,20 @@ func (ec *executionContext) field_Mutation_setWebhookActive_args(ctx context.Con
 		return nil, err
 	}
 	args["active"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_shareMediaAsset_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.ShareMediaAssetInput, error) {
+			return ec.unmarshalNShareMediaAssetInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐShareMediaAssetInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -63099,6 +63487,20 @@ func (ec *executionContext) field_Query_aiInsights_args(ctx context.Context, raw
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_allMediaDirectories_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "visibility",
+		func(ctx context.Context, v any) (*model.MediaVisibility, error) {
+			return ec.unmarshalOMediaVisibility2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaVisibility(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["visibility"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_assistantConversation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -63816,6 +64218,20 @@ func (ec *executionContext) field_Query_cmsPageComments_args(ctx context.Context
 		return nil, err
 	}
 	args["pageId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_cmsPageCount_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "filter",
+		func(ctx context.Context, v any) (*model.CMSPageFilter, error) {
+			return ec.unmarshalOCMSPageFilter2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCMSPageFilter(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["filter"] = arg0
 	return args, nil
 }
 
@@ -65437,6 +65853,20 @@ func (ec *executionContext) field_Query_mcpOverview_args(ctx context.Context, ra
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_mediaAssetShares_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "assetId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["assetId"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_mediaAsset_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -65462,6 +65892,14 @@ func (ec *executionContext) field_Query_mediaDirectory_args(ctx context.Context,
 		return nil, err
 	}
 	args["path"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "visibility",
+		func(ctx context.Context, v any) (*model.MediaVisibility, error) {
+			return ec.unmarshalOMediaVisibility2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaVisibility(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["visibility"] = arg1
 	return args, nil
 }
 
@@ -66622,6 +67060,14 @@ func (ec *executionContext) field_Query_searchMediaAssets_args(ctx context.Conte
 		return nil, err
 	}
 	args["offset"] = arg5
+	arg6, err := graphql.ProcessArgField(ctx, rawArgs, "visibility",
+		func(ctx context.Context, v any) (*model.MediaVisibility, error) {
+			return ec.unmarshalOMediaVisibility2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaVisibility(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["visibility"] = arg6
 	return args, nil
 }
 
@@ -84519,6 +84965,29 @@ func (ec *executionContext) fieldContext_CMSPageContent_body(_ context.Context, 
 	return graphql.NewScalarFieldContext("CMSPageContent", field, false, false, errors.New("field of type JSON does not have child fields"))
 }
 
+func (ec *executionContext) _CMSPageContent_outline(ctx context.Context, field graphql.CollectedField, obj *model.CMSPageContent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CMSPageContent_outline(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Outline, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CMSPageContent_outline(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CMSPageContent", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _CMSPageContent_metaTitle(ctx context.Context, field graphql.CollectedField, obj *model.CMSPageContent) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -86356,6 +86825,52 @@ func (ec *executionContext) _CampaignAudienceEstimate_eligible(ctx context.Conte
 }
 func (ec *executionContext) fieldContext_CampaignAudienceEstimate_eligible(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CampaignAudienceEstimate", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _CampaignLimits_abTestPercentMin(ctx context.Context, field graphql.CollectedField, obj *model.CampaignLimits) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CampaignLimits_abTestPercentMin(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AbTestPercentMin, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CampaignLimits_abTestPercentMin(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CampaignLimits", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _CampaignLimits_abTestPercentMax(ctx context.Context, field graphql.CollectedField, obj *model.CampaignLimits) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CampaignLimits_abTestPercentMax(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AbTestPercentMax, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CampaignLimits_abTestPercentMax(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CampaignLimits", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _CampaignVariantStat_variant(ctx context.Context, field graphql.CollectedField, obj *model.CampaignVariantStat) (ret graphql.Marshaler) {
@@ -103204,6 +103719,75 @@ func (ec *executionContext) fieldContext_Flow_updatedAt(_ context.Context, field
 	return graphql.NewScalarFieldContext("Flow", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
+func (ec *executionContext) _FlowTrigger_type(ctx context.Context, field graphql.CollectedField, obj *model.FlowTrigger) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FlowTrigger_type(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Type, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FlowTrigger_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FlowTrigger", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _FlowTrigger_transactional(ctx context.Context, field graphql.CollectedField, obj *model.FlowTrigger) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FlowTrigger_transactional(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Transactional, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FlowTrigger_transactional(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FlowTrigger", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _FlowTrigger_oneTimeLink(ctx context.Context, field graphql.CollectedField, obj *model.FlowTrigger) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FlowTrigger_oneTimeLink(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OneTimeLink, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FlowTrigger_oneTimeLink(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FlowTrigger", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _Fulfillment_id(ctx context.Context, field graphql.CollectedField, obj *model.Fulfillment) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -111497,6 +112081,73 @@ func (ec *executionContext) fieldContext_MediaAsset_url(_ context.Context, field
 	return graphql.NewScalarFieldContext("MediaAsset", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _MediaAsset_thumbnailUrl(ctx context.Context, field graphql.CollectedField, obj *model.MediaAsset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MediaAsset_thumbnailUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.MediaAsset().ThumbnailURL(ctx, obj, fc.Args["width"].(int32))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MediaAsset_thumbnailUrl(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MediaAsset",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_MediaAsset_thumbnailUrl_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MediaAsset_visibility(ctx context.Context, field graphql.CollectedField, obj *model.MediaAsset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MediaAsset_visibility(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Visibility, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.MediaVisibility) graphql.Marshaler {
+			return ec.marshalNMediaVisibility2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaVisibility(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MediaAsset_visibility(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MediaAsset", field, false, false, errors.New("field of type MediaVisibility does not have child fields"))
+}
+
 func (ec *executionContext) _MediaAsset_mimeType(ctx context.Context, field graphql.CollectedField, obj *model.MediaAsset) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -112060,6 +112711,167 @@ func (ec *executionContext) _MediaDirectoryChild_name(ctx context.Context, field
 }
 func (ec *executionContext) fieldContext_MediaDirectoryChild_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("MediaDirectoryChild", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MediaShare_id(ctx context.Context, field graphql.CollectedField, obj *model.MediaShare) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MediaShare_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MediaShare_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MediaShare", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _MediaShare_customerId(ctx context.Context, field graphql.CollectedField, obj *model.MediaShare) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MediaShare_customerId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CustomerID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MediaShare_customerId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MediaShare", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _MediaShare_email(ctx context.Context, field graphql.CollectedField, obj *model.MediaShare) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MediaShare_email(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Email, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MediaShare_email(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MediaShare", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MediaShare_downloadsUsed(ctx context.Context, field graphql.CollectedField, obj *model.MediaShare) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MediaShare_downloadsUsed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DownloadsUsed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MediaShare_downloadsUsed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MediaShare", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MediaShare_maxDownloads(ctx context.Context, field graphql.CollectedField, obj *model.MediaShare) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MediaShare_maxDownloads(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MaxDownloads, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int32) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint32(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MediaShare_maxDownloads(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MediaShare", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MediaShare_expiresAt(ctx context.Context, field graphql.CollectedField, obj *model.MediaShare) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MediaShare_expiresAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ExpiresAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MediaShare_expiresAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MediaShare", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _MediaShare_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.MediaShare) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MediaShare_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MediaShare_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MediaShare", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
 func (ec *executionContext) _Menu_id(ctx context.Context, field graphql.CollectedField, obj *model.Menu) (ret graphql.Marshaler) {
@@ -127719,7 +128531,7 @@ func (ec *executionContext) _Mutation_createMediaDirectory(ctx context.Context, 
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateMediaDirectory(ctx, fc.Args["path"].(string), fc.Args["name"].(string))
+			return ec.Resolvers.Mutation().CreateMediaDirectory(ctx, fc.Args["path"].(string), fc.Args["name"].(string), fc.Args["visibility"].(*model.MediaVisibility))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.MediaDirectoryChild) graphql.Marshaler {
@@ -127895,7 +128707,7 @@ func (ec *executionContext) _Mutation_moveMediaAsset(ctx context.Context, field 
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().MoveMediaAsset(ctx, fc.Args["id"].(string), fc.Args["targetPath"].(string), fc.Args["filename"].(*string))
+			return ec.Resolvers.Mutation().MoveMediaAsset(ctx, fc.Args["id"].(string), fc.Args["targetPath"].(string), fc.Args["filename"].(*string), fc.Args["visibility"].(*model.MediaVisibility))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.MediaAsset) graphql.Marshaler {
@@ -127983,7 +128795,7 @@ func (ec *executionContext) _Mutation_deleteMediaDirectory(ctx context.Context, 
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().DeleteMediaDirectory(ctx, fc.Args["path"].(string), fc.Args["recursive"].(bool))
+			return ec.Resolvers.Mutation().DeleteMediaDirectory(ctx, fc.Args["path"].(string), fc.Args["recursive"].(bool), fc.Args["visibility"].(*model.MediaVisibility))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
@@ -128027,7 +128839,7 @@ func (ec *executionContext) _Mutation_renameMediaDirectory(ctx context.Context, 
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().RenameMediaDirectory(ctx, fc.Args["path"].(string), fc.Args["newName"].(string))
+			return ec.Resolvers.Mutation().RenameMediaDirectory(ctx, fc.Args["path"].(string), fc.Args["newName"].(string), fc.Args["visibility"].(*model.MediaVisibility))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.MediaDirectoryChild) graphql.Marshaler {
@@ -128055,6 +128867,94 @@ func (ec *executionContext) fieldContext_Mutation_renameMediaDirectory(ctx conte
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_renameMediaDirectory_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_shareMediaAsset(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_shareMediaAsset(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ShareMediaAsset(ctx, fc.Args["input"].(model.ShareMediaAssetInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MediaShare) graphql.Marshaler {
+			return ec.marshalNMediaShare2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaShare(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_shareMediaAsset(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MediaShare(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_shareMediaAsset_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_revokeMediaShare(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_revokeMediaShare(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RevokeMediaShare(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_revokeMediaShare(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_revokeMediaShare_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -148811,6 +149711,38 @@ func (ec *executionContext) fieldContext_Query_campaignMergeTags(_ context.Conte
 	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _Query_campaignLimits(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_campaignLimits(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().CampaignLimits(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CampaignLimits) graphql.Marshaler {
+			return ec.marshalNCampaignLimits2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCampaignLimits(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_campaignLimits(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CampaignLimits(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_campaignAudienceEstimate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -150537,6 +151469,50 @@ func (ec *executionContext) fieldContext_Query_cmsPages(ctx context.Context, fie
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_cmsPages_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_cmsPageCount(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_cmsPageCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().CmsPageCount(ctx, fc.Args["filter"].(*model.CMSPageFilter))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_cmsPageCount(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_cmsPageCount_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -152471,27 +153447,36 @@ func (ec *executionContext) fieldContext_Query_flow(ctx context.Context, field g
 	return fc, nil
 }
 
-func (ec *executionContext) _Query_flowTriggerTypes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Query_flowTriggers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Query_flowTriggerTypes(ctx, field)
+			return ec.fieldContext_Query_flowTriggers(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return ec.Resolvers.Query().FlowTriggerTypes(ctx)
+			return ec.Resolvers.Query().FlowTriggers(ctx)
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
-			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.FlowTrigger) graphql.Marshaler {
+			return ec.marshalNFlowTrigger2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐFlowTriggerᚄ(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_Query_flowTriggerTypes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type String does not have child fields"))
+func (ec *executionContext) fieldContext_Query_flowTriggers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_FlowTrigger(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _Query_flowMergeTags(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -153441,7 +154426,7 @@ func (ec *executionContext) _Query_mediaDirectory(ctx context.Context, field gra
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().MediaDirectory(ctx, fc.Args["path"].(string))
+			return ec.Resolvers.Query().MediaDirectory(ctx, fc.Args["path"].(string), fc.Args["visibility"].(*model.MediaVisibility))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.MediaDirectory) graphql.Marshaler {
@@ -153529,7 +154514,7 @@ func (ec *executionContext) _Query_searchMediaAssets(ctx context.Context, field 
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().SearchMediaAssets(ctx, fc.Args["query"].(*string), fc.Args["path"].(*string), fc.Args["mimeGroup"].(*model.MediaMimeGroup), fc.Args["sort"].(*model.MediaAssetSort), fc.Args["limit"].(*int32), fc.Args["offset"].(*int32))
+			return ec.Resolvers.Query().SearchMediaAssets(ctx, fc.Args["query"].(*string), fc.Args["path"].(*string), fc.Args["mimeGroup"].(*model.MediaMimeGroup), fc.Args["sort"].(*model.MediaAssetSort), fc.Args["limit"].(*int32), fc.Args["offset"].(*int32), fc.Args["visibility"].(*model.MediaVisibility))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.MediaAssetSearchResult) graphql.Marshaler {
@@ -153572,7 +154557,8 @@ func (ec *executionContext) _Query_allMediaDirectories(ctx context.Context, fiel
 			return ec.fieldContext_Query_allMediaDirectories(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return ec.Resolvers.Query().AllMediaDirectories(ctx)
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().AllMediaDirectories(ctx, fc.Args["visibility"].(*model.MediaVisibility))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.MediaDirectoryChild) graphql.Marshaler {
@@ -153582,7 +154568,7 @@ func (ec *executionContext) _Query_allMediaDirectories(ctx context.Context, fiel
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_Query_allMediaDirectories(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_allMediaDirectories(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -153592,7 +154578,108 @@ func (ec *executionContext) fieldContext_Query_allMediaDirectories(_ context.Con
 			return ec.childFields_MediaDirectoryChild(ctx, field)
 		},
 	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_allMediaDirectories_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
 	return fc, nil
+}
+
+func (ec *executionContext) _Query_mediaPrivateArea(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_mediaPrivateArea(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().MediaPrivateArea(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_mediaPrivateArea(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Query_mediaAssetShares(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_mediaAssetShares(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().MediaAssetShares(ctx, fc.Args["assetId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.MediaShare) graphql.Marshaler {
+			return ec.marshalNMediaShare2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaShareᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_mediaAssetShares(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MediaShare(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_mediaAssetShares_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_mediaUploadTypes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_mediaUploadTypes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().MediaUploadTypes(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_mediaUploadTypes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _Query_menus(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -185545,7 +186632,7 @@ func (ec *executionContext) unmarshalInputRequestMediaAssetUploadInput(ctx conte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"path", "filename", "mimeType", "sizeBytes", "title", "altText", "caption", "notes"}
+	fieldsInOrder := [...]string{"path", "visibility", "filename", "mimeType", "sizeBytes", "title", "altText", "caption", "notes"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -185559,6 +186646,13 @@ func (ec *executionContext) unmarshalInputRequestMediaAssetUploadInput(ctx conte
 				return it, err
 			}
 			it.Path = data
+		case "visibility":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("visibility"))
+			data, err := ec.unmarshalOMediaVisibility2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaVisibility(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Visibility = data
 		case "filename":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("filename"))
 			data, err := ec.unmarshalNString2string(ctx, v)
@@ -185907,7 +187001,7 @@ func (ec *executionContext) unmarshalInputSaveCampaignInput(ctx context.Context,
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"channelId", "name", "emailId", "subject", "blocks", "styles", "audienceKind", "audienceId", "abEnabled", "abSubjectB", "abTestPercent", "abWinnerMetric", "abTestMinutes"}
+	fieldsInOrder := [...]string{"channelId", "name", "emailId", "subject", "blocks", "styles", "audienceKind", "audienceId", "abEnabled", "abSubjectB", "abTestPercent", "abWinnerMetric", "abTestMinutes", "scheduledFor"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -186005,6 +187099,13 @@ func (ec *executionContext) unmarshalInputSaveCampaignInput(ctx context.Context,
 				return it, err
 			}
 			it.AbTestMinutes = data
+		case "scheduledFor":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("scheduledFor"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ScheduledFor = data
 		}
 	}
 	return it, nil
@@ -187240,6 +188341,57 @@ func (ec *executionContext) unmarshalInputSetSubscriptionTermsInput(ctx context.
 				return it, err
 			}
 			it.TrialDays = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputShareMediaAssetInput(ctx context.Context, obj any) (model.ShareMediaAssetInput, error) {
+	var it model.ShareMediaAssetInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"assetId", "customerId", "maxDownloads", "expiresAt"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "assetId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("assetId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AssetID = data
+		case "customerId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("customerId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CustomerID = data
+		case "maxDownloads":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxDownloads"))
+			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxDownloads = data
+		case "expiresAt":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("expiresAt"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ExpiresAt = data
 		}
 	}
 	return it, nil
@@ -199865,6 +201017,11 @@ func (ec *executionContext) _CMSPageContent(ctx context.Context, sel ast.Selecti
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
+		case "outline":
+			out.Values[i] = ec._CMSPageContent_outline(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "metaTitle":
 			out.Values[i] = ec._CMSPageContent_metaTitle(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
@@ -200747,6 +201904,49 @@ func (ec *executionContext) _CampaignAudienceEstimate(ctx context.Context, sel a
 			}
 		case "eligible":
 			out.Values[i] = ec._CampaignAudienceEstimate_eligible(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var campaignLimitsImplementors = []string{"CampaignLimits"}
+
+func (ec *executionContext) _CampaignLimits(ctx context.Context, sel ast.SelectionSet, obj *model.CampaignLimits) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, campaignLimitsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CampaignLimits")
+		case "abTestPercentMin":
+			out.Values[i] = ec._CampaignLimits_abTestPercentMin(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "abTestPercentMax":
+			out.Values[i] = ec._CampaignLimits_abTestPercentMax(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -207630,6 +208830,54 @@ func (ec *executionContext) _Flow(ctx context.Context, sel ast.SelectionSet, obj
 	return out
 }
 
+var flowTriggerImplementors = []string{"FlowTrigger"}
+
+func (ec *executionContext) _FlowTrigger(ctx context.Context, sel ast.SelectionSet, obj *model.FlowTrigger) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, flowTriggerImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FlowTrigger")
+		case "type":
+			out.Values[i] = ec._FlowTrigger_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "transactional":
+			out.Values[i] = ec._FlowTrigger_transactional(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "oneTimeLink":
+			out.Values[i] = ec._FlowTrigger_oneTimeLink(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var fulfillmentImplementors = []string{"Fulfillment"}
 
 func (ec *executionContext) _Fulfillment(ctx context.Context, sel ast.SelectionSet, obj *model.Fulfillment) graphql.Marshaler {
@@ -211239,97 +212487,140 @@ func (ec *executionContext) _MediaAsset(ctx context.Context, sel ast.SelectionSe
 		case "id":
 			out.Values[i] = ec._MediaAsset_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "path":
 			out.Values[i] = ec._MediaAsset_path(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "directoryPath":
 			out.Values[i] = ec._MediaAsset_directoryPath(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "filename":
 			out.Values[i] = ec._MediaAsset_filename(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "url":
 			out.Values[i] = ec._MediaAsset_url(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "thumbnailUrl":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._MediaAsset_thumbnailUrl(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "visibility":
+			out.Values[i] = ec._MediaAsset_visibility(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "mimeType":
 			out.Values[i] = ec._MediaAsset_mimeType(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "mimeGroup":
 			out.Values[i] = ec._MediaAsset_mimeGroup(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "sizeBytes":
 			out.Values[i] = ec._MediaAsset_sizeBytes(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "width":
 			out.Values[i] = ec._MediaAsset_width(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "height":
 			out.Values[i] = ec._MediaAsset_height(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "status":
 			out.Values[i] = ec._MediaAsset_status(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "focalX":
 			out.Values[i] = ec._MediaAsset_focalX(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "focalY":
 			out.Values[i] = ec._MediaAsset_focalY(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "title":
 			out.Values[i] = ec._MediaAsset_title(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "altText":
 			out.Values[i] = ec._MediaAsset_altText(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "caption":
 			out.Values[i] = ec._MediaAsset_caption(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "notes":
 			out.Values[i] = ec._MediaAsset_notes(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "createdAt":
 			out.Values[i] = ec._MediaAsset_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "updatedAt":
 			out.Values[i] = ec._MediaAsset_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -211472,6 +212763,74 @@ func (ec *executionContext) _MediaDirectoryChild(ctx context.Context, sel ast.Se
 			}
 		case "name":
 			out.Values[i] = ec._MediaDirectoryChild_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var mediaShareImplementors = []string{"MediaShare"}
+
+func (ec *executionContext) _MediaShare(ctx context.Context, sel ast.SelectionSet, obj *model.MediaShare) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mediaShareImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MediaShare")
+		case "id":
+			out.Values[i] = ec._MediaShare_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "customerId":
+			out.Values[i] = ec._MediaShare_customerId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "email":
+			out.Values[i] = ec._MediaShare_email(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "downloadsUsed":
+			out.Values[i] = ec._MediaShare_downloadsUsed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "maxDownloads":
+			out.Values[i] = ec._MediaShare_maxDownloads(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "expiresAt":
+			out.Values[i] = ec._MediaShare_expiresAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._MediaShare_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -214219,6 +215578,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "renameMediaDirectory":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_renameMediaDirectory(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "shareMediaAsset":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_shareMediaAsset(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "revokeMediaShare":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_revokeMediaShare(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -221658,6 +223031,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "campaignLimits":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_campaignLimits(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "campaignAudienceEstimate":
 			field := field
 
@@ -222548,6 +223943,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_cmsPages(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "cmsPageCount":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_cmsPageCount(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -223572,7 +224989,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "flowTriggerTypes":
+		case "flowTriggers":
 			field := field
 
 			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
@@ -223581,7 +224998,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
-				res = ec._Query_flowTriggerTypes(ctx, field)
+				res = ec._Query_flowTriggers(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -224176,6 +225593,72 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_allMediaDirectories(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "mediaPrivateArea":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_mediaPrivateArea(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "mediaAssetShares":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_mediaAssetShares(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "mediaUploadTypes":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_mediaUploadTypes(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -238464,6 +239947,20 @@ func (ec *executionContext) marshalNCampaignAudienceEstimate2ᚖgithubᚗcomᚋs
 	return ec._CampaignAudienceEstimate(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNCampaignLimits2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCampaignLimits(ctx context.Context, sel ast.SelectionSet, v model.CampaignLimits) graphql.Marshaler {
+	return ec._CampaignLimits(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNCampaignLimits2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCampaignLimits(ctx context.Context, sel ast.SelectionSet, v *model.CampaignLimits) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CampaignLimits(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNCampaignVariantStat2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCampaignVariantStatᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CampaignVariantStat) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -240893,6 +242390,32 @@ func (ec *executionContext) marshalNFlow2ᚖgithubᚗcomᚋskeletgᚋskeletᚋap
 	return ec._Flow(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNFlowTrigger2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐFlowTriggerᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.FlowTrigger) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNFlowTrigger2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐFlowTrigger(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNFlowTrigger2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐFlowTrigger(ctx context.Context, sel ast.SelectionSet, v *model.FlowTrigger) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FlowTrigger(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNFulfillment2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐFulfillmentᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Fulfillment) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -242545,6 +244068,46 @@ func (ec *executionContext) unmarshalNMediaMimeGroup2githubᚗcomᚋskeletgᚋsk
 }
 
 func (ec *executionContext) marshalNMediaMimeGroup2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaMimeGroup(ctx context.Context, sel ast.SelectionSet, v model.MediaMimeGroup) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNMediaShare2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaShare(ctx context.Context, sel ast.SelectionSet, v model.MediaShare) graphql.Marshaler {
+	return ec._MediaShare(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMediaShare2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaShareᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.MediaShare) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMediaShare2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaShare(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMediaShare2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaShare(ctx context.Context, sel ast.SelectionSet, v *model.MediaShare) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MediaShare(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMediaVisibility2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaVisibility(ctx context.Context, v any) (model.MediaVisibility, error) {
+	var res model.MediaVisibility
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMediaVisibility2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaVisibility(ctx context.Context, sel ast.SelectionSet, v model.MediaVisibility) graphql.Marshaler {
 	return v
 }
 
@@ -246058,6 +247621,11 @@ func (ec *executionContext) unmarshalNSetSubscriptionTermsInput2githubᚗcomᚋs
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNShareMediaAssetInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐShareMediaAssetInput(ctx context.Context, v any) (model.ShareMediaAssetInput, error) {
+	res, err := ec.unmarshalInputShareMediaAssetInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNShippingBox2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐShippingBox(ctx context.Context, sel ast.SelectionSet, v model.ShippingBox) graphql.Marshaler {
 	return ec._ShippingBox(ctx, sel, &v)
 }
@@ -249535,6 +251103,22 @@ func (ec *executionContext) unmarshalOMediaMimeGroup2ᚖgithubᚗcomᚋskeletg�
 }
 
 func (ec *executionContext) marshalOMediaMimeGroup2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaMimeGroup(ctx context.Context, sel ast.SelectionSet, v *model.MediaMimeGroup) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
+func (ec *executionContext) unmarshalOMediaVisibility2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaVisibility(ctx context.Context, v any) (*model.MediaVisibility, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.MediaVisibility)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOMediaVisibility2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaVisibility(ctx context.Context, sel ast.SelectionSet, v *model.MediaVisibility) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}

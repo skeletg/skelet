@@ -44,7 +44,7 @@ func TestEverySearchSortReachesTheQuery(t *testing.T) {
 	_, ctx := f.admin(t, f.role(t, adminpkg.RolePermissionScopeInput{PermissionSlug: "media.view"}))
 
 	search := func(ctx context.Context, sort *model.MediaAssetSort) ([]string, error) {
-		res, err := r.SearchMediaAssets(ctx, nil, &folder, nil, sort, nil, nil)
+		res, err := r.SearchMediaAssets(ctx, nil, &folder, nil, sort, nil, nil, nil)
 		if err != nil {
 			return nil, err
 		}

@@ -662,9 +662,10 @@ func (q *Queries) ListProductOptionsByProductIDs(ctx context.Context, productIds
 }
 
 const mediaAssetReady = `-- name: MediaAssetReady :one
-SELECT EXISTS (SELECT 1 FROM media_assets WHERE id = $1 AND status = 'ready')
+SELECT EXISTS (SELECT 1 FROM media_assets WHERE id = $1 AND status = 'ready' AND visibility = 'public')
 `
 
+// Public only: a private file has no address for the storefront to show
 func (q *Queries) MediaAssetReady(ctx context.Context, id uuid.UUID) (bool, error) {
 	row := q.db.QueryRowContext(ctx, mediaAssetReady, id)
 	var exists bool

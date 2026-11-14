@@ -13,6 +13,7 @@ import (
 const (
 	audienceAdmin    = "skelet-admin"
 	audienceCustomer = "skelet-customer"
+	audienceDownload = "skelet-admin-download"
 )
 
 type jwtClaims struct {
@@ -23,7 +24,8 @@ type jwtClaims struct {
 	Email       string    `json:"email"`
 	IsSuperuser bool      `json:"is_superuser,omitempty"`
 	Masquerade  bool      `json:"msq,omitempty"`
-	Type        string    `json:"type"` // "admin" | "customer"
+	Type        string    `json:"type"` // "admin" | "customer" | "download"
+	Path        string    `json:"path,omitempty"`
 	jwt.RegisteredClaims
 }
 

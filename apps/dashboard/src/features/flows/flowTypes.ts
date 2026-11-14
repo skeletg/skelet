@@ -98,10 +98,26 @@ export const NODE_LABELS: Record<string, string> = {
 // Node types an operator can add (the trigger is auto-created, one per flow)
 export const ADDABLE_NODES = ['send_email', 'send_sms', 'wait', 'split', 'add_segment', 'webhook'] as const
 
+export const NODE_HINTS: Record<string, string> = {
+  trigger: 'What starts the flow for a customer.',
+  send_email: 'Send an email from the library.',
+  send_sms: 'Text customers who opted in to SMS and have a number on file.',
+  wait: 'Hold the customer here for a set time.',
+  split: 'Send customers down a yes or a no branch.',
+  add_segment: 'Add the customer to a segment.',
+  webhook: 'POST to a URL when a customer gets here.',
+}
+
+export const STEP_GROUPS: Array<{ label: string; steps: Array<(typeof ADDABLE_NODES)[number]> }> = [
+  { label: 'Messages', steps: ['send_email', 'send_sms'] },
+  { label: 'Timing and logic', steps: ['wait', 'split'] },
+  { label: 'Actions', steps: ['add_segment', 'webhook'] },
+]
+
 export function defaultNodeData(type: string): FlowNodeData {
   switch (type) {
     case 'send_email':
-      return { subject: 'Hello {{customer.firstName}}', blocks: [{ type: 'heading', text: 'Hi {{customer.firstName}}' }], styles: {} }
+      return {}
     case 'send_sms':
       return { smsBody: 'Hi {{customer.firstName}}! ' }
     case 'wait':
@@ -144,25 +160,23 @@ export const TRIGGER_HELP: Record<string, string> = {
     'A cart the shopping assistant filled, then left. When a flow on this takes the cart, it goes here instead of the usual abandoned-cart flow, so the shopper gets one reminder, not two.',
 }
 
-// TRANSACTIONAL_TRIGGERS mirror the server's: flows on these deliver receipts / auth links and default to the
-// transactional designation (which bypasses the marketing-consent gate)
-export const TRANSACTIONAL_TRIGGERS = new Set([
-  'order_placed',
-  'order_shipped',
-  'order_cancelled',
-  'payment_refunded',
-  'email_verification',
-  'password_reset',
-  'signup_confirmation',
-  'account_exists',
-  'cart_offer',
-])
+// What the builder used to put in a new send step. Flows saved with it still carry it, and it is nobody's email
+const OLD_PLACEHOLDER = { subject: 'Hello {{customer.firstName}}', blocks: [{ type: 'heading', text: 'Hi {{customer.firstName}}' }] }
+
+export function needsEmail(data: FlowNodeData): boolean {
+  if (data.emailId) return false
+  const blocks = data.blocks ?? []
+  return blocks.length === 0 || (data.subject === OLD_PLACEHOLDER.subject && JSON.stringify(blocks) === JSON.stringify(OLD_PLACEHOLDER.blocks))
+}
+
+export type FlowNames = { emails: Map<string, string>; segments: Map<string, string> }
 
 // nodeSummary is the one-liner shown on the node body in the canvas
-export function nodeSummary(type: string, data: FlowNodeData): string {
+export function nodeSummary(type: string, data: FlowNodeData, names?: FlowNames): string {
   switch (type) {
     case 'send_email':
-      return data.subject || '(no subject)'
+      if (data.emailId) return names?.emails.get(data.emailId) ?? 'An email from the library'
+      return needsEmail(data) ? 'No email picked yet' : data.subject || '(no subject)'
     case 'send_sms':
       return data.smsBody ? data.smsBody.slice(0, 40) : '(empty SMS)'
     case 'wait': {
@@ -174,7 +188,7 @@ export function nodeSummary(type: string, data: FlowNodeData): string {
     case 'split':
       return summarizeCondition(data.condition)
     case 'add_segment':
-      return data.segmentId ? 'segment set' : '(pick a segment)'
+      return data.segmentId ? (names?.segments.get(data.segmentId) ?? 'A segment') : 'No segment picked yet'
     case 'webhook':
       return data.url || '(no URL)'
     default:

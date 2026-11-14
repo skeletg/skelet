@@ -28,6 +28,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/datajob"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/delivery"
+	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/dsar"
 	"github.com/skeletg/skelet/apps/backend/core/internal/embedding"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
@@ -74,6 +75,7 @@ type Resolver struct {
 	AdminSvc          *admin.Service
 	IntegrationSvc    *integration.Service
 	CustomerSvc       *customer.Service
+	DownloadSvc       *download.Service
 	StoreCreditSvc    *storecredit.Service
 	LoyaltySvc        *loyalty.Service
 	QnaSvc            *qna.Service

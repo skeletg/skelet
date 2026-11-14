@@ -13,7 +13,6 @@ import {
 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -43,7 +42,8 @@ import { EmailCanvas, type CanvasItem } from '@/features/email/EmailCanvas'
 import { BlockInspector, type AiRewriteFn } from '@/features/email/BlockInspector'
 import { BlockStyleControls, GlobalStyleControls } from '@/features/email/StyleControls'
 import { RowInspector } from '@/features/email/RowInspector'
-import { FLOATING_PANEL, PANEL_BACKDROP, PANEL_TITLE } from '@/features/email/panel'
+import { PanelHeading, SidePanel } from '@/components/layout/workbench'
+import { WORKBENCH } from '@/components/layout/workbench-styles'
 import { MergeTagMenu } from '@/features/email/MergeTagMenu'
 import { ShortcutsHelp } from '@/features/email/ShortcutsHelp'
 import { insertAtCaret } from '@/features/email/caret'
@@ -548,19 +548,16 @@ function Editor({
   return (
     <DndContext {...dndProps}>
       <DetailPageLayout
-        className={cn('@container/editor', PANEL_BACKDROP)}
+        className={WORKBENCH}
         leftSidebar={<BlockPalette components={components} onAdd={addBlock} />}
         rightSidebar={
           selectedIsRow && selectedBlock ? (
-            <aside className={cn(FLOATING_PANEL, 'ml-0 w-72 @min-[1200px]/editor:w-80')}>
-              <div className="border-b px-4 py-3.5">
-                <h2 className={PANEL_TITLE}>Columns</h2>
-              </div>
+            <SidePanel footer={actionsFooter}>
+              <PanelHeading>Columns</PanelHeading>
               <div className="flex-1 overflow-y-auto p-4">
                 <RowInspector block={selectedBlock} onChange={updateSelected} />
               </div>
-              <div className="shrink-0 border-t p-3">{actionsFooter}</div>
-            </aside>
+            </SidePanel>
           ) : (
             <BlockInspector
               block={selectedBlock}

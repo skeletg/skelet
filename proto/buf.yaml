@@ -8,13 +8,3 @@ lint:
 breaking:
   use:
     - FILE
-  # shortcut: the retired event destinations are deleted outright (core and the suite ship together), drop these once a release has them
-  ignore_only:
-    FILE_NO_DELETE:
-      - skelet/signals/v1/destinations.proto
-    MESSAGE_NO_DELETE:
-      - skelet/signals/v1/maintenance.proto
-    RPC_NO_DELETE:
-      - skelet/signals/v1/maintenance.proto
-    FIELD_NO_DELETE:
-      - skelet/signals/v1/maintenance.proto

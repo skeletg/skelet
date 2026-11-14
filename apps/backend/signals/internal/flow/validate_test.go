@@ -97,7 +97,7 @@ func TestEveryTriggerWeOfferCanBeSaved(t *testing.T) {
 }
 
 func TestAnAssistedCartIsAMarketingTriggerLikeAnyAbandonedCart(t *testing.T) {
-	if !validTrigger(TriggerAssistedCartAbandoned) || transactionalTrigger(TriggerAssistedCartAbandoned) || transactionalTrigger(TriggerCartAbandoned) {
+	if !validTrigger(TriggerAssistedCartAbandoned) || signalsapi.CanBeTransactional(TriggerAssistedCartAbandoned) || signalsapi.CanBeTransactional(TriggerCartAbandoned) {
 		t.Error("the assistant's abandoned cart must save like cart_abandoned and stay marketing, under consent and suppression")
 	}
 }

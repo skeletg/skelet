@@ -108,5 +108,5 @@ jobs:
               echo "@skelet/$name@$version is already on npm"
               continue
             fi
-            npm publish "npm-dist/skelet-$name-$version.tgz" --access public "${channel[@]}"
+            npm publish "./npm-dist/skelet-$name-$version.tgz" --access public "${channel[@]}"
           done

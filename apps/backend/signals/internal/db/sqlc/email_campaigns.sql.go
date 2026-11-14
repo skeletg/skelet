@@ -156,9 +156,9 @@ func (q *Queries) ClaimDueCampaigns(ctx context.Context, lim int32) ([]EmailCamp
 
 const createEmailCampaign = `-- name: CreateEmailCampaign :one
 INSERT INTO email_campaigns (channel_id, name, subject, blocks, styles, audience_kind, audience_id, email_id,
-    ab_enabled, ab_subject_b, ab_test_percent, ab_winner_metric, ab_test_minutes)
+    ab_enabled, ab_subject_b, ab_test_percent, ab_winner_metric, ab_test_minutes, scheduled_for)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
-    $9, $10, $11, $12, $13)
+    $9, $10, $11, $12, $13, $14)
 RETURNING id, channel_id, name, subject, blocks, styles, audience_kind, audience_id, status, scheduled_for, sent_at, total_recipients, sent_count, failed_count, skipped_count, created_at, updated_at, email_id, opened_count, clicked_count, ab_enabled, ab_subject_b, ab_test_percent, ab_winner_metric, ab_test_minutes, ab_winner, ab_test_started_at, deleted_at, materialized_at
 `
 
@@ -176,6 +176,7 @@ type CreateEmailCampaignParams struct {
 	AbTestPercent  int32           `json:"ab_test_percent"`
 	AbWinnerMetric string          `json:"ab_winner_metric"`
 	AbTestMinutes  int32           `json:"ab_test_minutes"`
+	ScheduledFor   sql.NullTime    `json:"scheduled_for"`
 }
 
 func (q *Queries) CreateEmailCampaign(ctx context.Context, arg CreateEmailCampaignParams) (EmailCampaign, error) {
@@ -193,6 +194,7 @@ func (q *Queries) CreateEmailCampaign(ctx context.Context, arg CreateEmailCampai
 		arg.AbTestPercent,
 		arg.AbWinnerMetric,
 		arg.AbTestMinutes,
+		arg.ScheduledFor,
 	)
 	var i EmailCampaign
 	err := row.Scan(
@@ -892,8 +894,8 @@ SET name = $1, subject = $2, blocks = $3,
     audience_id = $6, email_id = $7,
     ab_enabled = $8, ab_subject_b = $9,
     ab_test_percent = $10, ab_winner_metric = $11,
-    ab_test_minutes = $12, updated_at = NOW()
-WHERE id = $13 AND status = 'draft'
+    ab_test_minutes = $12, scheduled_for = $13, updated_at = NOW()
+WHERE id = $14 AND status = 'draft'
 `
 
 type UpdateEmailCampaignParams struct {
@@ -909,10 +911,11 @@ type UpdateEmailCampaignParams struct {
 	AbTestPercent  int32           `json:"ab_test_percent"`
 	AbWinnerMetric string          `json:"ab_winner_metric"`
 	AbTestMinutes  int32           `json:"ab_test_minutes"`
+	ScheduledFor   sql.NullTime    `json:"scheduled_for"`
 	ID             uuid.UUID       `json:"id"`
 }
 
-// Only drafts are editable
+// Only drafts are editable. A draft's scheduled_for is a plan - the pipeline claims status = 'scheduled' alone
 func (q *Queries) UpdateEmailCampaign(ctx context.Context, arg UpdateEmailCampaignParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateEmailCampaign,
 		arg.Name,
@@ -927,6 +930,7 @@ func (q *Queries) UpdateEmailCampaign(ctx context.Context, arg UpdateEmailCampai
 		arg.AbTestPercent,
 		arg.AbWinnerMetric,
 		arg.AbTestMinutes,
+		arg.ScheduledFor,
 		arg.ID,
 	)
 	if err != nil {

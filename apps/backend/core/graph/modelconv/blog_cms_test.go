@@ -144,3 +144,15 @@ func TestBlogPostChannelListingsKeepTheirFlags(t *testing.T) { // SEONoindex per
 		t.Errorf("listing = %+v, want the flags carried through", got[0])
 	}
 }
+
+func TestCMSPageContentOutlineIsNeverNull(t *testing.T) { // the schema field is non-null, and a page written as plain rich text has no blocks to list
+	built := CMSPageContentModel(cms.PageContent{Locale: "en", Body: json.RawMessage(`{"version":1,"blocks":[{"id":"a","type":"hero"},{"id":"b","type":"rich_text"}]}`)})
+	if got := built.Outline; len(got) != 2 || got[0] != "hero" || got[1] != "rich_text" {
+		t.Errorf("outline %v", got)
+	}
+	for _, body := range []string{``, `{"root":{}}`} {
+		if got := CMSPageContentModel(cms.PageContent{Locale: "en", Body: json.RawMessage(body)}).Outline; got == nil || len(got) != 0 {
+			t.Errorf("body %q: outline %#v, want an empty list", body, got)
+		}
+	}
+}

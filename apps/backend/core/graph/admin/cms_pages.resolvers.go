@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
@@ -405,39 +404,11 @@ func (r *queryResolver) CmsPages(ctx context.Context, filter *model.CMSPageFilte
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.view"); err != nil {
 		return nil, err
 	}
-	f := cms.PageListFilter{
-		OnlyPublished: true,
-		Limit:         intDeref(limit, cms.DefaultPageListLimit),
-		Offset:        intDeref(offset, 0),
+	f, err := cmsPageListFilter(filter)
+	if err != nil {
+		return nil, err
 	}
-	if filter != nil {
-		if filter.OnlyPublished != nil {
-			f.OnlyPublished = *filter.OnlyPublished
-		}
-		if v, err := parseUUIDOpt(filter.PageTypeID); err != nil {
-			return nil, err
-		} else {
-			f.PageTypeID = v
-		}
-		if v, err := parseUUIDOpt(filter.ParentID); err != nil {
-			return nil, err
-		} else {
-			f.ParentID = v
-		}
-		if v, err := parseUUIDOpt(filter.ChannelID); err != nil {
-			return nil, err
-		} else {
-			f.ChannelID = v
-		}
-		if filter.WorkflowState != nil {
-			// GraphQL enum is UPPER (IN_REVIEW); domain state is lower_snake.
-			s := strings.ToLower(string(*filter.WorkflowState))
-			f.WorkflowState = &s
-		}
-		if filter.Search != nil {
-			f.Search = strings.TrimSpace(*filter.Search)
-		}
-	}
+	f.Limit, f.Offset = intDeref(limit, cms.DefaultPageListLimit), intDeref(offset, 0)
 	pages, err := r.CMSSvc.ListPages(ctx, f, r.activeLocale(ctx))
 	if err != nil {
 		return nil, err
@@ -450,4 +421,19 @@ func (r *queryResolver) CmsPages(ctx context.Context, filter *model.CMSPageFilte
 		out[i] = toCMSPageModel(p)
 	}
 	return out, r.visiblePageListings(ctx, out...)
+}
+
+func (r *queryResolver) CmsPageCount(ctx context.Context, filter *model.CMSPageFilter) (int32, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.view"); err != nil {
+		return 0, err
+	}
+	f, err := cmsPageListFilter(filter)
+	if err != nil {
+		return 0, err
+	}
+	n, err := r.CMSSvc.CountPages(ctx, f, r.activeLocale(ctx))
+	if err != nil {
+		return 0, err
+	}
+	return int32(n), nil
 }

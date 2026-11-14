@@ -46,7 +46,7 @@ export type MyDataExportQuery = { myDataExport: string };
 export type MyDownloadsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type MyDownloadsQuery = { myDownloads: Array<{ id: string, title: string, productId: string, downloadUrl: string, downloadsUsed: number, maxDownloads: number | null, expiresAt: string | null, createdAt: string }> };
+export type MyDownloadsQuery = { myDownloads: Array<{ id: string, title: string, productId: string | null, downloadUrl: string, downloadsUsed: number, maxDownloads: number | null, expiresAt: string | null, createdAt: string }> };
 
 export type MySubscriptionsQueryVariables = Exact<{ [key: string]: never; }>;
 

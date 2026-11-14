@@ -12,3 +12,6 @@ d6c20f0f98d1b0f868dcfd65ab5657a04d15896b:env/garage.toml:generic-api-key:20
 
 # The Mixpanel replay test's placeholder token (0123..cdef), removed with Mixpanel, reviewed 2026-11-05
 e528836663ffd826b7ad70eb4acfc634379bbfb7:apps/channels/vetrina-demo/app/lib/analytics/mixpanel.test.ts:generic-api-key:5
+
+# The private store test's filesystem signing key, a fixture - reviewed 2026-11-14
+e97ed2776f3b75ad10ad77cddc54203868071010:apps/backend/core/internal/wiring/private_storage_test.go:generic-api-key:22

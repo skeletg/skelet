@@ -39,6 +39,8 @@ type pageStore interface {
 	ListPageVariantContent(ctx context.Context, pageID uuid.UUID, locale string) ([]PageVariant, error)
 	ListPages(ctx context.Context, filter PageListFilter) ([]Page, error)
 	ListPagesSearch(ctx context.Context, filter PageListFilter, locale, query string) ([]Page, error)
+	CountPages(ctx context.Context, filter PageListFilter) (int64, error)
+	CountPagesSearch(ctx context.Context, filter PageListFilter, locale, query string) (int64, error)
 	ListRevisions(ctx context.Context, pageID uuid.UUID, locale string, limit int32) ([]PageRevision, error)
 	PageInAncestry(ctx context.Context, pageID, candidate uuid.UUID, maxDepth int32) (bool, int32, error)
 	PageSlugExists(ctx context.Context, slug string) (bool, error)
@@ -310,13 +312,29 @@ func (s *pageService) GetPageByURLPath(ctx context.Context, urlPath, locale stri
 	return s.localized(ctx, locale)(s.repo.GetPageByURLPath(ctx, urlPath))
 }
 
-func (s *pageService) ListPages(ctx context.Context, filter PageListFilter, locale string) ([]Page, error) {
-	// Full-text search needs a concrete locale to join content against, so fall back to the default when the caller didn't supply one
+// searchLocaleFor is the locale a full-text search joins content against: the caller's, or the default when it gave none
+func (s *pageService) searchLocaleFor(ctx context.Context, locale string) string {
+	if locale != "" {
+		return locale
+	}
+	return s.resolveDefaultLocale(ctx)
+}
+
+// CountPages is how many pages ListPages would return for the filter in all, whatever its limit and offset
+func (s *pageService) CountPages(ctx context.Context, filter PageListFilter, locale string) (int64, error) {
 	if q := strings.TrimSpace(filter.Search); q != "" {
-		searchLocale := locale
+		searchLocale := s.searchLocaleFor(ctx, locale)
 		if searchLocale == "" {
-			searchLocale = s.resolveDefaultLocale(ctx)
+			return 0, nil
 		}
+		return s.repo.CountPagesSearch(ctx, filter, searchLocale, q)
+	}
+	return s.repo.CountPages(ctx, filter)
+}
+
+func (s *pageService) ListPages(ctx context.Context, filter PageListFilter, locale string) ([]Page, error) {
+	if q := strings.TrimSpace(filter.Search); q != "" {
+		searchLocale := s.searchLocaleFor(ctx, locale)
 		if searchLocale == "" {
 			return []Page{}, nil
 		}

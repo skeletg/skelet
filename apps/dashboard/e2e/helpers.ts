@@ -305,13 +305,21 @@ export async function navigate(page: Page, href: string, title: string) {
   if (await link.isVisible().catch(() => false)) {
     await link.click()
   } else {
-    await page.keyboard.press('Control+k')
-    const input = page.getByPlaceholder('Search pages and settings…')
-    await expect(input).toBeVisible()
-    await input.fill(title)
-    await page.locator('[role=option]', { hasText: title }).first().click()
+    await jumpTo(page, title)
   }
   await expect(page.locator(`[role=tab]:has-text("${title}")`).first()).toBeVisible()
+}
+
+/**
+ * Opens a page through the search palette. The field is found by its role and the row by its exact title: the
+ * placeholder is copy that has changed before, and the palette lists orders, customers and products above the pages
+ */
+export async function jumpTo(page: Page, title: string) {
+  await page.keyboard.press('Control+k')
+  const input = page.getByRole('dialog').getByRole('combobox')
+  await expect(input).toBeVisible()
+  await input.fill(title)
+  await page.getByRole('option').filter({ has: page.getByText(title, { exact: true }) }).first().click()
 }
 
 /** The split dividers are the only separators that span the whole workspace */

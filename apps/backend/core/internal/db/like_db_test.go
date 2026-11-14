@@ -42,10 +42,10 @@ func objectKeys(rows []sqlc.MediaAsset, root string) []string {
 func TestAFolderDeleteSparesItsWildcardTwin(t *testing.T) {
 	q, root := mediaRig(t, "a_b/one.png", "a_b/deep/two.png", "axb/three.png")
 	ctx := context.Background()
-	if err := q.DeleteMediaAssetsByDirectoryPrefix(ctx, root+"a_b/"); err != nil {
+	if err := q.DeleteMediaAssetsByDirectoryPrefix(ctx, sqlc.DeleteMediaAssetsByDirectoryPrefixParams{Column1: root + "a_b/", Visibility: "public"}); err != nil {
 		t.Fatal(err)
 	}
-	left, err := q.ListMediaAssetsByPathRecursive(ctx, root)
+	left, err := q.ListMediaAssetsByPathRecursive(ctx, sqlc.ListMediaAssetsByPathRecursiveParams{Column1: root, Visibility: "public"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,14 +57,14 @@ func TestAFolderDeleteSparesItsWildcardTwin(t *testing.T) {
 func TestAFolderListsOnlyItsOwnFiles(t *testing.T) {
 	q, root := mediaRig(t, "a_b/one.png", "a_b/deep/two.png", "axb/three.png", "top.png")
 	ctx := context.Background()
-	rows, err := q.ListMediaAssetsByDirectory(ctx, root+"a_b/")
+	rows, err := q.ListMediaAssetsByDirectory(ctx, sqlc.ListMediaAssetsByDirectoryParams{Column1: root + "a_b/", Visibility: "public"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got := objectKeys(rows, root); !slices.Equal(got, []string{"a_b/one.png"}) {
 		t.Fatalf("a_b/ listed %v", got)
 	}
-	if rows, err = q.ListMediaAssetsByDirectory(ctx, root); err != nil {
+	if rows, err = q.ListMediaAssetsByDirectory(ctx, sqlc.ListMediaAssetsByDirectoryParams{Column1: root, Visibility: "public"}); err != nil {
 		t.Fatal(err)
 	}
 	if got := objectKeys(rows, root); !slices.Equal(got, []string{"top.png"}) {
@@ -76,7 +76,7 @@ func TestATypedWildcardMatchesItself(t *testing.T) {
 	q, root := mediaRig(t, "50%-off.png", "500-off.png", "a_b.png", "axb.png")
 	ctx := context.Background()
 	for term, want := range map[string][]string{"50%": {"50%-off.png"}, "a_b": {"a_b.png"}, "off": {"50%-off.png", "500-off.png"}} {
-		rows, err := q.SearchMediaAssets(ctx, sqlc.SearchMediaAssetsParams{Column1: root, Column3: term, Limit: 10})
+		rows, err := q.SearchMediaAssets(ctx, sqlc.SearchMediaAssetsParams{Column1: root, Column3: term, Limit: 10, Visibility: "public"})
 		if err != nil {
 			t.Fatal(err)
 		}

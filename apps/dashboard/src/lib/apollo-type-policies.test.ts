@@ -135,3 +135,47 @@ describe('an order address in the cache', () => {
     })
   })
 })
+
+describe("a CMS page's content in the cache", () => {
+  const EDITOR = gql`
+    query Editor {
+      cmsPage(id: "p1") {
+        id
+        content {
+          locale
+          title
+          body
+        }
+      }
+    }
+  `
+  const LIST = gql`
+    query List {
+      cmsPage(id: "p1") {
+        id
+        content {
+          locale
+          title
+        }
+      }
+    }
+  `
+  const page = (content: object | null) => ({ cmsPage: { __typename: 'CMSPage', id: 'p1', content: content && { __typename: 'CMSPageContent', ...content } } })
+  const read = (cache: InMemoryCache) => cache.readQuery<{ cmsPage: { content: object | null } }>({ query: EDITOR })?.cmsPage.content
+
+  it('keeps the body a list did not select', () => {
+    const cache = new InMemoryCache({ typePolicies })
+    cache.writeQuery({ query: EDITOR, data: page({ locale: 'en', title: 'About', body: { blocks: [] } }) })
+    cache.writeQuery({ query: LIST, data: page({ locale: 'en', title: 'About us' }) })
+    expect(read(cache)).toEqual({ __typename: 'CMSPageContent', locale: 'en', title: 'About us', body: { blocks: [] } })
+  })
+
+  it("doesn't lend one locale's body to another", () => {
+    const cache = new InMemoryCache({ typePolicies })
+    cache.writeQuery({ query: EDITOR, data: page({ locale: 'en', title: 'About', body: { blocks: [] } }) })
+    cache.writeQuery({ query: LIST, data: page({ locale: 'sr', title: 'O nama' }) })
+    expect(read(cache)).toBeUndefined()
+    cache.writeQuery({ query: LIST, data: page(null) })
+    expect(cache.readQuery<{ cmsPage: { content: object | null } }>({ query: LIST })?.cmsPage.content).toBeNull()
+  })
+})

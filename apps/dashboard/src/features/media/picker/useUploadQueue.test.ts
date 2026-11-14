@@ -33,7 +33,7 @@ afterEach(() => vi.clearAllMocks())
 describe('useUploadQueue', () => {
   it('uploads into its folder and tracks each file on its own', async () => {
     const { pending, onUploaded, hook } = rig()
-    expect(useMediaUpload).toHaveBeenCalledWith('option-pictures')
+    expect(useMediaUpload).toHaveBeenCalledWith('option-pictures', undefined)
     let done: Promise<void> = Promise.resolve()
     act(() => {
       done = hook.result.current.add([png('a.png'), png('b.png')], onlyPictures)
@@ -52,6 +52,11 @@ describe('useUploadQueue', () => {
     expect(hook.result.current.items.map((i) => [i.status, i.progress, i.assetId])).toEqual([['done', 1, 'm-a'], ['done', 1, 'm-b']])
     expect(hook.result.current.busy).toBe(false)
     expect(onUploaded).toHaveBeenCalledExactlyOnceWith(['m-a', 'm-b'])
+  })
+
+  it('uploads into the half of the library it was given', () => {
+    renderHook(() => useUploadQueue('contracts', vi.fn(), 'PRIVATE'))
+    expect(useMediaUpload).toHaveBeenLastCalledWith('contracts', 'PRIVATE')
   })
 
   it('keeps a refused file as an error and never uploads it', async () => {

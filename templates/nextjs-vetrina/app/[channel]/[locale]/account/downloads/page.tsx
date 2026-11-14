@@ -25,7 +25,7 @@ export async function generateMetadata({
 type DownloadGrant = {
   id: string;
   title: string;
-  productId: string;
+  productId: string | null;
   downloadUrl: string;
   downloadsUsed: number;
   maxDownloads: number | null;

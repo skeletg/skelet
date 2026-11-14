@@ -1,3 +1,4 @@
+import { downloadWithSession } from '@/lib/authed-download'
 import { getAccessToken } from '@/shared/auth/auth'
 
 // Files move over plain HTTP rather than GraphQL - a 200MB CSV has no business being a base64 string in a
@@ -37,33 +38,12 @@ export async function uploadImport(req: ImportRequest): Promise<{ id: string; st
   return res.json()
 }
 
-// Fetched rather than linked so the auth header rides along - the artifact routes are permission-gated,
-// not presigned, so an anchor href would arrive unauthenticated
-async function saveAs(url: string, fallbackName: string) {
-  const res = await fetch(url, { headers: authHeaders() })
-  if (!res.ok) throw new Error((await res.text()).trim() || `download failed (${res.status})`)
-  const blob = await res.blob()
-  const name = filenameFrom(res.headers.get('content-disposition')) ?? fallbackName
-  const href = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = href
-  a.download = name
-  a.click()
-  // Revoking immediately cancels the download in Safari - one tick is enough for the click to take
-  setTimeout(() => URL.revokeObjectURL(href), 0)
-}
-
-function filenameFrom(header: string | null): string | null {
-  const match = header?.match(/filename="([^"]+)"/)
-  return match ? match[1] : null
-}
-
 export function downloadJobArtifact(jobId: string, filename: string) {
-  return saveAs(`${BASE}/jobs/${jobId}/download`, filename)
+  return downloadWithSession(`${BASE}/jobs/${jobId}/download`, filename)
 }
 
 export function downloadTemplate(resource: string, format: string, extension: string) {
-  return saveAs(
+  return downloadWithSession(
     `${BASE}/template?resource=${encodeURIComponent(resource)}&format=${encodeURIComponent(format)}`,
     `${resource}-template.${extension}`,
   )

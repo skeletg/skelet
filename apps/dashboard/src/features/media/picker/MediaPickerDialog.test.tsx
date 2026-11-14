@@ -3,7 +3,7 @@ import type { MockLink } from '@apollo/client/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { SLOW, meMock, renderDialog } from '@/test/page-harness'
-import { AllMediaDirectoriesDocument, CreateMediaDirectoryDocument, MediaAssetByIdDocument, SearchMediaAssetsDocument } from '../MediaLibrary.gql'
+import { AllMediaDirectoriesDocument, CreateMediaDirectoryDocument, MediaAiStatusDocument, MediaAssetByIdDocument, SearchMediaAssetsDocument } from '../MediaLibrary.gql'
 import { MediaPickerDialog } from './MediaPickerDialog'
 
 // What these pin: search, sort and folder reach the query, a click picks and Use hands it back, several pick in order
@@ -25,7 +25,7 @@ afterEach(() => localStorage.clear())
 
 type Asset = ReturnType<typeof asset>
 const asset = (id: string, filename: string, over: object = {}) => ({
-  __typename: 'MediaAsset' as const, id, path: `promo/${filename}`, directoryPath: 'promo', filename, url: `https://cdn/${filename}`,
+  __typename: 'MediaAsset' as const, id, path: `promo/${filename}`, directoryPath: 'promo', filename, url: `https://cdn/${filename}`, thumbnailUrl: `https://cdn/${filename}`, visibility: 'PUBLIC' as const,
   mimeType: 'image/png', mimeGroup: 'IMAGE' as 'IMAGE' | 'DOCUMENT', sizeBytes: 2048, width: 40, height: 40, status: 'READY' as 'READY' | 'PENDING',
   title: '', altText: '', caption: '', notes: '', focalX: null, focalY: null, createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z',
   ...over,
@@ -74,6 +74,7 @@ function rig({
     [
       me,
       { request: { query: AllMediaDirectoriesDocument }, result: { data: { allMediaDirectories: dirs } }, maxUsageCount: 10 },
+      { request: { query: MediaAiStatusDocument }, result: { data: { aiStatus: { __typename: 'AiStatus' as const, enabled: false } } }, maxUsageCount: 50 },
       { request: { query: SearchMediaAssetsDocument, variables: () => true }, result: serve, maxUsageCount: 40 },
       ...mocks,
     ],
@@ -240,6 +241,7 @@ describe('media picker', () => {
       [
         meMock(),
         { request: { query: AllMediaDirectoriesDocument }, result: { data: { allMediaDirectories: [] } }, maxUsageCount: 5 },
+        { request: { query: MediaAiStatusDocument }, result: { data: { aiStatus: { __typename: 'AiStatus' as const, enabled: false } } }, maxUsageCount: 50 },
         {
           request: { query: SearchMediaAssetsDocument, variables: () => true },
           result: { data: { searchMediaAssets: { __typename: 'MediaAssetSearchResult', totalCount: 1, items: [red] } } },

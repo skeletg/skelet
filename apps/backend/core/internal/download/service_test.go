@@ -1,6 +1,7 @@
 package download
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -68,6 +69,32 @@ func TestNewToken_UniqueAndURLSafe(t *testing.T) {
 			if !ok {
 				t.Fatalf("token %q has non-URL-safe char %q", tok, c)
 			}
+		}
+	}
+}
+
+func TestASharedFilesTitleStaysOutOfTheWebhook(t *testing.T) {
+	asset, product := uuid.New(), uuid.New()
+	for name, tc := range map[string]struct {
+		ev    *Accessed
+		title string
+	}{
+		"shared": {&Accessed{GrantID: uuid.New(), AssetID: &asset, Title: "Price list - do not forward"}, ""},
+		"bought": {&Accessed{GrantID: uuid.New(), ProductID: &product, Title: "Manual"}, "Manual"},
+	} {
+		body, err := json.Marshal(tc.ev)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got map[string]any
+		if err := json.Unmarshal(body, &got); err != nil {
+			t.Fatal(err)
+		}
+		if got["Title"] != tc.title {
+			t.Errorf("%s: the webhook carries the title %q, want %q", name, got["Title"], tc.title)
+		}
+		if tc.ev.Title == "" {
+			t.Errorf("%s: marshalling changed the event itself", name)
 		}
 	}
 }

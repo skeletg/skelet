@@ -18,6 +18,16 @@ query LibraryEmails($channelId: ID!, $groupSlug: String) {
   }
 }
 
+# What a picker lists an email by - the content stays behind until one is chosen
+query LibraryEmailNames($channelId: ID!) {
+  libraryEmails(channelId: $channelId) {
+    id
+    name
+    subject
+    preheader
+  }
+}
+
 query LibraryEmail($id: ID!) {
   libraryEmail(id: $id) {
     ...LibraryEmailFields

@@ -336,3 +336,22 @@ func TestStorageFilesystemDriver(t *testing.T) {
 		t.Errorf("no STORAGE_UPLOAD_URL warns once, got %v", warns)
 	}
 }
+
+func TestPrivateStorage(t *testing.T) {
+	s3 := map[string]string{"S3_BUCKET_NAME": "media"}
+	if errs, _ := PrivateStorage(envMap(s3)); len(errs) != 1 || !strings.Contains(errs[0], "PRIVATE_S3_BUCKET") {
+		t.Fatalf("no private store: errs=%v, want production refused, naming the variable", errs)
+	}
+	s3["PRIVATE_S3_BUCKET"] = "vault"
+	if errs, warns := PrivateStorage(envMap(s3)); len(errs) != 0 || len(warns) != 0 {
+		t.Fatalf("a private bucket of its own: errs=%v warns=%v", errs, warns)
+	}
+	s3["PRIVATE_S3_BUCKET"] = "media"
+	if errs, _ := PrivateStorage(envMap(s3)); len(errs) != 1 {
+		t.Errorf("the media bucket named as the private one: errs=%v, want it refused", errs)
+	}
+	disk := map[string]string{"STORAGE_DRIVER": "filesystem", "STORAGE_DIR": "/data/media", "PRIVATE_STORAGE_DIR": "/data/media/private"}
+	if errs, _ := PrivateStorage(envMap(disk)); len(errs) != 1 {
+		t.Errorf("a private directory inside the served one: errs=%v, want it refused", errs)
+	}
+}

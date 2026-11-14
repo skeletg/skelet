@@ -211,7 +211,7 @@ func init() {
 		Type:        download.EventAccessed,
 		Kind:        KindAsync,
 		Name:        "Download Accessed",
-		Description: "Fires when a buyer redeems a download token (a file is served).",
+		Description: "Fires when a download link is redeemed and the file is served - one a customer bought (ProductID set) or one the shop shared with them from the media library (AssetID set, ProductID null).",
 	})
 
 	// Catalog product CRUD

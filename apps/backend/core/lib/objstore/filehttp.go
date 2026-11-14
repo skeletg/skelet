@@ -39,9 +39,10 @@ func (s *FileStore) PresignUpload(_ context.Context, key, contentType string, si
 	return s.cfg.PresignEndpoint + "/" + escapeKey(key) + "?t=" + payload + "." + s.sign(payload), nil
 }
 
+// The upload address is part of what's signed, so a link issued for one store's route is refused on another's
 func (s *FileStore) sign(payload string) string {
 	m := hmac.New(sha256.New, []byte(s.cfg.SigningKey))
-	m.Write([]byte("objstore-upload\x00" + payload))
+	m.Write([]byte("objstore-upload\x00" + s.cfg.PresignEndpoint + "\x00" + payload))
 	return base64.RawURLEncoding.EncodeToString(m.Sum(nil))
 }
 
@@ -76,6 +77,21 @@ func (s *FileStore) Handler() http.Handler {
 			s.serveUpload(w, r, key)
 		default:
 			w.Header().Set("Allow", "GET, HEAD, PUT")
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+}
+
+func (s *FileStore) UploadHandler(prefix string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		key, ok := strings.CutPrefix(r.URL.Path, prefix)
+		switch {
+		case !ok:
+			http.NotFound(w, r)
+		case r.Method == http.MethodPut:
+			s.serveUpload(w, r, key)
+		default:
+			w.Header().Set("Allow", http.MethodPut)
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
 	})

@@ -19,10 +19,15 @@ func (r *queryResolver) MyDownloads(ctx context.Context) ([]*model.DownloadGrant
 	}
 	out := make([]*model.DownloadGrant, len(grants))
 	for i, g := range grants {
+		var productID *string
+		if g.AssetID == nil {
+			id := g.ProductID.String()
+			productID = &id
+		}
 		out[i] = &model.DownloadGrant{
 			ID:            g.ID.String(),
 			Title:         g.Title,
-			ProductID:     g.ProductID.String(),
+			ProductID:     productID,
 			DownloadURL:   "/download/" + g.Token,
 			DownloadsUsed: g.DownloadsUsed,
 			MaxDownloads:  g.MaxDownloads,
