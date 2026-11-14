@@ -3,7 +3,8 @@ import { MockedProvider } from '@apollo/client/testing/react'
 import { describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { MediaPicker, MediaPickerButton } from './MediaPicker'
-import { MediaAssetByIdDocument, SearchMediaAssetsDocument } from '@/features/media/MediaLibrary.gql'
+import { AllMediaDirectoriesDocument, MediaAiStatusDocument, MediaAssetByIdDocument, SearchMediaAssetsDocument } from '@/features/media/MediaLibrary.gql'
+import { meMock } from '@/test/page-harness'
 import { MediaPickerAssetDocument } from './MediaPicker.gql'
 
 // What this pins: both pickers browse through the shared media picker - the card hands back the asset's id once
@@ -21,11 +22,13 @@ const search = {
   result: { data: { searchMediaAssets: { __typename: 'MediaAssetSearchResult', totalCount: 1, items: [asset] } } },
   maxUsageCount: 5,
 }
+const ai = { request: { query: MediaAiStatusDocument }, result: { data: { aiStatus: { __typename: 'AiStatus' as const, enabled: false } } }, maxUsageCount: 50 }
+const asks = [ai, meMock(), { request: { query: AllMediaDirectoriesDocument, variables: () => true }, result: { data: { allMediaDirectories: [] } }, maxUsageCount: 20 }]
 
 describe('MediaPicker', () => {
   it('browses the library and hands back the picked asset id', async () => {
     const onChange = vi.fn()
-    render(<MemoryRouter><MockedProvider mocks={[search]}><MediaPicker value={null} onChange={onChange} /></MockedProvider></MemoryRouter>)
+    render(<MemoryRouter><MockedProvider mocks={[search, ...asks]}><MediaPicker value={null} onChange={onChange} /></MockedProvider></MemoryRouter>)
     fireEvent.click(screen.getByRole('button', { name: /Browse/ }))
     fireEvent.click(await screen.findByRole('option', { name: /Sale sticker/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Use picture' }))
@@ -34,7 +37,7 @@ describe('MediaPicker', () => {
 
   it('hands the email builder the picked url', async () => {
     const onPick = vi.fn()
-    render(<MemoryRouter><MockedProvider mocks={[search]}><MediaPickerButton onPick={onPick} /></MockedProvider></MemoryRouter>)
+    render(<MemoryRouter><MockedProvider mocks={[search, ...asks]}><MediaPickerButton onPick={onPick} /></MockedProvider></MemoryRouter>)
     fireEvent.click(screen.getByRole('button', { name: /Library/ }))
     fireEvent.doubleClick(await screen.findByRole('option', { name: /Sale sticker/ }))
     expect(onPick).toHaveBeenCalledWith('https://cdn/sticker.png')
@@ -44,6 +47,7 @@ describe('MediaPicker', () => {
     const onChange = vi.fn()
     const mocks = [
       search,
+      ...asks,
       { request: { query: MediaPickerAssetDocument, variables: { id: 'a1' } }, result: { data: { mediaAsset: { __typename: 'MediaAsset', id: 'a1', url: asset.url, filename: asset.filename, title: asset.title, altText: '' } } } },
       { request: { query: MediaAssetByIdDocument, variables: { id: 'a1' } }, result: { data: { mediaAsset: asset } } },
     ]
