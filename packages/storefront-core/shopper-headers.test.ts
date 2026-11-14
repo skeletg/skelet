@@ -21,7 +21,7 @@ let inbound: Headers | Error = new Headers();
 let jar: Map<string, string> | Error = new Map();
 
 const { shopperHeaders } = await import("./shopper-headers");
-const { clientIP } = await import("./client-ip");
+const { clientIP, forwardedClient } = await import("./client-ip");
 
 beforeEach(() => {
   inbound = new Headers();
@@ -33,6 +33,23 @@ describe("clientIP", () => {
     expect(clientIP(new Headers({ "x-forwarded-for": "203.0.113.7, 172.18.0.5" }))).toBe("203.0.113.7, 172.18.0.5");
     expect(clientIP(new Headers({ "x-real-ip": "203.0.113.9" }))).toBe("203.0.113.9");
     expect(clientIP(new Headers())).toBe("");
+  });
+});
+
+describe("forwardedClient", () => {
+  it("sends the chain alone without a key, for a backend that trusts this server by address", () => {
+    vi.stubEnv("TRUSTED_PROXY_KEY", "");
+    expect(forwardedClient(new Headers({ "x-forwarded-for": "9.9.9.9, 203.0.113.7" }))).toEqual({ "X-Forwarded-For": "9.9.9.9, 203.0.113.7" });
+    expect(forwardedClient(new Headers())).toEqual({});
+  });
+  it("names the client the proxy in front recorded - the rightmost entry - and vouches for it with the key", () => {
+    vi.stubEnv("TRUSTED_PROXY_KEY", "k".repeat(32));
+    expect(forwardedClient(new Headers({ "x-forwarded-for": "9.9.9.9, 203.0.113.7" }))).toEqual({
+      "X-Forwarded-For": "9.9.9.9, 203.0.113.7",
+      "X-Skelet-Client-IP": "203.0.113.7",
+      "X-Skelet-Proxy-Key": "k".repeat(32),
+    });
+    vi.unstubAllEnvs();
   });
 });
 

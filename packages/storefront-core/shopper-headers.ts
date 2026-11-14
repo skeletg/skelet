@@ -1,7 +1,7 @@
 import { request, rethrowControlFlow } from "./request";
 import { SESSION_COOKIE, validSession } from "./analytics/session";
 import { AID_COOKIE } from "./analytics/visitor";
-import { clientIP } from "./client-ip";
+import { forwardedClient } from "./client-ip";
 import { CONSENT_COOKIE } from "./consent/cookie";
 import { NONE_GRANTED, parseConsent, serializeConsent } from "./consent/categories";
 import { clickIdsHeader } from "./consent/click-ids";
@@ -14,8 +14,7 @@ export async function shopperHeaders(): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
   try {
     const inbound = await request().headers();
-    const ip = clientIP(inbound);
-    if (ip) out["X-Forwarded-For"] = ip;
+    Object.assign(out, forwardedClient(inbound));
     // The shopper's browser rather than this server's fetch - session lists, bot checks and ad platforms' match keys read it
     const ua = inbound.get("user-agent");
     if (ua) out["User-Agent"] = ua;

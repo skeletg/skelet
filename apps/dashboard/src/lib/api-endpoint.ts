@@ -5,8 +5,10 @@
 // and in the container
 export const ADMIN_GRAPHQL_ENDPOINT = import.meta.env.VITE_GRAPHQL_URL ?? '/api/admin/graphql'
 
+export const API_ORIGIN = ADMIN_GRAPHQL_ENDPOINT.replace(/\/api\/admin\/.*$/, '')
+
 // The admin's plain HTTP routes sit at a fixed /api/admin on the API's origin, NOT under the GraphQL endpoint's slug - nothing serves /api/admin/<slug>/media/...
-export const ADMIN_HTTP_BASE = ADMIN_GRAPHQL_ENDPOINT.replace(/\/api\/admin\/.*$/, '') + '/api/admin'
+export const ADMIN_HTTP_BASE = API_ORIGIN + '/api/admin'
 
 // SVG uploads POST here instead of taking the presigned route - the server has to see the bytes to
 // sanitize them (see internal/wiring/media_svg_http.go)

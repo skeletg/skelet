@@ -801,7 +801,23 @@ unset every hit gets proxied instead, and the tier buys you much less.
 
 `TRUSTED_PROXIES` is the list of proxy IPs and CIDRs whose
 `X-Forwarded-For` is trusted. Empty means no proxy. Without it, per-IP
-rate limits share one bucket.
+rate limits share one bucket. It's for your own infrastructure - the load
+balancer or edge in front of a backend, whose address you know.
+
+`TRUSTED_PROXY_KEY` is for Skelet's own apps, which may run anywhere. The
+storefront, and the Signals processes when they relay a request to core, name
+the shopper's address in `X-Skelet-Client-IP` and prove it with this key, so
+core believes it whatever address the call comes from - a storefront on a
+platform with no fixed egress keeps shoppers in their own rate-limit buckets.
+Set the same value on core, the Signals processes and every storefront, at least
+32 characters. `TRUSTED_PROXY_KEY_PREVIOUS` is also accepted during a rotation.
+Anyone holding the key can name any address, which buys them a way around the
+per-IP limits and nothing else - so keep it off the browser, like every other
+server-side setting. Unset, everything falls back to `TRUSTED_PROXIES`.
+
+A storefront names the address that the proxy or platform in front of it
+recorded, so it has to sit behind one that sets `X-Forwarded-For` - every
+platform and reverse proxy does.
 
 `ALLOW_PRIVATE_WEBHOOK_TARGETS=true` bypasses the SSRF guard for
 webhook/destination targets on private IPs. One policy for cmd/server and

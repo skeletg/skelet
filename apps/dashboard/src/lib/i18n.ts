@@ -1,5 +1,6 @@
 import { i18n } from '@lingui/core'
 import { compileMessage } from '@lingui/message-utils/compileMessage'
+import { API_ORIGIN } from '@/lib/api-endpoint'
 
 // Admin-UI languages. English is inlined in the bundle by the Lingui macro (stripMessageField
 // stays false in vite.config.ts), so it needs no catalog; every other language is a pack
@@ -31,7 +32,7 @@ export { i18n }
 // picker, never a broken shell
 let localesPromise: Promise<AdminLocale[]> | null = null
 export function fetchAdminLocales(): Promise<AdminLocale[]> {
-  localesPromise ??= fetch('/api/admin-ui/i18n/locales')
+  localesPromise ??= fetch(`${API_ORIGIN}/api/admin-ui/i18n/locales`)
     .then((res) => (res.ok ? (res.json() as Promise<{ locales: AdminLocale[] }>) : { locales: [] }))
     .then((body) => body.locales ?? [])
     .catch(() => [])
@@ -43,7 +44,7 @@ const loadedCatalogs = new Set<string>([SOURCE_LOCALE])
 // Fetch (once), compile, activate, and remember the choice for the next pre-auth boot
 export async function activateLocale(locale: string): Promise<void> {
   if (locale !== SOURCE_LOCALE && !loadedCatalogs.has(locale)) {
-    const res = await fetch(`/api/admin-ui/i18n/catalog/${encodeURIComponent(locale)}`)
+    const res = await fetch(`${API_ORIGIN}/api/admin-ui/i18n/catalog/${encodeURIComponent(locale)}`)
     if (!res.ok) throw new Error(`catalog for ${locale}: HTTP ${res.status}`)
     const raw = (await res.json()) as Record<string, string>
     i18n.load(

@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"crypto/subtle"
 	"fmt"
 	"net"
 	"net/http"
@@ -11,6 +12,11 @@ import (
 	"sync/atomic"
 
 	"github.com/google/uuid"
+)
+
+const (
+	ClientIPHeader = "X-Skelet-Client-IP"
+	ProxyKeyHeader = "X-Skelet-Proxy-Key"
 )
 
 const requestKey contextKey = "http_request"
@@ -80,6 +86,58 @@ func SetTrustedProxies(specs []string) error {
 	return nil
 }
 
+type proxyKeySet struct {
+	current  string
+	accepted []string
+}
+
+var proxyKeys atomic.Pointer[proxyKeySet]
+
+func SetTrustedProxyKeys(current string, previous ...string) {
+	set := proxyKeySet{current: strings.TrimSpace(current)}
+	for _, k := range append([]string{current}, previous...) {
+		if k = strings.TrimSpace(k); k != "" {
+			set.accepted = append(set.accepted, k)
+		}
+	}
+	proxyKeys.Store(&set)
+}
+
+func TrustFromEnv(getenv func(string) string) error {
+	if err := SetTrustedProxies(strings.Split(getenv("TRUSTED_PROXIES"), ",")); err != nil {
+		return fmt.Errorf("TRUSTED_PROXIES: %w", err)
+	}
+	SetTrustedProxyKeys(getenv("TRUSTED_PROXY_KEY"), getenv("TRUSTED_PROXY_KEY_PREVIOUS"))
+	return nil
+}
+
+func currentProxyKey() string {
+	if set := proxyKeys.Load(); set != nil {
+		return set.current
+	}
+	return ""
+}
+
+func validProxyKey(got string) bool {
+	set := proxyKeys.Load()
+	if set == nil || got == "" {
+		return false
+	}
+	ok := false
+	for _, k := range set.accepted {
+		ok = subtle.ConstantTimeCompare([]byte(got), []byte(k)) == 1 || ok
+	}
+	return ok
+}
+
+func vouchedClientIP(r *http.Request) (string, bool) {
+	ip := net.ParseIP(hostOnly(strings.TrimSpace(r.Header.Get(ClientIPHeader))))
+	if ip == nil || !validProxyKey(r.Header.Get(ProxyKeyHeader)) {
+		return "", false
+	}
+	return ip.String(), true
+}
+
 func isTrustedProxy(ip net.IP) bool {
 	nets := trustedProxies.Load()
 	if nets == nil || ip == nil {
@@ -94,7 +152,11 @@ func isTrustedProxy(ip net.IP) bool {
 }
 
 // Feeds rate limiting and session metadata, so forwarded headers count only when the TCP peer is a trusted proxy - X-Forwarded-For is walked right-to-left because our own proxies appended the rightmost entries and the first address NOT in the trusted set is the real client, while the leftmost entry is the one part of the header the client itself controls
+// A client one of our own relays vouches for with the key wins first, since a load balancer between it and here would otherwise put the relay's own address in the chain
 func ClientIP(r *http.Request) string {
+	if ip, ok := vouchedClientIP(r); ok {
+		return ip
+	}
 	remote := remoteIP(r)
 	rip := net.ParseIP(remote)
 	if rip == nil || !isTrustedProxy(rip) {

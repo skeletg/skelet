@@ -33,5 +33,5 @@ export function AssetImage({ asset, ...img }: { asset: Pictured } & Omit<Compone
     )
   }
   const small = asset.thumbnailUrl
-  return <img {...img} src={failed === small ? asset.url : reachable(small)} alt={asset.altText} loading="lazy" onError={() => setFailed(small)} />
+  return <img {...img} src={reachable(failed === small ? asset.url : small)} alt={asset.altText} loading="lazy" onError={() => setFailed(small)} />
 }

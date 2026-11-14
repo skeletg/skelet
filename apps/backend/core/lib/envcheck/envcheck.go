@@ -142,6 +142,11 @@ func TrustedProxies(getenv Getenv) (errs, warnings []string) {
 	if strings.TrimSpace(getenv("TRUSTED_PROXIES")) == "" {
 		errs = append(errs, "TRUSTED_PROXIES must be set in production: your proxy/LB CIDRs (so forwarded client IPs are trusted for rate limiting), or the literal 'none' if the backend is directly internet-facing")
 	}
+	for _, name := range []string{"TRUSTED_PROXY_KEY", "TRUSTED_PROXY_KEY_PREVIOUS"} {
+		if k := strings.TrimSpace(getenv(name)); k != "" && len(k) < 32 {
+			errs = append(errs, name+" must be at least 32 characters (openssl rand -hex 32)")
+		}
+	}
 	return errs, nil
 }
 

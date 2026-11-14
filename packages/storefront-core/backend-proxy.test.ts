@@ -15,7 +15,13 @@ describe("proxyToBackend", () => {
     const req = new Request("http://shop.example/t/forms/submit", {
       method: "POST",
       body: "{}",
-      headers: { "X-Consent": "v2:a1.d1.p1", "X-Click-Ids": "gclid=forged", "X-Anon-Id": "someone-else" },
+      headers: {
+        "X-Consent": "v2:a1.d1.p1",
+        "X-Click-Ids": "gclid=forged",
+        "X-Anon-Id": "someone-else",
+        "X-Skelet-Client-IP": "1.1.1.1",
+        "X-Skelet-Proxy-Key": "guess",
+      },
     });
     await proxyToBackend(req, "http://backend");
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
@@ -24,5 +30,7 @@ describe("proxyToBackend", () => {
     expect(sent.get("x-consent")).toBe("v2:a1.d0.p0");
     expect(sent.get("x-anon-id")).toBe("visitor-1");
     expect(sent.get("x-click-ids")).toBeNull();
+    expect(sent.get("x-skelet-client-ip")).toBeNull();
+    expect(sent.get("x-skelet-proxy-key")).toBeNull();
   });
 });

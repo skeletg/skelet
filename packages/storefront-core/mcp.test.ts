@@ -45,6 +45,17 @@ describe("proxyMcp", () => {
     expect(await res.json()).toEqual({ ok: true });
   });
 
+  it("vouches for the agent's address with the key, so the backend limits the agent and not this server", async () => {
+    useTestRequest({ channelId: async () => "chan-1" });
+    vi.stubEnv("TRUSTED_PROXY_KEY", "k".repeat(32));
+    const seen = capture();
+    await proxyMcp(new Request("https://shop.example/api/mcp", { headers: { "x-forwarded-for": "203.0.113.9" } }), "http://app/api/front/mcp");
+    vi.unstubAllEnvs();
+    const sent = new Headers(seen[0].init.headers);
+    expect(sent.get("x-skelet-client-ip")).toBe("203.0.113.9");
+    expect(sent.get("x-skelet-proxy-key")).toBe("k".repeat(32));
+  });
+
   it("refuses a body the backend would refuse anyway, without holding it", async () => {
     useTestRequest();
     const seen = capture();

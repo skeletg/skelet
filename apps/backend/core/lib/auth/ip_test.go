@@ -62,6 +62,57 @@ func TestClientIP(t *testing.T) {
 	}
 }
 
+func vouched(remoteAddr, xff, client, key string) *http.Request {
+	r := req(remoteAddr, xff, "")
+	r.Header.Set(ClientIPHeader, client)
+	r.Header.Set(ProxyKeyHeader, key)
+	return r
+}
+
+func TestClientIPVouchedByKey(t *testing.T) {
+	const key, old = "current-key-0123456789abcdef0123456789", "previous-key-0123456789abcdef012345678"
+	cases := []struct {
+		name    string
+		trusted []string
+		keys    []string
+		r       *http.Request
+		want    string
+	}{
+		{"key from an unknown address: the stated client", nil, []string{key},
+			vouched("34.1.2.3:443", "", "203.0.113.9", key), "203.0.113.9"},
+		{"key through a trusted load balancer: the stated client, not the relay's address", []string{"10.0.0.0/8"}, []string{key},
+			vouched("10.0.0.2:333", "203.0.113.9, 34.1.2.3", "203.0.113.9", key), "203.0.113.9"},
+		{"previous key during a rotation", nil, []string{key, old},
+			vouched("34.1.2.3:443", "", "203.0.113.9", old), "203.0.113.9"},
+		{"wrong key: the peer", nil, []string{key},
+			vouched("34.1.2.3:443", "", "203.0.113.9", "guess"), "34.1.2.3"},
+		{"no key configured: a stated client is ignored", nil, nil,
+			vouched("34.1.2.3:443", "", "203.0.113.9", ""), "34.1.2.3"},
+		{"empty key never matches an unset one", nil, []string{""},
+			vouched("34.1.2.3:443", "", "203.0.113.9", ""), "34.1.2.3"},
+		{"malformed stated client: the usual walk", []string{"10.0.0.0/8"}, []string{key},
+			vouched("10.0.0.2:333", "198.51.100.4", "not-an-ip", key), "198.51.100.4"},
+		{"a port on the stated client is dropped", nil, []string{key},
+			vouched("34.1.2.3:443", "", "[2001:db8::7]:5000", key), "2001:db8::7"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if err := SetTrustedProxies(c.trusted); err != nil {
+				t.Fatalf("SetTrustedProxies: %v", err)
+			}
+			if len(c.keys) > 0 {
+				SetTrustedProxyKeys(c.keys[0], c.keys[1:]...)
+			} else {
+				SetTrustedProxyKeys("")
+			}
+			t.Cleanup(func() { _ = SetTrustedProxies(nil); SetTrustedProxyKeys("") })
+			if got := ClientIP(c.r); got != c.want {
+				t.Errorf("ClientIP() = %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
 func TestSetTrustedProxiesRejectsGarbage(t *testing.T) {
 	if err := SetTrustedProxies([]string{"not-a-cidr"}); err == nil {
 		t.Fatal("expected error for invalid spec")

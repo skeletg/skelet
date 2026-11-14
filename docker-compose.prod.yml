@@ -16,6 +16,8 @@ x-logging: &logging
 x-edge-secrets: &edge-secrets
   CUSTOMER_JWT_PUBLIC_KEY: ${CUSTOMER_JWT_PUBLIC_KEY:?set CUSTOMER_JWT_PUBLIC_KEY in the root .env (skelet setup, or skelet cli keys customer)}
   CUSTOMER_JWT_PUBLIC_KEY_PREVIOUS: ${CUSTOMER_JWT_PUBLIC_KEY_PREVIOUS:-}
+  TRUSTED_PROXY_KEY: ${TRUSTED_PROXY_KEY:-}
+  TRUSTED_PROXY_KEY_PREVIOUS: ${TRUSTED_PROXY_KEY_PREVIOUS:-}
   VALKEY_URL: ${VALKEY_URL-redis://:${VALKEY_PASSWORD:-}@valkey:6379}
   # The evictable half of the split - caches, rate-limit counters and persisted queries live here on an allkeys-lru instance, so an anonymous cache flood is reclaimed instead of filling the noeviction primary and taking auth-token writes down with it - auto-points at valkey-cache when a password exists, unset with no password (Postgres-only) leaves it empty so everything shares the primary (nil) - set it outright to point caches at a managed instance
   VALKEY_CACHE_URL: ${VALKEY_CACHE_URL-${VALKEY_PASSWORD:+redis://:${VALKEY_PASSWORD:-}@valkey-cache:6379}}
@@ -295,6 +297,7 @@ services:
       # what's storefront-specific, so neither has to be copied into two places. No session key: this is the most exposed container
       REVIEW_VOTER_TOKEN_SECRET: ${REVIEW_VOTER_TOKEN_SECRET:?set REVIEW_VOTER_TOKEN_SECRET in the root .env (openssl rand -hex 32)}
       STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
+      TRUSTED_PROXY_KEY: ${TRUSTED_PROXY_KEY:-}
     depends_on:
       app: { condition: service_healthy }
     restart: unless-stopped
@@ -319,6 +322,7 @@ services:
       BACKEND_INTERNAL_URL: http://app:8080
       # Shared with the backend, from the same root .env it reads
       STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
+      TRUSTED_PROXY_KEY: ${TRUSTED_PROXY_KEY:-}
     depends_on:
       app: { condition: service_healthy }
     restart: unless-stopped

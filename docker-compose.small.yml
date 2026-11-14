@@ -18,6 +18,8 @@ x-secrets: &secrets
   CONFIG_ENCRYPTION_KEY: ${CONFIG_ENCRYPTION_KEY:?set CONFIG_ENCRYPTION_KEY in the root .env (openssl rand -base64 32)}
   STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
   STORAGE_SIGNING_KEY: ${STORAGE_SIGNING_KEY:-}
+  TRUSTED_PROXY_KEY: ${TRUSTED_PROXY_KEY:-}
+  TRUSTED_PROXY_KEY_PREVIOUS: ${TRUSTED_PROXY_KEY_PREVIOUS:-}
 
 # The DSN derives from the one password the db container below uses, so they
 # can't drift - set the URL outright to point at a managed Postgres instead
@@ -78,6 +80,7 @@ services:
       # neither the encryption key nor a DB password
       REVIEW_VOTER_TOKEN_SECRET: ${REVIEW_VOTER_TOKEN_SECRET:?set REVIEW_VOTER_TOKEN_SECRET in the root .env (openssl rand -hex 32)}
       STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
+      TRUSTED_PROXY_KEY: ${TRUSTED_PROXY_KEY:-}
     depends_on:
       app: { condition: service_healthy }
     restart: unless-stopped
@@ -93,6 +96,7 @@ services:
     environment:
       BACKEND_INTERNAL_URL: http://app:8080
       STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
+      TRUSTED_PROXY_KEY: ${TRUSTED_PROXY_KEY:-}
     depends_on:
       app: { condition: service_healthy }
     restart: unless-stopped

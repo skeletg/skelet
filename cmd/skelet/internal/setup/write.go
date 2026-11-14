@@ -324,7 +324,8 @@ func (e *editor) secrets(backend, target string) {
 	// beats env_file, so one missing here reaches the container empty
 	e.del(".env", "JWT_SECRET")
 	shared := []string{"ADMIN_JWT_SECRET", "CUSTOMER_JWT_PRIVATE_KEY", "CUSTOMER_JWT_PUBLIC_KEY", "EMAIL_LINK_SECRET",
-		"REVIEW_VOTER_TOKEN_SECRET", "CONFIG_ENCRYPTION_KEY", "SIGNALS_SERVICE_SECRET", "STOREFRONT_REVALIDATE_SECRET"}
+		"REVIEW_VOTER_TOKEN_SECRET", "CONFIG_ENCRYPTION_KEY", "SIGNALS_SERVICE_SECRET", "STOREFRONT_REVALIDATE_SECRET",
+		"TRUSTED_PROXY_KEY"}
 	for _, k := range append(slices.Clone(shared), "STORAGE_SIGNING_KEY", "DB_PASSWORD",
 		"SIGNALS_DB_PASSWORD", "VALKEY_PASSWORD", "CLICKHOUSE_PASSWORD") {
 		if !placeholder(e.get(".env", k)) {

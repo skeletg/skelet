@@ -1,4 +1,4 @@
-import { ADMIN_GRAPHQL_ENDPOINT } from '@/lib/api-endpoint'
+import { ADMIN_GRAPHQL_ENDPOINT, API_ORIGIN } from '@/lib/api-endpoint'
 export type SurfaceId = 'admin' | 'front'
 
 export type Surface = {
@@ -8,7 +8,6 @@ export type Surface = {
   hint: string
 }
 
-// Relative paths go through Vite's /api proxy in dev and the reverse proxy in prod, so one build works on host, in the container and behind a CDN
 export const SURFACES: Surface[] = [
   {
     id: 'admin',
@@ -19,7 +18,7 @@ export const SURFACES: Surface[] = [
   {
     id: 'front',
     label: 'Storefront',
-    endpoint: import.meta.env.VITE_FRONT_GRAPHQL_URL ?? '/api/front/graphql',
+    endpoint: import.meta.env.VITE_FRONT_GRAPHQL_URL ?? `${API_ORIGIN}/api/front/graphql`,
     hint: 'Public storefront API - most queries need an X-Channel-Id header',
   },
 ]
