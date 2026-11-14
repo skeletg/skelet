@@ -14,6 +14,7 @@ Entries waiting for the next release are in [changelog/unreleased/](changelog/un
 
 ## Releases
 
+- [0.4.1](changelog/0.4.1.md) - 2026-11-14
 - [0.4.0](changelog/0.4.0.md) - 2026-11-10
 - [0.3.1](changelog/0.3.1.md) - 2026-11-01
 - [0.3.0](changelog/0.3.0.md) - 2026-11-01
@@ -22,4 +23,4 @@ Entries waiting for the next release are in [changelog/unreleased/](changelog/un
 - [0.2.1](changelog/0.2.1.md) - 2026-10-18
 - [0.2.0](changelog/0.2.0.md) - 2026-10-18
 
-[Unreleased]: https://github.com/skeletg/skelet/compare/v0.4.0...develop
+[Unreleased]: https://github.com/skeletg/skelet/compare/v0.4.1...develop
