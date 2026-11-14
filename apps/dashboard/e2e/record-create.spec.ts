@@ -35,11 +35,11 @@ async function expectNoNewDraft(page: Page) {
 test('customer', async ({ page }) => {
   const email = `${RUN}-new-customer@e2e.test`
   await openScoped(page, '/customers/new')
-  await fill(page, { '#c-first': 'Created', '#c-last': 'Customer', '#c-email': email, '#c-phone': '+381601112233', '#c-password': 'E2e-password-1234!' })
+  await fill(page, { '#c-first': 'Created', '#c-last': 'Customer', '#c-email': email, '#c-phone': '+4915111223344', '#c-password': 'E2e-password-1234!' })
   const id = idFrom(await submitCreate(page, 'Create customer'))
   cleanup(del('deleteCustomer', id))
   const { customer } = await adminApi<{ customer: Record<string, unknown> }>('query($id:ID!){ customer(id:$id){ firstName lastName email phone isActive } }', { id })
-  expect(customer).toMatchObject({ firstName: 'Created', lastName: 'Customer', email, phone: '+381601112233' })
+  expect(customer).toMatchObject({ firstName: 'Created', lastName: 'Customer', email, phone: '+4915111223344' })
   await expectNoNewDraft(page)
 })
 

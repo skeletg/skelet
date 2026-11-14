@@ -6,7 +6,7 @@ const schema = addressSchema.superRefine((a, ctx) => addressIssues(a, [], ctx))
 
 const berlin = toAddressValues({
   firstName: 'Ana',
-  lastName: 'Ilić',
+  lastName: 'Müller',
   street1: 'Unter den Linden 1',
   city: 'Berlin',
   postalCode: '10117',
@@ -24,7 +24,7 @@ describe('addressIssues phone', () => {
   })
 
   it('takes an international number on any address, and no phone at all', () => {
-    expect(schema.safeParse({ ...berlin, phone: '+381 64 123 4567' }).success).toBe(true)
+    expect(schema.safeParse({ ...berlin, phone: '+33 6 12 34 56 78' }).success).toBe(true)
     expect(schema.safeParse(berlin).success).toBe(true)
   })
 

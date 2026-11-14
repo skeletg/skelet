@@ -128,12 +128,12 @@ func TestSendDirectCarriesTheProductDetails(t *testing.T) {
 	s := &Service{sender: sender}
 	ch := channel.Channel{ID: uuid.New(), Name: "Vetrina", PublicURL: "https://shop.test"}
 
-	if err := s.sendDirect(context.Background(), "buyer@test", "Winter Tire 205/55", "https://cdn.test/t.webp", "https://shop.test/p/tire", ch); err != nil {
+	if err := s.sendDirect(context.Background(), "buyer@test", "Wool Jacket M", "https://cdn.test/t.webp", "https://shop.test/p/jacket", ch); err != nil {
 		t.Fatal(err)
 	}
 	msg := sender.sent[0]
 
-	for _, want := range []string{"Winter Tire 205/55", "https://cdn.test/t.webp", "https://shop.test/p/tire"} {
+	for _, want := range []string{"Wool Jacket M", "https://cdn.test/t.webp", "https://shop.test/p/jacket"} {
 		if !strings.Contains(msg.HTMLBody, want) {
 			t.Errorf("HTMLBody is missing %q:\n%s", want, msg.HTMLBody)
 		}
@@ -152,7 +152,7 @@ func TestSendDirectCarriesTheProductDetails(t *testing.T) {
 func TestSendDirectOmitsTheImageBlockWhenThereIsNone(t *testing.T) { // an img with an empty src renders as a broken-image icon in most clients
 	sender := &captureSender{}
 	s := &Service{sender: sender}
-	if err := s.sendDirect(context.Background(), "buyer@test", "A Tire", "", "https://shop.test/p", channel.Channel{}); err != nil {
+	if err := s.sendDirect(context.Background(), "buyer@test", "A Jacket", "", "https://shop.test/p", channel.Channel{}); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(sender.sent[0].HTMLBody, "<img") {
@@ -181,7 +181,7 @@ func TestSendDirectEscapesTheProductName(t *testing.T) { // the name is admin-en
 func TestSendDirectEscapesTheImageAndLink(t *testing.T) { // both come from catalog data the same way the name does, and unescaped they break out of the src and href attributes
 	sender := &captureSender{}
 	s := &Service{sender: sender}
-	if err := s.sendDirect(context.Background(), "buyer@test", "A Tire",
+	if err := s.sendDirect(context.Background(), "buyer@test", "A Jacket",
 		`https://cdn.test/i.png" onerror="alert(1)`,
 		`https://shop.test/p"><script>alert(1)</script>`, channel.Channel{}); err != nil {
 		t.Fatal(err)
@@ -202,7 +202,7 @@ func TestSendDirectEscapesTheImageAndLink(t *testing.T) { // both come from cata
 func TestSendDirectKeepsAQueryStringUsable(t *testing.T) { // escaping is in an HTML attribute, so & has to become &amp; and still resolve to the same link in a mail client
 	sender := &captureSender{}
 	s := &Service{sender: sender}
-	if err := s.sendDirect(context.Background(), "buyer@test", "A Tire", "", "https://shop.test/p?a=1&b=2", channel.Channel{}); err != nil {
+	if err := s.sendDirect(context.Background(), "buyer@test", "A Jacket", "", "https://shop.test/p?a=1&b=2", channel.Channel{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -219,7 +219,7 @@ func TestSendDirectReportsASenderFailure(t *testing.T) { // the caller puts that
 	boom := errors.New("smtp refused")
 	sender := &captureSender{err: boom}
 	s := &Service{sender: sender}
-	if err := s.sendDirect(context.Background(), "buyer@test", "A Tire", "", "https://shop.test/p", channel.Channel{}); !errors.Is(err, boom) {
+	if err := s.sendDirect(context.Background(), "buyer@test", "A Jacket", "", "https://shop.test/p", channel.Channel{}); !errors.Is(err, boom) {
 		t.Errorf("err = %v, want the sender's failure", err)
 	}
 	if len(sender.sent) != 1 {
@@ -229,14 +229,14 @@ func TestSendDirectReportsASenderFailure(t *testing.T) { // the caller puts that
 
 func TestHTMLEscapeIsSinglePass(t *testing.T) { // escaping & after < would turn &lt; into &amp;lt; and show the markup as literal text in the mail
 	for in, want := range map[string]string{
-		"<&>":            "&lt;&amp;&gt;",
-		"&<":             "&amp;&lt;",
-		`"quoted"`:       "&quot;quoted&quot;",
-		"a & b":          "a &amp; b",
-		"already &amp;":  "already &amp;amp;",
-		"plain name":     "plain name",
-		"":               "",
-		"205/55 R16 91V": "205/55 R16 91V",
+		"<&>":              "&lt;&amp;&gt;",
+		"&<":               "&amp;&lt;",
+		`"quoted"`:         "&quot;quoted&quot;",
+		"a & b":            "a &amp; b",
+		"already &amp;":    "already &amp;amp;",
+		"plain name":       "plain name",
+		"":                 "",
+		"Jeans 32/34 Slim": "Jeans 32/34 Slim",
 	} {
 		if got := htmlEscape(in); got != want {
 			t.Errorf("htmlEscape(%q) = %q, want %q", in, got, want)

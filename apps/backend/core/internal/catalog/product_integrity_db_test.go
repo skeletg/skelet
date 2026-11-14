@@ -487,17 +487,17 @@ func TestAGlobalTierAppliesOnlyInTheProductsCurrency(t *testing.T) {
 	ctx := context.Background()
 	pt := r.ptype("", false)
 	p := r.newProduct(pt.ID, KindSimple, "TIER-"+r.sfx, "Tier", "EUR")
-	eur, rsd := r.channelIn("EUR"), r.channelIn("RSD")
-	if _, err := r.svc.SetGroupPrices(ctx, p.ID, []GroupPriceInput{{MinQty: 10, Price: 800}, {ChannelID: &rsd, MinQty: 10, Price: 90000}}); err != nil {
+	eur, chf := r.channelIn("EUR"), r.channelIn("CHF")
+	if _, err := r.svc.SetGroupPrices(ctx, p.ID, []GroupPriceInput{{MinQty: 10, Price: 800}, {ChannelID: &chf, MinQty: 10, Price: 90000}}); err != nil {
 		t.Fatal(err)
 	}
 	onEUR, err := r.svc.ApplicableGroupPrices(ctx, p.ID, &eur, nil)
 	if err != nil || len(onEUR) != 1 || onEUR[0].Price != 800 {
 		t.Errorf("EUR channel tiers = %+v, %v, want the global one", onEUR, err)
 	}
-	onRSD, err := r.svc.ApplicableGroupPrices(ctx, p.ID, &rsd, nil)
-	if err != nil || len(onRSD) != 1 || onRSD[0].Price != 90000 {
-		t.Errorf("RSD channel tiers = %+v, %v, want only its own row - the EUR amount isn't an RSD price", onRSD, err)
+	onCHF, err := r.svc.ApplicableGroupPrices(ctx, p.ID, &chf, nil)
+	if err != nil || len(onCHF) != 1 || onCHF[0].Price != 90000 {
+		t.Errorf("CHF channel tiers = %+v, %v, want only its own row - the EUR amount isn't a CHF price", onCHF, err)
 	}
 }
 

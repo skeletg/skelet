@@ -821,7 +821,7 @@ function TransitionButtons({
   return <>{buttons}</>
 }
 
-// The company identifiers the buyer gave at checkout, with the labels they saw (PIB, Matični broj, VAT number) - the
+// The company identifiers the buyer gave at checkout, with the labels they saw (VAT number, registry number) - the
 // company name itself is on the billing address
 function BusinessBlock({
   ids,

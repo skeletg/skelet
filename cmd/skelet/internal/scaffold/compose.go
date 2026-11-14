@@ -40,25 +40,6 @@ func isSpace(c byte) bool {
 	return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f'
 }
 
-// block is a service's lines, from its `  <name>:` line to the line that ends it - blank lines before the next
-// sibling included
-func block(text, service string) []string {
-	var out []string
-	in := false
-	for _, l := range lines(text) {
-		switch {
-		case l == "  "+service+":":
-			in = true
-			out = append(out, l)
-		case in && endsBlock(l):
-			in = false
-		case in:
-			out = append(out, l)
-		}
-	}
-	return out
-}
-
 // move is a storefront becoming another: from a template or a storefront of the project's own, into apps/channels
 type move struct {
 	srcDir, src, dir, name string
@@ -109,44 +90,9 @@ func nameChar(c byte) bool {
 	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_' || c == '-'
 }
 
-// rename is a copied block made the new storefront's, then the published port, whose pattern differs by compose file
-func rename(blk []string, m move, port *regexp.Regexp, portTo string) []string {
-	out := make([]string, len(blk))
-	for i, l := range blk {
-		l = m.apply(l)
-		if port != nil {
-			if loc := port.FindStringIndex(l); loc != nil {
-				l = l[:loc[0]] + portTo + l[loc[1]:]
-			}
-		}
-		out[i] = l
-	}
-	return out
-}
-
 // imageVar is the *_IMAGE variable a storefront's prod image is read from
 func imageVar(name string) string {
 	return strings.ToUpper(strings.ReplaceAll(name, "-", "_")) + "_IMAGE"
-}
-
-// spliceAfter puts add after the source's block, then a blank line, keeping related services together
-func spliceAfter(text, src string, add []string) string {
-	var out []string
-	in := false
-	for _, l := range lines(text) {
-		switch {
-		case l == "  "+src+":":
-			in = true
-		case in && endsBlock(l):
-			in = false
-			out = append(append(out, add...), "")
-		}
-		out = append(out, l)
-	}
-	if in {
-		out = append(out, add...)
-	}
-	return join(out)
 }
 
 var (

@@ -15,20 +15,20 @@ test.describe("store availability", () => {
     await check.click();
     const dialog = page.getByRole("dialog", { name: "Check availability in stores" });
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByText("Demo · Belgrade Central")).toBeVisible();
+    await expect(dialog.getByText("Demo · Berlin Central")).toBeVisible();
     await expect(dialog.getByText("In-store shopping", { exact: true }).first()).toBeVisible();
     await expect(dialog.getByText("Demo · Private warehouse")).toHaveCount(0);
     await expect(dialog.getByText("Availability unknown", { exact: true })).toBeVisible();
-    await dialog.getByRole("combobox", { name: "City", exact: true }).selectOption("Belgrade");
-    await expect(dialog.getByText("Demo · Novi Sad")).toHaveCount(0);
+    await dialog.getByRole("combobox", { name: "City", exact: true }).selectOption("Berlin");
+    await expect(dialog.getByText("Demo · Hamburg")).toHaveCount(0);
     await dialog.getByRole("button", { name: "Set as my store" }).click();
     await expect(dialog.getByRole("button", { name: "My store", exact: true })).toBeDisabled();
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
     await expect(check).toBeFocused();
-    await expect(page.getByText("My store: Demo · Belgrade Central", { exact: false })).toBeVisible();
+    await expect(page.getByText("My store: Demo · Berlin Central", { exact: false })).toBeVisible();
     await page.reload();
-    await expect(page.getByText("My store: Demo · Belgrade Central", { exact: false })).toBeVisible();
+    await expect(page.getByText("My store: Demo · Berlin Central", { exact: false })).toBeVisible();
   });
   test("searches products and checks selected hoodie variants on the stores page", async ({ page }) => {
     await page.goto("/stores");
@@ -38,11 +38,11 @@ test.describe("store availability", () => {
     const variant = page.getByRole("combobox", { name: "Variant", exact: true });
     await variant.selectOption({ label: "Store demo hoodie / Small · STORE-DEMO-HOODIE-S" });
     await page.getByLabel("In stock only").check();
-    await expect(page.getByText("Demo · Belgrade Central")).toBeVisible();
-    await expect(page.getByText("Demo · Novi Sad")).toHaveCount(0);
+    await expect(page.getByText("Demo · Berlin Central")).toBeVisible();
+    await expect(page.getByText("Demo · Hamburg")).toHaveCount(0);
     await variant.selectOption({ label: "Store demo hoodie / Large · STORE-DEMO-HOODIE-L" });
-    await expect(page.getByText("Demo · Novi Sad")).toBeVisible();
-    await expect(page.getByText("Demo · Belgrade Central")).toHaveCount(0);
+    await expect(page.getByText("Demo · Hamburg")).toBeVisible();
+    await expect(page.getByText("Demo · Berlin Central")).toHaveCount(0);
   });
   test("checks fractional stock in a mobile dialog without horizontal overflow", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });

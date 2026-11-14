@@ -279,9 +279,9 @@ func TestANewChannelInheritsTheInstallDefaultLocale(t *testing.T) {
 		t.Fatalf("no default channel: locale %q, %v, want the fallback", ch.DefaultLocale, err)
 	}
 	def := active(usID, "us", "", true)
-	def.DefaultLocale = "sr"
-	if ch, err := channel.NewService(newSvcRepo(def)).Create(ctx, channel.CreateChannelInput{Slug: "a", Name: "A", CurrencyCode: "USD"}); err != nil || ch.DefaultLocale != "sr" {
-		t.Fatalf("locale %q, %v, want the default channel's sr", ch.DefaultLocale, err)
+	def.DefaultLocale = "pl"
+	if ch, err := channel.NewService(newSvcRepo(def)).Create(ctx, channel.CreateChannelInput{Slug: "a", Name: "A", CurrencyCode: "USD"}); err != nil || ch.DefaultLocale != "pl" {
+		t.Fatalf("locale %q, %v, want the default channel's pl", ch.DefaultLocale, err)
 	}
 }
 

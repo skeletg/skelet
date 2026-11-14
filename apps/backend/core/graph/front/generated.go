@@ -11208,11 +11208,11 @@ type CountrySettings {
 # How one country's phone numbers look - a form's fixed prefix, its placeholder and its input mask
 type PhoneCountryFormat {
   countryCode:     String!
-  # "+381"
+  # "+49"
   callingCode:     String!
-  # An example mobile, international - "+381 60 1234567"
+  # An example mobile, international - "+49 1512 3456789"
   example:         String!
-  # The same example as typed at home - "060 1234567"
+  # The same example as typed at home - "01512 3456789"
   nationalExample: String!
   # nationalExample with every digit an x - "xxx xxxxxxx"
   template:        String!
@@ -11879,7 +11879,7 @@ type ConfigurableMembership {
   parent: Product!
   variantMode: VariantMode
   # This variant's values for the parent's configurable-option attributes
-  # (e.g. Size = 205/55 R16).
+  # (e.g. Size = M).
   optionValues: [ProductAttributeValue!]!
   sortOrder: Int!
   # The other variants under the same configurable parent.

@@ -1,12 +1,29 @@
 import path from 'node:path'
 import { readFileSync } from 'node:fs'
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 import babel from '@rolldown/plugin-babel'
 import tailwindcss from '@tailwindcss/vite'
 
 const pkg = JSON.parse(readFileSync(path.resolve(__dirname, 'package.json'), 'utf8')) as {
   version: string
+}
+
+function securityHeaders(): Plugin {
+  let connect = ''
+  return {
+    name: 'skelet-security-headers',
+    apply: 'build',
+    configResolved(config) {
+      const env = loadEnv(config.mode, config.envDir || __dirname, '')
+      const api = /^https?:\/\//.test(env.VITE_GRAPHQL_URL ?? '') ? new URL(env.VITE_GRAPHQL_URL).origin : ''
+      connect = [api, ...(env.UPLOAD_ORIGINS ?? '').split(/[\s,]+/)].filter(Boolean).join(' ')
+    },
+    generateBundle() {
+      const template = readFileSync(path.resolve(__dirname, 'headers.template'), 'utf8')
+      this.emitFile({ type: 'asset', fileName: '_headers', source: template.replace(' {CONNECT_ORIGINS}', connect ? ` ${connect}` : '') })
+    },
+  }
 }
 
 export default defineConfig({
@@ -24,6 +41,7 @@ export default defineConfig({
       presets: [reactCompilerPreset()],
     }),
     tailwindcss(),
+    securityHeaders(),
   ],
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),

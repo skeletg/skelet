@@ -9,15 +9,15 @@ import (
 // write path and the read path makes a configured redirect silently never fire
 func TestNormalizeIsTheCanonicalQueryKey(t *testing.T) {
 	for _, tc := range []struct{ in, want string }{
-		{"tires", "tires"},
-		{"TIRES", "tires"},
-		{"  tires  ", "tires"},
-		{"Winter Tires", "winter tires"},
-		{"winter   tires", "winter tires"},
-		{"\twinter\ntires ", "winter tires"},
+		{"sweaters", "sweaters"},
+		{"SWEATERS", "sweaters"},
+		{"  sweaters  ", "sweaters"},
+		{"Winter Sweaters", "winter sweaters"},
+		{"winter   sweaters", "winter sweaters"},
+		{"\twinter\nsweaters ", "winter sweaters"},
 		{"", ""},
 		{"   ", ""},
-		{"205/55R16", "205/55r16"},
+		{"W32/L34", "w32/l34"},
 	} {
 		if got := Normalize(tc.in); got != tc.want {
 			t.Errorf("Normalize(%q) = %q, want %q", tc.in, got, tc.want)
@@ -27,7 +27,7 @@ func TestNormalizeIsTheCanonicalQueryKey(t *testing.T) {
 
 // Every spelling a shopper might type has to land on one key, or half of them miss the redirect
 func TestNormalizeCollapsesEquivalentSpellings(t *testing.T) {
-	variants := []string{"Winter Tires", "winter tires", "  WINTER   TIRES  ", "winter\ttires"}
+	variants := []string{"Winter Sweaters", "winter sweaters", "  WINTER   SWEATERS  ", "winter\tsweaters"}
 	want := Normalize(variants[0])
 	for _, v := range variants[1:] {
 		if got := Normalize(v); got != want {
@@ -38,7 +38,7 @@ func TestNormalizeCollapsesEquivalentSpellings(t *testing.T) {
 
 // Normalizing an already-normalized key must not change it, or a re-save would move the row
 func TestNormalizeIsIdempotent(t *testing.T) {
-	for _, in := range []string{"winter tires", "", "205/55r16", "a b c"} {
+	for _, in := range []string{"winter sweaters", "", "w32/l34", "a b c"} {
 		once := Normalize(in)
 		if twice := Normalize(once); twice != once {
 			t.Errorf("Normalize(Normalize(%q)) = %q, want %q", in, twice, once)
@@ -52,13 +52,13 @@ func TestSplitTerms(t *testing.T) {
 		in   string
 		want []string
 	}{
-		"plain":            {"tyre,tire,tires", []string{"tyre", "tire", "tires"}},
-		"padded":           {"tyre, tire , tires", []string{"tyre", "tire", "tires"}},
-		"mixed case":       {"Tyre, TIRE", []string{"tyre", "tire"}},
-		"empty segments":   {"tyre,,tire,", []string{"tyre", "tire"}},
-		"duplicates":       {"tyre, tire, tyre, TYRE", []string{"tyre", "tire"}},
-		"single term":      {"tyre", []string{"tyre"}},
-		"multi-word terms": {"winter tyre, snow tire", []string{"winter tyre", "snow tire"}},
+		"plain":            {"jumper,sweater,sweaters", []string{"jumper", "sweater", "sweaters"}},
+		"padded":           {"jumper, sweater , sweaters", []string{"jumper", "sweater", "sweaters"}},
+		"mixed case":       {"Jumper, SWEATER", []string{"jumper", "sweater"}},
+		"empty segments":   {"jumper,,sweater,", []string{"jumper", "sweater"}},
+		"duplicates":       {"jumper, sweater, jumper, JUMPER", []string{"jumper", "sweater"}},
+		"single term":      {"jumper", []string{"jumper"}},
+		"multi-word terms": {"winter jumper, snow sweater", []string{"winter jumper", "snow sweater"}},
 		"nothing":          {"", nil},
 		"only separators":  {" , , ", nil},
 	} {
@@ -90,7 +90,7 @@ func TestSplitTermsKeepsTheAdminsOrder(t *testing.T) {
 // A synonym group only matches if its terms are comparable to the query's terms, and ExpandQuery
 // lowercases with strings.Fields - so a term carrying stray case or padding could never hit
 func TestSplitTermsOutputIsComparableToQueryTerms(t *testing.T) {
-	for _, term := range splitTerms(" Tyre , TIRE ,tires ") {
+	for _, term := range splitTerms(" Jumper , SWEATER ,sweaters ") {
 		if term != strings.ToLower(term) {
 			t.Errorf("term %q is not lowercased, so a lowercased query term can never match it", term)
 		}

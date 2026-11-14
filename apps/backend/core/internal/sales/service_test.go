@@ -288,8 +288,8 @@ func TestPassthroughArgumentsSurviveTheCall(t *testing.T) { // the bucket is whi
 	}
 
 	repo = &fakeRepo{}
-	_, _ = NewService(repo).ProductSalesBySKU(ctx, someFilter(), "TIRE-205-55-16")
-	if repo.sawSKU != "TIRE-205-55-16" {
-		t.Errorf("sku = %q, want TIRE-205-55-16", repo.sawSKU)
+	_, _ = NewService(repo).ProductSalesBySKU(ctx, someFilter(), "TEE-BLK-M-SLIM")
+	if repo.sawSKU != "TEE-BLK-M-SLIM" {
+		t.Errorf("sku = %q, want TEE-BLK-M-SLIM", repo.sawSKU)
 	}
 }

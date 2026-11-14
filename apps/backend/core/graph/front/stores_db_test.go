@@ -94,7 +94,7 @@ func TestPublicStoresVisibilityAndFeatureScope(t *testing.T) {
 	if _, err = cfg.Set(ctx, "sales/store_availability/enabled", "true", config.Scope{Kind: config.ScopeChannel, ChannelID: &ch.ID}); err != nil {
 		t.Fatal(err)
 	}
-	public, err := inv.GetLocationBySlug(ctx, "store-demo-belgrade")
+	public, err := inv.GetLocationBySlug(ctx, "store-demo-berlin")
 	if err != nil {
 		t.Fatal(err)
 	}

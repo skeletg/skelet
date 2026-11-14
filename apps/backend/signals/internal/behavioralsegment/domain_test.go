@@ -138,12 +138,12 @@ func TestDefinitionSurvivesAJSONRoundTrip(t *testing.T) {
 
 func TestSlugify(t *testing.T) {
 	for in, want := range map[string]string{
-		"Tire size: 205/55R16": "tire-size-205-55r16",
-		"  Spaced  Out  ":      "spaced-out",
-		"ALLCAPS":              "allcaps",
-		"!!!":                  "segment",
-		"":                     "segment",
-		"trailing---":          "trailing",
+		"Jeans size: 32/34": "jeans-size-32-34",
+		"  Spaced  Out  ":   "spaced-out",
+		"ALLCAPS":           "allcaps",
+		"!!!":               "segment",
+		"":                  "segment",
+		"trailing---":       "trailing",
 	} {
 		if got := Slugify(in); got != want {
 			t.Errorf("Slugify(%q) = %q, want %q", in, got, want)

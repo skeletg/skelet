@@ -11,16 +11,13 @@ import (
 	"strings"
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/envfile"
-	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
-const About = `Builds the images of the apps you name and pushes them: REGISTRY=... skelet release <app>... [--tag T].
-Apps are core, signals, dashboard and every storefront with a Dockerfile.prod - only the ones named ship, so
-releasing a storefront leaves the backends alone. The tag defaults to git describe - the release version and
-the commit - and PLATFORM to linux/amd64, so a Mac doesn't ship arm64 to amd64 servers. A build argument a
-Dockerfile declares (UPLOAD_ORIGINS, the preview origins) comes from your shell, else the root .env. Ends
-with the line each app's .env takes.`
+const About = `Builds the backends' images and pushes them: REGISTRY=... skelet release core|signals... [--tag T].
+Only the ones named ship. The tag defaults to git describe - the release version and the commit - and
+PLATFORM to linux/amd64, so a Mac doesn't ship arm64 to amd64 servers. Ends with the line each app's .env
+takes. The frontends aren't images: pnpm run build in the app makes what its host serves.`
 
 var argLine = regexp.MustCompile(`(?m)^ARG ([A-Z][A-Z0-9_]*)`)
 
@@ -28,19 +25,9 @@ type image struct {
 	name, ctx, dockerfile, envVar, envFile string
 }
 
-func images(root string) []image {
-	list := []image{
-		{"core", "apps/backend", "core/Dockerfile.prod", "CORE_IMAGE", "apps/backend/core/.env"},
-		{"signals", "apps/backend", "signals/Dockerfile.prod", "SIGNALS_IMAGE", "apps/backend/signals/.env"},
-		{"dashboard", "apps/dashboard", "Dockerfile.prod", "DASHBOARD_IMAGE", ".env"},
-	}
-	for _, sf := range storefronts.List(root) {
-		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(sf.Dir), "Dockerfile.prod")); err == nil {
-			// A storefront builds from the repo root, the workspace it shares packages through
-			list = append(list, image{sf.Name, ".", sf.Dir + "/Dockerfile.prod", strings.ToUpper(strings.ReplaceAll(sf.Name, "-", "_")) + "_IMAGE", ".env"})
-		}
-	}
-	return list
+var images = []image{
+	{"core", "apps/backend", "core/Dockerfile.prod", "CORE_IMAGE", "apps/backend/core/.env"},
+	{"signals", "apps/backend", "signals/Dockerfile.prod", "SIGNALS_IMAGE", "apps/backend/signals/.env"},
 }
 
 func Run(root string, args []string) int {
@@ -56,7 +43,7 @@ func Run(root string, args []string) int {
 			names = append(names, args[i])
 		}
 	}
-	known := images(root)
+	known := images
 	if len(names) == 0 {
 		return usage(known)
 	}
@@ -109,7 +96,7 @@ func usage(known []image) int {
 	for _, im := range known {
 		names = append(names, im.name)
 	}
-	fmt.Fprintln(os.Stderr, "usage: REGISTRY=... skelet release <app>... [--tag T]")
+	fmt.Fprintln(os.Stderr, "usage: REGISTRY=... skelet release core|signals... [--tag T]")
 	fmt.Fprintln(os.Stderr, "  "+strings.Join(names, ", "))
 	return 2
 }

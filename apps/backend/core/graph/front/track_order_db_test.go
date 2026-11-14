@@ -67,7 +67,7 @@ func TestTrackOrderFindsAnOrderByNumberEmailAndPostcode(t *testing.T) {
 		return id
 	}
 	guest := seed("TRK-"+tag+"-G", "Guest@Example.invalid", "SW1A1AA", "", chans[0], nil)
-	member := seed("TRK-"+tag+"-M", "member-"+tag+"@example.invalid", "11000", "", chans[0], &customerID)
+	member := seed("TRK-"+tag+"-M", "member-"+tag+"@example.invalid", "10115", "", chans[0], &customerID)
 	digital := seed("TRK-"+tag+"-D", "digital@example.invalid", "", "10115", chans[0], nil)
 	seed("TRK-"+tag+"-O", "other@example.invalid", "75001", "", chans[1], nil)
 	addressless := "TRK-" + tag + "-N" // both postcodes stored as '', which an empty input would equal in SQL
@@ -94,7 +94,7 @@ func TestTrackOrderFindsAnOrderByNumberEmailAndPostcode(t *testing.T) {
 			&model.TrackOrderResult{OrderID: guest.String(), Email: "Guest@Example.invalid"}},
 		{"retyped the way shoppers do", "  trk-" + tag + "-g ", "guest@example.INVALID ", "sw1a 1aa",
 			&model.TrackOrderResult{OrderID: guest.String(), Email: "Guest@Example.invalid"}},
-		{"customer order needs a sign-in", "TRK-" + tag + "-M", "member-" + tag + "@example.invalid", "11000",
+		{"customer order needs a sign-in", "TRK-" + tag + "-M", "member-" + tag + "@example.invalid", "10115",
 			&model.TrackOrderResult{OrderID: member.String(), RequiresLogin: true}},
 		{"no shipping address falls back to billing", "TRK-" + tag + "-D", "digital@example.invalid", "10115",
 			&model.TrackOrderResult{OrderID: digital.String(), Email: "digital@example.invalid"}},

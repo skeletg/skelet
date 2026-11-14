@@ -90,7 +90,7 @@ const checkout = (destination: { countryCode: string; postalCode: string } | nul
       paymentProviderSlug: null,
       destination,
       shippingAddress: destination
-        ? { firstName: "Ana", lastName: "Petrović", street1: "Main 1", street2: null, city: "Belgrade", state: null, phone: null }
+        ? { firstName: "Ana", lastName: "Martin", street1: "Main 1", street2: null, city: "Paris", state: null, phone: null }
         : null,
       deliveryGroups: destination
         ? [{ key: "g1", choices: [choice(1, 0), choice(2, 990), { ...choice(3, 500), kind: "pickup_point" }], selection: null }]
@@ -100,14 +100,14 @@ const checkout = (destination: { countryCode: string; postalCode: string } | nul
     },
   },
 });
-const countries = { countries: [{ code: "RS", name: "Serbia" }, { code: "DE", name: "Germany" }] };
+const countries = { countries: [{ code: "FR", name: "France" }, { code: "DE", name: "Germany" }] };
 const payments = {
   paymentMethods: [
     { providerSlug: "cod", displayName: "Cash on delivery", instructions: "Pay the courier." },
     { providerSlug: "bank", displayName: "Bank transfer", instructions: "" },
   ],
 };
-const rs = { countryCode: "RS", postalCode: "11000" };
+const fr = { countryCode: "FR", postalCode: "75001" };
 
 type Answers = Record<string, unknown>;
 function backend(answers: Answers) {
@@ -273,12 +273,12 @@ describe("page output", () => {
   });
 
   it("checkout, step 2", async () => {
-    backend({ Checkout: checkout(rs), Countries: countries, PaymentOptions: payments });
+    backend({ Checkout: checkout(fr), Countries: countries, PaymentOptions: payments });
     await expect((await renderCheckout()).html).toMatchFileSnapshot(snap("checkout-details"));
   });
 
   it("checkout, step 2 with nothing deliverable or payable", async () => {
-    const c = checkout(rs);
+    const c = checkout(fr);
     c.cart.checkout.deliveryGroups = [{ key: "g1", choices: [], selection: null }];
     backend({ Checkout: c, Countries: countries, PaymentOptions: { paymentMethods: [] } });
     await expect((await renderCheckout()).html).toMatchFileSnapshot(snap("checkout-blocked"));
@@ -286,7 +286,7 @@ describe("page output", () => {
 
   it("checkout, an error re-render keeps what was typed", async () => {
     backend({
-      Checkout: checkout(rs),
+      Checkout: checkout(fr),
       Countries: countries,
       PaymentOptions: payments,
       SetDelivery: { setCartDelivery: { id: "c1" } },

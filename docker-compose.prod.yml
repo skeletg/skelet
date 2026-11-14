@@ -13,90 +13,6 @@ x-logging: &logging
     max-file: "3"
 
 services:
-  dashboard:
-    image: ${DASHBOARD_IMAGE:-skelet-dashboard:prod}
-    build:
-      context: ./apps/dashboard
-      dockerfile: Dockerfile.prod
-    ports: ["127.0.0.1:8081:8080"]
-    environment:
-      # nginx proxies the SPA's /api/* here
-      BACKEND_UPSTREAM: http://app:8080
-      # Where browsers upload files - joins the CSP's connect-src, see docs/env.md
-      UPLOAD_ORIGINS: ${UPLOAD_ORIGINS:-}
-    depends_on:
-      app: { condition: service_healthy }
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits: { memory: 128m, cpus: "0.5" }
-    logging: *logging
-
-  # One replica: its page cache lives in the process, so a purge reaches only the container that answers it (docs/deploying.md)
-  nextjs-vetrina:
-    profiles: ["nextjs-vetrina"]
-    image: ${NEXTJS_VETRINA_IMAGE:-skelet-nextjs-vetrina:prod}
-    init: true
-    build:
-      # The repo root, the workspace the storefront shares packages through - the Dockerfile's own .dockerignore keeps
-      # the context to what it copies
-      context: .
-      dockerfile: templates/nextjs-vetrina/Dockerfile.prod
-      args:
-        UPLOAD_ORIGINS: ${UPLOAD_ORIGINS:-}
-        PAYMENT_ORIGINS: ${PAYMENT_ORIGINS:-}
-        NEXT_PUBLIC_DASHBOARD_ORIGIN: ${NEXT_PUBLIC_DASHBOARD_ORIGIN:-}
-    # Own env file - the most exposed container shouldn't hold DB/S3/SMTP creds
-    env_file: [env/prod-nextjs-vetrina.env]
-    ports: ["127.0.0.1:3000:3000"]
-    environment:
-      # In-network backend - environment beats env_file
-      BACKEND_INTERNAL_URL: http://app:8080
-      # The two values it shares with the backend, from the same root .env the backend reads - the file above keeps only
-      # what's storefront-specific, so neither has to be copied into two places. No session key: this is the most exposed container
-      REVIEW_VOTER_TOKEN_SECRET: ${REVIEW_VOTER_TOKEN_SECRET:?set REVIEW_VOTER_TOKEN_SECRET in the root .env (openssl rand -hex 32)}
-      STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
-      TRUSTED_PROXY_KEY: ${TRUSTED_PROXY_KEY:-}
-    depends_on:
-      app: { condition: service_healthy }
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits: { memory: 512m, cpus: "1" }
-    logging: *logging
-
-  # Opt-in - `--profile astro-shop` - so a deployment without its env file still starts
-  astro-shop:
-    profiles: ["astro-shop"]
-    image: ${ASTRO_SHOP_IMAGE:-skelet-astro-shop:prod}
-    init: true
-    build:
-      # The repo root, the workspace it shares packages through - the Dockerfile's own .dockerignore keeps the context small
-      context: .
-      dockerfile: templates/astro-shop/Dockerfile.prod
-    # Own env file - the most exposed container shouldn't hold DB/S3/SMTP creds
-    env_file: [env/prod-astro-shop.env]
-    ports: ["127.0.0.1:3001:3000"]
-    environment:
-      BACKEND_INTERNAL_URL: http://app:8080
-      # Shared with the backend, from the same root .env it reads
-      STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
-      TRUSTED_PROXY_KEY: ${TRUSTED_PROXY_KEY:-}
-    depends_on:
-      app: { condition: service_healthy }
-    restart: unless-stopped
-    deploy:
-      resources:
-        # The route cache lives in this process's memory
-        limits: { memory: 384m, cpus: "1" }
-    logging: *logging
-
   # Opt-in TLS edge - `--profile edge` - everything else here binds to 127.0.0.1 and expects your own proxy; this is for the deployments that don't have one already
   caddy:
     profiles: ["edge"]
@@ -107,16 +23,14 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    extra_hosts: ["host.docker.internal:host-gateway"]
     volumes:
       - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./apps/dashboard/dist:/srv/dashboard:ro
       - caddy-data:/data
       - caddy-config:/config
-    # Wait for HEALTHY upstreams so the edge never routes to a booting backend -
-    # required:false on the storefront, since a fork may run its own or none
     depends_on:
       app: { condition: service_healthy }
-      dashboard: { condition: service_healthy }
-      nextjs-vetrina: { condition: service_healthy, required: false }
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
       interval: 15s

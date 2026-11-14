@@ -11,8 +11,8 @@ import { LocalesEditor } from './LocalesEditor'
 const channel = {
   __typename: 'Channel' as const,
   id: 'c1',
-  slug: 'wheels',
-  name: 'Wheels',
+  slug: 'menswear',
+  name: 'Menswear',
   defaultLocale: 'en',
   locales: [{ __typename: 'Locale' as const, code: 'en', name: 'English', nativeName: 'English', isActive: true, isRTL: false, sortOrder: 0 }],
   isActive: true,

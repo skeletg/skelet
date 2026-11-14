@@ -103,14 +103,14 @@ func testOrder() order.Order {
 		GiftCardAmount: 500,
 		TotalAmount:    21145, // 20000 - 1500 + 995 + 1650: the gift card pays part of it, it doesn't lower it
 		Lines: []order.OrderLine{
-			{ID: uuid.New(), ProductSku: "TIRE-205", ProductName: "All-Season Tire", Quantity: 4, UnitPrice: 5000, TotalPrice: 20000,
+			{ID: uuid.New(), ProductSku: "TEE-BLK-M", ProductName: "Classic T-Shirt", Quantity: 4, UnitPrice: 5000, TotalPrice: 20000,
 				Options: []order.OrderLineOption{{ID: uuid.New(), OptionTitle: "Mounting", ValueLabel: "Yes"}}},
 		},
 	}
 }
 
 func testStore() StoreInfo {
-	return StoreInfo{Name: "Skelet Tires", Lines: []string{"1 Depot Way", "VAT GB123456789"}}
+	return StoreInfo{Name: "Skelet Apparel", Lines: []string{"1 Depot Way", "VAT GB123456789"}}
 }
 
 func TestRenderProducesAValidPDFForEveryKind(t *testing.T) {
@@ -154,8 +154,8 @@ func TestInvoiceCarriesTheLetterheadOrderAndMoney(t *testing.T) {
 	text := pdfText(t, mustRender(t, KindInvoice, testOrder(), testStore(), nil))
 
 	for _, want := range []string{
-		"INVOICE", "Skelet Tires", "VAT GB123456789",
-		"ORD-1001", "TIRE-205", "All-Season Tire",
+		"INVOICE", "Skelet Apparel", "VAT GB123456789",
+		"ORD-1001", "TEE-BLK-M", "Classic T-Shirt",
 		"Subtotal", "Discount", "Shipping", "Tax", "Gift card", "Total", "Amount due",
 		"USD 200.00", // subtotal
 		"USD 211.45", // total
@@ -174,7 +174,7 @@ func TestInvoiceCarriesTheLetterheadOrderAndMoney(t *testing.T) {
 func TestPackingSlipShowsNoPrices(t *testing.T) {
 	text := pdfText(t, mustRender(t, KindPackingSlip, testOrder(), testStore(), nil))
 
-	for _, want := range []string{"PACKING SLIP", "TIRE-205", "All-Season Tire", "Qty"} {
+	for _, want := range []string{"PACKING SLIP", "TEE-BLK-M", "Classic T-Shirt", "Qty"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the packing slip does not mention %q", want)
 		}
@@ -256,7 +256,7 @@ func TestCreditMemoRendersTheMemosOwnLinesNotTheOrders(t *testing.T) {
 	memo := &order.CreditMemo{
 		Number: "CM-1001", CreatedAt: o.CreatedAt,
 		Lines: []order.CreditMemoLine{
-			{OrderLineID: o.Lines[0].ID, Quantity: 1, UnitCents: 5000, TotalCents: 5000}, // 1 of the 4 tires
+			{OrderLineID: o.Lines[0].ID, Quantity: 1, UnitCents: 5000, TotalCents: 5000}, // 1 of the 4 shirts
 		},
 		LinesTotalCents: 5000,
 		TotalCents:      5000,
@@ -267,7 +267,7 @@ func TestCreditMemoRendersTheMemosOwnLinesNotTheOrders(t *testing.T) {
 	if !strings.Contains(text, "CREDIT MEMO") || !strings.Contains(text, "CM-1001") {
 		t.Error("the memo does not carry its own number")
 	}
-	if !strings.Contains(text, "TIRE-205") {
+	if !strings.Contains(text, "TEE-BLK-M") {
 		t.Error("the credited line is missing")
 	}
 	if strings.Contains(text, "WIPER-A") {
@@ -487,13 +487,13 @@ func TestAmountsUseTheCurrencysDecimals(t *testing.T) {
 	}
 }
 
-// The core PDF fonts stop at Windows-1252, which printed every č, đ and Cyrillic letter as mojibake
+// The core PDF fonts stop at Windows-1252, which printed every ł, ř and Cyrillic letter as mojibake
 func TestNamesOutsideLatin1Survive(t *testing.T) {
 	o := testOrder()
-	o.BillingAddress.FirstName, o.BillingAddress.LastName = "Đorđe", "Čolić"
-	o.ShippingAddress.City = "Ниш"
+	o.BillingAddress.FirstName, o.BillingAddress.LastName = "Łukasz", "Dvořák"
+	o.ShippingAddress.City = "София"
 	text := render(t, Input{Kind: KindInvoice, Order: o, Decimals: 2})
-	for _, want := range []string{"Đorđe Čolić", "Ниш"} {
+	for _, want := range []string{"Łukasz Dvořák", "София"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("%q did not survive rendering", want)
 		}
@@ -503,7 +503,7 @@ func TestNamesOutsideLatin1Survive(t *testing.T) {
 // A cell never wraps, so a long name ran across the price columns - it has to stop at its own column
 func TestALongNameIsCutToItsColumn(t *testing.T) {
 	o := testOrder()
-	long := strings.Repeat("Extra-wide all-season performance tire ", 4)
+	long := strings.Repeat("Extra-long heavyweight brushed cotton hoodie ", 4)
 	o.Lines[0].ProductName = long
 	text := render(t, Input{Kind: KindInvoice, Order: o, Decimals: 2})
 	if strings.Contains(text, long) || !strings.Contains(text, "…") {

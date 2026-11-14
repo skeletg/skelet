@@ -25,11 +25,11 @@ func TestLocationClassificationFiltersAndStoreConversion(t *testing.T) {
 	}
 	svc := NewService(NewRepository(queries, tx), tx)
 	yes, no := true, false
-	store, err := svc.GetLocationBySlug(t.Context(), "store-demo-belgrade")
+	store, err := svc.GetLocationBySlug(t.Context(), "store-demo-berlin")
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows, count, err := svc.ListLocationsPage(t.Context(), "Demo", LocationFilter{Types: []string{LocationRetail}, City: "belgrade", StorefrontVisible: &yes, PickupEnabled: &no}, 1, 0)
+	rows, count, err := svc.ListLocationsPage(t.Context(), "Demo", LocationFilter{Types: []string{LocationRetail}, City: "berlin", StorefrontVisible: &yes, PickupEnabled: &no}, 1, 0)
 	if err != nil || len(rows) != 1 || count != 1 || rows[0].ID != store.ID {
 		t.Fatalf("walk-in filter: %+v %d %v", rows, count, err)
 	}

@@ -97,7 +97,7 @@ export function detailsStepSchema(s: CheckoutSettings, mode: DetailsMode) {
       phoneAllowed: optionalText(),
       purchaseType: z.enum(["personal", "business"]).optional(),
       company: optionalText(200),
-      // By the field key of the company's country ("businessIds.pib")
+      // By the field key of the company's country ("businessIds.ust_idnr")
       businessIds: z.record(z.string(), optionalText(100)).optional(),
       poNumber: optionalText(100),
       shippingChoice: optionalText(),

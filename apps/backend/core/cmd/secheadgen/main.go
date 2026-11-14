@@ -49,17 +49,17 @@ func main() {
 	csp := strings.ReplaceAll(rawCSP, `"`, `\"`)
 	pp := strings.ReplaceAll(rawPP, `"`, `\"`)
 	// Where browsers upload to is per deployment, so the edge copies take it from the environment at start
-	nginxCSP := strings.Replace(csp, "connect-src 'self'", "connect-src 'self' ${UPLOAD_ORIGINS}", 1)
 	caddyCSP := strings.Replace(csp, "connect-src 'self'", "connect-src 'self' {$UPLOAD_ORIGINS}", 1)
+	dashboardCSP := strings.Replace(rawCSP, "connect-src 'self'", "connect-src 'self' {CONNECT_ORIGINS}", 1)
 
 	targets := []target{
 		{root + "/apps/backend/core/lib/httpx/securityheaders.go", []sub{
 			{regexp.MustCompile(`^(const ContentSecurityPolicy = ").*(")$`), strings.ReplaceAll(rawCSP, `"`, `\"`)},
 			{regexp.MustCompile("^(const PermissionsPolicy = `).*(`)$"), rawPP},
 		}},
-		{root + "/apps/dashboard/nginx.conf.template", []sub{
-			{regexp.MustCompile(`^(\s*add_header Content-Security-Policy ").*(" always;)$`), nginxCSP},
-			{regexp.MustCompile(`^(\s*add_header Permissions-Policy ").*(" always;)$`), pp},
+		{root + "/apps/dashboard/headers.template", []sub{
+			{regexp.MustCompile(`^(\s*Content-Security-Policy: ).*()$`), dashboardCSP},
+			{regexp.MustCompile(`^(\s*Permissions-Policy: ).*()$`), rawPP},
 		}},
 		{root + "/deploy/caddy/Caddyfile", []sub{
 			{regexp.MustCompile(`^(\s*Content-Security-Policy ").*(")\s*$`), caddyCSP},

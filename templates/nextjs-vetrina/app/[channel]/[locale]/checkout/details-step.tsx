@@ -302,7 +302,7 @@ export function DetailsStep(props: Props) {
 }
 
 // Personal or business first - a business purchase names the company before anything else, then the identifiers its
-// country asks for (PIB and Matični broj in Serbia, a VAT number elsewhere) and an optional PO number
+// country asks for (a VAT number, a company registry number) and an optional PO number
 function BusinessFields({
   fields,
   settings,
@@ -347,7 +347,7 @@ function BusinessFields({
             const label = generic ? t("taxId") : f.label;
             return (
               <Field
-                // Keyed by key so switching country swaps the inputs rather than carrying a PIB into a VAT box
+                // Keyed by key so switching country swaps the inputs rather than carrying a registry number into a VAT box
                 key={f.key}
                 label={f.required ? label : t("optional", { label })}
                 field={ids[f.key]}

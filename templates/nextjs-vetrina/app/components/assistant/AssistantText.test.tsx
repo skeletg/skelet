@@ -65,7 +65,7 @@ describe("AssistantText", () => {
 
   it("draws a list that follows its lead-in line, and numbers a numbered one", () => {
     const { container } = render(
-      <AssistantText storeOrigins={STORE} text={"For example:\n- A tyre type?\n- A size?\nThat helps.\n\n1. Pick a size\n2. Add it"} />,
+      <AssistantText storeOrigins={STORE} text={"For example:\n- A jacket style?\n- A size?\nThat helps.\n\n1. Pick a size\n2. Add it"} />,
     );
     expect(container.querySelectorAll("ul > li")).toHaveLength(2);
     expect(container.querySelectorAll("ol > li")).toHaveLength(2);

@@ -109,10 +109,10 @@ func stems(t *testing.T) (string, string, string) {
 
 func TestNormalizeIsTheQueryKey(t *testing.T) {
 	for name, tc := range map[string]struct{ in, want string }{
-		"mixed case":         {"Winter Tyres", "winter tyres"},
-		"padded":             {"  winter tyres  ", "winter tyres"},
-		"collapsed runs":     {"winter\t\n  tyres", "winter tyres"},
-		"already normalized": {"winter tyres", "winter tyres"},
+		"mixed case":         {"Winter Jumpers", "winter jumpers"},
+		"padded":             {"  winter jumpers  ", "winter jumpers"},
+		"collapsed runs":     {"winter\t\n  jumpers", "winter jumpers"},
+		"already normalized": {"winter jumpers", "winter jumpers"},
 		"blank":              {"   ", ""},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -128,11 +128,11 @@ func TestSplitTermsDedupesAndLowercases(t *testing.T) { // operators paste these
 		in   string
 		want []string
 	}{
-		"padded list":     {"tyre, tire , tires", []string{"tyre", "tire", "tires"}},
-		"mixed case":      {"Tyre, TIRE", []string{"tyre", "tire"}},
-		"repeated term":   {"tyre, tyre, tire", []string{"tyre", "tire"}},
-		"trailing commas": {"tyre, tire,,", []string{"tyre", "tire"}},
-		"one term":        {"tyre", []string{"tyre"}},
+		"padded list":     {"jumper, sweater , sweaters", []string{"jumper", "sweater", "sweaters"}},
+		"mixed case":      {"Jumper, SWEATER", []string{"jumper", "sweater"}},
+		"repeated term":   {"jumper, jumper, sweater", []string{"jumper", "sweater"}},
+		"trailing commas": {"jumper, sweater,,", []string{"jumper", "sweater"}},
+		"one term":        {"jumper", []string{"jumper"}},
 		"nothing at all":  {" , ", nil},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -155,15 +155,15 @@ func TestExpandQueryAppendsTheRestOfAMatchedGroup(t *testing.T) {
 	svc, conn := newTestService(t)
 	ctx := context.Background()
 	channelID, _ := seedChannels(t, conn)
-	tyre, tire, tires := stems(t)
-	seedSynonym(t, conn, &channelID, tyre+", "+tire+", "+tires)
+	jumper, sweater, sweaters := stems(t)
+	seedSynonym(t, conn, &channelID, jumper+", "+sweater+", "+sweaters)
 
 	for name, tc := range map[string]struct{ query, want string }{
-		"a term in the group":          {tyre + " rack", tyre + " rack " + tire + " " + tires},
-		"another term in the group":    {tires, tires + " " + tyre + " " + tire},
-		"casing does not stop a match": {strings.ToUpper(tyre), strings.ToUpper(tyre) + " " + tire + " " + tires},
-		"already holds a group member": {tyre + " " + tire, tyre + " " + tire + " " + tires},
-		"the whole group":              {tyre + " " + tire + " " + tires, tyre + " " + tire + " " + tires},
+		"a term in the group":          {jumper + " sale", jumper + " sale " + sweater + " " + sweaters},
+		"another term in the group":    {sweaters, sweaters + " " + jumper + " " + sweater},
+		"casing does not stop a match": {strings.ToUpper(jumper), strings.ToUpper(jumper) + " " + sweater + " " + sweaters},
+		"already holds a group member": {jumper + " " + sweater, jumper + " " + sweater + " " + sweaters},
+		"the whole group":              {jumper + " " + sweater + " " + sweaters, jumper + " " + sweater + " " + sweaters},
 		"nothing in the group":         {"brake pads", "brake pads"},
 		"an empty query":               {"", ""},
 	} {
@@ -264,7 +264,7 @@ func TestRedirectsAnswerOnTheNormalizedQueryOnly(t *testing.T) {
 			}
 		})
 	}
-	if _, ok := svc.RedirectFor(ctx, mine, query+" tyres"); ok {
+	if _, ok := svc.RedirectFor(ctx, mine, query+" jumpers"); ok {
 		t.Error("a longer query matched a redirect keyed on the short one")
 	}
 	if _, ok := svc.RedirectFor(ctx, theirs, query); ok {
@@ -378,7 +378,7 @@ func TestUpsertPinClampsAndRepositionsInPlace(t *testing.T) {
 
 func TestBoostsAreKeyedOnWhatTheShopperTyped(t *testing.T) {
 	// Merchandising matches the typed query, not the synonym-expanded one - keying on the expansion
-	// would apply a boost meant for "tyres" to every query that expanded to include it
+	// would apply a boost meant for "jumpers" to every query that expanded to include it
 	svc, conn := newTestService(t)
 	ctx := context.Background()
 	channelID, theirs := seedChannels(t, conn)

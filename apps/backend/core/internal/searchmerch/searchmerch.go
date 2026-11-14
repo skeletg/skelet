@@ -194,7 +194,7 @@ func (s *Service) RedirectFor(ctx context.Context, channelID uuid.UUID, query st
 	return target, ok
 }
 
-// ExpandQuery appends synonym-group members for every term in the query, so "tyre rack" searches "tyre rack tire tires" when a {tyre, tire, tires} group exists
+// ExpandQuery appends synonym-group members for every term in the query, so "jumper sale" searches "jumper sale sweater sweaters" when a {jumper, sweater, sweaters} group exists
 // Terms match as whole phrases, so a "t shirt, tee" group fires on "red t shirt". Failure falls back to the raw query, since merchandising must never break search
 func (s *Service) ExpandQuery(ctx context.Context, channelID uuid.UUID, query string) string {
 	return expand(query, s.snapshot(ctx, channelID).synonyms)
@@ -418,7 +418,7 @@ func validTarget(raw string) bool {
 	return (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }
 
-// splitTerms parses "tyre, tire , tires" into a deduped list of normalized terms
+// splitTerms parses "jumper, sweater , sweaters" into a deduped list of normalized terms
 func splitTerms(s string) []string {
 	parts := strings.Split(s, ",")
 	seen := map[string]bool{}

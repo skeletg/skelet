@@ -98,7 +98,7 @@ describe("CheckoutView", () => {
     id: "c1", subtotal: 3900, totalDiscount: 0, lines,
     checkout: { email: "", paymentProviderSlug: null, destination: null, shippingAddress: null, deliveryGroups: [], requirements: [], totals },
   };
-  const countries = [{ code: "RS", name: "Serbia" }, { code: "DE", name: "Germany" }];
+  const countries = [{ code: "FR", name: "France" }, { code: "DE", name: "Germany" }];
   const values: CheckoutValues = {
     countryCode: "DE", postalCode: "", email: "ana@example.test", firstName: "Ana", lastName: "", street1: "", street2: "", city: "", state: "", phone: "", acceptTerms: false,
   };
@@ -116,10 +116,10 @@ describe("CheckoutView", () => {
   it("then takes delivery, details and payment in one form, keeping what was typed", () => {
     const payments = [{ providerSlug: "cod", displayName: "Cash on delivery", instructions: "Pay the courier." }];
     const { container } = render(
-      <CheckoutView {...base} dest={{ countryCode: "RS", postalCode: "11000" }} groups={[{ key: "g1", selection: null, choices: [choice] }]} picks={new Map([["g1", "o1|post|m1"]])} payments={payments} pickedPayment="cod" error="Enter a valid email" />,
+      <CheckoutView {...base} dest={{ countryCode: "FR", postalCode: "75001" }} groups={[{ key: "g1", selection: null, choices: [choice] }]} picks={new Map([["g1", "o1|post|m1"]])} payments={payments} pickedPayment="cod" error="Enter a valid email" />,
     );
     expect(screen.getByRole("alert").textContent).toBe("Enter a valid email");
-    expect(container.textContent).toContain("To Serbia 11000");
+    expect(container.textContent).toContain("To France 75001");
     const delivery = screen.getByRole("radio", { name: /Standard/ }) as HTMLInputElement;
     expect([delivery.checked, delivery.value, delivery.dataset.autosubmit]).toEqual([true, "o1|post|m1", "update-shipping"]);
     expect((screen.getByRole("radio", { name: /Cash on delivery/ }) as HTMLInputElement).checked).toBe(true);
@@ -130,7 +130,7 @@ describe("CheckoutView", () => {
   });
 
   it("won't place an order nothing can deliver or pay for", () => {
-    render(<CheckoutView {...base} dest={{ countryCode: "RS", postalCode: "11000" }} groups={[{ key: "g1", selection: null, choices: [] }]} />);
+    render(<CheckoutView {...base} dest={{ countryCode: "FR", postalCode: "75001" }} groups={[{ key: "g1", selection: null, choices: [] }]} />);
     expect(screen.getAllByRole("alert").map((a) => a.textContent)).toEqual(["These items can't be delivered there.", "No payment method is available for this country."]);
     expect((screen.getByRole("button", { name: "Place order" }) as HTMLButtonElement).disabled).toBe(true);
   });

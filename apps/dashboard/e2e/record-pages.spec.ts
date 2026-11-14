@@ -110,7 +110,7 @@ const cases: Case[] = [
             password: 'E2e-password-1234!',
             firstName: 'Seeded',
             lastName: 'Customer',
-            phone: '+381601234567',
+            phone: '+4915112345678',
             isActive: true,
             isEmailVerified: true,
           },
@@ -127,7 +127,7 @@ const cases: Case[] = [
         {
           id,
           // In the dev store's own country - an address in one it doesn't sell to is refused
-          a: { firstName: 'Seeded', lastName: 'Customer', company: 'Seeded Co', street1: 'Seeded street 1', street2: 'Floor 2', city: 'New York', state: 'NY', postalCode: '10118', countryCode: 'US', phone: '+381601234567' },
+          a: { firstName: 'Seeded', lastName: 'Customer', company: 'Seeded Co', street1: 'Seeded street 1', street2: 'Floor 2', city: 'New York', state: 'NY', postalCode: '10118', countryCode: 'US', phone: '+4915112345678' },
           u: { note: 'Seeded note', metadata: [{ key: 'seeded', value: 'yes' }] },
         },
       )
@@ -480,15 +480,15 @@ const cases: Case[] = [
             type: 'WAREHOUSE',
             line1: 'Seeded street 1',
             line2: 'Dock 4',
-            city: 'Novi Sad',
-            region: 'Vojvodina',
-            postalCode: '21000',
+            city: 'Munich',
+            region: 'Bavaria',
+            postalCode: '80331',
             countryCode: 'DE',
-            latitude: 45.2671,
-            longitude: 19.8335,
-            timezone: 'Europe/Belgrade',
+            latitude: 48.1374,
+            longitude: 11.5755,
+            timezone: 'Europe/Berlin',
             email: 'seeded-location@e2e.test',
-            phone: '+381601234567', // a valid number - phones are checked and stored as E.164
+            phone: '+4915112345678', // a valid number - phones are checked and stored as E.164
             contactName: 'Seeded contact',
             externalReference: 'EXT-1',
             metadata: [{ key: 'seeded', value: 'yes' }],

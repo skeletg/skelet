@@ -4,7 +4,7 @@ import { safeReturnTo } from "./return-to";
 
 describe("safeReturnTo", () => {
   it("passes a path on this site through", () => {
-    expect(safeReturnTo("/products/tire?page=2#reviews")).toBe("/products/tire?page=2#reviews");
+    expect(safeReturnTo("/products/jacket?page=2#reviews")).toBe("/products/jacket?page=2#reviews");
     expect(safeReturnTo(["/account", "/other"])).toBe("/account");
     expect(safeReturnTo("/%2F%2Fevil.com")).toBe("/%2F%2Fevil.com");
   });

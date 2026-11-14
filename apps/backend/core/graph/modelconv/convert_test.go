@@ -282,21 +282,21 @@ func TestContentModelsSurviveMalformedRichText(t *testing.T) {
 	valid := json.RawMessage(`{"type":"doc","content":[]}`)
 	broken := json.RawMessage(`{"type":`)
 
-	cc := CategoryContentModel(catalog.CategoryContent{Locale: "en", Name: "Tires", ShortDescription: valid})
+	cc := CategoryContentModel(catalog.CategoryContent{Locale: "en", Name: "Jackets", ShortDescription: valid})
 	if cc.ShortDescription == nil {
 		t.Error("a valid short description came back nil")
 	}
-	cc = CategoryContentModel(catalog.CategoryContent{Locale: "en", Name: "Tires", ShortDescription: broken})
+	cc = CategoryContentModel(catalog.CategoryContent{Locale: "en", Name: "Jackets", ShortDescription: broken})
 	if cc.ShortDescription != nil {
 		t.Errorf("a malformed short description = %v, want nil rather than a partial value", cc.ShortDescription)
 	}
-	cc = CategoryContentModel(catalog.CategoryContent{Locale: "en", Name: "Tires"})
+	cc = CategoryContentModel(catalog.CategoryContent{Locale: "en", Name: "Jackets"})
 	if cc.ShortDescription != nil {
 		t.Errorf("an absent short description = %v, want nil", cc.ShortDescription)
 	}
 
 	pcs := ProductContentModels([]catalog.ProductContent{
-		{Locale: "en", Name: "Tire", Description: valid, ShortDescription: broken},
+		{Locale: "en", Name: "Jacket", Description: valid, ShortDescription: broken},
 	})
 	if len(pcs) != 1 {
 		t.Fatalf("ProductContentModels returned %d rows, want 1", len(pcs))
@@ -344,7 +344,7 @@ func TestOrderEventModelOmitsAnAbsentActor(t *testing.T) {
 // Options and components are non-null GraphQL lists, and the money fields narrow from int64
 func TestOrderLineModel(t *testing.T) {
 	line := order.OrderLine{
-		ID: uuid.New(), ProductName: "Tire", ProductSku: "T-1",
+		ID: uuid.New(), ProductName: "Jacket", ProductSku: "T-1",
 		UnitPrice: 12995, Quantity: 2, TotalPrice: 25990,
 		Options:    []order.OrderLineOption{{ID: uuid.New(), OptionTitle: "Mounting", PriceDelta: 1500, Quantity: 2}},
 		Components: []order.OrderLineComponent{{ID: uuid.New(), ProductSku: "C-1", UnitPrice: 500, Quantity: 4}},

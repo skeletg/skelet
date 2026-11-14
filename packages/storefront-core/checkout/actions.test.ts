@@ -14,7 +14,7 @@ vi.mock("./read", () => ({ getCheckoutState: mocks.checkout, checkoutPaymentMeth
 const { placeOrderAction, finalizePlacedPaymentAction, applyCheckoutCouponAction, saveDestinationStep, saveGroupDeliveryAction, saveDeliveryPointAction, saveSplitDeliveryAction } = await import("./actions");
 beforeEach(() => { vi.clearAllMocks(); mocks.signedIn = false; mocks.gqlFetch.mockResolvedValue({ data: {} }); mocks.checkoutCart.mockImplementation(async (id: string) => id === "offer-1" ? { id, offer: { isGuest: true } } : id === "cart-1" ? { id, offer: null } : null); mocks.settings.mockResolvedValue({ termsConsent: "notice" }); mocks.checkout.mockResolvedValue({ email: "guest@example.com", totals: { amountDueCents: 0 } }); });
 it.each([
-  [saveDestinationStep, { countryCode: "RS", postalCode: "11000" }],
+  [saveDestinationStep, { countryCode: "DE", postalCode: "10115" }],
   [saveGroupDeliveryAction, { groupKey: "all", selection: "option::builtin::standard" }],
   [saveDeliveryPointAction, { groupKey: "all", pointId: "point-1" }],
   [saveSplitDeliveryAction, { split: "split" }],
@@ -46,8 +46,8 @@ it("translates an offer payment restriction into a form error", async () => {
   mocks.gqlFetch.mockRejectedValue(new GraphQLRequestError("Payment not allowed", [{ message: "Payment not allowed", extensions: { code: "CART_OFFER_PAYMENT_NOT_ALLOWED" } }]));
   const data = new FormData();
   data.set("cartId", "cart-1");
-  data.set("countryCode", "RS");
-  data.set("postalCode", "11000");
+  data.set("countryCode", "DE");
+  data.set("postalCode", "10115");
   const result = await saveDestinationStep(undefined, data);
   expect(result.error?.[""]).toEqual(["offerPaymentNotAllowed"]);
   expect(mocks.redirect).not.toHaveBeenCalled();
@@ -57,22 +57,22 @@ it("translates an offer payment restriction into a form error", async () => {
 it("pins regular checkout writes to the rendered cart while another tab holds an offer", async () => {
   const data = new FormData();
   data.set("cartId", "cart-1");
-  data.set("countryCode", "RS"); data.set("postalCode", "11000");
+  data.set("countryCode", "DE"); data.set("postalCode", "10115");
   await expect(saveDestinationStep(undefined, data)).rejects.toThrow("redirect");
   expect(mocks.checkoutCart).toHaveBeenCalledWith("cart-1");
-  expect(mocks.gqlFetch).toHaveBeenCalledWith(expect.anything(), { cartId: "cart-1", countryCode: "RS", postalCode: "11000" });
+  expect(mocks.gqlFetch).toHaveBeenCalledWith(expect.anything(), { cartId: "cart-1", countryCode: "DE", postalCode: "10115" });
 });
 
 it("preserves the offer id on delivery redirects", async () => {
   const data = new FormData();
-  data.set("cartId", "offer-1"); data.set("countryCode", "RS"); data.set("postalCode", "11000");
+  data.set("cartId", "offer-1"); data.set("countryCode", "DE"); data.set("postalCode", "10115");
   await expect(saveDestinationStep(undefined, data)).rejects.toThrow("redirect");
   expect(mocks.redirect).toHaveBeenCalledWith("/en/checkout?step=delivery&offer=offer-1", "replace");
 });
 
 it.each(["", "forged-id"])("refuses missing or unauthorized checkout context %s without writes", async (id) => {
   const data = new FormData();
-  data.set("cartId", id); data.set("countryCode", "RS"); data.set("postalCode", "11000");
+  data.set("cartId", id); data.set("countryCode", "DE"); data.set("postalCode", "10115");
   const result = await saveDestinationStep(undefined, data);
   expect(result.error?.[""]).toEqual(["checkoutCartMissing"]);
   expect(mocks.gqlFetch).not.toHaveBeenCalled();

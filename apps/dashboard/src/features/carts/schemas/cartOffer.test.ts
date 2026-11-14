@@ -4,7 +4,7 @@ import { cartOfferSchema, offerDiff, toOfferInput, type CartOfferValues } from '
 import { customLineSchema } from './customLine'
 import { newCartSchema } from './newCart'
 
-const address = { ...toAddressValues(), firstName: 'Ana', lastName: 'Ilić', street1: 'Main 1', city: 'Beograd', postalCode: '11000', countryCode: 'RS' }
+const address = { ...toAddressValues(), firstName: 'Ana', lastName: 'Müller', street1: 'Main 1', city: 'Berlin', postalCode: '10115', countryCode: 'DE' }
 
 const base: CartOfferValues = {
   expiresAt: '2030-01-01T12:00',
@@ -55,7 +55,7 @@ describe('offer diff', () => {
     expect(diff.map((d) => d.label)).toEqual(['Locked', 'Shipping address', 'Payment methods'])
     expect(diff[0].after).toBe('Items and quantities, Coupons, gift cards and store credit')
     expect(diff[2]).toMatchObject({ before: 'Any the store offers', after: 'cod, bank' })
-    expect(diff[1].after).toBe('Ana Ilić, Main 1, 11000 Beograd, RS')
+    expect(diff[1].after).toBe('Ana Müller, Main 1, 10115 Berlin, DE')
   })
 
   it('is empty when nothing changed', () => {

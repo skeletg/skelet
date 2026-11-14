@@ -237,7 +237,7 @@ describe('applyOps', () => {
 })
 
 describe('per-channel surcharges', () => {
-  const label = (id: string) => (id === 'c-eur' ? 'Tyres (EUR)' : 'Wheels (USD)')
+  const label = (id: string) => (id === 'c-eur' ? 'Womenswear (EUR)' : 'Menswear (USD)')
   const valued = () =>
     option({ values: [{ id: 'v1', sortOrder: 0, priceValue: 500, priceType: 'FIXED', isDefault: false, quantity: 1, title: 'Gloss', channelPrices: [{ channelId: 'c-eur', priceValue: 400 }] }] })
 
@@ -262,8 +262,8 @@ describe('per-channel surcharges', () => {
   it('lists one row per channel that moved, named and with before and after', () => {
     const rows = opsToDiff([valued()], [{ kind: 'update-value', id: 'v1', channelPrices: { 'c-eur': null, 'c-usd': 550 } }], label)
     expect(rows).toEqual([
-      { kind: 'change', label: 'Value · Gloss · price on Tyres (EUR)', before: '400', after: '' },
-      { kind: 'change', label: 'Value · Gloss · price on Wheels (USD)', before: '', after: '550' },
+      { kind: 'change', label: 'Value · Gloss · price on Womenswear (EUR)', before: '400', after: '' },
+      { kind: 'change', label: 'Value · Gloss · price on Menswear (USD)', before: '', after: '550' },
     ])
     expect(opsToDiff([valued()], [{ kind: 'update-value', id: 'v1', channelPrices: { 'c-eur': 400 } }], label)).toEqual([])
   })
@@ -271,7 +271,7 @@ describe('per-channel surcharges', () => {
   it('names the channels a staged add sets', () => {
     const [row] = opsToDiff([], [addValue({ priceValue: 500, channelPrices: { 'c-eur': 450 } })], label)
     expect(row.kind).toBe('add')
-    expect(JSON.stringify(row)).toContain('Tyres (EUR) 450')
+    expect(JSON.stringify(row)).toContain('Womenswear (EUR) 450')
   })
 
   const committers = (over: Partial<Committers> = {}): Committers => ({
@@ -370,9 +370,9 @@ describe('phaseWrites', () => {
       addOption: vi.fn(async () => 'o-real'), updateOption, upsertOptionContent, deleteOption: noop, addValue: vi.fn(async () => 'v-real'),
       updateValue: noop, upsertValueContent: noop, deleteValue: noop, setOptionChannelPrice: noop, setValueChannelPrice: noop, setRules: noop,
     }
-    await commitOps([{ kind: 'update-option', id: 'o1', title: 'Poruka', helpText: '', titleLocale: 'sr' }], 'p1', c)
+    await commitOps([{ kind: 'update-option', id: 'o1', title: 'Wiadomość', helpText: '', titleLocale: 'pl' }], 'p1', c)
     expect(updateOption).not.toHaveBeenCalled()
-    expect(upsertOptionContent).toHaveBeenCalledWith({ optionId: 'o1', locale: 'sr', title: 'Poruka', helpText: '' })
+    expect(upsertOptionContent).toHaveBeenCalledWith({ optionId: 'o1', locale: 'pl', title: 'Wiadomość', helpText: '' })
   })
 })
 

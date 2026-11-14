@@ -169,8 +169,8 @@ func TestAResolvedFromIsNotSecondGuessed(t *testing.T) {
 func TestFromNamesAreQuotedAndEncoded(t *testing.T) {
 	s := New(&captureSender{}, nil)
 	for name, want := range map[string]string{
-		"Shop, Inc":        `"Shop, Inc" <no-reply@skelet.local>`,
-		"Prodavnica Čačak": "=?utf-8?q?Prodavnica_=C4=8Ca=C4=8Dak?= <no-reply@skelet.local>",
+		"Shop, Inc":   `"Shop, Inc" <no-reply@skelet.local>`,
+		"Mode Müller": "=?utf-8?q?Mode_M=C3=BCller?= <no-reply@skelet.local>",
 	} {
 		got := s.from(context.Background(), Spec{FallbackName: name})
 		if got != want {
@@ -183,7 +183,7 @@ func TestFromNamesAreQuotedAndEncoded(t *testing.T) {
 }
 
 func TestLogsCarryTheDomainNotTheAddress(t *testing.T) {
-	if got := recipientDomain("ana.markovic@example.test"); got != "*@example.test" {
+	if got := recipientDomain("anna.mueller@example.test"); got != "*@example.test" {
 		t.Errorf("recipientDomain = %q", got)
 	}
 	if got := recipientDomain("garbage"); got != "*" {

@@ -131,7 +131,7 @@ func TestReplayLimitsHoldOnTheServer(t *testing.T) {
 	cleanupSession(t, conn, sid)
 	start := time.Now().Add(-time.Hour)
 	ingest := func(seq int32, at time.Time) {
-		svc.IngestReplay(context.Background(), ch, strings.Repeat("ž", 300), ReplayBatch{SessionID: sid.String(), AnonID: "anon-1", Seq: seq, Events: rrweb(t, at, 1)}, uuid.Nil)
+		svc.IngestReplay(context.Background(), ch, strings.Repeat("ü", 300), ReplayBatch{SessionID: sid.String(), AnonID: "anon-1", Seq: seq, Events: rrweb(t, at, 1)}, uuid.Nil)
 	}
 	ingest(0, start)
 	ingest(1, start.Add(30*time.Second))

@@ -76,7 +76,7 @@ function renderMenu(extra: MockLink.MockedResponse[] = []) {
       ...extra,
       meMock(),
       { request: { query: MenuDetailDocument, variables: { id: 'm1' } }, result: { data: { menu } }, maxUsageCount: 5 },
-      { request: { query: ChannelsDocument }, result: { data: { channels: [channel('c1', 'Wheels')] } }, maxUsageCount: 3 },
+      { request: { query: ChannelsDocument }, result: { data: { channels: [channel('c1', 'Menswear')] } }, maxUsageCount: 3 },
       { request: { query: LocalesPickerDocument }, result: { data: { locales: [] } }, maxUsageCount: 3 },
       { request: { query: UpdateMenuDocument, variables: recorder(writes.menu) }, result: { data: { updateMenu: { ...menu, name: 'Header' } } } },
       { request: { query: SetMenuStoresDocument, variables: recorder(writes.stores) }, result: { data: { setMenuStores: { ...menu, channelIds: ['c1'] } } } },
@@ -94,7 +94,7 @@ describe('MenuDetail', () => {
   it('reviews the name and channels together, then writes both', async () => {
     const writes = renderMenu()
     fireEvent.change(await screen.findByLabelText('Name', {}, SLOW), { target: { value: 'Header' } })
-    fireEvent.click(await screen.findByRole('checkbox', { name: /Wheels/ }))
+    fireEvent.click(await screen.findByRole('checkbox', { name: /Menswear/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
     const dialog = await screen.findByRole('alertdialog')
     fireEvent.click(within(dialog).getByRole('button', { name: /Apply 2 changes/ }))

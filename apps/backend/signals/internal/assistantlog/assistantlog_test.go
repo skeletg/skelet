@@ -11,7 +11,7 @@ func TestASearchNeedsThreeLettersOrDigitsToNarrowAnything(t *testing.T) {
 		"%_%":       "",
 		"ab cd":     "ab cd",
 		"100%":      `100\%`,
-		" čaj ":     "čaj",
+		" müsli ":   "müsli",
 		"a_b c":     `a\_b c`,
 		"mugs   ok": "mugs   ok",
 	} {

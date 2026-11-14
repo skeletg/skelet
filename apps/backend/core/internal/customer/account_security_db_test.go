@@ -190,15 +190,15 @@ func TestResetPasswordVerifiesTheAddressAndRevokesOtherLinks(t *testing.T) {
 // A link refused on the wrong store is not spent, so the shopper can still use it where it belongs
 func TestResetOnTheWrongChannelLeavesTheLinkUsable(t *testing.T) {
 	f := newFixture(t)
-	tires, wheels := f.newChannel(t), f.newChannel(t)
+	jackets, shoes := f.newChannel(t), f.newChannel(t)
 	addr := randomEmail()
-	c := f.register(t, tires, addr, "password123")
+	c := f.register(t, jackets, addr, "password123")
 	link := f.resetLink(t, c.ID)
 
-	if err := f.svc.ResetPassword(f.ctx, wheels, link, "brand-new-password"); !errors.Is(err, ErrResetLinkInvalid) {
+	if err := f.svc.ResetPassword(f.ctx, shoes, link, "brand-new-password"); !errors.Is(err, ErrResetLinkInvalid) {
 		t.Fatalf("cross-channel reset = %v, want ErrResetLinkInvalid", err)
 	}
-	if err := f.svc.ResetPassword(f.ctx, tires, link, "brand-new-password"); err != nil {
+	if err := f.svc.ResetPassword(f.ctx, jackets, link, "brand-new-password"); err != nil {
 		t.Errorf("the link on its own store after a refused cross-store attempt = %v", err)
 	}
 }

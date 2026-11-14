@@ -21,7 +21,7 @@ function renderForm(phoneCountry: string) {
   return renderWithIntl(
     <ProfileForm
       firstName="Ana"
-      lastName="Ilić"
+      lastName="Müller"
       phone=""
       // No store phone policy - a national number is read in the store's default country
       phoneSettings={{ restrictedToStoreCountries: false, lockedCountryCode: null, defaultCountryCode: phoneCountry, formats: [] }}
@@ -34,22 +34,22 @@ describe("ProfileForm phone", () => {
   it("reads a national number in the store's country and sends that country with it", async () => {
     updateProfileAction.mockClear();
     const user = userEvent.setup();
-    renderForm("RS");
-    await user.type(screen.getByLabelText("Phone"), "0641234567");
-    expect(screen.getByLabelText("Phone")).toHaveValue("064 1234567");
+    renderForm("DE");
+    await user.type(screen.getByLabelText("Phone"), "015123456789");
+    expect(screen.getByLabelText("Phone")).toHaveValue("01512 3456789");
     await user.click(screen.getByRole("button", { name: "Save changes" }));
 
     expect(updateProfileAction).toHaveBeenCalledTimes(1);
     const sent = updateProfileAction.mock.calls[0][1];
-    expect(sent.get("phone")).toBe("064 1234567");
-    expect(sent.get("phoneCountry")).toBe("RS");
+    expect(sent.get("phone")).toBe("01512 3456789");
+    expect(sent.get("phoneCountry")).toBe("DE");
   });
 
   it("refuses a number that can't be one in the store's country before posting", async () => {
     updateProfileAction.mockClear();
     const user = userEvent.setup();
     renderForm("US");
-    await user.type(screen.getByLabelText("Phone"), "064 123 4567");
+    await user.type(screen.getByLabelText("Phone"), "01512 3456789");
     await user.click(screen.getByRole("button", { name: "Save changes" }));
 
     expect(screen.getByLabelText("Phone")).toHaveAccessibleDescription(

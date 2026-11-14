@@ -6,7 +6,7 @@ import (
 )
 
 // Security response headers - the app-layer copy of what the prod edge also sets, so a deployment behind another proxy, or none, still ships them
-// GENERATED: cmd/secheadgen rewrites the two consts below and mirrors them into the nginx and Caddy copies, so edit securityorigins.go or a plugin manifest, never these lines
+// GENERATED: cmd/secheadgen rewrites the two consts below and mirrors them into the dashboard's and Caddy's copies, so edit securityorigins.go or a plugin manifest, never these lines
 const ContentSecurityPolicy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self'; frame-src 'none'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
 
 const PermissionsPolicy = `camera=(), microphone=(), geolocation=(), payment=(self)`

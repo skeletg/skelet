@@ -13,7 +13,7 @@ import (
 func someAddress(id uuid.UUID, city string) customer.Address {
 	return customer.Address{
 		ID: id, FirstName: "Ana", LastName: "K",
-		Street1: "Main 1", City: city, PostalCode: "11000", CountryCode: "RS",
+		Street1: "Main 1", City: city, PostalCode: "10115", CountryCode: "DE",
 		CreatedAt: time.Now(),
 	}
 }
@@ -30,7 +30,7 @@ func groupedCustomer(addrs ...customer.Address) customer.Customer {
 
 func TestToCustomerModelResolvesTheDefaultAddresses(t *testing.T) { // checkout preselects these, so a mismatched pointer would ship to the wrong saved address
 	billing, shipping, other := uuid.New(), uuid.New(), uuid.New()
-	c := groupedCustomer(someAddress(other, "Novi Sad"), someAddress(billing, "Beograd"), someAddress(shipping, "Nis"))
+	c := groupedCustomer(someAddress(other, "Hamburg"), someAddress(billing, "Berlin"), someAddress(shipping, "Munich"))
 	c.DefaultBillingAddressID = &billing
 	c.DefaultShippingAddressID = &shipping
 
@@ -38,11 +38,11 @@ func TestToCustomerModelResolvesTheDefaultAddresses(t *testing.T) { // checkout 
 	if len(m.Addresses) != 3 {
 		t.Fatalf("%d addresses, want 3", len(m.Addresses))
 	}
-	if m.DefaultBillingAddress == nil || m.DefaultBillingAddress.City != "Beograd" {
-		t.Errorf("DefaultBillingAddress = %+v, want the Beograd address", m.DefaultBillingAddress)
+	if m.DefaultBillingAddress == nil || m.DefaultBillingAddress.City != "Berlin" {
+		t.Errorf("DefaultBillingAddress = %+v, want the Berlin address", m.DefaultBillingAddress)
 	}
-	if m.DefaultShippingAddress == nil || m.DefaultShippingAddress.City != "Nis" {
-		t.Errorf("DefaultShippingAddress = %+v, want the Nis address", m.DefaultShippingAddress)
+	if m.DefaultShippingAddress == nil || m.DefaultShippingAddress.City != "Munich" {
+		t.Errorf("DefaultShippingAddress = %+v, want the Munich address", m.DefaultShippingAddress)
 	}
 	// the default must be the SAME model object as the list entry, or a client keying by identity sees four addresses
 	if m.DefaultBillingAddress != m.Addresses[1] {
@@ -51,7 +51,7 @@ func TestToCustomerModelResolvesTheDefaultAddresses(t *testing.T) { // checkout 
 }
 
 func TestToCustomerModelWithNoDefaults(t *testing.T) { // a fresh account has addresses but no defaults picked yet
-	c := groupedCustomer(someAddress(uuid.New(), "Beograd"))
+	c := groupedCustomer(someAddress(uuid.New(), "Berlin"))
 	m := toCustomerModel(c)
 	if m.DefaultBillingAddress != nil || m.DefaultShippingAddress != nil {
 		t.Errorf("defaults = %+v/%+v, want both nil", m.DefaultBillingAddress, m.DefaultShippingAddress)
@@ -60,7 +60,7 @@ func TestToCustomerModelWithNoDefaults(t *testing.T) { // a fresh account has ad
 
 func TestToCustomerModelWithADanglingDefault(t *testing.T) { // the default id can point at a just-deleted address - it must resolve to nil, not panic or grab a random entry
 	gone := uuid.New()
-	c := groupedCustomer(someAddress(uuid.New(), "Beograd"))
+	c := groupedCustomer(someAddress(uuid.New(), "Berlin"))
 	c.DefaultBillingAddressID = &gone
 
 	m := toCustomerModel(c)

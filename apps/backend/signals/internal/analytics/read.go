@@ -103,7 +103,7 @@ type AffinityAttr struct { // names a Synapse-tracked attribute the caller wants
 	Name string
 }
 
-type AttributeAffinity struct { // a profile's top values for one tracked attribute (tire size to [{205/55R16, 8}, …]) - high counts mean high intent
+type AttributeAffinity struct { // a profile's top values for one tracked attribute (shoe size to [{44, 8}, …]) - high counts mean high intent
 	Slug   string
 	Name   string
 	Values []ValueCount

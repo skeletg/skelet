@@ -13,20 +13,21 @@ most a one-line hint. Everything that needs a paragraph lives here.
 
 ## The files
 
-On a server, each backend keeps everything it reads in one `.env` beside its
-`compose.yaml` - settings and secrets together - the way it would if it were
-its own repo:
+On a server, each app keeps everything it reads in one file of its own - settings
+and secrets together - the way it would if it were its own repo: a backend in the
+`.env` beside its `compose.yaml`, a frontend in the `.env.production` beside its
+`package.json`:
 
 | File | Copy to | Read by |
 |---|---|---|
 | `apps/backend/core/.env.example` | `apps/backend/core/.env` | core: `app`, `worker`, `media`, and its bundled Postgres and Valkeys |
 | `apps/backend/signals/.env.example` | `apps/backend/signals/.env` | Signals: `signals`, `ingest`, and its bundled Postgres, ClickHouse, Valkey and NATS |
-| `../.env.example` | `../.env` | the one-box files, `docker-compose.prod.yml` and `docker-compose.small.yml` - the frontends and the edge only |
+| `apps/dashboard/.env.production.example` | `apps/dashboard/.env.production` | the dashboard's build - core's address, the storefront's origin and the upload hosts, all baked into the static files |
+| `templates/<name>/.env.production.example` | `.env.production` beside it | a storefront's build and its server - a fork in `apps/channels/` carries its own copy |
+| `../.env.example` | `../.env` | the one-box files, `docker-compose.prod.yml` and `docker-compose.small.yml` - the edge only |
 | `go.env.example` | `go.env` | core in dev (`app`, `worker`, `media`, `migrate`) |
 | `signals.env.example` | `signals.env` | the Signals processes in dev (`signals`, `ingest`) - `skelet up` writes it and copies `CUSTOMER_JWT_PUBLIC_KEY` / `EMAIL_LINK_SECRET` / `SIGNALS_SERVICE_SECRET` over from `go.env` |
 | `db.env.example` | `db.env` | the dev Postgres container |
-| `prod-nextjs-vetrina.env.example` | `prod-nextjs-vetrina.env` | the storefront container |
-| `small-nextjs-vetrina.env.example` | `small-nextjs-vetrina.env` | its storefront container in the small profile |
 | `prod-caddy.env.example` | `prod-caddy.env` | the opt-in Caddy edge (`--profile edge`), in both prod and small |
 
 The small profile is core's `compose.yaml` with its `.env` set small: no worker
@@ -63,11 +64,11 @@ not its profile is active - a missing value would break `up` for everyone
 not running that profile. The check lives in the container's start command
 instead, so it fires only when the profile is actually on.
 
-The storefront still keeps its own file. That's a security boundary, not
-duplication: the most internet-exposed container holds no DB password, S3
-key or SMTP credential, and no session key either. The two values it shares
-with core (`REVIEW_VOTER_TOKEN_SECRET`, `STOREFRONT_REVALIDATE_SECRET`,
-`TRUSTED_PROXY_KEY`) come from the root `.env` via compose.
+A storefront's own file is a security boundary as much as a convenience: the most
+internet-exposed app holds no DB password, S3 key or SMTP credential, and no
+session key either - only the values it shares with core
+(`REVIEW_VOTER_TOKEN_SECRET`, `STOREFRONT_REVALIDATE_SECRET`, `TRUSTED_PROXY_KEY`),
+which `skelet setup` copies from core's `.env`.
 
 One gotcha on a machine that runs both stacks: the root `.env` is shared
 between `docker-compose.yml` and `docker-compose.prod.yml`, so dev values
@@ -421,18 +422,18 @@ Required for media to work. `STORAGE_DRIVER` picks where files live: `s3`
 
 Browsers upload straight to the store rather than through the API, and the
 dashboard, storefront and edge CSPs only allow connections to their own
-origin. So in production set `UPLOAD_ORIGINS` in the root `.env` to the host
-uploads go to - the S3 presign host (on AWS, `https://<bucket>.s3.<region>.amazonaws.com`),
-or `STORAGE_UPLOAD_URL` on the filesystem driver. Space-separate several.
-The dashboard and Caddy read it when they start; the storefront bakes it in
-at build, so `skelet release` passes it through. Without it uploads fail
+origin. So in production set `UPLOAD_ORIGINS` to the host uploads go to - the
+S3 presign host (on AWS, `https://<bucket>.s3.<region>.amazonaws.com`), or
+`STORAGE_UPLOAD_URL` on the filesystem driver. Space-separate several. The
+dashboard and the storefront bake it in at build, from their `.env.production`,
+and Caddy reads it from the root `.env` when it starts. Without it uploads fail
 with a CSP error in the browser console. Dev needs nothing - its local hosts
 are already allowed.
 
 A card gateway's fields load from the gateway's own hosts, which the Next
 storefront's CSP blocks until `PAYMENT_ORIGINS` names them - separated by spaces
-or commas, baked in at build like `UPLOAD_ORIGINS`, and read from the root `.env`
-in dev too. Each one has to be a bare https origin, and anything else fails the
+or commas, baked in at build like `UPLOAD_ORIGINS` from the storefront's
+`.env.production`, and from the root `.env` in dev. Each one has to be a bare https origin, and anything else fails the
 build rather than loosening the policy. Use the hosts the gateway plugin lists in
 its manifest's `SecurityOrigins` (Stripe: `https://js.stripe.com
 https://api.stripe.com`). The backend, dashboard and Caddy CSPs pick those up
@@ -711,13 +712,13 @@ map doesn't name. Set only the id and every host serves that one channel. A
 page request on a host neither covers is a 404, and so are the sitemaps and
 robots.txt. Absolute URLs (canonicals, sitemap, JSON-LD) use the channel's
 public URL, with `STOREFRONT_BASE_URL` as the fallback for a channel without
-one. Neither is needed at build time: the image is the same for every
+one. Neither is needed at build time: the build is the same for every
 channel. `REVIEW_VOTER_TOKEN_SECRET` signs review-voter tokens and voting
-500s without it - it comes from the root `.env`, matching core's.
+500s without it - it matches core's.
 
 `BACKEND_INTERNAL_URL` is where the storefront reaches the backend, and it's
-read at runtime too, so compose sets it on the container rather than the
-build. Besides GraphQL it carries the backend links the browser loads from the
+read at runtime, so a built storefront can be pointed elsewhere without a
+rebuild. Besides GraphQL it carries the backend links the browser loads from the
 shop's own origin: `/media/t/*` thumbnails, `/download/*`, `/unsubscribe/*`,
 the `/subscribe/confirm/*` signup confirmations, the `/e/*` email pixels and clicks, and the `/t/*` beacons. Left unset it
 falls back to `http://localhost:8080`, which only fits `pnpm run dev` on the
@@ -948,11 +949,9 @@ events. A bad path is logged, not fatal - geo just doesn't appear.
 
 ## Image tags
 
-`CORE_IMAGE` goes in core's `.env`, `SIGNALS_IMAGE` in Signals', and
-`DASHBOARD_IMAGE` and `NEXTJS_VETRINA_IMAGE` in the root `.env` - compose
-interpolates each from the file beside the compose file that uses it.
-`skelet release <app>` builds and pushes the apps you name and prints the
-line each file takes.
+`CORE_IMAGE` goes in core's `.env` and `SIGNALS_IMAGE` in Signals'.
+`skelet release core signals` builds and pushes them and prints the line each
+file takes. The frontends aren't images: each builds into what its host serves.
 
 ---
 

@@ -29,7 +29,7 @@ func TestPhoneRulesFollowTheSetting(t *testing.T) {
 		{"unset means any", phoneCfg("", "US,CA", "US"), "US", nil},
 		{"allowed keeps phones to the allow-list", phoneCfg(PhoneCountriesAllowed, "us, ca", "US"), "US", []string{"US", "CA"}},
 		// One country: every phone is that country's, even a national one typed with no address
-		{"a single allowed country becomes the default", phoneCfg(PhoneCountriesAllowed, "RS", "US"), "RS", []string{"RS"}},
+		{"a single allowed country becomes the default", phoneCfg(PhoneCountriesAllowed, "DE", "US"), "DE", []string{"DE"}},
 		// No allow-list means the store sells to every active country - the fake repository lists none
 		{"allowed with no allow-list and no active countries takes every number", phoneCfg(PhoneCountriesAllowed, "", "US"), "US", nil},
 	}
@@ -47,12 +47,12 @@ func TestPhoneRulesFollowTheSetting(t *testing.T) {
 }
 
 func TestPhoneSettingsLockASingleCountryStore(t *testing.T) {
-	s, err := newSvc(phoneCfg(PhoneCountriesAllowed, "RS", "RS")).PhoneSettings(context.Background(), config.DefaultScope)
+	s, err := newSvc(phoneCfg(PhoneCountriesAllowed, "DE", "DE")).PhoneSettings(context.Background(), config.DefaultScope)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Locked != "RS" || len(s.Formats) != 1 || s.Formats[0].CallingCode != "+381" || s.Formats[0].NationalExample != "060 1234567" {
-		t.Fatalf("settings = %+v, want RS locked with its format", s)
+	if s.Locked != "DE" || len(s.Formats) != 1 || s.Formats[0].CallingCode != "+49" || s.Formats[0].NationalExample != "01512 3456789" {
+		t.Fatalf("settings = %+v, want DE locked with its format", s)
 	}
 }
 
@@ -114,8 +114,8 @@ func TestPhoneRulesWithNoAllowListKeepToTheActiveCountries(t *testing.T) {
 
 func TestCallingCodeIsDerived(t *testing.T) {
 	cases := []struct{ code, typed, want string }{
-		{"RS", "+38", "+381"},  // a typo on a known country heals
-		{"RS", "", "+381"},     // and a blank one fills
+		{"DE", "+4", "+49"},    // a typo on a known country heals
+		{"DE", "", "+49"},      // and a blank one fills
 		{"XX", "+999", "+999"}, // an unknown code keeps what was typed
 	}
 	for _, tc := range cases {

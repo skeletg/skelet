@@ -1,5 +1,5 @@
-// Company identifiers on a business purchase. Which ones are asked for follows the company's country - Serbia's PIB and
-// Matični broj, a VAT number elsewhere - as the store defines them per country in the dashboard. A country with none
+// Company identifiers on a business purchase. Which ones are asked for follows the company's country - a VAT number, a company
+// registry number - as the store defines them per country in the dashboard. A country with none
 // falls back to one generic tax ID, per sales/checkout/tax_id_field. The backend applies the same rules
 
 import type { BusinessIdField, CountryOption } from "../countries/read";

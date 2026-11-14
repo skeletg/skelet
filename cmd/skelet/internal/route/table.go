@@ -93,11 +93,11 @@ var subs = map[string]string{
 	"seed":      "[--channel <id>] [--seed N] [--days N] [--customers N] [--events 10m] | --purge",
 	"pnpm":      "<app|package> <pnpm args> | --lockfile",
 	"npm":       "<app|package> <pnpm args> | --lockfile",
-	"add":       "channel <name> [--template <template> | --from <storefront>] [--tracked] [--workspace]",
-	"new":       "channel <name> [--template <template> | --from <storefront>] [--tracked] [--workspace]",
+	"add":       "channel <name> [--template <template> | --from <storefront>] [--workspace]",
+	"new":       "channel <name> [--template <template> | --from <storefront>] [--workspace]",
 	"rm":        "channel <name> [-y] [--volumes]",
 	"changelog": "(preview) | check | release <version> [date]",
-	"release":   "<app>... [--tag T]",
+	"release":   "core|signals... [--tag T]",
 }
 
 // Routes is the table, for the tests that hold it together

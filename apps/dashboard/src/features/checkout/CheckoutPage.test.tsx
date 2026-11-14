@@ -87,10 +87,10 @@ const poBox: Configuration['deliveryPoints'][number] = {
   name: 'Main post office',
   street1: 'Takovska 2',
   street2: '',
-  city: 'Belgrade',
+  city: 'Berlin',
   region: '',
-  postalCode: '11000',
-  countryCode: 'RS',
+  postalCode: '10115',
+  countryCode: 'DE',
   instructions: '',
   hours: '',
   isActive: true,
@@ -100,8 +100,8 @@ describe('pickup point change confirmation', () => {
   const point: Point = { ...poBox, key: poBox.id }
 
   it('names a changed pickup point field', () => {
-    const diff = pointsDiff([point], [{ ...point, city: 'Novi Sad' }])
-    expect(diff.some((d) => d.label === 'Pickup point · Main post office · Address' && d.after.includes('Novi Sad'))).toBe(true)
+    const diff = pointsDiff([point], [{ ...point, city: 'Hamburg' }])
+    expect(diff.some((d) => d.label === 'Pickup point · Main post office · Address' && d.after.includes('Hamburg'))).toBe(true)
   })
 
   it('does not mark an unchanged list as dirty', () => {
@@ -167,7 +167,7 @@ function renderPage({ url, config = configuration(), mocks = [], onRead }: { url
   }
   return render(
     <MockedProvider mocks={[settings, configSections, {
-      request: { query: CountriesPickerDocument }, result: { data: { countries: [{ code: 'RS', name: 'Serbia', emojiFlag: '' }] } }, maxUsageCount: 20,
+      request: { query: CountriesPickerDocument }, result: { data: { countries: [{ code: 'DE', name: 'Germany', emojiFlag: '' }] } }, maxUsageCount: 20,
     }, ...mocks, {
       request: { query: ShippingCarriersDocument, variables: { channelId: 'channel-1' } },
       result: { data: { shippingCarriers: [{ carrierSlug: 'builtin', displayName: 'Shipping', isEnabled: false, sortOrder: 0, countryMode: 'all', allowedCountries: [], supportsTracking: false, supportsLabels: false, deliversOnWeekends: false }] } }, maxUsageCount: 20,
@@ -263,12 +263,12 @@ it('stages a pickup point edit and saves the whole list after confirmation', asy
       },
     ],
   })
-  fireEvent.change(await screen.findByLabelText('City'), { target: { value: 'Novi Sad' } })
+  fireEvent.change(await screen.findByLabelText('City'), { target: { value: 'Hamburg' } })
   const dialog = await openSaveDialog()
   expect(within(dialog).getByText('Pickup point · Main post office · Address')).toBeDefined()
   expect(onSave).not.toHaveBeenCalled()
   fireEvent.click(within(dialog).getByRole('button', { name: /Apply/ }))
-  await waitFor(() => expect(onSave).toHaveBeenCalledWith([expect.objectContaining({ id: 'point-1', city: 'Novi Sad' })]), { timeout: 5000 })
+  await waitFor(() => expect(onSave).toHaveBeenCalledWith([expect.objectContaining({ id: 'point-1', city: 'Hamburg' })]), { timeout: 5000 })
 })
 
 it('stages a details setting into the same header Save as the rest of checkout', async () => {

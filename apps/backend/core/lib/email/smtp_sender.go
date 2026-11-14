@@ -122,7 +122,7 @@ func headerSafe(s string) string {
 	return strings.NewReplacer("\r", "", "\n", "").Replace(s)
 }
 
-// One mailbox as a wire header - the display name quoted or RFC 2047-encoded as it needs, so "Shop, Inc" stays one address and "Prodavnica Čačak" survives
+// One mailbox as a wire header - the display name quoted or RFC 2047-encoded as it needs, so "Shop, Inc" stays one address and "Mode Müller" survives
 func addressHeader(v string) string {
 	if a, err := mail.ParseAddress(v); err == nil {
 		return a.String()

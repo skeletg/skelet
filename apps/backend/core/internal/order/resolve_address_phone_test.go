@@ -10,7 +10,7 @@ import (
 
 func typedAddress(country, tel string) *OrderAddress {
 	return &OrderAddress{
-		FirstName: "Ana", LastName: "Ilić", Street1: "Unter den Linden 1", City: "Berlin",
+		FirstName: "Ana", LastName: "Müller", Street1: "Unter den Linden 1", City: "Berlin",
 		PostalCode: "10117", CountryCode: country, Phone: &tel,
 	}
 }
@@ -56,9 +56,9 @@ func TestResolveAddressQuoteSkipsThePhone(t *testing.T) {
 
 // A store that keeps phones to its own countries refuses a typed address's phone from anywhere else
 func TestResolveAddressAppliesTheStoresRules(t *testing.T) {
-	serbiaOnly := phone.Rules{Default: "RS", Allowed: []string{"RS"}}
-	_, err := resolveAddress(serbiaOnly, typedAddress("DE", "+49 1512 3456789"), nil, false, customer.Customer{}, "shipping", false)
+	germanyOnly := phone.Rules{Default: "DE", Allowed: []string{"DE"}}
+	_, err := resolveAddress(germanyOnly, typedAddress("FR", "+33 6 12 34 56 78"), nil, false, customer.Customer{}, "shipping", false)
 	if !errors.Is(err, phone.ErrCountryNotAllowed) {
-		t.Fatalf("a German number on a Serbia-only store = %v, want phone.ErrCountryNotAllowed", err)
+		t.Fatalf("a French number on a Germany-only store = %v, want phone.ErrCountryNotAllowed", err)
 	}
 }

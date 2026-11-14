@@ -11,59 +11,6 @@ x-logging: &logging
     max-file: "3"
 
 services:
-  # Tenant-agnostic image - the SPA calls the relative /api and nginx envsubsts
-  # BACKEND_UPSTREAM at start, so this is the same build for every tenant
-  dashboard:
-    image: ${DASHBOARD_IMAGE:-skelet-dashboard:prod}
-    ports: ["127.0.0.1:18081:8080"]
-    environment:
-      BACKEND_UPSTREAM: http://app:8080
-      UPLOAD_ORIGINS: ${UPLOAD_ORIGINS:-}
-    depends_on:
-      app: { condition: service_healthy }
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    restart: unless-stopped
-    logging: *logging
-
-  nextjs-vetrina:
-    profiles: ["nextjs-vetrina"]
-    image: ${NEXTJS_VETRINA_IMAGE:-skelet-nextjs-vetrina:prod}
-    init: true
-    env_file: [env/small-nextjs-vetrina.env]
-    ports: ["127.0.0.1:13000:3000"]
-    environment:
-      BACKEND_INTERNAL_URL: http://app:8080
-      # The two it shares with the backend, from the same root .env - it gets
-      # neither the encryption key nor a DB password
-      REVIEW_VOTER_TOKEN_SECRET: ${REVIEW_VOTER_TOKEN_SECRET:?set REVIEW_VOTER_TOKEN_SECRET in the root .env (openssl rand -hex 32)}
-      STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
-      TRUSTED_PROXY_KEY: ${TRUSTED_PROXY_KEY:-}
-    depends_on:
-      app: { condition: service_healthy }
-    restart: unless-stopped
-    logging: *logging
-
-  # Opt-in - `--profile astro-shop` - so a deployment without its env file still starts
-  astro-shop:
-    profiles: ["astro-shop"]
-    image: ${ASTRO_SHOP_IMAGE:-skelet-astro-shop:prod}
-    init: true
-    env_file: [env/small-astro-shop.env]
-    ports: ["127.0.0.1:13001:3000"]
-    environment:
-      BACKEND_INTERNAL_URL: http://app:8080
-      STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
-      TRUSTED_PROXY_KEY: ${TRUSTED_PROXY_KEY:-}
-    depends_on:
-      app: { condition: service_healthy }
-    restart: unless-stopped
-    logging: *logging
-
   # Opt-in TLS edge - `--profile edge` - this is the profile that needs it most: one box, no proxy in front, and card payments can't happen over plain http
   caddy:
     profiles: ["edge"]
@@ -74,14 +21,14 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    extra_hosts: ["host.docker.internal:host-gateway"]
     volumes:
       - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./apps/dashboard/dist:/srv/dashboard:ro
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
       app: { condition: service_healthy }
-      dashboard: { condition: service_healthy }
-      nextjs-vetrina: { condition: service_healthy, required: false }
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
       interval: 15s

@@ -7,21 +7,21 @@ import (
 
 func TestNormalizeBusinessIDFields(t *testing.T) {
 	got, err := NormalizeBusinessIDFields([]BusinessIDField{
-		{Label: " PIB ", Required: true, Pattern: `\d{9}`, Hint: "9 digits"},
-		{Label: "Matični broj", Pattern: `^\d{8}$`},
+		{Label: " USt-IdNr. ", Required: true, Pattern: `DE\d{9}`, Hint: "DE and 9 digits"},
+		{Label: "Numéro SIRET", Pattern: `^\d{14}$`},
 	})
 	if err != nil {
 		t.Fatalf("NormalizeBusinessIDFields: %v", err)
 	}
-	if got[0].Key != "pib" || got[0].Label != "PIB" || got[1].Key != "maticni_broj" {
+	if got[0].Key != "ust_idnr" || got[0].Label != "USt-IdNr." || got[1].Key != "numero_siret" {
 		t.Fatalf("got %+v, want keys derived from the labels", got)
 	}
 
 	for name, fields := range map[string][]BusinessIDField{
-		"no label":      {{Key: "pib"}},
-		"duplicate key": {{Label: "PIB"}, {Label: "pib"}},
-		"bad pattern":   {{Label: "PIB", Pattern: `(\d`}},
-		"bad key":       {{Label: "PIB", Key: "Has Space"}},
+		"no label":      {{Key: "vat"}},
+		"duplicate key": {{Label: "VAT"}, {Label: "vat"}},
+		"bad pattern":   {{Label: "VAT", Pattern: `(\d`}},
+		"bad key":       {{Label: "VAT", Key: "Has Space"}},
 	} {
 		if _, err := NormalizeBusinessIDFields(fields); !errors.Is(err, ErrBusinessIDFieldInvalid) {
 			t.Errorf("%s: err = %v, want ErrBusinessIDFieldInvalid", name, err)

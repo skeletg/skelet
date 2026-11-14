@@ -32,7 +32,7 @@ const (
 	dashLexical   = "apps/dashboard/src/features/catalog/lexical-blocks"
 	dashOptVis    = "apps/dashboard/src/features/carts/optionVisibility.ts"
 	secHeaders    = "apps/backend/core/lib/httpx/securityheaders.go"
-	nginxConf     = "apps/dashboard/nginx.conf.template"
+	dashHeaders   = "apps/dashboard/headers.template"
 	caddyfile     = "deploy/caddy/Caddyfile"
 	widgetReg     = "apps/dashboard/src/features/promotions/widgets/registry.ts"
 	// The storefront logic every template shares - checked once, here, rather than per storefront
@@ -518,8 +518,8 @@ func (c contracts) evaluators() {
 var (
 	cspConst   = regexp.MustCompile(`^const ContentSecurityPolicy =`)
 	ppConst    = regexp.MustCompile("const PermissionsPolicy = `([^`]*)`")
-	nginxCSP   = regexp.MustCompile(`add_header Content-Security-Policy "([^"]*)"`)
-	nginxPP    = regexp.MustCompile(`add_header Permissions-Policy "(.*)" always`)
+	dashCSP    = regexp.MustCompile(`^\s*Content-Security-Policy: (.*)$`)
+	dashPP     = regexp.MustCompile(`^\s*Permissions-Policy: (.*)$`)
 	caddyCSP   = regexp.MustCompile(`Content-Security-Policy "([^"]*)"`)
 	caddyPP    = regexp.MustCompile(`Permissions-Policy "(.*)"$`)
 	whitespace = regexp.MustCompile(`\s+`)
@@ -555,16 +555,16 @@ func (c contracts) goCSP() string {
 	return squeeze(strings.Join(parts, "\n"))
 }
 
-// headers - one policy, up to three files: the Go middleware is the source and skelet gen rewrites the nginx and Caddy
+// headers - one policy, up to three files: the Go middleware is the source and skelet gen rewrites the dashboard's and Caddy's
 // copies from it. Checked here too, so a hand-edited copy or a skipped codegen run still fails
 func (c contracts) headers() {
 	c.r.section("security headers match across the copies that must")
 	goCSP := c.goCSP()
 	goPP := squeeze(strings.Join(matches(c.read(secHeaders), ppConst), "\n"))
-	nginx := c.read(nginxConf)
+	dash := c.read(dashHeaders)
 	unescape := func(s []string) string { return strings.ReplaceAll(strings.Join(s, "\n"), `\"`, `"`) }
-	c.compare("Content-Security-Policy", nginxConf, goCSP, squeeze(withoutFirst(matches(nginx, nginxCSP), " ${UPLOAD_ORIGINS}")))
-	c.compare("Permissions-Policy", nginxConf, goPP, squeeze(unescape(matches(nginx, nginxPP))))
+	c.compare("Content-Security-Policy", dashHeaders, goCSP, squeeze(withoutFirst(matches(dash, dashCSP), " {CONNECT_ORIGINS}")))
+	c.compare("Permissions-Policy", dashHeaders, goPP, squeeze(strings.Join(matches(dash, dashPP), "\n")))
 	// A fork that brings its own proxy may delete the bundled Caddyfile, so a genuine absence skips. A stale path must
 	// not: the file is tracked and sparse-checkout never touches deploy/, so missing almost always means the path below
 	// moved - and skipping would quietly drop the third copy while reporting green

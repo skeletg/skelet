@@ -25,7 +25,7 @@ import (
 
 func sampleOrder() order.Order {
 	cust, line1, line2 := uuid.New(), uuid.New(), uuid.New()
-	phone := "+381601234567"
+	phone := "+4915112345678"
 	return order.Order{
 		ID: uuid.New(), Number: "ORD-000042", ChannelID: uuid.New(), CustomerID: &cust, Email: "a@example.com",
 		CurrencyCode: "EUR", SubtotalAmount: 5000, DiscountAmount: 500, TaxAmount: 900, ShippingAmount: 490, TotalAmount: 5890,
@@ -57,7 +57,7 @@ func TestAPurchaseCarriesTheOrderAsGA4AndTheConsentOfThePlacement(t *testing.T) 
 	if ev.Consent == nil || !ev.Consent.Ads || ev.ClickIDs["gclid"] != "g1" || ev.Context.IP != "203.0.113.7" || ev.User.AnonID != "visitor-1" {
 		t.Errorf("shopper: consent %v clicks %v context %+v user %+v", ev.Consent, ev.ClickIDs, ev.Context, ev.User)
 	}
-	if ev.User.Email != "a@example.com" || ev.User.Phone != "+381601234567" || *ev.User.CustomerID != *o.CustomerID {
+	if ev.User.Email != "a@example.com" || ev.User.Phone != "+4915112345678" || *ev.User.CustomerID != *o.CustomerID {
 		t.Errorf("user: %+v", ev.User)
 	}
 
@@ -225,7 +225,7 @@ func TestOptOutsReachOnlyTheKindsBuiltToRemove(t *testing.T) {
 	fs := newFakeStore(Destination{ID: remover, ChannelID: ch, Kind: "t-remover", Enabled: true}, Destination{ID: catchall, ChannelID: ch, Kind: "t-catchall", Enabled: true})
 	svc := &Service{store: fs}
 	bus := events.NewBus()
-	phone := "+381601234567"
+	phone := "+4915112345678"
 	cust := customer.Customer{ID: uuid.New(), ChannelID: ch, Email: "out@example.com", Phone: &phone}
 	svc.Subscribe(bus, Readers{Orders: noOrders{}, Channels: oneChannel{"EUR"}, Customers: oneCustomer{cust}})
 	ctx := events.WithEmittedAt(context.Background(), time.Unix(1700000000, 0))
@@ -234,7 +234,7 @@ func TestOptOutsReachOnlyTheKindsBuiltToRemove(t *testing.T) {
 	_ = bus.DispatchAsyncNow(ctx, &consent.ConsentChanged{CustomerID: cust.ID, Kind: consentkind.MarketingEmail, OptedIn: true})
 	_ = bus.DispatchAsyncNow(ctx, &consent.ConsentChanged{CustomerID: cust.ID, Kind: "marketing_sms", OptedIn: false})
 	_ = bus.DispatchAsyncNow(ctx, &customer.CustomerDeleted{CustomerID: uuid.New(), ChannelID: ch, Email: "gone@example.com"})
-	_ = bus.DispatchAsyncNow(ctx, &customer.CustomerErased{CustomerID: uuid.New(), ChannelID: ch, Email: "erased@example.com", Phone: "+38160"})
+	_ = bus.DispatchAsyncNow(ctx, &customer.CustomerErased{CustomerID: uuid.New(), ChannelID: ch, Email: "erased@example.com", Phone: "+4915"})
 
 	var emails []string
 	for _, ev := range fs.events {

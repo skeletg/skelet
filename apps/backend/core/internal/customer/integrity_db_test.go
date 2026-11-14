@@ -98,7 +98,7 @@ func TestProfileUpdateNamesFieldsInCamelCase(t *testing.T) {
 	f := newFixture(t)
 	c := f.register(t, f.newChannel(t), randomEmail(), "password123")
 	box := f.withOutbox()
-	phone := "+381 64 123 4567"
+	phone := "+49 1512 3456789"
 	if _, err := f.svc.UpdateProfile(f.ctx, c.ID, UpdateCustomerInput{FirstName: "New", LastName: c.LastName, Phone: &phone}); err != nil {
 		t.Fatal(err)
 	}

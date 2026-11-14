@@ -51,7 +51,7 @@ type Order {
   shippingAddress: OrderAddress!
   # Buyer's PO reference, captured at checkout when they pay by purchase order.
   poNumber: String
-  # The buyer's company identifiers on a business purchase, with the labels the shopper saw (PIB, Matični broj, VAT number). Empty for personal purchases.
+  # The buyer's company identifiers on a business purchase, with the labels the shopper saw (a VAT number, a company registry number). Empty for personal purchases.
   businessIds: [OrderBusinessId!]!
   lines:           [OrderLine!]!
   events:          [OrderEvent!]!

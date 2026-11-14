@@ -37,7 +37,7 @@ func TestAGlobalRewriteDropsEveryChannelsCachedAnswerAndAChannelOneOnlyItsOwn(t 
 	repo := &countingRepo{reads: map[string]int{}}
 	s := &Service{repo: repo, cache: c}
 	a, b := uuid.New(), uuid.New()
-	path := "tires/" + uuid.NewString()
+	path := "jackets/" + uuid.NewString()
 	resolveAll := func() {
 		for _, ch := range []*uuid.UUID{nil, &a, &b} {
 			if _, err := s.ResolveURLForChannel(ctx, path, ch); err != nil {

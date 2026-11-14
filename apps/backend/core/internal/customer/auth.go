@@ -106,7 +106,7 @@ func (s *Service) Register(ctx context.Context, channelID uuid.UUID, emailAddr, 
 	return c, nil
 }
 
-// Email is unique per (store, email), so channelID is required to disambiguate - logging into the wheels store with a tires-store account fails as invalid credentials
+// Email is unique per (store, email), so channelID is required to disambiguate - logging into the shoes store with a jackets-store account fails as invalid credentials
 // Auth events bracket the check: sync auth.login.attempting before any DB read, async auth.login.succeeded / .failed after
 func (s *Service) Authenticate(ctx context.Context, channelID uuid.UUID, email, password string) (Customer, error) {
 	email = NormalizeEmail(email)

@@ -1,5 +1,5 @@
 // Package phone is the single definition of a valid phone number - the per-country rules (calling codes, lengths, mobile and fixed-line patterns) come from Google's libphonenumber metadata via the nyaruka port, so nothing here is hand-maintained
-// Every stored number is E.164 ("+381641234567"): two spellings of one number compare equal, and pretty formatting is a read-side concern for the UI
+// Every stored number is E.164 ("+4915123456789"): two spellings of one number compare equal, and pretty formatting is a read-side concern for the UI
 package phone
 
 import (
@@ -66,7 +66,7 @@ func (r Rules) NormalizePtr(raw *string, region string) (*string, error) {
 }
 
 // Normalize returns raw's E.164 form - blank is "" with no error, so an optional field stays optional and the caller decides whether empty is allowed
-// region (ISO alpha-2, any case) is only a parsing hint for a nationally typed number like "064 123 4567"; a number typed with its + or 00 prefix is accepted whatever the region, so a shopper in Serbia can still give a German mobile. With no region, only international input parses
+// region (ISO alpha-2, any case) is only a parsing hint for a nationally typed number like "01512 3456789"; a number typed with its + or 00 prefix is accepted whatever the region, so a shopper in Germany can still give a French mobile. With no region, only international input parses
 func Normalize(raw, region string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -95,13 +95,13 @@ func NormalizePtr(raw *string, region string) (*string, error) {
 // and the example's shape for an input mask
 type CountryFormat struct {
 	Country         string // ISO alpha-2
-	CallingCode     string // "+381"
-	Example         string // "+381 60 1234567", international
-	NationalExample string // "060 1234567", as typed at home
+	CallingCode     string // "+49"
+	Example         string // "+49 1512 3456789", international
+	NationalExample string // "01512 3456789", as typed at home
 	Template        string // "xxx xxxxxxx" - NationalExample with every digit an x
 }
 
-// CallingCode is a country's "+381" - "" for a code the metadata doesn't know. The one source for a country's calling
+// CallingCode is a country's "+49" - "" for a code the metadata doesn't know. The one source for a country's calling
 // code: the countries table stores it, but only as this derives it
 func CallingCode(country string) string {
 	n := phonenumbers.GetCountryCodeForRegion(strings.ToUpper(strings.TrimSpace(country)))

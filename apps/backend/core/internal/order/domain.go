@@ -85,7 +85,7 @@ type OrderAddress struct {
 }
 
 // BusinessID is one company identifier as the order records it - the label travels with the value, so an invoice reads
-// "PIB 123456789" even after the country's fields are edited
+// "USt-IdNr. DE123456789" even after the country's fields are edited
 type BusinessID struct {
 	Key   string `json:"key"`
 	Label string `json:"label"`

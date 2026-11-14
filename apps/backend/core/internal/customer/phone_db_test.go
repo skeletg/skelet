@@ -30,14 +30,14 @@ func deref(p *string) string {
 // only an international one can be understood
 func TestProfilePhoneIsReadInTheStoresDefaultCountry(t *testing.T) {
 	f := newFixture(t)
-	serbian := f.newChannel(t)
-	f.setDefaultCountry(t, serbian, "RS")
-	c := f.register(t, serbian, randomEmail(), "password123")
+	german := f.newChannel(t)
+	f.setDefaultCountry(t, german, "DE")
+	c := f.register(t, german, randomEmail(), "password123")
 
-	national := "064 123 4567"
+	national := "01512 3456789"
 	got, err := f.svc.UpdateProfile(f.ctx, c.ID, UpdateCustomerInput{Phone: &national})
-	if err != nil || deref(got.Phone) != "+381641234567" {
-		t.Fatalf("national phone on an RS store = %q, %v, want +381641234567", deref(got.Phone), err)
+	if err != nil || deref(got.Phone) != "+4915123456789" {
+		t.Fatalf("national phone on a DE store = %q, %v, want +4915123456789", deref(got.Phone), err)
 	}
 
 	unset := f.newChannel(t)
@@ -45,9 +45,9 @@ func TestProfilePhoneIsReadInTheStoresDefaultCountry(t *testing.T) {
 	if _, err := f.svc.UpdateProfile(f.ctx, d.ID, UpdateCustomerInput{Phone: &national}); !errors.Is(err, phone.ErrInvalid) {
 		t.Fatalf("national phone with no default country = %v, want phone.ErrInvalid", err)
 	}
-	international := "+381 64 123 4567"
+	international := "+49 1512 3456789"
 	got, err = f.svc.UpdateProfile(f.ctx, d.ID, UpdateCustomerInput{Phone: &international})
-	if err != nil || deref(got.Phone) != "+381641234567" {
+	if err != nil || deref(got.Phone) != "+4915123456789" {
 		t.Fatalf("international phone with no default country = %q, %v", deref(got.Phone), err)
 	}
 }
@@ -56,7 +56,7 @@ func TestProfilePhoneIsReadInTheStoresDefaultCountry(t *testing.T) {
 func TestAddressPhoneIsReadInTheAddressCountry(t *testing.T) {
 	f := newFixture(t)
 	ch := f.newChannel(t)
-	f.setDefaultCountry(t, ch, "RS")
+	f.setDefaultCountry(t, ch, "DE")
 	c := f.register(t, ch, randomEmail(), "password123")
 
 	in := addressInput() // a US address
@@ -67,22 +67,22 @@ func TestAddressPhoneIsReadInTheAddressCountry(t *testing.T) {
 		t.Fatalf("US address phone = %q, %v, want +12015550123", deref(addr.Phone), err)
 	}
 
-	serbian := "064 123 4567"
-	in.Phone = &serbian
+	national := "01512 3456789"
+	in.Phone = &national
 	if _, err := f.svc.AddAddress(f.ctx, c.ID, in); !errors.Is(err, phone.ErrInvalid) {
-		t.Fatalf("Serbian national number on a US address = %v, want phone.ErrInvalid", err)
+		t.Fatalf("German national number on a US address = %v, want phone.ErrInvalid", err)
 	}
 	if _, err := f.svc.UpdateAddress(f.ctx, c.ID, addr.ID, in); !errors.Is(err, phone.ErrInvalid) {
-		t.Fatalf("update with a Serbian national number on a US address = %v, want phone.ErrInvalid", err)
+		t.Fatalf("update with a German national number on a US address = %v, want phone.ErrInvalid", err)
 	}
 
 	// Moving the address abroad moves the country its phone is read in
-	in.CountryCode = "DE"
-	german := "01512 3456789"
-	in.Phone = &german
+	in.CountryCode = "FR"
+	french := "06 12 34 56 78"
+	in.Phone = &french
 	updated, err := f.svc.UpdateAddress(f.ctx, c.ID, addr.ID, in)
-	if err != nil || deref(updated.Phone) != "+4915123456789" {
-		t.Fatalf("DE address phone = %q, %v, want +4915123456789", deref(updated.Phone), err)
+	if err != nil || deref(updated.Phone) != "+33612345678" {
+		t.Fatalf("FR address phone = %q, %v, want +33612345678", deref(updated.Phone), err)
 	}
 
 	in.Phone = nil
@@ -95,66 +95,66 @@ func TestAddressPhoneIsReadInTheAddressCountry(t *testing.T) {
 func TestAdminCustomerPhones(t *testing.T) {
 	f := newFixture(t)
 	ch := f.newChannel(t)
-	f.setDefaultCountry(t, ch, "RS")
+	f.setDefaultCountry(t, ch, "DE")
 
-	bad := "+381 64"
+	bad := "+49 151"
 	_, err := f.svc.AdminCreateCustomer(f.ctx, AdminCreateCustomerInput{
-		ChannelID: ch, Email: randomEmail(), Password: "password123", FirstName: "Ana", LastName: "Ilić", Phone: &bad,
+		ChannelID: ch, Email: randomEmail(), Password: "password123", FirstName: "Ana", LastName: "Müller", Phone: &bad,
 	})
 	if !errors.Is(err, phone.ErrInvalid) {
 		t.Fatalf("admin create with an invalid phone = %v, want phone.ErrInvalid", err)
 	}
 
-	spaced := "+381 64 123 4567"
+	spaced := "+49 1512 3456789"
 	c, err := f.svc.AdminCreateCustomer(f.ctx, AdminCreateCustomerInput{
-		ChannelID: ch, Email: randomEmail(), Password: "password123", FirstName: "Ana", LastName: "Ilić", Phone: &spaced,
+		ChannelID: ch, Email: randomEmail(), Password: "password123", FirstName: "Ana", LastName: "Müller", Phone: &spaced,
 	})
-	if err != nil || deref(c.Phone) != "+381641234567" {
-		t.Fatalf("admin create = %q, %v, want +381641234567", deref(c.Phone), err)
+	if err != nil || deref(c.Phone) != "+4915123456789" {
+		t.Fatalf("admin create = %q, %v, want +4915123456789", deref(c.Phone), err)
 	}
 
-	national := "011 3234567"
+	national := "030 12345678"
 	updated, err := f.svc.AdminUpdateCustomer(f.ctx, c.ID, AdminUpdateCustomerInput{Phone: &national})
-	if err != nil || deref(updated.Phone) != "+381113234567" {
-		t.Fatalf("admin update with a national number = %q, %v, want +381113234567", deref(updated.Phone), err)
+	if err != nil || deref(updated.Phone) != "+493012345678" {
+		t.Fatalf("admin update with a national number = %q, %v, want +493012345678", deref(updated.Phone), err)
 	}
 	if _, err := f.svc.AdminUpdateCustomer(f.ctx, c.ID, AdminUpdateCustomerInput{Phone: &bad}); !errors.Is(err, phone.ErrInvalid) {
 		t.Fatalf("admin update with an invalid phone = %v, want phone.ErrInvalid", err)
 	}
 }
 
-// A Serbia-only store, as the country domain would hand it over
-type serbiaOnly struct{}
+// A Germany-only store, as the country domain would hand it over
+type germanyOnly struct{}
 
-func (serbiaOnly) ValidateAddressForChannel(context.Context, uuid.UUID, string, *string) error {
+func (germanyOnly) ValidateAddressForChannel(context.Context, uuid.UUID, string, *string) error {
 	return nil
 }
-func (serbiaOnly) PhoneRulesForChannel(context.Context, uuid.UUID) phone.Rules {
-	return phone.Rules{Default: "RS", Allowed: []string{"RS"}}
+func (germanyOnly) PhoneRulesForChannel(context.Context, uuid.UUID) phone.Rules {
+	return phone.Rules{Default: "DE", Allowed: []string{"DE"}}
 }
 
 // The store's rules reach every customer phone - a profile phone and an address phone alike
 func TestCustomerPhonesFollowTheStoresRules(t *testing.T) {
 	f := newFixture(t)
-	f.svc.SetCountryValidator(serbiaOnly{})
+	f.svc.SetCountryValidator(germanyOnly{})
 	ch := f.newChannel(t)
 	c := f.register(t, ch, randomEmail(), "password123")
 
-	german := "+49 1512 3456789"
-	if _, err := f.svc.UpdateProfile(f.ctx, c.ID, UpdateCustomerInput{Phone: &german}); !errors.Is(err, phone.ErrCountryNotAllowed) {
-		t.Fatalf("a German profile phone on a Serbia-only store = %v, want phone.ErrCountryNotAllowed", err)
+	french := "+33 6 12 34 56 78"
+	if _, err := f.svc.UpdateProfile(f.ctx, c.ID, UpdateCustomerInput{Phone: &french}); !errors.Is(err, phone.ErrCountryNotAllowed) {
+		t.Fatalf("a French profile phone on a Germany-only store = %v, want phone.ErrCountryNotAllowed", err)
 	}
 	in := addressInput()
-	in.CountryCode = "DE" // the address may be anywhere the store ships; the phone still has to be Serbian
-	in.Phone = &german
+	in.CountryCode = "FR" // the address may be anywhere the store ships; the phone still has to be German
+	in.Phone = &french
 	if _, err := f.svc.AddAddress(f.ctx, c.ID, in); !errors.Is(err, phone.ErrCountryNotAllowed) {
-		t.Fatalf("a German address phone on a Serbia-only store = %v, want phone.ErrCountryNotAllowed", err)
+		t.Fatalf("a French address phone on a Germany-only store = %v, want phone.ErrCountryNotAllowed", err)
 	}
 
-	national := "064 123 4567"
+	national := "01512 3456789"
 	got, err := f.svc.UpdateProfile(f.ctx, c.ID, UpdateCustomerInput{Phone: &national})
-	if err != nil || deref(got.Phone) != "+381641234567" {
-		t.Fatalf("a Serbian national number = %q, %v, want +381641234567", deref(got.Phone), err)
+	if err != nil || deref(got.Phone) != "+4915123456789" {
+		t.Fatalf("a German national number = %q, %v, want +4915123456789", deref(got.Phone), err)
 	}
 }
 
@@ -162,7 +162,7 @@ func TestProfilePhoneCanBeCleared(t *testing.T) {
 	f := newFixture(t)
 	ch := f.newChannel(t)
 	c := f.register(t, ch, randomEmail(), "password123")
-	number, blank := "+381641234567", "  "
+	number, blank := "+4915123456789", "  "
 	for _, admin := range []bool{false, true} {
 		if _, err := f.svc.UpdateProfile(f.ctx, c.ID, UpdateCustomerInput{Phone: &number}); err != nil {
 			t.Fatal(err)

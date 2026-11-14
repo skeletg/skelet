@@ -175,9 +175,9 @@ describe('effectiveLocale', () => {
 
 describe('globalDefaultLocale', () => {
   it("is the default channel's locale", () => {
-    state.channels = [channel('c1'), channel('c2', { defaultLocale: 'sr', isDefault: true })]
+    state.channels = [channel('c1'), channel('c2', { defaultLocale: 'pl', isDefault: true })]
     mount()
-    expect(api.globalDefaultLocale).toBe('sr')
+    expect(api.globalDefaultLocale).toBe('pl')
   })
 
   it('falls back to en like the backend when no channel is flagged default, so a global create still has a locale', () => {

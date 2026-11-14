@@ -22,7 +22,7 @@ func TestFormat(t *testing.T) {
 }
 
 func TestISODecimals(t *testing.T) {
-	for code, want := range map[string]int{"JPY": 0, "jpy": 0, "KWD": 3, "USD": 2, "RSD": 2, "": 2} {
+	for code, want := range map[string]int{"JPY": 0, "jpy": 0, "KWD": 3, "USD": 2, "CHF": 2, "": 2} {
 		if got := ISODecimals(code); got != want {
 			t.Errorf("ISODecimals(%q) = %d, want %d", code, got, want)
 		}

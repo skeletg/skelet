@@ -83,7 +83,7 @@ const (
 // The same type the catalog domain uses, so helpers and patterns stay consistent
 type Metadata map[string]string
 
-// Customers are not shared across stores - the same email registering on the wheels store and the tires store creates two unrelated rows
+// Customers are not shared across stores - the same email registering on the shoes store and the jackets store creates two unrelated rows
 type Customer struct {
 	ID                       uuid.UUID
 	ChannelID                uuid.UUID

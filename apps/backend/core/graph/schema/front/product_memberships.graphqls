@@ -16,7 +16,7 @@ type ConfigurableMembership {
   parent: Product!
   variantMode: VariantMode
   # This variant's values for the parent's configurable-option attributes
-  # (e.g. Size = 205/55 R16).
+  # (e.g. Size = M).
   optionValues: [ProductAttributeValue!]!
   sortOrder: Int!
   # The other variants under the same configurable parent.

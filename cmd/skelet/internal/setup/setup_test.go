@@ -40,7 +40,8 @@ func fixture(t *testing.T) string {
 	for _, f := range templates {
 		copyFile("env/" + filepath.Base(f))
 	}
-	for _, f := range []string{".env.example", CoreEnv + ".example", SignalsEnv + ".example", "docker-compose.small.yml", "docker-compose.prod.yml", plugins.File} {
+	for _, f := range []string{".env.example", CoreEnv + ".example", SignalsEnv + ".example", "docker-compose.small.yml", "docker-compose.prod.yml", plugins.File,
+		"apps/dashboard/.env.production.example", "templates/nextjs-vetrina/.env.production.example", "templates/astro-shop/.env.production.example"} {
 		copyFile(f)
 	}
 	mkfile(t, root, plugins.Dir+"/example/plugin.go", "package example\nfunc init() { sdk.RegisterPlugin(nil) }\n")
@@ -207,8 +208,9 @@ func TestEachBackendOwnsItsSecretsAndTheRootOnlyTheFrontends(t *testing.T) {
 	for _, target := range []string{"small", "prod"} {
 		root := fixture(t)
 		mkfile(t, root, ".env", "DB_PASSWORD=volume-made-with-this\nADMIN_JWT_SECRET=\nCOMPOSE_PROFILES=bundled,valkey\n")
+		mkfile(t, root, "templates/nextjs-vetrina/package.json", "{}")
 		a := dev()
-		a.target = target
+		a.target, a.apps = target, []string{"dashboard", "nextjs-vetrina"}
 		write(t, root, a)
 		core, dotenv := env(t, root, CoreEnv), env(t, root, ".env")
 		checkSecrets(t, target+" "+CoreEnv, core)
@@ -226,9 +228,10 @@ func TestEachBackendOwnsItsSecretsAndTheRootOnlyTheFrontends(t *testing.T) {
 				t.Errorf("%s: compose demands %s, and .env leaves it empty", target, m[1])
 			}
 		}
+		shop := env(t, root, "templates/nextjs-vetrina/.env.production")
 		for _, k := range []string{"REVIEW_VOTER_TOKEN_SECRET", "STOREFRONT_REVALIDATE_SECRET", "TRUSTED_PROXY_KEY"} {
-			if dotenv[k] == "" || dotenv[k] != core[k] {
-				t.Errorf("%s: .env %s = %q, core's %q - the storefront and core must agree", target, k, dotenv[k], core[k])
+			if shop[k] == "" || shop[k] != core[k] {
+				t.Errorf("%s: the storefront's %s = %q, core's %q - the two must agree", target, k, shop[k], core[k])
 			}
 		}
 		if !hex64.MatchString(core["STORAGE_SIGNING_KEY"]) || len(core["BACKUP_ENCRYPTION_PASSPHRASE"]) != 64 {
@@ -296,40 +299,29 @@ func TestADeploymentRunsTheStorefrontPicked(t *testing.T) {
 		root := fixture(t)
 		mkfile(t, root, "templates/nextjs-vetrina/package.json", "{}")
 		mkfile(t, root, "templates/astro-shop/package.json", "{}")
+		mkfile(t, root, ".env", "COMPOSE_PROFILES=bundled,astro-shop,edge\n")
 		a := dev()
 		a.target, a.apps = target, []string{"dashboard", "astro-shop"}
 		write(t, root, a)
-		if _, err := os.Stat(filepath.Join(root, "env", target+"-nextjs-vetrina.env")); !errors.Is(err, fs.ErrNotExist) {
+		if _, err := os.Stat(filepath.Join(root, "templates/nextjs-vetrina/.env.production")); !errors.Is(err, fs.ErrNotExist) {
 			t.Errorf("%s: wrote the env file of a storefront it doesn't run", target)
 		}
-		check := func(when, profiles, shop string) {
-			t.Helper()
-			if got := env(t, root, ".env")["COMPOSE_PROFILES"]; got != profiles {
-				t.Errorf("%s %s: COMPOSE_PROFILES = %q, want %q", target, when, got, profiles)
-			}
-			if got := env(t, root, CoreEnv)["STOREFRONT_REVALIDATE_URL"]; got != "http://"+shop+":3000/api/revalidate" {
-				t.Errorf("%s %s: STOREFRONT_REVALIDATE_URL = %q", target, when, got)
-			}
-			if got := env(t, root, "env/prod-caddy.env")["STOREFRONT_UPSTREAM"]; got != shop+":3000" {
-				t.Errorf("%s %s: STOREFRONT_UPSTREAM = %q", target, when, got)
-			}
+		if _, err := os.Stat(filepath.Join(root, "templates/astro-shop/.env.production")); err != nil {
+			t.Errorf("%s: no env file for the storefront it runs: %v", target, err)
 		}
-		first := map[string]string{"small": "bundled,astro-shop", "prod": "bundled,valkey,astro-shop"}[target]
-		check("first", first, "astro-shop")
-
-		mkfile(t, root, ".env", "COMPOSE_PROFILES=bundled,astro-shop,edge\n")
-		a.apps = []string{"dashboard", "nextjs-vetrina"}
-		write(t, root, a)
-		check("switched", "bundled,edge,nextjs-vetrina", "nextjs-vetrina")
-
+		if got := env(t, root, ".env")["COMPOSE_PROFILES"]; got != "bundled,edge" {
+			t.Errorf("%s: COMPOSE_PROFILES = %q - a storefront is no compose service any more", target, got)
+		}
+		if got := env(t, root, CoreEnv)["STOREFRONT_REVALIDATE_URL"]; got != "http://host.docker.internal:3000/api/revalidate" {
+			t.Errorf("%s: STOREFRONT_REVALIDATE_URL = %q", target, got)
+		}
+		if got := env(t, root, "env/prod-caddy.env")["STOREFRONT_UPSTREAM"]; got != "host.docker.internal:3000" {
+			t.Errorf("%s: STOREFRONT_UPSTREAM = %q", target, got)
+		}
 		if err := envfile.Set(filepath.Join(root, "env/prod-caddy.env"), "STOREFRONT_UPSTREAM", "mine:4000"); err != nil {
 			t.Fatal(err)
 		}
-		a.apps = []string{"dashboard"}
 		write(t, root, a)
-		if got := env(t, root, ".env")["COMPOSE_PROFILES"]; got != "bundled,edge" {
-			t.Errorf("%s backend only: COMPOSE_PROFILES = %q", target, got)
-		}
 		if got := env(t, root, "env/prod-caddy.env")["STOREFRONT_UPSTREAM"]; got != "mine:4000" {
 			t.Errorf("%s: an upstream set by hand became %q", target, got)
 		}

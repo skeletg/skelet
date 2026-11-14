@@ -124,10 +124,10 @@ func TestCartEmailAndNoteAreChecked(t *testing.T) {
 	if stored != "ana@example.test" {
 		t.Errorf("stored %q, want the address normalized the way customer emails are", stored)
 	}
-	if err := svc.SetCartNote(ctx, cartID, nil, strings.Repeat("ž", maxNoteRunes+1)); !errors.Is(err, ErrCartNoteTooLong) {
+	if err := svc.SetCartNote(ctx, cartID, nil, strings.Repeat("ü", maxNoteRunes+1)); !errors.Is(err, ErrCartNoteTooLong) {
 		t.Errorf("an oversized note: %v", err)
 	}
-	if err := svc.SetCartNote(ctx, cartID, nil, strings.Repeat("ž", maxNoteRunes)); err != nil {
+	if err := svc.SetCartNote(ctx, cartID, nil, strings.Repeat("ü", maxNoteRunes)); err != nil {
 		t.Errorf("a note at the limit refused: %v", err)
 	}
 }

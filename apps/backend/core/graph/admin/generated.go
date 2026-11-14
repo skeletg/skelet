@@ -35624,9 +35624,9 @@ type Attribute {
   isIndexable:       Boolean!
   # Where the value appears in the page H1 when the URL is indexable. BEFORE → "Olive / Apparel"; AFTER → "Apparel / Olive". Default BEFORE.
   h1Position:        AttributeH1Position!
-  # When on, a customer filtering by this attribute's values or viewing products that carry them gets the value recorded as a Synapse profile affinity (e.g. tire size → "they likely need this size").
+  # When on, a customer filtering by this attribute's values or viewing products that carry them gets the value recorded as a Synapse profile affinity (e.g. shoe size → "they likely need this size").
   synapseTrack:      Boolean!
-  # When on (requires synapseTrack), a scheduled sync auto-creates a customer segment per popular value (e.g. "Tire size: 205/55R16"), targetable by Pulse / promotions / Prism. Managed segments - don't edit by hand.
+  # When on (requires synapseTrack), a scheduled sync auto-creates a customer segment per popular value (e.g. "Shoe size: 44"), targetable by Pulse / promotions / Prism. Managed segments - don't edit by hand.
   autoSegment:       Boolean!
   # When on, a public attribute's values join the text embedded for search by meaning. Off keeps it on the storefront but out of the product's vector - for facts like care instructions that say nothing about what the product is.
   embedded:          Boolean!
@@ -38437,7 +38437,7 @@ extend type Mutation {
   isActive:              Boolean!
   sortOrder:             Int!
   metadata:              [MetadataItem!]!
-  # The company identifiers a business purchase from this country asks for at checkout - Serbia's PIB and Matični broj, a VAT number elsewhere. Empty falls back to one generic tax ID, per sales/checkout/tax_id_field.
+  # The company identifiers a business purchase from this country asks for at checkout - a company registry number, a VAT number. Empty falls back to one generic tax ID, per sales/checkout/tax_id_field.
   businessIdFields:      [BusinessIdField!]!
   # ISO 3166-2 subdivisions (states/provinces) seeded for this country. Empty for countries that use free-text regions. Field resolver - only fetched when requested (e.g. the country detail page).
   regions:               [Region!]!
@@ -40556,7 +40556,7 @@ type Order {
   shippingAddress: OrderAddress!
   # Buyer's PO reference, captured at checkout when they pay by purchase order.
   poNumber: String
-  # The buyer's company identifiers on a business purchase, with the labels the shopper saw (PIB, Matični broj, VAT number). Empty for personal purchases.
+  # The buyer's company identifiers on a business purchase, with the labels the shopper saw (a VAT number, a company registry number). Empty for personal purchases.
   businessIds: [OrderBusinessId!]!
   lines:           [OrderLine!]!
   events:          [OrderEvent!]!
@@ -41226,7 +41226,7 @@ type ConfigurableMembership {
   parent: Product!
   variantMode: VariantMode
   # This variant's values for the parent's configurable-option attributes
-  # (e.g. Size = 205/55 R16).
+  # (e.g. Size = M).
   optionValues: [ProductAttributeValue!]!
   sortOrder: Int!
   # The other variants under the same configurable parent.
@@ -43409,7 +43409,7 @@ type SynapseSegmentTrait {
 }
 
 # Attribute-affinity criterion: customers who filtered by / viewed products with
-# a Synapse-tracked attribute value (e.g. tire-size = 205/55R16) in the window.
+# a Synapse-tracked attribute value (e.g. shoe-size = 44) in the window.
 input SegmentAffinityInput {
   attr:  String!   # attribute slug
   value: String!
@@ -43649,7 +43649,7 @@ type CustomerProfile {
   # from their anon exposures via identity stitching). Empty for visitors.
   experiments: [CustomerExperimentArm!]!
   # Attribute affinities (catalog → Synapse): top values of each Synapse-tracked
-  # attribute this profile filtered by / viewed (e.g. tire size → 205/55R16).
+  # attribute this profile filtered by / viewed (e.g. shoe size → 44).
   affinities:  [AttributeAffinity!]!
 }
 

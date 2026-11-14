@@ -34,7 +34,7 @@ func runWith(t *testing.T, c map[string]any) FlowRun {
 func TestTheSnapshotSurvivesTheRunContext(t *testing.T) {
 	want := emailpkg.OrderSnapshot{
 		Number: "ORD-1042", FirstName: "Ada", Currency: "EUR",
-		Lines:    []emailpkg.OrderEmailLine{{Name: "Winter Tire 205/55", Quantity: 2, LineTotal: 24000}},
+		Lines:    []emailpkg.OrderEmailLine{{Name: "Wool Jacket M", Quantity: 2, LineTotal: 24000}},
 		Subtotal: 24000, Discount: 1000, Shipping: 500, Tax: 4370, Total: 27870,
 		ShipTo:  []string{"Ada Lovelace", "1 Analytical Way"},
 		Carrier: "DHL", TrackingNumber: "JD014600", RefundedAmount: 500,

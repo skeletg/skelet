@@ -16,7 +16,7 @@ what the credential it connects with may see. The endpoint sits beside admin Gra
 /api/admin/<ADMIN_API_SLUG>/mcp     # when you've set ADMIN_API_SLUG
 ```
 
-It answers wherever admin GraphQL does - on the dashboard host, whose nginx forwards `/api/*`, and on
+It answers wherever admin GraphQL does - on the dashboard host when what serves it forwards `/api/*`, and on
 the API host. The app prints the exact URL at boot as `admin MCP endpoint`. `MCP_ENABLED=false`
 takes the endpoint away entirely.
 

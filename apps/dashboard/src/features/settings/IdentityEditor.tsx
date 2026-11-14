@@ -136,7 +136,7 @@ function IdentityForm({ channel }: { channel: NonNullable<ChannelQuery['channel'
                 id="identity-public-url"
                 label="Public URL"
                 type="url"
-                placeholder="https://wheels.example.com"
+                placeholder="https://shop.example.com"
                 className="sm:col-span-2"
                 hint="Used to build verification + password-reset links in transactional emails, and to match incoming Host headers to this channel."
               />

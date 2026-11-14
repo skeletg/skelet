@@ -1,7 +1,7 @@
 # Reverse proxy + automatic HTTPS for the prod and small stacks - OPT-IN, behind the
 # `edge` compose profile. Without it every service stays on 127.0.0.1 and terminating
 # TLS is yours to do; with it Caddy gets Let's Encrypt certs for the domains in
-# env/prod-caddy.env and renews them. Routing table + the nginx equivalent: README
+# env/prod-caddy.env and renews them. Routing table: docs/deploying.md
 #
 # This file is yours to edit. The vhost map is the one thing no tool can discover -
 # only you know which domain points where, or which storefront you actually run.
@@ -14,7 +14,7 @@
 }
 
 # Shared response headers. HSTS lives HERE and only here - the app-layer copies
-# (apps/backend/core/lib/httpx/securityheaders.go, apps/dashboard/nginx.conf.template) deliberately
+# (apps/backend/core/lib/httpx/securityheaders.go, apps/dashboard/headers.template) deliberately
 # omit it, since asserting it over plain http would wrongly pin a browser for a year
 #
 # The CSP and Permissions-Policy lines are GENERATED from apps/backend/core/lib/httpx/securityheaders.go
@@ -34,19 +34,25 @@
 	}
 }
 
-# The shop, on the apex domain - STOREFRONT_UPSTREAM in env/prod-caddy.env names your storefront's service
+# The shop, on the apex domain - STOREFRONT_UPSTREAM in env/prod-caddy.env names where your storefront's server listens
 {$STOREFRONT_DOMAIN:localhost} {
 	import security_headers
 	encode zstd gzip
-	reverse_proxy {$STOREFRONT_UPSTREAM:nextjs-vetrina:3000}
+	reverse_proxy {$STOREFRONT_UPSTREAM:host.docker.internal:3000}
 }
 
-# Admin dashboard - its nginx proxies the SPA's /api/* to the backend in-network, so
-# this host serves the UI and its API needs without the API domain below existing
+# Admin dashboard - its built files, with /api/* proxied to the backend, so the SPA's relative calls need no API domain
 {$DASHBOARD_DOMAIN:admin.localhost} {
 	import security_headers
 	encode zstd gzip
-	reverse_proxy dashboard:8080
+	handle /api/* {
+		reverse_proxy app:8080
+	}
+	handle {
+		root * /srv/dashboard
+		try_files {path} /index.html
+		file_server
+	}
 }
 
 # Public API surface. Its ONLY hard requirement is inbound webhooks - a payment

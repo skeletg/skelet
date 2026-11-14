@@ -130,25 +130,6 @@ jobs:
           go build -tags vips ./...
           go test -tags vips ./internal/media/... ./internal/mediahttp/... -count=1 -race
 
-  discover:
-    name: Discover images
-    runs-on: ubuntu-latest
-    outputs:
-      images: ${{ steps.list.outputs.images }}
-    steps:
-      - uses: actions/checkout@v4
-      - id: list
-        run: |
-          # Both Go images build from apps/backend as a whole, since the modules replace each other by relative path
-          images='{"image":"core","context":"apps/backend","file":"apps/backend/core/Dockerfile.prod"},{"image":"signals","context":"apps/backend","file":"apps/backend/signals/Dockerfile.prod"},{"image":"dashboard","context":"apps/dashboard"}'
-          for d in apps/channels/*/ templates/*/; do
-            d=${d%/}
-            [ -f "$d/package.json" ] && [ -f "$d/Dockerfile.prod" ] || continue
-            images="$images,{\"image\":\"$(basename "$d")\",\"context\":\".\",\"file\":\"$d/Dockerfile.prod\",\"smoke\":true}"
-          done
-          echo "images={\"include\":[$images]}" >> "$GITHUB_OUTPUT"
-          echo "images: [$images]"
-
   # One install of the whole storefront workspace, then every member's checks - a member without the script is skipped
   workspace:
     name: Storefront workspace typecheck + tests + builds
@@ -279,43 +260,27 @@ jobs:
           docker compose --profile signals logs --tail 200
           tail -n 200 "$RUNNER_TEMP/dashboard.log"
 
-  # A Dockerfile that stops building fails the PR, not the release evening - built, never pushed, and a storefront's started
+  # A Dockerfile that stops building fails the PR, not the release evening - built, never pushed
   docker:
     name: Docker image (${{ matrix.image }})
-    needs: discover
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.discover.outputs.images) }}
+      matrix:
+        # Both Go images build from apps/backend as a whole, since the modules replace each other by relative path
+        image: [core, signals]
     steps:
       - uses: actions/checkout@v4
       # buildx for the RUN --mount=type=cache lines and the gha cache backend
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.file || format('{0}/Dockerfile.prod', matrix.context) }}
+          context: apps/backend
+          file: apps/backend/${{ matrix.image }}/Dockerfile.prod
           push: false
-          load: ${{ matrix.smoke == true }}
           tags: ci/${{ matrix.image }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
-      - name: Smoke run
-        if: matrix.smoke
-        env:
-          IMAGE: ci/${{ matrix.image }}
-        run: |
-          docker run -d --name smoke -p 127.0.0.1:3000:3000 \
-            -e STOREFRONT_CHANNEL_ID=00000000-0000-4000-8000-000000000000 -e BACKEND_INTERNAL_URL=http://127.0.0.1:9 "$IMAGE"
-          for _ in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:3000/api/healthz && [ "$(docker inspect -f '{{.State.Health.Status}}' smoke)" = healthy ]; then
-              exit 0
-            fi
-            sleep 2
-          done
-          docker inspect -f '{{json .State.Health}}' smoke
-          docker logs smoke
-          exit 1
 
   lint:
     name: Backend lint (gofmt + golangci)

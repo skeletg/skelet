@@ -60,7 +60,7 @@ func TestPhysicalStoreStock(t *testing.T) {
 
 func TestPublicStoreFiltersAndMissingRecords(t *testing.T) {
 	a, b, c, hidden := uuid.New(), uuid.New(), uuid.New(), uuid.New()
-	repo := &publicStoreRepo{locations: []Location{{ID: b, Name: "Beta", City: "Novi Sad", PostalCode: "21000"}, {ID: c, Name: "Gamma", City: "Belgrade"}, {ID: a, Name: "Alpha", City: "Belgrade", Line1: "Knez 1"}}, item: Item{Tracked: true}, levels: []Level{{LocationID: a, Quantity: 1}, {LocationID: b, Quantity: 0}, {LocationID: hidden, Quantity: 99}}}
+	repo := &publicStoreRepo{locations: []Location{{ID: b, Name: "Beta", City: "Hamburg", PostalCode: "20095"}, {ID: c, Name: "Gamma", City: "Berlin"}, {ID: a, Name: "Alpha", City: "Berlin", Line1: "Main 1"}}, item: Item{Tracked: true}, levels: []Level{{LocationID: a, Quantity: 1}, {LocationID: b, Quantity: 0}, {LocationID: hidden, Quantity: 99}}}
 	svc := &Service{repo: repo}
 	q := StoreQuery{ChannelID: uuid.New(), Product: &StoreProduct{ID: uuid.New(), QuantityStep: 1}, PreferredStoreID: &b, Limit: 2}
 	got, err := svc.PublicStores(t.Context(), q)
@@ -79,8 +79,8 @@ func TestPublicStoreFiltersAndMissingRecords(t *testing.T) {
 		t.Fatalf("in stock: %+v %v", got, err)
 	}
 	q.InStockOnly = false
-	q.City = "belgrade"
-	q.Search = "KNEZ"
+	q.City = "berlin"
+	q.Search = "MAIN"
 	got, err = svc.PublicStores(t.Context(), q)
 	if err != nil || got.TotalCount != 1 || got.Items[0].Location.ID != a || got.PreferredStore == nil {
 		t.Fatalf("filtered: %+v %v", got, err)

@@ -61,8 +61,8 @@ func TestAFailedNoticeReturnsItsError(t *testing.T) {
 }
 
 func TestTruncateKeepsWholeCharacters(t *testing.T) {
-	got := truncate("Neuspešno ćirilica žž", 10)
-	if !utf8.ValidString(got) || got != "Neuspešno "+"…" {
+	got := truncate("Bestätigt größere Änderung", 10)
+	if !utf8.ValidString(got) || got != "Bestätigt "+"…" {
 		t.Fatalf("truncate = %q", got)
 	}
 	if truncate("short", 10) != "short" {

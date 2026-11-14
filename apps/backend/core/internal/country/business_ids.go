@@ -7,11 +7,11 @@ import (
 	"strings"
 )
 
-// BusinessIDField is one company identifier a business purchase from the country asks for - Serbia asks for a PIB and
-// a Matični broj, most of the EU for a VAT number. Edited per country in the dashboard; checkout validates against it
+// BusinessIDField is one company identifier a business purchase from the country asks for - a VAT number, a company
+// registry number. Edited per country in the dashboard; checkout validates against it
 type BusinessIDField struct {
-	Key      string `json:"key"`   // stable slug the values are stored under ("pib")
-	Label    string `json:"label"` // what the shopper and the invoice read ("PIB")
+	Key      string `json:"key"`   // stable slug the values are stored under ("ust_idnr")
+	Label    string `json:"label"` // what the shopper and the invoice read ("USt-IdNr.")
 	Required bool   `json:"required"`
 	Pattern  string `json:"pattern,omitempty"` // an RE2 regular expression the whole value must match, empty for any
 	Hint     string `json:"hint,omitempty"`    // shown under the field ("9 digits")
@@ -69,7 +69,7 @@ func anchored(p string) string {
 	return "^(?:" + strings.TrimSuffix(strings.TrimPrefix(p, "^"), "$") + ")$"
 }
 
-// "Matični broj" -> "maticni_broj"
+// "Numéro SIRET" -> "numero_siret"
 func slugKey(label string) string {
 	fold := strings.NewReplacer("č", "c", "ć", "c", "š", "s", "ž", "z", "đ", "dj", "ä", "a", "ö", "o", "ü", "u", "ß", "ss", "é", "e", "è", "e", "á", "a", "í", "i", "ó", "o", "ú", "u", "ñ", "n")
 	s := fold.Replace(strings.ToLower(label))

@@ -152,10 +152,10 @@ func TestToFrontMenuItemModelPrefersTheExplicitURL(t *testing.T) {
 // A target-linked item has no URL of its own, so the resolved canonical path is the only thing to render
 func TestToFrontMenuItemModelUsesTheResolvedPath(t *testing.T) {
 	targetID := uuid.New()
-	it := menu.MenuItem{ID: uuid.New(), Label: "Tires", TargetType: menu.TargetTypeCategory, TargetID: &targetID}
+	it := menu.MenuItem{ID: uuid.New(), Label: "Jackets", TargetType: menu.TargetTypeCategory, TargetID: &targetID}
 
-	got := toFrontMenuItemModel(it, "/c/tires")
-	if got.URL == nil || *got.URL != "/c/tires" {
+	got := toFrontMenuItemModel(it, "/c/jackets")
+	if got.URL == nil || *got.URL != "/c/jackets" {
 		t.Errorf("url = %v, want the resolved path", got.URL)
 	}
 	if got.TargetType == nil || *got.TargetType != model.MenuItemTargetTypeCategory {
@@ -169,7 +169,7 @@ func TestToFrontMenuItemModelUsesTheResolvedPath(t *testing.T) {
 // A target whose rewrite is missing must leave url nil so the storefront can skip the link rather than render href=""
 func TestToFrontMenuItemModelLeavesURLNilWithNothingToRender(t *testing.T) {
 	targetID := uuid.New()
-	it := menu.MenuItem{ID: uuid.New(), Label: "Tires", TargetType: menu.TargetTypeCategory, TargetID: &targetID}
+	it := menu.MenuItem{ID: uuid.New(), Label: "Jackets", TargetType: menu.TargetTypeCategory, TargetID: &targetID}
 
 	got := toFrontMenuItemModel(it, "")
 	if got.URL != nil {
@@ -254,20 +254,20 @@ func TestToFrontMenuModelAppliesResolvedURLsPerItem(t *testing.T) {
 	first, second := uuid.New(), uuid.New()
 	catA, catB := uuid.New(), uuid.New()
 	items := []menu.MenuItem{
-		{ID: first, Label: "Tires", TargetType: menu.TargetTypeCategory, TargetID: &catA, SortOrder: 0},
-		{ID: second, Label: "Wheels", TargetType: menu.TargetTypeCategory, TargetID: &catB, SortOrder: 1},
+		{ID: first, Label: "Jackets", TargetType: menu.TargetTypeCategory, TargetID: &catA, SortOrder: 0},
+		{ID: second, Label: "Shoes", TargetType: menu.TargetTypeCategory, TargetID: &catB, SortOrder: 1},
 	}
-	resolved := map[uuid.UUID]string{first: "/c/tires", second: "/c/wheels"}
+	resolved := map[uuid.UUID]string{first: "/c/jackets", second: "/c/shoes"}
 
 	got := toFrontMenuModel(menu.Menu{ID: uuid.New()}, items, resolved)
 	if len(got.Items) != 2 {
 		t.Fatalf("%d roots, want 2", len(got.Items))
 	}
-	if got.Items[0].URL == nil || *got.Items[0].URL != "/c/tires" {
-		t.Errorf("first url = %v, want /c/tires", got.Items[0].URL)
+	if got.Items[0].URL == nil || *got.Items[0].URL != "/c/jackets" {
+		t.Errorf("first url = %v, want /c/jackets", got.Items[0].URL)
 	}
-	if got.Items[1].URL == nil || *got.Items[1].URL != "/c/wheels" {
-		t.Errorf("second url = %v, want /c/wheels", got.Items[1].URL)
+	if got.Items[1].URL == nil || *got.Items[1].URL != "/c/shoes" {
+		t.Errorf("second url = %v, want /c/shoes", got.Items[1].URL)
 	}
 }
 

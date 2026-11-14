@@ -167,7 +167,7 @@ type SynapseSegmentTrait {
 }
 
 # Attribute-affinity criterion: customers who filtered by / viewed products with
-# a Synapse-tracked attribute value (e.g. tire-size = 205/55R16) in the window.
+# a Synapse-tracked attribute value (e.g. shoe-size = 44) in the window.
 input SegmentAffinityInput {
   attr:  String!   # attribute slug
   value: String!
@@ -407,7 +407,7 @@ type CustomerProfile {
   # from their anon exposures via identity stitching). Empty for visitors.
   experiments: [CustomerExperimentArm!]!
   # Attribute affinities (catalog → Synapse): top values of each Synapse-tracked
-  # attribute this profile filtered by / viewed (e.g. tire size → 205/55R16).
+  # attribute this profile filtered by / viewed (e.g. shoe size → 44).
   affinities:  [AttributeAffinity!]!
 }
 

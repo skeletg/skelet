@@ -168,10 +168,10 @@ func TestParseTagsJSONFailsSoftToNoTags(t *testing.T) { // a hand-edited or malf
 
 func TestReviewTextGathersTitleBodyAndFreeTextAnswers(t *testing.T) { // the AI classifier and the moderation search both read this, so a dropped answer hides content from both
 	rv := Review{
-		Title: "Great tires",
-		Body:  "Quiet on the motorway.",
+		Title: "Great jacket",
+		Body:  "Warm without the bulk.",
 		Answers: []Answer{
-			{TextValue: "Fitted easily"},
+			{TextValue: "True to size"},
 			{TextValue: "   "}, // whitespace only, contributes nothing
 			{TextValue: ""},    // a rating answer carries no text
 			{TextValue: "Would rebuy"},
@@ -179,7 +179,7 @@ func TestReviewTextGathersTitleBodyAndFreeTextAnswers(t *testing.T) { // the AI 
 	}
 
 	got := reviewText(rv)
-	for _, want := range []string{"Great tires", "Quiet on the motorway.", "Fitted easily", "Would rebuy"} {
+	for _, want := range []string{"Great jacket", "Warm without the bulk.", "True to size", "Would rebuy"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("reviewText = %q, want it to contain %q", got, want)
 		}
@@ -194,12 +194,12 @@ func TestReviewTextGathersTitleBodyAndFreeTextAnswers(t *testing.T) { // the AI 
 }
 
 func TestReviewBodyTextExcludesTheTitle(t *testing.T) { // the body text feeds the summary separately from the title, so folding the title in would double it
-	rv := Review{Title: "Great tires", Body: "Quiet.", Answers: []Answer{{TextValue: "Fitted easily"}}}
+	rv := Review{Title: "Great jacket", Body: "Warm.", Answers: []Answer{{TextValue: "True to size"}}}
 	got := reviewBodyText(rv)
-	if strings.Contains(got, "Great tires") {
+	if strings.Contains(got, "Great jacket") {
 		t.Errorf("reviewBodyText = %q, want the title excluded", got)
 	}
-	if !strings.Contains(got, "Quiet.") || !strings.Contains(got, "Fitted easily") {
+	if !strings.Contains(got, "Warm.") || !strings.Contains(got, "True to size") {
 		t.Errorf("reviewBodyText = %q, want the body and the answer", got)
 	}
 }

@@ -7,8 +7,8 @@ import type { BusinessIdFieldValues } from './schemas/country'
 
 const EMPTY: BusinessIdFieldValues = { key: '', label: '', required: false, pattern: '', hint: '' }
 
-// The company identifiers a business purchase from this country asks for at checkout, in the order shown - Serbia's
-// PIB and Matični broj, a VAT number elsewhere. Staged like every other field; the page's Save applies them
+// The company identifiers a business purchase from this country asks for at checkout, in the order shown - a VAT
+// number, a company registry number. Staged like every other field; the page's Save applies them
 export function BusinessIdFieldsEditor({
   value,
   onChange,
@@ -36,7 +36,7 @@ export function BusinessIdFieldsEditor({
                   <Input
                     id={`bid-${i}-label`}
                     value={f.label}
-                    placeholder="PIB"
+                    placeholder="VAT number"
                     onChange={(e) => set(i, { label: e.target.value })}
                   />
                 </div>

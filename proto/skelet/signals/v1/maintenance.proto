@@ -179,7 +179,7 @@ message GetCustomerTraitsResponse {
   int32 engagement_score = 6;
   int32 frequency = 7;
   int64 monetary_cents = 8;
-  // Attribute slug to the value this customer leans toward, e.g. tire_size -> 205/55R16
+  // Attribute slug to the value this customer leans toward, e.g. shoe_size -> 44
   map<string, string> affinities = 9;
 }
 

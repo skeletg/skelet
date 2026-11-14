@@ -49,7 +49,7 @@ func TestAFailedCountrySaveKeepsTheOldList(t *testing.T) {
 	}
 	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM payment_methods WHERE provider_slug = $1`, slug) })
 	ctx := context.Background()
-	if err := NewService(real, txrunner.New(conn), nil).SetPaymentMethodCountries(ctx, channelID, slug, "specific", []string{"RS", "DE"}); err != nil {
+	if err := NewService(real, txrunner.New(conn), nil).SetPaymentMethodCountries(ctx, channelID, slug, "specific", []string{"FR", "DE"}); err != nil {
 		t.Fatal(err)
 	}
 	adds := 0
@@ -63,7 +63,7 @@ func TestAFailedCountrySaveKeepsTheOldList(t *testing.T) {
 	}
 	got, err := real.ListCountriesForPaymentMethod(ctx, m.ID)
 	slices.Sort(got)
-	if err != nil || !slices.Equal(got, []string{"DE", "RS"}) {
-		t.Fatalf("countries after the failed save = %v (%v), want the old RS and DE kept", got, err)
+	if err != nil || !slices.Equal(got, []string{"DE", "FR"}) {
+		t.Fatalf("countries after the failed save = %v (%v), want the old FR and DE kept", got, err)
 	}
 }

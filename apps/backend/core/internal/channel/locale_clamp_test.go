@@ -27,7 +27,7 @@ func TestClampLocale(t *testing.T) {
 	}{
 		{"supported locale passes through", store, "de", "de"},
 		{"case folds to the canonical stored code", store, "DE", "de"},
-		{"unsupported locale clamps to default", store, "sr", "en"},
+		{"unsupported locale clamps to default", store, "pl", "en"},
 		{"globally deactivated locale clamps to default", store, "fr", "en"},
 		{"empty request clamps to default", store, "", "en"},
 		{"whitespace-only request clamps to default", store, "  ", "en"},
@@ -77,14 +77,14 @@ func TestLocaleClampMiddleware(t *testing.T) {
 		return seen
 	}
 
-	if got := run(t, true, "sr"); got != "en" {
+	if got := run(t, true, "pl"); got != "en" {
 		t.Fatalf("unsupported locale should clamp to channel default, got %q", got)
 	}
 	if got := run(t, true, "de"); got != "de" {
 		t.Fatalf("supported locale should survive, got %q", got)
 	}
 	// Admin surface and probe contexts run without a channel - the request wins there
-	if got := run(t, false, "sr"); got != "sr" {
+	if got := run(t, false, "pl"); got != "pl" {
 		t.Fatalf("no channel means no clamping, got %q", got)
 	}
 }

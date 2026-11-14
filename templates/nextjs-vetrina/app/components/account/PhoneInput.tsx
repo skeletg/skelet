@@ -14,7 +14,7 @@ function formatStored(value: string, lockedCountry: string): string {
 // reformatting a deletion would put back the bracket or space the shopper just removed
 //
 // The country's calling code sits fixed beside the box, so the shopper types the number the way they'd dial it at home
-// ("064 1234567", "(201) 555-0123") and it formats as they go - a number typed with its own + still works, for a phone
+// ("01512 3456789", "(201) 555-0123") and it formats as they go - a number typed with its own + still works, for a phone
 // from another country
 export function PhoneInput({
   setup,

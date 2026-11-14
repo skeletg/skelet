@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/envfile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/plugins"
@@ -68,6 +69,11 @@ func Write(root string, a answers, c catalog, rnd io.Reader, out io.Writer) (wri
 		}
 	}
 	e := editor{root: root, rnd: rnd, out: out}
+	for _, f := range files {
+		if strings.HasSuffix(f, "/.env.production") {
+			e.frontends = append(e.frontends, f)
+		}
+	}
 	if a.target != "dev" {
 		e.rehome(a.target)
 	}
@@ -113,7 +119,9 @@ func Write(root string, a answers, c catalog, rnd io.Reader, out io.Writer) (wri
 			fmt.Fprintln(out, "    admin API slug already set, left alone")
 		}
 		e.set(knobs, "ADMIN_API_SLUG", w.adminSlug)
-		e.set(".env", "VITE_GRAPHQL_URL", "/api/admin/"+w.adminSlug+"/graphql")
+		if f := dashboardEnv(a, files); a.target == "dev" || f != ".env" {
+			e.set(f, "VITE_GRAPHQL_URL", "/api/admin/"+w.adminSlug+"/graphql")
+		}
 		e.del(".env", "GRAPHQL_CODEGEN_URL")
 	} else {
 		// All three read ${VAR:-default} in compose, so deleting them puts the API back at /api/admin/graphql
@@ -122,6 +130,9 @@ func Write(root string, a answers, c catalog, rnd io.Reader, out io.Writer) (wri
 		}
 		if a.target != "dev" {
 			e.set(backend, "ADMIN_API_SLUG", "")
+			if f := dashboardEnv(a, files); f != ".env" {
+				e.del(f, "VITE_GRAPHQL_URL")
+			}
 		}
 	}
 	e.set(".env", profile.EnvTarget, a.target)
@@ -145,19 +156,8 @@ func (e *editor) deployment(a answers, c catalog, backend string, files []string
 	for _, s := range c.storefronts {
 		names = append(names, s.Name)
 	}
-	compose, _ := os.ReadFile(filepath.Join(e.root, "docker-compose."+a.target+".yml"))
 	cur := e.get(".env", "COMPOSE_PROFILES")
-	var profiles []string
-	for _, p := range split(cur) {
-		if !slices.Contains(names, p) {
-			profiles = append(profiles, p)
-		}
-	}
-	for _, app := range a.apps {
-		if slices.Contains(names, app) && regexp.MustCompile(`(?m)^  `+regexp.QuoteMeta(app)+`:\s*$`).Match(compose) {
-			profiles = append(profiles, app)
-		}
-	}
+	profiles := slices.DeleteFunc(split(cur), func(p string) bool { return slices.Contains(names, p) || p == "dashboard" })
 	if a.target == "small" {
 		profiles = slices.DeleteFunc(profiles, func(p string) bool { return p == "valkey" })
 		e.set(backend, "COMPOSE_PROFILES", join(slices.DeleteFunc(split(e.get(backend, "COMPOSE_PROFILES")), func(p string) bool { return p == "valkey" })))
@@ -171,15 +171,26 @@ func (e *editor) deployment(a answers, c catalog, backend string, files []string
 		return
 	}
 	ours := func(v string) bool {
-		return v == "" || slices.ContainsFunc(names, func(n string) bool { return n != "" && (v == n+":3000" || v == "http://"+n+":3000/api/revalidate") })
+		return v == "" || strings.HasPrefix(v, storefrontOnHost) || strings.HasPrefix(v, "http://"+storefrontOnHost) ||
+			slices.ContainsFunc(names, func(n string) bool { return n != "" && (v == n+":3000" || v == "http://"+n+":3000/api/revalidate") })
 	}
 	if ours(e.get(backend, "STOREFRONT_REVALIDATE_URL")) {
-		e.set(backend, "STOREFRONT_REVALIDATE_URL", "http://"+shop+":3000/api/revalidate")
+		e.set(backend, "STOREFRONT_REVALIDATE_URL", "http://"+storefrontOnHost+"/api/revalidate")
 	}
 	if caddy := "env/prod-caddy.env"; slices.Contains(files, caddy) && ours(e.get(caddy, "STOREFRONT_UPSTREAM")) {
-		e.set(caddy, "STOREFRONT_UPSTREAM", shop+":3000")
+		e.set(caddy, "STOREFRONT_UPSTREAM", storefrontOnHost)
 	}
-	fmt.Fprintf(e.out, "    storefront %s - its profile on, the edge proxying to it, the backend purging it\n", shop)
+	fmt.Fprintf(e.out, "    storefront %s - its server on the host's :3000, the edge proxying to it, the backend purging it\n", shop)
+}
+
+// Where the containers reach a storefront's server running on the same machine
+const storefrontOnHost = "host.docker.internal:3000"
+
+func dashboardEnv(a answers, files []string) string {
+	if a.target != "dev" && slices.Contains(files, "apps/dashboard/.env.production") {
+		return "apps/dashboard/.env.production"
+	}
+	return ".env"
 }
 
 func primaryStorefront(a answers, c catalog) string {
@@ -210,21 +221,26 @@ func EnvFiles(root, target string, runs func(app string) bool) (string, []string
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return "", nil, err
 	}
-	stores := storefronts.Known(root)
 	var named []string
 	for _, m := range envRef.FindAll(raw, -1) {
-		f := string(m)
-		if slices.Contains(files, f) || slices.Contains(named, f) {
-			continue
+		if f := string(m); !slices.Contains(named, f) {
+			named = append(named, f)
 		}
-		i := slices.IndexFunc(stores, func(s storefronts.Storefront) bool { return f == "env/"+target+"-"+s.Name+".env" })
-		if i >= 0 && runs != nil && !runs(stores[i].Name) {
-			continue
-		}
-		named = append(named, f)
 	}
 	slices.Sort(named)
-	return CoreEnv, append(files, named...), nil
+	frontends := map[string]string{"dashboard": "apps/dashboard"}
+	for _, s := range storefronts.List(root) {
+		frontends[s.Name] = s.Dir
+	}
+	var own []string
+	for name, dir := range frontends {
+		f := dir + "/.env.production"
+		if _, err := os.Stat(filepath.Join(root, f+".example")); err == nil && (runs == nil || runs(name)) {
+			own = append(own, f)
+		}
+	}
+	slices.Sort(own)
+	return CoreEnv, append(append(files, named...), own...), nil
 }
 
 // fromTemplate copies tmpl to file when file doesn't exist yet - owner-only, since these hold secrets
@@ -250,10 +266,11 @@ func placeholder(v string) bool {
 
 // editor carries the first error through a run of env edits, so the sequence reads as the list of edits it is
 type editor struct {
-	root string
-	rnd  io.Reader
-	out  io.Writer
-	err  error
+	root      string
+	rnd       io.Reader
+	out       io.Writer
+	err       error
+	frontends []string
 }
 
 func (e *editor) get(file, key string) string {
@@ -357,8 +374,12 @@ func (e *editor) secrets(backend, target string) {
 			e.set(SignalsEnv, "VALKEY_URL", "redis://:"+e.get(backend, "VALKEY_PASSWORD")+"@valkey:6379")
 		}
 	}
-	for _, k := range []string{"REVIEW_VOTER_TOKEN_SECRET", "STOREFRONT_REVALIDATE_SECRET", "TRUSTED_PROXY_KEY"} {
-		e.set(".env", k, e.get(backend, k))
+	for _, f := range e.frontends {
+		for _, k := range []string{"REVIEW_VOTER_TOKEN_SECRET", "STOREFRONT_REVALIDATE_SECRET", "TRUSTED_PROXY_KEY"} {
+			if _, listed, _ := envfile.Get(filepath.Join(e.root, f), k); listed {
+				e.set(f, k, e.get(backend, k))
+			}
+		}
 	}
 }
 
@@ -381,7 +402,7 @@ var rehomed = []struct {
 	{"STORAGE_SIGNING_KEY", CoreEnv, false}, {"DB_PASSWORD", CoreEnv, false}, {"VALKEY_PASSWORD", CoreEnv, false},
 	{"DATABASE_URL", CoreEnv, false}, {"VALKEY_URL", CoreEnv, false}, {"VALKEY_CACHE_URL", CoreEnv, false}, {"VALKEY_LIMITS_URL", CoreEnv, false},
 	{"VALKEY_CACHE_MAXMEMORY", CoreEnv, false}, {"VALKEY_CACHE_MEMORY_LIMIT", CoreEnv, false},
-	{"REVIEW_VOTER_TOKEN_SECRET", CoreEnv, true}, {"STOREFRONT_REVALIDATE_SECRET", CoreEnv, true}, {"TRUSTED_PROXY_KEY", CoreEnv, true},
+	{"REVIEW_VOTER_TOKEN_SECRET", CoreEnv, false}, {"STOREFRONT_REVALIDATE_SECRET", CoreEnv, false}, {"TRUSTED_PROXY_KEY", CoreEnv, false},
 	{"SIGNALS_DB_PASSWORD", SignalsEnv, false}, {"CLICKHOUSE_PASSWORD", SignalsEnv, false}, {"NATS_PASSWORD", SignalsEnv, false},
 	{"SIGNALS_DB_URL", SignalsEnv, false}, {"SIGNALS_QUEUE_URL", SignalsEnv, false}, {"SIGNALS_CH_URL", SignalsEnv, false},
 }

@@ -13,19 +13,19 @@ func TestNormalize(t *testing.T) {
 		name, raw, region, want string
 		wantErr                 bool
 	}{
-		{"blank is empty, not an error", "   ", "RS", "", false},
-		{"serbian mobile typed nationally", "064 123 4567", "RS", "+381641234567", false},
-		{"serbian mobile with punctuation", "(064) 123-45-67", "rs", "+381641234567", false},
-		{"international prefix 00 under a region", "00381 64 123 4567", "RS", "+381641234567", false},
+		{"blank is empty, not an error", "   ", "DE", "", false},
+		{"german mobile typed nationally", "01512 3456789", "DE", "+4915123456789", false},
+		{"german mobile with punctuation", "(01512) 345-67-89", "de", "+4915123456789", false},
+		{"international prefix 00 under a region", "0049 1512 3456789", "DE", "+4915123456789", false},
 		{"us number without a +", "(201) 555-0123", "US", "+12015550123", false},
-		{"international input ignores the region", "+49 1512 3456789", "RS", "+4915123456789", false},
-		{"international input needs no region", "+381641234567", "", "+381641234567", false},
-		{"national input needs a region", "064 123 4567", "", "", true},
-		{"national number valid in one country only", "064 123 4567", "US", "", true},
-		{"too short", "+381 64", "RS", "", true},
+		{"international input ignores the region", "+33 6 12 34 56 78", "DE", "+33612345678", false},
+		{"international input needs no region", "+4915123456789", "", "+4915123456789", false},
+		{"national input needs a region", "01512 3456789", "", "", true},
+		{"national number valid in one country only", "01512 3456789", "US", "", true},
+		{"too short", "+49 151", "DE", "", true},
 		{"extension", "+1 201 555 0123 ext. 42", "US", "", true},
 		{"RFC3966 extension", "tel:+12015550123;ext=42", "US", "", true},
-		{"garbage", "call me maybe", "RS", "", true},
+		{"garbage", "call me maybe", "DE", "", true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -44,16 +44,16 @@ func TestNormalize(t *testing.T) {
 }
 
 func TestNormalizePtr(t *testing.T) {
-	if got, err := phone.NormalizePtr(nil, "RS"); got != nil || err != nil {
+	if got, err := phone.NormalizePtr(nil, "DE"); got != nil || err != nil {
 		t.Fatalf("nil = %v, %v, want nil, nil", got, err)
 	}
 	blank := ""
-	if got, err := phone.NormalizePtr(&blank, "RS"); err != nil || got == nil || *got != "" {
+	if got, err := phone.NormalizePtr(&blank, "DE"); err != nil || got == nil || *got != "" {
 		t.Fatalf("blank = %v, %v, want pointer to empty", got, err)
 	}
-	raw := "064 123 4567"
-	if got, err := phone.NormalizePtr(&raw, "RS"); err != nil || got == nil || *got != "+381641234567" {
-		t.Fatalf("national = %v, %v, want +381641234567", got, err)
+	raw := "01512 3456789"
+	if got, err := phone.NormalizePtr(&raw, "DE"); err != nil || got == nil || *got != "+4915123456789" {
+		t.Fatalf("national = %v, %v, want +4915123456789", got, err)
 	}
 }
 
@@ -71,8 +71,8 @@ func TestErrInvalidIsAValidationError(t *testing.T) {
 }
 
 func TestRulesReadANationalNumberInTheDefaultCountry(t *testing.T) {
-	r := phone.Rules{Default: "RS"}
-	if got, err := r.Normalize("064 123 4567", ""); err != nil || got != "+381641234567" {
+	r := phone.Rules{Default: "DE"}
+	if got, err := r.Normalize("01512 3456789", ""); err != nil || got != "+4915123456789" {
 		t.Fatalf("no region = %q, %v, want the default country's reading", got, err)
 	}
 	if got, err := r.Normalize("(201) 555-0123", "US"); err != nil || got != "+12015550123" {
@@ -85,7 +85,7 @@ func TestRulesKeepANumberToTheAllowedCountries(t *testing.T) {
 	if _, err := r.Normalize("+49 1512 3456789", ""); err != nil {
 		t.Errorf("an allowed country's number = %v", err)
 	}
-	if _, err := r.Normalize("+381 64 123 4567", ""); !errors.Is(err, phone.ErrCountryNotAllowed) {
+	if _, err := r.Normalize("+33 6 12 34 56 78", ""); !errors.Is(err, phone.ErrCountryNotAllowed) {
 		t.Errorf("a number from elsewhere = %v, want ErrCountryNotAllowed", err)
 	}
 	// +1 is shared - the country is the number's own, not its calling code's
@@ -101,10 +101,10 @@ func TestRulesKeepANumberToTheAllowedCountries(t *testing.T) {
 }
 
 func TestFormatFor(t *testing.T) {
-	f, ok := phone.FormatFor("rs")
-	want := phone.CountryFormat{Country: "RS", CallingCode: "+381", Example: "+381 60 1234567", NationalExample: "060 1234567", Template: "xxx xxxxxxx"}
+	f, ok := phone.FormatFor("de")
+	want := phone.CountryFormat{Country: "DE", CallingCode: "+49", Example: "+49 1512 3456789", NationalExample: "01512 3456789", Template: "xxxxx xxxxxxx"}
 	if !ok || f != want {
-		t.Fatalf("FormatFor(rs) = %+v, %v, want %+v", f, ok, want)
+		t.Fatalf("FormatFor(de) = %+v, %v, want %+v", f, ok, want)
 	}
 	if f, _ := phone.FormatFor("US"); f.Template != "(xxx) xxx-xxxx" {
 		t.Errorf("US template = %q", f.Template)
@@ -116,17 +116,17 @@ func TestFormatFor(t *testing.T) {
 
 // A single-country store fixes the format - a national number is that country's even on an address elsewhere
 func TestRulesWithOneCountryReadEveryNationalNumberInIt(t *testing.T) {
-	r := phone.Rules{Default: "RS", Allowed: []string{"RS"}}
-	if got, err := r.Normalize("064 123 4567", "DE"); err != nil || got != "+381641234567" {
-		t.Fatalf("national number on a DE address = %q, %v, want +381641234567", got, err)
+	r := phone.Rules{Default: "FR", Allowed: []string{"FR"}}
+	if got, err := r.Normalize("06 12 34 56 78", "DE"); err != nil || got != "+33612345678" {
+		t.Fatalf("national number on a DE address = %q, %v, want +33612345678", got, err)
 	}
 	if _, err := r.Normalize("01512 3456789", "DE"); !errors.Is(err, phone.ErrInvalid) {
-		t.Fatalf("a German national number = %v, want ErrInvalid - it isn't a Serbian number", err)
+		t.Fatalf("a German national number = %v, want ErrInvalid - it isn't a French number", err)
 	}
 }
 
 func TestCallingCode(t *testing.T) {
-	for country, want := range map[string]string{"RS": "+381", "us": "+1", "CA": "+1", "XK": "+383", "XX": "", "": ""} {
+	for country, want := range map[string]string{"DE": "+49", "us": "+1", "CA": "+1", "XK": "+383", "XX": "", "": ""} {
 		if got := phone.CallingCode(country); got != want {
 			t.Errorf("CallingCode(%q) = %q, want %q", country, got, want)
 		}

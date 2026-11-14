@@ -14,17 +14,17 @@ vi.mock("@/app/components/LocaleLink", () => ({ Link: ({ href, children, ...prop
 const { DeliveryStep, fastestChoice } = await import("./delivery-step");
 
 beforeEach(() => actions.saveGroupDeliveryAction.mockReset());
-const point = { id: "point-21", name: "Central station", source: "manual-points", street1: "1 Main Street", street2: "", city: "Belgrade", region: "", postalCode: "11000", countryCode: "RS", distanceKm: null, phone: null, hours: "9–5", instructions: "" };
+const point = { id: "point-21", name: "Central station", source: "manual-points", street1: "1 Main Street", street2: "", city: "Berlin", region: "", postalCode: "10115", countryCode: "DE", distanceKm: null, phone: null, hours: "9–5", instructions: "" };
 const choice = { optionId: "option-1", optionName: "Pickup point", kind: "parcel_locker", kindLabel: "Pickup point", shipTo: "POINT", pointLabel: "Pickup point", carrierSlug: "builtin", methodCode: "standard", methodName: "Standard", description: "", priceCents: 3000, estimatedDays: 2 };
 function renderStep({ chosen = true, result = { points: [point], unavailable: false }, groups = 1 }: { chosen?: boolean; result?: DeliveryPointsResult; groups?: number } = {}) {
   const checkout = {
-    destination: { countryCode: "RS", postalCode: "11000", regionCode: null },
+    destination: { countryCode: "DE", postalCode: "10115", regionCode: null },
     deliveryGroups: Array.from({ length: groups }, (_, i) => ({ key: `group-${i}`, lineIds: [`line-${i}`], choices: [choice], selection: chosen ? { ...choice, point } : null, shipments: [] })),
     requirements: Array.from({ length: groups }, (_, i) => ({ scope: `group-${i}`, type: chosen ? "point" : "delivery_option", mode: "REQUIRED", status: chosen ? "SATISFIED" : "MISSING", label: "Pickup location", code: "", message: "" })),
     digitalLineIds: [], canSplit: false, splitDelivery: false,
   } as unknown as CheckoutState;
   if (chosen) checkout.requirements.push({ scope: "group-0", type: "collector", mode: "REQUIRED", status: "MISSING", label: "Who collects", code: "", message: "" });
-  return renderWithIntl(<DeliveryStep checkout={checkout} suggested={{ countryCode: "RS", postalCode: "" }} countries={[{ code: "RS", name: "Serbia", emojiFlag: "" }]} lines={{}} arrivals={{}} points={Object.fromEntries(checkout.deliveryGroups.map((g) => [g.key, result]))} pointSearch={{ group: "group-0", query: "station" }} thresholds={{ show: true, subtotalCents: 15000, minOrderCents: 0, freeShippingCents: 10000 }} notice={false} currency="EUR" />);
+  return renderWithIntl(<DeliveryStep checkout={checkout} suggested={{ countryCode: "DE", postalCode: "" }} countries={[{ code: "DE", name: "Germany", emojiFlag: "" }]} lines={{}} arrivals={{}} points={Object.fromEntries(checkout.deliveryGroups.map((g) => [g.key, result]))} pointSearch={{ group: "group-0", query: "station" }} thresholds={{ show: true, subtotalCents: 15000, minOrderCents: 0, freeShippingCents: 10000 }} notice={false} currency="EUR" />);
 }
 
 it("requires explicit Continue even when all delivery requirements are satisfied", () => {
@@ -85,12 +85,12 @@ const keyOf = (c: Door) => `${c.optionId}::${c.carrierSlug}::${c.methodCode}`;
 
 function renderDoor(choices: Door[], arrivals: Record<string, string> = {}) {
   const checkout = {
-    destination: { countryCode: "RS", postalCode: "11000", regionCode: null },
+    destination: { countryCode: "DE", postalCode: "10115", regionCode: null },
     deliveryGroups: [{ key: "group-0", lineIds: ["line-0"], choices, selection: null, shipments: [] }],
     requirements: [{ scope: "group-0", type: "delivery_option", mode: "REQUIRED", status: "MISSING", label: "Delivery", code: "", message: "" }],
     digitalLineIds: [], canSplit: false, splitDelivery: false,
   } as unknown as CheckoutState;
-  return renderWithIntl(<DeliveryStep checkout={checkout} suggested={{ countryCode: "RS", postalCode: "" }} countries={[{ code: "RS", name: "Serbia", emojiFlag: "" }]} lines={{}} arrivals={arrivals} points={{}} pointSearch={{ group: "", query: "" }} thresholds={{ show: false, subtotalCents: 2000, minOrderCents: 0, freeShippingCents: 0 }} notice={false} currency="EUR" />);
+  return renderWithIntl(<DeliveryStep checkout={checkout} suggested={{ countryCode: "DE", postalCode: "" }} countries={[{ code: "DE", name: "Germany", emojiFlag: "" }]} lines={{}} arrivals={arrivals} points={{}} pointSearch={{ group: "", query: "" }} thresholds={{ show: false, subtotalCents: 2000, minOrderCents: 0, freeShippingCents: 0 }} notice={false} currency="EUR" />);
 }
 
 const standard = door("standard", "Standard", 500, 4, "2026-10-08");

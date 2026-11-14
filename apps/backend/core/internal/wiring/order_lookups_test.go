@@ -57,8 +57,8 @@ func TestOrderIssuersRetryATransientCatalogError(t *testing.T) {
 }
 
 func TestADownloadNameSurvivesTheHeader(t *testing.T) {
-	_, params, err := mime.ParseMediaType(attachment("narudžbine.csv"))
-	if err != nil || params["filename"] != "narudžbine.csv" {
+	_, params, err := mime.ParseMediaType(attachment("bestellübersicht.csv"))
+	if err != nil || params["filename"] != "bestellübersicht.csv" {
 		t.Fatalf("Content-Disposition round-trip = %v, %v", params, err)
 	}
 }

@@ -27,41 +27,29 @@ func put(t *testing.T, root, rel, body string) {
 func TestReleaseBuildsAndPushesOnlyTheAppsNamed(t *testing.T) {
 	root := t.TempDir()
 	put(t, root, "apps/backend/core/Dockerfile.prod", "FROM x\n")
-	put(t, root, "apps/backend/signals/Dockerfile.prod", "FROM x\n")
-	put(t, root, "apps/dashboard/Dockerfile.prod", "FROM x\nARG UPLOAD_ORIGINS\nARG UNSET_ONE\n")
-	put(t, root, "apps/channels/eu-shop/Dockerfile.prod", "FROM x\nARG STOREFRONT_ORIGIN\n")
-	put(t, root, "apps/channels/eu-shop/package.json", "{}")
-	put(t, root, "templates/vetrina/Dockerfile.prod", "FROM x\n")
-	put(t, root, "templates/vetrina/package.json", "{}")
-	put(t, root, ".env", "UPLOAD_ORIGINS=https://old\nUPLOAD_ORIGINS=https://cdn\nSTOREFRONT_ORIGIN=https://dotenv\n")
+	put(t, root, "apps/backend/signals/Dockerfile.prod", "FROM x\nARG UPLOAD_ORIGINS\nARG UNSET_ONE\n")
+	put(t, root, ".env", "UPLOAD_ORIGINS=https://old\nUPLOAD_ORIGINS=https://cdn\n")
 	t.Setenv("REGISTRY", "reg.example")
-	t.Setenv("STOREFRONT_ORIGIN", "https://shell")
 	t.Setenv("PLATFORM", "")
 	d := verbtest.NewDocker(t, "")
-	out, code := d.Run("release", root, "core", "dashboard", "eu-shop", "--tag", "v9")
+	out, code := d.Run("release", root, "signals", "--tag", "v9")
 	var cmds []string
 	for _, c := range d.Calls() {
 		cmd, _, _ := strings.Cut(c, "|")
 		cmds = append(cmds, cmd)
 	}
 	want := []string{
-		"build --platform linux/amd64 -f apps/backend/core/Dockerfile.prod -t reg.example/skelet-core:v9 apps/backend",
-		"push reg.example/skelet-core:v9",
-		"build --platform linux/amd64 --build-arg UPLOAD_ORIGINS=https://cdn -f apps/dashboard/Dockerfile.prod -t reg.example/skelet-dashboard:v9 apps/dashboard",
-		"push reg.example/skelet-dashboard:v9",
-		"build --platform linux/amd64 --build-arg STOREFRONT_ORIGIN=https://shell -f apps/channels/eu-shop/Dockerfile.prod -t reg.example/skelet-eu-shop:v9 .",
-		"push reg.example/skelet-eu-shop:v9",
+		"build --platform linux/amd64 --build-arg UPLOAD_ORIGINS=https://cdn -f apps/backend/signals/Dockerfile.prod -t reg.example/skelet-signals:v9 apps/backend",
+		"push reg.example/skelet-signals:v9",
 	}
 	if code != 0 || strings.Join(cmds, "\n") != strings.Join(want, "\n") {
 		t.Errorf("exit %d, docker got:\n%s\nwant:\n%s", code, strings.Join(cmds, "\n"), strings.Join(want, "\n"))
 	}
-	for _, line := range []string{"apps/backend/core/.env", "CORE_IMAGE=reg.example/skelet-core:v9", "EU_SHOP_IMAGE=reg.example/skelet-eu-shop:v9"} {
-		if !strings.Contains(out, line) {
-			t.Errorf("output lacks %q:\n%s", line, out)
-		}
+	if !strings.Contains(out, "apps/backend/signals/.env") || !strings.Contains(out, "SIGNALS_IMAGE=reg.example/skelet-signals:v9") || strings.Contains(out, "CORE_IMAGE") {
+		t.Errorf("output:\n%s", out)
 	}
-	if strings.Contains(out, "SIGNALS_IMAGE") {
-		t.Errorf("Signals wasn't named, yet:\n%s", out)
+	if _, code := verbtest.NewDocker(t, "").Run("release", root, "dashboard"); code != 2 {
+		t.Errorf("dashboard: exit %d, want 2", code)
 	}
 }
 

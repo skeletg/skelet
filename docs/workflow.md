@@ -116,11 +116,10 @@ are left alone. A tool started ad hoc with `skelet up <name>` is not wired - pic
 
 A storefront instance is pinned to exactly one channel by `STOREFRONT_CHANNEL_ID`,
 in dev as much as in production. To see a second channel, run a second instance
-of the same app pinned to it - same source, same image, its own port and `.next`
-volume - published at that channel's `public_url` so the dashboard's preview links
-and the backend's Host-based channel resolution both line up. Put it in your
-git-ignored `docker-compose.override.yml`; there's a worked example there if this
-clone has one, and `skelet add channel` writes services in the same shape.
+of the same app pinned to it - same source, its own port and `.next` - served at
+that channel's `public_url` so the dashboard's preview links and the backend's
+Host-based channel resolution both line up: `STOREFRONT_CHANNEL_ID=<uuid> pnpm run
+dev -p 3002` in the app's directory, or a copy made with `skelet add channel`.
 
 There is deliberately no cookie or query-param channel switcher. Anything
 request-scoped can't decide the channel, because the routes that serve most of the
@@ -189,7 +188,7 @@ anonymous-cacheable operation list (backend allowlist, storefront
 token-stripper), the lexical node types the dashboard authors and the
 storefront renders, the conditional-option evaluator (ported into both
 frontends from `internal/cart/options_visibility.go`), and the security
-headers the backend and the dashboard's nginx both set.
+headers the backend and the dashboard's `headers.template` both set.
 
 Each end carries a `SYNC` or `SYNC SENTINEL` comment, and
 `skelet check contracts` enforces the mechanical part - including that the
@@ -342,43 +341,33 @@ without touching your shop, and you take the packages' when you bump them.
 `skelet add channel <your-shop>` does steps 1 and 2 for you - it copies a
 template (`--template <name>`, by default `nextjs-vetrina`, the full one) or a
 shop of your own (`--from <name>`), points every path in it at its new home, pins its `@skelet/storefront-*`
-to your checkout's release on npm, gives it the first free ports, copies the compose service out of the source's (so it
-inherits changes to the template's wiring rather than a snapshot taken once), adds
-it to the workspace lockfile, and writes nothing until the result parses - the copy is made aside and moved into
-place last, so a failure leaves nothing half-made. A template setup left out of your working tree is copied from git,
+to your checkout's release on npm, gives its dev script the first free port, and adds
+it to the workspace lockfile - the copy is made aside and moved into place last, so a failure leaves nothing
+half-made. A template setup left out of your working tree is copied from git,
 so it never has to be checked out. The lockfile refresh runs in a throwaway container over the workspace's manifests -
 one setup left out comes from git too, so the lockfile keeps it - and if it can't run, `skelet pnpm --lockfile`
 finishes the job once the cause is fixed. A checkout ahead of its last
 release - source in `packages/` or the template changed since its tag, as on Skelet's own `develop` - links `packages/`
 instead, since npm can't have those changes yet, and so does `--workspace`, for working on the packages against a
 shop. Regenerated GraphQL types don't count: a plugin that adds to the schema changes what `skelet gen` writes, not
-what the packages ask the backend for. `--tracked` puts the
-service in the tracked compose files instead, which is for adding a storefront to
-skelet itself and gives up the conflict-free property below. `skelet rm channel
-<your-shop>` reverses it, keeping the Docker volumes unless you pass `--volumes`.
+what the packages ask the backend for. `skelet rm channel <your-shop>` reverses it.
 On a dev clone the first shop you add also becomes what the dashboard's previews
 open, through `VITE_STOREFRONT_ORIGIN` in `.env`, unless that already names one.
 Removing that shop moves the previews to your next one, or back to the default.
 By hand:
 
 1. Create `apps/channels/<your-shop>/` - a copy of `templates/nextjs-vetrina` with its
-   `templates/nextjs-vetrina` paths (the Dockerfiles, their `.dockerignore`) pointed at
-   `apps/channels/<your-shop>` and its `@skelet/storefront-*` set from `workspace:*` to
-   your checkout's release, or from scratch - then `skelet pnpm --lockfile`, so the
-   lockfile knows it.
-2. Declare its compose service in `docker-compose.override.yml` (git-ignored,
-   auto-merged by docker compose) with `profiles: ["<your-shop>"]`. Never edit
-   the tracked compose files, so `git pull` from upstream skelet stays
-   conflict-free. Anchors don't cross compose files, so a block copied from
-   `docker-compose.yml` needs its own `x-logging: &logging` beside it.
+   `templates/nextjs-vetrina` paths pointed at `apps/channels/<your-shop>` and its
+   `@skelet/storefront-*` set from `workspace:*` to your checkout's release, or from
+   scratch - then `skelet pnpm --lockfile`, so the lockfile knows it.
+2. Give its `dev` script a port no other app uses: `next dev -p 3002`.
 3. `skelet setup --apps dashboard,<your-shop>` - leaving `nextjs-vetrina` out removes
    it from your working tree via sparse-checkout *without committing a deletion*,
    so upstream updates to the template never conflict with your clone.
-That's the whole list. Everything else follows the directory: `skelet up`,
-`skelet pnpm`, `skelet gen` and `skelet release` all discover storefronts from
-`apps/channels/` and `templates/`, CI installs and checks the whole workspace in one job and derives its image
-builds, each smoke-run, the same way, and Renovate - kept to `apps/channels/` as above - finds your `package.json`
-and `Dockerfile` on its own.
+That's the whole list. Everything else follows the directory: `skelet dev`,
+`skelet pnpm` and `skelet gen` all discover storefronts from `apps/channels/` and
+`templates/`, CI installs, checks and builds the whole workspace in one job, and
+Renovate - kept to `apps/channels/` as above - finds your `package.json` on its own.
 A shop that lands in the tree is gated like the demo without touching a workflow
 or a config file.
 

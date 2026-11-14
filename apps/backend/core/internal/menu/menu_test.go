@@ -601,7 +601,7 @@ func TestMovingABranchCountsItsOwnDepth(t *testing.T) {
 func TestLinkURLsAreSchemeChecked(t *testing.T) {
 	for url, ok := range map[string]bool{
 		"/sale": true, "sale": true, "#top": true, "?q=1": true, "https://shop.test/x": true, "HTTP://shop.test": true,
-		"mailto:hi@shop.test": true, "tel:+381111": true,
+		"mailto:hi@shop.test": true, "tel:+49301": true,
 		"javascript:alert(1)": false, "JavaScript:alert(1)": false, "data:text/html,<script>": false,
 		"vbscript:x": false, "java\tscript:alert(1)": false, " javascript:alert(1)": false,
 	} {

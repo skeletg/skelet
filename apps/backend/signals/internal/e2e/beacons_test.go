@@ -204,8 +204,8 @@ func TestIngestBeaconsAlwaysAnswer204(t *testing.T) { // beacons are fire-and-fo
 		"collect malformed": {"/t/collect", `{"events":[`},
 		"collect empty":     {"/t/collect", ``},
 		"rec malformed":     {"/t/rec", `not json`},
-		"crawl bot":         {"/t/crawl", `{"path":"/p/tire","ua":"Mozilla/5.0 (compatible; Googlebot/2.1)"}`},
-		"crawl human ua":    {"/t/crawl", `{"path":"/p/tire","ua":"Mozilla/5.0 (Windows NT 10.0) Chrome/126.0"}`},
+		"crawl bot":         {"/t/crawl", `{"path":"/p/jacket","ua":"Mozilla/5.0 (compatible; Googlebot/2.1)"}`},
+		"crawl human ua":    {"/t/crawl", `{"path":"/p/jacket","ua":"Mozilla/5.0 (Windows NT 10.0) Chrome/126.0"}`},
 	} {
 		status, _, body := tRequest(t, ts, http.MethodPost, call.path, ch.String(), call.body)
 		if status != http.StatusNoContent {
