@@ -24,19 +24,21 @@ const (
 	EventEmailOpened   = "email_opened"
 	EventEmailClicked  = "email_clicked"
 	EventConversion    = "conversion"
-	EventPageView      = "page_view"      // web (Lens)
-	EventCustom        = "custom"         // web (Lens) - arbitrary client event
-	EventIdentify      = "identify"       // web (Lens) - anon visitor linked to a customer
-	EventProductFilter = "product_filter" // web (Lens) - storefront facet/filter selection
-	EventViewItem      = "view_item"      // the three below are storefront funnel events promoted out of the generic "custom" channel, so they're countable and selectable as funnel steps
+	EventPageView      = "page_view"    // web (Lens)
+	EventCustom        = "custom"       // web (Lens) - arbitrary client event
+	EventIdentify      = "identify"     // web (Lens) - anon visitor linked to a customer
+	EventFilterItems   = "filter_items" // web (Lens) - storefront facet/filter selection
+	EventViewItem      = "view_item"    // the two below are storefront funnel events promoted out of the generic "custom" channel, so they're countable and selectable as funnel steps
 	EventBeginCheckout = "begin_checkout"
-	EventPurchase      = "purchase"
-	// Reserved custom-event names the storefront tracker emits, held to the tracking plan
-	EventSearch = "$search"
-	// The AI overview above search results - not $ names, since a storefront built before the plan sends them as they are
+	// A placed order - the server's, never a browser's: the plan refuses a browser purchase, so revenue and order counts
+	// have one source
+	EventPurchase = "purchase"
+	// Custom-event names the storefront tracker emits, held to the tracking plan - GA4's name where it has one
+	EventSearch = "search"
+	// The AI overview above search results
 	EventOverviewShown = "search_overview_shown"
-	EventOverviewClick = "search_overview_click"
-	EventOverviewChat  = "search_overview_chat"
+	EventOverviewClick = "select_overview_item"
+	EventOverviewChat  = "open_overview_chat"
 	EventExperiment    = "$experiment"
 	EventJSError       = "$js_error"
 	EventRageClick     = "$rage_click"
@@ -348,7 +350,7 @@ func (r *Recorder) RecordActivity(ctx context.Context, a ActivitySpec) (bool, er
 		return false, nil
 	}
 	// A sign-in or sign-up core saw with the visitor's id is proof the two are one person, sent only with analytics consent
-	if a.Source == SourceAccount && (a.EventName == "login" || a.EventName == "registered") && a.CustomerID != nil && a.AnonID != "" {
+	if a.Source == SourceAccount && (a.EventName == "login" || a.EventName == "sign_up") && a.CustomerID != nil && a.AnonID != "" {
 		if err := r.Identify(ctx, a.AnonID, *a.CustomerID, a.ChannelID); err != nil {
 			return false, err
 		}

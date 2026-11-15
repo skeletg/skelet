@@ -67,7 +67,7 @@ func TestAnAggregateActivityIsStoredAsNobody(t *testing.T) {
 	at := time.Date(2026, 11, 5, 14, 37, 12, 0, time.UTC)
 	props := map[string]any{"total_cents": int64(900), "currency": "EUR", "order_id": "o-1", "email": "a@example.com"}
 	ok, err := r.RecordActivity(context.Background(), ActivitySpec{
-		EventName: "order_placed", Source: SourceAggregate, ChannelID: uuid.New(), CustomerID: &cust, AnonID: "visitor-1", At: at,
+		EventName: "purchase", Source: SourceAggregate, ChannelID: uuid.New(), CustomerID: &cust, AnonID: "visitor-1", At: at,
 		Props: props, DedupeKey: "act:order_placed:o-1",
 	})
 	if len(props) != 4 {
@@ -90,7 +90,7 @@ func TestAnAggregateActivityIsStoredAsNobody(t *testing.T) {
 	if len(e.Props) != 2 || e.Props["total_cents"] != int64(900) || e.Props["currency"] != "EUR" {
 		t.Errorf("props %v, want only the amount and currency", e.Props)
 	}
-	if ok, _ := r.RecordActivity(context.Background(), ActivitySpec{EventName: "cart_add", Source: SourceCommerce, ChannelID: uuid.New()}); ok || len(spine.got) != 1 {
+	if ok, _ := r.RecordActivity(context.Background(), ActivitySpec{EventName: "add_to_cart", Source: SourceCommerce, ChannelID: uuid.New()}); ok || len(spine.got) != 1 {
 		t.Error("an event with no actor that isn't marked aggregate must still be dropped")
 	}
 }
@@ -98,7 +98,7 @@ func TestAnAggregateActivityIsStoredAsNobody(t *testing.T) {
 // Without its key, an aggregate event is refused - a plain hash of an order's id is what the key exists to prevent
 func TestAnAggregateActivityNeedsItsKey(t *testing.T) {
 	spine := &appendSpine{}
-	ok, err := NewRecorder(nil, spine).RecordActivity(context.Background(), ActivitySpec{EventName: "order_placed", Source: SourceAggregate, ChannelID: uuid.New(), DedupeKey: "act:order_placed:o-1"})
+	ok, err := NewRecorder(nil, spine).RecordActivity(context.Background(), ActivitySpec{EventName: "purchase", Source: SourceAggregate, ChannelID: uuid.New(), DedupeKey: "act:order_placed:o-1"})
 	if ok || err == nil || len(spine.got) != 0 {
 		t.Errorf("recorded %v, %v, %d rows - want a refusal", ok, err, len(spine.got))
 	}

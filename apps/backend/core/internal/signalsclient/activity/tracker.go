@@ -305,7 +305,7 @@ func (t *Tracker) onOrderPlaced(ctx context.Context, e events.Event) error {
 	if ids := t.productIDs(ctx, skus...); len(ids) > 0 {
 		props["product_ids"] = ids
 	}
-	if err := t.emitAs(ctx, sourceCommerce, signalsapi.EventOrderPlaced, placed.channel, placed.who, "act:order_placed:"+ev.OrderID.String(), props); err != nil {
+	if err := t.emitAs(ctx, sourceCommerce, signalsapi.EventPurchase, placed.channel, placed.who, "act:order_placed:"+ev.OrderID.String(), props); err != nil {
 		return err
 	}
 	if ev.AssistedBy != "" {
@@ -414,7 +414,7 @@ func (t *Tracker) onOrderRefunded(ctx context.Context, e events.Event) error {
 	if err != nil {
 		return err
 	}
-	return t.emitAs(ctx, sourceCommerce, "order_refunded", o.channel, o.who,
+	return t.emitAs(ctx, sourceCommerce, "refund", o.channel, o.who,
 		"act:order_refunded:"+ev.CreditMemoID.String(),
 		map[string]any{"order_number": o.number, "credit_memo_id": ev.CreditMemoID.String(), "fully_refunded": ev.FullyRefunded})
 }
@@ -438,7 +438,7 @@ func (t *Tracker) onCartAdd(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	return t.emitAs(ctx, sourceCommerce, "cart_add", ev.ChannelID, shopperActor(ev.Shopper, ev.CustomerID, ev.AnonID),
+	return t.emitAs(ctx, sourceCommerce, "add_to_cart", ev.ChannelID, shopperActor(ev.Shopper, ev.CustomerID, ev.AnonID),
 		"act:cart_add:"+ev.LineID.String(),
 		t.withProducts(ctx, ev.ProductSku, map[string]any{"sku": ev.ProductSku, "qty": ev.Quantity, "unit_price": ev.UnitPrice}))
 }
@@ -448,7 +448,7 @@ func (t *Tracker) onCartBundleAdd(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	return t.emitAs(ctx, sourceCommerce, "cart_add", ev.ChannelID, shopperActor(ev.Shopper, ev.CustomerID, ev.AnonID),
+	return t.emitAs(ctx, sourceCommerce, "add_to_cart", ev.ChannelID, shopperActor(ev.Shopper, ev.CustomerID, ev.AnonID),
 		"act:cart_add:"+ev.LineID.String(),
 		t.withProducts(ctx, ev.ProductSku, map[string]any{"sku": ev.ProductSku, "qty": ev.Quantity, "unit_price": ev.UnitPrice, "bundle": true}))
 }
@@ -493,7 +493,7 @@ func (t *Tracker) onCartUpdate(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	return t.emitAs(ctx, sourceCommerce, "cart_update", ev.ChannelID, shopperActor(ev.Shopper, ev.CustomerID, ev.AnonID),
+	return t.emitAs(ctx, sourceCommerce, "cart_updated", ev.ChannelID, shopperActor(ev.Shopper, ev.CustomerID, ev.AnonID),
 		"act:cart_upd:"+ev.LineID.String()+":"+itoa(minuteBucket(ctx)),
 		map[string]any{"line_id": ev.LineID.String(), "qty": ev.Quantity})
 }
@@ -503,19 +503,19 @@ func (t *Tracker) onCartRemove(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	return t.emitAs(ctx, sourceCommerce, "cart_remove", ev.ChannelID, shopperActor(ev.Shopper, ev.CustomerID, ev.AnonID),
+	return t.emitAs(ctx, sourceCommerce, "remove_from_cart", ev.ChannelID, shopperActor(ev.Shopper, ev.CustomerID, ev.AnonID),
 		"act:cart_rm:"+ev.LineID.String()+":"+itoa(minuteBucket(ctx)),
 		map[string]any{"line_id": ev.LineID.String()})
 }
 
-// checkout_shipping and checkout_payment, each with what was chosen when it changed
+// add_shipping_info and add_payment_info, each with what was chosen when it changed
 func (t *Tracker) onCheckoutChosen(ctx context.Context, e events.Event) error {
 	ev, ok := e.(*cart.CheckoutChosen)
 	if !ok {
 		return nil
 	}
 	who := shopperActor(ev.Shopper, ev.CustomerID, ev.AnonID)
-	for name, choice := range map[string]string{"checkout_shipping": ev.Shipping, "checkout_payment": ev.Payment} {
+	for name, choice := range map[string]string{"add_shipping_info": ev.Shipping, "add_payment_info": ev.Payment} {
 		if choice == "" {
 			continue
 		}
@@ -532,7 +532,7 @@ func (t *Tracker) onWishlistAdd(ctx context.Context, e events.Event) error {
 	if !ok || ev.ChannelID == uuid.Nil {
 		return nil
 	}
-	return t.wishlist(ctx, "wishlist_add", ev.ChannelID, ev.CustomerID, ev.ProductID, ev.Shopper)
+	return t.wishlist(ctx, "add_to_wishlist", ev.ChannelID, ev.CustomerID, ev.ProductID, ev.Shopper)
 }
 
 func (t *Tracker) onWishlistRemove(ctx context.Context, e events.Event) error {
@@ -540,7 +540,7 @@ func (t *Tracker) onWishlistRemove(ctx context.Context, e events.Event) error {
 	if !ok || ev.ChannelID == uuid.Nil {
 		return nil
 	}
-	return t.wishlist(ctx, "wishlist_remove", ev.ChannelID, ev.CustomerID, ev.ProductID, ev.Shopper)
+	return t.wishlist(ctx, "remove_from_wishlist", ev.ChannelID, ev.CustomerID, ev.ProductID, ev.Shopper)
 }
 
 func (t *Tracker) wishlist(ctx context.Context, name string, channel, cust, product uuid.UUID, s *auth.Shopper) error {
@@ -555,7 +555,7 @@ func (t *Tracker) onLead(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	return t.emitAs(ctx, sourceCommerce, "lead", ev.ChannelID, shopperActor(ev.Shopper, nil, visitorOf(ev.Shopper)),
+	return t.emitAs(ctx, sourceCommerce, "generate_lead", ev.ChannelID, shopperActor(ev.Shopper, nil, visitorOf(ev.Shopper)),
 		"act:lead:"+ev.LeadKey, map[string]any{"form_id": ev.FormID.String()})
 }
 
@@ -748,7 +748,7 @@ func (t *Tracker) onRegistered(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	return t.emitAs(ctx, sourceAccount, "registered", ev.ChannelID, signInActor(ev.Shopper, ev.CustomerID),
+	return t.emitAs(ctx, sourceAccount, "sign_up", ev.ChannelID, signInActor(ev.Shopper, ev.CustomerID),
 		"act:registered:"+ev.CustomerID.String(),
 		map[string]any{"source": ev.Source})
 }
@@ -836,7 +836,7 @@ func (t *Tracker) onPasswordReset(ctx context.Context, e events.Event) error {
 	if !ok || ev.Subject != auth.SubjectCustomer {
 		return nil
 	}
-	return t.emit(ctx, sourceAccount, "password_reset", ev.ChannelID, ref(ev.SubjectID),
+	return t.emit(ctx, sourceAccount, "password_reset_requested", ev.ChannelID, ref(ev.SubjectID),
 		"act:pwreset:"+ev.SubjectID.String()+":"+itoa(secBucket(ctx)), nil)
 }
 

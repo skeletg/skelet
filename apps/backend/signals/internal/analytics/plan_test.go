@@ -50,18 +50,18 @@ func TestApplyPlanOnNamedEvents(t *testing.T) {
 	if len(issues) != 2 || issues[0] != (PlanIssue{IssueBadType, CustomEvent, "cart"}) || issues[1] != (PlanIssue{IssueServerProp, CustomEvent, "currency"}) {
 		t.Fatalf("a named event's issues = %v", issues)
 	}
-	if keep, issues := ApplyPlan("$search", map[string]any{"query": "shirt", "results": 3.0}); !keep || len(issues) != 0 {
-		t.Fatalf("a clean $search: keep=%v issues=%v", keep, issues)
+	if keep, issues := ApplyPlan("search", map[string]any{"query": "shirt", "results": 3.0}); !keep || len(issues) != 0 {
+		t.Fatalf("a clean search: keep=%v issues=%v", keep, issues)
 	}
 	meaning := map[string]any{"query": "something warm", "results": 4.0, "byMeaningOnly": true}
-	if keep, issues := ApplyPlan("$search", meaning); !keep || len(issues) != 0 || meaning["byMeaningOnly"] != true {
+	if keep, issues := ApplyPlan("search", meaning); !keep || len(issues) != 0 || meaning["byMeaningOnly"] != true {
 		t.Fatalf("a search only meaning answered: keep=%v issues=%v props=%v - want the flag kept for the meaning-only figures", keep, issues, meaning)
 	}
 	shown := map[string]any{"query": "linen", "products": 2.0, "cart": map[string]any{}}
 	if keep, issues := ApplyPlan(EventOverviewShown, shown); !keep || len(issues) != 1 || shown["query"] != "linen" || shown["products"] != 2.0 {
 		t.Fatalf("an AI overview shown: keep=%v issues=%v props=%v", keep, issues, shown)
 	}
-	if _, issues := ApplyPlan("$search", map[string]any{"results": "3"}); len(issues) != 1 || issues[0].Kind != IssueBadType {
+	if _, issues := ApplyPlan("search", map[string]any{"results": "3"}); len(issues) != 1 || issues[0].Kind != IssueBadType {
 		t.Fatalf("results as a string: %v, want a bad type", issues)
 	}
 	// The tracker's own rage click, label included - the top rage elements list reads text
@@ -101,5 +101,23 @@ func TestAPlanIssueRoundTripsThroughItsKey(t *testing.T) {
 		if got := ParsePlanIssue(is.Kind, is.Key()); got != is {
 			t.Errorf("%+v came back as %+v", is, got)
 		}
+	}
+}
+
+// One name per moment: nothing the plan takes is a name the rename retired, and a storefront still sending one, or a
+// browser claiming the server's purchase, is refused and counted
+func TestThePlanSpeaksOnlyTheCurrentVocabulary(t *testing.T) {
+	for _, e := range TrackingPlan {
+		if now, old := RenamedEvents[e.Name]; old {
+			t.Errorf("the plan takes %s, renamed to %s", e.Name, now)
+		}
+	}
+	for _, name := range []string{"product_filter", "$search", "search_overview_click", "search_overview_chat", EventPurchase} {
+		if keep, issues := ApplyPlan(name, map[string]any{}); keep || len(issues) != 1 || issues[0].Kind != IssueUnknownEvent {
+			t.Errorf("%s: keep=%v issues=%v, want it refused as unknown", name, keep, issues)
+		}
+	}
+	if keep, _ := ApplyPlan("lead", map[string]any{}); !keep {
+		t.Error("a merchant's own event that shares a retired server name was refused")
 	}
 }

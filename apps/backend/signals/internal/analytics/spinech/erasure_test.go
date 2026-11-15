@@ -72,7 +72,7 @@ func TestADetachStillRunningIsNotIssuedTwice(t *testing.T) {
 	defer st.Close()
 	cust, ch := uuid.New(), uuid.New()
 	if _, err := st.AppendEvent(ctx, analytics.SpineEvent{
-		EventName: "order_placed", OccurredAt: time.Now().UTC(), ChannelID: &ch, CustomerID: &cust,
+		EventName: "purchase", OccurredAt: time.Now().UTC(), ChannelID: &ch, CustomerID: &cust,
 		Source: "commerce", Props: map[string]any{}, DedupeKey: "order:" + uuid.NewString(),
 	}); err != nil {
 		t.Fatal(err)

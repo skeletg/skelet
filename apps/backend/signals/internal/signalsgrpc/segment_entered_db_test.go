@@ -58,7 +58,7 @@ func enteredHarness(t *testing.T, repo func(segment.Repository) segment.Reposito
 	ch := uuid.New()
 	seg, err := behavioral.Save(context.Background(), behavioralsegment.SaveInput{
 		ChannelID: ch.String(), Name: "Buyers " + uuid.NewString()[:6],
-		Definition: behavioralsegment.Definition{Conditions: []behavioralsegment.Condition{{Event: "order_placed", Count: 1, Days: 30}}},
+		Definition: behavioralsegment.Definition{Conditions: []behavioralsegment.Condition{{Event: "purchase", Count: 1, Days: 30}}},
 	}, time.Now())
 	if err != nil {
 		t.Fatal(err)

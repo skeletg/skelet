@@ -44,17 +44,17 @@ func TestChattersAreComparedWithEveryoneElseFromTheirFirstChatOn(t *testing.T) {
 	b := uuid.New()
 
 	s.event("page_view", 5, a, nil, nil)
-	s.event("order_placed", 6, a, nil, order("before-chat", 9000, "EUR", nil))
+	s.event("purchase", 6, a, nil, order("before-chat", 9000, "EUR", nil))
 	s.event("assistant_turn", 4, a, nil, nil)
-	s.event("order_placed", 3, a, nil, order("o-a", 5000, "EUR", map[string]any{"assisted_by": "assistant"}))
+	s.event("purchase", 3, a, nil, order("o-a", 5000, "EUR", map[string]any{"assisted_by": "assistant"}))
 	s.event("return_requested", 1, a, nil, map[string]any{"order_id": "o-a"})
 	s.event("assistant_turn", 2, "", &b, nil)
 	s.event("page_view", 3, c, nil, nil)
-	s.event("order_placed", 2, c, nil, order("o-c1", 3000, "EUR", nil))
-	s.event("order_placed", 2, c, nil, order("o-c2", 1000, "USD", nil))
+	s.event("purchase", 2, c, nil, order("o-c1", 3000, "EUR", nil))
+	s.event("purchase", 2, c, nil, order("o-c2", 1000, "USD", nil))
 	s.event("page_view", 1, d, nil, nil)
-	s.event("order_placed", 1, e, nil, order("o-e", 2000, "EUR", map[string]any{"assisted_by": "agent"}))
-	s.event("order_placed", 1, e, nil, order("o-e2", 700, "USD", map[string]any{"assisted_by": "agent"}))
+	s.event("purchase", 1, e, nil, order("o-e", 2000, "EUR", map[string]any{"assisted_by": "agent"}))
+	s.event("purchase", 1, e, nil, order("o-e2", 700, "USD", map[string]any{"assisted_by": "agent"}))
 	if err := st.Flush(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -85,9 +85,9 @@ func TestWhatTheAssistantShowedIsFollowedToTheCartAndTheOrder(t *testing.T) {
 	p1, p2, variant := uuid.NewString(), uuid.NewString(), uuid.NewString()
 
 	s.event("assistant_turn", 4, a, nil, map[string]any{"product_ids": []string{p1, p2}})
-	s.event("cart_add", 3, a, nil, map[string]any{"product_ids": []string{variant, p1}})
-	s.event("order_placed", 3, a, nil, order("o-a", 5000, "EUR", map[string]any{"product_ids": []string{variant, p1}}))
-	s.event("cart_add", 3, "", &b, map[string]any{"product_ids": []string{p1}})
+	s.event("add_to_cart", 3, a, nil, map[string]any{"product_ids": []string{variant, p1}})
+	s.event("purchase", 3, a, nil, order("o-a", 5000, "EUR", map[string]any{"product_ids": []string{variant, p1}}))
+	s.event("add_to_cart", 3, "", &b, map[string]any{"product_ids": []string{p1}})
 	s.event("assistant_turn", 2, "", &b, map[string]any{"product_ids": []string{p1}})
 	if err := st.Flush(ctx); err != nil {
 		t.Fatal(err)

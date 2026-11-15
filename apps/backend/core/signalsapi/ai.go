@@ -26,5 +26,5 @@ const (
 
 	EventAssistantTurn = "assistant_turn"
 	EventAssistedOrder = "assisted_order"
-	EventOrderPlaced   = "order_placed"
+	EventPurchase      = "purchase" // the spine's placed order, GA4's name
 )

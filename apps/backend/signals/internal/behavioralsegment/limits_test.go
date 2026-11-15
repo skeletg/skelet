@@ -10,7 +10,7 @@ import (
 )
 
 func TestDefinitionsAreBounded(t *testing.T) {
-	leaf := Node{Kind: KindEvent, Event: "order_placed", Count: 1}
+	leaf := Node{Kind: KindEvent, Event: "purchase", Count: 1}
 	wide := Node{Kind: KindGroup, Op: OpOr}
 	for range maxNodes {
 		wide.Children = append(wide.Children, leaf)

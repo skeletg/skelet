@@ -466,7 +466,7 @@ func SummarizeProps(eventName string, raw json.RawMessage) string {
 	case EventPageView:
 		// title is the page's <title>, which is the product name on a PDP and the category, collection or search name on a listing - falls back to path
 		prefer = []string{"title", "page_key", "url"}
-	case EventProductFilter:
+	case EventFilterItems:
 		prefer = []string{"filters"}
 	default:
 		prefer = []string{"order_number", "sku", "status", "action", "changed_fields", "return_id", "name", "url", "order_id"}

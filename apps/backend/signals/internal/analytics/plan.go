@@ -34,7 +34,7 @@ var TrackingPlan = []PlannedEvent{
 		"entity": PropString, "entity_name": PropString, "entity_image": PropString, "entity_price": PropString, "sku": PropString,
 		"utm_source": PropString, "utm_medium": PropString, "utm_campaign": PropString, "search_query": PropString,
 	}},
-	{Name: EventProductFilter, About: "A shopper narrowed a product list.", Attrs: true, Props: map[string]PropType{"filters": PropString}},
+	{Name: EventFilterItems, About: "A shopper narrowed a product list.", Attrs: true, Props: map[string]PropType{"filters": PropString}},
 	{Name: EventSearch, About: "An on-site search, how many results it found, and whether only search by meaning found them.", Props: map[string]PropType{"query": PropString, "results": PropNumber, "byMeaningOnly": PropBool}},
 	{Name: EventOverviewShown, About: "The AI overview above a search's results was shown, and how many products it named.", Props: map[string]PropType{"query": PropString, "products": PropNumber}},
 	{Name: EventOverviewClick, About: "A product named in the AI overview was followed, by its place in the overview.", Props: map[string]PropType{"query": PropString, "position": PropNumber}},
@@ -46,9 +46,23 @@ var TrackingPlan = []PlannedEvent{
 	{Name: EventWebVitals, About: "A Core Web Vitals measurement.", Props: map[string]PropType{"metric": PropString, "value": PropNumber, "sessionId": PropString}},
 	{Name: EventViewItem, About: "A product was viewed. Older storefronts send it; the server's own events are the source of truth.", Props: map[string]PropType{"sku": PropString}},
 	{Name: EventBeginCheckout, About: "Checkout was opened. Older storefronts send it.", Props: map[string]PropType{}},
-	{Name: EventPurchase, About: "An order was placed. Older storefronts send it; revenue only ever comes from the server's order events.", Props: map[string]PropType{}},
 	{Name: CustomEvent, About: "Any other name is the merchant's own: a data-lens-event, a toggle opened or closed, a CMS block seen, an experiment goal. It may carry any string, number or bool property.", Open: true, Props: map[string]PropType{"action": PropString, "source": PropString}},
 }
+
+// RenamedEvents is each name the spine used before it took GA4's, and the one it uses now - the migrations in both
+// stores rewrote what was recorded and saved, so nothing should name an old one again
+var RenamedEvents = map[string]string{
+	"cart_add": "add_to_cart", "cart_remove": "remove_from_cart", "cart_update": "cart_updated",
+	"checkout_shipping": "add_shipping_info", "checkout_payment": "add_payment_info",
+	"wishlist_add": "add_to_wishlist", "wishlist_remove": "remove_from_wishlist",
+	"order_placed": EventPurchase, "order_refunded": "refund", "registered": "sign_up", "lead": "generate_lead",
+	"password_reset": "password_reset_requested", "$search": EventSearch, "product_filter": EventFilterItems,
+	"search_overview_click": EventOverviewClick, "search_overview_chat": EventOverviewChat,
+}
+
+// The old names a storefront built before the rename still sends - refused and counted, so Data health shows the
+// storefront needs updating rather than the events quietly landing as a merchant's own
+var retiredBrowserNames = map[string]bool{"product_filter": true, "$search": true, "search_overview_click": true, "search_overview_chat": true}
 
 // ServerProps are set from the request or by the server, never taken from a browser - a forged is_bot, revenue or
 // event name would otherwise reach every report
@@ -59,7 +73,7 @@ var ServerProps = []string{
 
 // What Data health counts, one rollup dim each
 const (
-	IssueUnknownEvent = "plan_unknown_event" // a $ name the plan doesn't have - the event is dropped
+	IssueUnknownEvent = "plan_unknown_event" // a $ name the plan doesn't have, a server-only name or a retired one - the event is dropped
 	IssueUnknownProp  = "plan_unknown_prop"  // a property the event's plan entry doesn't list - the property is dropped
 	IssueBadType      = "plan_bad_type"      // a planned property with the wrong type - the property is dropped
 	IssueServerProp   = "plan_server_prop"   // a browser sent a property only the server may set - the property is dropped
@@ -106,6 +120,9 @@ func init() {
 // ApplyPlan holds one browser event to the plan, deleting what breaks it from props in place. keep is false when the
 // whole event must go. name is the event's name as the tracker sent it - a custom event's own name
 func ApplyPlan(name string, props map[string]any) (keep bool, issues []PlanIssue) {
+	if name == EventPurchase || retiredBrowserNames[name] { // purchase is the server's - a browser's copy would count every order twice
+		return false, []PlanIssue{{Kind: IssueUnknownEvent, Event: name}}
+	}
 	entry, ok := plan[name]
 	if !ok {
 		if strings.HasPrefix(name, "$") {

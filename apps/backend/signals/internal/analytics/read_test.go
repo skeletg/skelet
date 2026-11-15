@@ -12,7 +12,7 @@ func TestSummarizeProps(t *testing.T) {
 		// page_view: title (product/category/search name) wins over the raw path
 		{EventPageView, `{"title":"Blue Widget","page_key":"/products/:id"}`, "Blue Widget"},
 		{EventPageView, `{"page_key":"/products","viewport":"desktop"}`, "/products"},
-		{EventProductFilter, `{"filters":"Color: Red, Blue","name":"product_filter"}`, "Color: Red, Blue"},
+		{EventFilterItems, `{"filters":"Color: Red, Blue","name":"filter_items"}`, "Color: Red, Blue"},
 		{EventCustom, `{"name":"sidebar_open","page_key":"/x"}`, "sidebar_open"},
 		{EventEmailClicked, `{"url":"https://x/y","link_index":0}`, "https://x/y"},
 		{EventConversion, `{"order_id":"abc-123","revenue_cents":500}`, "abc-123"},

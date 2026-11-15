@@ -49,7 +49,7 @@ func (s *Store) AIImpact(ctx context.Context, channelID uuid.UUID, since time.Ti
 		  LEFT JOIN orders AS o ON o.actor = a.actor
 		  GROUP BY a.actor, a.chatted
 		)
-		GROUP BY chatted`, resolvedActor, notBot, counted, signalsapi.EventAssistantTurn, signalsapi.EventOrderPlaced)
+		GROUP BY chatted`, resolvedActor, notBot, counted, signalsapi.EventAssistantTurn, signalsapi.EventPurchase)
 	rows, err := s.conn.Query(ctx, q, channelID, since, channelID, since, channelID, since, currency, currency)
 	if err != nil {
 		return analytics.AIImpact{}, err
@@ -77,7 +77,7 @@ func (s *Store) AIImpact(ctx context.Context, channelID uuid.UUID, since time.Ti
 		FROM analytics_events AS e FINAL
 		WHERE e.channel_id = ? AND e.occurred_at >= ? AND e.event_name = ?
 		  AND JSONExtractString(e.properties, 'assisted_by') = ? AND JSONExtractString(e.properties, 'currency') = ?`,
-		channelID, since, signalsapi.EventOrderPlaced, signalsapi.AssistedByAgent, currency).Scan(&out.AgentOrders, &out.AgentRevenueCents)
+		channelID, since, signalsapi.EventPurchase, signalsapi.AssistedByAgent, currency).Scan(&out.AgentOrders, &out.AgentRevenueCents)
 	return out, err
 }
 
@@ -117,7 +117,7 @@ func (s *Store) AIProducts(ctx context.Context, channelID uuid.UUID, since time.
 		LEFT JOIN carted AS c ON c.pid = t.pid
 		LEFT JOIN ordered AS o ON o.pid = t.pid
 		ORDER BY t.turns DESC, t.pid`,
-		productsOf(signalsapi.EventAssistantTurn), productsOf("cart_add"), productsOf(signalsapi.EventOrderPlaced), signalsapi.AICartWindowDays, signalsapi.AIOrderWindowDays)
+		productsOf(signalsapi.EventAssistantTurn), productsOf("add_to_cart"), productsOf(signalsapi.EventPurchase), signalsapi.AICartWindowDays, signalsapi.AIOrderWindowDays)
 	rows, err := s.conn.Query(ctx, q, channelID, since, limit, channelID, since, channelID, since)
 	if err != nil {
 		return nil, err

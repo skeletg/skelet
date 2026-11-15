@@ -30,7 +30,7 @@ func TestASignInWithAVisitorIDStitchesIt(t *testing.T) {
 		t.Fatalf("stitched = %v, want anon-1 on the signed-in customer", spine.stitched)
 	}
 	// Commerce events carry both ids too, but only an account event is a sign-in
-	if _, err := rec.RecordActivity(ctx, ActivitySpec{EventName: "cart_add", Source: SourceCommerce, ChannelID: ch, CustomerID: &cust, AnonID: "anon-2", DedupeKey: "b"}); err != nil {
+	if _, err := rec.RecordActivity(ctx, ActivitySpec{EventName: "add_to_cart", Source: SourceCommerce, ChannelID: ch, CustomerID: &cust, AnonID: "anon-2", DedupeKey: "b"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := spine.stitched["anon-2"]; ok {

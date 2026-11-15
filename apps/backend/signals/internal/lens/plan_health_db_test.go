@@ -20,7 +20,7 @@ func TestDataHealthCountsWhatIngestStripped(t *testing.T) {
 	for range 2 {
 		svc.Ingest(ctx, ch, "anon-1", analytics.Hit{}, Batch{Events: []Event{
 			{ID: uuid.NewString(), Type: analytics.EventPageView, PageKey: "/", Props: map[string]any{"revenue_cents": 1.0, "coupon": "X"}},
-			{ID: uuid.NewString(), Type: analytics.EventCustom, PageKey: "/", Name: "$search", Props: map[string]any{"query": "tee", "results": "many"}},
+			{ID: uuid.NewString(), Type: analytics.EventCustom, PageKey: "/", Name: "search", Props: map[string]any{"query": "tee", "results": "many"}},
 			{ID: uuid.NewString(), Type: analytics.EventCustom, PageKey: "/", Name: "$made.up"},
 		}}, uuid.Nil)
 	}
@@ -38,7 +38,7 @@ func TestDataHealthCountsWhatIngestStripped(t *testing.T) {
 	for _, want := range []PlanIssue{
 		{analytics.PlanIssue{Kind: analytics.IssueServerProp, Event: "page_view", Prop: "revenue_cents"}, 2},
 		{analytics.PlanIssue{Kind: analytics.IssueUnknownProp, Event: "page_view", Prop: "coupon"}, 2},
-		{analytics.PlanIssue{Kind: analytics.IssueBadType, Event: "$search", Prop: "results"}, 2},
+		{analytics.PlanIssue{Kind: analytics.IssueBadType, Event: "search", Prop: "results"}, 2},
 		{analytics.PlanIssue{Kind: analytics.IssueUnknownEvent, Event: "$made.up"}, 2},
 	} {
 		if !got[want] {

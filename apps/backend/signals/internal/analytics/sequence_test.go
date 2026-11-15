@@ -67,13 +67,13 @@ func TestRetentionEligibilityExcludesImmatureCohorts(t *testing.T) {
 
 func TestFlowFromEvents(t *testing.T) {
 	events := []SpineActorEvent{
-		{Actor: "alice", EventName: "page_view", OccurredAt: at(1, 1)}, // alice: focus -> cart_add -> cart_add (consecutive dupe collapses) -> checkout
-		{Actor: "alice", EventName: "cart_add", OccurredAt: at(1, 2)},
-		{Actor: "alice", EventName: "cart_add", OccurredAt: at(1, 3)},
+		{Actor: "alice", EventName: "page_view", OccurredAt: at(1, 1)}, // alice: focus -> add_to_cart -> add_to_cart (consecutive dupe collapses) -> checkout
+		{Actor: "alice", EventName: "add_to_cart", OccurredAt: at(1, 2)},
+		{Actor: "alice", EventName: "add_to_cart", OccurredAt: at(1, 3)},
 		{Actor: "alice", EventName: "checkout", OccurredAt: at(1, 4)},
-		{Actor: "bob", EventName: "checkout", OccurredAt: at(1, 1)}, // bob: pre-focus noise, then focus -> cart_add
+		{Actor: "bob", EventName: "checkout", OccurredAt: at(1, 1)}, // bob: pre-focus noise, then focus -> add_to_cart
 		{Actor: "bob", EventName: "page_view", OccurredAt: at(1, 2)},
-		{Actor: "bob", EventName: "cart_add", OccurredAt: at(1, 3)},
+		{Actor: "bob", EventName: "add_to_cart", OccurredAt: at(1, 3)},
 		{Actor: "carol", EventName: "page_view", OccurredAt: at(1, 1)}, // carol: focus then nothing
 	}
 	f := FlowFromEvents(events, "page_view", 3, 5)
@@ -84,8 +84,8 @@ func TestFlowFromEvents(t *testing.T) {
 	if f.Continued != 2 {
 		t.Fatalf("Continued = %d, want 2 (carol stopped at the focus)", f.Continued)
 	}
-	if len(f.Nodes) == 0 || f.Nodes[0].Event != "cart_add" || f.Nodes[0].Count != 2 || f.Nodes[0].Depth != 1 { // first hop is cart_add, with both actors
-		t.Fatalf("Nodes[0] = %+v, want cart_add count=2 depth=1", f.Nodes)
+	if len(f.Nodes) == 0 || f.Nodes[0].Event != "add_to_cart" || f.Nodes[0].Count != 2 || f.Nodes[0].Depth != 1 { // first hop is add_to_cart, with both actors
+		t.Fatalf("Nodes[0] = %+v, want add_to_cart count=2 depth=1", f.Nodes)
 	}
 	if want := (2.0 + 1.0) / 2.0; f.AvgSteps != want {
 		t.Errorf("AvgSteps = %v, want %v (alice 2 collapsed steps, bob 1)", f.AvgSteps, want)
@@ -159,12 +159,12 @@ func TestRollupInsightsSeries(t *testing.T) {
 }
 
 func TestFlowFromPathsTakesItsTotals(t *testing.T) {
-	f := FlowFromPaths([]FlowPathCount{{Path: []string{"cart_add"}, People: 3}, {People: 2}},
+	f := FlowFromPaths([]FlowPathCount{{Path: []string{"add_to_cart"}, People: 3}, {People: 2}},
 		FlowTotals{Cohort: 9, Continued: 4, Steps: 6}, "page_view", 6)
 	if f.Cohort != 9 || f.Continued != 4 || f.AvgSteps != 1.5 {
 		t.Fatalf("cohort %d continued %d avg %v, want the totals given: 9, 4 and 1.5", f.Cohort, f.Continued, f.AvgSteps)
 	}
 	if len(f.Nodes) != 1 || f.Nodes[0].Count != 3 || len(f.TopPaths) != 1 || f.TopPaths[0].Count != 3 {
-		t.Fatalf("nodes %+v paths %+v, want cart_add taken by 3", f.Nodes, f.TopPaths)
+		t.Fatalf("nodes %+v paths %+v, want add_to_cart taken by 3", f.Nodes, f.TopPaths)
 	}
 }

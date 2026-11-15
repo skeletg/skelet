@@ -28,25 +28,25 @@ func TestAggregateEventsCountInTotalsButAreNobody(t *testing.T) {
 		}
 	}
 	for _, anon := range []string{"anon-a", "anon-b"} { // two people, each adding and buying
-		add("cart_add", anon, analytics.SourceCommerce)
-		add("order_placed", anon, analytics.SourceCommerce)
+		add("add_to_cart", anon, analytics.SourceCommerce)
+		add("purchase", anon, analytics.SourceCommerce)
 	}
 	for range 3 { // three aggregate adds and orders - from one person or three, nobody can tell
-		add("cart_add", "", analytics.SourceAggregate)
-		add("order_placed", "", analytics.SourceAggregate)
+		add("add_to_cart", "", analytics.SourceAggregate)
+		add("purchase", "", analytics.SourceAggregate)
 	}
 	if err := st.Flush(ctx); err != nil {
 		t.Fatal(err)
 	}
 
-	ins, err := st.Insights(ctx, ch, "cart_add", "", "total", "day", since, now)
+	ins, err := st.Insights(ctx, ch, "add_to_cart", "", "total", "day", since, now)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if ins.Total != 5 || ins.Uniques != 2 || ins.Aggregate != 3 {
 		t.Errorf("insights total %d, uniques %d, aggregate %d - want every add counted, only the two people as uniques, and the three named", ins.Total, ins.Uniques, ins.Aggregate)
 	}
-	res, err := st.Funnel(ctx, ch, analytics.FunnelQuery{Steps: []string{"cart_add", "order_placed"}}, since)
+	res, err := st.Funnel(ctx, ch, analytics.FunnelQuery{Steps: []string{"add_to_cart", "purchase"}}, since)
 	steps := res.Steps
 	if err != nil {
 		t.Fatal(err)

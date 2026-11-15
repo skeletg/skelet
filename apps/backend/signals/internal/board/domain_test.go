@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 )
 
 func TestDefinitionRefusesWhatItsKindCantRun(t *testing.T) {
@@ -12,7 +14,7 @@ func TestDefinitionRefusesWhatItsKindCantRun(t *testing.T) {
 		"unknown kind":       {Kind: "pie"},
 		"one-step funnel":    {Kind: "funnel", Steps: []string{"page_view"}},
 		"filter off a step":  {Kind: "funnel", Steps: []string{"a", "b"}, Filters: []Filter{{Step: 2, Key: "device", Value: "x"}}},
-		"retention, no end":  {Kind: "retention", StartEvent: "order_placed"},
+		"retention, no end":  {Kind: "retention", StartEvent: "purchase"},
 		"flow without focus": {Kind: "flow"},
 		"bad unit":           {Kind: "insights", Unit: "hour"},
 		"period too long":    {Kind: "insights", SinceDays: 400},
@@ -22,7 +24,7 @@ func TestDefinitionRefusesWhatItsKindCantRun(t *testing.T) {
 			t.Errorf("%s: err = %v, want ErrInvalid", name, err)
 		}
 	}
-	funnel := Definition{Kind: "funnel", Steps: []string{"page_view", "order_placed"}, Filters: []Filter{{Step: 0, Key: "device", Value: "mobile"}}, WindowHours: 24, Breakdown: "device"}
+	funnel := Definition{Kind: "funnel", Steps: []string{"page_view", "purchase"}, Filters: []Filter{{Step: 0, Key: "device", Value: "mobile"}}, WindowHours: 24, Breakdown: "device"}
 	if err := funnel.validate(); err != nil {
 		t.Fatalf("a valid funnel: %v", err)
 	}
@@ -44,6 +46,14 @@ func TestEveryStarterBoardIsValid(t *testing.T) {
 			t.Errorf("%s: %v", b.Name, err)
 		} else if !reflect.DeepEqual(n, b) {
 			t.Errorf("%s isn't stored as written: %+v", b.Name, n)
+		}
+		for _, r := range b.Reports {
+			d := r.Definition
+			for _, name := range append([]string{d.Event, d.StartEvent, d.ReturnEvent}, d.Steps...) {
+				if now, retired := analytics.RenamedEvents[name]; retired {
+					t.Errorf("%s / %s names %s, renamed to %s", b.Name, r.Title, name, now)
+				}
+			}
 		}
 	}
 }

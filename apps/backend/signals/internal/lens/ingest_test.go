@@ -172,10 +172,10 @@ func TestABotIsFlaggedOnEveryWebEvent(t *testing.T) {
 	bot := analytics.Hit{IsBot: true, BotName: "Googlebot", BotCat: "search"}
 	svc.Ingest(context.Background(), uuid.New(), "anon-1", bot, Batch{Events: []Event{
 		{ID: "v", Type: analytics.EventPageView, PageKey: "/", Viewport: "desktop"},
-		{ID: "c", Type: analytics.EventCustom, PageKey: "/", Name: analytics.EventProductFilter, Props: map[string]any{"filters": "red"}},
+		{ID: "c", Type: analytics.EventCustom, PageKey: "/", Name: analytics.EventFilterItems, Props: map[string]any{"filters": "red"}},
 		{ID: "k", Type: "click", PageKey: "/", Viewport: "desktop", X: 5, Y: 5},
 	}}, uuid.Nil)
-	for _, name := range []string{analytics.EventPageView, analytics.EventProductFilter} {
+	for _, name := range []string{analytics.EventPageView, analytics.EventFilterItems} {
 		got := spine.named(name)
 		if len(got) != 1 || got[0].Props["is_bot"] != true || got[0].Props["bot_name"] != "Googlebot" {
 			t.Errorf("%s from a bot = %v, want it flagged", name, got)

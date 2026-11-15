@@ -143,10 +143,10 @@ func TestMalformedIdsAreInvalidArgument(t *testing.T) {
 func TestAMalformedFunnelIsInvalidArgument(t *testing.T) {
 	c := signalsv1.NewSynapseServiceClient(testConn(t))
 	ctx := tokenCtx(t)
-	two := []string{"page_view", "cart_add"}
+	two := []string{"page_view", "add_to_cart"}
 	for name, req := range map[string]*signalsv1.GetFunnelRequest{
 		"one step":            {Steps: two[:1]},
-		"an empty step":       {Steps: []string{"page_view", "", "cart_add"}},
+		"an empty step":       {Steps: []string{"page_view", "", "add_to_cart"}},
 		"a filter past steps": {Steps: two, Filters: []*signalsv1.FunnelFilter{{Step: 2, Key: "device"}}},
 		"a negative step":     {Steps: two, Filters: []*signalsv1.FunnelFilter{{Step: -1, Key: "device"}}},
 		"a blank filter key":  {Steps: two, Filters: []*signalsv1.FunnelFilter{{Step: 0, Key: "  "}}},

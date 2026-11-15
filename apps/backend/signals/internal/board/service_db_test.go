@@ -58,7 +58,7 @@ func TestBoardsStayInTheirShopAndRefuseAStaleSave(t *testing.T) {
 	if err != nil || len(got.Reports) != 1 || got.Reports[0].Definition.Event != "page_view" {
 		t.Fatalf("board = %+v, %v", got, err)
 	}
-	funnel := Report{Title: "Funnel", Size: "full", Definition: Definition{Kind: "funnel", Steps: []string{"page_view", "order_placed"}}}
+	funnel := Report{Title: "Funnel", Size: "full", Definition: Definition{Kind: "funnel", Steps: []string{"page_view", "purchase"}}}
 	saved, err := svc.Save(ctx, shop, me, b.ID, "Mine", []Report{funnel, views}, got.UpdatedAt)
 	if err != nil {
 		t.Fatal(err)

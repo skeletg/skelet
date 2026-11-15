@@ -268,19 +268,19 @@ var Starters = []Board{
 	{Name: "Shop health", Reports: []Report{
 		{Title: "Page views", Definition: Definition{Kind: "insights", Event: "page_view", Measure: "total", Unit: "day"}},
 		{Title: "Visitors", Definition: Definition{Kind: "insights", Event: "page_view", Measure: "unique", Unit: "day"}},
-		{Title: "Visit to order", Definition: Definition{Kind: "funnel", Steps: []string{"page_view", "view_item", "cart_add", "begin_checkout", "order_placed"}}},
+		{Title: "Visit to order", Definition: Definition{Kind: "funnel", Steps: []string{"page_view", "view_item", "add_to_cart", "begin_checkout", "purchase"}}},
 		{Title: "Returning shoppers", Definition: Definition{Kind: "stickiness", Event: "page_view"}},
 	}},
 	{Name: "Revenue & repeat", Reports: []Report{
-		{Title: "Orders", Definition: Definition{Kind: "insights", Event: "order_placed", Measure: "total", Unit: "day"}},
-		{Title: "Buyers", Definition: Definition{Kind: "insights", Event: "order_placed", Measure: "unique", Unit: "week"}},
-		{Title: "Repeat orders", Definition: Definition{Kind: "retention", StartEvent: "order_placed", ReturnEvent: "order_placed", Unit: "week", Periods: 8}},
-		{Title: "After an order", Definition: Definition{Kind: "flow", Event: "order_placed", Depth: 3}},
+		{Title: "Orders", Definition: Definition{Kind: "insights", Event: "purchase", Measure: "total", Unit: "day"}},
+		{Title: "Buyers", Definition: Definition{Kind: "insights", Event: "purchase", Measure: "unique", Unit: "week"}},
+		{Title: "Repeat orders", Definition: Definition{Kind: "retention", StartEvent: "purchase", ReturnEvent: "purchase", Unit: "week", Periods: 8}},
+		{Title: "After an order", Definition: Definition{Kind: "flow", Event: "purchase", Depth: 3}},
 	}},
 	{Name: "Product usage", Reports: []Report{
 		{Title: "Product views", Definition: Definition{Kind: "insights", Event: "view_item", Measure: "total", Unit: "day"}},
-		{Title: "Cart adds", Definition: Definition{Kind: "insights", Event: "cart_add", Measure: "total", Unit: "day"}},
-		{Title: "View to cart", Definition: Definition{Kind: "funnel", Steps: []string{"view_item", "cart_add"}, WindowHours: 24}},
+		{Title: "Cart adds", Definition: Definition{Kind: "insights", Event: "add_to_cart", Measure: "total", Unit: "day"}},
+		{Title: "View to cart", Definition: Definition{Kind: "funnel", Steps: []string{"view_item", "add_to_cart"}, WindowHours: 24}},
 		{Title: "After a product view", Definition: Definition{Kind: "flow", Event: "view_item", Depth: 3}},
 	}},
 	{Name: "Email impact", Reports: []Report{

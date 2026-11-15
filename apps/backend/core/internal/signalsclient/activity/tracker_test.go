@@ -139,7 +139,7 @@ func TestTracker_MapsEvents(t *testing.T) {
 					OrderID: oid, OrderNumber: "1001", CustomerID: &cid, ChannelID: ch, TotalCents: 5000, Currency: "USD",
 				})
 			},
-			wantName: "order_placed", wantSource: sourceCommerce, wantDedupe: "act:order_placed:" + oid.String(),
+			wantName: "purchase", wantSource: sourceCommerce, wantDedupe: "act:order_placed:" + oid.String(),
 		},
 		{
 			name:  "order status changed → order_fulfilled (resolved customer)",
@@ -159,7 +159,7 @@ func TestTracker_MapsEvents(t *testing.T) {
 					CartID: uuid.New(), ChannelID: ch, CustomerID: &cid, LineID: oid, ProductSku: "SKU1", UnitPrice: 1200, Quantity: 2,
 				})
 			},
-			wantName: "cart_add", wantSource: sourceCommerce, wantDedupe: "act:cart_add:" + oid.String(),
+			wantName: "add_to_cart", wantSource: sourceCommerce, wantDedupe: "act:cart_add:" + oid.String(),
 		},
 		{
 			name:  "review submitted",
@@ -189,7 +189,7 @@ func TestTracker_MapsEvents(t *testing.T) {
 					CustomerID: cid, ChannelID: ch, Source: "self",
 				})
 			},
-			wantName: "registered", wantSource: sourceAccount, wantDedupe: "act:registered:" + cid.String(),
+			wantName: "sign_up", wantSource: sourceAccount, wantDedupe: "act:registered:" + cid.String(),
 		},
 		{
 			name:  "customer login",
@@ -237,7 +237,7 @@ func TestTracker_GiftCardOnPlacement(t *testing.T) {
 		OrderID: oid, OrderNumber: "1001", CustomerID: &cid, ChannelID: ch, TotalCents: 5000, Currency: "USD",
 	})
 	if len(fr.calls) != 2 {
-		t.Fatalf("want order_placed + giftcard_redeemed = 2 calls, got %d", len(fr.calls))
+		t.Fatalf("want purchase + giftcard_redeemed = 2 calls, got %d", len(fr.calls))
 	}
 	if fr.calls[1].EventName != "giftcard_redeemed" {
 		t.Errorf("second event = %q, want giftcard_redeemed", fr.calls[1].EventName)
@@ -270,8 +270,8 @@ func TestTracker_GuestCommerceByAnon(t *testing.T) {
 		if len(fr.calls) < 1 {
 			t.Fatalf("guest order placed with anon should record, got %d", len(fr.calls))
 		}
-		if fr.calls[0].EventName != "order_placed" || fr.calls[0].AnonID != anon || fr.calls[0].CustomerID != nil {
-			t.Errorf("guest order_placed mis-recorded: %+v", fr.calls[0])
+		if fr.calls[0].EventName != "purchase" || fr.calls[0].AnonID != anon || fr.calls[0].CustomerID != nil {
+			t.Errorf("guest purchase mis-recorded: %+v", fr.calls[0])
 		}
 	})
 }
@@ -287,7 +287,7 @@ func TestAGuestOrderWithoutAVisitorLandsUnderItsEmail(t *testing.T) {
 	}
 	placed, cancelled := fr.calls[0], fr.calls[1]
 	if !strings.HasPrefix(placed.AnonID, "guest_") || len(placed.AnonID) != len("guest_")+32 || placed.CustomerID != nil {
-		t.Fatalf("order_placed actor = %q (customer %v), want a guest_ email hash", placed.AnonID, placed.CustomerID)
+		t.Fatalf("purchase actor = %q (customer %v), want a guest_ email hash", placed.AnonID, placed.CustomerID)
 	}
 	if cancelled.AnonID != placed.AnonID {
 		t.Errorf("cancellation actor %q != placement actor %q - case and spaces in the email must not split one guest", cancelled.AnonID, placed.AnonID)
@@ -320,7 +320,7 @@ func TestABackfilledOrderLandsAtItsPlacementTime(t *testing.T) {
 	}
 	got := fr.calls[0]
 	if !got.At.Equal(placed) || got.DedupeKey != "act:order_placed:"+o.ID.String() || got.Props["total_cents"] != int64(1500) {
-		t.Errorf("backfill wrote %+v, want order_placed at %v keyed on the order id", got, placed)
+		t.Errorf("backfill wrote %+v, want purchase at %v keyed on the order id", got, placed)
 	}
 }
 
@@ -651,7 +651,7 @@ func TestAnAssistedOrderSaysWhoHelped(t *testing.T) {
 	if fr.calls[1].EventName != "assisted_order" || fr.calls[1].Props["assisted_by"] != cart.AssistedAgent {
 		t.Errorf("an assisted order's own event = %+v - want one segments can pick", fr.calls[1])
 	}
-	if _, ok := fr.calls[2].Props["assisted_by"]; ok || fr.calls[2].EventName != "order_placed" {
+	if _, ok := fr.calls[2].Props["assisted_by"]; ok || fr.calls[2].EventName != "purchase" {
 		t.Errorf("an unassisted order carries assisted_by or its own event: %+v", fr.calls[2])
 	}
 }
@@ -664,11 +664,11 @@ func TestCartsAndOrdersNameTheProductsBehindTheirSKUs(t *testing.T) {
 	tr := &Tracker{rec: fr, orders: &fakeOrders{o: order.Order{CustomerID: &cid, ChannelID: ch, Lines: []order.OrderLine{{ProductSku: "TEE-RED"}, {ProductSku: "MUG"}}}}, products: refs}
 	_ = tr.onCartAdd(context.Background(), &cart.LineAdded{ChannelID: ch, CustomerID: &cid, LineID: uuid.New(), ProductSku: "TEE-RED"})
 	if ids, _ := fr.calls[0].Props["product_ids"].([]string); len(ids) != 2 || ids[0] != red.String() || ids[1] != tee.String() {
-		t.Errorf("cart_add product_ids = %v - want the variant and the product it's sold through", fr.calls[0].Props["product_ids"])
+		t.Errorf("add_to_cart product_ids = %v - want the variant and the product it's sold through", fr.calls[0].Props["product_ids"])
 	}
 	_ = tr.onOrderPlaced(context.Background(), &order.OrderPlaced{OrderID: uuid.New(), CustomerID: &cid, ChannelID: ch})
 	if ids, _ := fr.calls[1].Props["product_ids"].([]string); len(ids) != 3 {
-		t.Errorf("order_placed product_ids = %v - want both lines' products and the tee's parent", fr.calls[1].Props["product_ids"])
+		t.Errorf("purchase product_ids = %v - want both lines' products and the tee's parent", fr.calls[1].Props["product_ids"])
 	}
 	_ = tr.onReturnRequested(context.Background(), &order.OrderReturnRequested{OrderID: uuid.New(), ReturnID: uuid.New()})
 	if last := fr.calls[len(fr.calls)-1]; last.EventName != "return_requested" || last.Props["order_id"] == "" || last.Props["order_id"] == nil {
@@ -745,7 +745,7 @@ func TestAnOrderPlacedWithoutAnalyticsConsentCountsAsNobody(t *testing.T) {
 		}
 	}
 	if fr.calls[0].Props["total_cents"] != int64(900) {
-		t.Errorf("order_placed props %v, want the revenue kept", fr.calls[0].Props)
+		t.Errorf("purchase props %v, want the revenue kept", fr.calls[0].Props)
 	}
 
 	o.Shopper = &auth.Shopper{Consent: auth.Consent{Analytics: true}}
@@ -826,11 +826,11 @@ func TestRefundsWishlistsCheckoutChoicesAndLeadsLand(t *testing.T) {
 		name, source, anon string
 		cust               bool
 	}{
-		{"order_refunded", sourceCommerce, "", true},
-		{"wishlist_add", sourceCommerce, "visitor-1", true},
-		{"wishlist_remove", sourceAggregate, "", false},
-		{"checkout_payment", sourceCommerce, "visitor-1", false},
-		{"lead", sourceCommerce, "visitor-1", false},
+		{"refund", sourceCommerce, "", true},
+		{"add_to_wishlist", sourceCommerce, "visitor-1", true},
+		{"remove_from_wishlist", sourceAggregate, "", false},
+		{"add_payment_info", sourceCommerce, "visitor-1", false},
+		{"generate_lead", sourceCommerce, "visitor-1", false},
 	}
 	for i, w := range want {
 		c := fr.calls[i]

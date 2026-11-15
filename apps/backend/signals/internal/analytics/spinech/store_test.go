@@ -98,7 +98,7 @@ func TestAppendEventReplayCollapses(t *testing.T) {
 
 	ev := func(when time.Time) analytics.SpineEvent {
 		return analytics.SpineEvent{
-			EventName: "order_placed", OccurredAt: when, ChannelID: &ch,
+			EventName: "purchase", OccurredAt: when, ChannelID: &ch,
 			AnonID: anon, Source: "commerce", Props: map[string]any{}, DedupeKey: key,
 		}
 	}
@@ -349,7 +349,7 @@ func TestDeleteCustomerIdentitiesDetachesEvents(t *testing.T) {
 	plain, keyed := "order:"+uuid.NewString(), "act:account_updated:"+cust.String()+":1"
 	for _, key := range []string{plain, keyed} {
 		if _, err := st.AppendEvent(ctx, analytics.SpineEvent{
-			EventName: "order_placed", OccurredAt: at, ChannelID: &ch, CustomerID: &cust,
+			EventName: "purchase", OccurredAt: at, ChannelID: &ch, CustomerID: &cust,
 			Source: "commerce", Props: map[string]any{}, DedupeKey: key,
 		}); err != nil {
 			t.Fatal(err)
@@ -511,7 +511,7 @@ func TestIdentityDictResolvesAnonToCustomer(t *testing.T) {
 
 	// no customer_id on the event, so only the stitch can attribute it
 	if _, err := st.AppendEvent(ctx, analytics.SpineEvent{
-		EventName: "order_placed", OccurredAt: at, ChannelID: &ch, AnonID: anon,
+		EventName: "purchase", OccurredAt: at, ChannelID: &ch, AnonID: anon,
 		Source: "commerce", Props: map[string]any{}, DedupeKey: "dict:" + uuid.NewString(),
 	}); err != nil {
 		t.Fatal(err)
@@ -520,7 +520,7 @@ func TestIdentityDictResolvesAnonToCustomer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	before, err := st.EventActors(ctx, ch, "order_placed", 1, 2, time.Now())
+	before, err := st.EventActors(ctx, ch, "purchase", 1, 2, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -537,7 +537,7 @@ func TestIdentityDictResolvesAnonToCustomer(t *testing.T) {
 	if err := st.conn.Exec(ctx, "SYSTEM RELOAD DICTIONARY "+identityDictName); err != nil {
 		t.Fatal(err)
 	}
-	after, err := st.EventActors(ctx, ch, "order_placed", 1, 2, time.Now())
+	after, err := st.EventActors(ctx, ch, "purchase", 1, 2, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -587,7 +587,7 @@ func TestPruneEventsDropsWholeDays(t *testing.T) {
 	}
 }
 
-// Seeds a fresh channel with `visitors` people who each did page_view, of whom `returners` came back a day later for cart_add - the fixture Retention and Flow assert against, so neither depends on whatever the dev volume happens to hold
+// Seeds a fresh channel with `visitors` people who each did page_view, of whom `returners` came back a day later for add_to_cart - the fixture Retention and Flow assert against, so neither depends on whatever the dev volume happens to hold
 func seedJourneys(t *testing.T, visitors, returners int) (uuid.UUID, time.Time) {
 	t.Helper()
 	ctx := context.Background()
@@ -608,7 +608,7 @@ func seedJourneys(t *testing.T, visitors, returners int) (uuid.UUID, time.Time) 
 		}
 		add("page_view", day0)
 		if i < returners {
-			add("cart_add", day0.Add(26*time.Hour))
+			add("add_to_cart", day0.Add(26*time.Hour))
 		}
 	}
 	if err := st.Close(); err != nil {
@@ -622,7 +622,7 @@ func TestRetention(t *testing.T) {
 	ch, since := seedJourneys(t, 5, 2)
 	st := testStore(t)
 	defer st.Close()
-	r, err := st.Retention(context.Background(), ch, "page_view", "cart_add", since, time.Now(), 8, 24*time.Hour)
+	r, err := st.Retention(context.Background(), ch, "page_view", "add_to_cart", since, time.Now(), 8, 24*time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -710,10 +710,10 @@ func TestExperimentResultsMatchesGoalsAcrossIdentity(t *testing.T) {
 		}
 	}
 	// a goal BEFORE the exposure must not convert it, but must not lose it either
-	add("order_placed", "commerce", t0.Add(-time.Hour), &cust, map[string]any{"revenue_cents": 999})
+	add("purchase", "commerce", t0.Add(-time.Hour), &cust, map[string]any{"revenue_cents": 999})
 	add("custom", "web", t0, nil, map[string]any{"name": "$experiment", "experiment": key, "variation": "a"})
 	// the converting goal arrives customer-keyed, so only identity resolution bridges it
-	add("order_placed", "commerce", t0.Add(time.Hour), &cust, map[string]any{"revenue_cents": 2500})
+	add("purchase", "commerce", t0.Add(time.Hour), &cust, map[string]any{"revenue_cents": 2500})
 	if err := st.flush(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -728,7 +728,7 @@ func TestExperimentResultsMatchesGoalsAcrossIdentity(t *testing.T) {
 	}
 	defer st.Close()
 
-	res, err := st.ExperimentResults(ctx, ch, key, "order_placed", t0.Add(-24*time.Hour))
+	res, err := st.ExperimentResults(ctx, ch, key, "purchase", t0.Add(-24*time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -820,9 +820,9 @@ func TestChannelOrderAggregatesWindow(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	add("order_placed", "old", now.Add(-200*24*time.Hour), 70000)
-	add("order_placed", "recent", now.Add(-5*24*time.Hour), 30000)
-	add("order_placed", "voided", now.Add(-3*24*time.Hour), 500000)
+	add("purchase", "old", now.Add(-200*24*time.Hour), 70000)
+	add("purchase", "recent", now.Add(-5*24*time.Hour), 30000)
+	add("purchase", "voided", now.Add(-3*24*time.Hour), 500000)
 	add("order_cancelled", "voided", now.Add(-time.Hour), 500000)
 	if err := st.flush(ctx); err != nil {
 		t.Fatal(err)
@@ -865,7 +865,7 @@ func TestChannelOrderAggregatesCountAStitchedGuestOrder(t *testing.T) {
 	ch, cust := uuid.New(), uuid.New()
 	anon := "anon-" + uuid.NewString()
 	if _, err := st.AppendEvent(ctx, analytics.SpineEvent{
-		EventName: "order_placed", OccurredAt: time.Now().Add(-time.Hour), ChannelID: &ch, AnonID: anon, Source: "commerce",
+		EventName: "purchase", OccurredAt: time.Now().Add(-time.Hour), ChannelID: &ch, AnonID: anon, Source: "commerce",
 		Props: map[string]any{"order_id": uuid.NewString(), "total_cents": 4200}, DedupeKey: "guest:" + anon,
 	}); err != nil {
 		t.Fatal(err)

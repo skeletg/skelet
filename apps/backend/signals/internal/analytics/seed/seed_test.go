@@ -82,9 +82,12 @@ func TestGenerateCoversEveryBoardArea(t *testing.T) {
 		if e.Source == analytics.SourceAggregate && (e.CustomerID != nil || e.AnonID != "") {
 			t.Fatal("an aggregate event carries an actor")
 		}
+		if now, retired := analytics.RenamedEvents[e.EventName]; retired {
+			t.Fatalf("the seed writes %s, renamed to %s", e.EventName, now)
+		}
 	}
 	for _, want := range []string{
-		"page_view/web", "view_item/web", "cart_add/commerce", "begin_checkout/web", "order_placed/commerce", // shop health, product usage
+		"page_view/web", "view_item/web", "add_to_cart/commerce", "begin_checkout/web", "purchase/commerce", // shop health, product usage
 		"email_sent/campaign", "email_opened/campaign", "email_clicked/campaign", "conversion/campaign", // email impact
 		"page_view/aggregate", "identify/web",
 	} {
@@ -95,7 +98,7 @@ func TestGenerateCoversEveryBoardArea(t *testing.T) {
 
 	orders := map[uuid.UUID]int{}
 	for _, e := range c.events {
-		if e.EventName == "order_placed" && e.CustomerID != nil {
+		if e.EventName == "purchase" && e.CustomerID != nil {
 			orders[*e.CustomerID]++
 		}
 	}

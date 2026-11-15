@@ -277,7 +277,7 @@ func (s *Service) recordCustom(ctx context.Context, channelID uuid.UUID, anonID 
 // The funnel steps are client-emitted, so consent-gated and sampled - the server's cart and order events stay the source of truth
 func customName(name string) string {
 	switch name {
-	case analytics.EventProductFilter, analytics.EventViewItem, analytics.EventBeginCheckout, analytics.EventPurchase:
+	case analytics.EventFilterItems, analytics.EventViewItem, analytics.EventBeginCheckout:
 		return name
 	}
 	return analytics.EventCustom

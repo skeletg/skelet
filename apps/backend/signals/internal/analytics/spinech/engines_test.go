@@ -58,10 +58,10 @@ func seedEngines(t *testing.T) *engineSpine {
 	mobile, desktop := map[string]any{"device": "mobile"}, map[string]any{"device": "desktop"}
 	e.add("page_view", "a", nil, 50*h, mobile) // a: all three steps
 	e.add("view_item", "a", nil, 49*h, nil)
-	e.add("cart_add", "a", nil, 48*h, nil)
+	e.add("add_to_cart", "a", nil, 48*h, nil)
 	e.add("page_view", "b", nil, 30*h, desktop) // b: two steps
 	e.add("view_item", "b", nil, 29*h, nil)
-	e.add("cart_add", "c", nil, 20*h, nil) // c: the steps out of order, so only the first counts
+	e.add("add_to_cart", "c", nil, 20*h, nil) // c: the steps out of order, so only the first counts
 	e.add("page_view", "c", nil, 19*h, mobile)
 	e.add("page_view", "d", nil, 10*h, mobile) // d: signs in, then finishes the funnel as the customer
 	cust := uuid.New()
@@ -69,8 +69,8 @@ func seedEngines(t *testing.T) *engineSpine {
 		t.Fatal(err)
 	}
 	e.add("view_item", "", &cust, 9*h, nil)
-	e.add("cart_add", "", &cust, 8*h, nil)
-	for _, n := range []string{"page_view", "view_item", "cart_add"} { // a bot, everywhere
+	e.add("add_to_cart", "", &cust, 8*h, nil)
+	for _, n := range []string{"page_view", "view_item", "add_to_cart"} { // a bot, everywhere
 		e.add(n, "bot", nil, 5*h, map[string]any{"is_bot": true})
 	}
 	e.add("page_view", "", nil, 2*h, nil)          // a visitor counted as nobody
@@ -82,7 +82,7 @@ func seedEngines(t *testing.T) *engineSpine {
 func TestFunnelCountsPeopleInOrderWithoutBots(t *testing.T) {
 	e := seedEngines(t)
 	defer e.st.Close()
-	res, err := e.st.Funnel(context.Background(), e.ch, analytics.FunnelQuery{Steps: []string{"page_view", "view_item", "cart_add"}}, e.now.Add(-3*24*time.Hour))
+	res, err := e.st.Funnel(context.Background(), e.ch, analytics.FunnelQuery{Steps: []string{"page_view", "view_item", "add_to_cart"}}, e.now.Add(-3*24*time.Hour))
 	steps := res.Steps
 	if err != nil {
 		t.Fatal(err)
@@ -133,7 +133,7 @@ func TestStickinessActiveAndReturning(t *testing.T) {
 func TestFunnelWindowFiltersAndBreakdown(t *testing.T) {
 	e := seedEngines(t)
 	defer e.st.Close()
-	steps := []string{"page_view", "view_item", "cart_add"}
+	steps := []string{"page_view", "view_item", "add_to_cart"}
 	since := e.now.Add(-3 * 24 * time.Hour)
 	run := func(q analytics.FunnelQuery) analytics.FunnelResult {
 		t.Helper()

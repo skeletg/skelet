@@ -1074,7 +1074,7 @@ func (s *Store) ChannelOrderAggregates(ctx context.Context, channelID uuid.UUID,
 		       max(e.occurred_at) AS last_order_at
 		FROM analytics_events AS e FINAL
 		WHERE e.channel_id = ?
-		  AND e.event_name = 'order_placed'
+		  AND e.event_name = 'purchase'
 		  AND `+hasCustomer+` -- a guest order on a visitor later stitched to an account counts for that customer
 		  AND JSONHas(e.properties, 'order_id')`+window+`
 		  AND JSONExtractString(e.properties, 'order_id') NOT IN (

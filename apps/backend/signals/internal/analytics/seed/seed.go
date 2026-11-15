@@ -187,7 +187,7 @@ func (g *gen) visit(cid *uuid.UUID, anon string, at time.Time, signIn bool) erro
 		}
 		if g.r.Float64() < 0.3 {
 			cart = append(cart, pr)
-			if err := g.commerce("cart_add", actor, anon, at.Add(5*time.Second), map[string]any{"sku": pr.sku, "qty": 1, "unit_price": pr.cents}); err != nil {
+			if err := g.commerce("add_to_cart", actor, anon, at.Add(5*time.Second), map[string]any{"sku": pr.sku, "qty": 1, "unit_price": pr.cents}); err != nil {
 				return err
 			}
 		}
@@ -221,7 +221,7 @@ func (g *gen) order(cid *uuid.UUID, anon string, at time.Time, lines []product) 
 	}
 	g.orders++
 	props := map[string]any{"order_id": g.uuid().String(), "order_number": fmt.Sprintf("SEED-%05d", g.orders), "total_cents": total, "currency": g.p.currency}
-	if err := g.commerce("order_placed", cid, anon, at, props); err != nil {
+	if err := g.commerce(analytics.EventPurchase, cid, anon, at, props); err != nil {
 		return err
 	}
 	if cid == nil || g.r.Float64() < 0.5 {
@@ -270,7 +270,7 @@ func (g *gen) aggregate(at time.Time) error {
 		return err
 	}
 	if g.r.Float64() < 0.2 {
-		return g.emit(analytics.SpineEvent{EventName: "order_placed", OccurredAt: at.Add(5 * time.Minute), Source: analytics.SourceAggregate, Props: map[string]any{"total_cents": pr.cents, "currency": g.p.currency}})
+		return g.emit(analytics.SpineEvent{EventName: analytics.EventPurchase, OccurredAt: at.Add(5 * time.Minute), Source: analytics.SourceAggregate, Props: map[string]any{"total_cents": pr.cents, "currency": g.p.currency}})
 	}
 	return nil
 }
