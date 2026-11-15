@@ -440,6 +440,10 @@ type ErasedCustomer struct {
 	ErasedAt   time.Time `json:"erased_at"`
 }
 
+type EventRename struct {
+	M json.RawMessage `json:"m"`
+}
+
 type Experiment struct {
 	ID          uuid.UUID       `json:"id"`
 	ChannelID   uuid.UUID       `json:"channel_id"`
