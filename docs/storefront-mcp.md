@@ -217,8 +217,8 @@ Every message the assistant answers is a paid model call, so the store keeps cou
   same, under `reports.view`.
 - Signals gets an `assistant_turn` event per turn, on the shopper's profile - the customer, or the visitor
   for a guest - with what it did (the products it showed, cart changed, checkout, cut short) and never the words.
-  `order_placed` carries `assisted_by` too, and an order the assistant or an agent helped also raises its own
-  `assisted_order`, so a funnel from `assistant_turn` to `order_placed` works like any other, and the segment builder
+  `purchase` carries `assisted_by` too, and an order the assistant or an agent helped also raises its own
+  `assisted_order`, so a funnel from `assistant_turn` to `purchase` works like any other, and the segment builder
   always offers *Chatted with the shopping assistant* and *Ordered with AI help*. Carts and orders name the products
   they hold, variants with the product they're sold through, so Signals can tell what came of what the assistant showed.
 
@@ -287,7 +287,7 @@ needed for the AI to answer, so with Signals off it's simply not there.
   The searches listed are the assistant's and the agents' own words for the catalog, never the shopper's message.
 - Tool calls and searches are counted per store and day, never per person, and an activity sent twice counts
   once. They age out with Lens's rollups (`signals/lens/rollup_retention_days`).
-- `assistant_turn` carries the products it showed and `order_placed` the products ordered, so a segment of people
+- `assistant_turn` carries the products it showed and `purchase` the products ordered, so a segment of people
   who chatted, or ordered with the AI's help (the `assisted_order` event), works like any other - the segment
   builder offers both even before a store has any.
 - A flow on **Abandoned cart the assistant filled** (`assisted_cart_abandoned`) takes the carts the assistant
