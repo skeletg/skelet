@@ -71,6 +71,7 @@ Editing any of these is always a mistake; regenerate instead.
 | `**/*.gql.ts`, `graphql/schema.types.ts` | `*.graphql` docs + the live schema | `skelet gen` |
 | `plugins/firstparty/`, `plugin_resolvers.go` | `plugins/plugins.json` | `skelet gen` |
 | `docs/{permissions,webhooks,settings}.md` | the code-defined registries | `skelet gen` |
+| `packages/storefront-core/track/contract.gen.ts` | `internal/tracking`'s event names, `sdk.ShopEcommerce`, `lib/auth`'s click ids and consent pattern | `skelet gen` |
 | `apps/dashboard/headers.template`, `deploy/caddy/Caddyfile` | `httpx/securityheaders.go` | `skelet gen` |
 
 `skelet check codegen` fails when committed output has drifted. The TS half needs a

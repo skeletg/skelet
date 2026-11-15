@@ -132,6 +132,8 @@ func backend(root string) int {
 		{"docs reference tables", func() error { return goRun(root, "docsref") }},
 		// The browser tracking plan, from the registry Lens ingest enforces - in the Signals module, which core can't import
 		{"tracking plan", func() error { return goRunIn(root, "signals", "docsref") }},
+		// The storefront's typed event names, GA4 shapes, click ids and consent pattern, from the Go that enforces them
+		{"tracking contract", func() error { return goRun(root, "trackcontract") }},
 		// The dashboard's and Caddy's copies of the CSP and Permissions-Policy, from lib/httpx/securityheaders.go
 		{"security headers", func() error { return goRun(root, "secheadgen") }},
 	}
