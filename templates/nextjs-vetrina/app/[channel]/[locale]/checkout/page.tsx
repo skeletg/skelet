@@ -22,6 +22,7 @@ import {
 } from "@skelet/storefront-next/checkout/read";
 import { businessIdFieldsFor, companyCountry } from "@skelet/storefront-core/checkout/business-ids";
 import { activeStep, arrivalLabels, businessComplete, progressOf, stepsFor, stepStatus } from "@skelet/storefront-core/checkout/step";
+import { fieldsComplete } from "@skelet/storefront-core/checkout/fields";
 import { getCountries, getCountrySettings, getRegionsByCountry, getPhoneSettings } from "@skelet/storefront-next/countries/read";
 import { getCheckoutSettings, getGuestCheckoutAllowed } from "@skelet/storefront-next/config/read";
 import { displayName } from "@skelet/storefront-core/display";
@@ -116,7 +117,7 @@ export default async function CheckoutPage({
     },
     settings,
   );
-  const progress = progressOf(checkout, businessOk);
+  const progress = progressOf(checkout, businessOk && fieldsComplete(checkout.fields));
   const reopened = typeof requestedStep === "string" && !(deliveryLocked && requestedStep === "delivery") ? requestedStep : null;
   const active = activeStep(progress, reopened);
   const status = (s: Parameters<typeof stepStatus>[0]) => stepStatus(s, active, progress);

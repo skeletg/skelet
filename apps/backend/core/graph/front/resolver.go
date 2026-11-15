@@ -5,6 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/skeletg/skelet/apps/backend/core/internal/address"
 	"github.com/skeletg/skelet/apps/backend/core/internal/blog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/blog/preview"
@@ -28,6 +30,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
 	"github.com/skeletg/skelet/apps/backend/core/internal/paymentvault"
+	"github.com/skeletg/skelet/apps/backend/core/internal/plugin"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/core/internal/qna"
 	"github.com/skeletg/skelet/apps/backend/core/internal/recommend"
@@ -49,6 +52,8 @@ import (
 
 // Admin-only services (admin.Service, integration, webhook, inventory writes, …) are deliberately absent so a mis-typed front resolver can't reach an admin code path
 type Resolver struct {
+	// What the channel's plugins ask at checkout - nil asks nothing
+	CheckoutFields       func(ctx context.Context, channelID uuid.UUID) []plugin.CheckoutField
 	ShopAssistant        *shoptools.Service
 	CustomerSvc          *customer.Service
 	StoreCreditSvc       *storecredit.Service

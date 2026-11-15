@@ -105,6 +105,16 @@ type CheckoutReview interface {
 	AddCheckoutTags(tags ...string)
 }
 
+// On checkout.validating and order.placing - false for a field left empty or no longer asked
+type CheckoutFieldAnswers interface {
+	CheckoutFieldValue(key string) (string, bool)
+}
+
+// On order.placing, into the order's metadata - prefix the key with your slug ("acme.slot"), and "tracking" is core's
+type OrderPlacingMetadata interface {
+	SetPlacingMetadata(key, value string) error
+}
+
 // Before the placement transaction opens - the place for gates that call out, since a slow one delays the shopper
 // without holding a transaction. What it adds seeds the order.placing that follows
 type CheckoutValidating interface {

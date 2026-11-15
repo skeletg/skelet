@@ -29,12 +29,13 @@ WHERE  o.id = s.order_id
         OR (o.customer_id IS NULL AND o.channel_id = sqlc.arg(channel_id) AND lower(btrim(o.email)) = sqlc.arg(email)::text));
 
 -- name: ScrubCustomerOrders :execrows
--- customer_note, po_number and metadata are free text the shopper typed - "leave with Jane at #42, ring me on +44 7700 900123" is exactly the kind of content that survived an erasure while the structured address columns next to it read "Redacted"
+-- customer_note, po_number, checkout_fields and metadata are free text the shopper typed - "leave with Jane at #42, ring me on +44 7700 900123" is exactly the kind of content that survived an erasure while the structured address columns next to it read "Redacted"
 UPDATE orders
 SET email               = 'redacted-' || customer_id::text || '@anonymized.invalid',
     customer_note       = '',
     po_number           = NULL,
     business_ids        = '[]'::jsonb,
+    checkout_fields     = '[]'::jsonb,
     metadata            = '{}'::jsonb,
     billing_first_name  = 'Redacted', billing_last_name = '',
     billing_company     = '', billing_street_1 = 'Redacted', billing_street_2 = '',
@@ -57,10 +58,11 @@ DELETE FROM wishlist_items WHERE customer_id = $1;
 UPDATE carts
 SET    email = '', shipping_address = NULL, billing_address = NULL,
        contact_phone = '', company_name = '', business_ids = '{}'::jsonb, po_number = '',
-       pickup_contact = NULL, checkout_version = checkout_version + 1
+       checkout_fields = '{}'::jsonb, pickup_contact = NULL, checkout_version = checkout_version + 1
 WHERE  customer_id = $1
   AND  (email <> '' OR shipping_address IS NOT NULL OR billing_address IS NOT NULL
         OR contact_phone <> '' OR company_name <> '' OR business_ids <> '{}'::jsonb OR po_number <> ''
+        OR checkout_fields <> '{}'::jsonb
         OR pickup_contact IS NOT NULL);
 
 -- name: DeleteCustomerBackInStockRequests :execrows
@@ -91,6 +93,7 @@ SET email               = 'redacted-' || sqlc.arg(customer_id)::uuid::text || '@
     customer_note       = '',
     po_number           = NULL,
     business_ids        = '[]'::jsonb,
+    checkout_fields     = '[]'::jsonb,
     metadata            = '{}'::jsonb,
     billing_first_name  = 'Redacted', billing_last_name = '',
     billing_company     = '', billing_street_1 = 'Redacted', billing_street_2 = '',
@@ -111,7 +114,7 @@ WHERE customer_id IS NULL
 UPDATE carts
 SET    email = '', shipping_address = NULL, billing_address = NULL,
        contact_phone = '', company_name = '', business_ids = '{}'::jsonb, po_number = '',
-       pickup_contact = NULL, checkout_version = checkout_version + 1
+       checkout_fields = '{}'::jsonb, pickup_contact = NULL, checkout_version = checkout_version + 1
 WHERE  customer_id IS NULL
   AND  channel_id = sqlc.arg(channel_id)
   AND  lower(btrim(email)) = sqlc.arg(email)::text;

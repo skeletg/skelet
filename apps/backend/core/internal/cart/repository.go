@@ -190,6 +190,14 @@ func (r *postgresRepository) SetCheckout(ctx context.Context, cartID uuid.UUID, 
 	if err != nil {
 		return fmt.Errorf("encode business ids: %w", err)
 	}
+	fields := c.Fields
+	if fields == nil {
+		fields = map[string]string{}
+	}
+	fieldsJSON, err := json.Marshal(fields)
+	if err != nil {
+		return fmt.Errorf("encode checkout fields: %w", err)
+	}
 	purchase := c.PurchaseType
 	if purchase == "" {
 		purchase = PurchasePersonal
@@ -224,6 +232,7 @@ func (r *postgresRepository) SetCheckout(ctx context.Context, cartID uuid.UUID, 
 		PurchaseType:          purchase,
 		CompanyName:           c.Company,
 		BusinessIds:           idsJSON,
+		CheckoutFields:        fieldsJSON,
 		PickupContact:         pickup,
 	})
 }
@@ -741,7 +750,8 @@ func toCart(row db.Cart) Cart {
 			ContactPhone:  row.ContactPhone,
 			PurchaseType:  row.PurchaseType,
 			Company:       row.CompanyName,
-			BusinessIDs:   decodeBusinessIDs(row.BusinessIds),
+			BusinessIDs:   decodeStringMap(row.BusinessIds),
+			Fields:        decodeStringMap(row.CheckoutFields),
 			PickupContact: decodePickupContact(row.PickupContact),
 			Deliveries:    decodeDeliveries(row.Deliveries),
 			SplitDelivery: row.SplitDelivery,
@@ -784,7 +794,7 @@ func encodeAddress(a *Address) (pqtype.NullRawMessage, error) {
 	return sqlnull.Raw(b), nil
 }
 
-func decodeBusinessIDs(raw json.RawMessage) map[string]string {
+func decodeStringMap(raw json.RawMessage) map[string]string {
 	var ids map[string]string
 	if json.Unmarshal(raw, &ids) != nil || len(ids) == 0 {
 		return nil

@@ -18,6 +18,7 @@ import type { Address } from "@skelet/storefront-next/customer/read";
 import { useActionForm } from "@skelet/storefront-react/forms/use-action-form";
 
 import { AddressFields, ChoiceCard, ContinueButton, useReturnToNextStep, type ValueField } from "./fields";
+import { PluginFields } from "./plugin-fields";
 import { AddressLines } from "./summary";
 
 type Props = {
@@ -75,8 +76,9 @@ export function DetailsStep(props: Props) {
       countries,
       savedCountries: Object.fromEntries(saved.map((a) => [a.id, a.countryCode])),
       destinationCountry: dest.countryCode,
+      fields: checkout.fields,
     }),
-    [asks, signedIn, countries, saved, dest.countryCode],
+    [asks, signedIn, countries, saved, dest.countryCode, checkout.fields],
   );
   const schema = useMemo(() => detailsStepSchema(settings, mode), [settings, mode]);
 
@@ -102,6 +104,7 @@ export function DetailsStep(props: Props) {
       company: checkout.company,
       businessIds: Object.fromEntries(checkout.businessIds.map((b) => [b.key, b.value])),
       poNumber: checkout.poNumber,
+      fields: Object.fromEntries(checkout.fields.map((f) => [f.key, f.type === "CHECKBOX" ? (f.value === "true" ? "on" : "") : f.value])),
       shippingChoice,
       shipping: addressDefaults(checkout.shippingAddress, dest),
       billingSame: asks.shipping ? billingSame : false,
@@ -295,6 +298,12 @@ export function DetailsStep(props: Props) {
         ) : null}
       </section>
       ) : null}
+
+      <PluginFields
+        id={form.id}
+        asked={checkout.fields}
+        fields={fields.fields.getFieldset() as unknown as Record<string, ValueField>}
+      />
 
       <ContinueButton pending={pending} label={t("continueToPayment")} />
     </form>

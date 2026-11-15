@@ -88,6 +88,7 @@ const checkout = (destination: { countryCode: string; postalCode: string } | nul
     checkout: {
       email: "ana@example.test",
       paymentProviderSlug: null,
+      fields: [],
       destination,
       shippingAddress: destination
         ? { firstName: "Ana", lastName: "Martin", street1: "Main 1", street2: null, city: "Paris", state: null, phone: null }

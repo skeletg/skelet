@@ -25,6 +25,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
+	"github.com/skeletg/skelet/apps/backend/core/internal/plugin"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
@@ -249,6 +250,11 @@ func (r *Resolver) placeOrderInput(ctx context.Context, v *checkoutView, payment
 			}
 		}
 	}
+	for _, f := range r.checkoutFields(ctx, c.ChannelID) {
+		if v := co.Fields[f.Key]; v != "" {
+			in.CheckoutFields = append(in.CheckoutFields, order.CheckoutFieldAnswer{Key: f.Key, Label: f.Label, Value: v})
+		}
+	}
 	shipments, primary := r.placementShipments(ctx, v)
 	in.Shipments = shipments
 	var ship *order.OrderAddress
@@ -342,6 +348,7 @@ func (r *Resolver) checkoutModel(ctx context.Context, c cart.Cart) *frontmodel.C
 		Company:               co.Company,
 		BusinessIds:           toBusinessIDValues(co.BusinessIDs),
 		PoNumber:              co.PONumber,
+		Fields:                r.fieldModels(ctx, c),
 		ShippingAddress:       toCartAddressModel(co.ShippingAddress, co.ShippingAddressID),
 		BillingSameAsShipping: co.BillingSameAsShipping,
 		GiftCards:             []*frontmodel.CartGiftCard{},
@@ -385,7 +392,7 @@ func (r *Resolver) checkoutModel(ctx context.Context, c cart.Cart) *frontmodel.C
 
 	reqs := delivery.Requirements(r.checkoutSnapshot(ctx, v))
 	m.Requirements = toRequirementModels(reqs)
-	m.Ready = delivery.Blocking(reqs) == nil
+	m.Ready = delivery.Blocking(reqs) == nil && r.missingField(ctx, c) == nil
 
 	m.Totals = r.checkoutTotals(ctx, v, paymentOK)
 
@@ -643,6 +650,13 @@ func (r *Resolver) applyCheckoutDetails(ctx context.Context, c *cart.Cart, in fr
 			return errCheckoutNeedsBilling
 		}
 	}
+	if in.Fields != nil {
+		fields, err := r.answerFields(ctx, c.ChannelID, in.Fields)
+		if err != nil {
+			return err
+		}
+		co.Fields = fields
+	}
 	// Last, since which identifiers are owed follows the company's country - its billing address, else the destination
 	if business {
 		var err error
@@ -653,6 +667,54 @@ func (r *Resolver) applyCheckoutDetails(ctx context.Context, c *cart.Cart, in fr
 	// A new address can drop a delivery, and a purchase that stopped being business can't pay by purchase order - the shopper picks again
 	r.dropUnsupportedSelections(ctx, *c, co)
 	return nil
+}
+
+func (r *Resolver) checkoutFields(ctx context.Context, channelID uuid.UUID) []plugin.CheckoutField {
+	if r.CheckoutFields == nil {
+		return nil
+	}
+	return r.CheckoutFields(ctx, channelID)
+}
+
+func (r *Resolver) answerFields(ctx context.Context, channelID uuid.UUID, in []*frontmodel.CheckoutFieldValueInput) (map[string]string, error) {
+	given := make(map[string]string, len(in))
+	for _, v := range in {
+		if v != nil {
+			given[v.Key] = v.Value
+		}
+	}
+	out := map[string]string{}
+	for _, f := range r.checkoutFields(ctx, channelID) {
+		v, err := f.Answer(ctx, channelID, given[f.Key])
+		if err != nil {
+			return nil, err
+		}
+		if v != "" {
+			out[f.Key] = v
+		}
+	}
+	return out, nil
+}
+
+// missingField is a required field without an answer - a plugin may have started asking since the details step
+func (r *Resolver) missingField(ctx context.Context, c cart.Cart) error {
+	for _, f := range r.checkoutFields(ctx, c.ChannelID) {
+		if f.Required && c.Checkout.Fields[f.Key] == "" {
+			return f.Missing()
+		}
+	}
+	return nil
+}
+
+func (r *Resolver) fieldModels(ctx context.Context, c cart.Cart) []*frontmodel.CheckoutField {
+	out := []*frontmodel.CheckoutField{}
+	for _, f := range r.checkoutFields(ctx, c.ChannelID) {
+		out = append(out, &frontmodel.CheckoutField{
+			Key: f.Key, Label: f.Label, Hint: f.Hint, Type: frontmodel.CheckoutFieldType(strings.ToUpper(string(f.Type))),
+			Options: append([]string{}, f.Options...), Required: f.Required, MaxLength: int32(f.Max()), Value: c.Checkout.Fields[f.Key],
+		})
+	}
+	return out
 }
 
 // Free text the shopper types is stored on the cart and printed on the order, so each field has a ceiling - the same ones the storefront's form enforces

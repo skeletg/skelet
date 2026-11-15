@@ -507,6 +507,7 @@ export function OrderDetail() {
             {(order.businessIds.length > 0 || order.poNumber) && (
               <BusinessBlock ids={order.businessIds} poNumber={order.poNumber ?? null} />
             )}
+            {order.checkoutFields.length > 0 && <CheckoutFieldsBlock answers={order.checkoutFields} />}
           </div>
         </DetailPageSection>
 
@@ -846,6 +847,22 @@ function BusinessBlock({
             <dd className="font-mono">{poNumber}</dd>
           </>
         )}
+      </dl>
+    </div>
+  )
+}
+
+function CheckoutFieldsBlock({ answers }: { answers: { key: string; label: string; value: string }[] }) {
+  return (
+    <div className="rounded-md border p-4 text-sm md:col-span-2">
+      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">At checkout</div>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+        {answers.map((a) => (
+          <div key={a.key} className="contents">
+            <dt className="text-muted-foreground">{a.label}</dt>
+            <dd className="whitespace-pre-line">{a.value === 'true' ? 'Yes' : a.value}</dd>
+          </div>
+        ))}
       </dl>
     </div>
   )

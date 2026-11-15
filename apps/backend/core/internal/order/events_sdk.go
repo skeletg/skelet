@@ -3,7 +3,9 @@ package order
 import (
 	"database/sql"
 	"fmt"
+	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 )
@@ -87,5 +89,42 @@ func (o *OrderFulfilling) SetFulfillingTrackingNumber(number string) error {
 		return fmt.Errorf("fulfillment tracking number must not be empty")
 	}
 	o.TrackingNumber = number
+	return nil
+}
+
+func (e *CheckoutValidating) CheckoutFieldValue(key string) (string, bool) {
+	return answer(e.Answers, key)
+}
+func (o *OrderPlacing) CheckoutFieldValue(key string) (string, bool) { return answer(o.Answers, key) }
+
+func answer(answers map[string]string, key string) (string, bool) {
+	v, ok := answers[key]
+	return v, ok && v != ""
+}
+
+func answers(fields []CheckoutFieldAnswer) map[string]string {
+	out := make(map[string]string, len(fields))
+	for _, f := range fields {
+		out[f.Key] = f.Value
+	}
+	return out
+}
+
+var metadataKey = regexp.MustCompile(`^[a-z][a-z0-9_.-]{0,63}$`)
+
+const maxMetadataValue = 2000
+
+// The key is the plugin's to namespace, and "tracking" is core's own snapshot of the shopper
+func (o *OrderPlacing) SetPlacingMetadata(key, value string) error {
+	switch {
+	case key == "tracking" || !metadataKey.MatchString(key):
+		return fmt.Errorf("order metadata key %q: lowercase, up to 64 characters, and not \"tracking\"", key)
+	case utf8.RuneCountInString(value) > maxMetadataValue:
+		return fmt.Errorf("order metadata %q: at most %d characters", key, maxMetadataValue)
+	}
+	if o.Metadata == nil {
+		o.Metadata = map[string]string{}
+	}
+	o.Metadata[key] = value
 	return nil
 }

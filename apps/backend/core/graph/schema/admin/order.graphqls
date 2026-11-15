@@ -53,6 +53,10 @@ type Order {
   poNumber: String
   # The buyer's company identifiers on a business purchase, with the labels the shopper saw (a VAT number, a company registry number). Empty for personal purchases.
   businessIds: [OrderBusinessId!]!
+  # The answers to the plugins' checkout fields, with the labels the shopper saw.
+  checkoutFields: [OrderCheckoutField!]!
+  # What plugins recorded on the order at placement, by their own keys.
+  metadata: [MetadataItem!]!
   lines:           [OrderLine!]!
   events:          [OrderEvent!]!
   subtotal:        Int!
@@ -515,6 +519,12 @@ input EditOrderAddressInput {
 }
 
 type OrderBusinessId {
+  key:   String!
+  label: String!
+  value: String!
+}
+
+type OrderCheckoutField {
   key:   String!
   label: String!
   value: String!

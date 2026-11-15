@@ -24,6 +24,8 @@ export type CheckoutValues = {
   state: string;
   phone: string;
   acceptTerms: boolean;
+  // The plugins' fields by key - a ticked box is "true" saved, "on" posted
+  fields: Record<string, string>;
 };
 
 type Props = {
@@ -68,7 +70,7 @@ export function CheckoutView({ error, cart, channel, countries, dest, groups, pi
               <input type="hidden" name="countryCode" value={dest.countryCode} />
               <input type="hidden" name="postalCode" value={dest.postalCode} />
               <DeliverySection dest={dest} countries={countries} groups={groups} picks={picks} channel={channel} />
-              <ContactSection values={values} />
+              <ContactSection values={values} asked={cart.checkout.fields} />
               <PaymentSection payments={payments} pickedPayment={pickedPayment} />
               <div className="grid gap-4">
                 <label className="flex items-center gap-3 text-sm">
@@ -149,7 +151,9 @@ function DeliverySection({ dest, countries, groups, picks, channel }: Pick<Props
   );
 }
 
-function ContactSection({ values: v }: Pick<Props, "values">) {
+type Asked = Cart["checkout"]["fields"];
+
+function ContactSection({ values: v, asked }: Pick<Props, "values"> & { asked: Asked }) {
   return (
     <section>
       <StepTitle n={2}>Contact and address</StepTitle>
@@ -178,8 +182,42 @@ function ContactSection({ values: v }: Pick<Props, "values">) {
         <Field label="Phone" optional wide>
           <input type="tel" name="phone" autoComplete="tel" defaultValue={v.phone} />
         </Field>
+        {asked.map((f) => (
+          <PluginField key={f.key} f={f} value={v.fields[f.key] ?? ""} />
+        ))}
       </div>
     </section>
+  );
+}
+
+function PluginField({ f, value }: { f: Asked[number]; value: string }) {
+  const name = `field:${f.key}`;
+  if (f.type === "CHECKBOX") {
+    return (
+      <label className="flex items-center gap-3 text-sm sm:col-span-2">
+        <input type="checkbox" name={name} required={f.required} defaultChecked={value === "true" || value === "on"} className="size-5 min-h-0 w-auto accent-primary" />
+        {f.label}
+      </label>
+    );
+  }
+  return (
+    <Field label={f.label} optional={!f.required} wide>
+      {f.type === "SELECT" ? (
+        <select name={name} required={f.required} defaultValue={value}>
+          <option value="">Choose…</option>
+          {f.options.map((o) => (
+            <option key={o} value={o}>
+              {o}
+            </option>
+          ))}
+        </select>
+      ) : f.type === "TEXTAREA" ? (
+        <textarea name={name} required={f.required} maxLength={f.maxLength} rows={3} defaultValue={value} />
+      ) : (
+        <input type={f.type === "DATE" ? "date" : "text"} name={name} required={f.required} maxLength={f.type === "TEXT" ? f.maxLength : undefined} defaultValue={value} />
+      )}
+      {f.hint && <span className="text-xs font-normal text-muted-foreground">{f.hint}</span>}
+    </Field>
   );
 }
 

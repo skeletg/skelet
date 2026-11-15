@@ -62,9 +62,11 @@ if (Astro.request.method === "POST") {
       };
       // The backend takes "same as shipping" only when the chosen delivery ships to the shopper - for a pickup it
       // asks for billing, and the address typed here is it
+      // The plugins' fields post as field:<key> - an unticked box posts nothing, which the backend reads as no answer
+      const fields = [...posted.keys()].filter((k) => k.startsWith("field:")).map((k) => ({ key: k.slice(6), value: field(k) }));
       await gql(SetDetailsDocument, {
         cartId: id,
-        input: { email: field("email").trim(), phone: opt("phone"), billingSameAsShipping: true, shippingAddress: address, billingAddress: address },
+        input: { email: field("email").trim(), phone: opt("phone"), billingSameAsShipping: true, shippingAddress: address, billingAddress: address, fields },
       });
       await gql(SetPaymentDocument, { cartId: id, providerSlug: field("payment") });
       const { placeOrder } = await gql(PlaceDocument, { cartId: id, acceptTerms: field("acceptTerms") === "on" });
@@ -106,6 +108,7 @@ const values = {
   state: field("state", addr?.state),
   phone: field("phone", addr?.phone),
   acceptTerms: field("acceptTerms") === "on",
+  fields: Object.fromEntries(c.fields.map((f) => [f.key, posted ? field(`field:${f.key}`) : f.value])),
 };
 ---
 

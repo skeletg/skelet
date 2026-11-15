@@ -7,6 +7,7 @@ import { refinePhone } from "../forms/phone";
 import type { CountryOption } from "../countries/read";
 
 import { businessIdFieldsFor, companyCountry, matchesPattern } from "./business-ids";
+import { fieldIssue, type CheckoutFieldSpec } from "./fields";
 import type { DetailsAsks } from "./asks";
 import type { CheckoutSettings } from "./settings";
 
@@ -55,6 +56,7 @@ export type DetailsMode = {
   countries: CountryOption[];
   savedCountries: Record<string, string>;
   destinationCountry: string;
+  fields?: readonly CheckoutFieldSpec[];
 };
 
 type LooseValues = {
@@ -100,6 +102,8 @@ export function detailsStepSchema(s: CheckoutSettings, mode: DetailsMode) {
       // By the field key of the company's country ("businessIds.ust_idnr")
       businessIds: z.record(z.string(), optionalText(100)).optional(),
       poNumber: optionalText(100),
+      // By the field's key ("fields.gift_message"), held to its own ceiling below
+      fields: z.record(z.string(), optionalText()).optional(),
       shippingChoice: optionalText(),
       shipping: looseAddress,
       saveToBook: z.boolean().optional(),
@@ -128,6 +132,11 @@ export function detailsStepSchema(s: CheckoutSettings, mode: DetailsMode) {
           if (!value && f.required) issue(["businessIds", f.key], "required");
           else if (value && !matchesPattern(f.pattern, value)) issue(["businessIds", f.key], "businessIdInvalid");
         }
+      }
+
+      for (const f of mode.fields ?? []) {
+        const why = fieldIssue(f, v.fields?.[f.key]);
+        if (why) issue(["fields", f.key], why);
       }
 
       const address = (key: "shipping" | "billing", choice: string | null) => {

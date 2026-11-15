@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
+	"unicode/utf8"
 
 	"github.com/skeletg/skelet/apps/backend/sdk"
 )
@@ -41,7 +43,7 @@ func init() {
 		Version:  "0.1.0",
 		SDKRange: "^0.1.0",
 		Emits:    []string{EventSettled, EventSettling},
-		Consumes: []string{EventSettled, EventSettling},
+		Consumes: []string{EventSettled, EventSettling, sdk.EventOrderPlacing},
 		Capabilities: []string{
 			"db.write",
 			"events.publish:" + EventSettled,
@@ -75,6 +77,20 @@ func init() {
 	p.SubscribeSync(EventSettling, 100, func(_ context.Context, e any) error {
 		if ev, ok := e.(interface{ MarkSettling() }); ok {
 			ev.MarkSettling()
+		}
+		return nil
+	})
+
+	// Kept on the order with its label - order.placing records the answer's length in the order's metadata
+	p.RegisterCheckoutField(sdk.CheckoutField{Key: "example_gift_note", Label: "Gift note", Type: sdk.CheckoutFieldTextarea, MaxLength: 200})
+	p.SubscribeSync(sdk.EventOrderPlacing, 100, func(_ context.Context, e any) error {
+		answers, ok := e.(sdk.CheckoutFieldAnswers)
+		meta, ok2 := e.(sdk.OrderPlacingMetadata)
+		if !ok || !ok2 {
+			return nil
+		}
+		if note, given := answers.CheckoutFieldValue("example_gift_note"); given {
+			return meta.SetPlacingMetadata(Slug+".gift_note_length", strconv.Itoa(utf8.RuneCountInString(note)))
 		}
 		return nil
 	})

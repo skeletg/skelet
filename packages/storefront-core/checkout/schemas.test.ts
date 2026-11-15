@@ -10,6 +10,7 @@ import {
   splitSelection,
 } from "./schemas";
 import { DEFAULT_CHECKOUT_SETTINGS as defaults } from "./settings";
+import type { CheckoutFieldSpec } from "./fields";
 import type { CountryOption } from "../countries/read";
 import { parseForm } from "../forms/schema";
 
@@ -159,6 +160,18 @@ describe("detailsStepSchema - PO box", () => {
 
 describe("detailsStepSchema - settings", () => {
   const entries: [string, string][] = [["email", "a@b.de"], ["shippingChoice", "addr-1"], ["billingSame", "on"]];
+
+  it("holds the plugins' fields to their rules", () => {
+    const fields: CheckoutFieldSpec[] = [
+      { key: "gift_message", label: "Gift message", hint: "", type: "TEXTAREA", options: [], required: false, maxLength: 5, value: "" },
+      { key: "terms", label: "Gift terms", hint: "", type: "CHECKBOX", options: [], required: true, maxLength: 500, value: "" },
+    ];
+    const schema = detailsStepSchema(defaults, mode({ fields }));
+    const bad = parseForm(form([...entries, ["fields.gift_message", "too long"]]), schema);
+    expect(errorsOf(bad)?.["fields.gift_message"]).toEqual(["checkoutFieldTooLong"]);
+    expect(errorsOf(bad)?.["fields.terms"]).toEqual(["fieldTick"]);
+    expect(parseForm(form([...entries, ["fields.gift_message", "Hi"], ["fields.terms", "on"]]), schema).status).toBe("success");
+  });
 
   it("requires the phone only when the store does, and checks it against the destination's country", () => {
     const required = detailsStepSchema(defaults, mode({ asks: { ...DELIVERY, phone: "required" }, signedIn: false }));

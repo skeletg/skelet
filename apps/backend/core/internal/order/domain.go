@@ -52,6 +52,9 @@ type Order struct {
 	CustomerNote      string
 	PONumber          string
 	BusinessIDs       []BusinessID // the buyer's company identifiers, empty on personal purchases
+	CheckoutFields    []CheckoutFieldAnswer
+	// What plugins recorded at placement, by their own keys - core's tracking snapshot lives beside it, not in it
+	Metadata map[string]string
 	// Stamped at fulfillment, from admin args or an OrderFulfilling subscriber, and empty otherwise
 	Carrier        string
 	TrackingNumber string
@@ -91,6 +94,8 @@ type BusinessID struct {
 	Label string `json:"label"`
 	Value string `json:"value"`
 }
+
+type CheckoutFieldAnswer = BusinessID
 
 type OrderAmounts struct {
 	Subtotal, Shipping, Discount, Tax, ShippingTax, Total int64

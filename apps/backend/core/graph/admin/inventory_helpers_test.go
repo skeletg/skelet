@@ -57,7 +57,7 @@ func TestInventoryLocationHoursNeverNull(t *testing.T) { // Hours is a JSON scal
 
 func TestInvMetadataItemsAreSortedAndStable(t *testing.T) { // map iteration order would reshuffle the admin UI's metadata list on every refetch
 	m := inventory.Metadata{"zone": "A", "aisle": "7", "bin": "B3"}
-	got := invMetadataItems(m)
+	got := metadataItems(m)
 	if len(got) != 3 {
 		t.Fatalf("%d items, want 3", len(got))
 	}
@@ -69,8 +69,8 @@ func TestInvMetadataItemsAreSortedAndStable(t *testing.T) { // map iteration ord
 	if got[0].Value != "7" {
 		t.Errorf("aisle = %q, want 7", got[0].Value)
 	}
-	if empty := invMetadataItems(nil); empty == nil || len(empty) != 0 {
-		t.Errorf("invMetadataItems(nil) = %v, want an empty non-nil list", empty)
+	if empty := metadataItems(nil); empty == nil || len(empty) != 0 {
+		t.Errorf("metadataItems(nil) = %v, want an empty non-nil list", empty)
 	}
 }
 

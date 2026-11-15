@@ -3304,6 +3304,7 @@ type ComplexityRoot struct {
 		BusinessIds         func(childComplexity int) int
 		Carrier             func(childComplexity int) int
 		ChannelID           func(childComplexity int) int
+		CheckoutFields      func(childComplexity int) int
 		CreatedAt           func(childComplexity int) int
 		CurrencyCode        func(childComplexity int) int
 		CustomerID          func(childComplexity int) int
@@ -3316,6 +3317,7 @@ type ComplexityRoot struct {
 		GiftCardAmount      func(childComplexity int) int
 		ID                  func(childComplexity int) int
 		Lines               func(childComplexity int) int
+		Metadata            func(childComplexity int) int
 		Number              func(childComplexity int) int
 		PaymentActionKind   func(childComplexity int) int
 		PaymentClientSecret func(childComplexity int) int
@@ -3356,6 +3358,12 @@ type ComplexityRoot struct {
 	}
 
 	OrderBusinessId struct {
+		Key   func(childComplexity int) int
+		Label func(childComplexity int) int
+		Value func(childComplexity int) int
+	}
+
+	OrderCheckoutField struct {
 		Key   func(childComplexity int) int
 		Label func(childComplexity int) int
 		Value func(childComplexity int) int
@@ -23496,6 +23504,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Order.ChannelID(childComplexity), true
+	case "Order.checkoutFields":
+		if e.ComplexityRoot.Order.CheckoutFields == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Order.CheckoutFields(childComplexity), true
 	case "Order.createdAt":
 		if e.ComplexityRoot.Order.CreatedAt == nil {
 			break
@@ -23568,6 +23582,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Order.Lines(childComplexity), true
+	case "Order.metadata":
+		if e.ComplexityRoot.Order.Metadata == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Order.Metadata(childComplexity), true
 	case "Order.number":
 		if e.ComplexityRoot.Order.Number == nil {
 			break
@@ -23792,6 +23812,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OrderBusinessId.Value(childComplexity), true
+
+	case "OrderCheckoutField.key":
+		if e.ComplexityRoot.OrderCheckoutField.Key == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderCheckoutField.Key(childComplexity), true
+	case "OrderCheckoutField.label":
+		if e.ComplexityRoot.OrderCheckoutField.Label == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderCheckoutField.Label(childComplexity), true
+	case "OrderCheckoutField.value":
+		if e.ComplexityRoot.OrderCheckoutField.Value == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderCheckoutField.Value(childComplexity), true
 
 	case "OrderEvent.actorEmail":
 		if e.ComplexityRoot.OrderEvent.ActorEmail == nil {
@@ -40558,6 +40597,10 @@ type Order {
   poNumber: String
   # The buyer's company identifiers on a business purchase, with the labels the shopper saw (a VAT number, a company registry number). Empty for personal purchases.
   businessIds: [OrderBusinessId!]!
+  # The answers to the plugins' checkout fields, with the labels the shopper saw.
+  checkoutFields: [OrderCheckoutField!]!
+  # What plugins recorded on the order at placement, by their own keys.
+  metadata: [MetadataItem!]!
   lines:           [OrderLine!]!
   events:          [OrderEvent!]!
   subtotal:        Int!
@@ -41020,6 +41063,12 @@ input EditOrderAddressInput {
 }
 
 type OrderBusinessId {
+  key:   String!
+  label: String!
+  value: String!
+}
+
+type OrderCheckoutField {
   key:   String!
   label: String!
   value: String!
@@ -49833,6 +49882,10 @@ func (ec *executionContext) childFields_Order(ctx context.Context, field graphql
 		return ec.fieldContext_Order_poNumber(ctx, field)
 	case "businessIds":
 		return ec.fieldContext_Order_businessIds(ctx, field)
+	case "checkoutFields":
+		return ec.fieldContext_Order_checkoutFields(ctx, field)
+	case "metadata":
+		return ec.fieldContext_Order_metadata(ctx, field)
 	case "lines":
 		return ec.fieldContext_Order_lines(ctx, field)
 	case "events":
@@ -49923,6 +49976,18 @@ func (ec *executionContext) childFields_OrderBusinessId(ctx context.Context, fie
 		return ec.fieldContext_OrderBusinessId_value(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type OrderBusinessId", field.Name)
+}
+
+func (ec *executionContext) childFields_OrderCheckoutField(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "key":
+		return ec.fieldContext_OrderCheckoutField_key(ctx, field)
+	case "label":
+		return ec.fieldContext_OrderCheckoutField_label(ctx, field)
+	case "value":
+		return ec.fieldContext_OrderCheckoutField_value(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type OrderCheckoutField", field.Name)
 }
 
 func (ec *executionContext) childFields_OrderEvent(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -136786,6 +136851,70 @@ func (ec *executionContext) fieldContext_Order_businessIds(_ context.Context, fi
 	return fc, nil
 }
 
+func (ec *executionContext) _Order_checkoutFields(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Order_checkoutFields(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CheckoutFields, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.OrderCheckoutField) graphql.Marshaler {
+			return ec.marshalNOrderCheckoutField2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderCheckoutFieldᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Order_checkoutFields(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Order",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OrderCheckoutField(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Order_metadata(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Order_metadata(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Metadata, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.MetadataItem) graphql.Marshaler {
+			return ec.marshalNMetadataItem2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMetadataItemᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Order_metadata(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Order",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MetadataItem(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Order_lines(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -137730,6 +137859,75 @@ func (ec *executionContext) _OrderBusinessId_value(ctx context.Context, field gr
 }
 func (ec *executionContext) fieldContext_OrderBusinessId_value(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("OrderBusinessId", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OrderCheckoutField_key(ctx context.Context, field graphql.CollectedField, obj *model.OrderCheckoutField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderCheckoutField_key(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Key, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderCheckoutField_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderCheckoutField", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OrderCheckoutField_label(ctx context.Context, field graphql.CollectedField, obj *model.OrderCheckoutField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderCheckoutField_label(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Label, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderCheckoutField_label(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderCheckoutField", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OrderCheckoutField_value(ctx context.Context, field graphql.CollectedField, obj *model.OrderCheckoutField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderCheckoutField_value(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Value, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderCheckoutField_value(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderCheckoutField", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _OrderEvent_id(ctx context.Context, field graphql.CollectedField, obj *model.OrderEvent) (ret graphql.Marshaler) {
@@ -217144,6 +217342,16 @@ func (ec *executionContext) _Order(ctx context.Context, sel ast.SelectionSet, ob
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "checkoutFields":
+			out.Values[i] = ec._Order_checkoutFields(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "metadata":
+			out.Values[i] = ec._Order_metadata(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "lines":
 			out.Values[i] = ec._Order_lines(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -217628,6 +217836,54 @@ func (ec *executionContext) _OrderBusinessId(ctx context.Context, sel ast.Select
 			}
 		case "value":
 			out.Values[i] = ec._OrderBusinessId_value(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var orderCheckoutFieldImplementors = []string{"OrderCheckoutField"}
+
+func (ec *executionContext) _OrderCheckoutField(ctx context.Context, sel ast.SelectionSet, obj *model.OrderCheckoutField) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, orderCheckoutFieldImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OrderCheckoutField")
+		case "key":
+			out.Values[i] = ec._OrderCheckoutField_key(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "label":
+			out.Values[i] = ec._OrderCheckoutField_label(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "value":
+			out.Values[i] = ec._OrderCheckoutField_value(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -244367,6 +244623,32 @@ func (ec *executionContext) marshalNOrderBusinessId2ᚖgithubᚗcomᚋskeletgᚋ
 		return graphql.Null
 	}
 	return ec._OrderBusinessId(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNOrderCheckoutField2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderCheckoutFieldᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OrderCheckoutField) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNOrderCheckoutField2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderCheckoutField(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNOrderCheckoutField2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderCheckoutField(ctx context.Context, sel ast.SelectionSet, v *model.OrderCheckoutField) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OrderCheckoutField(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNOrderDocumentKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderDocumentKind(ctx context.Context, v any) (model.OrderDocumentKind, error) {

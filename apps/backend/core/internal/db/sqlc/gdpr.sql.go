@@ -225,10 +225,11 @@ const scrubCustomerCarts = `-- name: ScrubCustomerCarts :execrows
 UPDATE carts
 SET    email = '', shipping_address = NULL, billing_address = NULL,
        contact_phone = '', company_name = '', business_ids = '{}'::jsonb, po_number = '',
-       pickup_contact = NULL, checkout_version = checkout_version + 1
+       checkout_fields = '{}'::jsonb, pickup_contact = NULL, checkout_version = checkout_version + 1
 WHERE  customer_id = $1
   AND  (email <> '' OR shipping_address IS NOT NULL OR billing_address IS NOT NULL
         OR contact_phone <> '' OR company_name <> '' OR business_ids <> '{}'::jsonb OR po_number <> ''
+        OR checkout_fields <> '{}'::jsonb
         OR pickup_contact IS NOT NULL)
 `
 
@@ -321,6 +322,7 @@ SET email               = 'redacted-' || customer_id::text || '@anonymized.inval
     customer_note       = '',
     po_number           = NULL,
     business_ids        = '[]'::jsonb,
+    checkout_fields     = '[]'::jsonb,
     metadata            = '{}'::jsonb,
     billing_first_name  = 'Redacted', billing_last_name = '',
     billing_company     = '', billing_street_1 = 'Redacted', billing_street_2 = '',
@@ -334,7 +336,7 @@ SET email               = 'redacted-' || customer_id::text || '@anonymized.inval
 WHERE customer_id = $1
 `
 
-// customer_note, po_number and metadata are free text the shopper typed - "leave with Jane at #42, ring me on +44 7700 900123" is exactly the kind of content that survived an erasure while the structured address columns next to it read "Redacted"
+// customer_note, po_number, checkout_fields and metadata are free text the shopper typed - "leave with Jane at #42, ring me on +44 7700 900123" is exactly the kind of content that survived an erasure while the structured address columns next to it read "Redacted"
 func (q *Queries) ScrubCustomerOrders(ctx context.Context, customerID uuid.NullUUID) (int64, error) {
 	result, err := q.db.ExecContext(ctx, scrubCustomerOrders, customerID)
 	if err != nil {
@@ -369,7 +371,7 @@ const scrubGuestCartsByEmail = `-- name: ScrubGuestCartsByEmail :execrows
 UPDATE carts
 SET    email = '', shipping_address = NULL, billing_address = NULL,
        contact_phone = '', company_name = '', business_ids = '{}'::jsonb, po_number = '',
-       pickup_contact = NULL, checkout_version = checkout_version + 1
+       checkout_fields = '{}'::jsonb, pickup_contact = NULL, checkout_version = checkout_version + 1
 WHERE  customer_id IS NULL
   AND  channel_id = $1
   AND  lower(btrim(email)) = $2::text
@@ -396,6 +398,7 @@ SET email               = 'redacted-' || $1::uuid::text || '@anonymized.invalid'
     customer_note       = '',
     po_number           = NULL,
     business_ids        = '[]'::jsonb,
+    checkout_fields     = '[]'::jsonb,
     metadata            = '{}'::jsonb,
     billing_first_name  = 'Redacted', billing_last_name = '',
     billing_company     = '', billing_street_1 = 'Redacted', billing_street_2 = '',

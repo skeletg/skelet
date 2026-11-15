@@ -178,6 +178,30 @@ all out of tree. This is what the SDK gives it.
   and turning agreed lines into a draft order for review. The pair a quote-shaped feature needs.
 - **`sdk.CustomerID` / `sdk.AdminID` / `sdk.RequestChannelID`** - who is asking, for scoping a
   storefront answer and for audit attribution. `AdminID` is attribution only, never a check.
+- **`RegisterCheckoutField`** - one more thing the checkout asks, on every channel your plugin is
+  on: a gift message, a delivery date, a consent of your own. See below.
+
+### Checkout fields
+
+```go
+p.RegisterCheckoutField(sdk.CheckoutField{
+    Key: "gift_message", Label: "Gift message", Type: sdk.CheckoutFieldTextarea, MaxLength: 200,
+})
+```
+
+A field is `text` (the default), `textarea`, `checkbox`, `select` with `Options`, or `date`,
+optionally `Required`, with a `Hint` and a `MaxLength` that defaults to 500. Core renders
+nothing: the storefront reads the declared fields off `CartCheckout.fields` and sends the
+answers with the details step, both templates draw them, and core holds each answer to its
+type. Add a `Validate` func for a rule of your own - an `sdk.UserError` from it reaches the
+shopper. A required field without an answer keeps `ready` false, and `placeOrder` refuses.
+
+The answers ride the placement onto the order with the label the shopper saw, so the dashboard
+shows them under **At checkout** even after the field changes. On `checkout.validating` and
+`order.placing`, type-assert the event to `sdk.CheckoutFieldAnswers` to read them. On
+`order.placing`, `sdk.OrderPlacingMetadata` records values of your own in the order's metadata,
+which the admin API returns as `Order.metadata` - prefix the key with your slug
+(`acme.delivery_slot`). Both go with a customer's data when they're erased.
 
 ## The frontend halves
 

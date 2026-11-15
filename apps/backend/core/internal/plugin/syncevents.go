@@ -26,4 +26,8 @@ var (
 	_ sdk.InventoryAllocating = (*inventory.Allocating)(nil)
 	_ sdk.ReviewSubmitting    = (*review.Submitting)(nil)
 	_ sdk.CustomerDeleting    = (*customer.CustomerDeleting)(nil)
+
+	_ sdk.CheckoutFieldAnswers = (*order.CheckoutValidating)(nil)
+	_ sdk.CheckoutFieldAnswers = (*order.OrderPlacing)(nil)
+	_ sdk.OrderPlacingMetadata = (*order.OrderPlacing)(nil)
 )

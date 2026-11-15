@@ -3760,6 +3760,8 @@ type Order struct {
 	ShippingAddress     *OrderAddress         `json:"shippingAddress"`
 	PoNumber            *string               `json:"poNumber,omitempty"`
 	BusinessIds         []*OrderBusinessID    `json:"businessIds"`
+	CheckoutFields      []*OrderCheckoutField `json:"checkoutFields"`
+	Metadata            []*MetadataItem       `json:"metadata"`
 	Lines               []*OrderLine          `json:"lines"`
 	Events              []*OrderEvent         `json:"events"`
 	Subtotal            int32                 `json:"subtotal"`
@@ -3801,6 +3803,12 @@ type OrderAddress struct {
 }
 
 type OrderBusinessID struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
+type OrderCheckoutField struct {
 	Key   string `json:"key"`
 	Label string `json:"label"`
 	Value string `json:"value"`

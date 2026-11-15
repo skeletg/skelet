@@ -48,6 +48,7 @@ function checkout(over: Partial<CheckoutState> = {}): CheckoutState {
     company: "",
     businessIds: [],
     poNumber: "",
+    fields: [],
     shippingAddress: null,
     billingSameAsShipping: true,
     billingAddress: null,
@@ -184,5 +185,33 @@ describe("DetailsStep contact phone", () => {
     expect(container.querySelector('input[type="tel"]')).toHaveAttribute("placeholder", "01512 3456789");
     expect(container.querySelector<HTMLInputElement>('input[name="phoneCountry"]')?.value).toBe("DE");
     expect(container.querySelector<HTMLInputElement>('input[name="phoneAllowed"]')?.value).toBe("DE");
+  });
+});
+
+describe("DetailsStep plugin fields", () => {
+  const spec = { hint: "", options: [], required: false, maxLength: 200, value: "" };
+
+  it("asks what the store's plugins ask, each the way its type says, with the answer saved before", () => {
+    renderStep({
+      checkout: checkout({
+        fields: [
+          { ...spec, key: "gift_message", label: "Gift message", type: "TEXTAREA", value: "Happy birthday" },
+          { ...spec, key: "wrap", label: "Wrapping", type: "SELECT", options: ["Paper", "Box"], required: true },
+          { ...spec, key: "terms", label: "Accept the gift terms", type: "CHECKBOX", required: true, value: "true" },
+          { ...spec, key: "day", label: "Delivery day", type: "DATE", hint: "We deliver on weekdays" },
+        ],
+      }),
+    });
+    const more = within(screen.getByRole("region", { name: "A few more details" }));
+    expect(more.getByRole("textbox", { name: "Gift message (optional)" })).toHaveValue("Happy birthday");
+    expect(more.getByRole("combobox", { name: "Wrapping" })).toHaveValue("");
+    expect(more.getByRole("checkbox", { name: "Accept the gift terms" })).toBeChecked();
+    expect(more.getByLabelText("Delivery day (optional)")).toHaveAttribute("type", "date");
+    expect(more.getByText("We deliver on weekdays")).toBeInTheDocument();
+  });
+
+  it("asks nothing extra when no plugin does", () => {
+    renderStep({});
+    expect(screen.queryByRole("region", { name: "A few more details" })).toBeNull();
   });
 });

@@ -45,6 +45,11 @@ query Order($id: ID!) {
       label
       value
     }
+    checkoutFields {
+      key
+      label
+      value
+    }
     carrier
     trackingNumber
     trackingUrl

@@ -795,13 +795,14 @@ func (r *postgresRepository) CreateOrder(ctx context.Context, o Order) (Order, e
 		CustomerNote:        sqlnull.StringValueNonEmpty(o.CustomerNote),
 		PoNumber:            sqlnull.StringValueNonEmpty(o.PONumber),
 		BusinessIds:         businessIDsJSON(o.BusinessIDs),
+		CheckoutFields:      businessIDsJSON(o.CheckoutFields),
 		PaymentProvider:     o.PaymentProvider,
 		ShippingMethodID:    sqlnull.UUID(o.ShippingMethodID),
 		ShippingCarrierSlug: sqlnull.String(o.ShippingCarrierSlug),
 		ShippingMethodCode:  sqlnull.String(o.ShippingMethodCode),
 		AnonID:              o.AnonID,
 		AssistedBy:          o.AssistedBy,
-		Metadata:            orderMetadataJSON(o.Shopper),
+		Metadata:            orderMetadataJSON(o.Shopper, o.Metadata),
 		Locale:              o.Locale,
 		TaxInclusive:        o.TaxInclusive,
 	})
@@ -1289,7 +1290,9 @@ func toOrder(row db.Order) Order {
 		PONumber:          row.PoNumber.String,
 		FulfillmentNeed:   row.FulfillmentNeed,
 		BusinessIDs:       decodeBusinessIDs(row.BusinessIds),
+		CheckoutFields:    decodeBusinessIDs(row.CheckoutFields),
 		Shopper:           decodeShopper(row.Metadata),
+		Metadata:          decodeMetadata(row.Metadata),
 		Carrier:           row.Carrier,
 		TrackingNumber:    row.TrackingNumber,
 		CreatedAt:         row.CreatedAt,
@@ -1448,12 +1451,34 @@ func businessIDsJSON(ids []BusinessID) json.RawMessage {
 	return b
 }
 
-func orderMetadataJSON(t *auth.Shopper) json.RawMessage {
-	if t == nil {
-		return json.RawMessage(`{}`)
+func orderMetadataJSON(t *auth.Shopper, plugins map[string]string) json.RawMessage {
+	m := map[string]any{}
+	for k, v := range plugins {
+		m[k] = v
 	}
-	b, _ := json.Marshal(map[string]*auth.Shopper{"tracking": t}) // strings and bools - can't fail
+	if t != nil {
+		m["tracking"] = t
+	}
+	b, _ := json.Marshal(m) // strings and bools - can't fail
 	return b
+}
+
+// The plugins' string values - the tracking snapshot is an object, so it never reads as one
+func decodeMetadata(raw json.RawMessage) map[string]string {
+	var m map[string]any
+	if json.Unmarshal(raw, &m) != nil {
+		return nil
+	}
+	out := map[string]string{}
+	for k, v := range m {
+		if s, ok := v.(string); ok && k != "tracking" {
+			out[k] = s
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // An undecodable snapshot reads as none - the order's events then go out as if no shop had placed it

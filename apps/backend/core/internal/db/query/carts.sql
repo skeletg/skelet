@@ -229,6 +229,7 @@ UPDATE carts SET
     purchase_type            = sqlc.arg(purchase_type),
     company_name             = sqlc.arg(company_name),
     business_ids             = sqlc.arg(business_ids),
+    checkout_fields          = sqlc.arg(checkout_fields),
     pickup_contact           = sqlc.narg(pickup_contact),
     deliveries               = sqlc.arg(deliveries),
     split_delivery           = sqlc.arg(split_delivery),

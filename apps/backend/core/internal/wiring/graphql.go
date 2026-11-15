@@ -29,6 +29,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/graphqlx"
 	"github.com/skeletg/skelet/apps/backend/core/internal/health"
+	"github.com/skeletg/skelet/apps/backend/core/internal/plugin"
 	"github.com/skeletg/skelet/apps/backend/core/internal/search"
 	"github.com/skeletg/skelet/apps/backend/core/internal/shoptools"
 	authpkg "github.com/skeletg/skelet/apps/backend/core/lib/auth"
@@ -298,6 +299,7 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 		LocaleSvc:            s.Locale,
 		CurrencySvc:          s.Currency,
 		CountrySvc:           s.Country,
+		CheckoutFields:       plugin.CheckoutFieldsFor,
 		CustomerRefreshStore: s.CustomerRefresh.RefreshStore,
 		BlogPreviewStore:     s.BlogPreview.Store,
 		CMSPreviewStore:      s.CMSPreview.Store,

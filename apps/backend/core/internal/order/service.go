@@ -323,6 +323,8 @@ type PlaceOrderInput struct {
 	PONumber string
 	// The company identifiers on a business purchase, with the labels the shopper saw - printed on the invoice
 	BusinessIDs []BusinessID
+	// The answers to the checkout fields still asked, with their labels
+	CheckoutFields []CheckoutFieldAnswer
 	// The chosen carrier and method - both empty falls back to the cheapest quote, and the price is always re-derived server-side
 	ShippingCarrierSlug *string
 	ShippingMethodCode  *string
@@ -445,6 +447,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		PaymentProvider: paymentProvider,
 		BillingAddress:  billing,
 		ShippingAddress: shipping,
+		Answers:         answers(in.CheckoutFields),
 	}
 	if ranEngine {
 		validating.EngineDiscountCents = evalResult.Ledger.SubtotalDiscountCents()
@@ -492,6 +495,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		DiscountCents: validating.DiscountCents,
 		RiskScore:     validating.RiskScore,
 		Tags:          validating.Tags,
+		Answers:       validating.Answers,
 	}
 	if ranEngine {
 		placing.DiscountCents += evalResult.Ledger.SubtotalDiscountCents()
@@ -589,6 +593,8 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			CustomerNote:        in.CustomerNote,
 			PONumber:            in.PONumber,
 			BusinessIDs:         in.BusinessIDs,
+			CheckoutFields:      in.CheckoutFields,
+			Metadata:            placing.Metadata,
 			ShippingMethodID:    shipSel.MethodID,
 			ShippingCarrierSlug: ptr.NonZero(shipSel.CarrierSlug),
 			ShippingMethodCode:  ptr.NonZero(shipSel.MethodCode),

@@ -96,14 +96,33 @@ describe("CheckoutView", () => {
   const totals = { subtotalCents: 3900, discountCents: 0, shippingCents: 0, taxCents: 0, totalCents: 3900 };
   const cart = {
     id: "c1", subtotal: 3900, totalDiscount: 0, lines,
-    checkout: { email: "", paymentProviderSlug: null, destination: null, shippingAddress: null, deliveryGroups: [], requirements: [], totals },
+    checkout: { email: "", paymentProviderSlug: null, fields: [], destination: null, shippingAddress: null, deliveryGroups: [], requirements: [], totals },
   };
   const countries = [{ code: "FR", name: "France" }, { code: "DE", name: "Germany" }];
   const values: CheckoutValues = {
-    countryCode: "DE", postalCode: "", email: "ana@example.test", firstName: "Ana", lastName: "", street1: "", street2: "", city: "", state: "", phone: "", acceptTerms: false,
+    countryCode: "DE", postalCode: "", email: "ana@example.test", firstName: "Ana", lastName: "", street1: "", street2: "", city: "", state: "", phone: "", acceptTerms: false, fields: {},
   };
   const choice = { optionId: "o1", optionName: "Door", kind: "ship_to_address", carrierSlug: "post", methodCode: "m1", methodName: "Standard", priceCents: 0, estimatedArrival: null, value: "o1|post|m1" };
   const base = { cart, channel, countries, groups: [], picks: new Map(), payments: [], values };
+
+  it("asks what the store's plugins ask beside the contact details", () => {
+    const spec = { hint: "", options: [], required: false, maxLength: 200, value: "" };
+    const asked = [
+      { ...spec, key: "gift_message", label: "Gift message", type: "TEXTAREA" as const },
+      { ...spec, key: "terms", label: "Accept the gift terms", type: "CHECKBOX" as const, required: true },
+    ];
+    render(
+      <CheckoutView
+        {...base}
+        cart={{ ...cart, checkout: { ...cart.checkout, fields: asked } }}
+        dest={{ countryCode: "DE", postalCode: "10115" }}
+        values={{ ...values, fields: { gift_message: "Happy birthday", terms: "true" } }}
+      />,
+    );
+    const message = screen.getByRole("textbox", { name: /Gift message/ }) as HTMLTextAreaElement;
+    expect([message.value, message.name]).toEqual(["Happy birthday", "field:gift_message"]);
+    expect((screen.getByRole("checkbox", { name: "Accept the gift terms" }) as HTMLInputElement).checked).toBe(true);
+  });
 
   it("asks where it's going first, and the summary has no shipping line yet", () => {
     const { container } = render(<CheckoutView {...base} dest={null} />);

@@ -47,6 +47,7 @@ const order = {
   customerNote: null,
   poNumber: null,
   businessIds: [],
+  checkoutFields: [] as { __typename: 'OrderCheckoutField'; key: string; label: string; value: string }[],
   carrier: '',
   trackingNumber: '',
   trackingUrl: '',
@@ -89,5 +90,26 @@ describe('OrderDetail cancel', () => {
     })
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull(), SLOW)
     expect(await screen.findByText('The order was cancelled, so nothing more will ship.', {}, SLOW)).toBeDefined()
+  })
+})
+
+describe('OrderDetail checkout answers', () => {
+  it("shows what the store's plugins asked at checkout, a ticked box as Yes", async () => {
+    const answered = {
+      ...order,
+      checkoutFields: [
+        { __typename: 'OrderCheckoutField' as const, key: 'gift_message', label: 'Gift message', value: 'Happy birthday' },
+        { __typename: 'OrderCheckoutField' as const, key: 'wrap', label: 'Gift wrap', value: 'true' },
+      ],
+    }
+    renderPage({
+      path: '/orders/o1',
+      routes: { '/orders/:id': <OrderDetail /> },
+      mocks: [meMock(), { request: { query: OrderDocument, variables: { id: 'o1' } }, result: { data: { order: answered } }, maxUsageCount: 3 }],
+      adminId: 'admin-1',
+    })
+    expect(await screen.findByText('At checkout', {}, SLOW)).toBeDefined()
+    expect(screen.getByText('Happy birthday')).toBeDefined()
+    expect(screen.getByText('Gift wrap').nextElementSibling?.textContent).toBe('Yes')
   })
 })

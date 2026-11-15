@@ -141,6 +141,8 @@ func toOrderModel(o order.Order) *model.Order {
 		Number:             o.Number,
 		PoNumber:           strPtrOrNil(o.PONumber),
 		BusinessIds:        toOrderBusinessIDs(o.BusinessIDs),
+		CheckoutFields:     toOrderCheckoutFields(o.CheckoutFields),
+		Metadata:           metadataItems(o.Metadata),
 		Status:             model.OrderStatus(strings.ToUpper(o.Status)),
 		PaymentStatus:      model.PaymentStatus(strings.ToUpper(o.PaymentStatus)),
 		PaymentProvider:    o.PaymentProvider,
@@ -459,6 +461,14 @@ func (r *queryResolver) readableChannels(ctx context.Context, slug string, chann
 		return ids, len(ids) == 0, nil
 	}
 	return nil, false, nil
+}
+
+func toOrderCheckoutFields(answers []order.CheckoutFieldAnswer) []*model.OrderCheckoutField {
+	out := make([]*model.OrderCheckoutField, len(answers))
+	for i, a := range answers {
+		out[i] = &model.OrderCheckoutField{Key: a.Key, Label: a.Label, Value: a.Value}
+	}
+	return out
 }
 
 func toOrderBusinessIDs(ids []order.BusinessID) []*model.OrderBusinessID {

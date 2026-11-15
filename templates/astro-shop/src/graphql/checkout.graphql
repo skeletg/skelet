@@ -25,6 +25,16 @@ query Checkout($id: ID!) {
     ...CartLines
     checkout {
       email
+      fields {
+        key
+        label
+        hint
+        type
+        options
+        required
+        maxLength
+        value
+      }
       destination {
         countryCode
         postalCode

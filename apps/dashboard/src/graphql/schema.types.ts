@@ -7713,6 +7713,7 @@ export type Order = {
   businessIds: Array<OrderBusinessId>;
   carrier: Scalars['String']['output'];
   channelId: Scalars['ID']['output'];
+  checkoutFields: Array<OrderCheckoutField>;
   createdAt: Scalars['Time']['output'];
   currencyCode: Scalars['String']['output'];
   customerId?: Maybe<Scalars['ID']['output']>;
@@ -7725,6 +7726,7 @@ export type Order = {
   giftCardAmount: Scalars['Int']['output'];
   id: Scalars['ID']['output'];
   lines: Array<OrderLine>;
+  metadata: Array<MetadataItem>;
   number: Scalars['String']['output'];
   paymentActionKind?: Maybe<Scalars['String']['output']>;
   paymentClientSecret?: Maybe<Scalars['String']['output']>;
@@ -7767,6 +7769,13 @@ export type OrderAddress = {
 
 export type OrderBusinessId = {
   __typename?: 'OrderBusinessId';
+  key: Scalars['String']['output'];
+  label: Scalars['String']['output'];
+  value: Scalars['String']['output'];
+};
+
+export type OrderCheckoutField = {
+  __typename?: 'OrderCheckoutField';
   key: Scalars['String']['output'];
   label: Scalars['String']['output'];
   value: Scalars['String']['output'];

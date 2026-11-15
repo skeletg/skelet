@@ -46,6 +46,7 @@ type CheckoutValidating struct {
 	DiscountCents       int64
 	RiskScore           int
 	Tags                []string
+	Answers             map[string]string // the checkout fields still asked, by key
 }
 
 func (*CheckoutValidating) Type() string { return EventCheckoutValidating }
@@ -98,6 +99,9 @@ type OrderPlacing struct {
 	TaxCents      *int64
 	ShippingCents *int64
 	TotalCents    *int64
+	Answers       map[string]string
+	// What plugins record on the order, written with it
+	Metadata map[string]string
 }
 
 func (*OrderPlacing) Type() string { return EventPlacing }

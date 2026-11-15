@@ -536,6 +536,7 @@ export type CartCheckout = {
   destination?: Maybe<CheckoutDestination>;
   digitalLineIds: Array<Scalars['ID']['output']>;
   email: Scalars['String']['output'];
+  fields: Array<CheckoutField>;
   fulfillment: FulfillmentNeed;
   giftCards: Array<CartGiftCard>;
   isPickup: Scalars['Boolean']['output'];
@@ -709,12 +710,37 @@ export type CheckoutDetailsInput = {
   businessIds?: InputMaybe<Array<BusinessIdValueInput>>;
   company?: InputMaybe<Scalars['String']['input']>;
   email?: InputMaybe<Scalars['String']['input']>;
+  fields?: InputMaybe<Array<CheckoutFieldValueInput>>;
   phone?: InputMaybe<Scalars['String']['input']>;
   pickupContact?: InputMaybe<PickupContactInput>;
   poNumber?: InputMaybe<Scalars['String']['input']>;
   purchaseType?: PurchaseType;
   shippingAddress?: InputMaybe<AddressInput>;
   shippingAddressId?: InputMaybe<Scalars['ID']['input']>;
+};
+
+export type CheckoutField = {
+  __typename?: 'CheckoutField';
+  hint: Scalars['String']['output'];
+  key: Scalars['String']['output'];
+  label: Scalars['String']['output'];
+  maxLength: Scalars['Int']['output'];
+  options: Array<Scalars['String']['output']>;
+  required: Scalars['Boolean']['output'];
+  type: CheckoutFieldType;
+  value: Scalars['String']['output'];
+};
+
+export type CheckoutFieldType =
+  | 'CHECKBOX'
+  | 'DATE'
+  | 'SELECT'
+  | 'TEXT'
+  | 'TEXTAREA';
+
+export type CheckoutFieldValueInput = {
+  key: Scalars['String']['input'];
+  value: Scalars['String']['input'];
 };
 
 export type CheckoutRequirement = {

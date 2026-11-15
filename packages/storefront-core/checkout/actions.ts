@@ -37,6 +37,7 @@ import {
   splitSelection,
   type DetailsValues,
 } from "./schemas";
+import { fieldAnswer } from "./fields";
 import { getCheckoutSettings } from "../config/read";
 import { getCountries } from "../countries/read";
 import { getCustomerOrNull } from "../customer/read";
@@ -65,6 +66,7 @@ const CODE_KEYS: Record<string, string> = {
   CHECKOUT_COMPANY_REQUIRED: "companyRequired",
   CHECKOUT_BUSINESS_ID_REQUIRED: "checkoutBusinessIdRequired",
   CHECKOUT_BUSINESS_ID_INVALID: "businessIdInvalid",
+  CHECKOUT_FIELD_REQUIRED: "checkoutFieldRequired",
   CHECKOUT_PICKUP_CONTACT_REQUIRED: "checkoutPickupContactRequired",
   CHECKOUT_SHIPPING_ADDRESS_REQUIRED: "checkoutAddressRequired",
   CHECKOUT_BILLING_ADDRESS_REQUIRED: "checkoutBillingRequired",
@@ -225,6 +227,7 @@ export async function saveDetailsStep(
     countries,
     savedCountries: Object.fromEntries((customer?.addresses ?? []).map((a) => [a.id, a.countryCode])),
     destinationCountry: checkout?.destination?.countryCode ?? "",
+    fields: checkout?.fields ?? [],
   };
   const { signedIn } = mode;
   const submission = parseForm(formData, detailsStepSchema(settings, mode));
@@ -242,6 +245,7 @@ export async function saveDetailsStep(
       ? Object.entries(v.businessIds ?? {}).flatMap(([key, value]) => (value ? [{ key, value }] : []))
       : null,
     poNumber: business ? v.poNumber : null,
+    fields: checkout.fields.map((f) => ({ key: f.key, value: fieldAnswer(f, v.fields?.[f.key]) })),
     billingSameAsShipping: false,
   };
   const someoneElse = asks.collector && settings.pickupSomeoneElse && v.pickupWho === "someoneElse";

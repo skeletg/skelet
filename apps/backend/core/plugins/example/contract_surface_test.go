@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/datapatch"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
 	pluginhost "github.com/skeletg/skelet/apps/backend/core/internal/plugin"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
@@ -174,6 +176,21 @@ func TestSyncSubscriberMutatesTheEvent(t *testing.T) {
 	}
 	if !ev.settling {
 		t.Fatal("sync handler never mutated the event - the init()-time SubscribeSync did not replay")
+	}
+}
+
+// The gift note is asked at checkout, and order.placing turns its answer into order metadata
+func TestCheckoutFieldReachesTheOrder(t *testing.T) {
+	i := slices.IndexFunc(sdk.CheckoutFields(), func(r sdk.RegisteredCheckoutField) bool { return r.Field.Key == "example_gift_note" })
+	if i < 0 || sdk.CheckoutFields()[i].PluginSlug != Slug {
+		t.Fatalf("the gift note isn't registered to %s: %+v", Slug, sdk.CheckoutFields())
+	}
+	ev := &order.OrderPlacing{Answers: map[string]string{"example_gift_note": "For Ana"}}
+	if err := sharedBus().PublishSync(context.Background(), ev); err != nil {
+		t.Fatalf("publish sync: %v", err)
+	}
+	if got := ev.Metadata[Slug+".gift_note_length"]; got != "7" {
+		t.Errorf("metadata %v, want the note's length recorded", ev.Metadata)
 	}
 }
 

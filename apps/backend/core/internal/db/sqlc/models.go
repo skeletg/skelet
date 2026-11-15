@@ -628,6 +628,7 @@ type Cart struct {
 	AssistedBy             string                `json:"assisted_by"`
 	AssistedAt             sql.NullTime          `json:"assisted_at"`
 	AssistTrace            string                `json:"assist_trace"`
+	CheckoutFields         json.RawMessage       `json:"checkout_fields"`
 }
 
 type CartAppliedCode struct {
@@ -1839,6 +1840,7 @@ type Order struct {
 	AssistedBy          string          `json:"assisted_by"`
 	Locale              string          `json:"locale"`
 	TaxInclusive        bool            `json:"tax_inclusive"`
+	CheckoutFields      json.RawMessage `json:"checkout_fields"`
 }
 
 type OrderEmailLog struct {

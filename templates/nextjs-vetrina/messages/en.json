@@ -92,7 +92,10 @@
       "offerExpired": "This offer has expired.",
       "offerRevoked": "This offer is no longer available.",
       "orderNotFound": "We couldn't find an order with those details. Check the order number, email and postcode on your confirmation email.",
-      "trackOrderFailed": "Could not look up your order. Please try again."
+      "trackOrderFailed": "Could not look up your order. Please try again.",
+      "fieldTick": "Tick this to continue.",
+      "fieldInvalid": "Check this answer.",
+      "checkoutFieldRequired": "Answer the questions marked as required."
     },
     "fields": {
       "email": "Email",
@@ -1047,7 +1050,9 @@
       "billingForPayer": "Someone else is collecting, so we need the payer's billing address.",
       "continueToPayment": "Continue to payment",
       "optional": "{label} (optional)",
-      "billingNoAddress": "Nothing is delivered to your address, so we need one for the invoice."
+      "billingNoAddress": "Nothing is delivered to your address, so we need one for the invoice.",
+      "moreDetails": "A few more details",
+      "choose": "Choose…"
     }
   },
   "verifyEmail": {
