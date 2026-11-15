@@ -34,10 +34,7 @@ func contractTree(t *testing.T) string {
 		dashHeaders:                   "/*\n  Content-Security-Policy: default-src 'self'; img-src 'self' {CONNECT_ORIGINS}\n  Permissions-Policy: camera=(), geolocation=()\n",
 		caddyfile:                     "header Content-Security-Policy \"default-src 'self'; img-src 'self' {$UPLOAD_ORIGINS}\"\nheader Permissions-Policy \"camera=(), geolocation=()\"\n",
 		"apps/backend/core/internal/rules/schema.go": "package rules\n\nvar s = `{\"x-widget\": \"segment-picker\"}`\n",
-		widgetReg:  "export const FORM_WIDGETS = {\n  'segment-picker': SegmentPicker,\n}\n",
-		goConsent:  "package auth\n\nvar consentValue = regexp.MustCompile(`^v2:a([01])$`)\n\nvar clickIDKeys = []string{\"gclid\", \"fbp\"}\n",
-		tsConsent:  "const V2 = /^v2:a([01])$/;\n",
-		tsClickIDs: "export const CLICK_IDS = [\n  { key: \"gclid\", param: \"gclid\" },\n  { key: \"fbp\", param: \"\" },\n];\n",
+		widgetReg: "export const FORM_WIDGETS = {\n  'segment-picker': SegmentPicker,\n}\n",
 	})
 	git(t, root, "add", "-A")
 	git(t, root, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
@@ -73,9 +70,7 @@ func TestContractsHealthy(t *testing.T) {
 		"ok    storefront-core PRIVATE_PAGES == privatePages (2 pages)",
 		"ok    shop renders all 3 authored node types and variants",
 		"ok    storefront-core evaluator matches the dashboard's, modulo formatting",
-		"ok    packages/storefront-core imports none of next, react, react-dom, next-intl, server-only (6 files)",
-		"ok    core's ParseConsent and storefront-core's parseConsent read ^v2:a([01])$",
-		"ok    2 click ids on both sides",
+		"ok    packages/storefront-core imports none of next, react, react-dom, next-intl, server-only (4 files)",
 		"ok    packages/storefront-react imports none of next, next-intl (1 files)",
 		"ok    Content-Security-Policy matches " + dashHeaders,
 		"ok    Permissions-Policy matches " + caddyfile,
@@ -167,18 +162,5 @@ func TestAMovedCaddyfileFails(t *testing.T) {
 	git(t, root, "add", "-A")
 	if out, code := contractsOut(t, root); code != 1 || !strings.Contains(out, "is missing but a Caddyfile is tracked at deploy/edge/Caddyfile") {
 		t.Errorf("exit %d:\n%s", code, out)
-	}
-}
-
-// A click id only the storefront stores, or a consent format changed on one side, fails the check
-func TestContractsCatchConsentDrift(t *testing.T) {
-	root := contractTree(t)
-	put(t, root, map[string]string{
-		tsConsent:  "const V2 = /^v3:a([01])$/;\n",
-		tsClickIDs: "export const CLICK_IDS = [\n  { key: \"gclid\", param: \"gclid\" },\n  { key: \"awc\", param: \"awc\" },\n  { key: \"fbp\", param: \"\" },\n];\n",
-	})
-	out, code := contractsOut(t, root)
-	if code == 0 || !strings.Contains(out, "consent patterns differ") || !strings.Contains(out, "click ids differ") {
-		t.Fatalf("drift passed, exit %d:\n%s", code, out)
 	}
 }

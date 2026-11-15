@@ -2,15 +2,17 @@
 // "v2:a1.d0.p0" = analytics, ads (Consent Mode's ad_storage + ad_user_data) and personalization, each 1 or 0. The
 // pre-category values still parse: "all" grants everything and "essential" nothing, so nobody is asked again
 
+import { CONSENT_PATTERN } from "../track/contract.gen";
+
 export type Consent = { analytics: boolean; ads: boolean; personalization: boolean };
 
 export const ALL_GRANTED: Consent = { analytics: true, ads: true, personalization: true };
 export const NONE_GRANTED: Consent = { analytics: false, ads: false, personalization: false };
 
 // "auto:" marks a value the store set under opt-out mode rather than one the visitor chose - switching the store back
-// to opt-in drops it, so nobody counts as having agreed to something they were never asked
-// SYNC: the same pattern as consentValue in apps/backend/core/lib/auth/consent.go - skelet check compares them
-const V2 = /^(?:v2|auto):a([01])\.d([01])\.p([01])$/;
+// to opt-in drops it, so nobody counts as having agreed to something they were never asked. The pattern is core's own,
+// generated, so the cookie the storefront writes is always one core reads
+const V2 = CONSENT_PATTERN;
 
 // null = no choice made yet (or a value we don't recognise, which must not count as a grant)
 export function parseConsent(raw: string | undefined | null): Consent | null {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { clickCookieWrites, clickIdsHeader, cookieDomain } from "./click-ids";
+import { CLICK_ID_KEYS } from "../track/contract.gen";
+import { CLICK_IDS, clickCookieWrites, clickIdsHeader, cookieDomain } from "./click-ids";
 
 const jar = (cookies: Record<string, string>) => (name: string) => cookies[name];
 const writes = (query: string, cookies: Record<string, string>, ads: boolean) =>
@@ -8,6 +9,10 @@ const writes = (query: string, cookies: Record<string, string>, ads: boolean) =>
 const byName = (w: ReturnType<typeof writes>) => Object.fromEntries(w.map((x) => [x.name, x]));
 
 describe("click id cookies", () => {
+  it("stores every click id core keeps, each once - a missing one would never reach an ad platform", () => {
+    expect(CLICK_IDS.map((c) => c.key).sort()).toEqual([...CLICK_ID_KEYS].sort());
+  });
+
   it("stores nothing before advertising consent, and a click that lands then is lost", () => {
     expect(writes("gclid=abc&fbclid=xyz", {}, false)).toEqual([]);
   });

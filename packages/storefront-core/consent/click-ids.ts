@@ -2,17 +2,18 @@
 // from. No Next imports, so the proxy and shopperHeaders share it. Stored only with advertising consent: a click that lands
 // before it is allowed is dropped, and withdrawing deletes every one of them on the next request
 
+import type { ClickIdKey } from "../track/contract.gen";
+
 const DAY = 60 * 60 * 24;
 
 type ClickId = {
-  key: string; // the name core reads in X-Click-Ids
+  key: ClickIdKey; // the name core reads in X-Click-Ids - generated from the ids core keeps
   param: string; // the landing-page query parameter
   cookie: string;
   maxAge: number;
   foreign?: boolean; // set by a platform's own pixel, never by us - read and forwarded, deleted on withdrawal, never minted
 };
 
-// SYNC: core keeps only the ids apps/backend/core/lib/auth/consent.go lists - skelet check compares them
 export const CLICK_IDS: ClickId[] = [
   { key: "gclid", param: "gclid", cookie: "sk_gclid", maxAge: 90 * DAY },
   { key: "gbraid", param: "gbraid", cookie: "sk_gbraid", maxAge: 90 * DAY },
