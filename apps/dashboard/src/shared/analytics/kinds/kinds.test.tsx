@@ -30,8 +30,8 @@ describe('funnel steps', () => {
 
 describe('the Retention builder', () => {
   it('carries the event across when switching between its two views', () => {
-    const rate = switchRetentionView({ kind: 'RETENTION', startEvent: 'order_placed', returnEvent: 'order_placed', unit: 'week', sinceDays: 60 }, 'STICKINESS')
-    expect(rate).toEqual({ kind: 'STICKINESS', event: 'order_placed', sinceDays: 60 })
+    const rate = switchRetentionView({ kind: 'RETENTION', startEvent: 'purchase', returnEvent: 'purchase', unit: 'week', sinceDays: 60 }, 'STICKINESS')
+    expect(rate).toEqual({ kind: 'STICKINESS', event: 'purchase', sinceDays: 60 })
     expect(switchRetentionView(rate, 'RETENTION')).toEqual({ ...KINDS.RETENTION.start, sinceDays: 60 })
   })
   it('switches view from its toggle, and says which view is on', () => {
@@ -39,7 +39,7 @@ describe('the Retention builder', () => {
     expect(screen.getByRole('button', { name: 'By cohort' }).getAttribute('aria-pressed')).toBe('true')
     expect(screen.getByRole('button', { name: 'Return rate' }).getAttribute('aria-pressed')).toBe('false')
     fireEvent.click(screen.getByRole('button', { name: 'Return rate' }))
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ kind: 'STICKINESS', event: 'order_placed' }))
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ kind: 'STICKINESS', event: 'purchase' }))
   })
   it('keeps the return window a return-rate report was built with', () => {
     const onChange = controls({ kind: 'STICKINESS' })

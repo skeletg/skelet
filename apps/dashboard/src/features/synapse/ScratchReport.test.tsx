@@ -28,7 +28,7 @@ describe('readReport', () => {
     expect(readReport(new URLSearchParams(), 'INSIGHTS').kind).toBe('INSIGHTS')
     expect(readReport(p('{oops'), 'INSIGHTS').kind).toBe('INSIGHTS')
     expect(readReport(p('{"kind":"FUNNEL","steps":["a","b"]}'), 'INSIGHTS').kind).toBe('INSIGHTS')
-    expect(readReport(p('{"kind":"INSIGHTS","event":"cart_add"}'), 'INSIGHTS').event).toBe('cart_add')
+    expect(readReport(p('{"kind":"INSIGHTS","event":"add_to_cart"}'), 'INSIGHTS').event).toBe('add_to_cart')
     expect(readReport(p('{"kind":"FUNNEL","steps":"page_view"}'), 'FUNNEL').steps).toHaveLength(5)
     expect(readReport(p('{"kind":"FUNNEL","steps":[1,2]}'), 'FUNNEL').steps).toHaveLength(5)
     expect(readReport(p('{"kind":"INSIGHTS","event":5}'), 'INSIGHTS').event).toBe('page_view')
@@ -43,7 +43,7 @@ describe('readReport', () => {
 describe('a report page', () => {
   it('opens the report and period in its URL, and writes each change back to it', async () => {
     const asked: Record<string, unknown>[] = []
-    const q = encodeURIComponent(JSON.stringify({ kind: 'INSIGHTS', event: 'cart_add' }))
+    const q = encodeURIComponent(JSON.stringify({ kind: 'INSIGHTS', event: 'add_to_cart' }))
     renderPage({
       path: `/x?q=${q}&days=90`,
       routes: {
@@ -73,11 +73,11 @@ describe('a report page', () => {
         },
       ],
     })
-    await waitFor(() => expect(asked[0]).toMatchObject({ event: 'cart_add', sinceDays: 90 }), SLOW)
+    await waitFor(() => expect(asked[0]).toMatchObject({ event: 'add_to_cart', sinceDays: 90 }), SLOW)
     fireEvent.click(screen.getByRole('button', { name: 'Unique' }))
-    await waitFor(() => expect(asked.at(-1)).toMatchObject({ event: 'cart_add', measure: 'unique', sinceDays: 90 }), SLOW)
+    await waitFor(() => expect(asked.at(-1)).toMatchObject({ event: 'add_to_cart', measure: 'unique', sinceDays: 90 }), SLOW)
     const search = new URLSearchParams(screen.getByTestId('search').textContent ?? '')
-    expect(JSON.parse(search.get('q') ?? '')).toMatchObject({ kind: 'INSIGHTS', event: 'cart_add', measure: 'unique' })
+    expect(JSON.parse(search.get('q') ?? '')).toMatchObject({ kind: 'INSIGHTS', event: 'add_to_cart', measure: 'unique' })
     expect(search.get('days')).toBe('90')
   })
 

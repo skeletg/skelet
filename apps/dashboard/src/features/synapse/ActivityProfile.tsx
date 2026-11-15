@@ -135,11 +135,11 @@ function detailFor(item: TimelineItem): Detail {
   if (n === 'page_view') {
     return { primary: str('title') || item.summary || 'Page view', sub: join('Page view', str('page_key')) }
   }
-  if (n === 'cart_add') {
+  if (n === 'add_to_cart') {
     return { primary: 'Added to cart', sub: join(str('sku'), d.qty ? `× ${d.qty}` : undefined, centsToMoney(d.unit_price)) }
   }
-  if (n === 'product_filter') return { primary: 'Filtered', sub: str('filters') }
-  if (n === 'order_placed') {
+  if (n === 'filter_items') return { primary: 'Filtered', sub: str('filters') }
+  if (n === 'purchase') {
     return { primary: join('Order placed', str('order_number')) ?? 'Order placed', sub: centsToMoney(d.total_cents, str('currency')) }
   }
   if (n === 'giftcard_redeemed') {

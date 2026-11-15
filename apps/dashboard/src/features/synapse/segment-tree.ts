@@ -48,7 +48,7 @@ export const AI_EVENTS = ['assistant_turn', 'assisted_order']
 
 export const segmentEvents = (top: string[]): string[] => [...top, ...AI_EVENTS.filter((e) => !top.includes(e))]
 
-export const newEvent = (event = 'order_placed'): SegNode => ({ kind: 'EVENT', field: 'event', event, negate: false, count: 1, days: 30 })
+export const newEvent = (event = 'purchase'): SegNode => ({ kind: 'EVENT', field: 'event', event, negate: false, count: 1, days: 30 })
 export const newGroup = (op: SegmentBoolOp = 'AND'): SegNode => ({ kind: 'GROUP', op, children: [newEvent()] })
 
 // Defaults make a new leaf immediately valid - scores 3, engagement 50, while lifecycle and

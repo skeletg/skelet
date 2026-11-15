@@ -30,7 +30,7 @@ describe('SynapseFunnel', () => {
         data: {
           synapseFunnel: {
             __typename: 'SynapseFunnel',
-            steps: ['page_view', 'view_item', 'cart_add', 'begin_checkout', 'order_placed'].map((eventName, i) => ({ __typename: 'SynapseFunnelStep', eventName, count: 10 - i })),
+            steps: ['page_view', 'view_item', 'add_to_cart', 'begin_checkout', 'purchase'].map((eventName, i) => ({ __typename: 'SynapseFunnelStep', eventName, count: 10 - i })),
             breakdown,
           },
         },

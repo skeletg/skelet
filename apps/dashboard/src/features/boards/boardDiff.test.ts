@@ -3,7 +3,7 @@ import type { BoardReport } from './report'
 import { boardDiff, fresh, keyed } from './boardDiff'
 
 const views: BoardReport = { title: 'Views', size: 'MEDIUM', definition: { kind: 'INSIGHTS', event: 'page_view' } }
-const funnel: BoardReport = { title: 'Funnel', size: 'MEDIUM', definition: { kind: 'FUNNEL', steps: ['page_view', 'order_placed'] } }
+const funnel: BoardReport = { title: 'Funnel', size: 'MEDIUM', definition: { kind: 'FUNNEL', steps: ['page_view', 'purchase'] } }
 const saved = [views, funnel]
 
 describe('boardDiff', () => {
@@ -24,8 +24,8 @@ describe('boardDiff', () => {
   })
   it('shows a report rebuilt in the sheet as a change to its settings', () => {
     const [v] = keyed([views])
-    const d = boardDiff('Mine', [views], 'Mine', [{ ...v, definition: { ...v.definition, event: 'cart_add' } }])
-    expect(d).toEqual([expect.objectContaining({ label: 'Report · Views · settings', before: 'Count of page_view', after: 'Count of cart_add' })])
+    const d = boardDiff('Mine', [views], 'Mine', [{ ...v, definition: { ...v.definition, event: 'add_to_cart' } }])
+    expect(d).toEqual([expect.objectContaining({ label: 'Report · Views · settings', before: 'Count of page_view', after: 'Count of add_to_cart' })])
   })
   it('still shows a settings change the one-line description hides', () => {
     const [f] = keyed([funnel])

@@ -296,7 +296,7 @@ export const retention: Kind = {
   menu: { label: 'Retention', hint: 'Whether people come back' },
   describe: (d) => `${d.startEvent} then ${d.returnEvent}, by ${d.unit ?? UNIT}`,
   title: (d) => `${eventLabel(d.startEvent ?? '')} retention`,
-  start: { kind: 'RETENTION', startEvent: 'order_placed', returnEvent: 'order_placed', unit: UNIT, periods: periodsFor(UNIT) },
+  start: { kind: 'RETENTION', startEvent: 'purchase', returnEvent: 'purchase', unit: UNIT, periods: periodsFor(UNIT) },
   Controls: RetentionControls,
   Result: RetentionResult,
 }

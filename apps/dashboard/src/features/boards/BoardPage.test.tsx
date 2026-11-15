@@ -45,7 +45,7 @@ const board = {
   id: 'b1',
   name: 'Weekly',
   updatedAt: '2026-11-04T10:00:00.123456Z',
-  reports: [report('Returning', 'page_view'), report('Buyers', 'order_placed')],
+  reports: [report('Returning', 'page_view'), report('Buyers', 'purchase')],
   access: 'OWN',
   favourite: false,
   owner: { __typename: 'BoardOwner', id: 'admin-1', name: 'Ada', removed: false },
@@ -127,7 +127,7 @@ describe('BoardPage', () => {
       readAt: '2026-11-04T10:00:00.123456Z',
     })
     // Sent back as the input takes it - no nulls, no __typename
-    expect((saved as unknown as { reports: unknown[] }).reports).toEqual([{ title: 'Buyers', size: 'MEDIUM', definition: { kind: 'STICKINESS', event: 'order_placed' } }])
+    expect((saved as unknown as { reports: unknown[] }).reports).toEqual([{ title: 'Buyers', size: 'MEDIUM', definition: { kind: 'STICKINESS', event: 'purchase' } }])
   })
 
   it('adds a report from the header, builds and sizes it in the panel beside the tile, and saves it with the board', async () => {

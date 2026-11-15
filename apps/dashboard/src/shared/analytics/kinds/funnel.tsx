@@ -248,7 +248,7 @@ export const funnel: Kind = {
   menu: { label: 'Funnel', hint: 'Conversion through steps, in order' },
   describe: (d) => (d.steps ?? []).join(' → ') + (d.windowHours ? ` within ${d.windowHours} h` : ''),
   title: (d) => (d.steps ?? []).map(eventLabel).join(' → '),
-  start: { kind: 'FUNNEL', steps: ['page_view', 'view_item', 'cart_add', 'begin_checkout', 'order_placed'] },
+  start: { kind: 'FUNNEL', steps: ['page_view', 'view_item', 'add_to_cart', 'begin_checkout', 'purchase'] },
   Controls: FunnelControls,
   Result: FunnelResult,
 }
