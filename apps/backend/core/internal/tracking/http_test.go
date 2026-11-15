@@ -1,8 +1,12 @@
 package tracking
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -52,5 +56,66 @@ func TestOnlyABrowsersOwnEventsAreAccepted(t *testing.T) {
 	ev, ok = read(`{"event_id":"e-10","name":"select_promotion","ecommerce":{"promotion_id":"r-1","promotion_name":"summer","items":[{"item_id":"SKU-1","index":0}]}}`, "v2:a1.d0.p0")
 	if !ok || ev.Ecommerce.PromotionID != "r-1" || ev.Ecommerce.Items[0].Index == nil || *ev.Ecommerce.Items[0].Index != 0 {
 		t.Errorf("a promotion click lost its promotion or the item's place: %+v", ev.Ecommerce)
+	}
+}
+
+// The golden bodies in sdk/testdata/events are what the storefront's trackPayload sends, one per browser event. Each must
+// be accepted whole: its page, its term and every ecommerce key it carries reach the event - a key the SDK doesn't know
+// would be dropped here, silently, before any destination saw it. And there is a body for every name the browser may send
+func TestTheGoldenBrowserEventsAreReadWhole(t *testing.T) {
+	files, err := filepath.Glob("../../../sdk/testdata/events/*.json")
+	if err != nil || len(files) == 0 {
+		t.Fatalf("no golden events found (%v)", err)
+	}
+	seen := map[string]bool{}
+	for _, f := range files {
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var golden struct {
+			Name       string          `json:"name"`
+			PageURL    string          `json:"page_url"`
+			Referrer   string          `json:"referrer"`
+			Locale     string          `json:"locale"`
+			PageTitle  string          `json:"page_title"`
+			SearchTerm string          `json:"search_term"`
+			Ecommerce  json.RawMessage `json:"ecommerce"`
+		}
+		if err := json.Unmarshal(raw, &golden); err != nil {
+			t.Fatalf("%s: %v", f, err)
+		}
+		if want := strings.TrimSuffix(filepath.Base(f), ".json"); golden.Name != want {
+			t.Errorf("%s names %q - a golden file is named for its event", f, golden.Name)
+		}
+		seen[golden.Name] = true
+		r := httptest.NewRequest(http.MethodPost, TrackPath, strings.NewReader(string(raw)))
+		ev, ok := browserEvent(httptest.NewRecorder(), r, uuid.New(), auth.CustomerVerifier{})
+		if !ok {
+			t.Errorf("%s: refused", golden.Name)
+			continue
+		}
+		c := ev.Context
+		if c.PageURL != golden.PageURL || c.Referrer != golden.Referrer || c.Locale != golden.Locale || c.PageTitle != golden.PageTitle || ev.SearchTerm != golden.SearchTerm {
+			t.Errorf("%s: page or term lost: %+v %q", golden.Name, c, ev.SearchTerm)
+		}
+		if (golden.Ecommerce == nil) != (ev.Ecommerce == nil) {
+			t.Errorf("%s: ecommerce sent %s, read %+v", golden.Name, golden.Ecommerce, ev.Ecommerce)
+			continue
+		}
+		if ev.Ecommerce != nil {
+			back, _ := json.Marshal(ev.Ecommerce)
+			var sent, read any
+			_ = json.Unmarshal(golden.Ecommerce, &sent)
+			_ = json.Unmarshal(back, &read)
+			if !reflect.DeepEqual(sent, read) {
+				t.Errorf("%s: ecommerce changed on the way in\nsent %s\nread %s", golden.Name, golden.Ecommerce, back)
+			}
+		}
+	}
+	for name := range browserEvents {
+		if !seen[name] {
+			t.Errorf("no golden body for the browser event %s", name)
+		}
 	}
 }

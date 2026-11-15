@@ -1,0 +1,24 @@
+{
+  "event_id": "golden-select_promotion",
+  "name": "select_promotion",
+  "ecommerce": {
+    "currency": "EUR",
+    "value": 12.9,
+    "promotion_id": "rule-1",
+    "promotion_name": "Summer sale",
+    "creative_name": "hero",
+    "creative_slot": "home-top",
+    "items": [
+      {
+        "item_id": "SKU-1",
+        "item_name": "Blue mug",
+        "price": 12.9,
+        "index": 0
+      }
+    ]
+  },
+  "page_url": "https://shop.example/c/mugs?utm_source=news",
+  "referrer": "https://search.example/",
+  "locale": "en",
+  "page_title": "Mugs"
+}

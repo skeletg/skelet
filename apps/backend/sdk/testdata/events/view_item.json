@@ -1,0 +1,19 @@
+{
+  "event_id": "golden-view_item",
+  "name": "view_item",
+  "ecommerce": {
+    "currency": "EUR",
+    "value": 12.9,
+    "items": [
+      {
+        "item_id": "SKU-1",
+        "item_name": "Blue mug",
+        "price": 12.9
+      }
+    ]
+  },
+  "page_url": "https://shop.example/c/mugs?utm_source=news",
+  "referrer": "https://search.example/",
+  "locale": "en",
+  "page_title": "Mugs"
+}

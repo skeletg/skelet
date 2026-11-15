@@ -1,0 +1,9 @@
+{
+  "event_id": "golden-search",
+  "name": "search",
+  "search_term": "blue mug",
+  "page_url": "https://shop.example/c/mugs?utm_source=news",
+  "referrer": "https://search.example/",
+  "locale": "en",
+  "page_title": "Mugs"
+}
