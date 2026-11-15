@@ -44,8 +44,8 @@ describe('structure section remove confirms', () => {
 // overwrite whichever locale happens to be stored first
 describe('bundle option title locale', () => {
   const option = {
-    id: 'o1', inputType: 'RADIO' as const, isRequired: true, sortOrder: 0, minSelections: 0, maxSelections: null, title: 'Veličina',
-    content: [{ locale: 'en', title: 'Size' }, { locale: 'sr', title: 'Veličina' }], selections: [],
+    id: 'o1', inputType: 'RADIO' as const, isRequired: true, sortOrder: 0, minSelections: 0, maxSelections: null, title: 'Rozmiar',
+    content: [{ locale: 'en', title: 'Size' }, { locale: 'pl', title: 'Rozmiar' }], selections: [],
   }
   const editTitle = async (contentLocale: string) => {
     renderSection(<BundleStructureSection canManage product={{ id: 'p1', contentLocale, bundleOptions: [option] }} />)
@@ -54,15 +54,15 @@ describe('bundle option title locale', () => {
   }
 
   it("edits the page locale's own title", async () => {
-    expect((await editTitle('sr')).value).toBe('Veličina')
+    expect((await editTitle('pl')).value).toBe('Rozmiar')
   })
 
   it('starts an untranslated locale from the fallback title', async () => {
-    expect((await editTitle('de')).value).toBe('Veličina')
+    expect((await editTitle('de')).value).toBe('Rozmiar')
   })
 
   it('stages a translation removal for the page save instead of deleting it at once', async () => {
-    await editTitle('sr')
+    await editTitle('pl')
     await confirmIn('Remove translation', 'Stage remove')
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })

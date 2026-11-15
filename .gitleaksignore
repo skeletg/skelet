@@ -15,3 +15,6 @@ e528836663ffd826b7ad70eb4acfc634379bbfb7:apps/channels/vetrina-demo/app/lib/anal
 
 # The private store test's filesystem signing key, a fixture - reviewed 2026-11-14
 e97ed2776f3b75ad10ad77cddc54203868071010:apps/backend/core/internal/wiring/private_storage_test.go:generic-api-key:22
+
+# The relay test's storefront key, a fixture - reviewed 2026-11-15
+2af59bc9df56665560b0ac8ccce1976dd478e619:apps/backend/core/lib/auth/relay_test.go:generic-api-key:31

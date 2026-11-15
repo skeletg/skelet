@@ -94,7 +94,7 @@ func TestOfferState(t *testing.T) {
 
 func TestCheckOfferLocks(t *testing.T) {
 	street := "Main 1"
-	addr := &Address{FirstName: "A", LastName: "B", Street1: street, City: "C", PostalCode: "1", CountryCode: "RS"}
+	addr := &Address{FirstName: "A", LastName: "B", Street1: street, City: "C", PostalCode: "1", CountryCode: "DE"}
 	optionID := uuid.New()
 	base := func(locks ...string) Cart {
 		c := offerCart(nil, func(o *Offer) { o.Locks = locks })
@@ -107,7 +107,7 @@ func TestCheckOfferLocks(t *testing.T) {
 	moves := map[string]func(c *Cart){
 		LockBilling: func(c *Cart) {
 			c.Checkout.BillingSameAsShipping = false
-			c.Checkout.BillingAddress = &Address{FirstName: "X", Street1: "Elsewhere", City: "C", PostalCode: "2", CountryCode: "RS"}
+			c.Checkout.BillingAddress = &Address{FirstName: "X", Street1: "Elsewhere", City: "C", PostalCode: "2", CountryCode: "DE"}
 		},
 		LockShipping: func(c *Cart) {
 			a := *addr

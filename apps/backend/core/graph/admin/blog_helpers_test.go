@@ -203,11 +203,11 @@ func TestBlogMetadataFromInput(t *testing.T) {
 	}
 
 	got = blogMetadataFromInput([]*model.MetadataInput{
-		{Key: "og:title", Value: "Winter tires"},
+		{Key: "og:title", Value: "Winter jackets"},
 		nil, // a nil entry must not panic
 		{Key: "og:type", Value: "article"},
 	})
-	if len(got) != 2 || got["og:title"] != "Winter tires" || got["og:type"] != "article" {
+	if len(got) != 2 || got["og:title"] != "Winter jackets" || got["og:type"] != "article" {
 		t.Errorf("blogMetadataFromInput = %v, want both entries and the nil skipped", got)
 	}
 }

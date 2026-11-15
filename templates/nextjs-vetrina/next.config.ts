@@ -7,7 +7,7 @@ import { DASHBOARD_ORIGIN } from "@skelet/storefront-core/dashboard-origin";
 import { VIDEO_EMBED_ORIGINS } from "@skelet/storefront-core/video-embed";
 
 // App-layer security headers so the storefront ships a CSP even off the prod edge - static, so it caches across all paths, and no HSTS, which is the edge's concern
-// SYNC - narrower on purpose than core's securityheaders.go and the dashboard's nginx template: a gateway host gets a slot
+// SYNC - narrower on purpose than core's securityheaders.go and the dashboard's headers.template: a gateway host gets a slot
 // only when PAYMENT_ORIGINS names it
 
 // Dev media is plain http on localhost which `https:` won't cover - prod media is https
@@ -111,14 +111,14 @@ function workspaceRootOf(dir: string): string {
 const workspaceRoot = workspaceRootOf(dirname(fileURLToPath(import.meta.url)));
 
 const nextConfig: NextConfig = {
-  // Standalone output so the prod image ships without full node_modules - see Dockerfile.prod
+  // Standalone output, so a server runs node server.js without the full node_modules - scripts/standalone.mjs completes it
   output: "standalone",
   turbopack: { root: workspaceRoot },
   outputFileTracingRoot: workspaceRoot,
 
   // Dev-only: next dev 403s /_next chunks requested from any origin but localhost, which broke
   // browsing over the machine's LAN IP. Private-range origins are safe to allow in dev
-  allowedDevOrigins: ["192.168.*.*", "10.*.*.*", ...Array.from({ length: 16 }, (_, i) => `172.${16 + i}.*.*`)],
+  allowedDevOrigins: ["192.168.*.*", "10.*.*.*", ...Array.from({ length: 16 }, (_, i) => `172.${16 + i}.*.*`), "host.docker.internal"],
 
   // Type errors fail the build - no ignoreBuildErrors bypass, keep it that way
 

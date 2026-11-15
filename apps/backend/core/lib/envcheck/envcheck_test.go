@@ -3,6 +3,7 @@ package envcheck
 import (
 	"encoding/base64"
 	"maps"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -89,6 +90,26 @@ func TestCheckProductionEnv_TrustedProxiesNoneAccepted(t *testing.T) {
 		if strings.Contains(e, "TRUSTED_PROXIES") {
 			t.Fatalf("TRUSTED_PROXIES=none should be accepted, got %v", errs)
 		}
+	}
+}
+
+func TestTrustedProxyKeyMustBeLong(t *testing.T) {
+	keyErr := func(env map[string]string) bool {
+		errs, _ := TrustedProxies(envMap(env))
+		return slices.ContainsFunc(errs, func(e string) bool { return strings.Contains(e, "TRUSTED_PROXY_KEY") })
+	}
+	long := strings.Repeat("k", 32)
+	if keyErr(map[string]string{"TRUSTED_PROXIES": "none"}) {
+		t.Error("an unset key is optional, but was refused")
+	}
+	if keyErr(map[string]string{"TRUSTED_PROXIES": "none", "TRUSTED_PROXY_KEY": long, "TRUSTED_PROXY_KEY_PREVIOUS": long}) {
+		t.Error("32-character keys were refused")
+	}
+	if !keyErr(map[string]string{"TRUSTED_PROXIES": "none", "TRUSTED_PROXY_KEY": "short"}) {
+		t.Error("a short key was accepted")
+	}
+	if !keyErr(map[string]string{"TRUSTED_PROXIES": "none", "TRUSTED_PROXY_KEY": long, "TRUSTED_PROXY_KEY_PREVIOUS": "short"}) {
+		t.Error("a short previous key was accepted")
 	}
 }
 

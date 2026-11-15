@@ -74,7 +74,7 @@ func TestImportRefusesABadPhoneBeforeWriting(t *testing.T) {
 		im := &customerImporter{customers: &customer.Service{}, opts: opts}
 		r := dataio.NewRow()
 		r.Set(colEmail, "ada@example.com")
-		r.Set(colPhone, "+381 64")
+		r.Set(colPhone, "+49 151")
 		if _, err := im.Row(context.Background(), r); !errors.Is(err, phone.ErrInvalid) {
 			t.Errorf("dry run %v: row with a bad phone = %v, want phone.ErrInvalid", dryRun, err)
 		}

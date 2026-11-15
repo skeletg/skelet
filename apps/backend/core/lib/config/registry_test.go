@@ -210,7 +210,7 @@ func TestParseAndValidateNormalizes(t *testing.T) {
 		"color lowercases":         {TypeColor, "#AABBCC", "#aabbcc"},
 		"color trims":              {TypeColor, "  #aabbcc  ", "#aabbcc"},
 		"empty color means unset":  {TypeColor, "   ", ""},
-		"phone becomes e164":       {TypePhone, "+381 64 123 4567", "+381641234567"},
+		"phone becomes e164":       {TypePhone, "+49 1512 3456789", "+4915123456789"},
 		"empty phone means unset":  {TypePhone, "  ", ""},
 		"string passes through":    {TypeString, "  spaced  ", "  spaced  "},
 		"secret passes through":    {TypeSecret, "sk_live_abc", "sk_live_abc"},
@@ -243,7 +243,7 @@ func TestParseAndValidateRejectsBadValues(t *testing.T) {
 		"color too short":       {TypeColor, "#abc"},
 		"color with a bad char": {TypeColor, "#aabbcz"},
 		"color with a script":   {TypeColor, "#aa;url(x)"},
-		"phone without a +":     {TypePhone, "064 123 4567"},
+		"phone without a +":     {TypePhone, "01512 3456789"},
 		"phone from words":      {TypePhone, "call us"},
 		"unknown type":          {Type("carrier-pigeon"), "x"},
 	} {

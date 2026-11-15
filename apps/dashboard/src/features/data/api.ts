@@ -1,10 +1,11 @@
+import { ADMIN_HTTP_BASE } from '@/lib/api-endpoint'
 import { downloadWithSession } from '@/lib/authed-download'
 import { getAccessToken } from '@/shared/auth/auth'
 
 // Files move over plain HTTP rather than GraphQL - a 200MB CSV has no business being a base64 string in a
 // JSON document, and the browser gets a real streamed download instead of a Blob built in memory
 
-const BASE = '/api/admin/data'
+const BASE = `${ADMIN_HTTP_BASE}/data`
 
 function authHeaders(): HeadersInit {
   const token = getAccessToken()

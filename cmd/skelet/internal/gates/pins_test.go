@@ -35,7 +35,6 @@ func pinTree(t *testing.T) string {
 			"      - uses: actions/setup-node@v4\n        with:\n          node-version:   24\n",
 		"cmd/skelet/internal/lint/lint.go":  "const Golangci = \"github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0\"\n",
 		"apps/backend/core/Dockerfile.prod": "# builder on alpine3.24\nFROM golang:1.27.3-alpine3.24 AS build\nRUN go install github.com/amacneil/dbmate/v2@v2.36.0\nFROM alpine:3.24\n",
-		"apps/dashboard/Dockerfile":         "FROM node:24-alpine\nRUN npm install -g pnpm@12.6.0\n",
 		"apps/dashboard/package.json":       `{"packageManager": "pnpm@12.6.0"}` + "\n",
 		"apps/channels/shop/package.json":   `{"packageManager": "pnpm@12.6.0"}` + "\n",
 		// deeper than three levels under apps/, so out of the gate's reach, as in the bash
@@ -56,7 +55,6 @@ func TestPinsHealthy(t *testing.T) {
   ok    clickhouse       26.7.5
   ok    dbmate           2.36.0
   ok    golangci         2.14.0
-  ok    node             24
   ok    alpine           3.24
   ok    caddy            2
   ok    pnpm             12.6.0
@@ -90,7 +88,6 @@ func TestPinsBroken(t *testing.T) {
   ok    clickhouse       26.7.5
   ok    dbmate           2.36.0
   ok    golangci         2.14.0
-  ok    node             24
   ok    alpine           3.24
   FAIL  caddy            no pin found - did the pattern or the files move?
   ok    pnpm             12.6.0

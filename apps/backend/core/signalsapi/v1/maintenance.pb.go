@@ -1336,7 +1336,7 @@ type GetCustomerTraitsResponse struct {
 	EngagementScore int32                  `protobuf:"varint,6,opt,name=engagement_score,json=engagementScore,proto3" json:"engagement_score,omitempty"`
 	Frequency       int32                  `protobuf:"varint,7,opt,name=frequency,proto3" json:"frequency,omitempty"`
 	MonetaryCents   int64                  `protobuf:"varint,8,opt,name=monetary_cents,json=monetaryCents,proto3" json:"monetary_cents,omitempty"`
-	// Attribute slug to the value this customer leans toward, e.g. tire_size -> 205/55R16
+	// Attribute slug to the value this customer leans toward, e.g. shoe_size -> 44
 	Affinities    map[string]string `protobuf:"bytes,9,rep,name=affinities,proto3" json:"affinities,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

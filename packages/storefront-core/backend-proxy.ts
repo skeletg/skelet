@@ -17,7 +17,7 @@ const HOP_BY_HOP = [
 ];
 
 // Who the request is for is the storefront's word, read from its own cookies - never what the browser put in these
-const SHOPPER = ["x-consent", "x-anon-id", "x-session-id", "x-click-ids"];
+const SHOPPER = ["x-consent", "x-anon-id", "x-session-id", "x-click-ids", "x-skelet-client-ip", "x-skelet-proxy-key"];
 
 export async function proxyToBackend(req: Request, backend: string = BACKEND_INTERNAL_URL): Promise<Response> {
   const src = new URL(req.url);

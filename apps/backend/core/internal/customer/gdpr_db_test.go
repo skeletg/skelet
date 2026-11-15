@@ -247,7 +247,7 @@ func TestAnonymizeScrubsGuestCheckoutsUnderTheAddress(t *testing.T) {
 		var id uuid.UUID
 		if err := f.conn.QueryRow(
 			`INSERT INTO carts (channel_id, email, shipping_address, contact_phone, company_name, business_ids, po_number, pickup_contact)
-			 VALUES ($1, $2, '{"street1": "1 Home St"}', '+381641234567', 'Acme', '{"pib": "123"}', 'PO-1', '{"firstName": "Ana"}')
+			 VALUES ($1, $2, '{"street1": "1 Home St"}', '+4915123456789', 'Acme', '{"ust_idnr": "DE123"}', 'PO-1', '{"firstName": "Ana"}')
 			 RETURNING id`, channelID, email).Scan(&id); err != nil {
 			t.Fatalf("seed guest cart: %v", err)
 		}
@@ -261,7 +261,7 @@ func TestAnonymizeScrubsGuestCheckoutsUnderTheAddress(t *testing.T) {
 	var orderID uuid.UUID
 	if err := f.conn.QueryRow(
 		`INSERT INTO orders (channel_id, currency_code, email, business_ids)
-		 SELECT id, currency_code, $2, '[{"key": "pib", "label": "PIB", "value": "123"}]' FROM channels WHERE id = $1 RETURNING id`,
+		 SELECT id, currency_code, $2, '[{"key": "ust_idnr", "label": "USt-IdNr.", "value": "DE123"}]' FROM channels WHERE id = $1 RETURNING id`,
 		ch, addr).Scan(&orderID); err != nil {
 		t.Fatalf("seed guest order: %v", err)
 	}

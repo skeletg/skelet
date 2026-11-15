@@ -89,9 +89,9 @@ func TestAClickRedirectsWhateverTheSuiteAnswers(t *testing.T) {
 		"machine click":     {engage: resolved(ptr(uuid.New()), nil, nil, true)},
 	} {
 		svc, _ := trackingService(rec)
-		token := svc.track.Sign(emailtrack.Payload{S: uuid.New(), U: "https://shop.example/p/tire", L: 2})
+		token := svc.track.Sign(emailtrack.Payload{S: uuid.New(), U: "https://shop.example/p/jacket", L: 2})
 		dest, ev := svc.RecordClick(context.Background(), token, analytics.Hit{})
-		if dest != "https://shop.example/p/tire" {
+		if dest != "https://shop.example/p/jacket" {
 			t.Errorf("%s: destination = %q, want the token's", name, dest)
 		}
 		if ev != nil {

@@ -7,8 +7,8 @@ describe("redactPath", () => {
     expect(redactPath("/")).toBe("/");
     expect(redactPath("")).toBe("/");
     expect(redactPath("/account/orders")).toBe("/account/orders");
-    expect(redactPath("/blog/how-to-choose-winter-tyres")).toBe(
-      "/blog/how-to-choose-winter-tyres",
+    expect(redactPath("/blog/how-to-choose-a-winter-coat")).toBe(
+      "/blog/how-to-choose-a-winter-coat",
     );
     expect(redactPath("/collections/summer-sale-2026")).toBe(
       "/collections/summer-sale-2026",
@@ -42,8 +42,8 @@ describe("redactPath", () => {
   });
 
   it("does not over-redact long legitimate slugs", () => {
-    expect(redactPath("/michelin-pilot-sport-5-225-45-r17")).toBe(
-      "/michelin-pilot-sport-5-225-45-r17",
+    expect(redactPath("/slim-jeans-511-32-34")).toBe(
+      "/slim-jeans-511-32-34",
     );
     expect(redactPath("/pages/terms_and_conditions_full")).toBe(
       "/pages/terms_and_conditions_full",

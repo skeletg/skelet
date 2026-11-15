@@ -192,7 +192,7 @@ type Checkout struct {
 	ContactPhone  string
 	PurchaseType  string            // PurchasePersonal or PurchaseBusiness
 	Company       string            // business purchases only, with BusinessIDs
-	BusinessIDs   map[string]string // the company identifiers the country asks for, by field key ("pib" -> "123456789")
+	BusinessIDs   map[string]string // the company identifiers the country asks for, by field key ("ust_idnr" -> "DE123456789")
 	PickupContact *PickupContact    // who collects a pickup order, nil until the details step of one
 	// Deliveries holds the shopper's choice per delivery group, keyed by the group's key - a cart delivered as one uses delivery.CombinedGroupKey. Groups are recomputed from the lines on every read, so a selection whose group no longer exists is simply ignored
 	Deliveries map[string]DeliverySelection

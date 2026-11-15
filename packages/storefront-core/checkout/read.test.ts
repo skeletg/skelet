@@ -26,5 +26,5 @@ it("offers only offline methods, in sort order - the demo has no gateway SDK to 
     { providerSlug: "stripe", sortOrder: 0, isOffline: false },
     { providerSlug: "cod", sortOrder: 1, isOffline: true },
   ] } });
-  expect((await getPaymentMethods("RS", "cart")).map((m) => m.providerSlug)).toEqual(["cod", "bank"]);
+  expect((await getPaymentMethods("DE", "cart")).map((m) => m.providerSlug)).toEqual(["cod", "bank"]);
 });

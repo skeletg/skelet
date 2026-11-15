@@ -10,12 +10,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/verbtest"
 )
 
 // The goldens: testdata/in holds the tracked compose files as they stood when the bash scaffolder was retired, and
-// testdata/want what that scaffolder made of them - byte for byte, but for the override header naming the command
+// testdata/want what that scaffolder made of them
 
 func TestMain(m *testing.M) {
 	// The confirmation reads SCAFFOLD_TTY instead of the terminal a test run would otherwise hand down
@@ -66,17 +65,15 @@ func clone(t *testing.T) string {
 	for _, f := range []string{devFile, prodFile, smallFile} {
 		put(t, root, f, testdata(t, "in/"+f), 0o644)
 	}
-	for _, f := range []string{"prod-vetrina-demo.env.example", "small-vetrina-demo.env.example"} {
-		put(t, root, "env/"+f, testdata(t, "in/"+f), 0o644)
-	}
 	app := "apps/channels/vetrina-demo/"
-	put(t, root, app+"package.json", `{"name": "vetrina-demo"}`+"\n", 0o644)
+	put(t, root, app+"package.json", `{"name": "vetrina-demo", "scripts": {"dev": "next dev -p 3000"}}`+"\n", 0o644)
 	put(t, root, app+"scripts/run.sh", "#!/bin/sh\necho vetrina-demo\n", 0o775)
 	// Past the umask, the way cp -a copies it
 	if err := os.Chmod(filepath.Join(root, app+"scripts/run.sh"), 0o775); err != nil {
 		t.Fatal(err)
 	}
 	put(t, root, app+"public/icon.bin", "\x00vetrina-demo\x00", 0o644)
+	put(t, root, app+".env.production.example", "STOREFRONT_BASE_URL=https://vetrina-demo.example\n", 0o644)
 	put(t, root, app+"node_modules/x/index.js", "vetrina-demo", 0o644)
 	put(t, root, app+".next/cache", "vetrina-demo", 0o644)
 	if err := os.Symlink("package.json", filepath.Join(root, app+"link.json")); err != nil {
@@ -108,24 +105,22 @@ func run(t *testing.T, verb, root string, args ...string) (string, int) {
 	return verbtest.NewDocker(t, "").Run(verb, root, args...)
 }
 
-func TestAddToTheOverride(t *testing.T) {
+func TestAddACopyThatRunsOnTheHost(t *testing.T) {
 	root := clone(t)
 	out, code := run(t, "add", root, "channel", "shop")
 	if code != 0 {
 		t.Fatalf("exit %d:\n%s", code, out)
 	}
-	if got := file(t, root, overrideFile); got != testdata(t, "want/fresh.override.yml") {
-		t.Errorf("a new override differs from the golden:\n%s", got)
+	if file(t, root, "apps/channels/shop/.env.production.example") != "STOREFRONT_BASE_URL=https://shop.example\n" || exists(root, "env") {
+		t.Error("the fork's own deployment template wasn't carried and renamed, or something landed in env/")
 	}
-	for _, f := range []string{"prod-shop.env.example", "small-shop.env.example"} {
-		if file(t, root, "env/"+f) != testdata(t, "want/"+f) {
-			t.Errorf("env/%s differs from the golden", f)
-		}
+	if st := git(t, root, "status", "--porcelain", "--", devFile, prodFile, smallFile); st != "" || exists(root, overrideFile) {
+		t.Errorf("a compose file changed:\n%s", st)
 	}
 	// The fork: renamed through its text files, binaries as they were, the source's install and build left behind
 	app := "apps/channels/shop/"
-	if file(t, root, app+"package.json") != `{"name": "shop"}`+"\n" || file(t, root, app+"public/icon.bin") != "\x00vetrina-demo\x00" {
-		t.Error("the fork wasn't renamed through its text files only")
+	if file(t, root, app+"package.json") != `{"name": "shop", "scripts": {"dev": "next dev --port 3001"}}`+"\n" || file(t, root, app+"public/icon.bin") != "\x00vetrina-demo\x00" {
+		t.Errorf("the fork wasn't renamed through its text files, or given its port:\n%s", file(t, root, app+"package.json"))
 	}
 	if exists(root, app+"node_modules") || exists(root, app+".next") {
 		t.Error("the fork carried the source's node_modules or .next")
@@ -136,81 +131,18 @@ func TestAddToTheOverride(t *testing.T) {
 	if link, err := os.Readlink(filepath.Join(root, app+"link.json")); err != nil || link != "package.json" {
 		t.Errorf("the fork didn't keep a symlink: %q %v", link, err)
 	}
-	if !strings.Contains(out, "skelet setup --apps dashboard,vetrina-demo,shop") || !strings.Contains(out, "http://localhost:3001") {
+	if !strings.Contains(out, "skelet setup --apps dashboard,vetrina-demo,shop") || !strings.Contains(out, "skelet dev shop - http://localhost:3001") {
 		t.Errorf("next steps:\n%s", out)
 	}
-
-	// A second shop splices into the override that's there, on the next free port
-	if _, code := run(t, "add", root, "channel", "two"); code != 0 || file(t, root, overrideFile) != testdata(t, "want/second.override.yml") {
-		t.Errorf("second: exit %d\n%s", code, file(t, root, overrideFile))
+	if _, code := run(t, "add", root, "channel", "two"); code != 0 || !strings.Contains(file(t, root, "apps/channels/two/package.json"), "--port 3002") {
+		t.Errorf("second: exit %d", code)
 	}
-	// Removing one leaves the other - and the last one takes the emptied override with it
+	if _, code := run(t, "add", root, "channel", "three", "--from", "shop"); code != 0 || file(t, root, "apps/channels/three/package.json") != `{"name": "three", "scripts": {"dev": "next dev --port 3003"}}`+"\n" {
+		t.Errorf("--from shop: exit %d", code)
+	}
 	t.Setenv("SCAFFOLD_TTY", "y\n")
-	if _, code := run(t, "rm", root, "channel", "shop"); code != 0 || file(t, root, overrideFile) != testdata(t, "want/rm-one.override.yml") {
-		t.Errorf("rm shop: exit %d\n%s", code, file(t, root, overrideFile))
-	}
-	if exists(root, "apps/channels/shop") || exists(root, "env/prod-shop.env.example") {
-		t.Error("rm left the storefront's files")
-	}
-	if _, code := run(t, "rm", root, "channel", "two", "-y"); code != 0 || exists(root, overrideFile) {
-		t.Errorf("rm the last: exit %d, override still there", code)
-	}
-}
-
-func TestAddFromAnOverrideShop(t *testing.T) {
-	root := clone(t)
-	run(t, "add", root, "channel", "shop")
-	if _, code := run(t, "add", root, "channel", "three", "--from", "shop"); code != 0 || file(t, root, overrideFile) != testdata(t, "want/from.override.yml") {
-		t.Errorf("exit %d\n%s", code, file(t, root, overrideFile))
-	}
-}
-
-// --tracked splices all three compose files, stages the env templates, and rm puts the files back exactly
-func TestTracked(t *testing.T) {
-	root := clone(t)
-	if out, code := run(t, "add", root, "channel", "shop", "--tracked"); code != 0 {
-		t.Fatalf("exit %d:\n%s", code, out)
-	}
-	for _, f := range []string{devFile, prodFile, smallFile} {
-		if file(t, root, f) != testdata(t, "want/tracked."+f) {
-			t.Errorf("%s differs from the golden", f)
-		}
-	}
-	if staged := git(t, root, "diff", "--cached", "--name-only"); staged != "env/prod-shop.env.example\nenv/small-shop.env.example\n" {
-		t.Errorf("staged: %q", staged)
-	}
-	git(t, root, "add", "-A")
-	git(t, root, "commit", "-qm", "shop")
-	if out, code := run(t, "rm", root, "channel", "shop", "-y"); code != 0 || !strings.Contains(out, "committed - recoverable") {
-		t.Fatalf("rm: exit %d:\n%s", code, out)
-	}
-	for _, f := range []string{devFile, prodFile, smallFile} {
-		if file(t, root, f) != testdata(t, "in/"+f) {
-			t.Errorf("rm didn't restore %s", f)
-		}
-	}
-	if staged := git(t, root, "diff", "--cached", "--name-only"); !strings.Contains(staged, "env/prod-shop.env.example") {
-		t.Errorf("the env templates' removal isn't staged: %q", staged)
-	}
-}
-
-// Overrides kept by hand: an anchor already there isn't copied twice, a section after services: or a comment at the
-// margin is respected, and volumes: above services: gets the volumes rather than services: getting them
-func TestAddIntoHandKeptOverrides(t *testing.T) {
-	for in, want := range map[string]string{
-		"anchored": "anchored", "networks": "networks", "comment-before-volumes": "commentvol", "volumes-first": "volfirst",
-	} {
-		root := clone(t)
-		put(t, root, overrideFile, testdata(t, "in/override-"+in+".yml"), 0o644)
-		if _, code := run(t, "add", root, "channel", "shop"); code != 0 || file(t, root, overrideFile) != testdata(t, "want/"+want+".override.yml") {
-			t.Errorf("%s: exit %d\n%s", in, code, file(t, root, overrideFile))
-		}
-	}
-	// With no services: to put it in, nothing is written - it used to add the volumes and drop the service
-	root := clone(t)
-	put(t, root, overrideFile, testdata(t, "in/override-no-services.yml"), 0o644)
-	if _, code := run(t, "add", root, "channel", "shop"); code != 1 || file(t, root, overrideFile) != testdata(t, "in/override-no-services.yml") || exists(root, "apps/channels/shop") {
-		t.Errorf("no services: exit %d", code)
+	if _, code := run(t, "rm", root, "channel", "shop"); code != 0 || exists(root, "apps/channels/shop") {
+		t.Errorf("rm shop: exit %d, or it left the storefront's files", code)
 	}
 }
 
@@ -244,11 +176,6 @@ func TestAddRefusals(t *testing.T) {
 	}
 	if git(t, root, "status", "--porcelain") != "" || len(entries(t, root, "apps/channels")) != 2 {
 		t.Errorf("a refusal wrote something:\n%s", git(t, root, "status", "--porcelain"))
-	}
-	// compose rejecting the result writes nothing either
-	broken := verbtest.NewDocker(t, `case "$*" in *config*) echo "services.shop must be a mapping" >&2; exit 1 ;; esac`)
-	if _, code := broken.Run("add", root, "channel", "shop"); code != 1 || exists(root, "apps/channels/shop") || file(t, root, overrideFile) != "services:\n  taken:\n    image: x\n" {
-		t.Errorf("invalid result: exit %d", code)
 	}
 }
 
@@ -319,28 +246,20 @@ func TestDeselect(t *testing.T) {
 }
 
 func TestFreePort(t *testing.T) {
-	files := `ports: ["3001:3000"]` + "\nURL=http://localhost:3002\n" + `- '3004:3000'` + "\n30030\n"
-	if p := freePort(3001, files); p != 3003 {
-		t.Errorf("free port %d, want 3003", p)
+	files := `ports: ["3001:3000"]` + "\nURL=http://localhost:3002\n" + `"dev": "next dev -p 3003"` + "\n" + `"dev": "astro dev --port 3004"` + "\n30050\n"
+	if p := freePort(3001, files); p != 3005 {
+		t.Errorf("free port %d, want 3005", p)
 	}
 }
 
-// compose rejecting what rm would leave writes and deletes nothing
 func TestRemoveValidates(t *testing.T) {
 	root := clone(t)
 	run(t, "add", root, "channel", "shop")
-	run(t, "add", root, "channel", "two")
-	before := file(t, root, overrideFile)
+	before := "services:\n  shop:\n    image: x\n  two:\n    image: y\n"
+	put(t, root, overrideFile, before, 0o644)
 	broken := verbtest.NewDocker(t, `case "$*" in *config*) exit 1 ;; esac`)
 	if _, code := broken.Run("rm", root, "channel", "shop", "-y"); code != 1 || file(t, root, overrideFile) != before || !exists(root, "apps/channels/shop") {
 		t.Errorf("invalid result: exit %d", code)
-	}
-}
-
-func TestSpliceAfterTheLastService(t *testing.T) {
-	got := spliceAfter("services:\n  a:\n    image: a\n", "a", []string{"  b:", "    image: b"})
-	if got != "services:\n  a:\n    image: a\n  b:\n    image: b\n" {
-		t.Errorf("%q", got)
 	}
 }
 
@@ -403,7 +322,7 @@ volumes:
 	put(t, root, ".nvmrc", "24\n", 0o644)
 	put(t, root, "pnpm-lock.yaml", "lockfileVersion: '9.0'\n", 0o644)
 	tpl := "templates/vetrina/"
-	put(t, root, tpl+"package.json", `{"name": "vetrina"}`+"\n", 0o644)
+	put(t, root, tpl+"package.json", `{"name": "vetrina", "scripts": {"dev": "next dev -p 3000"}}`+"\n", 0o644)
 	put(t, root, tpl+"Dockerfile", "COPY templates/vetrina/package.json templates/vetrina/\nRUN pnpm install --filter \"./templates/vetrina...\"\n", 0o644)
 	put(t, root, tpl+"Dockerfile.prod.dockerignore", "*\n!packages/\n!templates/vetrina/\n", 0o644)
 	put(t, root, ".gitignore", "node_modules\n.next\ndocker-compose.override.yml\n", 0o644)
@@ -429,8 +348,8 @@ func TestAddFromATemplate(t *testing.T) {
 		t.Fatalf("exit %d:\n%s", code, out)
 	}
 	app := "apps/channels/shop/"
-	if file(t, root, app+"package.json") != `{"name": "shop"}`+"\n" {
-		t.Error("the fork wasn't renamed")
+	if file(t, root, app+"package.json") != `{"name": "shop", "scripts": {"dev": "next dev --port 3001"}}`+"\n" {
+		t.Errorf("the fork wasn't renamed, or given its port:\n%s", file(t, root, app+"package.json"))
 	}
 	// The template's own path becomes the fork's - the workspace filter and the build context's whitelist name it
 	if got := file(t, root, app+"Dockerfile"); got != "COPY apps/channels/shop/package.json apps/channels/shop/\nRUN pnpm install --filter \"./apps/channels/shop...\"\n" {
@@ -442,21 +361,8 @@ func TestAddFromATemplate(t *testing.T) {
 	if exists(root, app+"pnpm-lock.yaml") {
 		t.Error("the fork carried the template's stray lockfile")
 	}
-	over := file(t, root, overrideFile)
-	for _, want := range []string{
-		`profiles: ["shop"]`, "dockerfile: apps/channels/shop/Dockerfile\n", `"3001:3000"`,
-		"shop-node-modules:/var/www/skelet/node_modules", "shop-next-cache:/var/www/skelet/apps/channels/shop/.next",
-		"  shop-node-modules:\n  shop-next-cache:\n",
-	} {
-		if !strings.Contains(over, want) {
-			t.Errorf("the override lacks %q:\n%s", want, over)
-		}
-	}
-	if strings.Contains(over, "vetrina") {
-		t.Errorf("the override still names the template:\n%s", over)
-	}
-	if file(t, root, "env/prod-shop.env.example") != "STOREFRONT_REVALIDATE_URL=http://shop:3000\n" {
-		t.Error("the env template wasn't renamed")
+	if exists(root, overrideFile) {
+		t.Error("an override was written - the frontends run on the host")
 	}
 	// The lockfile learns the new member in a throwaway container shown the workspace's manifests and nothing else
 	calls := strings.Join(d.Calls(), "\n")
@@ -538,35 +444,16 @@ func TestRemoveRepointsThePreviews(t *testing.T) {
 	}
 }
 
-// --tracked from a template puts the fork beside it in all three files, its image and Dockerfile its own
-func TestTrackedFromATemplate(t *testing.T) {
+func TestRemoveTakesTheStorefrontsSite(t *testing.T) {
 	root := templateClone(t)
-	put(t, root, ".env", profile.EnvTarget+"=prod\n", 0o600)
-	if out, code := run(t, "add", root, "channel", "shop", "--tracked"); code != 0 {
-		t.Fatalf("exit %d:\n%s", code, out)
+	d := verbtest.NewDocker(t, lockfileDocker)
+	if out, code := d.Run("add", root, "channel", "shop"); code != 0 {
+		t.Fatalf("add: exit %d:\n%s", code, out)
 	}
-	for f, want := range map[string][]string{
-		devFile:   {"dockerfile: apps/channels/shop/Dockerfile\n", "  vetrina-next-cache:\n  shop-node-modules:\n  shop-next-cache:\n"},
-		prodFile:  {"${SHOP_IMAGE:-skelet-shop:prod}", "dockerfile: apps/channels/shop/Dockerfile.prod", "env/prod-shop.env", "127.0.0.1:3001:3000"},
-		smallFile: {"${SHOP_IMAGE:-skelet-shop:prod}", "env/small-shop.env", "127.0.0.1:13001:3000"},
-	} {
-		got := file(t, root, f)
-		for _, w := range want {
-			if !strings.Contains(got, w) {
-				t.Errorf("%s lacks %q:\n%s", f, w, got)
-			}
-		}
-		if !strings.Contains(got, "dockerfile: templates/vetrina/") && f != smallFile {
-			t.Errorf("%s lost the template's own service", f)
-		}
-	}
-	if strings.Contains(file(t, root, ".env"), "VITE_STOREFRONT_ORIGIN") {
-		t.Error("a server's .env got a localhost preview origin")
-	}
-	// A storefront in the tracked file doesn't take over as the default source - the template still is
-	put(t, root, "apps/channels/shop/mine.txt", "mine", 0o644)
-	if _, code := run(t, "add", root, "channel", "two"); code != 0 || exists(root, "apps/channels/two/mine.txt") {
-		t.Errorf("two: exit %d, or forked from shop", code)
+	put(t, root, "deploy/caddy/sites/shop.caddy", "site\n", 0o644)
+	out, code := d.Run("rm", root, "channel", "shop", "-y")
+	if code != 0 || exists(root, "deploy/caddy/sites/shop.caddy") {
+		t.Errorf("exit %d, site still there: %v\n%s", code, exists(root, "deploy/caddy/sites/shop.caddy"), out)
 	}
 }
 
@@ -588,7 +475,7 @@ func TestAddFromATemplateNotCheckedOut(t *testing.T) {
 		t.Errorf("the lockfile refresh lost the template setup left out:\n%s", got)
 	}
 	app := "apps/channels/shop/"
-	if file(t, root, app+"package.json") != `{"name": "shop"}`+"\n" ||
+	if file(t, root, app+"package.json") != `{"name": "shop", "scripts": {"dev": "next dev --port 3001"}}`+"\n" ||
 		file(t, root, app+"Dockerfile.prod.dockerignore") != "*\n!packages/\n!apps/channels/shop/\n" ||
 		file(t, root, app+"scripts/run.sh") != "#!/bin/sh\necho apps/channels/shop\n" {
 		t.Error("the fork from git wasn't renamed through its text files")
@@ -664,28 +551,5 @@ func TestAddLockfileFailureSaysSo(t *testing.T) {
 	out, code := d.Run("add", root, "channel", "shop")
 	if code != 1 || !exists(root, "apps/channels/shop/package.json") {
 		t.Fatalf("exit %d, want 1 with the storefront made:\n%s", code, out)
-	}
-}
-
-func TestTrackedFromATemplateOnOtherPorts(t *testing.T) {
-	root := templateClone(t)
-	for f, swap := range map[string][2]string{
-		devFile:   {`"3000:3000"`, `"3001:3000"`},
-		prodFile:  {"127.0.0.1:3000:3000", "127.0.0.1:3001:3000"},
-		smallFile: {"127.0.0.1:13000:3000", "127.0.0.1:13001:3000"},
-	} {
-		put(t, root, f, strings.Replace(file(t, root, f), swap[0], swap[1], 1), 0o644)
-	}
-	put(t, root, "env/small-vetrina.env.example", "STOREFRONT_BASE_URL=http://localhost:13001\n", 0o644)
-	if out, code := run(t, "add", root, "channel", "shop", "--tracked"); code != 0 {
-		t.Fatalf("exit %d:\n%s", code, out)
-	}
-	for f, want := range map[string]string{prodFile: "127.0.0.1:3002:3000", smallFile: "127.0.0.1:13002:3000"} {
-		if got := block(file(t, root, f), "shop"); !strings.Contains(strings.Join(got, "\n"), want) {
-			t.Errorf("%s's shop block lacks %s:\n%s", f, want, strings.Join(got, "\n"))
-		}
-	}
-	if got := file(t, root, "env/small-shop.env.example"); got != "STOREFRONT_BASE_URL=http://localhost:13002\n" {
-		t.Errorf("small env template: %s", got)
 	}
 }

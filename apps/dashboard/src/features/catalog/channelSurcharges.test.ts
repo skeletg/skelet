@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { channelEditsFrom, invalidChannelPrices, rawChannelPrices } from './channelSurcharges'
 
 const channels = [
-  { id: 'c-usd', name: 'Wheels', currencyCode: 'USD' },
-  { id: 'c-eur', name: 'Tyres', currencyCode: 'EUR' },
+  { id: 'c-usd', name: 'Menswear', currencyCode: 'USD' },
+  { id: 'c-eur', name: 'Womenswear', currencyCode: 'EUR' },
   { id: 'c-jpy', name: 'Kuruma', currencyCode: 'JPY' },
 ]
 

@@ -19,11 +19,11 @@ import (
 
 // One locale per registration - a pack shipping three languages registers three times
 type AdminTranslationsRegistration struct {
-	// Locale is a BCP 47 tag ("sr", "pt-BR") - it names the catalog URL and must be
+	// Locale is a BCP 47 tag ("pl", "pt-BR") - it names the catalog URL and must be
 	// unique across every installed pack
 	Locale string
 	// DisplayName is shown in the dashboard's language picker, written in its own
-	// language ("Srpski", not "Serbian")
+	// language ("Polski", not "Polish")
 	DisplayName string
 	// Direction is "ltr" or "rtl"; empty means ltr
 	Direction string

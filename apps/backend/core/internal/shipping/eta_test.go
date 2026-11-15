@@ -36,9 +36,9 @@ func TestEstimatedArrival(t *testing.T) {
 	}
 }
 
-// The calendar is the one from carries - 23:30 Friday in UTC is already Saturday in Belgrade, so a weekend carrier's 1-day estimate moves from Saturday to Sunday
+// The calendar is the one from carries - 23:30 Friday in UTC is already Saturday in Berlin, so a weekend carrier's 1-day estimate moves from Saturday to Sunday
 func TestEstimatedArrivalReadsTheStoreCalendar(t *testing.T) {
-	belgrade, err := time.LoadLocation("Europe/Belgrade")
+	berlin, err := time.LoadLocation("Europe/Berlin")
 	if err != nil {
 		t.Skipf("no tzdata: %v", err)
 	}
@@ -47,10 +47,10 @@ func TestEstimatedArrivalReadsTheStoreCalendar(t *testing.T) {
 	if got := ArrivalDate(lateFriday, 1, true); got != "2026-10-03" {
 		t.Errorf("UTC: got %s, want Saturday", got)
 	}
-	if got := ArrivalDate(lateFriday.In(belgrade), 1, true); got != "2026-10-04" {
-		t.Errorf("Belgrade: got %s, want Sunday - it is already Saturday there", got)
+	if got := ArrivalDate(lateFriday.In(berlin), 1, true); got != "2026-10-04" {
+		t.Errorf("Berlin: got %s, want Sunday - it is already Saturday there", got)
 	}
-	if got := EstimatedArrival(lateFriday.In(belgrade), 1, true); got.Location() != belgrade {
+	if got := EstimatedArrival(lateFriday.In(berlin), 1, true); got.Location() != berlin {
 		t.Errorf("arrival lost the store's location: %v", got.Location())
 	}
 }

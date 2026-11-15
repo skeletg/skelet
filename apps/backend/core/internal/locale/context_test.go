@@ -33,7 +33,7 @@ func TestWithLocaleIgnoresEmpty(t *testing.T) {
 }
 
 func TestLooksLikeCode(t *testing.T) {
-	for _, ok := range []string{"en", "de", "de-DE", "sr-Latn-RS", "EN"} {
+	for _, ok := range []string{"en", "de", "de-DE", "zh-Hant-TW", "EN"} {
 		if !LooksLikeCode(ok) {
 			t.Errorf("LooksLikeCode(%q) = false, want true", ok)
 		}

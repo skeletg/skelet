@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
@@ -64,12 +63,7 @@ func boot(root string, a answers, w written, ask prompter, st *stepper) int {
 	}
 
 	for _, app := range a.apps {
-		docker := slices.Contains(a.dockerApps, app)
-		if docker && ask.ui != nil {
-			ask.ui.Note(app + " runs in Docker and installs its own dependencies on start - skelet logs " + app)
-			continue
-		}
-		if code := st.run("Installing "+app+" dependencies", func() int { return install(root, app, docker) }); code != 0 {
+		if code := st.run("Installing "+app+" dependencies", func() int { return install(root, app) }); code != 0 {
 			return code
 		}
 	}
@@ -89,7 +83,7 @@ func boot(root string, a answers, w written, ask prompter, st *stepper) int {
 		}
 	}
 
-	summary(a, w, dc, ask)
+	summary(root, a, w, ask)
 	return 0
 }
 
@@ -111,13 +105,7 @@ func spine(dc func(...string) *exec.Cmd) int {
 	return 1
 }
 
-// install puts a host app's dependencies in place. A Docker app's image installs on every start, into a volume the
-// host can't see, so the host tree says nothing about it
-func install(root, app string, inDocker bool) int {
-	if inDocker {
-		fmt.Printf("==> %s runs in Docker and installs its own dependencies on start - follow it with skelet logs %s\n", app, app)
-		return 0
-	}
+func install(root, app string) int {
 	dir := filepath.Join(root, appDir(root, app))
 	if _, err := os.Stat(filepath.Join(dir, "package.json")); err != nil {
 		return 0
@@ -140,11 +128,12 @@ func install(root, app string, inDocker bool) int {
 	return sys.ExitCode(sys.Run(cmd))
 }
 
-func summary(a answers, w written, dc func(...string) *exec.Cmd, ask prompter) {
+func summary(root string, a answers, w written, ask prompter) {
 	ask.section(os.Stdout, "Setup complete.")
 	fmt.Println()
 	fmt.Println("Next steps:")
 	fmt.Println("  skelet up               # dev stack with hot reload + sidecars")
+	fmt.Println("  skelet dev              # the frontends, on the host")
 	fmt.Println("  skelet doctor           # check the shape you just picked")
 	fmt.Println("  skelet hooks            # opt-in: pre-commit keeps generated code fresh")
 	fmt.Println("  skelet cli admin create-superuser   # an admin login, if you skipped it above")
@@ -155,26 +144,14 @@ func summary(a answers, w written, dc func(...string) *exec.Cmd, ask prompter) {
 	} else {
 		fmt.Println("  Backend playgrounds     http://localhost:8080/playground/{admin,front}")
 	}
-	for _, app := range a.apps {
-		if app == "dashboard" {
-			fmt.Println("  Dashboard               http://localhost:5173")
-			continue
-		}
-		// at whatever port its own compose service publishes
-		port := "3000"
-		if out, err := dc("port", app, "3000").Output(); err == nil {
-			if s := strings.TrimSpace(string(out)); s != "" {
-				port = s[strings.LastIndex(s, ":")+1:]
-			}
-		}
-		fmt.Printf("  %-23s http://localhost:%s\n", "Storefront "+app, port)
-	}
-	if host := a.hostApps(); len(host) > 0 {
+	if len(a.apps) > 0 {
 		fmt.Println()
-		fmt.Println("These run on the host, so skelet up does not start them:")
-		for _, app := range host {
-			fmt.Printf("  skelet serve %s\n", app)
-		}
+		fmt.Println("The frontends run on the host - skelet dev starts them:")
+	}
+	for _, app := range a.apps {
+		manifest, _ := os.ReadFile(filepath.Join(root, appDir(root, app), "package.json"))
+		fallback := map[bool]string{true: "5173", false: "3000"}[app == "dashboard"]
+		fmt.Printf("  %-23s http://localhost:%s\n", app, node.DevPort(manifest, fallback))
 	}
 	urls := map[string]string{
 		"mailpit":        "Mailpit (caught email)  http://localhost:8025",

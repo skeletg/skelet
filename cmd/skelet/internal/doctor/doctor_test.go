@@ -73,18 +73,17 @@ func put(t *testing.T, root, rel, body string) {
 	}
 }
 
-// A checkout that is healthy in every way doctor looks: dev env files, a profile matching them, the dashboard in
-// Docker, a decided example plugin, a running stack and the hook installed
 func healthy(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
 	put(t, root, "apps/backend/core/go.mod", "module x\n\ngo 1.27.3\n")
 	put(t, root, "docker-compose.yml", "services:\n  app:\n    image: app:${APP_TAG}\n")
-	put(t, root, ".env", "APP_TAG=dev\nSKELET_TARGET=dev\nCOMPOSE_PROFILES=search,dashboard,signals\n")
+	put(t, root, ".env", "APP_TAG=dev\nSKELET_TARGET=dev\nSKELET_APPS=dashboard\nCOMPOSE_PROFILES=search,signals\n")
 	put(t, root, "env/go.env", "SIGNALS_ENABLED=true\nAI_ENABLED=true\n")
 	put(t, root, "env/db.env", "")
 	put(t, root, "env/signals.env", "")
 	put(t, root, "apps/dashboard/package.json", `{"packageManager": "pnpm@12.6.0"}`)
+	put(t, root, "apps/dashboard/node_modules/.modules.yaml", "")
 	put(t, root, "apps/backend/core/plugins/example/plugin.go", "package example\nfunc init() { sdk.RegisterPlugin(nil) }\n")
 	put(t, root, "apps/backend/core/plugins/plugins.json", "{\n  \"plugins\": {\n    \"example\": {\n      \"enabled\": true\n    }\n  }\n}\n")
 	put(t, root, ".git/hooks/pre-commit", hooks.Script(""))
@@ -139,8 +138,8 @@ func TestAHealthyCheckoutIsAllOk(t *testing.T) {
 		"ok    git 2.43.0",
 		"ok    go 1.27.3",
 		"ok    env/go.env",
-		"ok    in Docker: dashboard",
-		"ok    none - every frontend runs in Docker",
+		"ok    dashboard - on the host, with skelet dev (change with skelet setup --apps ...)",
+		"ok    pnpm 12.6.0",
 		"ok    target=dev signals=true ai=true search=opensearch",
 		"ok    every compose interpolation has a value",
 		"ok    1 decided, enabled: example",
@@ -167,10 +166,12 @@ func TestProblemsAreReported(t *testing.T) {
 		{"a missing env file", func(t *testing.T, root string) { _ = os.Remove(filepath.Join(root, "env/db.env")) }, 1,
 			[]string{"FAIL  env/db.env missing - run skelet setup"}},
 		{"an optional env file", func(t *testing.T, root string) {
-			envSet(t, root, "SKELET_TARGET", "small")
+			envSet(t, root, "SKELET_TARGET", "server")
+			envSet(t, root, "SKELET_APPS", "core")
 			put(t, root, "env/small.env", "")
+			put(t, root, "apps/backend/core/.env", "")
 			put(t, root, "docker-compose.small.yml", "services:\n  app:\n    env_file:\n      - path: env/small.env\n      - path: env/small-extra.env\n        required: false\n")
-		}, 0, []string{"env files (small target)", "warn  env/small-extra.env missing - optional"}},
+		}, 0, []string{"env files (server target)", "warn  env/small-extra.env missing - optional"}},
 		{"switches left unset read as on", func(t *testing.T, root string) {
 			put(t, root, "env/go.env", "")
 		}, 0,
@@ -191,15 +192,10 @@ func TestProblemsAreReported(t *testing.T) {
 		}, 0, nil},
 		// A selection naming a storefront that isn't here starts nothing, and says so
 		{"an app selection naming a storefront that's gone", func(t *testing.T, root string) {
-			envSet(t, root, "COMPOSE_PROFILES", "search,dashboard,vetrina-demo,signals")
+			envSet(t, root, "SKELET_APPS", "dashboard,vetrina-demo")
 			put(t, root, "templates/vetrina/package.json", "{}")
-		}, 0, []string{`warn  .env's COMPOSE_PROFILES names "vetrina-demo", which isn't an app here - storefronts: vetrina`}},
-		{"an override on the old storefront mount", func(t *testing.T, root string) {
-			put(t, root, "docker-compose.override.yml", "services:\n  shop-eu:\n    volumes:\n      - ./apps/channels/shop:/var/www/storefront\n")
-		}, 0, []string{"warn  docker-compose.override.yml mounts a storefront at /var/www/storefront"}},
-		{"an override storefront forked before the read-only workspace", func(t *testing.T, root string) {
-			put(t, root, "docker-compose.override.yml", "services:\n  shop:\n    volumes:\n      - .:/var/www/skelet\n")
-		}, 0, []string{"warn  docker-compose.override.yml mounts the whole checkout writable"}},
+			put(t, root, "templates/vetrina/node_modules/.modules.yaml", "")
+		}, 0, []string{`warn  .env's SKELET_APPS names "vetrina-demo", which isn't an app here - storefronts: vetrina`}},
 		{"a parked plugin name", func(t *testing.T, root string) {
 			put(t, root, "apps/backend/core/plugins/plugins.json", `{"plugins": {"example": 1, "_example": 0}}`)
 		}, 1, []string{`FAIL  plugins.json names "_example"`, "warn  plugins.json uses the old 0/1 form"}},
@@ -226,10 +222,9 @@ func TestProblemsAreReported(t *testing.T) {
 		}, 1, []string{
 			"FAIL  pnpm in apps/dashboard answers 11.0.0, the apps pin 12.6.0",
 			"warn  node 22.3.0, and .nvmrc pins 24",
-			"warn  apps/dashboard not installed",
 		}},
 		{"a host app with an npm tree", func(t *testing.T, root string) {
-			envSet(t, root, "COMPOSE_PROFILES", "search,signals")
+			_ = os.Remove(filepath.Join(root, "apps/dashboard/node_modules/.modules.yaml"))
 			put(t, root, "apps/dashboard/node_modules/react/index.js", "")
 		}, 1, []string{"ok    pnpm 12.6.0", "FAIL  apps/dashboard/node_modules is an npm install"}},
 		{"a port another stack holds", func(t *testing.T, _ string) {

@@ -101,7 +101,7 @@ func TestFloatCellsRefuseNaNAndInf(t *testing.T) {
 }
 
 func TestRowMessagesAreCutOnACharacter(t *testing.T) {
-	msg := TrimMessage("a" + strings.Repeat("ž", maxRowMessageRunes+10)) // the odd byte puts the 400th byte mid-character
+	msg := TrimMessage("a" + strings.Repeat("ü", maxRowMessageRunes+10)) // the odd byte puts the 400th byte mid-character
 	if !utf8.ValidString(msg) {
 		t.Fatal("trimmed message is not valid UTF-8")
 	}

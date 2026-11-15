@@ -115,7 +115,7 @@ skelet/
 ├── pnpm-workspace.yaml              ← the storefront workspace and the versions it shares
 ├── pnpm-lock.yaml                   ← its one lockfile
 ├── docker-compose.yml               ← the dev stack
-└── docker-compose.prod.yml          ← the prod stack
+└── docker-compose.prod.yml          ← one box: includes apps/backend/{core,signals}/compose.yaml
 ```
 
 ### What's in `internal/`

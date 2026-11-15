@@ -39,7 +39,7 @@ var routes = []Route{
 	{Verb: "setup", Go: setup.Run, About: setup.About},
 	{Verb: "doctor", Go: doctor.Run, About: doctor.About},
 	{Verb: "up", Go: stack.Up, About: stack.UpAbout},
-	{Verb: "serve", Go: stack.Serve, About: stack.ServeAbout},
+	{Verb: "dev", Go: stack.Dev, About: stack.DevAbout},
 	{Verb: "down", Go: stack.Down, About: stack.DownAbout},
 	{Verb: "stop", Go: stack.Stop, About: stack.StopAbout},
 	{Verb: "restart", Go: stack.Restart, About: stack.RestartAbout},
@@ -93,10 +93,11 @@ var subs = map[string]string{
 	"seed":      "[--channel <id>] [--seed N] [--days N] [--customers N] [--events 10m] | --purge",
 	"pnpm":      "<app|package> <pnpm args> | --lockfile",
 	"npm":       "<app|package> <pnpm args> | --lockfile",
-	"add":       "channel <name> [--template <template> | --from <storefront>] [--tracked] [--workspace]",
-	"new":       "channel <name> [--template <template> | --from <storefront>] [--tracked] [--workspace]",
+	"add":       "channel <name> [--template <template> | --from <storefront>] [--workspace]",
+	"new":       "channel <name> [--template <template> | --from <storefront>] [--workspace]",
 	"rm":        "channel <name> [-y] [--volumes]",
 	"changelog": "(preview) | check | release <version> [date]",
+	"release":   "core|signals... [--tag T]",
 }
 
 // Routes is the table, for the tests that hold it together

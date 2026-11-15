@@ -135,11 +135,11 @@ func TestWebhooksNeverCarrySignInOrResetLinks(t *testing.T) {
 	runCtx, _ := json.Marshal(map[string]any{
 		signalsapi.PayloadResetLink: "https://shop/reset/secret", signalsapi.PayloadSignInLink: "https://shop/in/secret",
 		signalsapi.PayloadVerifyLink: "v", signalsapi.PayloadConfirmLink: "c", signalsapi.PayloadForgotLink: "f", signalsapi.PayloadOfferLink: "o",
-		signalsapi.PayloadProductName: "Tire",
+		signalsapi.PayloadProductName: "Jacket",
 	})
 	svc.execWebhook(context.Background(), Node{Data: NodeData{URL: srv.URL}}, FlowRun{FlowID: uuid.New(), Context: runCtx})
 	c, _ := got["context"].(map[string]any)
-	if c["product_name"] != "Tire" {
+	if c["product_name"] != "Jacket" {
 		t.Fatalf("webhook context = %v, want the ordinary keys kept", c)
 	}
 	for _, k := range linkPayloadKeys {

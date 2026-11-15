@@ -22,7 +22,7 @@ import { pendingPromo } from "@skelet/storefront-core/promo";
 import { secretEquals } from "@skelet/storefront-core/secret-equal";
 import { CHANNEL_HEADER, WARM_CHANNEL_HEADER, channelForHost, isChannelId } from "@skelet/storefront-core/channel";
 import { internalPath, isChannelTreePath, isLegacyMatched, isPagePath } from "@skelet/storefront-core/channel-routing";
-import { clientIP } from "@skelet/storefront-core/client-ip";
+import { clientIP, forwardedClient } from "@skelet/storefront-core/client-ip";
 import { getChannelLocales } from "@skelet/storefront-core/locale/backend-locales";
 import { clearRewriteMark, isOwnRewrite, markRewrite } from "@skelet/storefront-core/rewrite-mark";
 import { CONSENT_COOKIE, CONSENT_COOKIE_OPTS } from "@skelet/storefront-core/consent/cookie";
@@ -83,8 +83,7 @@ function reportPage(req: NextRequest, event: NextFetchEvent, channelId: string, 
 function postToBackend(req: NextRequest, event: NextFetchEvent, channelId: string, path: string, body: unknown) {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (channelId) headers["X-Channel-Id"] = channelId;
-  const forwardedFor = clientIP(req.headers);
-  if (forwardedFor) headers["X-Forwarded-For"] = forwardedFor;
+  Object.assign(headers, forwardedClient(req.headers));
   event.waitUntil(
     fetch(`${BACKEND_INTERNAL_URL}${path}`, {
       method: "POST",
@@ -115,8 +114,7 @@ async function maybeRefreshSession(req: NextRequest, channelId: string): Promise
   if (!isAccessTokenExpiringSoon(access)) return { kind: "noop" }; // still fresh
   try {
     const headers: Record<string, string> = { "Content-Type": "application/json", "X-Channel-Id": channelId };
-    const forwardedFor = clientIP(req.headers);
-    if (forwardedFor) headers["X-Forwarded-For"] = forwardedFor;
+    Object.assign(headers, forwardedClient(req.headers));
     const r = await fetch(FRONT_API_URL, {
       method: "POST",
       headers,

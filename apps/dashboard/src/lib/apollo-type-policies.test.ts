@@ -173,7 +173,7 @@ describe("a CMS page's content in the cache", () => {
   it("doesn't lend one locale's body to another", () => {
     const cache = new InMemoryCache({ typePolicies })
     cache.writeQuery({ query: EDITOR, data: page({ locale: 'en', title: 'About', body: { blocks: [] } }) })
-    cache.writeQuery({ query: LIST, data: page({ locale: 'sr', title: 'O nama' }) })
+    cache.writeQuery({ query: LIST, data: page({ locale: 'pl', title: 'O nas' }) })
     expect(read(cache)).toBeUndefined()
     cache.writeQuery({ query: LIST, data: page(null) })
     expect(cache.readQuery<{ cmsPage: { content: object | null } }>({ query: LIST })?.cmsPage.content).toBeNull()

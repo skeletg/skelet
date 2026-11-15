@@ -30,16 +30,15 @@ func templateCatalog(root string) catalog {
 	}}
 }
 
-// apps, shop, template, a refused name then eu-shop, Docker, working tree, target, suites, search, gateways, hardening, tools
-var firstRound = enter + enter + enter + storefronts.DefaultTemplate + enter + "\x15eu-shop" + enter + "y" + enter +
-	enter + enter + "n" + "2" + enter + enter + " " + enter
+var firstRound = enter + enter + enter + enter + storefronts.DefaultTemplate + enter + "\x15eu-shop" + enter + enter +
+	enter + "n" + "2" + enter + enter + " " + enter
 
 func TestDrawnInterview(t *testing.T) {
 	root := fixture(t)
 	var out strings.Builder
 	a, err := answer(root, templateCatalog(root), flags{}, profile.Profile{}, "p", drawn(firstRound, &out), &out)
 	want := answers{target: "dev", signals: true, search: "postgres", gateways: []string{"payment-stub"},
-		apps: []string{"dashboard", "eu-shop"}, dockerApps: []string{"dashboard", "eu-shop"}, tools: []string{"mailpit"},
+		apps: []string{"dashboard", "eu-shop"}, tools: []string{"mailpit"},
 		prune: true, removeDeselected: true, shop: "eu-shop", shopTemplate: storefronts.DefaultTemplate}
 	if err != nil || fmt.Sprint(a) != fmt.Sprint(want) {
 		t.Errorf("answers\n got %+v\nwant %+v\n%s", a, want, out.String())
@@ -53,7 +52,7 @@ func TestDrawnInterview(t *testing.T) {
 
 func TestReviewGoesRoundAgain(t *testing.T) {
 	root := fixture(t)
-	again := strings.Repeat(enter, 14)
+	again := strings.Repeat(enter, 13)
 	var out strings.Builder
 	first, _ := answer(root, templateCatalog(root), flags{}, profile.Profile{}, "p", drawn(firstRound, &out), &out)
 	a, ok, err := interview(root, templateCatalog(root), flags{}, profile.Profile{}, "p", drawn(firstRound+"e"+again+enter, &out), &out)

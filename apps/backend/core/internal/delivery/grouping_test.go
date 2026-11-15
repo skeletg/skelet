@@ -92,13 +92,13 @@ func TestPlanGroupsNothingInCommonSplitsWithoutAsking(t *testing.T) {
 func TestSplitShipmentsByOrigin(t *testing.T) {
 	w1, w2 := uuid.New(), uuid.New()
 	a, b, c := line("a"), line("b"), line("c")
-	origins := map[uuid.UUID]Origin{a.ID: {LocationID: &w1, Name: "Belgrade"}, b.ID: {LocationID: &w2, Name: "Novi Sad"}, c.ID: {LocationID: &w1, Name: "Belgrade"}}
+	origins := map[uuid.UUID]Origin{a.ID: {LocationID: &w1, Name: "Berlin"}, b.ID: {LocationID: &w2, Name: "Hamburg"}, c.ID: {LocationID: &w1, Name: "Berlin"}}
 	ships := SplitShipments([]Group{{Key: CombinedGroupKey, Lines: []Line{a, b, c}}}, origins)
 	if len(ships) != 2 {
 		t.Fatalf("shipments = %d, want 2", len(ships))
 	}
-	if len(ships[0].Lines) != 2 || ships[0].Origin.Name != "Belgrade" {
-		t.Fatalf("first shipment = %+v, want both Belgrade lines", ships[0])
+	if len(ships[0].Lines) != 2 || ships[0].Origin.Name != "Berlin" {
+		t.Fatalf("first shipment = %+v, want both Berlin lines", ships[0])
 	}
 }
 

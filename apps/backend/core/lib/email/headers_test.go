@@ -57,7 +57,7 @@ func TestCoreHeadersCannotBeInjectedAndAreEncoded(t *testing.T) {
 	raw := string(buildMIMEMessage(Message{
 		From:    "\"Shop\r\nBcc: victim@evil.test\" <a@shop.test>",
 		To:      "b@shop.test\r\nBcc: victim@evil.test",
-		Subject: "Porudžbina 1001\r\nBcc: victim@evil.test",
+		Subject: "Bestätigung 1001\r\nBcc: victim@evil.test",
 	}))
 	head, _, _ := strings.Cut(raw, "\r\n\r\n")
 	if strings.Contains(head, "\r\nBcc:") {
@@ -112,7 +112,7 @@ func TestFromHeader(t *testing.T) {
 		{"", "", FallbackFromAddress},
 		{"  ", "hi@shop.test", "hi@shop.test"},
 		{"Shop, Inc", "hi@shop.test", `"Shop, Inc" <hi@shop.test>`},
-		{"Prodavnica Čačak", "hi@shop.test", "=?utf-8?q?Prodavnica_=C4=8Ca=C4=8Dak?= <hi@shop.test>"},
+		{"Mode Müller", "hi@shop.test", "=?utf-8?q?Mode_M=C3=BCller?= <hi@shop.test>"},
 	} {
 		if got := FromHeader(tc.name, tc.addr); got != tc.want {
 			t.Errorf("FromHeader(%q, %q) = %q, want %q", tc.name, tc.addr, got, tc.want)

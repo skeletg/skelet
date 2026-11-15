@@ -43,7 +43,7 @@ var generated = []string{
 	"apps/backend/core/graph/front/generated.go",
 	"apps/backend/core/graph/front/model/",
 	"apps/backend/core/internal/remoteprovider/contract/",
-	"apps/dashboard/nginx.conf.template",
+	"apps/dashboard/headers.template",
 	"deploy/caddy/Caddyfile",
 	"docs/permissions.md",
 	"docs/webhooks.md",
@@ -132,7 +132,7 @@ func backend(root string) int {
 		{"docs reference tables", func() error { return goRun(root, "docsref") }},
 		// The browser tracking plan, from the registry Lens ingest enforces - in the Signals module, which core can't import
 		{"tracking plan", func() error { return goRunIn(root, "signals", "docsref") }},
-		// The nginx and Caddy copies of the CSP and Permissions-Policy, from lib/httpx/securityheaders.go
+		// The dashboard's and Caddy's copies of the CSP and Permissions-Policy, from lib/httpx/securityheaders.go
 		{"security headers", func() error { return goRun(root, "secheadgen") }},
 	}
 	for _, s := range steps {

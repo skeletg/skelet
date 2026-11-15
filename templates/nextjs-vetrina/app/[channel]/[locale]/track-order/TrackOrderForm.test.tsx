@@ -42,7 +42,7 @@ it("shows the not-found message and keeps what was typed", async () => {
   renderWithIntl(<TrackOrderForm />);
   await user.type(screen.getByLabelText("Order number"), "ORD-999999");
   await user.type(screen.getByLabelText("Email"), "a@example.com");
-  await user.type(screen.getByLabelText("Postcode"), "11000");
+  await user.type(screen.getByLabelText("Postcode"), "10115");
   await user.click(screen.getByRole("button", { name: "Find my order" }));
   expect(await screen.findByText(/We couldn't find an order with those details/)).toBeInTheDocument();
   expect(screen.getByLabelText("Order number")).toHaveValue("ORD-999999");

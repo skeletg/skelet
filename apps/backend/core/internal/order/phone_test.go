@@ -9,11 +9,11 @@ import (
 )
 
 func TestResolveAddressNormalizesInlineAndSavedPhones(t *testing.T) {
-	raw := "064 123 4567"
-	rules := phone.Rules{Default: "RS", Allowed: []string{"RS"}}
-	inline := OrderAddress{Street1: "Street", City: "City", PostalCode: "11000", CountryCode: "DE", Phone: &raw}
+	raw := "01512 3456789"
+	rules := phone.Rules{Default: "DE", Allowed: []string{"DE"}}
+	inline := OrderAddress{Street1: "Street", City: "City", PostalCode: "75001", CountryCode: "FR", Phone: &raw}
 	id := uuid.New()
-	c := customer.Customer{Addresses: []customer.Address{{ID: id, CountryCode: "DE", Phone: &raw}}}
+	c := customer.Customer{Addresses: []customer.Address{{ID: id, CountryCode: "FR", Phone: &raw}}}
 	for _, saved := range []bool{false, true} {
 		var a OrderAddress
 		var err error
@@ -22,14 +22,14 @@ func TestResolveAddressNormalizesInlineAndSavedPhones(t *testing.T) {
 		} else {
 			a, err = resolveAddress(rules, &inline, nil, false, c, "billing", false)
 		}
-		if err != nil || a.Phone == nil || *a.Phone != "+381641234567" {
+		if err != nil || a.Phone == nil || *a.Phone != "+4915123456789" {
 			t.Fatalf("saved=%v: phone=%v, error=%v", saved, a.Phone, err)
 		}
 	}
-	if raw != "064 123 4567" {
+	if raw != "01512 3456789" {
 		t.Fatal("mutated caller's phone")
 	}
-	foreign := "+4915123456789"
+	foreign := "+33612345678"
 	inline.Phone = &foreign
 	if _, err := resolveAddress(rules, &inline, nil, false, c, "billing", false); !errors.Is(err, phone.ErrCountryNotAllowed) {
 		t.Fatalf("error = %v, want disallowed country", err)

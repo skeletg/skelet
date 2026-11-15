@@ -29,11 +29,8 @@ var pins = []pin{
 	{"clickhouse", `clickhouse/clickhouse-server:[0-9][0-9.]*`, func(f fileSet) []string { return cat(f.compose, f.workflows) }},
 	{"dbmate", `amacneil/dbmate/v2@v[0-9][0-9.]*`, func(f fileSet) []string { return cat(f.compose, f.workflows, f.dockerfiles) }},
 	{"golangci", `golangci-lint@v[0-9][0-9.]*`, func(f fileSet) []string { return cat(f.workflows, []string{"cmd/skelet/internal/lint/lint.go"}) }},
-	{"node", nodePattern, func(f fileSet) []string { return cat(f.workflows, f.dockerfiles) }},
 	{"alpine", `alpine3?[:.][0-9][0-9.]*`, func(fileSet) []string { return []string{"apps/backend/core/Dockerfile.prod"} }},
 	{"caddy", `caddy:[0-9][0-9.]*`, func(f fileSet) []string { return f.compose }},
-	// packageManager plus the images' npm install -g - an image on another pnpm than the host resolves under other
-	// defaults and writes a lockfile the host then rewrites
 	{"pnpm", `pnpm@[0-9][0-9.]*`, func(f fileSet) []string { return cat(f.packageJSONs, f.dockerfiles) }},
 }
 
@@ -69,7 +66,7 @@ func pinCheck(root string, out io.Writer) int {
 	if v := versionsOf(root, nodePattern, cat(files.workflows, files.dockerfiles)); len(v) > 0 {
 		nodePin = v[0]
 	}
-	if nvmrc == nodePin {
+	if nvmrc == nodePin || (nodePin == "" && nvmrc != "") {
 		r.pass("%-16s %s", ".nvmrc", nvmrc)
 	} else {
 		r.bad("%-16s .nvmrc says %s, the images and workflows say %s", ".nvmrc", nvmrc, nodePin)
@@ -137,7 +134,8 @@ func collect(root string) fileSet {
 	}
 	slices.Sort(f.dockerfiles)
 	slices.Sort(f.packageJSONs)
-	f.compose = []string{"docker-compose.yml", "docker-compose.small.yml", "docker-compose.prod.yml"}
+	f.compose = []string{"docker-compose.yml", "docker-compose.small.yml", "docker-compose.prod.yml",
+		"apps/backend/core/compose.yaml", "apps/backend/signals/compose.yaml"}
 	f.workflows, _ = filepath.Glob(filepath.Join(root, ".github", "workflows", "*.yml"))
 	for i, w := range f.workflows {
 		f.workflows[i], _ = filepath.Rel(root, w)

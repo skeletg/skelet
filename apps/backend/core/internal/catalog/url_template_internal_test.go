@@ -235,7 +235,7 @@ func TestSlugify(t *testing.T) {
 	for in, want := range map[string]string{
 		"Navy Blue":                      "navy-blue",
 		"  Rough  Cut ":                  "rough-cut",
-		"205/55 R16":                     "205-55-r16",
+		"Jeans 32/34":                    "jeans-32-34",
 		"--edge--":                       "edge",
 		"???":                            "",
 		"\u00e9clair":                    "clair",

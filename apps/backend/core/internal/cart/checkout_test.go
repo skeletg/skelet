@@ -13,7 +13,7 @@ import (
 func TestMergeCheckoutGuestWins(t *testing.T) {
 	savedID := uuid.New()
 	customer := Checkout{
-		ShippingAddress:       &Address{City: "Belgrade", CountryCode: "RS"},
+		ShippingAddress:       &Address{City: "Berlin", CountryCode: "DE"},
 		ShippingAddressID:     &savedID,
 		BillingSameAsShipping: true,
 		ShippingCarrierSlug:   "builtin",
@@ -27,17 +27,17 @@ func TestMergeCheckoutGuestWins(t *testing.T) {
 
 	t.Run("guest selections replace the customer's", func(t *testing.T) {
 		guest := Checkout{
-			ShippingAddress:       &Address{City: "Novi Sad", CountryCode: "RS"},
+			ShippingAddress:       &Address{City: "Hamburg", CountryCode: "DE"},
 			BillingSameAsShipping: false,
-			BillingAddress:        &Address{City: "Nis", CountryCode: "RS"},
+			BillingAddress:        &Address{City: "Munich", CountryCode: "DE"},
 			ShippingCarrierSlug:   "pickup",
 			ShippingMethodCode:    "loc-center",
 			GiftCardCodes:         []string{"GC-B", "GC-C"},
-			Destination:           Destination{CountryCode: "RS", PostalCode: "21000"},
-			ContactPhone:          "+381 64 000",
+			Destination:           Destination{CountryCode: "DE", PostalCode: "20095"},
+			ContactPhone:          "+49 151 000",
 			PurchaseType:          PurchaseBusiness,
 			Company:               "Acme",
-			BusinessIDs:           map[string]string{"pib": "RS1"},
+			BusinessIDs:           map[string]string{"ust_idnr": "DE1"},
 			PickupContact:         &PickupContact{FirstName: "Ana", LastName: "B"},
 			Deliveries:            map[string]DeliverySelection{"all": {CarrierSlug: "courier", MethodCode: "express"}},
 			SplitDelivery:         true,
@@ -49,10 +49,10 @@ func TestMergeCheckoutGuestWins(t *testing.T) {
 		if customer.Deliveries["all"].MethodCode != "standard" {
 			t.Fatal("merging wrote into the customer's own deliveries")
 		}
-		if got.ShippingAddress.City != "Novi Sad" || got.ShippingAddressID != nil {
+		if got.ShippingAddress.City != "Hamburg" || got.ShippingAddressID != nil {
 			t.Fatalf("shipping: got %+v id=%v, want the guest's typed-in address", got.ShippingAddress, got.ShippingAddressID)
 		}
-		if got.BillingSameAsShipping || got.BillingAddress == nil || got.BillingAddress.City != "Nis" {
+		if got.BillingSameAsShipping || got.BillingAddress == nil || got.BillingAddress.City != "Munich" {
 			t.Fatalf("billing: got same=%v %+v, want the guest's", got.BillingSameAsShipping, got.BillingAddress)
 		}
 		if got.ShippingCarrierSlug != "pickup" || got.ShippingMethodCode != "loc-center" {
@@ -61,7 +61,7 @@ func TestMergeCheckoutGuestWins(t *testing.T) {
 		if got.PaymentProviderSlug != "cod" || got.PONumber != "PO-1" || !got.UseStoreCredit {
 			t.Fatalf("fields the guest left empty should keep the customer's: %+v", got)
 		}
-		if got.Destination.PostalCode != "21000" || got.ContactPhone == "" || got.PurchaseType != PurchaseBusiness || got.BusinessIDs["pib"] != "RS1" || got.PickupContact == nil {
+		if got.Destination.PostalCode != "20095" || got.ContactPhone == "" || got.PurchaseType != PurchaseBusiness || got.BusinessIDs["ust_idnr"] != "DE1" || got.PickupContact == nil {
 			t.Fatalf("destination and details should travel with the guest: %+v", got)
 		}
 		if want := []string{"GC-B", "GC-C", "GC-A"}; !slices.Equal(got.GiftCardCodes, want) {
@@ -80,7 +80,7 @@ func TestMergeCheckoutGuestWins(t *testing.T) {
 func TestMergeGuestCartCarriesCheckout(t *testing.T) {
 	customerID, channelID, guestID, destID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
 	guest := Cart{ID: guestID, ChannelID: channelID, Status: "active", Email: "guest@example.test", Checkout: Checkout{
-		ShippingAddress: &Address{City: "Novi Sad", CountryCode: "RS"}, BillingSameAsShipping: true,
+		ShippingAddress: &Address{City: "Hamburg", CountryCode: "DE"}, BillingSameAsShipping: true,
 	}}
 	dest := Cart{ID: destID, CustomerID: &customerID, ChannelID: channelID, Status: "active", Checkout: Checkout{PaymentProviderSlug: "cod"}}
 	repo := &mergeRepo{
@@ -96,7 +96,7 @@ func TestMergeGuestCartCarriesCheckout(t *testing.T) {
 	if !ok {
 		t.Fatal("checkout was not written to the customer cart")
 	}
-	if got.ShippingAddress == nil || got.ShippingAddress.City != "Novi Sad" || got.PaymentProviderSlug != "cod" {
+	if got.ShippingAddress == nil || got.ShippingAddress.City != "Hamburg" || got.PaymentProviderSlug != "cod" {
 		t.Fatalf("got %+v", got)
 	}
 	if repo.emails[destID] != "guest@example.test" {

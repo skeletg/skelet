@@ -26,7 +26,7 @@ func TestCurrentReadsTheClonesEnv(t *testing.T) {
 	root := t.TempDir()
 	writeFiles(t, root, map[string]string{".env": "SESSION_KEY=x\nSKELET_TARGET=dev\nSKELET_APPS=dashboard,shop\nCOMPOSE_PROFILES=search,dashboard,shop,mailpit,signals\n"})
 	p := Current(root)
-	for k, want := range map[string]string{TargetKey: "dev", AppsKey: "dashboard,shop", DockerKey: "dashboard,shop", ToolsKey: "mailpit"} {
+	for k, want := range map[string]string{TargetKey: "dev", AppsKey: "dashboard,shop", ToolsKey: "mailpit"} {
 		if p[k] != want {
 			t.Errorf("%s = %q, want %q", k, p[k], want)
 		}
@@ -38,19 +38,11 @@ func TestCurrentReadsTheClonesEnv(t *testing.T) {
 	}
 }
 
-func TestCurrentKeepsInfraOutOfTheApps(t *testing.T) {
-	root := t.TempDir()
-	writeFiles(t, root, map[string]string{".env": "COMPOSE_PROFILES=bundled,edge,nextjs-vetrina,queue\n"})
-	if p := Current(root); p[DockerKey] != "nextjs-vetrina" || p[ToolsKey] != "" {
-		t.Errorf("got docker %q tools %q", p[DockerKey], p[ToolsKey])
-	}
-}
-
 func TestDevProfilesStartWhatSkeletUpWould(t *testing.T) {
-	if got := DevProfiles([]string{"dashboard"}, []string{"mailpit"}, true); got != "search,dashboard,mailpit,signals" {
+	if got := DevProfiles([]string{"mailpit"}, true); got != "search,mailpit,signals" {
 		t.Errorf("got %q", got)
 	}
-	if got := DevProfiles(nil, nil, false); got != "search" {
+	if got := DevProfiles(nil, false); got != "search" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -68,7 +60,7 @@ func TestMigrateMovesTheRootFilesIntoEnv(t *testing.T) {
 		t.Fatalf("moved=%v err=%v", moved, err)
 	}
 	raw, _ := os.ReadFile(EnvPath(root))
-	for _, want := range []string{"SESSION_KEY=keep-me", "SKELET_TARGET=dev", "SKELET_APPS=dashboard,vetrina", "COMPOSE_PROFILES=search,dashboard,vetrina,mailpit,signals"} {
+	for _, want := range []string{"SESSION_KEY=keep-me", "SKELET_TARGET=dev", "SKELET_APPS=dashboard,vetrina", "COMPOSE_PROFILES=search,mailpit,signals"} {
 		if !strings.Contains(string(raw), want+"\n") {
 			t.Errorf(".env should have %s:\n%s", want, raw)
 		}
@@ -92,7 +84,7 @@ func TestMigrateLeavesWhatEnvAlreadySays(t *testing.T) {
 	if _, err := Migrate(server); err != nil {
 		t.Fatal(err)
 	}
-	if p := Current(server); p[TargetKey] != "prod" || p[DockerKey] != "shop" {
+	if p := Current(server); p[TargetKey] != "server" {
 		t.Errorf("server: %v", p)
 	}
 	newer := t.TempDir()
@@ -100,7 +92,7 @@ func TestMigrateLeavesWhatEnvAlreadySays(t *testing.T) {
 	if _, err := Migrate(newer); err != nil {
 		t.Fatal(err)
 	}
-	if p := Current(newer); p[TargetKey] != "small" || p[DockerKey] != "" {
+	if p := Current(newer); p[TargetKey] != "small" {
 		t.Errorf("a newer .env should win: %v", p)
 	}
 	if _, err := os.Stat(filepath.Join(newer, ".skelet-apps")); err == nil {

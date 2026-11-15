@@ -35,7 +35,7 @@ type Sender interface {
 // The sender when no channel configured one - a dev default, which a real mail provider will refuse to send from
 const FallbackFromAddress = "no-reply@skelet.local"
 
-// One From header from a display name and an address - net/mail quotes or encodes the name as it needs, so "Shop, Inc" stays one mailbox and "Prodavnica Čačak" survives, where concatenating them read as two addresses
+// One From header from a display name and an address - net/mail quotes or encodes the name as it needs, so "Shop, Inc" stays one mailbox and "Mode Müller" survives, where concatenating them read as two addresses
 // SenderHeader is a store's From line - its configured sender name, else the store's own name, since an empty From is refused by every relay
 func SenderHeader(senderName, storeName, addr string) string {
 	if strings.TrimSpace(senderName) == "" {

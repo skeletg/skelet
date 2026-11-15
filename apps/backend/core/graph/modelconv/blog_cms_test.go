@@ -78,10 +78,10 @@ func TestBlogPostModelHandlesTheOptionals(t *testing.T) { // a draft has no publ
 	pub := now.Add(-time.Hour)
 	mins := int32(4)
 	full := BlogPostModel(blog.Post{
-		ID: uuid.New(), Slug: "tires-101", Status: blog.PostStatusPublished,
+		ID: uuid.New(), Slug: "denim-101", Status: blog.PostStatusPublished,
 		PublishedAt: &pub, ReadingTimeMinutes: &mins,
 		Author:  &blog.Author{ID: uuid.New(), Slug: "ana", DisplayName: "Ana"},
-		Content: &blog.PostContent{Locale: "en", Title: "Tires 101", Body: json.RawMessage(`{"blocks":[]}`)},
+		Content: &blog.PostContent{Locale: "en", Title: "Denim 101", Body: json.RawMessage(`{"blocks":[]}`)},
 	})
 	if full.PublishedAt == nil || !full.PublishedAt.Equal(pub) {
 		t.Errorf("PublishedAt = %v, want %s", full.PublishedAt, pub)
@@ -89,7 +89,7 @@ func TestBlogPostModelHandlesTheOptionals(t *testing.T) { // a draft has no publ
 	if full.Author == nil || full.Author.DisplayName != "Ana" {
 		t.Errorf("Author = %+v, want Ana", full.Author)
 	}
-	if full.Content == nil || full.Content.Title != "Tires 101" {
+	if full.Content == nil || full.Content.Title != "Denim 101" {
 		t.Errorf("Content = %+v, want the resolved locale content", full.Content)
 	}
 	if full.ReadingTimeMinutes == nil || *full.ReadingTimeMinutes != 4 {

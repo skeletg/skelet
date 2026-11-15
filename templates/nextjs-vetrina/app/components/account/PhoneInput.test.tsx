@@ -15,18 +15,18 @@ describe("phone Field", () => {
   });
 
   it("names the country's calling code while empty", () => {
-    renderWithIntl(<Field label="Phone" name="phone" type="tel" phoneCountry="RS" />);
-    expect(screen.getByLabelText("Phone")).toHaveAttribute("placeholder", "+381");
+    renderWithIntl(<Field label="Phone" name="phone" type="tel" phoneCountry="DE" />);
+    expect(screen.getByLabelText("Phone")).toHaveAttribute("placeholder", "+49");
   });
 
   it("shows a stored number in its international form", () => {
-    renderWithIntl(<Field label="Phone" name="phone" type="tel" phoneCountry="RS" defaultValue="+381641234567" />);
-    expect(screen.getByLabelText("Phone")).toHaveValue("+381 64 1234567");
+    renderWithIntl(<Field label="Phone" name="phone" type="tel" phoneCountry="DE" defaultValue="+4915123456789" />);
+    expect(screen.getByLabelText("Phone")).toHaveValue("+49 1512 3456789");
   });
 
   it("keeps a number from another country in its international form", () => {
-    renderWithIntl(<Field label="Phone" name="phone" type="tel" phoneCountry="US" defaultValue="+381641234567" />);
-    expect(screen.getByLabelText("Phone")).toHaveValue("+381 64 1234567");
+    renderWithIntl(<Field label="Phone" name="phone" type="tel" phoneCountry="US" defaultValue="+4915123456789" />);
+    expect(screen.getByLabelText("Phone")).toHaveValue("+49 1512 3456789");
   });
 
   // Reformatting a deletion would put back the bracket or space just removed

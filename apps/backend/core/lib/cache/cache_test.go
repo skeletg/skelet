@@ -116,9 +116,9 @@ func TestRoundTripKeepsTheValueAndTheTTL(t *testing.T) {
 	suffix := "k-" + t.Name()
 	t.Cleanup(func() { c.Del(ctx, suffix) })
 
-	c.SetJSON(ctx, suffix, cached{Name: "tyre"}, 90*time.Second)
+	c.SetJSON(ctx, suffix, cached{Name: "jacket"}, 90*time.Second)
 	got, ok := GetJSON[cached](ctx, c, suffix)
-	if !ok || got.Name != "tyre" {
+	if !ok || got.Name != "jacket" {
 		t.Fatalf("read back (%+v, %v), want the stored value", got, ok)
 	}
 	ttl, err := client.PTTL(ctx, c.resolvedKey(ctx, "", suffix)).Result()
@@ -328,7 +328,7 @@ func TestRawValuesComeBackByteForByte(t *testing.T) {
 	suffix := "k-" + t.Name()
 	t.Cleanup(func() { c.Del(ctx, suffix) })
 
-	want := []byte("{\"data\":{\"html\":\"<p>Fish & chips</p>\",\"name\":\"Bridgestone Ñ\"}} \n")
+	want := []byte("{\"data\":{\"html\":\"<p>Fish & chips</p>\",\"name\":\"Señora Ñ\"}} \n")
 	c.SetRaw(ctx, suffix, want, 90*time.Second)
 	got, ok := c.GetRaw(ctx, suffix)
 	if !ok || string(got) != string(want) {

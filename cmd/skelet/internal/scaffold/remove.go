@@ -16,6 +16,7 @@ import (
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/compose"
 	"github.com/skeletg/skelet/cmd/skelet/internal/envfile"
+	"github.com/skeletg/skelet/cmd/skelet/internal/node"
 	"github.com/skeletg/skelet/cmd/skelet/internal/pnpm"
 	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
@@ -102,6 +103,9 @@ func remove(root, name string, force, dropVolumes bool) int {
 		if _, err := os.Stat(filepath.Join(root, "env", f)); err == nil {
 			envFiles = append(envFiles, filepath.Join("env", f))
 		}
+	}
+	if site := filepath.Join("deploy", "caddy", "sites", name+".caddy"); fileThere(filepath.Join(root, site)) {
+		envFiles = append(envFiles, site)
 	}
 	volumes := ownVolumes(name)
 	port := devPortOf(root, name)
@@ -239,6 +243,11 @@ func remove(root, name string, force, dropVolumes bool) int {
 	return 0
 }
 
+func fileThere(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
 func failed(err error) int {
 	fmt.Fprintln(os.Stderr, "skelet rm:", err)
 	return 1
@@ -355,14 +364,11 @@ func deselect(root, name string) error {
 }
 
 func devPortOf(root, service string) string {
-	for _, f := range []string{overrideFile, devFile} {
-		for _, l := range block(read(root, f), service) {
-			if m := devPort.FindString(l); m != "" {
-				return strings.TrimSuffix(strings.Trim(m, `"`), ":3000")
-			}
-		}
+	s, ok := storefronts.Find(root, service)
+	if !ok {
+		return ""
 	}
-	return ""
+	return node.DevPort([]byte(read(root, s.Dir+"/package.json")), "")
 }
 
 // repointPreview keeps the dashboard's previews off the port a removed storefront was on, where add channel may have

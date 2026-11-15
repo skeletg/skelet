@@ -105,7 +105,7 @@ func TestTheMerchantFeedPagesPricesAndCaches(t *testing.T) {
 	r.exec(`UPDATE catalog_products SET special_price = 500 WHERE id = $1`, ids[0])
 	r.exec(`UPDATE catalog_product_channel_listings SET special_price = 300 WHERE product_id = $1`, ids[0])
 	r.exec(`INSERT INTO inventory_items (product_id, tracked, backorderable) VALUES ($1, TRUE, FALSE), ($2, TRUE, TRUE)`, ids[0], ids[2])
-	long := strings.Repeat("ž", merchantFeedDescriptionMaxRunes+10)
+	long := strings.Repeat("ü", merchantFeedDescriptionMaxRunes+10)
 	r.exec(`INSERT INTO catalog_product_content (product_id, locale, name, meta_description) VALUES ($1, 'en', 'Alpha', $2)`, ids[0], long)
 
 	feed := NewMerchantFeed(db.New(r.conn), nil, fakeSalable{ids[0]: 0, ids[1]: -1, ids[2]: 0}, nil)
@@ -129,7 +129,7 @@ func TestTheMerchantFeedPagesPricesAndCaches(t *testing.T) {
 	if !strings.Contains(a, "out_of_stock") {
 		t.Errorf("a tracked product with nothing salable must be out of stock:\n%s", a)
 	}
-	if !strings.Contains(a, strings.Repeat("ž", merchantFeedDescriptionMaxRunes)+"</description>") || strings.Contains(a, "\uFFFD") {
+	if !strings.Contains(a, strings.Repeat("ü", merchantFeedDescriptionMaxRunes)+"</description>") || strings.Contains(a, "\uFFFD") {
 		t.Errorf("the description must cut at %d characters, whole", merchantFeedDescriptionMaxRunes)
 	}
 	if b := feedItem(t, out, skus[1]+"-"+r.sfx); !strings.Contains(b, "in_stock") || !strings.Contains(b, "<g:price>9.00 USD</g:price>") {
@@ -227,7 +227,7 @@ func TestTruncateRunesNeverSplitsACharacter(t *testing.T) {
 		want string
 	}{
 		{"short", 10, "short"},
-		{"žžžž", 2, "žž"},
+		{"üüüü", 2, "üü"},
 		{"a€b", 2, "a€"},
 		{"", 3, ""},
 	} {

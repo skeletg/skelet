@@ -26,8 +26,8 @@ describe("normalizeBrowseVars", () => {
 
   it("leaves real values alone", () => {
     const attrs = [{ slug: "color", values: ["red"] }];
-    expect(normalizeBrowseVars({ query: "tyre", sort: "price_asc", filter: { attributes: attrs } })).toEqual({
-      query: "tyre",
+    expect(normalizeBrowseVars({ query: "jacket", sort: "price_asc", filter: { attributes: attrs } })).toEqual({
+      query: "jacket",
       sort: "price_asc",
       filter: { attributes: attrs },
     });

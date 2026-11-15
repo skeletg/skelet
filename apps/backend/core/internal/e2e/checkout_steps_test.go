@@ -341,10 +341,10 @@ func TestCheckoutAddressPhoneIsReadInItsCountry(t *testing.T) {
 		return strings.Replace(usAddress, `countryCode: "us"`, fmt.Sprintf(`countryCode: "us", phone: %q`, tel), 1)
 	}
 
-	// A Serbian mobile typed nationally isn't a US number
-	msg := h.gqlCheckoutRefused(t, ts, f, details(cartID, fmt.Sprintf(`email: %q, shippingAddress: %s, billingSameAsShipping: true`, email, withPhone("064 123 4567"))))
+	// A German mobile typed nationally isn't a US number
+	msg := h.gqlCheckoutRefused(t, ts, f, details(cartID, fmt.Sprintf(`email: %q, shippingAddress: %s, billingSameAsShipping: true`, email, withPhone("01512 3456789"))))
 	if !strings.Contains(msg, "phone number is not valid") {
-		t.Errorf("a Serbian national number on a US address = %q", msg)
+		t.Errorf("a German national number on a US address = %q", msg)
 	}
 
 	co := h.gqlCheckout(t, ts, f, details(cartID, fmt.Sprintf(`email: %q, shippingAddress: %s, billingSameAsShipping: true`, email, withPhone("(212) 555-0123"))))

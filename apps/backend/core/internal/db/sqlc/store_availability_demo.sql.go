@@ -49,13 +49,13 @@ WITH fixture(sku, name, path, kind, price, step, decimals) AS (VALUES
  ON CONFLICT DO NOTHING
 ), stores AS (
  INSERT INTO inventory_locations(id,slug,name,is_active,storefront_visible,type,line1,city,postal_code,country_code,latitude,longitude,timezone,hours,phone)
- SELECT md5(s.slug)::uuid,s.slug,s.name,true,s.visible,CASE WHEN s.visible THEN 'retail' ELSE 'warehouse' END,s.address,s.city,s.postal,(SELECT code FROM countries WHERE code='RS'),s.lat,s.lng,'Europe/Belgrade',
+ SELECT md5(s.slug)::uuid,s.slug,s.name,true,s.visible,CASE WHEN s.visible THEN 'retail' ELSE 'warehouse' END,s.address,s.city,s.postal,(SELECT code FROM countries WHERE code='DE'),s.lat,s.lng,'Europe/Berlin',
  '{"monday":{"open":"09:00","close":"18:00"},"tuesday":{"open":"09:00","close":"18:00"},"wednesday":{"open":"09:00","close":"18:00"},"thursday":{"open":"09:00","close":"18:00"},"friday":{"open":"09:00","close":"18:00"},"saturday":{"open":"10:00","close":"14:00"},"sunday":{"closed":true}}'::jsonb,''
  FROM (VALUES
- ('store-demo-belgrade','Demo · Belgrade Central','Knez Mihailova 1','Belgrade','11000',44.816,20.460,true),
- ('store-demo-novi-sad','Demo · Novi Sad','Zmaj Jovina 1','Novi Sad','21000',45.256,19.846,true),
- ('store-demo-nis','Demo · Niš','Obrenovićeva 1','Niš','18000',NULL,NULL,true),
- ('store-demo-private','Demo · Private warehouse','Warehouse road','Belgrade','11000',NULL,NULL,false)
+ ('store-demo-berlin','Demo · Berlin Central','Main Street 1','Berlin','10115',52.520,13.405,true),
+ ('store-demo-hamburg','Demo · Hamburg','Harbour Road 1','Hamburg','20095',53.551,9.993,true),
+ ('store-demo-munich','Demo · Munich','Market Square 1','Munich','80331',NULL,NULL,true),
+ ('store-demo-private','Demo · Private warehouse','Warehouse road','Berlin','10115',NULL,NULL,false)
  ) s(slug,name,address,city,postal,lat,lng,visible)
  ON CONFLICT (slug) DO UPDATE SET
   type = CASE WHEN EXCLUDED.slug='store-demo-private' THEN 'warehouse' ELSE inventory_locations.type END,
@@ -77,12 +77,12 @@ SELECT i.id,s.id,
  WHEN p.sku='STORE-DEMO-MUG' THEN 0
  WHEN p.sku='STORE-DEMO-SCARF' THEN 2
  WHEN p.sku='STORE-DEMO-FABRIC' THEN .25
- WHEN p.sku='STORE-DEMO-HOODIE-S' AND s.slug='store-demo-belgrade' THEN 8
- WHEN p.sku='STORE-DEMO-HOODIE-L' AND s.slug='store-demo-novi-sad' THEN 6
+ WHEN p.sku='STORE-DEMO-HOODIE-S' AND s.slug='store-demo-berlin' THEN 8
+ WHEN p.sku='STORE-DEMO-HOODIE-L' AND s.slug='store-demo-hamburg' THEN 6
  WHEN p.sku LIKE 'STORE-DEMO-HOODIE-%' THEN 0
- WHEN s.slug='store-demo-belgrade' THEN 12 ELSE 4 END
+ WHEN s.slug='store-demo-berlin' THEN 12 ELSE 4 END
 FROM items i JOIN products p ON p.id=i.product_id CROSS JOIN stores s
-WHERE NOT (p.sku='STORE-DEMO-BACKPACK' AND s.slug='store-demo-nis')
+WHERE NOT (p.sku='STORE-DEMO-BACKPACK' AND s.slug='store-demo-munich')
 ON CONFLICT (inventory_item_id,location_id) DO NOTHING
 `
 

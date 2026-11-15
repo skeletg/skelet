@@ -26,7 +26,7 @@ func TestMoney(t *testing.T) {
 
 func TestRenderOrderConfirmation(t *testing.T) {
 	subject, html, text, err := RenderOrderConfirmation(OrderConfirmationData{
-		StoreName:   "Wheel Store",
+		StoreName:   "Apparel Store",
 		OrderNumber: "ORD-001",
 		FirstName:   "Jane",
 		Currency:    "USD",

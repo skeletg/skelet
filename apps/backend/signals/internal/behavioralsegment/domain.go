@@ -79,7 +79,7 @@ func (t *Trait) Rule() analytics.TraitRule {
 	}
 }
 
-// A catalog attribute slug = value, e.g. tire-size = 205/55R16
+// A catalog attribute slug = value, e.g. shoe-size = 44
 type Affinity struct {
 	Attr  string `json:"attr"`
 	Value string `json:"value"`

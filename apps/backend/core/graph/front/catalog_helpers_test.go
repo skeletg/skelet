@@ -65,7 +65,7 @@ func TestAllTrue(t *testing.T) {
 func TestProductCandidateFromModel(t *testing.T) {
 	catA, catB := uuid.New(), uuid.New()
 	p := &model.Product{
-		Sku:  "TIRE-205",
+		Sku:  "TEE-BLK-M",
 		Kind: model.ProductKindSimple,
 		Categories: []*model.Category{
 			{ID: catA.String()},
@@ -86,8 +86,8 @@ func TestProductCandidateFromModel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("productCandidateFromModel: %v", err)
 	}
-	if got.ProductSKU != "TIRE-205" || got.Kind != "simple" {
-		t.Errorf("candidate = {%q %q}, want {TIRE-205 simple} - the engine compares lowercase kinds case-sensitively", got.ProductSKU, got.Kind)
+	if got.ProductSKU != "TEE-BLK-M" || got.Kind != "simple" {
+		t.Errorf("candidate = {%q %q}, want {TEE-BLK-M simple} - the engine compares lowercase kinds case-sensitively", got.ProductSKU, got.Kind)
 	}
 	if len(got.CategoryIDs) != 2 {
 		t.Errorf("categories = %v, want only the two parseable ids", got.CategoryIDs)

@@ -21,7 +21,7 @@ import { ChoiceIndicator, optionAnchorId, optionCardClass } from "./parts";
 export type Selection = Record<string, string | undefined>;
 
 // Past this many values the inline swatch grid stops being a picker and starts
-// being a wall - tyre sizes run to 150. Those get a trigger + searchable drawer
+// being a wall - a size chart can run to 150. Those get a trigger + searchable drawer
 const INLINE_VALUE_LIMIT = 15;
 
 // The list-mode equivalent, and a much lower bar: a LIST variant is a whole card - thumbnail, name,

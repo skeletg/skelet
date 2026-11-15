@@ -90,7 +90,7 @@ export function SearchMerchPage() {
           <>
             <DetailPageSection
               title="Synonyms"
-              description='Comma-separated equivalence groups, e.g. "tyre, tire, tires". A search for any term also matches the others - no reindex needed.'
+              description='Comma-separated equivalence groups, e.g. "jumper, sweater, sweaters". A search for any term also matches the others - no reindex needed.'
             >
               <div className="grid gap-2">
                 <RuleList
@@ -112,7 +112,7 @@ export function SearchMerchPage() {
                 >
                   <Input
                     required
-                    placeholder="tyre, tire, tires"
+                    placeholder="jumper, sweater, sweaters"
                     value={synTerms}
                     onChange={(e) => setSynTerms(e.target.value)}
                   />

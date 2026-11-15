@@ -22,3 +22,13 @@ describe('admin HTTP endpoints', () => {
     expect(m.ADMIN_MEDIA_FILE_ENDPOINT).toBe(`${base}/media/file`)
   })
 })
+
+describe('API origin', () => {
+  it.each([
+    [undefined, ''],
+    ['/api/admin/graphql', ''],
+    ['https://api.shop.test/api/admin/admin-65da2d161cb5786c/graphql', 'https://api.shop.test'],
+  ])('with the GraphQL endpoint at %s it is %j', async (graphqlUrl, origin) => {
+    expect((await endpoints(graphqlUrl)).API_ORIGIN).toBe(origin)
+  })
+})

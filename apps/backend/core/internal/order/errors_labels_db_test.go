@@ -103,7 +103,7 @@ func TestTheEstimateFailsWhereCheckoutWould(t *testing.T) {
 }
 
 func TestPolicyReasonsAreCapped(t *testing.T) {
-	long := strings.Repeat("ž", maxPolicyReasonRunes+50)
+	long := strings.Repeat("ü", maxPolicyReasonRunes+50)
 	got := capPolicyReason(long)
 	if utf8.RuneCountInString(got) != maxPolicyReasonRunes+1 || !utf8.ValidString(got) {
 		t.Fatalf("capped reason has %d runes", utf8.RuneCountInString(got))

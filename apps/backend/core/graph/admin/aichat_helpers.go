@@ -42,7 +42,7 @@ const signalsWidgetDSL = "RICH OUTPUT: when figures read better as a visual, emb
 	"widgets per reply. Available widgets:\n" +
 	"- Headline metrics: {\"type\":\"stat\",\"items\":[{\"label\":\"Page views\",\"value\":\"12,400\",\"delta\":\"+8% vs prev\",\"trend\":\"up\"}]} " +
 	"(trend is up|down|flat; value and delta are already-formatted strings)\n" +
-	"- A single record's fields (a product/order/customer's details): {\"type\":\"kv\",\"title\":\"P-Zero 344/55 R16\",\"items\":[{\"label\":\"SKU\",\"value\":\"PZERO-344\"},{\"label\":\"Default price\",\"value\":\"$99.00\"}]}\n" +
+	"- A single record's fields (a product/order/customer's details): {\"type\":\"kv\",\"title\":\"Classic Denim Jacket\",\"items\":[{\"label\":\"SKU\",\"value\":\"DNM-JKT-M\"},{\"label\":\"Default price\",\"value\":\"$99.00\"}]}\n" +
 	"- Rankings / comparisons: {\"type\":\"bar\",\"title\":\"Top pages\",\"data\":[{\"label\":\"/home\",\"value\":4200}],\"unit\":\"$\"} " +
 	"(value is a raw number; unit optional, e.g. \"$\"). Use bars for rankings - never pie charts.\n" +
 	"- Trends over time: {\"type\":\"line\",\"title\":\"Daily revenue\",\"series\":[{\"label\":\"Revenue\",\"data\":[{\"x\":\"Jun 1\",\"y\":1200}]}],\"unit\":\"$\"} " +

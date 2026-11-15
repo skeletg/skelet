@@ -16,7 +16,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
-// The PDF core fonts only cover Windows-1252, so Đorđe, Čačak or any Cyrillic name printed as mojibake - fpdf subsets these into each document
+// The PDF core fonts only cover Windows-1252, so Łukasz, Dvořák or any Cyrillic name printed as mojibake - fpdf subsets these into each document
 var (
 	//go:embed fonts/DejaVuSansCondensed.ttf
 	fontRegular []byte

@@ -75,6 +75,7 @@ func applyTrustedProxies(cfg Config) error { // honored only when the TCP peer i
 	if err := authpkg.SetTrustedProxies(strings.Split(cfg.TrustedProxies, ",")); err != nil {
 		return fmt.Errorf("TRUSTED_PROXIES: %w", err)
 	}
+	authpkg.SetTrustedProxyKeys(cfg.TrustedProxyKey, cfg.TrustedProxyKeyPrevious)
 	return nil
 }
 

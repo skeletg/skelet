@@ -281,7 +281,7 @@ func (v synapseVars) MergeVars(ctx context.Context, _ uuid.UUID, customerID uuid
 		m["customer.orders"] = fmt.Sprintf("%d", t.Frequency)
 		m["customer.ltv"] = fmt.Sprintf("%.2f", float64(t.MonetaryCents)/100)
 	}
-	// Attribute affinities become {{customer.affinity.<slug>}}, e.g. "your size, 205/55R16, is back in stock"
+	// Attribute affinities become {{customer.affinity.<slug>}}, e.g. "your size, 44, is back in stock"
 	if affs, err := v.rec.CustomerTopAffinities(ctx, customerID, daysAgo(affinityWindowDays)); err == nil {
 		for slug, val := range affs {
 			m["customer.affinity."+slug] = val

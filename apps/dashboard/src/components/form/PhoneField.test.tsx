@@ -30,9 +30,9 @@ describe('PhoneField', () => {
   })
 
   it('shows a stored number internationally without staging a change', () => {
-    render(<Harness phone="+381641234567" />)
-    expect(valueOf(screen.getByLabelText('Phone'))).toBe('+381 64 1234567')
-    expect(api.state.values.phone).toBe('+381641234567')
+    render(<Harness phone="+4915123456789" />)
+    expect(valueOf(screen.getByLabelText('Phone'))).toBe('+49 1512 3456789')
+    expect(api.state.values.phone).toBe('+4915123456789')
     expect(api.state.isDirty).toBe(false)
   })
 

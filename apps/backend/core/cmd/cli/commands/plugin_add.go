@@ -19,8 +19,8 @@ var pluginAddCmd = &cobra.Command{
 	Long: `Installs a plugin the way Go installs anything else: as a versioned module
 dependency. Nothing is copied into this repo.
 
-  skelet cli plugin add github.com/skeletg/lang-sr@v0.1.0
-  skelet cli plugin add github.com/skeletg/lang-sr            # latest
+  skelet cli plugin add github.com/acme/skelet-gift-wrap@v0.1.0
+  skelet cli plugin add github.com/acme/skelet-gift-wrap            # latest
 
 A plugin with no published module is written in plugins/<slug>/ instead, by
 plugin new. Those two are the only layouts - there is no replace-to-a-checkout

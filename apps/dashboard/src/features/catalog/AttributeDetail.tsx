@@ -321,7 +321,7 @@ function SettingsFields({ form, attribute, canManage }: { form: SettingsForm; at
           'synapseTrack',
           's-synapse-track',
           'Track in Synapse',
-          "Record this attribute's values as a customer affinity when they filter by it or view products that carry it (e.g. tire size → 'they likely need this size'). Targetable from Segments.",
+          "Record this attribute's values as a customer affinity when they filter by it or view products that carry it (e.g. shoe size → 'they likely need this size'). Targetable from Segments.",
         )}
         <form.Field name="autoSegment">
           {(f) => (
@@ -331,7 +331,7 @@ function SettingsFields({ form, attribute, canManage }: { form: SettingsForm; at
                   Auto-create segments
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  Automatically build one customer segment per popular value (e.g. 'Tire size: 205/55R16'), refreshed on a schedule and
+                  Automatically build one customer segment per popular value (e.g. 'Shoe size: 44'), refreshed on a schedule and
                   targetable by Pulse / promotions / Prism. Requires Track in Synapse.
                 </p>
               </div>

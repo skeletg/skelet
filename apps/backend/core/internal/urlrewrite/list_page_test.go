@@ -27,13 +27,13 @@ func TestListClampsAndTrims(t *testing.T) { // url_rewrites scales with catalog 
 	} {
 		repo := &fakeListRepo{}
 		s := &Service{repo: repo}
-		if _, _, err := s.List(context.Background(), ListFilter{Limit: tc.limit, Offset: tc.offset, Search: "  /tires  "}); err != nil {
+		if _, _, err := s.List(context.Background(), ListFilter{Limit: tc.limit, Offset: tc.offset, Search: "  /jackets  "}); err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
 		if repo.saw.Limit != tc.wantLimit || repo.saw.Offset != tc.wantOffset {
 			t.Errorf("%s: repo saw limit=%d offset=%d, want %d/%d", name, repo.saw.Limit, repo.saw.Offset, tc.wantLimit, tc.wantOffset)
 		}
-		if repo.saw.Search != "/tires" {
+		if repo.saw.Search != "/jackets" {
 			t.Errorf("%s: search = %q, want it trimmed", name, repo.saw.Search)
 		}
 	}

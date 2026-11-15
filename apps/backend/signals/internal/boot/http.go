@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"os"
 	"time"
 
 	"go.uber.org/fx"
 
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/ratelimit"
 	"github.com/skeletg/skelet/apps/backend/core/signalsapi"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
@@ -89,7 +89,7 @@ func mountCommerceFallback(mux *http.ServeMux) error {
 	if err != nil {
 		return fmt.Errorf("parse INGEST_FALLBACK_URL: %w", err)
 	}
-	proxy := httputil.NewSingleHostReverseProxy(target)
+	proxy := auth.Relay(target)
 	for _, p := range signalsapi.CommerceBeaconPaths {
 		mux.Handle(p, proxy)
 	}

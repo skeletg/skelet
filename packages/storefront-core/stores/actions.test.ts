@@ -27,10 +27,10 @@ beforeEach(() => {
 describe("findStoresAction", () => {
   it("asks the backend for one page with the parsed filters", async () => {
     readPublicStores.mockResolvedValue({ enabled: true });
-    const result = await findStoresAction(undefined, form({ city: "Belgrade", inStockOnly: "on", productId }));
-    expect(readPublicStores).toHaveBeenCalledWith({ city: "Belgrade", inStockOnly: true, productId, limit: 20 });
+    const result = await findStoresAction(undefined, form({ city: "Berlin", inStockOnly: "on", productId }));
+    expect(readPublicStores).toHaveBeenCalledWith({ city: "Berlin", inStockOnly: true, productId, limit: 20 });
     expect(result.stores).toEqual({ enabled: true });
-    expect(result.query).toEqual({ city: "Belgrade", inStockOnly: true, productId });
+    expect(result.query).toEqual({ city: "Berlin", inStockOnly: true, productId });
   });
   it("never reaches the backend with invalid input", async () => {
     const result = await findStoresAction(undefined, form({ productId: "nope" }));

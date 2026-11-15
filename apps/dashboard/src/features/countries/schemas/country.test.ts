@@ -57,8 +57,8 @@ describe('country schema', () => {
     const after = {
       ...before,
       businessIdFields: [
-        { key: '', label: 'PIB', required: true, pattern: '\\d{9}', hint: '9 digits' },
-        { key: 'mb', label: 'Matični broj', required: false, pattern: '', hint: '' },
+        { key: '', label: 'USt-IdNr.', required: true, pattern: 'DE\\d{9}', hint: 'DE and 9 digits' },
+        { key: 'bnr', label: 'Betriebsnummer', required: false, pattern: '', hint: '' },
       ],
     }
     expect(countrySchema.safeParse(after).success).toBe(true)
@@ -66,14 +66,14 @@ describe('country schema', () => {
       kind: 'change',
       label: 'Company ID fields',
       before: expect.anything(),
-      after: 'PIB (required, \\d{9}) - 9 digits; Matični broj (key mb)',
+      after: 'USt-IdNr. (required, DE\\d{9}) - DE and 9 digits; Betriebsnummer (key bnr)',
     })
     expect(toCountryInput(after).businessIdFields[0]).toEqual({
       key: null,
-      label: 'PIB',
+      label: 'USt-IdNr.',
       required: true,
-      pattern: '\\d{9}',
-      hint: '9 digits',
+      pattern: 'DE\\d{9}',
+      hint: 'DE and 9 digits',
     })
     const bad = { ...after, businessIdFields: [{ key: 'Bad Key', label: '', required: false, pattern: '(', hint: '' }] }
     const paths = countrySchema.safeParse(bad).error?.issues.map((i) => i.path.join('.'))

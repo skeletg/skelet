@@ -17,7 +17,7 @@ type Country {
   isActive:              Boolean!
   sortOrder:             Int!
   metadata:              [MetadataItem!]!
-  # The company identifiers a business purchase from this country asks for at checkout - Serbia's PIB and Matični broj, a VAT number elsewhere. Empty falls back to one generic tax ID, per sales/checkout/tax_id_field.
+  # The company identifiers a business purchase from this country asks for at checkout - a company registry number, a VAT number. Empty falls back to one generic tax ID, per sales/checkout/tax_id_field.
   businessIdFields:      [BusinessIdField!]!
   # ISO 3166-2 subdivisions (states/provinces) seeded for this country. Empty for countries that use free-text regions. Field resolver - only fetched when requested (e.g. the country detail page).
   regions:               [Region!]!

@@ -1,0 +1,219 @@
+# Signals on its own - cp .env.example .env, fill it in, docker compose up -d - docs/deploying.md
+name: skelet-signals
+
+# json-file is UNBOUNDED by default, so a long deployment fills the disk - 10 MB x 3 caps each service at ~30 MB, which
+# is also the retention - rotated lines are gone, so durable history means shipping them with your own infrastructure
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+# Each URL derives from the password its bundled container uses - set the URL outright in .env to point at a managed datastore
+x-datastores: &datastores
+  SIGNALS_DB_URL: ${SIGNALS_DB_URL-postgres://skelet:${SIGNALS_DB_PASSWORD:-}@pgbouncer-signals:6432/skelet_signals?sslmode=disable&default_query_exec_mode=exec}
+  SIGNALS_CH_URL: ${SIGNALS_CH_URL-clickhouse://skelet:${CLICKHOUSE_PASSWORD:-}@clickhouse:9000/signals}
+  # Profile-gated: empty unless the password is set, so `queue` stays off by default without a second switch
+  SIGNALS_QUEUE_URL: ${SIGNALS_QUEUE_URL-${NATS_PASSWORD:+nats://skelet:${NATS_PASSWORD:-}@nats:4222}}
+  VALKEY_CACHE_URL: ${VALKEY_CACHE_URL-${SIGNALS_VALKEY_PASSWORD:+redis://:${SIGNALS_VALKEY_PASSWORD:-}@signals-valkey:6379}}
+
+x-depends: &depends
+  pgbouncer-signals: { condition: service_healthy, required: false }
+  signals-db: { condition: service_healthy, required: false }
+  signals-valkey: { condition: service_healthy, required: false }
+  clickhouse: { condition: service_healthy, required: false }
+  nats: { condition: service_healthy, required: false }
+
+x-build: &build
+  context: ..
+  dockerfile: signals/Dockerfile.prod
+
+services:
+  signals:
+    image: ${SIGNALS_IMAGE:-skelet-signals:prod}
+    build: *build
+    env_file: [.env]
+    environment:
+      <<: *datastores
+      OTEL_SERVICE_NAME: skelet-signals
+    command: ["/app/signals"]
+    # Core reaches the contract on 8092 and /t and /e on 8090 - bind them where core can see them when it runs elsewhere
+    ports:
+      - "${SIGNALS_BIND:-127.0.0.1}:8090:8090"
+      - "${SIGNALS_BIND:-127.0.0.1}:8092:8092"
+    depends_on: *depends
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8090/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    # Same budget as worker, because this process does the same
+    # class of work - a retention prune is a heavy DELETE and won't finish inside 10s
+    stop_grace_period: 35s
+    deploy:
+      resources:
+        limits: { memory: 256m, cpus: "1" }
+    logging: *logging
+
+  # Web-ingest tier - the public /t surface (tracker beacons + SDK reads) as its own container, so a traffic spike saturates this and not checkout - the app keeps serving /t/* too: route /t/* here in your proxy to actually use it (forms/back-in-stock pass through to the app via INGEST_FALLBACK_URL) Stateless - scale replicas freely behind the proxy
+  ingest:
+    image: ${SIGNALS_IMAGE:-skelet-signals:prod}
+    build: *build
+    env_file: [.env]
+    environment:
+      <<: *datastores
+      OTEL_SERVICE_NAME: skelet-ingest
+      INGEST_FALLBACK_URL: ${INGEST_FALLBACK_URL:-http://app:8080}
+      # The internet-facing tier serves no contract and signs no links, so it gets the file without those keys
+      SIGNALS_SERVICE_SECRET: ""
+      SIGNALS_SERVICE_SECRET_PREVIOUS: ""
+      EMAIL_LINK_SECRET: ""
+      EMAIL_LINK_SECRET_PREVIOUS: ""
+      BACKUP_S3_ACCESS_KEY_ID: ""
+      BACKUP_S3_SECRET_ACCESS_KEY: ""
+    command: ["/app/ingest"]
+    ports: ["${SIGNALS_BIND:-127.0.0.1}:8091:8091"]
+    depends_on: *depends
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8091/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    # Stops the wiring for up to 10s and then flushes telemetry for 5 more, sequentially -
+    # cut short, an in-flight beacon batch is dropped and re-sent rather than landing
+    stop_grace_period: 20s
+    deploy:
+      resources:
+        limits: { memory: 512m, cpus: "2" }
+    logging: *logging
+
+  pgbouncer-signals:
+    profiles: ["bundled"]
+    image: edoburu/pgbouncer:v1.25.2-p0
+    environment:
+      DB_HOST: signals-db
+      DB_PORT: "5432"
+      DB_NAME: skelet_signals
+      DB_USER: skelet
+      DB_PASSWORD: ${SIGNALS_DB_PASSWORD:-}
+      POOL_MODE: transaction
+      AUTH_TYPE: scram-sha-256
+      # The image DEFAULTS to 5432 - without this every pooled DSN (@pgbouncer:6432)
+      # dials a port nothing listens on, found the hard way in the dry run
+      LISTEN_PORT: "6432"
+      MAX_CLIENT_CONN: "500"
+      DEFAULT_POOL_SIZE: "20"
+      MIN_POOL_SIZE: "5"
+      RESERVE_POOL_SIZE: "5"
+      IGNORE_STARTUP_PARAMETERS: extra_float_digits,options
+    depends_on:
+      signals-db: { condition: service_healthy, required: false }
+    healthcheck:
+      # pg_isready ships in the image and speaks the protocol - nc probed a port
+      # the image wasn't listening on and marked both poolers unhealthy forever
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 6432"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { memory: 128m, cpus: "1" }
+    logging: *logging
+
+  signals-db:
+    profiles: ["bundled"]
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: skelet
+      POSTGRES_PASSWORD: ${SIGNALS_DB_PASSWORD:-}
+      POSTGRES_DB: skelet_signals
+    entrypoint: ["sh", "-c", "test -n \"$$POSTGRES_PASSWORD\" || { echo 'set SIGNALS_DB_PASSWORD in .env' >&2; exit 1; }; exec docker-entrypoint.sh postgres"]
+    volumes:
+      - signals-db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { memory: 1g, cpus: "2" }
+    logging: *logging
+
+  signals-valkey:
+    profiles: ["valkey"]
+    image: valkey/valkey:9-alpine
+    environment:
+      VALKEY_PASSWORD: "${SIGNALS_VALKEY_PASSWORD:-}"
+    command: ["sh", "-c", "test -n \"$$VALKEY_PASSWORD\" || { echo 'set a strong SIGNALS_VALKEY_PASSWORD in .env' >&2; exit 1; }; exec valkey-server --maxmemory 64mb --maxmemory-policy allkeys-lru --requirepass \"$$VALKEY_PASSWORD\""]
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli -a \"$$VALKEY_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { memory: 96m, cpus: "0.25" }
+    logging: *logging
+
+  # Single-node reference: replicas need ENGINE=Replicated databases, and a GDPR erasure sweep needs SYSTEM RELOAD DICTIONARY signals.identity_map on every other node
+  clickhouse:
+    profiles: ["bundled"]
+    image: clickhouse/clickhouse-server:26.7.5
+    environment:
+      CLICKHOUSE_DB: signals
+      CLICKHOUSE_USER: skelet
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
+    entrypoint: ["sh", "-c", "test -n \"$$CLICKHOUSE_PASSWORD\" || { echo 'set CLICKHOUSE_PASSWORD in .env (openssl rand -hex 32)' >&2; exit 1; }; exec /entrypoint.sh"]
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    healthcheck:
+      # CMD-SHELL, not exec-form CMD - the creds are env vars and only a shell expands them ($$ escapes compose interpolation)
+      test: ["CMD-SHELL", "clickhouse-client --user=\"$$CLICKHOUSE_USER\" --password=\"$$CLICKHOUSE_PASSWORD\" --query='SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { memory: 4g, cpus: "4" }
+    logging: *logging
+
+  # Durable ingest queue between /t and the spine - an append is on disk before the request returns, and the signals worker is required with this on, since it runs the consumer
+  # Without it the stream accrues until its 24h MaxAge sheds it - transit, not a system of record, so there is no backup story
+  nats:
+    profiles: ["queue"]
+    image: nats:2.14-alpine
+    environment:
+      NATS_USER: skelet
+      NATS_PASSWORD: ${NATS_PASSWORD:-}
+    # Shell form so the server resolves its own credentials - the password check is here, not a `:?` above: compose interpolates EVERY
+    # service regardless of profile, so a required-marker there breaks `up` for everyone without the queue
+    command: ["sh", "-c", "test -n \"$$NATS_PASSWORD\" || { echo 'set NATS_PASSWORD in .env to run --profile queue' >&2; exit 1; }; exec nats-server -js -sd /data -m 8222 --user \"$$NATS_USER\" --pass \"$$NATS_PASSWORD\""]
+    volumes:
+      - nats-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { memory: 256m, cpus: "1" }
+    logging: *logging
+
+volumes:
+  signals-db-data:
+  clickhouse-data:
+  nats-data:

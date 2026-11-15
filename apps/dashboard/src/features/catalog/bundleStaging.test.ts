@@ -208,12 +208,12 @@ describe('commitOps', () => {
 })
 
 describe('a staged translation removal', () => {
-  const translated = option({ content: [{ locale: 'en', title: 'Size' }, { locale: 'sr', title: 'Veličina' }] })
-  const drop: PendingOp = { kind: 'delete-content', id: 'o1', locale: 'sr' }
+  const translated = option({ content: [{ locale: 'en', title: 'Size' }, { locale: 'pl', title: 'Rozmiar' }] })
+  const drop: PendingOp = { kind: 'delete-content', id: 'o1', locale: 'pl' }
 
   it('hides the locale until saved, and words the change', () => {
     expect(applyOps([translated], [drop])[0].content).toEqual([{ locale: 'en', title: 'Size' }])
-    expect(opsToDiff([translated], [drop])).toEqual([expect.objectContaining({ kind: 'remove', label: 'Option · Choose one · sr title' })])
+    expect(opsToDiff([translated], [drop])).toEqual([expect.objectContaining({ kind: 'remove', label: 'Option · Choose one · pl title' })])
   })
 
   it('is dropped when the option itself is deleted', () => {
@@ -228,7 +228,7 @@ describe('a staged translation removal', () => {
       addSelection: vi.fn(async () => ''), updateSelection: noop, deleteSelection: noop,
     }
     await commitOps([drop], 'p1', c)
-    expect(deleteOptionContent).toHaveBeenCalledWith({ optionId: 'o1', locale: 'sr' })
+    expect(deleteOptionContent).toHaveBeenCalledWith({ optionId: 'o1', locale: 'pl' })
   })
 })
 
@@ -261,7 +261,7 @@ describe('toStructureOps', () => {
     const ops = toStructureOps([
       { kind: 'add-option', tempId: 'tmp_1', title: 'Mug', inputType: 'RADIO', isRequired: true, sortOrder: 0, minSelections: 0, maxSelections: null, locale: 'en' },
       { kind: 'add-selection', tempId: 'tmp_2', optionRef: 'tmp_1', product, quantity: 2, isDefault: true, sortOrder: 0 },
-      { kind: 'update-option', id: 'o1', title: 'Cups', titleLocale: 'sr', maxSelections: null },
+      { kind: 'update-option', id: 'o1', title: 'Cups', titleLocale: 'pl', maxSelections: null },
       { kind: 'delete-selection', id: 'tmp_9' },
       { kind: 'delete-selection', id: 's1' },
     ], 'p1')
@@ -269,7 +269,7 @@ describe('toStructureOps', () => {
       { tempId: 'tmp_1', addOption: { productId: 'p1', inputType: 'RADIO', isRequired: true, sortOrder: 0, minSelections: 0, locale: 'en', title: 'Mug' } },
       { tempId: 'tmp_2', addSelection: { optionId: 'tmp_1', productId: 'p2', quantity: 2, isDefault: true, sortOrder: 0 } },
       { updateOption: { id: 'o1', clearMaxSelections: true } },
-      { upsertContent: { optionId: 'o1', locale: 'sr', title: 'Cups' } },
+      { upsertContent: { optionId: 'o1', locale: 'pl', title: 'Cups' } },
       { deleteSelection: 's1' },
     ])
   })

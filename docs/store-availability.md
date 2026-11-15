@@ -47,7 +47,7 @@ On a development database only, run:
 skelet cli dev-store-demo <nextjs-vetrina-channel-id>
 ```
 
-This adds named demo stores in Belgrade, Novi Sad and Niš, plus a private warehouse,
+This adds named demo stores in Berlin, Hamburg and Munich, plus a private warehouse,
 and enables the feature **only for the selected channel**. Re-running preserves
 existing demo quantities and any manual changes; existing channel assignments are
 retained. The demo warehouse is always kept private and classified as a warehouse.
@@ -56,11 +56,11 @@ The locations and contact details are fictional demonstration data.
 
 | URL | What to check |
 |---|---|
-| `/store-demo-backpack` | In stock in Belgrade and Novi Sad; unknown in Niš |
+| `/store-demo-backpack` | In stock in Berlin and Hamburg; unknown in Munich |
 | `/store-demo-scarf` | Low stock in each public store |
 | `/store-demo-mug` | Out of stock publicly despite private warehouse stock |
 | `/store-demo-fabric` | Fractional stock, sold in increments of 0.25 |
-| `/store-demo-hoodie` | Small in Belgrade; Large in Novi Sad |
+| `/store-demo-hoodie` | Small in Berlin; Large in Hamburg |
 | `/stores` | Directory, product search, filtering, preferred store and nearby sorting |
 
 Run the read-only browser journeys after installing the fixtures:

@@ -1,7 +1,0 @@
-volumes:
-  scratch-data:
-
-services:
-  app:
-    environment:
-      - DEBUG=1

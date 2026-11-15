@@ -69,11 +69,11 @@ func TestListLocationsPageClampsItsInputs(t *testing.T) { // limit and offset ar
 func TestListLocationsPageTrimsTheSearch(t *testing.T) { // "  bg  " must match what "bg" matches, and both the page and the count must filter identically or the pager shows phantom pages
 	repo := &fakeLocRepo{}
 	s := &Service{repo: repo}
-	_, total, err := s.ListLocationsPage(context.Background(), "  novi sad  ", LocationFilter{}, 10, 0)
+	_, total, err := s.ListLocationsPage(context.Background(), "  hamburg  ", LocationFilter{}, 10, 0)
 	if err != nil {
 		t.Fatalf("ListLocationsPage: %v", err)
 	}
-	if repo.sawSearch != "novi sad" {
+	if repo.sawSearch != "hamburg" {
 		t.Errorf("repo saw search %q, want it trimmed", repo.sawSearch)
 	}
 	if total != 42 {

@@ -18,13 +18,13 @@ func TestSubmitMailsOnlyAPlainAddress(t *testing.T) {
 			t.Errorf("Submit(%q) = %v, want ErrEmailInvalid", bad, err)
 		}
 	}
-	if _, err := f.svc.Submit(f.ctx, f.form.ChannelID, f.form.Slug, f.email, strings.Repeat("ž", maxNameRunes+1)); !errors.Is(err, ErrNameTooLong) {
+	if _, err := f.svc.Submit(f.ctx, f.form.ChannelID, f.form.Slug, f.email, strings.Repeat("ü", maxNameRunes+1)); !errors.Is(err, ErrNameTooLong) {
 		t.Errorf("an oversized name: %v, want ErrNameTooLong", err)
 	}
 	if len(f.mail.to) != 0 {
 		t.Fatalf("%d confirmations mailed for refused submissions", len(f.mail.to))
 	}
-	if _, err := f.svc.Submit(f.ctx, f.form.ChannelID, f.form.Slug, "  "+strings.ToUpper(f.email)+" ", strings.Repeat("ž", maxNameRunes)); err != nil {
+	if _, err := f.svc.Submit(f.ctx, f.form.ChannelID, f.form.Slug, "  "+strings.ToUpper(f.email)+" ", strings.Repeat("ü", maxNameRunes)); err != nil {
 		t.Fatalf("a plain address refused: %v", err)
 	}
 	if len(f.mail.to) != 1 || f.mail.to[0] != f.email {

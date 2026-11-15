@@ -645,7 +645,7 @@ func TestAGuestCartIsAnnouncedTheMomentItsMade(t *testing.T) {
 func TestTheStorefrontsListAddressesReadBack(t *testing.T) {
 	for raw, want := range map[string]listing{
 		"/shop/jackets/f/size/v/m/f/color/v/navy/v/red/s/price_asc/pg/2": {Entity: "shop/jackets", Filters: map[string][]string{"size": {"m"}, "color": {"navy", "red"}}, Sort: "price_asc"},
-		"/de/search/f/brand/v/michelin?q=Michelin+tires":                 {Entity: "de/search", Filters: map[string][]string{"brand": {"michelin"}}, Query: "Michelin tires"},
+		"/de/search/f/brand/v/acme?q=Acme+jackets":                       {Entity: "de/search", Filters: map[string][]string{"brand": {"acme"}}, Query: "Acme jackets"},
 		"/about-us":                     {Entity: "about-us"},
 		"/shop/jackets/f/size/v/m/oops": {Entity: "shop/jackets", Filters: map[string][]string{"size": {"m"}}},
 	} {

@@ -15,7 +15,7 @@ func snapshotOrder() order.Order {
 		SubtotalAmount: 24000, DiscountAmount: 1000, ShippingAmount: 500, TaxAmount: 4370, TotalAmount: 27870,
 		ShippingAddress: order.OrderAddress{FirstName: "Ada", LastName: "Lovelace", Street1: "1 Analytical Way", PostalCode: "EC1A", City: "London", CountryCode: "GB"},
 		Lines: []order.OrderLine{
-			{ID: lineA, ProductName: "Winter Tire 205/55", ProductSku: "TIRE-205", Quantity: 2, UnitPrice: 10000, TotalPrice: 20000},
+			{ID: lineA, ProductName: "Wool Jacket M", ProductSku: "TEE-BLK-M", Quantity: 2, UnitPrice: 10000, TotalPrice: 20000},
 			{ID: lineB, ProductName: "Valve Stem", ProductSku: "VALVE-1", Quantity: 4, UnitPrice: 1000, TotalPrice: 4000},
 		},
 	}
@@ -47,7 +47,7 @@ func TestTheSnapshotCarriesEveryFieldAnOrderEmailPrints(t *testing.T) {
 			t.Errorf("%s = %d, want %d", c.field, c.got, c.want)
 		}
 	}
-	if len(snap.Lines) != 2 || snap.Lines[0].SKU != "TIRE-205" || snap.Lines[0].LineTotal != 20000 {
+	if len(snap.Lines) != 2 || snap.Lines[0].SKU != "TEE-BLK-M" || snap.Lines[0].LineTotal != 20000 {
 		t.Errorf("lines = %+v, want both order lines with their totals", snap.Lines)
 	}
 	if len(snap.ShipTo) == 0 {
@@ -72,7 +72,7 @@ func TestAShipmentSnapshotCarriesOnlyWhatShipped(t *testing.T) {
 	if len(snap.Lines) != 1 {
 		t.Fatalf("lines = %d, want only the line this fulfillment carried", len(snap.Lines))
 	}
-	if snap.Lines[0].SKU != "TIRE-205" {
+	if snap.Lines[0].SKU != "TEE-BLK-M" {
 		t.Errorf("shipped line = %q, want the fulfilled one", snap.Lines[0].SKU)
 	}
 	if snap.Number != "ORD-1042" {

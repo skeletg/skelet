@@ -27,21 +27,21 @@ function form(entries: [string, string][]): FormData {
 const typed = (prefix: string): [string, string][] => [
   [`${prefix}.firstName`, "Ana"],
   [`${prefix}.lastName`, "Petrovic"],
-  [`${prefix}.street1`, "Knez Mihailova 1"],
-  [`${prefix}.city`, "Belgrade"],
-  [`${prefix}.postalCode`, "11000"],
-  [`${prefix}.countryCode`, "rs"],
+  [`${prefix}.street1`, "Main Street 1"],
+  [`${prefix}.city`, "Berlin"],
+  [`${prefix}.postalCode`, "10115"],
+  [`${prefix}.countryCode`, "de"],
 ];
 
-// Serbia defines its own company identifiers; the US leaves them to the generic tax ID
+// Germany defines its own company identifiers; the US leaves them to the generic tax ID
 const countries: CountryOption[] = [
   {
-    code: "RS",
-    name: "Serbia",
+    code: "DE",
+    name: "Germany",
     emojiFlag: "",
     businessIdFields: [
-      { key: "pib", label: "PIB", required: true, pattern: "\\d{9}", hint: "" },
-      { key: "mb", label: "Matični broj", required: false, pattern: "^\\d{8}$", hint: "" },
+      { key: "ust_idnr", label: "USt-IdNr.", required: true, pattern: "DE\\d{9}", hint: "" },
+      { key: "bnr", label: "Betriebsnummer", required: false, pattern: "^\\d{8}$", hint: "" },
     ],
   },
   { code: "US", name: "United States", emojiFlag: "", businessIdFields: [] },
@@ -54,8 +54,8 @@ const mode = (m: Partial<DetailsMode> = {}): DetailsMode => ({
   asks: DELIVERY,
   signedIn: false,
   countries,
-  savedCountries: { "addr-1": "RS" },
-  destinationCountry: "RS",
+  savedCountries: { "addr-1": "DE" },
+  destinationCountry: "DE",
   ...m,
 });
 const guestDelivery = detailsStepSchema(defaults, mode());
@@ -63,18 +63,18 @@ const guestPickup = detailsStepSchema(defaults, mode({ asks: PICKUP }));
 
 describe("destinationSchema", () => {
   it("needs a country and a postcode, and uppercases the country", () => {
-    expect(errorsOf(parseForm(form([["countryCode", "RS"]]), destinationSchema))?.["postalCode"]).toEqual([
+    expect(errorsOf(parseForm(form([["countryCode", "DE"]]), destinationSchema))?.["postalCode"]).toEqual([
       "postalCodeRequired",
     ]);
-    const s = parseForm(form([["countryCode", "rs"], ["postalCode", " 21000 "]]), destinationSchema);
-    expect(s.status === "success" && s.value).toEqual({ countryCode: "RS", postalCode: "21000" });
+    const s = parseForm(form([["countryCode", "de"], ["postalCode", " 20095 "]]), destinationSchema);
+    expect(s.status === "success" && s.value).toEqual({ countryCode: "DE", postalCode: "20095" });
   });
 });
 
 describe("detailsStepSchema - delivery", () => {
   it("takes a saved address by id alone", () => {
     const s = parseForm(
-      form([["email", "a@b.rs"], ["shippingChoice", "addr-1"], ["billingSame", "on"]]),
+      form([["email", "a@b.de"], ["shippingChoice", "addr-1"], ["billingSame", "on"]]),
       guestDelivery,
     );
     expect(s.status).toBe("success");
@@ -82,7 +82,7 @@ describe("detailsStepSchema - delivery", () => {
 
   it("requires the address fields only for a new address, under their nested names", () => {
     const s = parseForm(
-      form([["email", "a@b.rs"], ["shippingChoice", "new"], ["shipping.firstName", "Ana"], ["billingSame", "on"]]),
+      form([["email", "a@b.de"], ["shippingChoice", "new"], ["shipping.firstName", "Ana"], ["billingSame", "on"]]),
       guestDelivery,
     );
     expect(errorsOf(s)?.["shipping.street1"]).toEqual(["required"]);
@@ -90,7 +90,7 @@ describe("detailsStepSchema - delivery", () => {
   });
 
   it("asks for billing only when the same-as-delivery box is cleared", () => {
-    const base: [string, string][] = [["email", "a@b.rs"], ["shippingChoice", "new"], ...typed("shipping")];
+    const base: [string, string][] = [["email", "a@b.de"], ["shippingChoice", "new"], ...typed("shipping")];
     expect(parseForm(form([...base, ["billingSame", "on"]]), guestDelivery).status).toBe("success");
     expect(errorsOf(parseForm(form(base), guestDelivery))?.["billingChoice"]).toEqual(["chooseAddress"]);
     expect(parseForm(form([...base, ["billingChoice", "new"], ...typed("billing")]), guestDelivery).status).toBe(
@@ -118,9 +118,9 @@ describe("detailsStepSchema - delivery", () => {
 
 describe("detailsStepSchema - pickup", () => {
   it("needs who collects and no address", () => {
-    expect(errorsOf(parseForm(form([["email", "a@b.rs"]]), guestPickup))?.["pickupFirstName"]).toEqual(["required"]);
+    expect(errorsOf(parseForm(form([["email", "a@b.de"]]), guestPickup))?.["pickupFirstName"]).toEqual(["required"]);
     const s = parseForm(
-      form([["email", "a@b.rs"], ["pickupFirstName", "Ana"], ["pickupLastName", "P"], ["pickupWho", "me"]]),
+      form([["email", "a@b.de"], ["pickupFirstName", "Ana"], ["pickupLastName", "P"], ["pickupWho", "me"]]),
       guestPickup,
     );
     expect(s.status).toBe("success");
@@ -128,7 +128,7 @@ describe("detailsStepSchema - pickup", () => {
 
   it("asks for the payer's billing address when someone else collects", () => {
     const entries: [string, string][] = [
-      ["email", "a@b.rs"],
+      ["email", "a@b.de"],
       ["pickupFirstName", "Ana"],
       ["pickupLastName", "P"],
       ["pickupWho", "someoneElse"],
@@ -144,13 +144,13 @@ describe("detailsStepSchema - PO box", () => {
   const locker = detailsStepSchema(defaults, mode({ asks: LOCKER }));
 
   it("asks no address of the shopper and no collector, but billing and the phone the delivery needs", () => {
-    const errors = errorsOf(parseForm(form([["email", "a@b.rs"]]), locker));
+    const errors = errorsOf(parseForm(form([["email", "a@b.de"]]), locker));
     expect(errors?.["shippingChoice"]).toBeUndefined();
     expect(errors?.["pickupFirstName"]).toBeUndefined();
     expect(errors?.["billingChoice"]).toEqual(["chooseAddress"]);
     expect(errors?.["phone"]).toEqual(["phoneRequired"]);
     const ok = parseForm(
-      form([["email", "a@b.rs"], ["phone", "064 1234567"], ["phoneCountry", "RS"], ["billingChoice", "new"], ...typed("billing")]),
+      form([["email", "a@b.de"], ["phone", "01512 3456789"], ["phoneCountry", "DE"], ["billingChoice", "new"], ...typed("billing")]),
       locker,
     );
     expect(ok.status).toBe("success");
@@ -158,37 +158,37 @@ describe("detailsStepSchema - PO box", () => {
 });
 
 describe("detailsStepSchema - settings", () => {
-  const entries: [string, string][] = [["email", "a@b.rs"], ["shippingChoice", "addr-1"], ["billingSame", "on"]];
+  const entries: [string, string][] = [["email", "a@b.de"], ["shippingChoice", "addr-1"], ["billingSame", "on"]];
 
   it("requires the phone only when the store does, and checks it against the destination's country", () => {
     const required = detailsStepSchema(defaults, mode({ asks: { ...DELIVERY, phone: "required" }, signedIn: false }));
     expect(errorsOf(parseForm(form(entries), required))?.["phone"]).toEqual(["phoneRequired"]);
-    const bad = parseForm(form([...entries, ["phone", "123"], ["phoneCountry", "RS"]]), guestDelivery);
+    const bad = parseForm(form([...entries, ["phone", "123"], ["phoneCountry", "DE"]]), guestDelivery);
     expect(errorsOf(bad)?.["phone"]).toEqual(["phoneInvalid"]);
-    const ok = parseForm(form([...entries, ["phone", "064 1234567"], ["phoneCountry", "RS"]]), guestDelivery);
+    const ok = parseForm(form([...entries, ["phone", "01512 3456789"], ["phoneCountry", "DE"]]), guestDelivery);
     expect(ok.status).toBe("success");
   });
 
   it("keeps the phone to the store's countries when it says so", () => {
-    const serbiaOnly = [...entries, ["phoneCountry", "RS"], ["phoneAllowed", "RS"]] as typeof entries;
-    const foreign = parseForm(form([...serbiaOnly, ["phone", "+49 1512 3456789"]]), guestDelivery);
+    const germanyOnly = [...entries, ["phoneCountry", "DE"], ["phoneAllowed", "DE"]] as typeof entries;
+    const foreign = parseForm(form([...germanyOnly, ["phone", "+33 6 12 34 56 78"]]), guestDelivery);
     expect(errorsOf(foreign)?.["phone"]).toEqual(["phoneCountryNotAllowed"]);
-    const home = parseForm(form([...serbiaOnly, ["phone", "064 1234567"]]), guestDelivery);
+    const home = parseForm(form([...germanyOnly, ["phone", "01512 3456789"]]), guestDelivery);
     expect(home.status).toBe("success");
   });
 
   it("asks a business buyer for the company and the identifiers the company's country defines", () => {
     const biz = detailsStepSchema({ ...defaults, business: true }, mode());
-    // Serbia: the PIB is required and must be nine digits, the Matični broj is optional but eight digits when given
-    const s = parseForm(form([...entries, ["purchaseType", "business"], ["businessIds.mb", "123"]]), biz);
+    // Germany: the USt-IdNr. is required and must be DE and nine digits, the Betriebsnummer is optional but eight digits when given
+    const s = parseForm(form([...entries, ["purchaseType", "business"], ["businessIds.bnr", "123"]]), biz);
     expect(errorsOf(s)?.["company"]).toEqual(["companyRequired"]);
-    expect(errorsOf(s)?.["businessIds.pib"]).toEqual(["required"]);
-    expect(errorsOf(s)?.["businessIds.mb"]).toEqual(["businessIdInvalid"]);
+    expect(errorsOf(s)?.["businessIds.ust_idnr"]).toEqual(["required"]);
+    expect(errorsOf(s)?.["businessIds.bnr"]).toEqual(["businessIdInvalid"]);
     const ok = parseForm(
-      form([...entries, ["purchaseType", "business"], ["company", "Acme"], ["businessIds.pib", "123456789"]]),
+      form([...entries, ["purchaseType", "business"], ["company", "Acme"], ["businessIds.ust_idnr", "DE123456789"]]),
       biz,
     );
-    expect(ok.status === "success" && ok.value.businessIds).toEqual({ pib: "123456789" });
+    expect(ok.status === "success" && ok.value.businessIds).toEqual({ ust_idnr: "DE123456789" });
   });
 
   it("falls back to the generic tax ID where the country defines none, as the setting says", () => {
@@ -202,10 +202,10 @@ describe("detailsStepSchema - settings", () => {
 
   it("follows the billing address's country when billing is separate", () => {
     const biz = detailsStepSchema({ ...defaults, business: true }, mode());
-    // Delivered to Serbia, billed to a US company - the PIB isn't owed
+    // Delivered to Germany, billed to a US company - the USt-IdNr. isn't owed
     const s = parseForm(
       form([
-        ["email", "a@b.rs"],
+        ["email", "a@b.de"],
         ["shippingChoice", "addr-1"],
         ["billingChoice", "new"],
         ...typed("billing").map(([k, v]): [string, string] => (k.endsWith("countryCode") ? [k, "us"] : [k, v])),

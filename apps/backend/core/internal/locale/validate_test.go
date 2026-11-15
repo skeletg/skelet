@@ -34,7 +34,7 @@ func TestValidateCode(t *testing.T) {
 		"eng",        // 3-letter language
 		"en-us",      // language + region (must be pre-normalized to lowercase)
 		"zh-hans",    // language + script
-		"sr-latn-rs", // language + script + region
+		"zh-hant-tw", // language + script + region
 		"en-001",     // numeric region subtag
 	}
 	for _, code := range valid {
@@ -76,7 +76,7 @@ func TestIsTwoLetterCountry(t *testing.T) {
 	}{
 		{"US", true},
 		{"GB", true},
-		{"RS", true},
+		{"FR", true},
 		{"us", false},  // lowercase rejected (caller upcases first)
 		{"Us", false},  // mixed case
 		{"USA", false}, // 3 letters

@@ -12,8 +12,8 @@ import type { PhoneSettings } from "../countries/read";
 // Phone rules come from libphonenumber's metadata, the same data the backend validates with - so the form refuses
 // exactly what the backend would. Kept out of forms/schema.ts so forms without a phone don't carry the metadata
 //
-// The country only reads a nationally typed number ("064 123 4567"); one typed with its + validates whatever it is,
-// so a shopper in Serbia can still give a German mobile. The backend stores E.164 either way
+// The country only reads a nationally typed number ("01512 3456789"); one typed with its + validates whatever it is,
+// so a shopper in Germany can still give a French mobile. The backend stores E.164 either way
 
 function asCountry(country: unknown): CountryCode | undefined {
   return typeof country === "string" && /^[A-Z]{2}$/.test(country) ? (country as CountryCode) : undefined;
@@ -81,7 +81,7 @@ export function phoneFieldFor(settings: PhoneSettings | undefined, formCountry: 
   };
 }
 
-// Live formatting while typing - "0641234567" reads as "064 1234567" in RS, "+4915123456789" as "+49 1512 3456789"
+// Live formatting while typing - "015123456789" reads as "01512 3456789" in DE, "+33612345678" as "+33 6 12 34 56 78"
 export function formatAsTyped(value: string, country: string): string {
   // Deleting back over a formatting character would otherwise snap straight back
   if (!/\d/.test(value)) return value;
@@ -100,7 +100,7 @@ export function formatPhone(value: string): string {
   return parsePhoneNumberFromString(value)?.formatInternational() ?? value;
 }
 
-// "+381" for RS - the input's placeholder, so the shopper sees which country a national number is read in
+// "+49" for DE - the input's placeholder, so the shopper sees which country a national number is read in
 export function callingCode(country: string): string | null {
   const c = asCountry(country);
   if (!c) return null;

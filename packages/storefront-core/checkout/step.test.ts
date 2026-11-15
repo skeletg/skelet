@@ -104,12 +104,12 @@ describe("detailsAsks", () => {
 
 describe("businessComplete", () => {
   const s = { ...DEFAULT_CHECKOUT_SETTINGS, business: true };
-  const pib = { key: "pib", label: "PIB", required: true, pattern: "", hint: "" };
-  const biz = { purchaseType: "BUSINESS" as const, company: "Acme", businessIds: {}, businessIdFields: [pib] };
+  const vatId = { key: "ust_idnr", label: "USt-IdNr.", required: true, pattern: "", hint: "" };
+  const biz = { purchaseType: "BUSINESS" as const, company: "Acme", businessIds: {}, businessIdFields: [vatId] };
 
   it("needs the company and the identifiers its country requires", () => {
     expect(businessComplete(biz, s)).toBe(false);
-    expect(businessComplete({ ...biz, businessIds: { pib: "123456789" } }, s)).toBe(true);
+    expect(businessComplete({ ...biz, businessIds: { ust_idnr: "DE123456789" } }, s)).toBe(true);
     expect(businessComplete({ ...biz, company: "" }, s)).toBe(false);
     // Business purchases switched off - the stale business fields don't hold the shopper up
     expect(businessComplete(biz, DEFAULT_CHECKOUT_SETTINGS)).toBe(true);

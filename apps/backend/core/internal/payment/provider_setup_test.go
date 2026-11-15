@@ -20,11 +20,11 @@ func TestDisabledPluginIsNotOfferedOrEnabled(t *testing.T) {
 		return false
 	}})
 	svc := NewService(fakePayRepo{methods: []PaymentMethod{method}}, nil, nil)
-	methods, err := svc.ListEligiblePaymentMethods(context.Background(), channelID, "RS")
+	methods, err := svc.ListEligiblePaymentMethods(context.Background(), channelID, "DE")
 	if err != nil || len(methods) != 0 {
 		t.Fatalf("eligible methods = %v, err = %v", methods, err)
 	}
-	if err := svc.ValidatePaymentForChannel(context.Background(), channelID, method.ProviderSlug, "RS"); !errors.Is(err, ErrProviderDisabled) {
+	if err := svc.ValidatePaymentForChannel(context.Background(), channelID, method.ProviderSlug, "DE"); !errors.Is(err, ErrProviderDisabled) {
 		t.Fatalf("validation error = %v", err)
 	}
 	if _, err := svc.SetEnabled(context.Background(), channelID, method.ProviderSlug, true); !errors.Is(err, ErrProviderDisabled) {

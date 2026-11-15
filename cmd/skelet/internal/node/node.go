@@ -86,3 +86,26 @@ func exists(p string) bool {
 	_, err := os.Stat(p)
 	return err == nil
 }
+
+var devPortFlag = regexp.MustCompile(`"dev":\s*"[^"]*?(?:-p|--port)[ =]([0-9]{2,5})`)
+
+func DevPort(manifest []byte, fallback string) string {
+	if m := devPortFlag.FindSubmatch(manifest); m != nil {
+		return string(m[1])
+	}
+	return fallback
+}
+
+func Unwritable(dir string) bool {
+	nm := filepath.Join(dir, "node_modules")
+	if _, err := os.Stat(nm); err != nil {
+		return false
+	}
+	f, err := os.CreateTemp(nm, ".skelet-write-")
+	if err != nil {
+		return true
+	}
+	_ = f.Close()
+	_ = os.Remove(f.Name())
+	return false
+}

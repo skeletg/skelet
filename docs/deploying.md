@@ -1,75 +1,145 @@
 # Deploying
 
-Two shapes, same images - the difference is env, not a build. Both bind every
-service to loopback, so something has to sit in front and terminate TLS.
+Every app deploys on its own, the way it would from a repo of its own. Core and
+Signals each have a `compose.yaml` and a `.env.example` at their root, beside
+their `Dockerfile.prod`. The dashboard and the storefronts aren't containers at
+all: each builds into what a web host serves, configured by its own
+`.env.production`. They know each other only by addresses and shared secrets, so
+any of them can share a box with the rest or sit somewhere else entirely. Every
+backend service binds to loopback by default, so something has to sit in front
+and terminate TLS.
 
-## The two shapes
-
-`docker-compose.small.yml` is the minimum deployable tenant: one app container
-running every backend role (API, WS, media transforms, scheduler, webhook
-delivery, outbox relay) and one Postgres. No Valkey, no NATS, no OpenSearch, and
-no Signals - the suite, with the ClickHouse its spine lives in, is the prod
-shape's. Its ports are offset (18080/18081/13000/15432) so it runs beside the
-dev stack.
+## One backend
 
 ```bash
-cp env/small.env.example env/small.env
-cp env/small-nextjs-vetrina.env.example env/small-nextjs-vetrina.env
-cp .env.example .env    # session and link keys, SIGNALS_SERVICE_SECRET, CONFIG_ENCRYPTION_KEY, DB_PASSWORD - skelet setup fills them
-docker compose -f docker-compose.small.yml up -d
+skelet setup core             # writes apps/backend/core/.env, secrets included
+cd apps/backend/core
+docker compose up -d
 ```
 
-Each storefront runs under a compose profile of its own name, so the demo one
-also needs `COMPOSE_PROFILES=bundled,nextjs-vetrina` in `.env`. `skelet setup`
-with the small or prod target does all of this for the storefronts you pick: it
-copies only their env files, turns their profiles on, and points
-`STOREFRONT_REVALIDATE_URL` and the edge at the one it serves.
+`skelet setup` with app names sets up a server with just those, and assumes nothing
+else runs there. `skelet setup signals --shared core.env` does Signals on a machine
+of its own: the values it shares with core ([env.md](env.md#the-files) lists them)
+come from a copy of core's `.env`, or from what it already holds, or are asked for -
+setup never makes them up, since a value core doesn't have breaks every call between
+the two. Copying `.env.example` to `.env` and filling it in by hand works just as
+well.
 
-`docker-compose.prod.yml` is the full shape: the tiers split into their own
-containers (worker, media, signals, ingest), pgbouncer per database, three split
-Valkeys (primary, cache, rate limits), ClickHouse for the spine, and the optional
-NATS profile. Same env contract - secrets in the root `.env`, everything else in `env/prod.env`, plus an optional
-`env/prod-signals.env` for what only the Signals process reads (the retention
-archive's bucket, `CORE_FRONT_API_URL`). `skelet release`
-builds and pushes the four images it reads: the backend (`APP_IMAGE`, also the
-worker and media tiers), the Signals module (`SIGNALS_IMAGE`, the signals and
-ingest tiers plus the ClickHouse schema), the dashboard and each storefront.
+That `.env` holds everything the app reads, secrets included. `COMPOSE_PROFILES`
+in it starts the datastores it can bring along - `bundled` for Postgres (and
+ClickHouse on Signals), `valkey` for the Valkeys - and drops one once you point
+its URL at a managed instance. A new image is a new `CORE_IMAGE` or
+`SIGNALS_IMAGE` line and another `docker compose up -d`, which touches nothing
+else.
 
-Scaling from one to the other is that env changing: set `VALKEY_URL` for
-multi-replica, then `JOBS_EXTERNAL` to split the
-background tiers back out.
+Across machines, the addresses are settings:
+
+| On | Setting | Points at |
+|---|---|---|
+| core | `SIGNALS_GRPC_ADDR` | Signals' contract, port 8092 |
+| core | `SIGNALS_INGEST_URL`, `SIGNALS_URL` | Signals' `/t` and `/e`, port 8090 |
+| Signals | `CORE_FRONT_API_URL` | core's storefront API |
+| Signals | `INGEST_FALLBACK_URL` | core, for the beacons only it answers |
+| Signals | `VALKEY_URL` | core's primary Valkey - optional, it's how Signals hears about revoked admin sessions at once |
+
+Signals publishes 8090, 8091 and 8092 on `SIGNALS_BIND` (loopback by default) -
+set it to an address core can reach. The contract runs plaintext unless TLS is
+on ([env.md](env.md)); put the two on a private network either way.
+
+## One box
+
+`docker-compose.prod.yml` includes both backends, each still reading its own
+`.env`, plus the optional edge. `docker compose -f docker-compose.prod.yml up -d`
+starts it all, and naming services redeploys only those: `docker compose -f
+docker-compose.prod.yml up -d signals ingest`.
+
+The root `.env` is read first and wins over the backends' own, so it holds only
+what the edge uses. `skelet setup core signals` writes both backends' files, with
+the values they share copied straight across, and moves any backend key it finds in
+the root `.env`.
+
+`docker-compose.small.yml` is the minimum deployable tenant: core alone, its
+`.env` set so one app container runs every backend role (API, WS, media
+transforms, scheduler, webhook delivery, outbox relay) against one Postgres - no
+worker or media replicas, `JOBS_EXTERNAL=false`, `VALKEY_URL` empty. No NATS, no
+OpenSearch and no Signals. Its API listens on 18080 so it runs beside the dev
+stack, and `skelet setup core --small` writes it.
+
+`skelet release core signals` builds and pushes the backends' images and prints
+the line each `.env` takes.
 
 Both shapes need a second bucket besides the media one, with no public access,
 named in `PRIVATE_S3_BUCKET` - exports, uploads and private media live there,
 and production won't start without it. [env.md](env.md#private-store) has what
 it needs.
 
-The root `.env` is the only file docker compose interpolates, which is why the
-secrets that have to appear twice (a datastore *and* the URL reaching it) live
-there rather than in `env/`. Everything else is bulk config handed to one
-container through `env_file:`. See [env.md](env.md).
+## The frontends
+
+Each frontend builds in its own directory, from settings in its own
+`.env.production` - copy the `.env.production.example` beside it, or let `skelet
+setup <name>` write it, taking the values it shares with core from core.
+
+**The dashboard** is static files: `pnpm run build` in `apps/dashboard` makes
+`dist/`, which any web server, CDN or static host serves - every path that isn't
+a file falls back to `index.html`. Its address for core, `VITE_GRAPHQL_URL`, is
+baked in: leave it relative and put the dashboard behind something that proxies
+`/api/*` to core, or make it absolute and add the dashboard's origin to core's
+`CORS_ALLOWED_ORIGINS`. The build also writes `dist/_headers`, the security
+headers in the form Netlify and Cloudflare Pages read, with core's origin and
+`UPLOAD_ORIGINS` already in its `connect-src` - another host should send the same
+headers - and `dist/_redirects`, the `index.html` fallback in Netlify's form.
+Cloudflare Pages falls back on its own and says in its build log that it skips
+that rule.
+
+**A Next storefront** is a Node server. `pnpm run build` leaves a self-contained
+one in `.next/standalone`, its static files beside it, which runs anywhere with
+Node: `pnpm run start` is `node --env-file-if-exists=.env.production
+.next/standalone/server.js`, on the port `PORT` names (3000 by default). A
+platform that builds Next itself, Vercel or Netlify, just needs the same settings
+in its own environment. Build it from the repo root's workspace -
+`pnpm install --frozen-lockfile --filter ./templates/nextjs-vetrina...` - or from
+the storefront's directory when it takes the packages from npm.
+
+**The Astro storefront** builds the same way, and `pnpm run start` runs
+`dist/server/entry.mjs` with its `.env.production`.
+
+**On a machine of your own**, `skelet setup` gives each storefront named on it
+its own `PORT` - the one its dev script uses - so several share
+a machine without colliding. The servers listen on every interface so the edge's
+container can reach them, so keep their ports closed to the outside.
+
+Deploy core before a frontend that needs something new from it. The other way
+round is safe: `skelet check` holds core's GraphQL schemas compatible with the last
+release, so a dashboard or storefront built against it keeps working on a newer core.
+
+A storefront that isn't on the same private network as core needs
+`TRUSTED_PROXY_KEY` on both, or core can't tell its shoppers apart for rate
+limiting ([env.md](env.md#networking)).
 
 ## Managed datastores
 
-The bundled Postgres, pgbouncer, Valkey and ClickHouse containers sit behind the
-`bundled` compose profile, and `.env.example` ships `COMPOSE_PROFILES=bundled` - so a
-self-hosted box gets them by default and nothing changes.
+Each backend's bundled datastores sit behind profiles in its own `.env`:
+Postgres and its pooler (and ClickHouse on Signals) behind `bundled`, the
+Valkeys behind `valkey`. Both are on in `.env.example`, so a self-hosted box
+gets them by default.
 
-Moving to managed services is dropping that line and pointing the URLs outward:
+Moving one to a managed service is dropping its profile and pointing the URL
+outward, in the file of the app that uses it:
 
 ```bash
-# .env
-# COMPOSE_PROFILES=bundled          <- removed
+# apps/backend/core/.env
+COMPOSE_PROFILES=valkey             # bundled dropped - Postgres is managed now
 DATABASE_URL=postgres://...@your-managed-pg:5432/skelet?sslmode=require
+
+# apps/backend/signals/.env
+COMPOSE_PROFILES=valkey
 SIGNALS_DB_URL=postgres://...@your-managed-pg:5432/skelet_signals?sslmode=require
-VALKEY_URL=rediss://...
 SIGNALS_CH_URL=clickhouse://user:password@your-managed-ch:9440/signals?secure=true
 ```
 
-The eight containers (two Postgres, two pgbouncers, three Valkeys and ClickHouse)
-then never start, instead of idling beside the databases you are actually paying
-for. The `*_PASSWORD` lines go unused too, so leave them empty. Everything else -
-app, worker, media, signals and ingest - is the same image and the same file.
+On one box the profiles come from the root `.env` instead, since that's the
+project compose runs. The containers behind a dropped profile then never start,
+and their `*_PASSWORD` lines go unused.
 
 The signals process migrates the spine on whatever `SIGNALS_CH_URL` names as it
 boots, so the schema lands on the managed server without a second URL - a TLS
@@ -77,9 +147,9 @@ endpoint is `clickhouse://user:password@host:9440/signals?secure=true`.
 
 Two things that bite:
 
-- It's all or nothing: with `bundled` still on, every bundled container starts
-  and refuses an empty password, including the ones whose URL you pointed
-  elsewhere. Going half managed means keeping the passwords set.
+- A profile is all or nothing: with `bundled` still on, every container behind
+  it starts and refuses an empty password, including the ones whose URL you
+  pointed elsewhere. Going half managed means keeping the passwords set.
 - Every `depends_on` on those services carries `required: false`. Without it
   compose rejects the entire file the moment the profile is off, because the app
   tiers declare a dependency on a service that no longer exists.
@@ -103,10 +173,9 @@ docker compose exec db psql -U skelet -d skelet -c 'REINDEX DATABASE skelet'
 
 Take a dump first, as with any change to the database image.
 
-If the frontends move to a platform like Vercel, `CORS_ALLOWED_ORIGINS` stops
-being optional - the browser starts talking to the API origin directly instead of
-being proxied to it by the dashboard's own nginx - and `TRUSTED_PROXIES` has to
-name whatever sits in front of the API, or forwarded client IPs are wrong.
+A dashboard served from another origin than core's talks to the API directly, so
+`CORS_ALLOWED_ORIGINS` has to name it, and `TRUSTED_PROXIES` has to name whatever
+sits in front of the API, or forwarded client IPs are wrong.
 
 Uploads go from the browser straight to object storage, so whichever host that
 is has to be in `UPLOAD_ORIGINS`, or every CSP on the stack blocks the upload -
@@ -114,23 +183,21 @@ see [env.md](env.md#object-storage).
 
 ## Putting an edge in front
 
-Three hostnames, whoever terminates TLS. The upstream ports are the same in both
-stacks (the small profile publishes them on offset loopback ports so it can run
-beside the dev stack, but the in-network ports don't move):
+Three hostnames, whoever terminates TLS:
 
 | Host | Upstream | Why it exists |
 |---|---|---|
-| apex, e.g. `shop.example.com` | `<storefront>:3000`, its compose service | the storefront - every channel's host can point at the same upstream |
-| `admin.` | `dashboard:8080` | the admin SPA - its own nginx proxies `/api/*` to the backend in-network, so it needs no API host |
+| apex, e.g. `shop.example.com` | the storefront's server | the storefront - every channel's host can point at the same upstream |
+| `admin.` | the dashboard's `dist/`, and `/api/*` to `app:8080` | the admin SPA - proxying `/api/*` keeps it same-origin, so it needs no API host and no CORS |
 | `api.` | `app:8080` | **inbound payment webhooks.** Providers POST to `/api/v1/payments/webhook/<provider>`, which is the URL you register with your payment provider. Skip this host and captures never settle |
 
 `/t/*` is the Signals tier's, and `app` proxies it there per `SIGNALS_INGEST_URL`
 - one public entry point, no routing needed. Route `/t/*` at `ingest:8091` to skip
 the hop once that tier is scaled out, and `/media/t/*` at `media:8083` likewise.
 
-HSTS belongs here and nowhere else. The backend and the dashboard's nginx each
-ship their own copy of the CSP and Permissions-Policy so a deployment without an
-edge still gets them, but they deliberately omit HSTS - asserting it over plain
+HSTS belongs here and nowhere else. The backend and the dashboard's `_headers`
+each ship their own copy of the CSP and Permissions-Policy so a deployment without
+an edge still gets them, but they deliberately omit HSTS - asserting it over plain
 HTTP would pin a browser to HTTPS for a year. `skelet check contracts` fails when
 those copies drift apart.
 
@@ -144,23 +211,35 @@ cp env/prod-caddy.env.example env/prod-caddy.env   # domains + ACME email
 docker compose -f docker-compose.small.yml --profile edge up -d
 ```
 
-The vhost map is meant to be edited, all but the apex's upstream: that one reads
-`STOREFRONT_UPSTREAM` from `env/prod-caddy.env`, which `skelet setup` points at
-the storefront you run, and falls back to `nextjs-vetrina:3000`. A shop of your
-own needs a service in the prod or small file first - the template's block,
-renamed along with its profile.
+It serves the dashboard from `apps/dashboard/dist`, so build that first, and
+reaches the storefront's server on the same machine through
+`host.docker.internal` - `STOREFRONT_UPSTREAM` in `env/prod-caddy.env`, which
+`skelet setup` sets and which falls back to `host.docker.internal:3000`. The
+vhost map is meant to be edited, so a storefront somewhere else is just another
+upstream.
 
-**More than one channel.** One storefront image and one container serve every
-channel: add each channel's host to `STOREFRONT_CHANNEL_HOSTS` in the
-storefront's env file and point the host at the same upstream. The edge has to
+**More than one storefront on the machine.** The first takes the apex. Every
+other one gets a file in `deploy/caddy/sites/`, which the Caddyfile imports: its
+host is `<NAME>_DOMAIN` in `env/prod-caddy.env` (`OUTLET_DOMAIN` for a storefront
+called `outlet`), and until you set it the edge answers it on `outlet.localhost`.
+Setup writes the file once and leaves it to you from then on, and `skelet rm
+channel` takes it away. With more than one storefront, setup also leaves
+`STOREFRONT_REVALIDATE_URL` empty, so core purges each channel at its own public
+URL and every purge reaches the storefront that serves it - give each channel its
+URL in admin.
+
+**More than one channel.** One storefront deployment serves every channel: add
+each channel's host to `STOREFRONT_CHANNEL_HOSTS` in the storefront's
+`.env.production` and point the host at the same upstream. The edge has to
 pass the original `Host` through, which Caddy and nginx's
 `proxy_set_header Host $host` both do. Each channel's pages and cache entries
 live under their own path inside the app, so a new channel is a new host, not a
-new deployment. `STOREFRONT_REVALIDATE_URL` pointing at that service purges
+new deployment. `STOREFRONT_REVALIDATE_URL` pointing at that server purges
 every channel; see [env.md](env.md#storefront-links).
 
-**Keep it to one replica.** The rendered pages and the data cache live in the
-storefront process, and nothing shares them between containers. With two
+**Keep it to one replica** on a server of your own. The rendered pages and the
+data cache live in the storefront process, and nothing shares them between
+processes. With two
 replicas behind a load balancer, a purge lands on whichever one answers it and
 the other keeps serving the old page until its own timer runs out. So run one
 storefront replica per deployment, and give it more CPU before you give it a

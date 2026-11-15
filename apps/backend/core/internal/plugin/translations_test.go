@@ -22,11 +22,11 @@ func resetTranslations(t *testing.T) *Host {
 	return &Host{}
 }
 
-func srRegistration() sdk.AdminTranslationsRegistration {
+func plRegistration() sdk.AdminTranslationsRegistration {
 	return sdk.AdminTranslationsRegistration{
-		Locale:      "sr",
-		DisplayName: "Srpski",
-		Messages:    json.RawMessage(`{"vXIe7J":"Jezik"}`),
+		Locale:      "pl",
+		DisplayName: "Polski",
+		Messages:    json.RawMessage(`{"vXIe7J":"Język"}`),
 	}
 }
 
@@ -43,22 +43,22 @@ func callTranslations(t *testing.T, method, path string, header http.Header) *ht
 
 func TestAdminTranslationsDuplicateLocaleRefused(t *testing.T) {
 	h := resetTranslations(t)
-	if err := h.RegisterAdminTranslations("lang-sr", srRegistration()); err != nil {
+	if err := h.RegisterAdminTranslations("lang-pl", plRegistration()); err != nil {
 		t.Fatalf("first registration: %v", err)
 	}
-	err := h.RegisterAdminTranslations("other-pack", srRegistration())
+	err := h.RegisterAdminTranslations("other-pack", plRegistration())
 	if err == nil {
 		t.Fatal("second pack claiming the same locale must be refused")
 	}
 	// The error names the first claimant, since that's what the operator has to uninstall
-	if !strings.Contains(err.Error(), "lang-sr") {
+	if !strings.Contains(err.Error(), "lang-pl") {
 		t.Fatalf("error should name the earlier pack, got: %v", err)
 	}
 }
 
 func TestAdminTranslationsLocalesList(t *testing.T) {
 	h := resetTranslations(t)
-	if err := h.RegisterAdminTranslations("lang-sr", srRegistration()); err != nil {
+	if err := h.RegisterAdminTranslations("lang-pl", plRegistration()); err != nil {
 		t.Fatalf("register: %v", err)
 	}
 	rec := callTranslations(t, http.MethodGet, "/api/admin-ui/i18n/locales", nil)
@@ -77,7 +77,7 @@ func TestAdminTranslationsLocalesList(t *testing.T) {
 		t.Fatalf("want 1 locale, got %d", len(body.Locales))
 	}
 	l := body.Locales[0]
-	if l.Locale != "sr" || l.Name != "Srpski" || l.Plugin != "lang-sr" {
+	if l.Locale != "pl" || l.Name != "Polski" || l.Plugin != "lang-pl" {
 		t.Fatalf("unexpected entry: %+v", l)
 	}
 	// Empty Direction defaults at registration, not per request - the dashboard applies it verbatim
@@ -88,10 +88,10 @@ func TestAdminTranslationsLocalesList(t *testing.T) {
 
 func TestAdminTranslationsCatalogETag(t *testing.T) {
 	h := resetTranslations(t)
-	if err := h.RegisterAdminTranslations("lang-sr", srRegistration()); err != nil {
+	if err := h.RegisterAdminTranslations("lang-pl", plRegistration()); err != nil {
 		t.Fatalf("register: %v", err)
 	}
-	rec := callTranslations(t, http.MethodGet, "/api/admin-ui/i18n/catalog/sr", nil)
+	rec := callTranslations(t, http.MethodGet, "/api/admin-ui/i18n/catalog/pl", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("catalog: got %d", rec.Code)
 	}
@@ -99,7 +99,7 @@ func TestAdminTranslationsCatalogETag(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &msgs); err != nil {
 		t.Fatalf("catalog body isn't the raw messages object: %v", err)
 	}
-	if msgs["vXIe7J"] != "Jezik" {
+	if msgs["vXIe7J"] != "Język" {
 		t.Fatalf("unexpected catalog: %v", msgs)
 	}
 	etag := rec.Header().Get("ETag")
@@ -108,7 +108,7 @@ func TestAdminTranslationsCatalogETag(t *testing.T) {
 	}
 	hdr := http.Header{}
 	hdr.Set("If-None-Match", etag)
-	rec = callTranslations(t, http.MethodGet, "/api/admin-ui/i18n/catalog/sr", hdr)
+	rec = callTranslations(t, http.MethodGet, "/api/admin-ui/i18n/catalog/pl", hdr)
 	if rec.Code != http.StatusNotModified {
 		t.Fatalf("matching If-None-Match should 304, got %d", rec.Code)
 	}
@@ -119,7 +119,7 @@ func TestAdminTranslationsCatalogETag(t *testing.T) {
 
 func TestAdminTranslationsUnknownPathsAndMethods(t *testing.T) {
 	h := resetTranslations(t)
-	if err := h.RegisterAdminTranslations("lang-sr", srRegistration()); err != nil {
+	if err := h.RegisterAdminTranslations("lang-pl", plRegistration()); err != nil {
 		t.Fatalf("register: %v", err)
 	}
 	if rec := callTranslations(t, http.MethodGet, "/api/admin-ui/i18n/catalog/de", nil); rec.Code != http.StatusNotFound {

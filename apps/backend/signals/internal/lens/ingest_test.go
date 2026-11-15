@@ -101,7 +101,7 @@ func TestCleanBoundsEveryTrackerField(t *testing.T) {
 	e := Event{
 		Type: "click", PageKey: "/p", Viewport: "desktop",
 		ID: strings.Repeat("i", 200), Title: strings.Repeat("t", 1000), Referrer: strings.Repeat("r", 2000),
-		Selector: strings.Repeat("s", 1000), Text: "a" + strings.Repeat("ž", 200), Name: strings.Repeat("n", 200),
+		Selector: strings.Repeat("s", 1000), Text: "a" + strings.Repeat("ü", 200), Name: strings.Repeat("n", 200),
 		State: strings.Repeat("x", 200), LayoutHash: "../../etc", Props: map[string]any{"big": strings.Repeat("p", 5000)},
 	}
 	if !clean(&e) {

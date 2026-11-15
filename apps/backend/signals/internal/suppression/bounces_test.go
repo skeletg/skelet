@@ -12,7 +12,7 @@ func TestTruncateBoundsTheStoredBounceReason(t *testing.T) { // SMTP rejections 
 		"exact length": {"abcde", 5, "abcde"},
 		"longer":       {"abcdefghij", 4, "abcd"},
 		"zero":         {"abc", 0, ""},
-		"mid-rune":     {"550 žž", 5, "550 "},
+		"mid-rune":     {"550 üü", 5, "550 "},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if got := truncate(tc.in, tc.n); got != tc.want {

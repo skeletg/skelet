@@ -10,6 +10,7 @@ cmd/skelet/skelet
 
 # compose's auto-read local defaults - machine-local, like env/*.env
 .env
+.env.production
 env/*.env
 *.DS_Store
 

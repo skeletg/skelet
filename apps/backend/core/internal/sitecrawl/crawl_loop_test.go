@@ -17,10 +17,10 @@ func testSite(t *testing.T) *httptest.Server {
 			<h1>Welcome</h1><h3>Skipped a level</h3>
 			<a href="/a">A</a><a href="/a">A again</a><a href="/old">Old</a><a href="/secret/x">Hidden</a>
 			<a href="/ignored" rel="nofollow">Nofollow</a><a href="https://elsewhere.test/">Out</a>
-			<a href="/` + "š" + `">` + strings.Repeat("š", 100) + `</a></body></html>`,
+			<a href="/` + "ö" + `">` + strings.Repeat("ö", 100) + `</a></body></html>`,
 		"/a":        `<html><head><title>A</title><meta name="robots" content="nofollow"></head><body><a href="/from-a">x</a> one two three</body></html>`,
 		"/new":      `<html><head><title>New</title></head><body>moved here</body></html>`,
-		"/" + "š":   `<html><body>serbian</body></html>`,
+		"/" + "ö":   `<html><body>accented</body></html>`,
 		"/from-a":   `<html><body>never reached</body></html>`,
 		"/ignored":  `<html><body>never reached</body></html>`,
 		"/secret/x": `<html><body>never reached</body></html>`,
@@ -100,7 +100,7 @@ func TestCrawlWalksTheSiteLikeASearchEngine(t *testing.T) {
 }
 
 func TestTruncateKeepsWholeCharacters(t *testing.T) {
-	s := strings.Repeat("š", 100)
+	s := strings.Repeat("ö", 100)
 	if got := truncate(s, 121); !utf8.ValidString(got) || len(got) != 120 {
 		t.Errorf("truncate = %d bytes, valid %v - want 120 valid bytes", len(got), utf8.ValidString(got))
 	}

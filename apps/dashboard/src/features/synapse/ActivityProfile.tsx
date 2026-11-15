@@ -363,7 +363,7 @@ function RfmCell({ label, score, sub }: { label: string; score: number; sub: str
 }
 
 // AffinitiesBody - what this profile is interested in (Synapse-tracked attributes they filtered by / viewed), one card
-// per attribute - The top value is the strongest signal (e.g. tire size 205/55R16 → "they likely need this size")
+// per attribute - The top value is the strongest signal (e.g. shoe size 44 → "they likely need this size")
 function AffinitiesBody({ affinities }: { affinities: NonNullable<ProfileData['affinities']> }) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">

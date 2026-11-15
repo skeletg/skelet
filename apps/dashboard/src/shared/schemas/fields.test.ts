@@ -161,9 +161,9 @@ describe('datetime-local', () => {
 describe('optionalPhone', () => {
   // A customer's phone has no country here - the backend reads a national one in the channel's default
   it('checks a +number, and leaves a national one and a blank to the backend', () => {
-    expect(optionalPhone().safeParse('+381 64 123 4567').success).toBe(true)
-    expect(message(optionalPhone(), '+381 64')).toBe('Not a valid phone number')
-    expect(optionalPhone().safeParse('064 123 4567').success).toBe(true)
+    expect(optionalPhone().safeParse('+49 1512 3456789').success).toBe(true)
+    expect(message(optionalPhone(), '+49 151')).toBe('Not a valid phone number')
+    expect(optionalPhone().safeParse('01512 3456789').success).toBe(true)
     expect(optionalPhone().safeParse('').success).toBe(true)
   })
 })

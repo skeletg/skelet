@@ -16,22 +16,26 @@ var switchedOff = regexp.MustCompile(`(?i)^\s*(false|0|f|no|off)\s*$`)
 // current is setup's defaults read back off the files the answers became, so there's no second copy to drift
 func current(root string, c catalog) profile.Profile {
 	p := profile.Current(root)
-	backend := "env/go.env"
-	if t := p[kTarget]; t != "" && t != "dev" {
-		backend = "env/" + t + ".env"
+	backend, knobs := "env/go.env", profile.EnvPath(root)
+	if p[kTarget] == "server" {
+		backend = CoreEnv
+		knobs = filepath.Join(root, CoreEnv)
+		workers, _, _ := envfile.Get(knobs, "WORKER_REPLICAS")
+		if jobs, ok, _ := envfile.Get(knobs, "JOBS_EXTERNAL"); ok {
+			p[kSmall] = strconv.FormatBool(jobs == "false" && workers == "0")
+		}
 	}
 	for key, answer := range map[string]string{"SIGNALS_ENABLED": kSignals, "AI_ENABLED": kAI} {
 		if v, ok, _ := envfile.Get(filepath.Join(root, backend), key); ok {
 			p[answer] = strconv.FormatBool(!switchedOff.MatchString(v))
 		}
 	}
-	env := profile.EnvPath(root)
-	if _, err := os.Stat(env); err == nil {
+	if _, err := os.Stat(knobs); err == nil {
 		p[kSearch] = "opensearch"
-		if v, ok, _ := envfile.Get(env, "OPENSEARCH_URL"); ok && v == "" {
+		if v, ok, _ := envfile.Get(knobs, "OPENSEARCH_URL"); ok && v == "" {
 			p[kSearch] = "postgres"
 		}
-		slug, _, _ := envfile.Get(env, "ADMIN_API_SLUG")
+		slug, _, _ := envfile.Get(knobs, "ADMIN_API_SLUG")
 		p[kSlug] = map[bool]string{true: "1", false: "0"}[slug != ""]
 	}
 	if set, before, err := plugins.Load(root); err == nil && before != nil {

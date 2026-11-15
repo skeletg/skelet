@@ -66,7 +66,7 @@ func TestIngestBackInStockRecordsTheRequest(t *testing.T) {
 	}
 
 	// a guest subscribes from the PDP - the email is normalized, no customer attached
-	body := fmt.Sprintf(`{"productId":%q,"sku":%q,"email":"  Guest@E2E.test ","name":"Tire","url":"https://shop/p"}`, f.Product.ID, f.Product.SKU)
+	body := fmt.Sprintf(`{"productId":%q,"sku":%q,"email":"  Guest@E2E.test ","name":"Jacket","url":"https://shop/p"}`, f.Product.ID, f.Product.SKU)
 	status, _, _ := tRequest(t, ts, http.MethodPost, "/t/back-in-stock", f.Channel.ID.String(), body)
 	if status != http.StatusNoContent {
 		t.Fatalf("POST /t/back-in-stock = %d, want 204", status)

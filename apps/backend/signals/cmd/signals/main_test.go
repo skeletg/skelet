@@ -19,8 +19,8 @@ import (
 func TestTrustedProxiesLetTheShoppersIPThroughCoresProxy(t *testing.T) {
 	t.Cleanup(func() { _ = auth.SetTrustedProxies(nil) })
 	env := map[string]string{"TRUSTED_PROXIES": "10.0.0.0/8, 192.168.1.5"}
-	if err := trustProxies(func(k string) string { return env[k] }); err != nil {
-		t.Fatalf("trustProxies: %v", err)
+	if err := auth.TrustFromEnv(func(k string) string { return env[k] }); err != nil {
+		t.Fatalf("TrustFromEnv: %v", err)
 	}
 	r := httptest.NewRequest("POST", "/t", nil)
 	r.RemoteAddr = "10.1.2.3:41000"
@@ -33,7 +33,7 @@ func TestTrustedProxiesLetTheShoppersIPThroughCoresProxy(t *testing.T) {
 		t.Errorf("ClientIP from an untrusted peer = %q, want the peer itself", got)
 	}
 	env["TRUSTED_PROXIES"] = "not-a-cidr"
-	if err := trustProxies(func(k string) string { return env[k] }); err == nil {
+	if err := auth.TrustFromEnv(func(k string) string { return env[k] }); err == nil {
 		t.Error("a malformed TRUSTED_PROXIES was accepted")
 	}
 }

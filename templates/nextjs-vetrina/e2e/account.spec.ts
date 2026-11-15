@@ -13,14 +13,14 @@ test.describe("profile", () => {
     await expect(form.getByLabel("First name")).toHaveAccessibleDescription("This field is required.");
 
     await form.getByLabel("First name").fill("Nina");
-    await form.getByLabel("Phone").fill("+381 11 555 0100");
+    await form.getByLabel("Phone").fill("+49 30 555 0100");
     await form.getByRole("button", { name: "Save changes" }).click();
     await expect(form.getByText("Profile saved.")).toBeVisible();
 
     await open(page, "/account/profile");
     await expect(main(page).getByLabel("First name")).toHaveValue("Nina");
     // Saved as E.164 and shown in the number's own international format
-    await expect(main(page).getByLabel("Phone")).toHaveValue("+381 11 5550100");
+    await expect(main(page).getByLabel("Phone")).toHaveValue("+49 30 5550100");
   });
 });
 

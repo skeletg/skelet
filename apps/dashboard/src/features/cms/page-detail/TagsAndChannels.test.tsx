@@ -52,12 +52,12 @@ describe('CMS page tags and channels', () => {
         refetchVariables={{ id: 'pg1' }}
       />,
       [
-        { request: { query: ChannelsDocument }, result: { data: { channels: [channel('c1', 'Wheels'), channel('c2', 'Tyres')] } }, maxUsageCount: 3 },
+        { request: { query: ChannelsDocument }, result: { data: { channels: [channel('c1', 'Menswear'), channel('c2', 'Womenswear')] } }, maxUsageCount: 3 },
         { request: { query: SetCmsPageChannelListingDocument, variables: captureInput(onListing) }, result: { data: { setCMSPageChannelListing: null } } },
       ],
     )
-    // Published channels sort first, so Tyres (unlisted) is the second row
-    await screen.findByText('Tyres')
+    // Published channels sort first, so Womenswear (unlisted) is the second row
+    await screen.findByText('Womenswear')
     fireEvent.click(screen.getAllByRole('switch', { name: 'Published' })[1])
     await apply(/Apply 1 change/)
     await vi.waitFor(() => expect(onListing).toHaveBeenCalledTimes(1), SLOW)

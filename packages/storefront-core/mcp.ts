@@ -1,5 +1,5 @@
 import { FRONT_MCP_URL } from "./backend-url";
-import { clientIP } from "./client-ip";
+import { forwardedClient } from "./client-ip";
 import { request } from "./request";
 import { boundedText } from "./revalidate-payload";
 
@@ -25,8 +25,7 @@ export async function proxyMcp(req: Request, backend: string = FRONT_MCP_URL): P
     const v = req.headers.get(h);
     if (v) headers.set(h, v);
   }
-  const ip = clientIP(req.headers);
-  if (ip) headers.set("X-Forwarded-For", ip);
+  for (const [k, v] of Object.entries(forwardedClient(req.headers))) headers.set(k, v);
   let res: Response;
   try {
     res = await fetch(backend, { method: req.method, headers, body, cache: "no-store", signal: AbortSignal.timeout(TIMEOUT_MS) });

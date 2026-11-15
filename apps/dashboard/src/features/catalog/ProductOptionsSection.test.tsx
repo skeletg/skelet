@@ -50,8 +50,8 @@ const product = {
   contentLocale: 'en',
   defaultCurrencyCode: 'USD',
   listings: [
-    { channel: { id: 'c-usd', name: 'Wheels', currencyCode: 'USD' } },
-    { channel: { id: 'c-eur', name: 'Tyres', currencyCode: 'EUR' } },
+    { channel: { id: 'c-usd', name: 'Menswear', currencyCode: 'USD' } },
+    { channel: { id: 'c-eur', name: 'Womenswear', currencyCode: 'EUR' } },
   ],
   productOptions: [
     option('o1', 'Finish', 'DROPDOWN', 0, {
@@ -107,15 +107,15 @@ describe('ProductOptionsSection', () => {
     const writes = renderOptions()
     fireEvent.click(await screen.findByRole('button', { name: 'Edit Finish' }, SLOW))
     fireEvent.click(within(sheet()).getByRole('button', { name: 'More settings for Gloss' }))
-    const tyres = within(sheet()).getByLabelText(/Tyres/) as HTMLInputElement
-    expect(tyres.value).toBe('4.00')
-    fireEvent.change(tyres, { target: { value: '4.50' } })
-    fireEvent.change(within(sheet()).getByLabelText(/Wheels/), { target: { value: '5.50' } })
+    const womenswear = within(sheet()).getByLabelText(/Womenswear/) as HTMLInputElement
+    expect(womenswear.value).toBe('4.00')
+    fireEvent.change(womenswear, { target: { value: '4.50' } })
+    fireEvent.change(within(sheet()).getByLabelText(/Menswear/), { target: { value: '5.50' } })
     fireEvent.click(within(sheet()).getByRole('button', { name: 'Done' }))
 
     const { dialog, apply } = await saveAndConfirm()
-    expect(within(dialog).getByText(/Value · Gloss · price on Tyres \(EUR\)/)).toBeDefined()
-    expect(within(dialog).getByText(/Value · Gloss · price on Wheels \(USD\)/)).toBeDefined()
+    expect(within(dialog).getByText(/Value · Gloss · price on Womenswear \(EUR\)/)).toBeDefined()
+    expect(within(dialog).getByText(/Value · Gloss · price on Menswear \(USD\)/)).toBeDefined()
     apply()
     await vi.waitFor(() => expect(writes.price).toHaveBeenCalledTimes(2), SLOW)
     expect(writes.price).toHaveBeenCalledWith({ valueId: 'v1', channelId: 'c-eur', priceValue: 450 })
@@ -127,9 +127,9 @@ describe('ProductOptionsSection', () => {
     const writes = renderOptions()
     fireEvent.click(await screen.findByRole('button', { name: 'Edit Finish' }, SLOW))
     fireEvent.click(within(sheet()).getByRole('button', { name: 'More settings for Gloss' }))
-    expect(within(sheet()).queryByText('Not sold on Tyres until set.')).toBeNull()
-    fireEvent.change(within(sheet()).getByLabelText(/Tyres/), { target: { value: '' } })
-    expect(within(sheet()).getByText('Not sold on Tyres until set.')).toBeDefined()
+    expect(within(sheet()).queryByText('Not sold on Womenswear until set.')).toBeNull()
+    fireEvent.change(within(sheet()).getByLabelText(/Womenswear/), { target: { value: '' } })
+    expect(within(sheet()).getByText('Not sold on Womenswear until set.')).toBeDefined()
     fireEvent.click(within(sheet()).getByRole('button', { name: 'Done' }))
 
     const { apply } = await saveAndConfirm()
@@ -166,10 +166,10 @@ describe('ProductOptionsSection', () => {
     const s = sheet()
     fireEvent.change(within(s).getByLabelText(/Name shown to customers/), { target: { value: 'Engraving' } })
     fireEvent.click(within(s).getByRole('radio', { name: /Short text/ }))
-    expect(within(s).queryByLabelText(/Tyres/)).toBeNull()
+    expect(within(s).queryByLabelText(/Womenswear/)).toBeNull()
     fireEvent.change(within(s).getByLabelText('Extra charge'), { target: { value: '3' } })
-    expect(within(s).getByText('Not sold on Tyres until set.')).toBeDefined()
-    fireEvent.change(within(s).getByLabelText(/Tyres/), { target: { value: '2.80' } })
+    expect(within(s).getByText('Not sold on Womenswear until set.')).toBeDefined()
+    fireEvent.change(within(s).getByLabelText(/Womenswear/), { target: { value: '2.80' } })
     fireEvent.click(within(s).getByRole('button', { name: 'Add option' }))
 
     const { apply } = await saveAndConfirm()
@@ -231,18 +231,18 @@ describe('ProductOptionsSection', () => {
   })
 
   it('translating changes only names, written to that language', async () => {
-    const writes = renderOptions({ ...globalScope, availableLocales: ['en', 'sr'], effectiveLocale: 'sr' })
+    const writes = renderOptions({ ...globalScope, availableLocales: ['en', 'pl'], effectiveLocale: 'pl' })
     fireEvent.click(await screen.findByRole('button', { name: 'Edit Gift note' }, SLOW))
     const s = sheet()
-    expect(within(s).getByText(/Translating to sr/)).toBeDefined()
+    expect(within(s).getByText(/Translating to pl/)).toBeDefined()
     expect(within(s).getByLabelText('Required')).toHaveProperty('disabled', true)
     expect(within(s).getByLabelText('Extra charge')).toHaveProperty('disabled', true)
-    fireEvent.change(within(s).getByLabelText(/Name shown to customers/), { target: { value: 'Poruka' } })
+    fireEvent.change(within(s).getByLabelText(/Name shown to customers/), { target: { value: 'Wiadomość' } })
     fireEvent.click(within(s).getByRole('button', { name: 'Done' }))
 
     const { apply } = await saveAndConfirm()
     apply()
-    await vi.waitFor(() => expect(writes.content).toHaveBeenCalledWith({ optionId: 'o4', locale: 'sr', title: 'Poruka', helpText: '' }), SLOW)
+    await vi.waitFor(() => expect(writes.content).toHaveBeenCalledWith({ optionId: 'o4', locale: 'pl', title: 'Wiadomość', helpText: '' }), SLOW)
     expect(writes.optionUpdate).not.toHaveBeenCalled()
   })
 

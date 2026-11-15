@@ -9,7 +9,6 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"os"
 	"strconv"
@@ -352,6 +351,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 		AllowedOrigins:   AllowedOrigins(infra.Config),
 		AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodOptions},
 		AllowedHeaders:   []string{"Authorization", "Content-Type", "Apollo-Require-Preflight", "Locale", channel.HeaderChannelID},
+		ExposedHeaders:   []string{"Content-Disposition", "X-Request-Id", "X-Trace-Id", "X-DB-Queries"},
 		AllowCredentials: false, // JWT travels in Authorization header, not cookies
 		MaxAge:           300,
 	}).Handler(mux)
@@ -459,7 +459,7 @@ func pulseProxy(enabled bool) http.Handler {
 	if err != nil {
 		log.Fatalf("parse SIGNALS_URL: %v", err)
 	}
-	proxy := httputil.NewSingleHostReverseProxy(target)
+	proxy := authpkg.Relay(target)
 	// A pixel is best-effort and a click must land somewhere - the process being down answers the
 	// pixel with nothing and the click with a plain error rather than a broken page
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
@@ -483,7 +483,7 @@ func beaconProxy(enabled bool) http.Handler {
 	if err != nil {
 		log.Fatalf("parse SIGNALS_INGEST_URL: %v", err)
 	}
-	proxy := httputil.NewSingleHostReverseProxy(target)
+	proxy := authpkg.Relay(target)
 	// A beacon is best-effort: the tier being down answers exactly as the suite switched off does, so a
 	// shopper's page never sees a tracking hiccup and the SDKs fall back on the GETs
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {

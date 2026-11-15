@@ -23,7 +23,7 @@ it('saves points before activation and retains their IDs and option IDs when ret
   const { result } = renderHook(() => useCheckoutDraft({ channelId: 'channel', configuration: config, onSaved }))
   act(() => {
     const point = result.current.addPoint()
-    result.current.patchPoint(point, { name: 'Central', street1: 'Main street', city: 'Belgrade', postalCode: '11000', countryCode: 'RS' })
+    result.current.patchPoint(point, { name: 'Central', street1: 'Main street', city: 'Berlin', postalCode: '10115', countryCode: 'DE' })
     const option = result.current.addOption('parcel_locker')
     result.current.patchOption(option, { enabled: true })
   })

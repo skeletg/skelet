@@ -21,7 +21,7 @@ function address(id: string, street1: string): Address {
   return {
     id,
     firstName: "Ana",
-    lastName: "Ilić",
+    lastName: "Müller",
     company: null,
     street1,
     street2: null,
@@ -91,7 +91,7 @@ function renderStep(props: {
       checkout={props.checkout ?? checkout()}
       settings={DEFAULT_CHECKOUT_SETTINGS}
       signedIn={signedIn}
-      me={signedIn ? { firstName: "Ana", lastName: "Ilić" } : null}
+      me={signedIn ? { firstName: "Ana", lastName: "Müller" } : null}
       saved={props.saved ?? [HOME, OFFICE]}
       defaultShippingId={props.defaultShippingId ?? null}
       defaultBillingId={props.defaultBillingId ?? null}
@@ -175,14 +175,14 @@ describe("DetailsStep contact phone", () => {
     const { container } = renderStep({
       phoneSettings: {
         restrictedToStoreCountries: true,
-        lockedCountryCode: "RS",
-        defaultCountryCode: "RS",
-        formats: [{ countryCode: "RS", callingCode: "+381", example: "+381 60 1234567", nationalExample: "060 1234567", template: "xxx xxxxxxx" }],
+        lockedCountryCode: "DE",
+        defaultCountryCode: "DE",
+        formats: [{ countryCode: "DE", callingCode: "+49", example: "+49 1512 3456789", nationalExample: "01512 3456789", template: "xxxxx xxxxxxx" }],
       },
     });
-    expect(screen.getByText("+381")).toBeInTheDocument();
-    expect(container.querySelector('input[type="tel"]')).toHaveAttribute("placeholder", "060 1234567");
-    expect(container.querySelector<HTMLInputElement>('input[name="phoneCountry"]')?.value).toBe("RS");
-    expect(container.querySelector<HTMLInputElement>('input[name="phoneAllowed"]')?.value).toBe("RS");
+    expect(screen.getByText("+49")).toBeInTheDocument();
+    expect(container.querySelector('input[type="tel"]')).toHaveAttribute("placeholder", "01512 3456789");
+    expect(container.querySelector<HTMLInputElement>('input[name="phoneCountry"]')?.value).toBe("DE");
+    expect(container.querySelector<HTMLInputElement>('input[name="phoneAllowed"]')?.value).toBe("DE");
   });
 });

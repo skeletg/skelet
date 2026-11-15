@@ -269,11 +269,11 @@ mutation CreateChannel($input: CreateChannelInput!) {
     variables: JSON.stringify(
       {
         input: {
-          slug: 'wheels',
-          name: 'Wheels channel',
+          slug: 'menswear',
+          name: 'Menswear channel',
           defaultLocale: 'en',
           currencyCode: 'USD',
-          publicUrl: 'https://wheels.example.com',
+          publicUrl: 'https://menswear.example.com',
         },
       },
       null,

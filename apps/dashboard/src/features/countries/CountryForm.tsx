@@ -201,7 +201,7 @@ function CountryFormPage({ mode, country }: { mode: 'create' | 'edit'; country?:
 
       <DetailPageSection
         title="Company identification at checkout"
-        description="What a business purchase from this country asks for, in this order - Serbia's PIB and Matični broj, a VAT number elsewhere. Checkout checks each value against its format, and the order keeps them with their labels for the invoice. The company's country is its billing address, else where the order goes."
+        description="What a business purchase from this country asks for, in this order - a company registry number, a VAT number. Checkout checks each value against its format, and the order keeps them with their labels for the invoice. The company's country is its billing address, else where the order goes."
       >
         <form.Field name="businessIdFields">
           {(f) => (

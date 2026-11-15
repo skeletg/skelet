@@ -66,7 +66,7 @@ func init() {
 		{Value: "required", Label: "Required"},
 	}})
 	Register(Definition{Path: "sales/checkout/business_purchase", Type: TypeBool, Default: "false", Label: "Offer business purchases", Description: "Adds a Personal / Business switch to the details step. Business asks for the company name, and the tax ID and PO number below when they are on.", Public: true})
-	Register(Definition{Path: "sales/checkout/tax_id_field", Type: TypeSelect, Default: "optional", Label: "Generic tax ID on business purchases", Description: "The one tax ID a business purchase asks for when the company's country defines no company ID fields of its own. Set a country's own (Serbia's PIB and Matični broj, a VAT number) on the country's page.", Public: true, Options: []Option{
+	Register(Definition{Path: "sales/checkout/tax_id_field", Type: TypeSelect, Default: "optional", Label: "Generic tax ID on business purchases", Description: "The one tax ID a business purchase asks for when the company's country defines no company ID fields of its own. Set a country's own (a company registry number, a VAT number) on the country's page.", Public: true, Options: []Option{
 		{Value: "hidden", Label: "Hidden"},
 		{Value: "optional", Label: "Optional"},
 		{Value: "required", Label: "Required"},

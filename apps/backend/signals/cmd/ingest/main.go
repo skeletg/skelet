@@ -5,12 +5,10 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -44,8 +42,8 @@ func run() error {
 		return err
 	}
 
-	if err := auth.SetTrustedProxies(strings.Split(os.Getenv("TRUSTED_PROXIES"), ",")); err != nil {
-		return fmt.Errorf("TRUSTED_PROXIES: %w", err)
+	if err := auth.TrustFromEnv(os.Getenv); err != nil {
+		return err
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

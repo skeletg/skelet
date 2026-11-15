@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -46,7 +45,7 @@ func run() error {
 		return err
 	}
 
-	if err := trustProxies(os.Getenv); err != nil {
+	if err := auth.TrustFromEnv(os.Getenv); err != nil {
 		return err
 	}
 
@@ -153,13 +152,6 @@ func run() error {
 	wg.Wait()
 	slog.Info("signals stopped")
 	return listenErr
-}
-
-func trustProxies(getenv func(string) string) error {
-	if err := auth.SetTrustedProxies(strings.Split(getenv("TRUSTED_PROXIES"), ",")); err != nil {
-		return fmt.Errorf("TRUSTED_PROXIES: %w", err)
-	}
-	return nil
 }
 
 const grpcDrainTimeout = 10 * time.Second

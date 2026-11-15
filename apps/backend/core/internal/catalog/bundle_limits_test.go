@@ -146,24 +146,24 @@ func TestBuildCategoryTreeNests(t *testing.T) {
 	rootA, rootB := uuid.New(), uuid.New()
 	child, grandchild := uuid.New(), uuid.New()
 	all := []Category{
-		cat(rootA, nil, "tires"),
+		cat(rootA, nil, "jackets"),
 		cat(child, &rootA, "winter"),
 		cat(grandchild, &child, "studded"),
-		cat(rootB, nil, "wheels"),
+		cat(rootB, nil, "shoes"),
 	}
 
 	roots := buildCategoryTree(all, nil)
-	if got := names(roots); len(got) != 2 || got[0] != "tires" || got[1] != "wheels" {
-		t.Fatalf("roots = %v, want [tires wheels]", got)
+	if got := names(roots); len(got) != 2 || got[0] != "jackets" || got[1] != "shoes" {
+		t.Fatalf("roots = %v, want [jackets shoes]", got)
 	}
 	if got := names(roots[0].Children); len(got) != 1 || got[0] != "winter" {
-		t.Fatalf("children of tires = %v, want [winter]", got)
+		t.Fatalf("children of jackets = %v, want [winter]", got)
 	}
 	if got := names(roots[0].Children[0].Children); len(got) != 1 || got[0] != "studded" {
 		t.Errorf("children of winter = %v, want [studded]", got)
 	}
 	if len(roots[1].Children) != 0 {
-		t.Errorf("wheels has %d children, want none", len(roots[1].Children))
+		t.Errorf("shoes has %d children, want none", len(roots[1].Children))
 	}
 }
 

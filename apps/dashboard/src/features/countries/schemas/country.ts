@@ -29,14 +29,14 @@ export type ExistingCountry = {
   regions: { code: string; name: string; isActive: boolean; sortOrder: number }[]
 }
 
-// One company identifier a business purchase from this country asks for at checkout - PIB, Matični broj, VAT number
+// One company identifier a business purchase from this country asks for at checkout - a VAT number, a company registry number
 export const businessIdFieldSchema = z
   .object({
     key: z
       .string()
       .regex(/^([a-z][a-z0-9_]{0,39})?$/, 'Lowercase letters, digits and underscores, starting with a letter')
       .describe('Stable slug the values are stored under - empty derives it from the label'),
-    label: z.string().trim().min(1, 'Label is required').describe('What the shopper and the invoice read, such as PIB'),
+    label: z.string().trim().min(1, 'Label is required').describe('What the shopper and the invoice read, such as VAT number'),
     required: z.boolean().describe('Whether a business purchase must give it'),
     pattern: z
       .string()
@@ -131,7 +131,7 @@ export function toCountryInput(v: CountryValues) {
   }
 }
 
-// "PIB (required, \d{9}) - 9 digits; Matični broj" - one readable line for the save dialog's before and after, carrying
+// "USt-IdNr. (required, DE\d{9}) - DE and 9 digits; Betriebsnummer" - one readable line for the save dialog's before and after, carrying
 // every property so a hint-only edit still shows as a change
 function describeFields(fields: BusinessIdFieldValues[]): string {
   return fields

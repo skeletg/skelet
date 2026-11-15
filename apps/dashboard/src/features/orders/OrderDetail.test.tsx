@@ -15,10 +15,10 @@ const address = {
   company: null,
   street1: '1 Main St',
   street2: null,
-  city: 'Belgrade',
+  city: 'Berlin',
   state: null,
-  postalCode: '11000',
-  countryCode: 'RS',
+  postalCode: '10115',
+  countryCode: 'DE',
   phone: null,
 }
 

@@ -12,8 +12,8 @@ vi.mock("@/app/components/LocaleLink", () => localeLinkMock);
 const channel = "test-channel";
 const productA = "1f8b64d2-96f1-4fbd-8252-f42bd396f9c1";
 const productB = "2f8b64d2-96f1-4fbd-8252-f42bd396f9c2";
-const store = { id: "9f8b64d2-96f1-4fbd-8252-f42bd396f9c8", slug: "central", name: "Central", line1: "Main 1", line2: "", city: "Belgrade", region: "", postalCode: "11000", countryCode: "RS", latitude: 44.8, longitude: 20.4, timezone: "Europe/Belgrade", hours: { monday: { open: "09:00", close: "18:00" } }, phone: "123", pickupEnabled: false, distanceKm: null, stockStatus: "IN_STOCK" as const };
-const initial: StoresResult = { enabled: true, hasPickupStores: false, stockCheckingAvailable: true, productEligible: true, cities: ["Belgrade", "Novi Sad"], preferredStore: null, items: [store], totalCount: 1 };
+const store = { id: "9f8b64d2-96f1-4fbd-8252-f42bd396f9c8", slug: "central", name: "Central", line1: "Main 1", line2: "", city: "Berlin", region: "", postalCode: "10115", countryCode: "DE", latitude: 52.5, longitude: 13.4, timezone: "Europe/Berlin", hours: { monday: { open: "09:00", close: "18:00" } }, phone: "123", pickupEnabled: false, distanceKm: null, stockStatus: "IN_STOCK" as const };
+const initial: StoresResult = { enabled: true, hasPickupStores: false, stockCheckingAvailable: true, productEligible: true, cities: ["Berlin", "Hamburg"], preferredStore: null, items: [store], totalCount: 1 };
 
 // The real actions talk to the backend; these run the same schemas and answer in the same SubmissionResult shape
 let answer: (query: Record<string, unknown>) => StoresResult | null = () => initial;
@@ -51,8 +51,8 @@ describe("store finder", () => {
     answer = (q) => ({ ...initial, preferredStore: q.preferredStoreId ? store : null });
     renderWithIntl(<StoreFinder productId={productA} />);
     await screen.findByText("Central");
-    fireEvent.change(screen.getByLabelText("City"), { target: { value: "Belgrade" } });
-    await waitFor(() => expect(lastQuery()).toMatchObject({ city: "Belgrade", productId: productA }));
+    fireEvent.change(screen.getByLabelText("City"), { target: { value: "Berlin" } });
+    await waitFor(() => expect(lastQuery()).toMatchObject({ city: "Berlin", productId: productA }));
     fireEvent.click(await screen.findByLabelText("In stock only"));
     await waitFor(() => expect(lastQuery()).toMatchObject({ inStockOnly: "on" }));
     fireEvent.click(await screen.findByRole("button", { name: "Set as my store" }));
@@ -67,10 +67,10 @@ describe("store finder", () => {
     const calls = findStores.mock.calls.length;
     const input = screen.getByLabelText("Store name, address or postal code");
     fireEvent.change(input, { target: { value: "novi" } });
-    fireEvent.change(input, { target: { value: "novi sad" } });
+    fireEvent.change(input, { target: { value: "hamburg" } });
     expect(findStores.mock.calls.length).toBe(calls);
     fireEvent.submit(input.closest("form")!);
-    await waitFor(() => expect(lastQuery()).toMatchObject({ search: "novi sad" }));
+    await waitFor(() => expect(lastQuery()).toMatchObject({ search: "hamburg" }));
     expect(findStores.mock.calls.length).toBe(calls + 1);
   });
   it("re-checks a new product with the shopper's filters still applied", async () => {
@@ -106,11 +106,11 @@ describe("store finder", () => {
     expect(screen.getByLabelText("In stock only")).toBeDisabled();
   });
   it("sorts nearby without persisting coordinates", async () => {
-    Object.defineProperty(navigator, "geolocation", { configurable: true, value: { getCurrentPosition: (success: (value: unknown) => void) => success({ coords: { latitude: 44.8, longitude: 20.4 } }) } });
+    Object.defineProperty(navigator, "geolocation", { configurable: true, value: { getCurrentPosition: (success: (value: unknown) => void) => success({ coords: { latitude: 52.5, longitude: 13.4 } }) } });
     renderWithIntl(<StoreFinder />);
     await screen.findByText("Central");
     fireEvent.click(screen.getByRole("button", { name: "Near me" }));
-    await waitFor(() => expect(lastQuery()).toMatchObject({ latitude: "44.8", longitude: "20.4" }));
+    await waitFor(() => expect(lastQuery()).toMatchObject({ latitude: "52.5", longitude: "13.4" }));
     expect(localStorage.length).toBe(0);
   });
   it("pages with the pager's own offset and retries errors", async () => {

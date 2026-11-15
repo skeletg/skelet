@@ -31,15 +31,21 @@ type answers struct {
 	adminSlug bool
 	apps      []string
 	// the subset of apps that runs in containers; the rest run on the host
-	dockerApps []string
-	tools      []string
+	tools []string
 	// fromProfile is a selection replayed rather than chosen now, which leaves the working tree as it is
 	fromProfile bool
 	// prune is whether the working tree follows the selection at all, removeDeselected whether that may take apps out
 	prune, removeDeselected bool
 	// shop is a storefront of the project's own to copy from shopTemplate - the default template when that's empty
 	shop, shopTemplate string
+	small              bool
+	// shared is what the apps here take from core when core runs on another machine
+	shared map[string]string
 }
+
+func (a answers) runs(app string) bool { return slices.Contains(a.apps, app) }
+
+func (a answers) hasCore() bool { return a.target == "dev" || a.runs(appCore) }
 
 const (
 	kTarget  = profile.TargetKey
@@ -49,8 +55,8 @@ const (
 	kGates   = "SKELET_GATEWAYS"
 	kSlug    = "SKELET_ADMIN_SLUG"
 	kApps    = profile.AppsKey
-	kDocker  = profile.DockerKey
 	kTools   = profile.ToolsKey
+	kSmall   = "SKELET_SMALL"
 )
 
 // errRefused is an answer that stops setup before it writes anything; the reason is already printed
@@ -205,8 +211,7 @@ func label(q string) string { return strings.TrimPrefix(strings.TrimSpace(q), "=
 
 var optionHints = map[string]string{
 	"dev":        "the local stack - hot reload and sidecars, started with skelet up",
-	"small":      "a one-container server deployment - writes config, starts nothing here",
-	"prod":       "the full split-tier server deployment - writes config, starts nothing here",
+	"server":     "the apps that run on this machine, for real - writes their config, starts nothing here",
 	"opensearch": "a search service of its own - typo tolerance and facets at scale",
 	"postgres":   "the database's own full-text search - nothing more to run",
 }
@@ -217,9 +222,55 @@ func answer(root string, c catalog, f flags, prof profile.Profile, profilePath s
 		return a, err
 	}
 	if p := ask.prior; p != nil {
-		a.target, a.signals, a.ai, a.search, a.gateways, a.adminSlug = p.target, p.signals, p.ai, p.search, p.gateways, p.adminSlug
+		a.target, a.signals, a.ai, a.search, a.gateways, a.adminSlug, a.small = p.target, p.signals, p.ai, p.search, p.gateways, p.adminSlug, p.small
+	}
+	switch {
+	case f.here.set:
+		a.target, a.small = "server", f.small
+	case ask.on:
+		whereTo(&a, ask, out)
+	}
+	if a.target == "server" {
+		if err := onThisMachine(&a, c, f, prof, profilePath, ask, out); err != nil {
+			return a, err
+		}
+	} else {
+		devApps(&a, c, f, prof, profilePath, ask, out)
+		// Ahead of where the frontends run, so the new shop is placed with them and the pnpm check covers it
+		firstShop(&a, c, f, ask, out)
 	}
 
+	// A host app needs pnpm at its pinned version - refused before anything is written, since finding out at the
+	// install step leaves a half-set-up clone and a frontend that won't start
+	hosts := frontends(a.apps)
+	if i := slices.Index(hosts, a.shop); a.shop != "" && i >= 0 {
+		hosts[i] = a.shopTemplate
+	}
+	if problem := pnpmProblem(root, hosts); problem != "" {
+		fmt.Fprintf(os.Stderr, "==> The frontends run on the host and need pnpm: %s\n", problem)
+		fmt.Fprintln(os.Stderr, "    Install it and re-run, or re-run with --backend-only")
+		return a, errRefused
+	}
+
+	a.prune = !f.keepCode && !a.fromProfile
+	a.removeDeselected = ask.prior == nil || ask.prior.removeDeselected
+	if a.prune && !f.apps.set && !f.here.set && !a.fromProfile && ask.on && len(excluded(a, c)) > 0 {
+		a.removeDeselected = ask.yesNo("    Also remove the deselected apps' source from your working tree?", a.removeDeselected)
+	}
+
+	if ask.on && a.hasCore() {
+		shape(&a, c, ask, out)
+	}
+	if !a.hasCore() {
+		if err := a.takeShared(root, f, ask, out); err != nil {
+			return a, err
+		}
+	}
+	pickTools(&a, f, prof, ask, out)
+	return a, nil
+}
+
+func devApps(a *answers, c catalog, f flags, prof profile.Profile, profilePath string, ask prompter, out io.Writer) {
 	switch {
 	case f.apps.set:
 		a.apps = f.apps.items
@@ -259,66 +310,9 @@ func answer(root string, c catalog, f flags, prof profile.Profile, profilePath s
 	default:
 		a.apps = c.defaultApps()
 	}
-	// Ahead of where the frontends run, so the new shop is placed with them and the pnpm check covers it
-	firstShop(&a, c, f, ask, out)
+}
 
-	// Where they run is a separate question from whether you have them, and the default is the host
-	switch {
-	case f.dockerApps.set:
-		a.dockerApps = f.dockerApps.items
-	case len(a.apps) == 0:
-	case has(prof, kDocker):
-		a.dockerApps = split(prof[kDocker])
-	default:
-		// No answer on record, so the placement the clone already runs with stands rather than being emptied
-		current := placement(root)
-		if ask.prior != nil {
-			current = ask.prior.dockerApps
-		}
-		if ask.on {
-			ask.section(out, "Where should the frontends run?",
-				"    On the host the dev server and the gates share one node_modules, so",
-				"    a lint run checks the same tree the dev server is serving. In Docker",
-				"    they are two separate trees, but you need no Node installed.")
-			if ask.yesNo("    Run them in Docker instead of on the host?", len(current) > 0) {
-				current = a.apps
-			} else {
-				current = nil
-			}
-		}
-		a.dockerApps = current
-	}
-	if a.shop != "" && len(a.dockerApps) > 0 && !slices.Contains(a.dockerApps, a.shop) {
-		a.dockerApps = append(a.dockerApps, a.shop)
-	}
-	// Only apps you selected, so --docker-apps can't containerize one that isn't here
-	a.dockerApps = slices.DeleteFunc(slices.Clone(a.dockerApps), func(app string) bool { return !slices.Contains(a.apps, app) })
-
-	// A host app needs pnpm at its pinned version - refused before anything is written, since finding out at the
-	// install step leaves a half-set-up clone and a frontend that won't start
-	hosts := a.hostApps()
-	if i := slices.Index(hosts, a.shop); a.shop != "" && i >= 0 {
-		hosts[i] = a.shopTemplate
-	}
-	if problem := pnpmProblem(root, hosts); problem != "" {
-		fmt.Fprintf(os.Stderr, "==> The frontends on the host need pnpm: %s\n", problem)
-		if !ask.yesNo("    Run them in Docker instead, which needs no pnpm on the host?", ask.on) {
-			fmt.Fprintf(os.Stderr, "    Install it and re-run, or re-run with --docker-apps %s\n", join(a.apps))
-			return a, errRefused
-		}
-		a.dockerApps = a.apps
-	}
-
-	a.prune = !f.keepCode && !a.fromProfile
-	a.removeDeselected = ask.prior == nil || ask.prior.removeDeselected
-	if a.prune && !f.apps.set && !a.fromProfile && ask.on && len(excluded(a, c)) > 0 {
-		a.removeDeselected = ask.yesNo("    Also remove the deselected apps' source from your working tree?", a.removeDeselected)
-	}
-
-	if ask.on {
-		shape(&a, c, ask, out)
-	}
-
+func pickTools(a *answers, f flags, prof profile.Profile, ask prompter, out io.Writer) {
 	switch {
 	case f.tools.set:
 		a.tools = f.tools.items
@@ -346,7 +340,6 @@ func answer(root string, c catalog, f flags, prof profile.Profile, profilePath s
 			a.tools = picks
 		}
 	}
-	return a, nil
 }
 
 // The profile's answers become this run's defaults, so re-running is not an interrogation
@@ -355,12 +348,12 @@ func defaults(a *answers, p profile.Profile, from string) error {
 		return fmt.Errorf("%s says %s=%s - it takes %s", from, k, p[k], want)
 	}
 	if v, ok := p.Get(kTarget); ok {
-		if v != "dev" && v != "small" && v != "prod" {
-			return bad(kTarget, "dev, small or prod")
+		if v != "dev" && v != "server" {
+			return bad(kTarget, "dev or server")
 		}
 		a.target = v
 	}
-	for k, dst := range map[string]*bool{kSignals: &a.signals, kAI: &a.ai} {
+	for k, dst := range map[string]*bool{kSignals: &a.signals, kAI: &a.ai, kSmall: &a.small} {
 		if v, ok := p.Get(k); ok {
 			if v != "true" && v != "false" {
 				return bad(k, "true or false")
@@ -386,18 +379,72 @@ func defaults(a *answers, p profile.Profile, from string) error {
 	return nil
 }
 
-func shape(a *answers, c catalog, ask prompter, out io.Writer) {
-	// "Deployment target" alone reads as where this will eventually live, so people building a shop pick prod and
-	// then find skelet up refuses to start - so each one says what it actually does
+// whereTo is dev or a server - "deployment target" alone reads as where this will eventually live, so people building
+// a shop picked prod and then found skelet up refusing to start, so each one says what it actually does
+func whereTo(a *answers, ask prompter, out io.Writer) {
 	ask.section(out, "How will you run THIS clone?")
-	for _, t := range []string{"dev", "small", "prod"} {
+	for _, t := range []string{"dev", "server"} {
 		ask.plain(out, fmt.Sprintf("      %-6s %s", t, optionHints[t]))
 	}
 	ask.say(out, "    Pick dev unless you are configuring a server right now.")
-	a.target = ask.choice("Target", a.target, "dev", "small", "prod")
+	a.target = ask.choice("Target", a.target, "dev", "server")
+}
+
+func onThisMachine(a *answers, c catalog, f flags, prof profile.Profile, from string, ask prompter, out io.Writer) error {
+	switch {
+	case f.here.set:
+		a.apps = f.here.items
+	case ask.on:
+		def := known(prof[kApps], c.serverApps(), from, io.Discard)
+		if ask.prior != nil {
+			def = ask.prior.apps
+		}
+		if !slices.Contains(def, appCore) && !slices.Contains(def, appSignals) {
+			def = append([]string{appCore}, def...)
+		}
+		opts := []pickOpt{{appCore, "the commerce backend, in Docker", false}, {appSignals, "analytics and campaigns, in Docker", false},
+			{"dashboard", "the admin's static build", false}}
+		for _, sf := range c.storefronts {
+			opts = append(opts, pickOpt{sf.Name, "a storefront's Node server", false})
+		}
+		for i := range opts {
+			opts[i].on = slices.Contains(def, opts[i].value)
+		}
+		a.apps = nil
+		if ask.ui != nil {
+			ask.section(out, "Apps on this machine", "Each app runs wherever you put it - pick the ones that run here")
+			a.apps = ask.pick("Which apps run on this machine?", opts)
+			break
+		}
+		ask.section(out, "Which apps run on this machine?")
+		for _, o := range opts {
+			if ask.yesNo("    "+o.value+" - "+o.hint+"?", o.on) {
+				a.apps = append(a.apps, o.value)
+			}
+		}
+	case has(prof, kApps):
+		a.apps, a.fromProfile = known(prof[kApps], c.serverApps(), from, out), true
+	}
+	if len(a.apps) == 0 {
+		fmt.Fprintln(os.Stderr, "==> A server setup needs the apps that run on this machine: skelet setup core signals dashboard <storefront>")
+		return errRefused
+	}
+	if a.runs(appSignals) {
+		a.signals = true
+	}
+	return nil
+}
+
+func shape(a *answers, c catalog, ask prompter, out io.Writer) {
+	if a.target == "server" {
+		ask.section(out, "Core's shape")
+		a.small = ask.yesNo("    Run core as one container - no worker or media tiers, no Valkey?", a.small)
+	}
 
 	ask.section(out, "Which suites do you want? (all default on)")
-	a.signals = ask.yesNo("    Signals - analytics: Lens, Synapse, Pulse, Prism?", a.signals)
+	if !a.runs(appSignals) {
+		a.signals = ask.yesNo("    Signals - analytics: Lens, Synapse, Pulse, Prism?", a.signals)
+	}
 	a.ai = ask.yesNo("    AI - admin assistant, review classification?", a.ai)
 
 	ask.section(out, "Engines")
@@ -429,16 +476,6 @@ func shape(a *answers, c catalog, ask prompter, out io.Writer) {
 	a.adminSlug = ask.yesNo("    Move the admin API off /api/admin/graphql to an unguessable path?", a.adminSlug)
 }
 
-func (a answers) hostApps() []string {
-	var host []string
-	for _, app := range a.apps {
-		if !slices.Contains(a.dockerApps, app) {
-			host = append(host, app)
-		}
-	}
-	return host
-}
-
 // excluded is the sparse-checkout patterns that take the deselected apps out of the working tree
 func excluded(a answers, c catalog) []string {
 	var out []string
@@ -466,11 +503,6 @@ func known(v string, apps []string, from string, out io.Writer) []string {
 		}
 	}
 	return keep
-}
-
-func placement(root string) []string {
-	docker, _ := profile.Current(root).List(kDocker)
-	return docker
 }
 
 func orNone(list []string, none string) string {

@@ -36,19 +36,19 @@ func TestEmailIdentityIsNormalizedAtWriteAndLookup(t *testing.T) {
 // Customers are per-channel rows, so one store's credentials must be inert on another
 func TestAccountsDoNotCrossChannels(t *testing.T) {
 	f := newFixture(t)
-	tires, wheels := f.newChannel(t), f.newChannel(t)
+	jackets, shoes := f.newChannel(t), f.newChannel(t)
 	addr := randomEmail()
 
-	onTires := f.register(t, tires, addr, "password123")
-	onWheels := f.register(t, wheels, addr, "different456")
-	if onTires.ID == onWheels.ID {
+	onJackets := f.register(t, jackets, addr, "password123")
+	onWheels := f.register(t, shoes, addr, "different456")
+	if onJackets.ID == onWheels.ID {
 		t.Fatal("the same address on two channels resolved to one account")
 	}
-	if _, err := f.svc.Authenticate(f.ctx, wheels, addr, "password123"); !errors.Is(err, ErrInvalidCredentials) {
-		t.Errorf("the tires password on the wheels store = %v, want ErrInvalidCredentials", err)
+	if _, err := f.svc.Authenticate(f.ctx, shoes, addr, "password123"); !errors.Is(err, ErrInvalidCredentials) {
+		t.Errorf("the jackets password on the shoes store = %v, want ErrInvalidCredentials", err)
 	}
-	got, err := f.svc.Authenticate(f.ctx, tires, addr, "password123")
-	if err != nil || got.ID != onTires.ID {
+	got, err := f.svc.Authenticate(f.ctx, jackets, addr, "password123")
+	if err != nil || got.ID != onJackets.ID {
 		t.Errorf("own-channel login returned %v / %v", got.ID, err)
 	}
 }
@@ -133,18 +133,18 @@ func TestRequestPasswordResetRevealsNothing(t *testing.T) {
 // The store match lives in the service, so a caller that forgets it can't write a password across stores
 func TestResetPasswordRefusesATokenFromAnotherChannel(t *testing.T) {
 	f := newFixture(t)
-	tires, wheels := f.newChannel(t), f.newChannel(t)
+	jackets, shoes := f.newChannel(t), f.newChannel(t)
 	addr := randomEmail()
-	c := f.register(t, tires, addr, "password123")
+	c := f.register(t, jackets, addr, "password123")
 
 	token, err := f.svc.resetStore.Create(f.ctx, c.ID)
 	if err != nil {
 		t.Fatalf("mint reset token: %v", err)
 	}
-	if err := f.svc.ResetPassword(f.ctx, wheels, token, "brand-new-password"); err == nil {
-		t.Fatal("a tires-store reset token set a password through the wheels store")
+	if err := f.svc.ResetPassword(f.ctx, shoes, token, "brand-new-password"); err == nil {
+		t.Fatal("a jackets-store reset token set a password through the shoes store")
 	}
-	if _, err := f.svc.Authenticate(f.ctx, tires, addr, "password123"); err != nil {
+	if _, err := f.svc.Authenticate(f.ctx, jackets, addr, "password123"); err != nil {
 		t.Errorf("the original password stopped working after a refused reset: %v", err)
 	}
 }

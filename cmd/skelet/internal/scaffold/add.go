@@ -24,28 +24,19 @@ import (
 )
 
 const AddAbout = `Makes a storefront in apps/channels/<name> from a template - or from a storefront of your own - with
-its own port, volumes and env templates.
+its own dev port. It runs on the host like every frontend: skelet dev <name>.
 
   --template   which template to start from (default: nextjs-vetrina, the full one)
   --from       copy one of your own storefronts instead
-  --tracked    wire it into the tracked compose files instead of the override
   --workspace  link the shared packages in packages/ instead of taking them from npm
 
 The copy is yours, and it takes the packages it's built on (@skelet/storefront-*) from npm at this
 checkout's release, so merging a later release changes nothing in it until you bump them - skelet
 doctor says when they're behind the backend. A checkout ahead of its last release links packages/
-instead, since npm can't have what it adds yet. Every compose
-block is copied from the source service rather than templated, so a change to its wiring reaches the
-next storefront instead of drifting from a copy kept here. By default the
-dev service goes in docker-compose.override.yml, which is git-ignored and auto-merged - so pulling from
-upstream skelet never conflicts with your shops (docs/workflow.md). Prod deployment stays yours to wire.
+instead, since npm can't have what it adds yet. Its dev script gets the first port no other app uses,
+so two storefronts run side by side, and its .env.production.example comes along for its deployment.`
 
---tracked edits docker-compose{,.prod,.small}.yml instead. That's for adding a storefront to skelet
-itself, and it's what makes upstream pulls conflict.
-
-Nothing is written until every generated compose file parses, so a failure leaves the repo untouched.`
-
-const addUsage = "skelet add channel <name> [--template <template> | --from <storefront>] [--tracked] [--workspace]"
+const addUsage = "skelet add channel <name> [--template <template> | --from <storefront>] [--workspace]"
 
 const (
 	devFile      = "docker-compose.yml"
@@ -79,15 +70,14 @@ func unusable(root string, known []storefronts.Storefront, name string) string {
 }
 
 var (
-	devPort  = regexp.MustCompile(`"[0-9]{4,5}:3000"`)
-	hostPort = regexp.MustCompile(`127\.0\.0\.1:[0-9]{4,5}:3000`)
+	devScript = regexp.MustCompile(`("dev":\s*"[^"]*?)(?:\s+(?:-p|--port)[ =][0-9]{2,5})?(")`)
 )
 
 type addOptions struct {
 	name, src string
 	// template says src was named with --template, which only a template answers to
-	template, tracked bool
-	workspace         bool
+	template  bool
+	workspace bool
 	// quiet leaves the next steps out - setup, making a project's first shop, has its own
 	quiet bool
 }
@@ -124,8 +114,6 @@ func Add(root string, args []string) int {
 			o.template = rest[i] == "--template"
 			i++
 			o.src = rest[i]
-		case "--tracked":
-			o.tracked = true
 		case "--workspace":
 			o.workspace = true
 		default:
@@ -167,74 +155,13 @@ func add(root string, o addOptions) int {
 	}
 	src := from.Name
 	m := newMove(from.Dir, src, name)
-	files := portFiles(root)
-	dev, small := freePort(3001, files), freePort(13001, files)
+	dev := freePort(3001, portFiles(root))
 
 	if from.Excluded {
 		fmt.Printf("==> Copying %s into apps/channels/%s, from git - it isn't checked out here\n", from.Dir, name)
 	} else {
 		fmt.Printf("==> Copying %s into apps/channels/%s\n", from.Dir, name)
 	}
-	devSrc := ""
-	for _, f := range []string{devFile, overrideFile} {
-		if declares(read(root, f), src) {
-			devSrc = f
-			break
-		}
-	}
-	if devSrc == "" {
-		fmt.Fprintf(os.Stderr, "No %q service in %s or %s - can't copy its wiring\n", src, devFile, overrideFile)
-		return 1
-	}
-	devBlock := rename(block(read(root, devSrc), src), m, devPort, `"`+strconv.Itoa(dev)+`:3000"`)
-	if len(devBlock) == 0 {
-		fmt.Fprintf(os.Stderr, "Could not read the %q service out of %s\n", src, devSrc)
-		return 1
-	}
-
-	writes := map[string]string{}
-	var targets []string
-	if o.tracked {
-		prodBlock := rename(block(read(root, prodFile), src), m, hostPort, "127.0.0.1:"+strconv.Itoa(dev)+":3000")
-		smallBlock := rename(block(read(root, smallFile), src), m, hostPort, "127.0.0.1:"+strconv.Itoa(small)+":3000")
-		for i, b := range [][]string{prodBlock, smallBlock} {
-			if len(b) == 0 {
-				fmt.Fprintf(os.Stderr, "Could not find a %q service in the %s compose file\n", src, []string{"prod", "small"}[i])
-				return 1
-			}
-		}
-		// The dev file also declares the two named volumes that shadow node_modules and .next
-		writes[devFile] = addVolumes(spliceAfter(read(root, devFile), src, devBlock), src, name)
-		writes[prodFile] = spliceAfter(read(root, prodFile), src, prodBlock)
-		writes[smallFile] = spliceAfter(read(root, smallFile), src, smallBlock)
-		targets = []string{devFile, prodFile, smallFile}
-	} else {
-		var existing *string
-		if raw, err := os.ReadFile(filepath.Join(root, overrideFile)); err == nil {
-			s := string(raw)
-			existing = &s
-		}
-		text, ok := override(existing, devBlock, anchors(devBlock, read(root, devFile), deref(existing)), name)
-		if !ok {
-			fmt.Fprintf(os.Stderr, "%s has no services: section to add %q to - nothing written\n", overrideFile, name)
-			return 1
-		}
-		writes[overrideFile] = text
-		targets = []string{overrideFile}
-	}
-
-	fmt.Println("==> Checking the generated compose files parse")
-	for _, f := range targets {
-		if msg, ok := valid(root, f, writes[f]); !ok {
-			fmt.Fprintf(os.Stderr, "    %s would be invalid - nothing written:\n", f)
-			for l := range strings.Lines(msg) {
-				fmt.Fprint(os.Stderr, "      "+l)
-			}
-			return 1
-		}
-		fmt.Printf("    %s ok\n", f)
-	}
-
 	// Made aside and moved into place last, so a failure leaves no half-written storefront
 	staging, err := sys.Scratch(root, "fork-")
 	if err != nil {
@@ -251,6 +178,10 @@ func add(root string, o addOptions) int {
 		fmt.Fprintln(os.Stderr, "skelet add:", err)
 		return 1
 	}
+	if err := devOn(filepath.Join(copied, "package.json"), dev); err != nil {
+		fmt.Fprintln(os.Stderr, "skelet add:", err)
+		return 1
+	}
 	template := ""
 	if from.Template() {
 		template = from.Dir
@@ -260,38 +191,6 @@ func add(root string, o addOptions) int {
 		fmt.Printf("==> Taking @skelet/storefront-* %s from npm\n", version)
 	case kept != "":
 		fmt.Printf("==> Linking @skelet/storefront-* to packages/ - %s\n", kept)
-	}
-	for _, f := range targets {
-		if err := writeKeepingMode(filepath.Join(root, f), writes[f]); err != nil {
-			fmt.Fprintln(os.Stderr, "skelet add:", err)
-			return 1
-		}
-	}
-	for _, tier := range []string{"prod", "small"} {
-		tpl := filepath.Join("env", tier+"-"+src+".env.example")
-		out := filepath.Join("env", tier+"-"+name+".env.example")
-		raw, err := os.ReadFile(filepath.Join(root, tpl))
-		if err != nil {
-			continue
-		}
-		body := m.applyFile(string(raw))
-		if from := smallPortOf(read(root, smallFile), src); from != "" {
-			body = whole(body, "localhost:"+from, "localhost:"+strconv.Itoa(small), nil, nil)
-		}
-		if err := os.WriteFile(filepath.Join(root, out), []byte(body), 0o644); err != nil {
-			fmt.Fprintln(os.Stderr, "skelet add:", err)
-			return 1
-		}
-		if o.tracked {
-			// Staged, not just written - skelet check demands a committed .example for every compose env_file, and the
-			// tracked prod block just added one, so an unstaged template would block the next commit
-			git := exec.Command("git", "add", out)
-			git.Dir = root
-			_ = git.Run()
-			fmt.Printf("    %s (staged)\n", out)
-		} else {
-			fmt.Printf("    %s\n", out)
-		}
 	}
 	dst := filepath.Join(root, filepath.FromSlash(m.dir))
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
@@ -315,24 +214,8 @@ func add(root string, o addOptions) int {
 		fmt.Printf("==> apps/channels/%s is yours, copied from %s - on http://localhost:%d once it runs\n", name, src, dev)
 		return 0
 	}
-	summary(root, o.tracked, src, name, dev, small)
+	summary(root, src, name, dev)
 	return 0
-}
-
-func smallPortOf(small, service string) string {
-	for _, l := range block(small, service) {
-		if m := hostPort.FindString(l); m != "" {
-			return strings.Split(m, ":")[1]
-		}
-	}
-	return ""
-}
-
-func deref(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
 }
 
 func read(root, file string) string {
@@ -344,29 +227,19 @@ func defaultSource(root string, known []storefronts.Storefront) (storefronts.Sto
 	if s, ok := storefronts.Default(known); ok {
 		return s, true
 	}
-	dev := read(root, devFile)
-	if i := slices.IndexFunc(known, func(s storefronts.Storefront) bool { return declares(dev, s.Name) }); i >= 0 {
-		return known[i], true
-	}
 	if len(known) == 0 {
 		return storefronts.Storefront{}, false
 	}
 	return known[0], true
 }
 
-// portFiles is every file a host port can be named in - the override too, where earlier storefronts live, and the env
-// templates, where an override-only shop's small-tier port appears
 func portFiles(root string) string {
 	var b strings.Builder
-	for _, f := range []string{devFile, prodFile, smallFile, overrideFile} {
+	for _, f := range []string{devFile, overrideFile, "apps/dashboard/package.json"} {
 		b.WriteString(read(root, f))
 	}
-	for _, pat := range []string{"env/small-*.env.example", "env/prod-*.env.example"} {
-		matches, _ := filepath.Glob(filepath.Join(root, pat))
-		for _, m := range matches {
-			raw, _ := os.ReadFile(m)
-			b.Write(raw)
-		}
+	for _, s := range storefronts.List(root) {
+		b.WriteString(read(root, s.Dir+"/package.json"))
 	}
 	return b.String()
 }
@@ -375,10 +248,22 @@ func portFiles(root string) string {
 // (localhost:13001) - so deleting a storefront leaves no hole for the next one to collide with
 func freePort(base int, files string) int {
 	for p := base; ; p++ {
-		if !regexp.MustCompile(`(?m)["':]` + strconv.Itoa(p) + `([^0-9]|$)`).MatchString(files) {
+		if !regexp.MustCompile(`(?m)(["':]|-p |--port[ =])` + strconv.Itoa(p) + `([^0-9]|$)`).MatchString(files) {
 			return p
 		}
 	}
+}
+
+func devOn(manifest string, port int) error {
+	raw, err := os.ReadFile(manifest)
+	if err != nil {
+		return err
+	}
+	if !devScript.Match(raw) {
+		return nil
+	}
+	out := devScript.ReplaceAll(raw, []byte("${1} --port "+strconv.Itoa(port)+"${2}"))
+	return os.WriteFile(manifest, out, 0o644)
 }
 
 // valid runs docker compose config over a would-be file. The override is only valid merged with the base, the way
@@ -570,14 +455,7 @@ func writeKeepingMode(path, content string) error {
 	return os.WriteFile(path, []byte(content), mode)
 }
 
-func summary(root string, tracked bool, src, name string, dev, small int) {
-	wrote := fmt.Sprintf("%s       service + volumes on :%d (git-ignored)", overrideFile, dev)
-	deploy := fmt.Sprintf("Prod is yours to wire: docker-compose.prod.yml's %q block is the shape,\n"+
-		"and STOREFRONT_UPSTREAM in env/prod-caddy.env routes the edge to it. docs/deploying.md covers both.", src)
-	if tracked {
-		wrote = fmt.Sprintf("docker-compose{,.prod,.small}.yml   service + volumes, dev :%d, small :%d", dev, small)
-		deploy = "The edge serves it once STOREFRONT_UPSTREAM in env/prod-caddy.env names it - skelet setup does that for the storefront you deploy."
-	}
+func summary(root, src, name string, dev int) {
 	// The suggestion adds the new shop to what this clone runs now rather than replacing it - .env's SKELET_APPS,
 	// else every app the tree holds, which is what setup picks when it has no answer on record
 	selected := "dashboard"
@@ -596,18 +474,15 @@ func summary(root string, tracked bool, src, name string, dev, small int) {
 	}
 	fmt.Printf(`
 Wrote:
-  apps/channels/%[1]s   forked from %[2]s
-  %[3]s
-  env/{prod,small}-%[1]s.env.example
+  apps/channels/%[1]s   forked from %[2]s, its dev script on :%[4]d
 
 Next:
   1. Create the channel in admin > channels, and put its uuid in
-     STOREFRONT_CHANNEL_ID (or map hosts to channels in
-     STOREFRONT_CHANNEL_HOSTS to serve several from one deployment). The dev
-     block inherited %[2]s's default uuid, so change it there too.
-  2. skelet setup --apps %[4]s
-  3. skelet up, then http://localhost:%[5]d
+     STOREFRONT_CHANNEL_ID in .env (or map hosts to channels in
+     STOREFRONT_CHANNEL_HOSTS to serve several from one deployment).
+  2. skelet setup --apps %[3]s
+  3. skelet up, then skelet dev %[1]s - http://localhost:%[4]d
 
-%[6]s
-`, name, src, wrote, apps, dev, deploy)
+Deploying it: its .env.production.example and docs/deploying.md.
+`, name, src, apps, dev)
 }

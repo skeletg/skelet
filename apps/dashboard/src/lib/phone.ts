@@ -1,7 +1,7 @@
 import { AsYouType, getCountryCallingCode, isValidPhoneNumber, parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js/min'
 
 // Phone rules come from libphonenumber's metadata, the same data the backend validates with (lib/phone) - so a form
-// refuses exactly what a save would. The backend stores E.164 ("+381641234567")
+// refuses exactly what a save would. The backend stores E.164 ("+4915123456789")
 //
 // A country only reads a nationally typed number; one typed with its + is judged on its own, whatever the country
 
@@ -25,7 +25,7 @@ export function phoneIssue(value: string, country?: string): string | null {
   return c ? `Not a valid phone number for ${c} - or start it with + and the country code` : 'Not a valid phone number'
 }
 
-// Live formatting while typing - "0641234567" reads as "064 1234567" in RS, "+4915123456789" as "+49 1512 3456789"
+// Live formatting while typing - "015123456789" reads as "01512 3456789" in DE, "+33612345678" as "+33 6 12 34 56 78"
 export function formatAsTyped(value: string, country?: string): string {
   if (!/\d/.test(value)) return value
   return new AsYouType(asCountry(country)).input(value)
@@ -36,7 +36,7 @@ export function formatPhone(value: string): string {
   return parsePhoneNumberFromString(value)?.formatInternational() ?? value
 }
 
-// A country's "+381", as the backend derives it (lib/phone.CallingCode) - null for a code the metadata doesn't know
+// A country's "+49", as the backend derives it (lib/phone.CallingCode) - null for a code the metadata doesn't know
 export function callingCode(country: string): string | null {
   const c = asCountry(country)
   if (!c) return null

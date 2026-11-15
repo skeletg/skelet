@@ -11,15 +11,15 @@ const storeId = "9f8b64d2-96f1-4fbd-8252-f42bd396f9c8";
 
 describe("store filter schema", () => {
   it("reads checkboxes, coordinates and the pager offset the way the form submits them", () => {
-    const submission = parseForm(form({ city: " Belgrade ", pickupOnly: "on", latitude: "44.8", longitude: "20.4", offset: "20", preferredStoreId: storeId }), storeFiltersSchema);
+    const submission = parseForm(form({ city: " Berlin ", pickupOnly: "on", latitude: "52.5", longitude: "13.4", offset: "20", preferredStoreId: storeId }), storeFiltersSchema);
     expect(submission.status).toBe("success");
-    expect(submission.status === "success" && submission.value).toEqual({ city: "Belgrade", pickupOnly: true, latitude: 44.8, longitude: 20.4, offset: 20, preferredStoreId: storeId });
+    expect(submission.status === "success" && submission.value).toEqual({ city: "Berlin", pickupOnly: true, latitude: 52.5, longitude: 13.4, offset: 20, preferredStoreId: storeId });
   });
   it("accepts UUID-shaped ids without RFC version bits, as the demo fixtures use", () => {
     expect(parseForm(form({ productId: "00000000-0000-0000-0000-000000000000" }), storeFiltersSchema).status).toBe("success");
   });
   it("rejects half a position, out-of-range values and malformed ids", () => {
-    const invalid: Record<string, string>[] = [{ latitude: "44.8" }, { latitude: "91", longitude: "0" }, { offset: "-1" }, { productId: "product-a" }, { search: "x".repeat(201) }];
+    const invalid: Record<string, string>[] = [{ latitude: "52.5" }, { latitude: "91", longitude: "0" }, { offset: "-1" }, { productId: "product-a" }, { search: "x".repeat(201) }];
     for (const entries of invalid) {
       expect(parseForm(form(entries), storeFiltersSchema).status, JSON.stringify(entries)).toBe("error");
     }

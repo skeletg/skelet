@@ -40,7 +40,7 @@ func (t TraitRule) empty() bool {
 		t.MinMonetaryScore <= 0 && t.MinEngagement <= 0
 }
 
-// Day cutoffs mapping recency to a lifecycle stage, resolved from per-channel config by the trait-compute job so staging matches the catalog's repurchase cadence - a tire shop on a ~3-year cycle wants far larger windows than a consumables store
+// Day cutoffs mapping recency to a lifecycle stage, resolved from per-channel config by the trait-compute job so staging matches the catalog's repurchase cadence - an outerwear shop on a ~3-year cycle wants far larger windows than a consumables store
 // Only these absolute bands need cadence tuning, since the RFM recency score is a relative quintile
 type LifecycleWindows struct {
 	NewDays    int // "new" is a first-and-only order inside this

@@ -13,8 +13,8 @@ import { IdentityEditor } from './IdentityEditor'
 const channel = {
   __typename: 'Channel' as const,
   id: 'c1',
-  slug: 'wheels',
-  name: 'Wheels',
+  slug: 'menswear',
+  name: 'Menswear',
   defaultLocale: 'en',
   locales: [],
   isActive: true,
@@ -45,29 +45,29 @@ describe('IdentityEditor', () => {
       <IdentityEditor channelId="c1" />,
       mocks({
         request: { query: UpdateChannelDocument, variables: captureInput(onUpdate) },
-        result: { data: { updateChannel: { ...channel, name: 'Wheels EU' } } },
+        result: { data: { updateChannel: { ...channel, name: 'Menswear EU' } } },
       }),
     )
 
-    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Wheels EU' } })
-    fireEvent.change(screen.getByLabelText('Public URL'), { target: { value: 'wheels.example.com' } })
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Menswear EU' } })
+    fireEvent.change(screen.getByLabelText('Public URL'), { target: { value: 'menswear.example.com' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
     const dialog = await screen.findByRole('alertdialog')
     fireEvent.click(within(dialog).getByRole('button', { name: /Apply/ }))
     expect(await within(dialog).findByText(/Enter a full URL/)).toBeDefined()
     expect(onUpdate).not.toHaveBeenCalled()
 
-    fireEvent.change(screen.getByLabelText('Public URL'), { target: { value: 'https://wheels.example.com' } })
+    fireEvent.change(screen.getByLabelText('Public URL'), { target: { value: 'https://menswear.example.com' } })
     fireEvent.click(within(dialog).getByRole('button', { name: /Apply/ }))
     await vi.waitFor(
       () =>
         expect(onUpdate).toHaveBeenCalledWith({
           id: 'c1',
-          name: 'Wheels EU',
+          name: 'Menswear EU',
           defaultLocale: 'en',
           isActive: true,
           currencyCode: 'EUR',
-          publicUrl: 'https://wheels.example.com',
+          publicUrl: 'https://menswear.example.com',
           metadata: [expect.objectContaining({ key: 'region', value: 'eu' })],
           taxInclusivePricing: false,
         }),
@@ -100,7 +100,7 @@ describe('IdentityEditor', () => {
       mocks({ request: { query: UpdateChannelDocument, variables: () => true }, error: new Error('STORE_CURRENCY_BLOCKED') }),
     )
 
-    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Wheels EU' } })
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Menswear EU' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
     const dialog = await screen.findByRole('alertdialog')
     fireEvent.click(within(dialog).getByRole('button', { name: /Apply/ }))

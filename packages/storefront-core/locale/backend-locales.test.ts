@@ -32,16 +32,16 @@ describe("getChannelLocales", () => {
           defaultLocale: "en",
           locales: [
             { code: "en", hreflangValue: "en-GB" },
-            { code: "sr", hreflangValue: null },
+            { code: "pl", hreflangValue: null },
           ],
         }),
       ),
     );
 
     expect(await getChannelLocales("ch-map")).toEqual({
-      codes: ["en", "sr"],
+      codes: ["en", "pl"],
       defaultLocale: "en",
-      hreflang: { en: "en-GB", sr: "sr" },
+      hreflang: { en: "en-GB", pl: "pl" },
     });
   });
 

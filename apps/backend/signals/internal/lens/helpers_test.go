@@ -36,7 +36,7 @@ func TestBlobKeysCannotBeGuessed(t *testing.T) {
 
 func TestSnapshotBlobKeyHashesAPageKeyWithSlashes(t *testing.T) { // page keys are URL paths, and an unhashed one would fan a channel's snapshots across a directory tree
 	ch := uuid.New()
-	key := snapshotBlobKey(ch, "/collections/winter/tires?page=2", "1440x900", "default", "abc123")
+	key := snapshotBlobKey(ch, "/collections/winter/jackets?page=2", "1440x900", "default", "abc123")
 	if got := strings.Count(key, "/"); got != 3 { // lens/snapshot/<channel>/<hash>-<random>.gz
 		t.Errorf("key = %q has %d slashes, want the page key folded into one hashed segment", key, got)
 	}
@@ -69,7 +69,7 @@ func TestNormalizeQueryGroupsEquivalentSearches(t *testing.T) { // the search ro
 		"RED":           "red",
 		"":              "",
 		"   ":           "",
-		"205/55 R16":    "205/55 r16",
+		"Jeans 32/34":   "jeans 32/34",
 		"Ünïcode Térm":  "ünïcode térm",
 	} {
 		if got := normalizeQuery(in); got != want {
@@ -88,7 +88,7 @@ func TestNormalizeQueryCapsRunesNotBytes(t *testing.T) { // a byte cap would sli
 	if !utf8.ValidString(got) {
 		t.Errorf("result is not valid UTF-8: %q", got)
 	}
-	if short := normalizeQuery("tires"); short != "tires" {
+	if short := normalizeQuery("jackets"); short != "jackets" {
 		t.Errorf("a short query was altered: %q", short)
 	}
 }
@@ -159,8 +159,8 @@ func TestAsStringUnwrapsWhatTheDriverReturns(t *testing.T) { // sqlc types COALE
 		in   any
 		want string
 	}{
-		"string":      {"/p/tire", "/p/tire"},
-		"bytes":       {[]byte("/p/tire"), "/p/tire"},
+		"string":      {"/p/jacket", "/p/jacket"},
+		"bytes":       {[]byte("/p/jacket"), "/p/jacket"},
 		"empty bytes": {[]byte{}, ""},
 		"nil":         {nil, ""},
 		"number":      {int64(3), ""},
