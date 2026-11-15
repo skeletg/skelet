@@ -180,6 +180,12 @@ all out of tree. This is what the SDK gives it.
   storefront answer and for audit attribution. `AdminID` is attribution only, never a check.
 - **`RegisterCheckoutField`** - one more thing the checkout asks, on every channel your plugin is
   on: a gift message, a delivery date, a consent of your own. See below.
+- **`RegisterOrderNumberer`** - names the orders of every channel your plugin is on, when the
+  store's own format (`sales/orders/number_format`, with a count per store or per channel and an
+  optional yearly restart) isn't enough. `req.Next(scope, period)` draws from core's count, kept
+  apart from the store's under your slug; return letters, digits and `- _ . / #`, at most 64. An
+  error, or anything else, and the store's format names the order instead, so placement never
+  fails on a number. With two numberers on one channel, the one registered first wins.
 
 ### Checkout fields
 

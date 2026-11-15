@@ -168,11 +168,16 @@ func (s *Service) CreateDraftOrder(ctx context.Context, in CreateDraftOrderInput
 	if err != nil {
 		return Order{}, fmt.Errorf("allocate order id: %w", err)
 	}
+	number, err := s.newNumber(ctx, store)
+	if err != nil {
+		return Order{}, err
+	}
 
 	err = s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
 		orderR := s.repo.WithTx(sqlTx)
 		order, err := orderR.CreateOrder(ctx, Order{
 			ID:                  orderID,
+			Number:              number,
 			CustomerID:          in.CustomerID,
 			Email:               in.Email,
 			ChannelID:           store.ID,

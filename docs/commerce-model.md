@@ -180,7 +180,9 @@ email win.
 
 **Orders**: prices in **cents** (BIGINT). Address denormalized on
 `orders` (snapshot at placement, never changes). `order_events`
-immutable audit log. Number format `ORD-001000`. `PlaceOrder` wraps
+immutable audit log. Numbers follow the channel's `sales/orders/number_format` (`ORD-{seq:6}` by default,
+so `ORD-001000`), from a count kept in `order_number_counters` and taken outside the placement transaction,
+or a plugin's numberer. `PlaceOrder` wraps
 create+lines+event+convert-cart in one tx. Status:
 `pending → confirmed → processing → fulfilled → cancelled`.
 

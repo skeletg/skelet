@@ -131,7 +131,7 @@ INSERT INTO orders (
     subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount,
     currency_code, customer_note, payment_provider, shipping_method_id,
     shipping_carrier_slug, shipping_method_code, po_number, shipping_tax_amount, anon_id, business_ids, assisted_by, metadata,
-    locale, tax_inclusive, checkout_fields
+    locale, tax_inclusive, checkout_fields, number
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
@@ -139,7 +139,7 @@ INSERT INTO orders (
     $27, $28, $29, $30, $31,
     $32, $33, $34, $35,
     $36, $37, $38, $39, $40, $41, $42, $43,
-    $44, $45, $46
+    $44, $45, $46, $47
 ) RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields
 `
 
@@ -190,6 +190,7 @@ type CreateOrderParams struct {
 	Locale              string          `json:"locale"`
 	TaxInclusive        bool            `json:"tax_inclusive"`
 	CheckoutFields      json.RawMessage `json:"checkout_fields"`
+	Number              string          `json:"number"`
 }
 
 func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (Order, error) {
@@ -240,6 +241,7 @@ func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (Order
 		arg.Locale,
 		arg.TaxInclusive,
 		arg.CheckoutFields,
+		arg.Number,
 	)
 	var i Order
 	err := row.Scan(
@@ -391,6 +393,17 @@ func (q *Queries) CreateOrderLine(ctx context.Context, arg CreateOrderLineParams
 		&i.TaxClass,
 	)
 	return i, err
+}
+
+const defaultOrderNumber = `-- name: DefaultOrderNumber :one
+SELECT next_order_number()::text AS number
+`
+
+func (q *Queries) DefaultOrderNumber(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, defaultOrderNumber)
+	var number string
+	err := row.Scan(&number)
+	return number, err
 }
 
 const deleteOrderTaxLines = `-- name: DeleteOrderTaxLines :exec
@@ -1229,6 +1242,25 @@ SELECT 1 FROM orders WHERE id = $1 FOR UPDATE
 func (q *Queries) LockOrderForPayment(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, lockOrderForPayment, id)
 	return err
+}
+
+const nextOrderNumber = `-- name: NextOrderNumber :one
+INSERT INTO order_number_counters (scope, period, next_value) VALUES ($1, $2, 2)
+ON CONFLICT (scope, period) DO UPDATE SET next_value = order_number_counters.next_value + 1
+RETURNING (next_value - 1)::bigint AS number
+`
+
+type NextOrderNumberParams struct {
+	Scope  string `json:"scope"`
+	Period string `json:"period"`
+}
+
+// One statement, outside the placement transaction, so a busy store never queues on the row
+func (q *Queries) NextOrderNumber(ctx context.Context, arg NextOrderNumberParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, nextOrderNumber, arg.Scope, arg.Period)
+	var number int64
+	err := row.Scan(&number)
+	return number, err
 }
 
 const releaseOrderToHeldFrom = `-- name: ReleaseOrderToHeldFrom :one

@@ -745,7 +745,18 @@ func (r *postgresRepository) ReturnedByComponent(ctx context.Context, orderID uu
 	return out, nil
 }
 
+func (r *postgresRepository) NextOrderNumber(ctx context.Context, scope, period string) (int64, error) {
+	return r.queries.NextOrderNumber(ctx, db.NextOrderNumberParams{Scope: scope, Period: period})
+}
+
 func (r *postgresRepository) CreateOrder(ctx context.Context, o Order) (Order, error) {
+	if o.Number == "" {
+		n, err := r.queries.DefaultOrderNumber(ctx)
+		if err != nil {
+			return Order{}, fmt.Errorf("next order number: %w", err)
+		}
+		o.Number = n
+	}
 	id := o.ID
 	if id == (uuid.UUID{}) {
 		v, err := uuid.NewV7()
@@ -805,6 +816,7 @@ func (r *postgresRepository) CreateOrder(ctx context.Context, o Order) (Order, e
 		Metadata:            orderMetadataJSON(o.Shopper, o.Metadata),
 		Locale:              o.Locale,
 		TaxInclusive:        o.TaxInclusive,
+		Number:              o.Number,
 	})
 	if err != nil {
 		return Order{}, fmt.Errorf("create order: %w", err)

@@ -93,6 +93,7 @@ type Service struct {
 	// Gates promotion free gifts on salable stock - nil grants them unconditionally
 	giftStock GiftStockChecker
 	kits      KitComponentLookup
+	numbering *Numbering
 }
 
 // A kit SKU's per-unit components, nil for anything that isn't a kit
@@ -251,6 +252,17 @@ type AddressChecker interface {
 }
 
 func (s *Service) SetAddressChecker(c AddressChecker) { s.addresses = c }
+
+func (s *Service) SetNumbering(settings NumberSettings, plugin func(ctx context.Context, req NumberRequest) (string, bool, error)) {
+	s.numbering = NewNumbering(settings, s.repo.NextOrderNumber, plugin)
+}
+
+func (s *Service) newNumber(ctx context.Context, ch *channel.Channel) (string, error) {
+	if s.numbering == nil {
+		return "", nil
+	}
+	return s.numbering.Number(ctx, *ch, time.Now())
+}
 
 // nil taxes shipping at the default class
 func (s *Service) SetShippingTax(f func(ctx context.Context, channelID uuid.UUID) (class string, taxable bool)) {
@@ -501,6 +513,10 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		placing.DiscountCents += evalResult.Ledger.SubtotalDiscountCents()
 	}
 	shopper, visitor := placedBy(ctx)
+	number, err := s.newNumber(ctx, store)
+	if err != nil {
+		return Order{}, err
+	}
 	var orderID uuid.UUID
 	var placedEvent *OrderPlaced
 	err = s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
@@ -575,6 +591,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 
 		order, err := orderR.CreateOrder(ctx, Order{
 			ID:                  preallocatedOrderID,
+			Number:              number,
 			CustomerID:          in.CustomerID,
 			Email:               in.Email,
 			ChannelID:           store.ID,

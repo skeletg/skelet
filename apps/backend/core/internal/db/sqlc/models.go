@@ -1940,6 +1940,12 @@ type OrderLineStockPart struct {
 	Source      string    `json:"source"`
 }
 
+type OrderNumberCounter struct {
+	Scope     string `json:"scope"`
+	Period    string `json:"period"`
+	NextValue int64  `json:"next_value"`
+}
+
 type OrderPaymentTransaction struct {
 	ID                uuid.UUID      `json:"id"`
 	OrderID           uuid.UUID      `json:"order_id"`

@@ -10,7 +10,7 @@ INSERT INTO orders (
     subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount,
     currency_code, customer_note, payment_provider, shipping_method_id,
     shipping_carrier_slug, shipping_method_code, po_number, shipping_tax_amount, anon_id, business_ids, assisted_by, metadata,
-    locale, tax_inclusive, checkout_fields
+    locale, tax_inclusive, checkout_fields, number
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
@@ -18,8 +18,17 @@ INSERT INTO orders (
     $27, $28, $29, $30, $31,
     $32, $33, $34, $35,
     $36, $37, $38, $39, $40, $41, $42, $43,
-    $44, $45, $46
+    $44, $45, $46, $47
 ) RETURNING *;
+
+-- name: NextOrderNumber :one
+-- One statement, outside the placement transaction, so a busy store never queues on the row
+INSERT INTO order_number_counters (scope, period, next_value) VALUES ($1, $2, 2)
+ON CONFLICT (scope, period) DO UPDATE SET next_value = order_number_counters.next_value + 1
+RETURNING (next_value - 1)::bigint AS number;
+
+-- name: DefaultOrderNumber :one
+SELECT next_order_number()::text AS number;
 
 -- name: GetOrderByID :one
 SELECT * FROM orders WHERE id = $1 LIMIT 1;

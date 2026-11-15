@@ -8,6 +8,7 @@ import (
 	"embed"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"unicode/utf8"
@@ -93,6 +94,12 @@ func init() {
 			return meta.SetPlacingMetadata(Slug+".gift_note_length", strconv.Itoa(utf8.RuneCountInString(note)))
 		}
 		return nil
+	})
+
+	// Names the orders of every channel the plugin is on, from a yearly count of its own
+	p.RegisterOrderNumberer(func(_ context.Context, req sdk.OrderNumberRequest) (string, error) {
+		n, err := req.Next("orders", strconv.Itoa(req.PlacedAt.Year()))
+		return fmt.Sprintf("EX-%d-%05d", req.PlacedAt.Year(), n), err
 	})
 
 	p.RegisterPromotionCondition(minSubtotalCondition{})

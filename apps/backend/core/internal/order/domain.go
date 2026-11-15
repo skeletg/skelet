@@ -201,6 +201,8 @@ type ListPageFilter struct {
 
 type Repository interface {
 	CreateOrder(ctx context.Context, o Order) (Order, error)
+	// Takes the scope's count for the period on its own - never inside the placement transaction
+	NextOrderNumber(ctx context.Context, scope, period string) (int64, error)
 	AddOrderLine(ctx context.Context, line OrderLine) (OrderLine, error)
 	AddOrderLineComponent(ctx context.Context, component OrderLineComponent) (OrderLineComponent, error)
 	AddOrderLineStockParts(ctx context.Context, orderLineID uuid.UUID, parts []OrderLineStockPart) error

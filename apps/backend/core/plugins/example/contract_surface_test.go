@@ -194,6 +194,17 @@ func TestCheckoutFieldReachesTheOrder(t *testing.T) {
 	}
 }
 
+func TestOrderNumbererNamesOrdersFromItsOwnCount(t *testing.T) {
+	var drawn string
+	num, ok, err := pluginhost.OrderNumber(context.Background(), order.NumberRequest{
+		ChannelID: uuid.New(), At: time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
+		Next: func(scope, period string) (int64, error) { drawn = scope + "|" + period; return 7, nil },
+	})
+	if err != nil || !ok || num != "EX-2026-00007" || drawn != "plugin:"+Slug+":orders|2026" {
+		t.Errorf("numbered %q, %v, %v - drew %q", num, ok, err, drawn)
+	}
+}
+
 // The typed siblings of PluginConfig resolve registered defaults without hand-parsing - the
 // auto-registered kill switch (bool, default true) and rate limit (int, default 0) prove both
 func TestTypedConfigReadsResolveDefaults(t *testing.T) {
