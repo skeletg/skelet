@@ -26,6 +26,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/datajob"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/delivery"
+	"github.com/skeletg/skelet/apps/backend/core/internal/documents"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/embedding"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
@@ -96,6 +97,7 @@ type Svcs struct {
 
 	SiteCrawl *sitecrawl.Service
 	LinkGraph *linkgraph.Service
+	Documents *documents.Service
 
 	Admin       *admin.Service
 	Audit       *audit.Service

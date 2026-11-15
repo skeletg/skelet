@@ -2090,6 +2090,7 @@ export type Country = {
   defaultCurrency?: Maybe<Currency>;
   defaultCurrencyCode: Scalars['String']['output'];
   emojiFlag: Scalars['String']['output'];
+  invoiceNote: Scalars['String']['output'];
   isActive: Scalars['Boolean']['output'];
   iso3Code: Scalars['String']['output'];
   metadata: Array<MetadataItem>;
@@ -2388,6 +2389,7 @@ export type CreateCountryInput = {
   code: Scalars['String']['input'];
   defaultCurrencyCode?: InputMaybe<Scalars['String']['input']>;
   emojiFlag?: InputMaybe<Scalars['String']['input']>;
+  invoiceNote?: InputMaybe<Scalars['String']['input']>;
   isActive?: InputMaybe<Scalars['Boolean']['input']>;
   metadata?: InputMaybe<Array<MetadataInput>>;
   name: Scalars['String']['input'];
@@ -12071,6 +12073,7 @@ export type UpdateCountryInput = {
   code: Scalars['String']['input'];
   defaultCurrencyCode?: InputMaybe<Scalars['String']['input']>;
   emojiFlag?: InputMaybe<Scalars['String']['input']>;
+  invoiceNote?: InputMaybe<Scalars['String']['input']>;
   isActive?: InputMaybe<Scalars['Boolean']['input']>;
   metadata?: InputMaybe<Array<MetadataInput>>;
   name?: InputMaybe<Scalars['String']['input']>;

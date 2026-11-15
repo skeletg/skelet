@@ -140,6 +140,7 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 		LocaleSvc:         s.Locale,
 		CurrencySvc:       s.Currency,
 		CountrySvc:        s.Country,
+		DocumentSvc:       s.Documents,
 		MediaLibrarySvc:   s.MediaLibrary,
 		MenuSvc:           s.Menu,
 		ReviewSvc:         s.Review,

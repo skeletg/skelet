@@ -1747,6 +1747,7 @@ type Country struct {
 	SortOrder           int32              `json:"sortOrder"`
 	Metadata            []*MetadataItem    `json:"metadata"`
 	BusinessIDFields    []*BusinessIDField `json:"businessIdFields"`
+	InvoiceNote         string             `json:"invoiceNote"`
 	Regions             []*Region          `json:"regions"`
 	CreatedAt           time.Time          `json:"createdAt"`
 	UpdatedAt           time.Time          `json:"updatedAt"`
@@ -2017,6 +2018,7 @@ type CreateCountryInput struct {
 	SortOrder           *int32                  `json:"sortOrder,omitempty"`
 	Metadata            []*MetadataInput        `json:"metadata,omitempty"`
 	BusinessIDFields    []*BusinessIDFieldInput `json:"businessIdFields,omitempty"`
+	InvoiceNote         *string                 `json:"invoiceNote,omitempty"`
 }
 
 type CreateCurrencyInput struct {
@@ -6076,6 +6078,7 @@ type UpdateCountryInput struct {
 	SortOrder           *int32                  `json:"sortOrder,omitempty"`
 	Metadata            []*MetadataInput        `json:"metadata,omitempty"`
 	BusinessIDFields    []*BusinessIDFieldInput `json:"businessIdFields,omitempty"`
+	InvoiceNote         *string                 `json:"invoiceNote,omitempty"`
 }
 
 type UpdateCurrencyInput struct {

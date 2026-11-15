@@ -179,7 +179,9 @@ than the cheapest one, and an unticked terms box with
 email win.
 
 **Orders**: prices in **cents** (BIGINT). Address denormalized on
-`orders` (snapshot at placement, never changes). `order_events`
+`orders` (snapshot at placement, never changes). Invoices, packing slips and credit
+memos are PDFs from `internal/documents`, dressed by the channel's `sales/documents/*`
+settings and the billing country's invoice note, or made by a plugin's renderer. `order_events`
 immutable audit log. Numbers follow the channel's `sales/orders/number_format` (`ORD-{seq:6}` by default,
 so `ORD-001000`), from a count kept in `order_number_counters` and taken outside the placement transaction,
 or a plugin's numberer. `PlaceOrder` wraps

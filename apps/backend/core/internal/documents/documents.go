@@ -32,6 +32,7 @@ const family = "DejaVu"
 type StoreInfo struct {
 	Name  string
 	Lines []string // address / VAT id / support email, pre-formatted
+	Logo  []byte   // PNG, JPEG, GIF or WebP - anything else is left off
 }
 
 // Kind selects the document flavor
@@ -43,6 +44,11 @@ const (
 	KindCreditMemo  Kind = "credit_memo"
 )
 
+var defaultFooters = map[Kind]string{
+	KindInvoice:     "Thank you for your order.",
+	KindPackingSlip: "Contents checked by: ____________    Date: ____________",
+}
+
 type Input struct {
 	Kind  Kind
 	Order order.Order
@@ -52,6 +58,8 @@ type Input struct {
 	Decimals int
 	// The channel's prices carry their tax, so the tax is a portion of the total rather than added on top of it
 	TaxInclusive bool
+	Footer       string // the channel's closing text for this kind of document
+	Note         string // the buyer's country's note, printed on invoices and credit memos
 }
 
 type doc struct {
@@ -80,11 +88,11 @@ func Render(in Input) ([]byte, error) {
 		d.memoTotals()
 	case KindPackingSlip:
 		d.orderLines()
-		d.footer("Contents checked by: ____________    Date: ____________")
+		d.footer(in.Footer)
 	default:
 		d.orderLines()
 		d.orderTotals()
-		d.footer("Thank you for your order.")
+		d.footer(in.Note, in.Footer)
 	}
 
 	var buf bytes.Buffer
@@ -126,6 +134,7 @@ func (d doc) cell(w, h float64, s, border string, ln int, align string, fill boo
 
 func (d doc) letterhead() {
 	pdf, o := d.pdf, d.in.Order
+	d.logo()
 	pdf.SetFont(family, "B", 16)
 	d.cell(0, 8, d.in.Store.Name, "", 1, "L", false)
 	pdf.SetFont(family, "", 9)
@@ -172,7 +181,14 @@ func addressLines(label string, a order.OrderAddress) []string {
 // The slip ships the parcel, so it carries only SHIP TO
 func (d doc) addresses() {
 	pdf, o := d.pdf, d.in.Order
-	columns := [][]string{addressLines("BILL TO", o.BillingAddress), addressLines("SHIP TO", o.ShippingAddress)}
+	billTo := addressLines("BILL TO", o.BillingAddress)
+	for _, id := range o.BusinessIDs {
+		billTo = append(billTo, id.Label+": "+id.Value)
+	}
+	if o.PONumber != "" {
+		billTo = append(billTo, "PO number: "+o.PONumber)
+	}
+	columns := [][]string{billTo, addressLines("SHIP TO", o.ShippingAddress)}
 	if d.in.Kind == KindPackingSlip {
 		columns = columns[1:]
 	}
@@ -343,12 +359,18 @@ func (d doc) memoTotals() {
 	if m.Reason != "" {
 		note += " " + m.Reason
 	}
-	d.footer(note)
+	d.footer(note, d.in.Note, d.in.Footer)
 }
 
-func (d doc) footer(note string) {
+// Each part its own paragraph, wrapped to the page - an operator's footer runs to bank details and a registered office
+func (d doc) footer(parts ...string) {
 	d.pdf.Ln(6)
 	d.pdf.SetFont(family, "", 8)
 	d.pdf.SetTextColor(120, 120, 120)
-	d.cell(0, 5, note, "", 1, "L", false)
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			d.pdf.MultiCell(0, 4.2, p, "", "L", false)
+			d.pdf.Ln(1.5)
+		}
+	}
 }

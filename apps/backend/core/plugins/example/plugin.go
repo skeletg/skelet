@@ -133,6 +133,13 @@ func init() {
 		return earning.SetEarningPoints(earning.EarningPoints() + extra)
 	})
 
+	p.RegisterDocumentRenderer(sdk.DocumentPackingSlip, func(_ context.Context, req sdk.DocumentRequest) ([]byte, error) {
+		if len(req.Order.Lines) == 0 {
+			return nil, sdk.Invalid("there is nothing to pack on order %s", req.Order.Number)
+		}
+		return req.Default()
+	})
+
 	p.RegisterPromotionCondition(minSubtotalCondition{})
 	p.RegisterPromotionAction(flatDiscountAction{})
 	p.RegisterPromotionRedemptionHook(recordRedemptionHook{})

@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/datapatch"
+	"github.com/skeletg/skelet/apps/backend/core/internal/documents"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/loyalty"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
@@ -236,6 +237,19 @@ func TestFeaturedItemsEarnDoublePoints(t *testing.T) {
 	}
 	if e.Points != 80 || len(e.Notes) != 1 {
 		t.Errorf("%d points, notes %q - want the coat's 30 again on top", e.Points, e.Notes)
+	}
+}
+
+func TestThePackingSlipRendererWrapsCoresOwn(t *testing.T) {
+	in := documents.Input{Kind: documents.KindPackingSlip, Decimals: 2, Store: documents.StoreInfo{Name: "Shop"},
+		Order: order.Order{Number: "ORD-1", Lines: []order.OrderLine{{ProductSku: "TEE", ProductName: "Tee", Quantity: 1}}}}
+	core := func() ([]byte, error) { return documents.Render(in) }
+	if pdf, ok, err := pluginhost.DocumentRender(context.Background(), in, core); !ok || err != nil || !strings.HasPrefix(string(pdf), "%PDF-") {
+		t.Errorf("slip: ok %v, %v", ok, err)
+	}
+	in.Order.Lines = nil
+	if _, _, err := pluginhost.DocumentRender(context.Background(), in, core); err == nil || !strings.Contains(err.Error(), "nothing to pack") {
+		t.Errorf("an empty slip: %v", err)
 	}
 }
 

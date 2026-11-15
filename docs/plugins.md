@@ -202,6 +202,12 @@ all out of tree. This is what the SDK gives it.
   you add shows in the customer's points history beside the order number. It can arrive more
   than once for an order, so compute rather than act; an error leaves the points unearned and
   the earn is tried again.
+- **`RegisterDocumentRenderer`** - makes the invoices, packing slips or credit memos of every
+  channel your plugin is on, for a format core's doesn't cover. The request carries the order as
+  the document prints it, the seller's details, footer and country note from the channel's
+  settings, and `Default()`, core's own PDF, for a renderer that only stamps or wraps it. Return
+  a PDF; an error reaches the admin who asked, since quietly swapping in core's would hand out
+  the wrong paperwork.
 
 ### Checkout fields
 

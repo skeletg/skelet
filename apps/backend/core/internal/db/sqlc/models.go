@@ -1324,6 +1324,7 @@ type Country struct {
 	Iso3Code            string          `json:"iso3_code"`
 	NumericCode         string          `json:"numeric_code"`
 	BusinessIDFields    json.RawMessage `json:"business_id_fields"`
+	InvoiceNote         string          `json:"invoice_note"`
 }
 
 type CreditMemo struct {

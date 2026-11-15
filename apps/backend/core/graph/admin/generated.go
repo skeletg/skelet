@@ -1463,6 +1463,7 @@ type ComplexityRoot struct {
 		DefaultCurrency     func(childComplexity int) int
 		DefaultCurrencyCode func(childComplexity int) int
 		EmojiFlag           func(childComplexity int) int
+		InvoiceNote         func(childComplexity int) int
 		IsActive            func(childComplexity int) int
 		Iso3Code            func(childComplexity int) int
 		Metadata            func(childComplexity int) int
@@ -12198,6 +12199,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Country.EmojiFlag(childComplexity), true
+	case "Country.invoiceNote":
+		if e.ComplexityRoot.Country.InvoiceNote == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Country.InvoiceNote(childComplexity), true
 	case "Country.isActive":
 		if e.ComplexityRoot.Country.IsActive == nil {
 			break
@@ -38543,6 +38550,8 @@ extend type Mutation {
   metadata:              [MetadataItem!]!
   # The company identifiers a business purchase from this country asks for at checkout - a company registry number, a VAT number. Empty falls back to one generic tax ID, per sales/checkout/tax_id_field.
   businessIdFields:      [BusinessIdField!]!
+  # Printed on invoices and credit memos billed to this country - a reverse-charge or export note, say.
+  invoiceNote:           String!
   # ISO 3166-2 subdivisions (states/provinces) seeded for this country. Empty for countries that use free-text regions. Field resolver - only fetched when requested (e.g. the country detail page).
   regions:               [Region!]!
   createdAt:             Time!
@@ -38588,6 +38597,7 @@ input CreateCountryInput {
   sortOrder:             Int
   metadata:              [MetadataInput!]
   businessIdFields:      [BusinessIdFieldInput!]
+  invoiceNote:           String
 }
 
 # Code is the PK and never updates - to "rename" a country you delete
@@ -38604,6 +38614,7 @@ input UpdateCountryInput {
   metadata:              [MetadataInput!]
   # Replaces the whole list when given.
   businessIdFields:      [BusinessIdFieldInput!]
+  invoiceNote:           String
 }
 
 extend type Query {
@@ -47335,6 +47346,8 @@ func (ec *executionContext) childFields_Country(ctx context.Context, field graph
 		return ec.fieldContext_Country_metadata(ctx, field)
 	case "businessIdFields":
 		return ec.fieldContext_Country_businessIdFields(ctx, field)
+	case "invoiceNote":
+		return ec.fieldContext_Country_invoiceNote(ctx, field)
 	case "regions":
 		return ec.fieldContext_Country_regions(ctx, field)
 	case "createdAt":
@@ -91961,6 +91974,29 @@ func (ec *executionContext) fieldContext_Country_businessIdFields(_ context.Cont
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _Country_invoiceNote(ctx context.Context, field graphql.CollectedField, obj *model.Country) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Country_invoiceNote(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.InvoiceNote, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Country_invoiceNote(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Country", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _Country_regions(ctx context.Context, field graphql.CollectedField, obj *model.Country) (ret graphql.Marshaler) {
@@ -182975,7 +183011,7 @@ func (ec *executionContext) unmarshalInputCreateCountryInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"code", "name", "nativeName", "emojiFlag", "phoneCode", "defaultCurrencyCode", "isActive", "sortOrder", "metadata", "businessIdFields"}
+	fieldsInOrder := [...]string{"code", "name", "nativeName", "emojiFlag", "phoneCode", "defaultCurrencyCode", "isActive", "sortOrder", "metadata", "businessIdFields", "invoiceNote"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -183052,6 +183088,13 @@ func (ec *executionContext) unmarshalInputCreateCountryInput(ctx context.Context
 				return it, err
 			}
 			it.BusinessIDFields = data
+		case "invoiceNote":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("invoiceNote"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.InvoiceNote = data
 		}
 	}
 	return it, nil
@@ -191006,7 +191049,7 @@ func (ec *executionContext) unmarshalInputUpdateCountryInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"code", "name", "nativeName", "emojiFlag", "phoneCode", "defaultCurrencyCode", "isActive", "sortOrder", "metadata", "businessIdFields"}
+	fieldsInOrder := [...]string{"code", "name", "nativeName", "emojiFlag", "phoneCode", "defaultCurrencyCode", "isActive", "sortOrder", "metadata", "businessIdFields", "invoiceNote"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -191083,6 +191126,13 @@ func (ec *executionContext) unmarshalInputUpdateCountryInput(ctx context.Context
 				return it, err
 			}
 			it.BusinessIDFields = data
+		case "invoiceNote":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("invoiceNote"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.InvoiceNote = data
 		}
 	}
 	return it, nil
@@ -204730,6 +204780,11 @@ func (ec *executionContext) _Country(ctx context.Context, sel ast.SelectionSet, 
 			}
 		case "businessIdFields":
 			out.Values[i] = ec._Country_businessIdFields(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "invoiceNote":
+			out.Values[i] = ec._Country_invoiceNote(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}

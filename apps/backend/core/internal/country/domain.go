@@ -73,6 +73,7 @@ type Country struct {
 	SortOrder           int32
 	Metadata            map[string]string
 	BusinessIDFields    []BusinessIDField
+	InvoiceNote         string // printed on invoices and credit memos billed here
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 }
@@ -97,6 +98,7 @@ type CreateCountryInput struct {
 	SortOrder           int32
 	Metadata            map[string]string
 	BusinessIDFields    []BusinessIDField
+	InvoiceNote         string
 }
 
 type UpdateCountryInput struct {
@@ -110,6 +112,7 @@ type UpdateCountryInput struct {
 	SortOrder           *int32
 	Metadata            *map[string]string
 	BusinessIDFields    *[]BusinessIDField
+	InvoiceNote         *string
 }
 
 var (

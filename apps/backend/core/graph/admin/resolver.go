@@ -28,6 +28,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/datajob"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/delivery"
+	"github.com/skeletg/skelet/apps/backend/core/internal/documents"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/dsar"
 	"github.com/skeletg/skelet/apps/backend/core/internal/embedding"
@@ -109,6 +110,7 @@ type Resolver struct {
 	LocaleSvc         *locale.Service
 	CurrencySvc       *currency.Service
 	CountrySvc        *country.Service
+	DocumentSvc       *documents.Service
 	MediaLibrarySvc   *medialibrary.Service
 	MenuSvc           *menu.Service
 	ReviewSvc         *review.Service

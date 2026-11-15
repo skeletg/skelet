@@ -1,10 +1,10 @@
 -- name: CreateCountry :one
 INSERT INTO countries (
     code, name, native_name, emoji_flag, phone_code,
-    default_currency_code, is_active, sort_order, metadata, business_id_fields
+    default_currency_code, is_active, sort_order, metadata, business_id_fields, invoice_note
 ) VALUES (
     UPPER($1), $2, $3, $4, $5,
-    NULLIF(UPPER($6), ''), $7, $8, $9, $10
+    NULLIF(UPPER($6), ''), $7, $8, $9, $10, $11
 )
 RETURNING *;
 
@@ -28,6 +28,7 @@ SET name                  = $2,
     sort_order            = $8,
     metadata              = $9,
     business_id_fields    = $10,
+    invoice_note          = $11,
     updated_at            = NOW()
 WHERE code = UPPER($1)
 RETURNING *;

@@ -32,12 +32,12 @@ func (q *Queries) CountCountryReferences(ctx context.Context, upper interface{})
 const createCountry = `-- name: CreateCountry :one
 INSERT INTO countries (
     code, name, native_name, emoji_flag, phone_code,
-    default_currency_code, is_active, sort_order, metadata, business_id_fields
+    default_currency_code, is_active, sort_order, metadata, business_id_fields, invoice_note
 ) VALUES (
     UPPER($1), $2, $3, $4, $5,
-    NULLIF(UPPER($6), ''), $7, $8, $9, $10
+    NULLIF(UPPER($6), ''), $7, $8, $9, $10, $11
 )
-RETURNING code, name, native_name, emoji_flag, phone_code, default_currency_code, is_active, sort_order, metadata, created_at, updated_at, iso3_code, numeric_code, business_id_fields
+RETURNING code, name, native_name, emoji_flag, phone_code, default_currency_code, is_active, sort_order, metadata, created_at, updated_at, iso3_code, numeric_code, business_id_fields, invoice_note
 `
 
 type CreateCountryParams struct {
@@ -51,6 +51,7 @@ type CreateCountryParams struct {
 	SortOrder        int32           `json:"sort_order"`
 	Metadata         json.RawMessage `json:"metadata"`
 	BusinessIDFields json.RawMessage `json:"business_id_fields"`
+	InvoiceNote      string          `json:"invoice_note"`
 }
 
 func (q *Queries) CreateCountry(ctx context.Context, arg CreateCountryParams) (Country, error) {
@@ -65,6 +66,7 @@ func (q *Queries) CreateCountry(ctx context.Context, arg CreateCountryParams) (C
 		arg.SortOrder,
 		arg.Metadata,
 		arg.BusinessIDFields,
+		arg.InvoiceNote,
 	)
 	var i Country
 	err := row.Scan(
@@ -82,6 +84,7 @@ func (q *Queries) CreateCountry(ctx context.Context, arg CreateCountryParams) (C
 		&i.Iso3Code,
 		&i.NumericCode,
 		&i.BusinessIDFields,
+		&i.InvoiceNote,
 	)
 	return i, err
 }
@@ -96,7 +99,7 @@ func (q *Queries) DeleteCountry(ctx context.Context, upper interface{}) error {
 }
 
 const getCountryByCode = `-- name: GetCountryByCode :one
-SELECT code, name, native_name, emoji_flag, phone_code, default_currency_code, is_active, sort_order, metadata, created_at, updated_at, iso3_code, numeric_code, business_id_fields FROM countries WHERE code = UPPER($1)
+SELECT code, name, native_name, emoji_flag, phone_code, default_currency_code, is_active, sort_order, metadata, created_at, updated_at, iso3_code, numeric_code, business_id_fields, invoice_note FROM countries WHERE code = UPPER($1)
 `
 
 func (q *Queries) GetCountryByCode(ctx context.Context, upper interface{}) (Country, error) {
@@ -117,12 +120,13 @@ func (q *Queries) GetCountryByCode(ctx context.Context, upper interface{}) (Coun
 		&i.Iso3Code,
 		&i.NumericCode,
 		&i.BusinessIDFields,
+		&i.InvoiceNote,
 	)
 	return i, err
 }
 
 const listActiveCountries = `-- name: ListActiveCountries :many
-SELECT code, name, native_name, emoji_flag, phone_code, default_currency_code, is_active, sort_order, metadata, created_at, updated_at, iso3_code, numeric_code, business_id_fields FROM countries WHERE is_active ORDER BY sort_order, code
+SELECT code, name, native_name, emoji_flag, phone_code, default_currency_code, is_active, sort_order, metadata, created_at, updated_at, iso3_code, numeric_code, business_id_fields, invoice_note FROM countries WHERE is_active ORDER BY sort_order, code
 `
 
 func (q *Queries) ListActiveCountries(ctx context.Context) ([]Country, error) {
@@ -149,6 +153,7 @@ func (q *Queries) ListActiveCountries(ctx context.Context) ([]Country, error) {
 			&i.Iso3Code,
 			&i.NumericCode,
 			&i.BusinessIDFields,
+			&i.InvoiceNote,
 		); err != nil {
 			return nil, err
 		}
@@ -164,7 +169,7 @@ func (q *Queries) ListActiveCountries(ctx context.Context) ([]Country, error) {
 }
 
 const listCountries = `-- name: ListCountries :many
-SELECT code, name, native_name, emoji_flag, phone_code, default_currency_code, is_active, sort_order, metadata, created_at, updated_at, iso3_code, numeric_code, business_id_fields FROM countries ORDER BY sort_order, code
+SELECT code, name, native_name, emoji_flag, phone_code, default_currency_code, is_active, sort_order, metadata, created_at, updated_at, iso3_code, numeric_code, business_id_fields, invoice_note FROM countries ORDER BY sort_order, code
 `
 
 func (q *Queries) ListCountries(ctx context.Context) ([]Country, error) {
@@ -191,6 +196,7 @@ func (q *Queries) ListCountries(ctx context.Context) ([]Country, error) {
 			&i.Iso3Code,
 			&i.NumericCode,
 			&i.BusinessIDFields,
+			&i.InvoiceNote,
 		); err != nil {
 			return nil, err
 		}
@@ -216,9 +222,10 @@ SET name                  = $2,
     sort_order            = $8,
     metadata              = $9,
     business_id_fields    = $10,
+    invoice_note          = $11,
     updated_at            = NOW()
 WHERE code = UPPER($1)
-RETURNING code, name, native_name, emoji_flag, phone_code, default_currency_code, is_active, sort_order, metadata, created_at, updated_at, iso3_code, numeric_code, business_id_fields
+RETURNING code, name, native_name, emoji_flag, phone_code, default_currency_code, is_active, sort_order, metadata, created_at, updated_at, iso3_code, numeric_code, business_id_fields, invoice_note
 `
 
 type UpdateCountryParams struct {
@@ -232,6 +239,7 @@ type UpdateCountryParams struct {
 	SortOrder        int32           `json:"sort_order"`
 	Metadata         json.RawMessage `json:"metadata"`
 	BusinessIDFields json.RawMessage `json:"business_id_fields"`
+	InvoiceNote      string          `json:"invoice_note"`
 }
 
 func (q *Queries) UpdateCountry(ctx context.Context, arg UpdateCountryParams) (Country, error) {
@@ -246,6 +254,7 @@ func (q *Queries) UpdateCountry(ctx context.Context, arg UpdateCountryParams) (C
 		arg.SortOrder,
 		arg.Metadata,
 		arg.BusinessIDFields,
+		arg.InvoiceNote,
 	)
 	var i Country
 	err := row.Scan(
@@ -263,6 +272,7 @@ func (q *Queries) UpdateCountry(ctx context.Context, arg UpdateCountryParams) (C
 		&i.Iso3Code,
 		&i.NumericCode,
 		&i.BusinessIDFields,
+		&i.InvoiceNote,
 	)
 	return i, err
 }
