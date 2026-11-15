@@ -104,6 +104,9 @@ func remove(root, name string, force, dropVolumes bool) int {
 			envFiles = append(envFiles, filepath.Join("env", f))
 		}
 	}
+	if site := filepath.Join("deploy", "caddy", "sites", name+".caddy"); fileThere(filepath.Join(root, site)) {
+		envFiles = append(envFiles, site)
+	}
 	volumes := ownVolumes(name)
 	port := devPortOf(root, name)
 	out, _ := compose.Command(root, lib.Env(), "ps", "--status", "running", "--format", "{{.Service}}").Output()
@@ -238,6 +241,11 @@ func remove(root, name string, force, dropVolumes bool) int {
 		fmt.Printf("Its volumes are still there - skelet rm channel %s --volumes, or docker volume rm.\n", name)
 	}
 	return 0
+}
+
+func fileThere(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func failed(err error) int {

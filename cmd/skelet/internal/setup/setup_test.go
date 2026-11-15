@@ -71,6 +71,12 @@ func dev() answers {
 	return answers{target: "dev", signals: true, ai: true, search: "opensearch", apps: []string{"dashboard"}}
 }
 
+func server(small bool, apps ...string) answers {
+	a := dev()
+	a.target, a.apps, a.small = "server", apps, small
+	return a
+}
+
 func write(t *testing.T, root string, a answers) written {
 	t.Helper()
 	c, err := scan(root)
@@ -181,10 +187,9 @@ func snapshot(t *testing.T, root string) map[string]string {
 }
 
 func TestASecondRunChangesNothing(t *testing.T) {
-	for _, target := range []string{"dev", "small", "prod"} {
+	for target, a := range map[string]answers{"dev": dev(), "core small": server(true, "core", "dashboard"), "core and signals": server(false, "core", "signals", "dashboard")} {
 		root := fixture(t)
-		a := dev()
-		a.target, a.adminSlug, a.gateways = target, true, []string{"payment-stub"}
+		a.adminSlug, a.gateways = true, []string{"payment-stub"}
 		first := write(t, root, a)
 		before := snapshot(t, root)
 		again := write(t, root, a)
@@ -209,8 +214,10 @@ func TestEachBackendOwnsItsSecretsAndTheRootOnlyTheFrontends(t *testing.T) {
 		root := fixture(t)
 		mkfile(t, root, ".env", "DB_PASSWORD=volume-made-with-this\nADMIN_JWT_SECRET=\nCOMPOSE_PROFILES=bundled,valkey\n")
 		mkfile(t, root, "templates/nextjs-vetrina/package.json", "{}")
-		a := dev()
-		a.target, a.apps = target, []string{"dashboard", "nextjs-vetrina"}
+		a := server(true, "core", "dashboard", "nextjs-vetrina")
+		if target == "prod" {
+			a = server(false, "core", "signals", "dashboard", "nextjs-vetrina")
+		}
 		write(t, root, a)
 		core, dotenv := env(t, root, CoreEnv), env(t, root, ".env")
 		checkSecrets(t, target+" "+CoreEnv, core)
@@ -237,7 +244,7 @@ func TestEachBackendOwnsItsSecretsAndTheRootOnlyTheFrontends(t *testing.T) {
 		if !hex64.MatchString(core["STORAGE_SIGNING_KEY"]) || len(core["BACKUP_ENCRYPTION_PASSPHRASE"]) != 64 {
 			t.Errorf("%s: core's own keys weren't generated", target)
 		}
-		_, files, _ := EnvFiles(root, target, nil)
+		_, files, _ := EnvFiles(root, "server", a.runs)
 		for _, f := range files {
 			if fi, err := os.Stat(filepath.Join(root, f)); err != nil || fi.Mode().Perm() != 0o600 {
 				t.Errorf("%s: %s: %v", target, f, err)
@@ -280,10 +287,9 @@ func TestEachBackendOwnsItsSecretsAndTheRootOnlyTheFrontends(t *testing.T) {
 
 func TestAProdRunPutsBackWhatTheSmallShapeTookOut(t *testing.T) {
 	root := fixture(t)
-	a := dev()
-	a.target = "small"
+	a := server(true, "core", "dashboard")
 	write(t, root, a)
-	a.target = "prod"
+	a.small = false
 	write(t, root, a)
 	core := env(t, root, CoreEnv)
 	if core["WORKER_REPLICAS"] != "1" || core["MEDIA_REPLICAS"] != "1" || core["JOBS_EXTERNAL"] != "true" {
@@ -300,8 +306,7 @@ func TestADeploymentRunsTheStorefrontPicked(t *testing.T) {
 		mkfile(t, root, "templates/nextjs-vetrina/package.json", "{}")
 		mkfile(t, root, "templates/astro-shop/package.json", "{}")
 		mkfile(t, root, ".env", "COMPOSE_PROFILES=bundled,astro-shop,edge\n")
-		a := dev()
-		a.target, a.apps = target, []string{"dashboard", "astro-shop"}
+		a := server(target == "small", "core", "dashboard", "astro-shop")
 		write(t, root, a)
 		if _, err := os.Stat(filepath.Join(root, "templates/nextjs-vetrina/.env.production")); !errors.Is(err, fs.ErrNotExist) {
 			t.Errorf("%s: wrote the env file of a storefront it doesn't run", target)
@@ -325,6 +330,142 @@ func TestADeploymentRunsTheStorefrontPicked(t *testing.T) {
 		if got := env(t, root, "env/prod-caddy.env")["STOREFRONT_UPSTREAM"]; got != "mine:4000" {
 			t.Errorf("%s: an upstream set by hand became %q", target, got)
 		}
+	}
+}
+
+func TestStorefrontsShareAServer(t *testing.T) {
+	root := fixture(t)
+	mkfile(t, root, "templates/nextjs-vetrina/package.json", `{"scripts": {"dev": "next dev -p 3000", "start": "node --env-file-if-exists=.env.production .next/standalone/server.js"}}`)
+	mkfile(t, root, "templates/astro-shop/package.json", `{"scripts": {"dev": "astro dev --port 3001", "start": "node --env-file-if-exists=.env.production dist/server/entry.mjs"}}`)
+	mkfile(t, root, ".env", "COMPOSE_PROFILES=bundled,edge\n")
+	a := server(true, "core", "dashboard", "nextjs-vetrina", "astro-shop")
+	write(t, root, a)
+
+	if next, astro := env(t, root, "templates/nextjs-vetrina/.env.production")["PORT"], env(t, root, "templates/astro-shop/.env.production")["PORT"]; next != "3000" || astro != "3001" {
+		t.Errorf("ports %q and %q, want each storefront on its dev port", next, astro)
+	}
+	if got := env(t, root, CoreEnv)["STOREFRONT_REVALIDATE_URL"]; got != "" {
+		t.Errorf("STOREFRONT_REVALIDATE_URL = %q, want none, so each channel is purged at its own URL", got)
+	}
+	if got := env(t, root, "env/prod-caddy.env")["STOREFRONT_UPSTREAM"]; got != "host.docker.internal:3001" {
+		t.Errorf("the apex goes to %q, want the first storefront", got)
+	}
+	site, err := os.ReadFile(filepath.Join(root, sitesDir, "nextjs-vetrina.caddy"))
+	if err != nil || !strings.Contains(string(site), "{$NEXTJS_VETRINA_DOMAIN:nextjs-vetrina.localhost} {\n\timport storefront host.docker.internal:3000\n}") {
+		t.Errorf("the second storefront's site: %v\n%s", err, site)
+	}
+	if _, err := os.Stat(filepath.Join(root, sitesDir, "astro-shop.caddy")); !errors.Is(err, fs.ErrNotExist) {
+		t.Error("the apex storefront got a site of its own as well")
+	}
+
+	mkfile(t, root, sitesDir+"/nextjs-vetrina.caddy", "mine\n")
+	if err := envfile.Set(filepath.Join(root, "templates/astro-shop/.env.production"), "PORT", "4000"); err != nil {
+		t.Fatal(err)
+	}
+	a.apps = []string{"core", "dashboard", "astro-shop"}
+	write(t, root, a)
+	if got := env(t, root, CoreEnv)["STOREFRONT_REVALIDATE_URL"]; got != "http://host.docker.internal:4000/api/revalidate" {
+		t.Errorf("one storefront again, STOREFRONT_REVALIDATE_URL = %q - want it purged in-network on the port it was moved to", got)
+	}
+	if raw, _ := os.ReadFile(filepath.Join(root, sitesDir, "nextjs-vetrina.caddy")); string(raw) != "mine\n" {
+		t.Errorf("an edited site was rewritten: %q", raw)
+	}
+}
+
+func setUp(t *testing.T, root string, f flags, ask prompter) error {
+	t.Helper()
+	c, err := scan(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := answer(root, c, f, profile.Profile{}, ".env", ask, io.Discard)
+	if err != nil {
+		return err
+	}
+	_, err = Write(root, a, c, rand.Reader, io.Discard)
+	return err
+}
+
+func absent(t *testing.T, root, rel string) {
+	t.Helper()
+	if _, err := os.Stat(filepath.Join(root, rel)); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("%s was written, and nothing that reads it runs here", rel)
+	}
+}
+
+func TestAppsOnMachinesOfTheirOwn(t *testing.T) {
+	coreBox := fixture(t)
+	write(t, coreBox, server(false, "core"))
+	absent(t, coreBox, SignalsEnv)
+	core := env(t, coreBox, CoreEnv)
+	here := func(apps ...string) list { return list{true, apps} }
+
+	signalsBox := fixture(t)
+	if err := setUp(t, signalsBox, flags{here: here("signals"), yes: true}, quiet()); !errors.Is(err, errRefused) {
+		t.Fatalf("Signals with nothing of core's: %v, want a refusal", err)
+	}
+	absent(t, signalsBox, SignalsEnv)
+	if err := setUp(t, signalsBox, flags{here: here("signals"), shared: filepath.Join(coreBox, CoreEnv), yes: true}, quiet()); err != nil {
+		t.Fatal(err)
+	}
+	signals := env(t, signalsBox, SignalsEnv)
+	for _, k := range signalsShares {
+		if signals[k] == "" || signals[k] != core[k] {
+			t.Errorf("Signals' %s = %q, core's %q", k, signals[k], core[k])
+		}
+	}
+	if signals["VALKEY_URL"] != "" || signals["CUSTOMER_JWT_PRIVATE_KEY"] != "" || len(signals["SIGNALS_DB_PASSWORD"]) != 64 {
+		t.Errorf("Signals' own: VALKEY_URL %q, private key %q, db password %q", signals["VALKEY_URL"], signals["CUSTOMER_JWT_PRIVATE_KEY"], signals["SIGNALS_DB_PASSWORD"])
+	}
+	absent(t, signalsBox, CoreEnv)
+	if err := setUp(t, signalsBox, flags{here: here("signals"), yes: true}, quiet()); err != nil || !reflect.DeepEqual(env(t, signalsBox, SignalsEnv), signals) {
+		t.Errorf("a re-run without --shared: %v, or the values moved", err)
+	}
+
+	shopBox := fixture(t)
+	mkfile(t, shopBox, "templates/nextjs-vetrina/package.json", `{"scripts": {"dev": "next dev -p 3000"}}`)
+	mkfile(t, shopBox, "apps/dashboard/package.json", "{}")
+	mkfile(t, shopBox, "apps/dashboard/.env.production", "VITE_GRAPHQL_URL=https://api.example.com/api/admin/graphql\n")
+	given := "ADMIN_API_SLUG=admin-abc\n"
+	for _, k := range frontendShares {
+		given += k + "=" + core[k] + "\n"
+	}
+	mkfile(t, shopBox, "core.env", given)
+	if err := setUp(t, shopBox, flags{here: here("dashboard", "nextjs-vetrina"), shared: filepath.Join(shopBox, "core.env"), yes: true}, quiet()); err != nil {
+		t.Fatal(err)
+	}
+	shop := env(t, shopBox, "templates/nextjs-vetrina/.env.production")
+	for _, k := range frontendShares {
+		if shop[k] == "" || shop[k] != core[k] {
+			t.Errorf("the storefront's %s = %q, core's %q", k, shop[k], core[k])
+		}
+	}
+	if shop["PORT"] != "3000" {
+		t.Errorf("the storefront's PORT = %q", shop["PORT"])
+	}
+	if got := env(t, shopBox, "apps/dashboard/.env.production")["VITE_GRAPHQL_URL"]; got != "https://api.example.com/api/admin/admin-abc/graphql" {
+		t.Errorf("the dashboard's API = %q, want core's host kept and its slug taken", got)
+	}
+	absent(t, shopBox, CoreEnv)
+}
+
+func TestCoresValuesCanBePasted(t *testing.T) {
+	root := fixture(t)
+	c, _ := scan(root)
+	seed, _ := secret.Key32(rand.Reader)
+	pub, _ := secret.CustomerPublic(seed)
+	hex1, hex2 := strings.Repeat("a", 64), strings.Repeat("b", 64)
+	paste := func(input string) (answers, error) {
+		ask := prompter{on: true, in: bufio.NewReader(strings.NewReader(input)), out: io.Discard}
+		return answer(root, c, flags{here: list{true, []string{"signals"}}}, profile.Profile{}, ".env", ask, io.Discard)
+	}
+	a, err := paste(pub + "\n" + hex1 + "\n" + hex2 + "\n\n")
+	want := map[string]string{"CUSTOMER_JWT_PUBLIC_KEY": pub, "EMAIL_LINK_SECRET": hex1, "SIGNALS_SERVICE_SECRET": hex2, "TRUSTED_PROXY_KEY": ""}
+	if err != nil || !reflect.DeepEqual(a.shared, want) {
+		t.Errorf("pasted: %v, %v", a.shared, err)
+	}
+	if _, err := paste("not-a-key\n" + hex1 + "\n" + hex2 + "\n\n"); !errors.Is(err, errRefused) {
+		t.Errorf("a public key that isn't one: %v, want a refusal", err)
 	}
 }
 
@@ -425,12 +566,15 @@ func TestParseFlags(t *testing.T) {
 		t.Errorf("--all with a template: %+v", f.apps)
 	}
 	for args, want := range map[string]string{
-		"--apps":          "--apps needs a value (e.g. dashboard,vetrina-demo or none)",
-		"--apps shop":     `Unknown app "shop" (valid: dashboard, vetrina-demo, none)`,
-		"--tools jaeger":  `Unknown tool "jaeger" (valid: mailpit, webhook-tester, grafana, garage-webui, none)`,
-		"--profile":       "--profile needs a file",
-		"--profile /nope": "No such profile: /nope",
-		"--bogus":         "Unknown flag: --bogus (try --all, --backend-only, --apps LIST, --tools LIST, --shop NAME, --template NAME, --keep-code, --yes, --profile FILE)",
+		"--apps":               "--apps needs a value (e.g. dashboard,vetrina-demo or none)",
+		"--apps shop":          `Unknown app "shop" (valid: dashboard, vetrina-demo, none)`,
+		"--tools jaeger":       `Unknown tool "jaeger" (valid: mailpit, webhook-tester, grafana, garage-webui, none)`,
+		"--profile":            "--profile needs a file",
+		"--profile /nope":      "No such profile: /nope",
+		"--bogus":              "Unknown flag: --bogus (try --all, --backend-only, --apps LIST, --tools LIST, --shop NAME, --template NAME, --keep-code, --yes, --profile FILE, --small, --shared FILE)",
+		"queue":                `Unknown app "queue" (valid: core, signals, dashboard, vetrina-demo)`,
+		"core --tools mailpit": "Naming apps sets up a server with them - --all, --backend-only, --apps, --tools, --shop and --template are for a dev clone",
+		"signals --small":      "--small is core's one-container shape - name core too: skelet setup core --small",
 	} {
 		if _, err := parseFlags(strings.Fields(args), c); err == nil || err.Error() != want {
 			t.Errorf("%s: %v\nwant %s", args, err, want)
@@ -443,10 +587,10 @@ func quiet() prompter { return prompter{in: bufio.NewReader(strings.NewReader(""
 func TestProfileAnswers(t *testing.T) {
 	root := fixture(t)
 	c, _ := scan(root)
-	p := profile.Profile{kTarget: "small", kSignals: "false", kSearch: "postgres", kApps: "dashboard,gone", kSlug: "1", kTools: "mailpit"}
+	p := profile.Profile{kTarget: "server", kSignals: "false", kSearch: "postgres", kApps: "core,dashboard,gone", kSlug: "1", kTools: "mailpit", kSmall: "true"}
 	a, err := answer(root, c, flags{yes: true}, p, "p", quiet(), io.Discard)
-	if err != nil || a.target != "small" || a.signals || a.search != "postgres" || !a.adminSlug ||
-		!reflect.DeepEqual(a.apps, []string{"dashboard"}) || !a.fromProfile || a.prune || !reflect.DeepEqual(a.tools, []string{"mailpit"}) {
+	if err != nil || a.target != "server" || a.signals || a.search != "postgres" || !a.adminSlug || !a.small ||
+		!reflect.DeepEqual(a.apps, []string{"core", "dashboard"}) || !a.fromProfile || a.prune || !reflect.DeepEqual(a.tools, []string{"mailpit"}) {
 		t.Errorf("answers %+v, %v", a, err)
 	}
 	for k, v := range map[string]string{kTarget: "staging", kSignals: "yes", kSearch: "elastic", kSlug: "true"} {
@@ -459,7 +603,7 @@ func TestProfileAnswers(t *testing.T) {
 func TestRunReplaysAProfileIntoTheEnv(t *testing.T) {
 	root := fixture(t)
 	replay := filepath.Join(t.TempDir(), "shop.profile")
-	body := "SKELET_TARGET=prod\nSKELET_APPS_SELECTED=dashboard\n"
+	body := "SKELET_TARGET=server\nSKELET_APPS_SELECTED=core,signals,dashboard\n"
 	if err := os.WriteFile(replay, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -469,11 +613,17 @@ func TestRunReplaysAProfileIntoTheEnv(t *testing.T) {
 	if raw, _ := os.ReadFile(replay); string(raw) != body {
 		t.Error("the replayed file was rewritten")
 	}
-	if saved := profile.Current(root); saved[kTarget] != "prod" || saved[kApps] != "dashboard" {
+	if saved := profile.Current(root); saved[kTarget] != "server" || saved[kApps] != "core,signals,dashboard" {
 		t.Errorf(".env records %v", saved)
 	}
 	if code := Run(root, []string{"--apps", "nope"}); code != 2 {
 		t.Errorf("a bad flag: exit %d, want 2", code)
+	}
+	if code := Run(fixture(t), []string{"signals", "--yes"}); code != 1 {
+		t.Errorf("Signals alone, with nothing of core's: exit %d, want 1", code)
+	}
+	if code := Run(fixture(t), []string{"core", "--small", "--yes"}); code != 0 {
+		t.Errorf("core alone: exit %d", code)
 	}
 }
 
@@ -484,8 +634,8 @@ func TestTemplatesAreAskedForNotAssumed(t *testing.T) {
 		{Name: "shop", Dir: "apps/channels/shop"}, {Name: "nextjs-vetrina", Dir: "templates/nextjs-vetrina"},
 	}}
 	for input, want := range map[string][]string{
-		strings.Repeat("\n", 40):             {"dashboard", "shop"},
-		"\n\ny\n" + strings.Repeat("\n", 40): {"dashboard", "shop", "nextjs-vetrina"},
+		strings.Repeat("\n", 40):               {"dashboard", "shop"},
+		"\n\n\ny\n" + strings.Repeat("\n", 40): {"dashboard", "shop", "nextjs-vetrina"},
 	} {
 		var out strings.Builder
 		ask := prompter{on: true, in: bufio.NewReader(strings.NewReader(input)), out: &out}
@@ -529,8 +679,8 @@ func TestFirstShopIsOffered(t *testing.T) {
 		return prompter{on: true, in: bufio.NewReader(strings.NewReader(input)), out: out}
 	}
 	var out strings.Builder
-	// dashboard yes, both templates no, then: a shop, the second template, a bad name and a good one
-	a, err := answer(root, c, flags{}, profile.Profile{kTarget: "dev"}, "p", ask("\nn\nn\ny\n2\nShop!\neu-shop\n"+strings.Repeat("\n", 40), &out), &out)
+	// dev, dashboard yes, both templates no, then: a shop, the second template, a bad name and a good one
+	a, err := answer(root, c, flags{}, profile.Profile{kTarget: "dev"}, "p", ask("\n\nn\nn\ny\n2\nShop!\neu-shop\n"+strings.Repeat("\n", 40), &out), &out)
 	if err != nil || a.shop != "eu-shop" || a.shopTemplate != "astro-shop" ||
 		!slices.Contains(a.apps, "eu-shop") || !strings.Contains(out.String(), `"Shop!" won't do`) {
 		t.Errorf("answers %+v, %v\n%s", a, err, out.String())
@@ -541,7 +691,7 @@ func TestFirstShopIsOffered(t *testing.T) {
 		t.Errorf("--template alone: %+v, %v", a, err)
 	}
 	out.Reset()
-	if a, _ := answer(root, c, flags{}, profile.Profile{kTarget: "dev"}, "p", ask("\nn\nn\ny\n\n\n"+strings.Repeat("\n", 40), &out), &out); a.shopTemplate != storefronts.DefaultTemplate {
+	if a, _ := answer(root, c, flags{}, profile.Profile{kTarget: "dev"}, "p", ask("\n\nn\nn\ny\n\n\n"+strings.Repeat("\n", 40), &out), &out); a.shopTemplate != storefronts.DefaultTemplate {
 		t.Errorf("default template %q\n%s", a.shopTemplate, out.String())
 	}
 	for name, run := range map[string]func() answers{
@@ -553,8 +703,8 @@ func TestFirstShopIsOffered(t *testing.T) {
 			a, _ := answer(root, c, flags{}, profile.Profile{kTarget: "dev", kApps: "dashboard"}, "p", ask(strings.Repeat("\n", 40), &out), &out)
 			return a
 		},
-		"prod": func() answers {
-			a, _ := answer(root, c, flags{}, profile.Profile{kTarget: "prod"}, "p", ask(strings.Repeat("\n", 40), &out), &out)
+		"server": func() answers {
+			a, _ := answer(root, c, flags{}, profile.Profile{kTarget: "server", kApps: "core"}, "p", ask(strings.Repeat("\n", 40), &out), &out)
 			return a
 		},
 	} {
@@ -619,12 +769,12 @@ func TestShopNamePromptGivesUp(t *testing.T) {
 		}
 		return c
 	}
-	// dashboard, then each template no, a shop yes, the first template - then names until the input runs out
-	a, out := answerWith(tpl("shop"), "\nn\ny\nBad!\nshop\n")
+	// dev, dashboard, then each template no, a shop yes, the first template - then names until the input runs out
+	a, out := answerWith(tpl("shop"), "\n\nn\ny\nBad!\nshop\n")
 	if a.shop != "my-shop" || strings.Count(out, "won't do") != 2 || !strings.Contains(out, "Name it [my-shop]") {
 		t.Errorf("a taken name suggested, or the free one not taken: %+v\n%s", a, out)
 	}
-	a, out = answerWith(tpl("shop", "my-shop", "store"), "\nn\nn\nn\ny\n1\n")
+	a, out = answerWith(tpl("shop", "my-shop", "store"), "\n\nn\nn\nn\ny\n1\n")
 	if a.shop != "" || a.shopTemplate != "" || strings.Count(out, "won't do") != 3 || !strings.Contains(out, "No shop made") {
 		t.Errorf("didn't give up: %+v\n%s", a, out)
 	}
@@ -644,6 +794,11 @@ func TestCurrentReadsTheAnswersOffTheFiles(t *testing.T) {
 		if got[k] != want {
 			t.Errorf("%s = %q, want %q", k, got[k], want)
 		}
+	}
+	mkfile(t, root, ".env", "SKELET_TARGET=server\nSKELET_APPS=core\n")
+	mkfile(t, root, CoreEnv, "WORKER_REPLICAS=0\nJOBS_EXTERNAL=false\nOPENSEARCH_URL=\n")
+	if got := current(root, c); got[kSmall] != "true" || got[kSearch] != "postgres" || got[kApps] != "core" {
+		t.Errorf("a small core read back as %v", got)
 	}
 	fresh := t.TempDir()
 	if p := current(fresh, catalog{}); len(p) != 0 {

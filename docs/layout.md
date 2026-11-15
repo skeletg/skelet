@@ -101,8 +101,8 @@ templates on first run.
 so it is committed as-is. Every variable, which file it belongs in, and the
 tradeoffs behind the optional ones: [env.md](env.md).
 
-Secrets that apply install-wide (the session and link keys, `SIGNALS_SERVICE_SECRET`,
-`CONFIG_ENCRYPTION_KEY`, `DB_PASSWORD`) live in the root `.env`, from `.env.example`.
+An app's own settings and secrets don't live here: each backend reads the `.env` beside its
+compose file and each frontend its `.env.production`.
 
 ### `deploy/`
 
@@ -115,7 +115,7 @@ sibling directories answering two different questions.
 
 | | Read by |
 |---|---|
-| `caddy/` | The bundled reverse proxy: three vhosts, automatic Let's Encrypt. Behind a profile because it takes `:80` and `:443`. Small and prod |
+| `caddy/` | The bundled reverse proxy: three vhosts, automatic Let's Encrypt, plus `sites/` with a file per further storefront on the machine. Behind a profile because it takes `:80` and `:443`. Small and prod |
 
 `skelet check contracts` reads the Caddyfile directly - it holds one of the three
 copies of the security headers that have to agree.

@@ -29,7 +29,7 @@ func checkout(root string, out io.Writer, p probes) int {
 	// Read first - which env files must exist depends on the target this clone was set up for
 	prof := profile.Current(root)
 	target := prof["SKELET_TARGET"]
-	if target != "small" && target != "prod" {
+	if target != "server" {
 		target = "dev"
 	}
 	var runs func(string) bool
@@ -52,14 +52,17 @@ func checkout(root string, out io.Writer, p probes) int {
 
 	r.section("app selection")
 	apps, chosen := prof.Apps()
-	if chosen {
+	switch {
+	case chosen && target == "server":
+		r.pass("%s - on this machine (change with skelet setup <apps>)", strings.Join(apps, ","))
+	case chosen:
 		r.pass("%s - on the host, with skelet dev (change with skelet setup --apps ...)", or(strings.Join(apps, ","), "backend only"))
-	} else {
+	default:
 		r.pass("no selection recorded - skelet dev runs the dashboard and every storefront")
 	}
 	// A name no storefront goes by - one renamed or removed - starts nothing, quietly
 	for _, app := range apps {
-		if app != "dashboard" && !slices.Contains(storefronts.Names(root), app) {
+		if app != "dashboard" && app != "core" && app != "signals" && !slices.Contains(storefronts.Names(root), app) {
 			r.note(".env's SKELET_APPS names %q, which isn't an app here - storefronts: %s (skelet setup --apps ...)", app, or(strings.Join(storefronts.Names(root), ", "), "none"))
 		}
 	}
@@ -80,7 +83,11 @@ func checkout(root string, out io.Writer, p probes) int {
 func optionalEnv(root, target string) []string {
 	var out []string
 	path := regexp.MustCompile(`path:\s*(env/[a-z0-9.-]+\.env)`)
-	for _, f := range []string{"docker-compose." + target + ".yml", "docker-compose.yml"} {
+	compose := []string{"docker-compose.yml"}
+	if target == "server" {
+		compose = append(compose, setup.ServerCompose...)
+	}
+	for _, f := range compose {
 		raw, _ := os.ReadFile(filepath.Join(root, f))
 		prev := ""
 		for line := range strings.Lines(string(raw)) {
@@ -157,8 +164,8 @@ func shape(r *report, root string, prof profile.Profile, files []string) {
 			return "(unset, on)"
 		}
 		search, knobs := "opensearch", ".env"
-		if t := prof[profile.TargetKey]; t != "dev" && len(files) > 0 {
-			knobs = files[0]
+		if prof[profile.TargetKey] == "server" {
+			knobs = setup.CoreEnv
 		}
 		if v, ok, _ := envfile.Get(filepath.Join(root, knobs), "OPENSEARCH_URL"); ok && v == "" {
 			search = "postgres"

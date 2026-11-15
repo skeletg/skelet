@@ -32,14 +32,22 @@ and secrets together - the way it would if it were its own repo: a backend in th
 
 The small profile is core's `compose.yaml` with its `.env` set small: no worker
 or media replicas, `JOBS_EXTERNAL=false` and `VALKEY_URL` empty, so one app
-container does every job against Postgres alone. `skelet setup` with the small
-target writes those for you.
+container does every job against Postgres alone. `skelet setup core --small`
+writes those for you.
 
-A few values have to match across apps, and `skelet setup` writes the same one
-into each: `SIGNALS_SERVICE_SECRET`, `EMAIL_LINK_SECRET`, `CUSTOMER_JWT_PUBLIC_KEY`
-and `TRUSTED_PROXY_KEY` between core and Signals, and `REVIEW_VOTER_TOKEN_SECRET`,
-`STOREFRONT_REVALIDATE_SECRET` and `TRUSTED_PROXY_KEY` between core and the
-storefront.
+A few values have to match across apps, wherever each one runs:
+
+| Value | Core and |
+|---|---|
+| `SIGNALS_SERVICE_SECRET`, `EMAIL_LINK_SECRET`, `CUSTOMER_JWT_PUBLIC_KEY` | Signals |
+| `TRUSTED_PROXY_KEY` | Signals and each storefront |
+| `REVIEW_VOTER_TOKEN_SECRET`, `STOREFRONT_REVALIDATE_SECRET` | each storefront |
+| `ADMIN_API_SLUG` | the dashboard, inside its `VITE_GRAPHQL_URL` |
+
+Core is where they come from. `skelet setup` with core on the machine makes them
+and copies them into the other apps there; on a machine without core it takes
+them from core - `--shared` with a copy of core's `.env`, what the app already
+holds, or pasted at the prompt - and never makes them up.
 
 ### How a backend's .env works
 
@@ -68,7 +76,7 @@ A storefront's own file is a security boundary as much as a convenience: the mos
 internet-exposed app holds no DB password, S3 key or SMTP credential, and no
 session key either - only the values it shares with core
 (`REVIEW_VOTER_TOKEN_SECRET`, `STOREFRONT_REVALIDATE_SECRET`, `TRUSTED_PROXY_KEY`),
-which `skelet setup` copies from core's `.env`.
+which `skelet setup` takes from core's `.env`.
 
 One gotcha on a machine that runs both stacks: the root `.env` is shared
 between `docker-compose.yml` and `docker-compose.prod.yml`, so dev values
@@ -79,8 +87,8 @@ The root `.env` also says what the clone is for, which `skelet setup` writes and
 
 | Variable | Holds |
 | --- | --- |
-| `SKELET_TARGET` | `dev`, `small` or `prod` - which stack this clone runs |
-| `SKELET_APPS` | the frontends this clone runs, wherever they run |
+| `SKELET_TARGET` | `dev` or `server` - which this clone is |
+| `SKELET_APPS` | on dev the frontends it runs; on a server every app that runs on the machine, `core` and `signals` included |
 | `COMPOSE_PROFILES` | what compose starts. On dev: the apps in Docker, the dev tools and the sidecars `skelet up` adds, so a bare `docker compose up` starts the same stack. On a server: `bundled`, `valkey` and the storefront it serves - and each backend's own `.env` has its own, for when it runs alone |
 
 ### Dev host ports
@@ -702,7 +710,12 @@ every channel and gets a single request naming all the active ones - the
 usual setup, with the in-network URL. Leave it empty and each active channel
 is purged at its own public URL plus `/api/revalidate`, for channels served
 by separate deployments; a channel with no public URL, or one on localhost,
-is then not purged at all.
+is then not purged at all. `skelet setup` sets it for a server with one
+storefront and empties it for a server with several.
+
+A storefront's server listens on `PORT` from its own file, 3000 when it's
+empty. Setup fills it in with the storefront's dev port, so storefronts
+sharing a machine never collide.
 
 On the storefront side, one deployment serves as many channels as you point
 at it. `STOREFRONT_CHANNEL_HOSTS` maps hosts to channel uuids

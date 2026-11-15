@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build && node scripts/standalone.mjs",
-    "start": "next start",
+    "start": "node --env-file-if-exists=.env.production .next/standalone/server.js",
     "typecheck": "next typegen && tsc --noEmit",
     "lint": "eslint",
     "test": "vitest run"

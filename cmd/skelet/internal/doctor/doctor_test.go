@@ -166,11 +166,12 @@ func TestProblemsAreReported(t *testing.T) {
 		{"a missing env file", func(t *testing.T, root string) { _ = os.Remove(filepath.Join(root, "env/db.env")) }, 1,
 			[]string{"FAIL  env/db.env missing - run skelet setup"}},
 		{"an optional env file", func(t *testing.T, root string) {
-			envSet(t, root, "SKELET_TARGET", "small")
+			envSet(t, root, "SKELET_TARGET", "server")
+			envSet(t, root, "SKELET_APPS", "core")
 			put(t, root, "env/small.env", "")
 			put(t, root, "apps/backend/core/.env", "")
 			put(t, root, "docker-compose.small.yml", "services:\n  app:\n    env_file:\n      - path: env/small.env\n      - path: env/small-extra.env\n        required: false\n")
-		}, 0, []string{"env files (small target)", "warn  env/small-extra.env missing - optional"}},
+		}, 0, []string{"env files (server target)", "warn  env/small-extra.env missing - optional"}},
 		{"switches left unset read as on", func(t *testing.T, root string) {
 			put(t, root, "env/go.env", "")
 		}, 0,

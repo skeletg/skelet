@@ -17,9 +17,13 @@ var switchedOff = regexp.MustCompile(`(?i)^\s*(false|0|f|no|off)\s*$`)
 func current(root string, c catalog) profile.Profile {
 	p := profile.Current(root)
 	backend, knobs := "env/go.env", profile.EnvPath(root)
-	if t := p[kTarget]; t != "" && t != "dev" {
+	if p[kTarget] == "server" {
 		backend = CoreEnv
 		knobs = filepath.Join(root, CoreEnv)
+		workers, _, _ := envfile.Get(knobs, "WORKER_REPLICAS")
+		if jobs, ok, _ := envfile.Get(knobs, "JOBS_EXTERNAL"); ok {
+			p[kSmall] = strconv.FormatBool(jobs == "false" && workers == "0")
+		}
 	}
 	for key, answer := range map[string]string{"SIGNALS_ENABLED": kSignals, "AI_ENABLED": kAI} {
 		if v, ok, _ := envfile.Get(filepath.Join(root, backend), key); ok {

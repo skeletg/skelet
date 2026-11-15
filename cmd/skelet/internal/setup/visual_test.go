@@ -30,8 +30,8 @@ func templateCatalog(root string) catalog {
 	}}
 }
 
-var firstRound = enter + enter + enter + storefronts.DefaultTemplate + enter + "\x15eu-shop" + enter + enter +
-	enter + enter + "n" + "2" + enter + enter + " " + enter
+var firstRound = enter + enter + enter + enter + storefronts.DefaultTemplate + enter + "\x15eu-shop" + enter + enter +
+	enter + "n" + "2" + enter + enter + " " + enter
 
 func TestDrawnInterview(t *testing.T) {
 	root := fixture(t)

@@ -18,15 +18,22 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/tui"
 )
 
-const Flags = "[--yes] [--all | --backend-only | --apps LIST|none] [--tools LIST|none] [--keep-code] [--profile FILE]"
+const Flags = "[core signals dashboard <storefront>...] [--small] [--shared FILE] [--yes] [--all | --backend-only | --apps LIST|none] [--tools LIST|none] [--keep-code] [--profile FILE]"
 
 const About = `The guided first run, and safe to re-run - each run defaults to how the clone is set up now,
-read from .env and the env files. It asks which frontends this clone runs - they run on the host, with skelet dev - the
-target (dev, small or prod), the suites, the search engine, the payment gateways, whether to hide
-the admin API and which dev tools to run. Then it writes that target's env files with generated
-secrets - a value that isn't a placeholder is never replaced - the root .env, plugins.json and the
-selection files. For dev it boots the stack, migrates, installs the host apps and offers a first
-admin login.
+read from .env and the env files. Plain, it sets up a dev clone: it asks which frontends run - on the host, with
+skelet dev - the suites, the search engine, the payment gateways, whether to hide the admin API and which dev tools to
+run, writes the env files with generated secrets - a value that isn't a placeholder is never replaced - the root .env
+and plugins.json, then boots the stack, migrates, installs the host apps and offers a first admin login.
+
+Named apps set up a server with just those: skelet setup core signals, skelet setup signals, skelet setup dashboard
+nextjs-vetrina. Each named app gets its env file, and nothing else is assumed to run on the machine. Core makes the
+values it shares with the others; an app on a machine without core takes them from core instead - from --shared, from
+what it already holds, or asked for - and with --yes it refuses rather than make them up.
+
+  core signals dashboard <storefront>       the apps that run on this machine - a server setup
+  --small                                   core in one container: no worker or media tiers, no Valkey
+  --shared FILE                             core's values for a machine without core - a copy of its .env does
 
   --all, --backend-only, --apps LIST|none   which frontends this clone runs - the backend always does. A
                                             template runs only when named, or with --all
@@ -109,12 +116,7 @@ func Run(root string, args []string) int {
 	}
 
 	if a.target != "dev" {
-		files := CoreEnv
-		if a.target == "prod" {
-			files += " and " + SignalsEnv
-		}
-		ask.section(os.Stdout, fmt.Sprintf("Files written. %s target: fill the hostnames and credentials in %s,", a.target, files),
-			fmt.Sprintf("    then deploy with docker-compose.%s.yml", a.target))
+		ask.section(os.Stdout, "Files written. Fill in the hostnames and credentials, then start what runs here:", starts(a)...)
 		return 0
 	}
 	if f.noBoot {
@@ -152,6 +154,12 @@ func review(a answers, c catalog) [][2]string {
 		return strings.Join(l, ", ")
 	}
 	rows := [][2]string{{"target", a.target}, {"apps", list(a.apps, "backend only")}}
+	if a.target == "server" {
+		rows[1][0] = "on this machine"
+		if a.runs(appCore) {
+			rows = append(rows, [2]string{"core", map[bool]string{true: "one container", false: "with its worker and media tiers"}[a.small]})
+		}
+	}
 	if a.shop != "" {
 		rows = append(rows, [2]string{"new shop", a.shop + ", copied from " + a.shopTemplate})
 	}
@@ -166,8 +174,10 @@ func review(a answers, c catalog) [][2]string {
 	if a.adminSlug {
 		admin = "an unguessable path"
 	}
-	rows = append(rows, [2]string{"suites", list(suites, "none")}, [2]string{"search", a.search},
-		[2]string{"gateways", list(a.gateways, "none")}, [2]string{"admin API", admin})
+	if a.hasCore() {
+		rows = append(rows, [2]string{"suites", list(suites, "none")}, [2]string{"search", a.search},
+			[2]string{"gateways", list(a.gateways, "none")}, [2]string{"admin API", admin})
+	}
 	if a.target == "dev" {
 		rows = append(rows, [2]string{"dev tools", list(a.tools, "none")})
 	}
@@ -175,6 +185,26 @@ func review(a answers, c catalog) [][2]string {
 		rows = append(rows, [2]string{"working tree", t})
 	}
 	return rows
+}
+
+func starts(a answers) []string {
+	var out []string
+	switch {
+	case a.runs(appCore) && a.runs(appSignals):
+		out = append(out, "    core, signals  docker compose -f docker-compose.prod.yml up -d  (--profile edge adds the bundled edge)")
+	case a.runs(appCore):
+		out = append(out, "    core           cd apps/backend/core && docker compose up -d  (docker-compose.small.yml adds the bundled edge)")
+	case a.runs(appSignals):
+		out = append(out, "    signals        cd apps/backend/signals && docker compose up -d")
+	}
+	for _, app := range frontends(a.apps) {
+		if app == "dashboard" {
+			out = append(out, "    dashboard      pnpm run build in apps/dashboard - dist/ is the site")
+			continue
+		}
+		out = append(out, fmt.Sprintf("    %-14s pnpm run build, then pnpm run start, in its directory", app))
+	}
+	return out
 }
 
 func treeChange(root string, a answers, c catalog) string {

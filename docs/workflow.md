@@ -210,7 +210,7 @@ found in a template first:
 | --- | --- |
 | Which apps | `SKELET_APPS` in the root `.env`, plus sparse-checkout of the rest |
 | Where the frontends run | `COMPOSE_PROFILES` in the root `.env` - an app left out runs on the host, which is the default |
-| Deployment target - dev / small / prod | materializes only that target's env files |
+| Dev, or a server | dev's env files - a server is set up with the apps named on it instead |
 | Suites - Signals, AI | `SIGNALS_ENABLED` / `AI_ENABLED` |
 | Search tier | `OPENSEARCH_URL` in the root `.env` |
 | Payment gateways | `apps/backend/core/plugins/plugins.json`, then `skelet gen` if it changed |
@@ -228,8 +228,9 @@ files back to tell you what this clone is meant to be. A clone set up by an olde
 after updating moves them into `.env`.
 
 Non-interactive: `skelet setup --yes` takes the defaults; `skelet setup --profile <file>` replays a
-file of answers (`SKELET_TARGET=prod`, `SKELET_APPS_SELECTED=dashboard`, ...), which is what a
-second clone wants. The file is only read - the answers land in this clone's `.env` like any other
+file of answers (`SKELET_TARGET=server`, `SKELET_APPS_SELECTED=core,dashboard`, ...), which is what a
+second clone wants. On a server, name the apps that run there instead: `skelet setup core signals`,
+`skelet setup signals --shared core.env` - see [deploying.md](deploying.md). The file is only read - the answers land in this clone's `.env` like any other
 run's.
 
 ## Which apps run

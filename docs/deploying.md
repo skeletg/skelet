@@ -12,10 +12,18 @@ and terminate TLS.
 ## One backend
 
 ```bash
-cd apps/backend/core          # or apps/backend/signals
-cp .env.example .env          # fill it in - skelet setup does it for you
+skelet setup core             # writes apps/backend/core/.env, secrets included
+cd apps/backend/core
 docker compose up -d
 ```
+
+`skelet setup` with app names sets up a server with just those, and assumes nothing
+else runs there. `skelet setup signals --shared core.env` does Signals on a machine
+of its own: the values it shares with core ([env.md](env.md#the-files) lists them)
+come from a copy of core's `.env`, or from what it already holds, or are asked for -
+setup never makes them up, since a value core doesn't have breaks every call between
+the two. Copying `.env.example` to `.env` and filling it in by hand works just as
+well.
 
 That `.env` holds everything the app reads, secrets included. `COMPOSE_PROFILES`
 in it starts the datastores it can bring along - `bundled` for Postgres (and
@@ -46,16 +54,16 @@ starts it all, and naming services redeploys only those: `docker compose -f
 docker-compose.prod.yml up -d signals ingest`.
 
 The root `.env` is read first and wins over the backends' own, so it holds only
-what the edge uses. `skelet setup` with the prod target writes the backends' files
-and the frontends' `.env.production`, and moves any backend key it finds in the
-root one.
+what the edge uses. `skelet setup core signals` writes both backends' files, with
+the values they share copied straight across, and moves any backend key it finds in
+the root `.env`.
 
 `docker-compose.small.yml` is the minimum deployable tenant: core alone, its
 `.env` set so one app container runs every backend role (API, WS, media
 transforms, scheduler, webhook delivery, outbox relay) against one Postgres - no
 worker or media replicas, `JOBS_EXTERNAL=false`, `VALKEY_URL` empty. No NATS, no
 OpenSearch and no Signals. Its API listens on 18080 so it runs beside the dev
-stack, and `skelet setup` with the small target writes it.
+stack, and `skelet setup core --small` writes it.
 
 `skelet release core signals` builds and pushes the backends' images and prints
 the line each `.env` takes.
@@ -69,7 +77,7 @@ it needs.
 
 Each frontend builds in its own directory, from settings in its own
 `.env.production` - copy the `.env.production.example` beside it, or let `skelet
-setup` with a server target write it.
+setup <name>` write it, taking the values it shares with core from core.
 
 **The dashboard** is static files: `pnpm run build` in `apps/dashboard` makes
 `dist/`, which any web server, CDN or static host serves - every path that isn't
@@ -79,19 +87,26 @@ baked in: leave it relative and put the dashboard behind something that proxies
 `CORS_ALLOWED_ORIGINS`. The build also writes `dist/_headers`, the security
 headers in the form Netlify and Cloudflare Pages read, with core's origin and
 `UPLOAD_ORIGINS` already in its `connect-src` - another host should send the same
-headers.
+headers - and `dist/_redirects`, the `index.html` fallback in Netlify's form.
+Cloudflare Pages falls back on its own and says in its build log that it skips
+that rule.
 
 **A Next storefront** is a Node server. `pnpm run build` leaves a self-contained
 one in `.next/standalone`, its static files beside it, which runs anywhere with
-Node: `node --env-file=.env.production .next/standalone/<path>/server.js`, on the
-port `PORT` names (3000 by default), under systemd or any process manager. A
+Node: `pnpm run start` is `node --env-file-if-exists=.env.production
+.next/standalone/server.js`, on the port `PORT` names (3000 by default). A
 platform that builds Next itself, Vercel or Netlify, just needs the same settings
 in its own environment. Build it from the repo root's workspace -
 `pnpm install --frozen-lockfile --filter ./templates/nextjs-vetrina...` - or from
 the storefront's directory when it takes the packages from npm.
 
-**The Astro storefront** builds the same way and runs with `node
---env-file=.env.production dist/server/entry.mjs`.
+**The Astro storefront** builds the same way, and `pnpm run start` runs
+`dist/server/entry.mjs` with its `.env.production`.
+
+**On a machine of your own**, `skelet setup` gives each storefront named on it
+its own `PORT` - the one its dev script uses - so several share
+a machine without colliding. The servers listen on every interface so the edge's
+container can reach them, so keep their ports closed to the outside.
 
 Deploy core before a frontend that needs something new from it. The other way
 round is safe: `skelet check` holds core's GraphQL schemas compatible with the last
@@ -202,6 +217,16 @@ reaches the storefront's server on the same machine through
 `skelet setup` sets and which falls back to `host.docker.internal:3000`. The
 vhost map is meant to be edited, so a storefront somewhere else is just another
 upstream.
+
+**More than one storefront on the machine.** The first takes the apex. Every
+other one gets a file in `deploy/caddy/sites/`, which the Caddyfile imports: its
+host is `<NAME>_DOMAIN` in `env/prod-caddy.env` (`OUTLET_DOMAIN` for a storefront
+called `outlet`), and until you set it the edge answers it on `outlet.localhost`.
+Setup writes the file once and leaves it to you from then on, and `skelet rm
+channel` takes it away. With more than one storefront, setup also leaves
+`STOREFRONT_REVALIDATE_URL` empty, so core purges each channel at its own public
+URL and every purge reaches the storefront that serves it - give each channel its
+URL in admin.
 
 **More than one channel.** One storefront deployment serves every channel: add
 each channel's host to `STOREFRONT_CHANNEL_HOSTS` in the storefront's

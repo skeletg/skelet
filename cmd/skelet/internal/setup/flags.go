@@ -14,10 +14,12 @@ type list struct {
 }
 
 type flags struct {
-	apps, tools           list
-	keepCode, yes, noBoot bool
+	apps, tools list
+	// here is the apps named after skelet setup - a server's own, which makes it a server setup
+	here                         list
+	keepCode, yes, noBoot, small bool
 	// profile is the file answers are replayed from
-	profile string
+	profile, shared string
 	// shop and template ask for a storefront of the project's own, copied from a template - either one is enough
 	shop, template string
 }
@@ -97,9 +99,36 @@ func parseFlags(args []string, c catalog) (flags, error) {
 				return f, usagef("No such profile: %s", v)
 			}
 			f.profile, f.yes = v, true
+		case "--small":
+			f.small = true
+		case "--shared":
+			v, ok := value()
+			if !ok {
+				return f, usage("--shared needs a file - a copy of core's .env, or one holding the values core shares")
+			}
+			if fi, err := os.Stat(v); err != nil || !fi.Mode().IsRegular() {
+				return f, usagef("No such file: %s", v)
+			}
+			f.shared = v
 		default:
-			return f, usagef("Unknown flag: %s (try --all, --backend-only, --apps LIST, --tools LIST, --shop NAME, --template NAME, --keep-code, --yes, --profile FILE)", args[i])
+			if strings.HasPrefix(name, "-") {
+				return f, usagef("Unknown flag: %s (try --all, --backend-only, --apps LIST, --tools LIST, --shop NAME, --template NAME, --keep-code, --yes, --profile FILE, --small, --shared FILE)", args[i])
+			}
+			if !slices.Contains(c.serverApps(), args[i]) {
+				return f, usagef("Unknown app %q (valid: %s)", args[i], strings.Join(c.serverApps(), ", "))
+			}
+			if !slices.Contains(f.here.items, args[i]) {
+				f.here = list{true, append(f.here.items, args[i])}
+			}
 		}
+	}
+	switch {
+	case f.here.set && (f.apps.set || f.tools.set || f.shop != "" || f.template != ""):
+		return f, usage("Naming apps sets up a server with them - --all, --backend-only, --apps, --tools, --shop and --template are for a dev clone")
+	case f.small && !slices.Contains(f.here.items, appCore):
+		return f, usage("--small is core's one-container shape - name core too: skelet setup core --small")
+	case f.shared != "" && slices.Contains(f.here.items, appCore):
+		return f, usage("--shared brings core's values to a machine without core - with core here, setup makes them")
 	}
 	return f, nil
 }

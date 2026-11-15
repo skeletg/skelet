@@ -83,6 +83,17 @@ func (c catalog) defaultApps() []string {
 	return out
 }
 
+const (
+	appCore    = "core"
+	appSignals = "signals"
+)
+
+func (c catalog) serverApps() []string { return append([]string{appCore, appSignals}, c.apps()...) }
+
+func frontends(apps []string) []string {
+	return slices.DeleteFunc(slices.Clone(apps), func(app string) bool { return app == appCore || app == appSignals })
+}
+
 // appDir is where an app lives: on disk, or where HEAD has it when sparse-checkout took it out of the working tree
 func appDir(root, app string) string {
 	if app == "dashboard" {

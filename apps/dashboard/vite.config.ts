@@ -22,6 +22,7 @@ function securityHeaders(): Plugin {
     generateBundle() {
       const template = readFileSync(path.resolve(__dirname, 'headers.template'), 'utf8')
       this.emitFile({ type: 'asset', fileName: '_headers', source: template.replace(' {CONNECT_ORIGINS}', connect ? ` ${connect}` : '') })
+      this.emitFile({ type: 'asset', fileName: '_redirects', source: '/* /index.html 200\n' })
     },
   }
 }

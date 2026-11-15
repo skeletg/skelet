@@ -34,12 +34,18 @@
 	}
 }
 
-# The shop, on the apex domain - STOREFRONT_UPSTREAM in env/prod-caddy.env names where your storefront's server listens
-{$STOREFRONT_DOMAIN:localhost} {
+(storefront) {
 	import security_headers
 	encode zstd gzip
-	reverse_proxy {$STOREFRONT_UPSTREAM:host.docker.internal:3000}
+	reverse_proxy {args[0]}
 }
+
+# The shop, on the apex domain - STOREFRONT_UPSTREAM in env/prod-caddy.env names where your storefront's server listens
+{$STOREFRONT_DOMAIN:localhost} {
+	import storefront {$STOREFRONT_UPSTREAM:host.docker.internal:3000}
+}
+
+import sites/*.caddy
 
 # Admin dashboard - its built files, with /api/* proxied to the backend, so the SPA's relative calls need no API domain
 {$DASHBOARD_DOMAIN:admin.localhost} {

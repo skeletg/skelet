@@ -24,6 +24,7 @@ services:
     extra_hosts: ["host.docker.internal:host-gateway"]
     volumes:
       - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deploy/caddy/sites:/etc/caddy/sites:ro
       - ./apps/dashboard/dist:/srv/dashboard:ro
       - caddy-data:/data
       - caddy-config:/config

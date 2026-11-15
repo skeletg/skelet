@@ -1,4 +1,4 @@
-import { cpSync, existsSync, readdirSync } from "node:fs";
+import { cpSync, existsSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -15,4 +15,7 @@ cpSync(join(app, ".next", "static"), join(server, ".next", "static"), { recursiv
 if (existsSync(join(app, "public")) && readdirSync(join(app, "public")).length > 0) {
   cpSync(join(app, "public"), join(server, "public"), { recursive: true });
 }
-console.log(`standalone server: ${relative(app, join(server, "server.js"))}`);
+if (server !== standalone) {
+  writeFileSync(join(standalone, "server.js"), `require("./${relative(standalone, server).split("\\").join("/")}/server.js");\n`);
+}
+console.log(`standalone server: ${relative(app, join(standalone, "server.js"))}`);

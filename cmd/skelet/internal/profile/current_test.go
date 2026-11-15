@@ -84,7 +84,7 @@ func TestMigrateLeavesWhatEnvAlreadySays(t *testing.T) {
 	if _, err := Migrate(server); err != nil {
 		t.Fatal(err)
 	}
-	if p := Current(server); p[TargetKey] != "prod" {
+	if p := Current(server); p[TargetKey] != "server" {
 		t.Errorf("server: %v", p)
 	}
 	newer := t.TempDir()

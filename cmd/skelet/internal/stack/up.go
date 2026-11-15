@@ -82,8 +82,8 @@ func needsDevEnv(root string) int {
 		target = t
 	}
 	if target != "dev" {
-		fmt.Fprintf(os.Stderr, "This clone is set up for the '%s' target - skelet up runs the DEV stack.\n", target)
-		fmt.Fprintf(os.Stderr, "Re-run skelet setup and pick 'dev', or deploy with docker-compose.%s.yml (docs/deploying.md).\n", target)
+		fmt.Fprintln(os.Stderr, "This clone is set up as a server - skelet up runs the DEV stack.")
+		fmt.Fprintln(os.Stderr, "Re-run skelet setup without app names for dev, or start the apps here as docs/deploying.md says.")
 	} else {
 		fmt.Fprintln(os.Stderr, "Run skelet setup to write the env files.")
 	}

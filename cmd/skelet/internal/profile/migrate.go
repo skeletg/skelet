@@ -33,8 +33,11 @@ func Migrate(root string) (bool, error) {
 		_, hasDocker := listFile(root, oldFiles[1], old, "SKELET_DOCKER_APPS")
 		tools, hasTools := listFile(root, oldFiles[2], old, ToolsKey)
 		target := old[TargetKey]
-		if target == "" {
+		switch target {
+		case "":
 			target = "dev"
+		case "small", "prod":
+			target = "server"
 		}
 		set := [][2]string{{EnvTarget, target}}
 		if apps, ok := old[AppsKey]; ok {

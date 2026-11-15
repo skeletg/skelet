@@ -444,6 +444,19 @@ func TestRemoveRepointsThePreviews(t *testing.T) {
 	}
 }
 
+func TestRemoveTakesTheStorefrontsSite(t *testing.T) {
+	root := templateClone(t)
+	d := verbtest.NewDocker(t, lockfileDocker)
+	if out, code := d.Run("add", root, "channel", "shop"); code != 0 {
+		t.Fatalf("add: exit %d:\n%s", code, out)
+	}
+	put(t, root, "deploy/caddy/sites/shop.caddy", "site\n", 0o644)
+	out, code := d.Run("rm", root, "channel", "shop", "-y")
+	if code != 0 || exists(root, "deploy/caddy/sites/shop.caddy") {
+		t.Errorf("exit %d, site still there: %v\n%s", code, exists(root, "deploy/caddy/sites/shop.caddy"), out)
+	}
+}
+
 // A template setup left out of the working tree is still forked - from git's HEAD, renamed the same way
 func TestAddFromATemplateNotCheckedOut(t *testing.T) {
 	root := templateClone(t)
