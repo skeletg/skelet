@@ -13,6 +13,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tracking"
+	"github.com/skeletg/skelet/apps/backend/core/internal/tracking/emit"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
@@ -49,7 +50,7 @@ func TestAPlacedOrderIsOneDeliveryPerDestination(t *testing.T) {
 
 	orders := ordersByID{}
 	bus := events.NewBus()
-	svc.Subscribe(bus, tracking.Readers{Orders: orders, Channels: channelOf{"EUR"}})
+	emit.Subscribe(bus, emit.Readers{Orders: orders, Channels: channelOf{"EUR"}}, svc)
 	place := func(c auth.Consent) uuid.UUID {
 		t.Helper()
 		o := order.Order{ID: uuid.New(), Number: "ORD-" + uuid.NewString()[:6], ChannelID: ch, CurrencyCode: "EUR", SubtotalAmount: 1500, TotalAmount: 1500,
@@ -80,6 +81,9 @@ func TestAPlacedOrderIsOneDeliveryPerDestination(t *testing.T) {
 				t.Fatal(err)
 			}
 			got[kind] = n
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatal(err)
 		}
 		return got
 	}

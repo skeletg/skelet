@@ -440,3 +440,19 @@ func TestASendTestGoesStraightToThePlatform(t *testing.T) {
 		t.Errorf("err %v, sent %+v", err, got)
 	}
 }
+
+// Taking someone off a list needs no consent - but only kinds built for removals hear it, never a catch-all webhook
+func TestAnOptOutReachesOnlyTheKindsBuiltToRemove(t *testing.T) {
+	registerTestKind(t, sdk.Destination{Kind: "t-remover", Purposes: []Purpose{PurposeAds}, DefaultEvents: []string{Purchase, MarketingOptOut}})
+	registerTestKind(t, sdk.Destination{Kind: "t-catchall", Purposes: []Purpose{PurposeAnalytics}})
+	ch := uuid.New()
+	remover, catchall := uuid.New(), uuid.New()
+	fs := newFakeStore(Destination{ID: remover, ChannelID: ch, Kind: "t-remover", Enabled: true}, Destination{ID: catchall, ChannelID: ch, Kind: "t-catchall", Enabled: true})
+	svc := &Service{store: fs}
+	if err := svc.Track(context.Background(), Event{ID: "optout:1", Name: MarketingOptOut, ChannelID: ch, User: User{Email: "out@example.com"}}); err != nil {
+		t.Fatal(err)
+	}
+	if len(fs.byDestination(remover)) != 1 || len(fs.byDestination(catchall)) != 0 {
+		t.Errorf("remover got %d, catch-all %d - want the opt-out only where it removes", len(fs.byDestination(remover)), len(fs.byDestination(catchall)))
+	}
+}

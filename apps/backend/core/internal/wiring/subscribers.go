@@ -43,6 +43,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tracking"
+	"github.com/skeletg/skelet/apps/backend/core/internal/tracking/emit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
 	"github.com/skeletg/skelet/apps/backend/core/internal/webform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/webhook"
@@ -131,9 +132,9 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 
 	registerEventSubscribers(bus, d.WebhookDispatcher, d.Order)
 	registerEmailOptIns(bus, d.Consent)
-	d.Tracking.Subscribe(bus, tracking.Readers{
+	emit.Subscribe(bus, emit.Readers{
 		Orders: d.Order, Channels: d.Channel, Marketing: d.Consent, Customers: d.Customer, Products: d.Catalog, Coupons: d.Promotion,
-	}) // the shop's own events to the platforms - independent of Signals
+	}, d.Tracking) // the shop's own events to the platforms - independent of Signals
 	d.Catalog.RegisterSubscribers(bus)
 	subscribeOrderReactors(d)
 	ordercapture.Register(bus, d.Order, d.Payment)
