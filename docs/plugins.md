@@ -213,6 +213,12 @@ all out of tree. This is what the SDK gives it.
   it to a later date, after which later periods count from that date. It runs while the
   subscription is locked for billing, so keep it quick; an error leaves the period for the next
   billing run.
+- **`RegisterDataResource`** - your own data in the dashboard's import and export hub. Declare
+  the columns, a view permission and an import permission you registered, and give an `Import`
+  per row and an `Export` that streams records. Core handles the CSV or JSON Lines file, the
+  column reference and template, dry runs, per-row errors and progress; honour `run.DryRun` by
+  writing nothing. A run with no channel needs the permission unscoped, like core's own. See
+  [import-export.md](import-export.md).
 
 ### Checkout fields
 

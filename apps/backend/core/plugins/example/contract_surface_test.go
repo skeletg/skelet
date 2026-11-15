@@ -263,6 +263,18 @@ func TestThePackingSlipRendererWrapsCoresOwn(t *testing.T) {
 	}
 }
 
+func TestTheRecordsReachTheDataHub(t *testing.T) {
+	for _, res := range pluginhost.DataResources() {
+		if res.Slug == Slug+".records" {
+			if !res.CanImport() || !res.CanExport() || res.ViewPermission != "example.manage" || len(res.Fields) != 3 {
+				t.Errorf("resource %+v", res)
+			}
+			return
+		}
+	}
+	t.Error("example.records isn't in the data hub")
+}
+
 // The typed siblings of PluginConfig resolve registered defaults without hand-parsing - the
 // auto-registered kill switch (bool, default true) and rate limit (int, default 0) prove both
 func TestTypedConfigReadsResolveDefaults(t *testing.T) {
