@@ -17,3 +17,37 @@ mutation AdminLogin($input: AdminLoginInput!) {
     }
   }
 }
+
+query AdminSsoOption {
+  adminSsoOption {
+    label
+  }
+}
+
+mutation AdminSsoStart($redirectUri: String!) {
+  adminSsoStart(redirectUri: $redirectUri) {
+    authorizeUrl
+    state
+    binding
+  }
+}
+
+mutation AdminSsoComplete($state: String!, $code: String!, $binding: String!) {
+  adminSsoComplete(state: $state, code: $code, binding: $binding) {
+    accessToken
+    refreshToken
+    firstLogin
+    admin {
+      id
+      email
+      firstName
+      lastName
+      isSuperuser
+      roles {
+        id
+        slug
+        name
+      }
+    }
+  }
+}

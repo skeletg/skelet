@@ -15,6 +15,7 @@ import { PageTitleProvider } from '@/lib/page-title-provider'
 import { useNavGuard } from '@/lib/nav-guard'
 import { AuthShell } from '@/shared/auth/AuthShell'
 import { Login } from '@/shared/auth/Login'
+import { SsoReturn } from '@/shared/auth/SsoReturn'
 import { ForgotPassword } from '@/shared/auth/ForgotPassword'
 import { ResetPassword } from '@/shared/auth/ResetPassword'
 // Order matters - `@/nav/routes` registers core nav and `@/plugins/loader` auto-imports every plugin against the same
@@ -53,6 +54,7 @@ const router = createBrowserRouter([
         element: <AuthShell />,
         children: [
           { path: '/login', element: <Login /> },
+          { path: '/login/sso', element: <SsoReturn /> },
           { path: '/forgot-password', element: <ForgotPassword /> },
           { path: '/reset-password', element: <ResetPassword /> },
         ],

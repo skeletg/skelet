@@ -922,6 +922,8 @@ type ComplexityRoot struct {
 		CustomerLogout                 func(childComplexity int, token string) int
 		CustomerRefreshToken           func(childComplexity int, token string) int
 		CustomerRegister               func(childComplexity int, input model.CustomerRegisterInput) int
+		CustomerSsoComplete            func(childComplexity int, state string, code string, binding string) int
+		CustomerSsoStart               func(childComplexity int, redirectURI string) int
 		DeleteAddress                  func(childComplexity int, id string) int
 		DeleteMyPaymentMethod          func(childComplexity int, id string) int
 		FinalizeOrderPayment           func(childComplexity int, orderID string) int
@@ -1405,6 +1407,7 @@ type ComplexityRoot struct {
 		Currencies            func(childComplexity int, activeOnly *bool) int
 		Currency              func(childComplexity int, code string) int
 		CurrentChannel        func(childComplexity int) int
+		CustomerSsoOption     func(childComplexity int) int
 		DeliveryPoints        func(childComplexity int, cartID string, groupKey string, search *string) int
 		Features              func(childComplexity int) int
 		FreeShippingThreshold func(childComplexity int, countryCode *string) int
@@ -1624,6 +1627,16 @@ type ComplexityRoot struct {
 		UpdatedAt func(childComplexity int) int
 	}
 
+	SsoOption struct {
+		Label func(childComplexity int) int
+	}
+
+	SsoStart struct {
+		AuthorizeURL func(childComplexity int) int
+		Binding      func(childComplexity int) int
+		State        func(childComplexity int) int
+	}
+
 	StoreFeatures struct {
 		Signals func(childComplexity int) int
 	}
@@ -1761,6 +1774,8 @@ type MutationResolver interface {
 	SubmitProductReview(ctx context.Context, input model1.SubmitReviewInput) (*model.Review, error)
 	RequestReviewMediaUpload(ctx context.Context, productID string, filename string, mimeType string, sizeBytes int32) (*model1.ReviewMediaUpload, error)
 	VoteReview(ctx context.Context, reviewID string, value int32) (*model.Review, error)
+	CustomerSsoStart(ctx context.Context, redirectURI string) (*model.SsoStart, error)
+	CustomerSsoComplete(ctx context.Context, state string, code string, binding string) (*model.CustomerAuthPayload, error)
 	CancelSubscription(ctx context.Context, id string) (*model.CustomerSubscription, error)
 	SetMySubscriptionPaymentMethod(ctx context.Context, subscriptionID string, paymentMethodID *string) (bool, error)
 	SubmitWebForm(ctx context.Context, input model1.SubmitWebFormInput) (*model1.SubmitWebFormResult, error)
@@ -1905,6 +1920,7 @@ type QueryResolver interface {
 	SearchOverview(ctx context.Context, query string) (*model1.SearchOverview, error)
 	SitemapCounts(ctx context.Context) (*model1.SitemapCounts, error)
 	SitemapEntries(ctx context.Context, entityType model1.SitemapEntityType, limit int32, offset int32) ([]*model1.SitemapEntry, error)
+	CustomerSsoOption(ctx context.Context) (*model.SsoOption, error)
 	PublicStores(ctx context.Context, input *model1.PublicStoresInput) (*model1.PublicStoresResult, error)
 	MySubscriptions(ctx context.Context) ([]*model.CustomerSubscription, error)
 	Route(ctx context.Context, path string) (*model1.RouteResolution, error)
@@ -5771,6 +5787,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CustomerRegister(childComplexity, args["input"].(model.CustomerRegisterInput)), true
+	case "Mutation.customerSsoComplete":
+		if e.ComplexityRoot.Mutation.CustomerSsoComplete == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_customerSsoComplete_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CustomerSsoComplete(childComplexity, args["state"].(string), args["code"].(string), args["binding"].(string)), true
+	case "Mutation.customerSsoStart":
+		if e.ComplexityRoot.Mutation.CustomerSsoStart == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_customerSsoStart_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CustomerSsoStart(childComplexity, args["redirectUri"].(string)), true
 	case "Mutation.deleteAddress":
 		if e.ComplexityRoot.Mutation.DeleteAddress == nil {
 			break
@@ -8432,6 +8470,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.CurrentChannel(childComplexity), true
+	case "Query.customerSsoOption":
+		if e.ComplexityRoot.Query.CustomerSsoOption == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.CustomerSsoOption(childComplexity), true
 	case "Query.deliveryPoints":
 		if e.ComplexityRoot.Query.DeliveryPoints == nil {
 			break
@@ -9501,6 +9545,32 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SitemapEntry.UpdatedAt(childComplexity), true
+
+	case "SsoOption.label":
+		if e.ComplexityRoot.SsoOption.Label == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SsoOption.Label(childComplexity), true
+
+	case "SsoStart.authorizeUrl":
+		if e.ComplexityRoot.SsoStart.AuthorizeURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SsoStart.AuthorizeURL(childComplexity), true
+	case "SsoStart.binding":
+		if e.ComplexityRoot.SsoStart.Binding == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SsoStart.Binding(childComplexity), true
+	case "SsoStart.state":
+		if e.ComplexityRoot.SsoStart.State == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SsoStart.State(childComplexity), true
 
 	case "StoreFeatures.signals":
 		if e.ComplexityRoot.StoreFeatures.Signals == nil {
@@ -12254,6 +12324,27 @@ extend type Query {
   sitemapCounts: SitemapCounts!
   # One page of sitemap URLs for the active channel. limit is capped at 50000.
   sitemapEntries(entityType: SitemapEntityType!, limit: Int!, offset: Int!): [SitemapEntry!]!
+}
+`, BuiltIn: false},
+	{Name: "../schema/front/sso.graphqls", Input: `# Signing in through the store's outside OpenID Connect provider, set up under Customer sign-in. Start, send the browser to authorizeUrl, and complete with the code and state the provider hands back plus the binding start returned, which only the starting browser holds.
+type SsoStart {
+  authorizeUrl: String!
+  state:        String!
+  binding:      String!
+}
+
+type SsoOption {
+  label: String!
+}
+
+extend type Query {
+  customerSsoOption: SsoOption
+}
+
+extend type Mutation {
+  # redirectUri is the storefront page the provider returns to - it has to be on the store's own address and registered at the provider.
+  customerSsoStart(redirectUri: String!): SsoStart!
+  customerSsoComplete(state: String!, code: String!, binding: String!): CustomerAuthPayload!
 }
 `, BuiltIn: false},
 	{Name: "../schema/front/stores.graphqls", Input: `enum StoreStockStatus {
@@ -15255,6 +15346,26 @@ func (ec *executionContext) childFields_SitemapEntry(ctx context.Context, field 
 	return nil, fmt.Errorf("no field named %q was found under type SitemapEntry", field.Name)
 }
 
+func (ec *executionContext) childFields_SsoOption(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "label":
+		return ec.fieldContext_SsoOption_label(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SsoOption", field.Name)
+}
+
+func (ec *executionContext) childFields_SsoStart(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "authorizeUrl":
+		return ec.fieldContext_SsoStart_authorizeUrl(ctx, field)
+	case "state":
+		return ec.fieldContext_SsoStart_state(ctx, field)
+	case "binding":
+		return ec.fieldContext_SsoStart_binding(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SsoStart", field.Name)
+}
+
 func (ec *executionContext) childFields_StoreFeatures(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "signals":
@@ -15730,6 +15841,50 @@ func (ec *executionContext) field_Mutation_customerRegister_args(ctx context.Con
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_customerSsoComplete_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "state",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["state"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "code",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["code"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "binding",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["binding"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_customerSsoStart_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "redirectUri",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["redirectUri"] = arg0
 	return args, nil
 }
 
@@ -34953,6 +35108,94 @@ func (ec *executionContext) fieldContext_Mutation_voteReview(ctx context.Context
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_customerSsoStart(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_customerSsoStart(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CustomerSsoStart(ctx, fc.Args["redirectUri"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SsoStart) graphql.Marshaler {
+			return ec.marshalNSsoStart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSsoStart(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_customerSsoStart(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SsoStart(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_customerSsoStart_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_customerSsoComplete(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_customerSsoComplete(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CustomerSsoComplete(ctx, fc.Args["state"].(string), fc.Args["code"].(string), fc.Args["binding"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CustomerAuthPayload) graphql.Marshaler {
+			return ec.marshalNCustomerAuthPayload2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCustomerAuthPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_customerSsoComplete(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CustomerAuthPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_customerSsoComplete_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_cancelSubscription(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -45561,6 +45804,38 @@ func (ec *executionContext) fieldContext_Query_sitemapEntries(ctx context.Contex
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_customerSsoOption(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_customerSsoOption(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().CustomerSsoOption(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SsoOption) graphql.Marshaler {
+			return ec.marshalOSsoOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSsoOption(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_customerSsoOption(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SsoOption(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_publicStores(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -48235,6 +48510,98 @@ func (ec *executionContext) _SitemapEntry_updatedAt(ctx context.Context, field g
 }
 func (ec *executionContext) fieldContext_SitemapEntry_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("SitemapEntry", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _SsoOption_label(ctx context.Context, field graphql.CollectedField, obj *model.SsoOption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SsoOption_label(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Label, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SsoOption_label(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SsoOption", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SsoStart_authorizeUrl(ctx context.Context, field graphql.CollectedField, obj *model.SsoStart) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SsoStart_authorizeUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AuthorizeURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SsoStart_authorizeUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SsoStart", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SsoStart_state(ctx context.Context, field graphql.CollectedField, obj *model.SsoStart) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SsoStart_state(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.State, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SsoStart_state(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SsoStart", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SsoStart_binding(ctx context.Context, field graphql.CollectedField, obj *model.SsoStart) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SsoStart_binding(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Binding, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SsoStart_binding(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SsoStart", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _StoreFeatures_signals(ctx context.Context, field graphql.CollectedField, obj *model1.StoreFeatures) (ret graphql.Marshaler) {
@@ -57804,6 +58171,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "customerSsoStart":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_customerSsoStart(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "customerSsoComplete":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_customerSsoComplete(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "cancelSubscription":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_cancelSubscription(ctx, field)
@@ -63682,6 +64063,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "customerSsoOption":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_customerSsoOption(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "publicStores":
 			field := field
 
@@ -65299,6 +65702,92 @@ func (ec *executionContext) _SitemapEntry(ctx context.Context, sel ast.Selection
 			}
 		case "updatedAt":
 			out.Values[i] = ec._SitemapEntry_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var ssoOptionImplementors = []string{"SsoOption"}
+
+func (ec *executionContext) _SsoOption(ctx context.Context, sel ast.SelectionSet, obj *model.SsoOption) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, ssoOptionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SsoOption")
+		case "label":
+			out.Values[i] = ec._SsoOption_label(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var ssoStartImplementors = []string{"SsoStart"}
+
+func (ec *executionContext) _SsoStart(ctx context.Context, sel ast.SelectionSet, obj *model.SsoStart) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, ssoStartImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SsoStart")
+		case "authorizeUrl":
+			out.Values[i] = ec._SsoStart_authorizeUrl(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "state":
+			out.Values[i] = ec._SsoStart_state(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "binding":
+			out.Values[i] = ec._SsoStart_binding(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -69480,6 +69969,20 @@ func (ec *executionContext) marshalNSitemapEntry2ᚖgithubᚗcomᚋskeletgᚋske
 	return ec._SitemapEntry(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNSsoStart2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSsoStart(ctx context.Context, sel ast.SelectionSet, v model.SsoStart) graphql.Marshaler {
+	return ec._SsoStart(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNSsoStart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSsoStart(ctx context.Context, sel ast.SelectionSet, v *model.SsoStart) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SsoStart(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNStoreFeatures2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐStoreFeatures(ctx context.Context, sel ast.SelectionSet, v model1.StoreFeatures) graphql.Marshaler {
 	return ec._StoreFeatures(ctx, sel, &v)
 }
@@ -70481,6 +70984,13 @@ func (ec *executionContext) marshalOShippingQuote2ᚖgithubᚗcomᚋskeletgᚋsk
 		return graphql.Null
 	}
 	return ec._ShippingQuote(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOSsoOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSsoOption(ctx context.Context, sel ast.SelectionSet, v *model.SsoOption) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._SsoOption(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOStoreStockStatus2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐStoreStockStatus(ctx context.Context, v any) (*model1.StoreStockStatus, error) {

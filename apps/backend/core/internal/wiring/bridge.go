@@ -2,6 +2,7 @@ package wiring
 
 import (
 	"database/sql"
+	"github.com/skeletg/skelet/apps/backend/core/internal/sso"
 
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/fx"
@@ -98,6 +99,7 @@ type Svcs struct {
 	SiteCrawl *sitecrawl.Service
 	LinkGraph *linkgraph.Service
 	Documents *documents.Service
+	SSO       *sso.Service
 
 	Admin       *admin.Service
 	Audit       *audit.Service

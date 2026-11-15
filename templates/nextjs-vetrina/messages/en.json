@@ -162,7 +162,11 @@
       "submitting": "Signing in…",
       "forgot": "Forgot your password?",
       "newHere": "New here?",
-      "createAccount": "Create an account"
+      "createAccount": "Create an account",
+      "or": "or",
+      "ssoFailed": "That sign-in didn't go through. Try again, or sign in with your email and password.",
+      "ssoCancelled": "The sign-in was cancelled.",
+      "ssoUnverified": "Your account there hasn't confirmed this email address, so it can't sign you in here."
     },
     "register": {
       "title": "Create account",

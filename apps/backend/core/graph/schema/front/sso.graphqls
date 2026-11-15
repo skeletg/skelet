@@ -1,0 +1,20 @@
+# Signing in through the store's outside OpenID Connect provider, set up under Customer sign-in. Start, send the browser to authorizeUrl, and complete with the code and state the provider hands back plus the binding start returned, which only the starting browser holds.
+type SsoStart {
+  authorizeUrl: String!
+  state:        String!
+  binding:      String!
+}
+
+type SsoOption {
+  label: String!
+}
+
+extend type Query {
+  customerSsoOption: SsoOption
+}
+
+extend type Mutation {
+  # redirectUri is the storefront page the provider returns to - it has to be on the store's own address and registered at the provider.
+  customerSsoStart(redirectUri: String!): SsoStart!
+  customerSsoComplete(state: String!, code: String!, binding: String!): CustomerAuthPayload!
+}

@@ -1596,6 +1596,18 @@ type GiftCardTransaction struct {
 	CreatedAt  time.Time     `json:"created_at"`
 }
 
+type IdentityLink struct {
+	ID         uuid.UUID     `json:"id"`
+	Issuer     string        `json:"issuer"`
+	Subject    string        `json:"subject"`
+	Kind       string        `json:"kind"`
+	ChannelID  uuid.NullUUID `json:"channel_id"`
+	UserID     uuid.UUID     `json:"user_id"`
+	Email      string        `json:"email"`
+	CreatedAt  time.Time     `json:"created_at"`
+	LastUsedAt time.Time     `json:"last_used_at"`
+}
+
 type Integration struct {
 	ID          uuid.UUID     `json:"id"`
 	Name        string        `json:"name"`

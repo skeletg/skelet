@@ -5479,6 +5479,16 @@ type SiteCrawl struct {
 	FinishedAt    *time.Time      `json:"finishedAt,omitempty"`
 }
 
+type SsoOption struct {
+	Label string `json:"label"`
+}
+
+type SsoStart struct {
+	AuthorizeURL string `json:"authorizeUrl"`
+	State        string `json:"state"`
+	Binding      string `json:"binding"`
+}
+
 type StartDataExportInput struct {
 	Resource  string             `json:"resource"`
 	Format    string             `json:"format"`

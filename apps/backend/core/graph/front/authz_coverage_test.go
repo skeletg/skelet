@@ -16,6 +16,8 @@ var publicMutations = map[string]string{
 	// Pre-auth by definition - this is where a session comes from
 	"CustomerRegister":     "creates the account",
 	"CustomerLogin":        "issues the session",
+	"CustomerSsoStart":     "only hands out the provider's sign-in address, to the store's own",
+	"CustomerSsoComplete":  "the provider's code, state and binding are the credential",
 	"CustomerRefreshToken": "the refresh cookie is the credential",
 	"CustomerLogout":       "clears a session, safe without one",
 	"VerifyEmail":          "the emailed token is the credential",

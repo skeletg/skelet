@@ -54,6 +54,7 @@ const (
 	SourceSignupForm = "signup_form"
 	SourceGDPR       = "gdpr"
 	SourceImport     = "import"
+	SourceSSO        = "sso"
 )
 
 // Fires BEFORE a self-registration is persisted - sync handlers abort by returning an error or enrich by mutating exported fields, which the emitting service reads after the chain

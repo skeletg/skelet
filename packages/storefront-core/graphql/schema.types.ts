@@ -1200,6 +1200,8 @@ export type Mutation = {
   customerLogout: Scalars['Boolean']['output'];
   customerRefreshToken: CustomerAuthPayload;
   customerRegister: CustomerAuthPayload;
+  customerSsoComplete: CustomerAuthPayload;
+  customerSsoStart: SsoStart;
   deleteAddress: Scalars['Boolean']['output'];
   deleteMyPaymentMethod: Scalars['Boolean']['output'];
   finalizeOrderPayment: Scalars['Boolean']['output'];
@@ -1333,6 +1335,18 @@ export type MutationCustomerRefreshTokenArgs = {
 
 export type MutationCustomerRegisterArgs = {
   input: CustomerRegisterInput;
+};
+
+
+export type MutationCustomerSsoCompleteArgs = {
+  binding: Scalars['String']['input'];
+  code: Scalars['String']['input'];
+  state: Scalars['String']['input'];
+};
+
+
+export type MutationCustomerSsoStartArgs = {
+  redirectUri: Scalars['String']['input'];
 };
 
 
@@ -2197,6 +2211,7 @@ export type Query = {
   currencies: Array<Currency>;
   currency: Currency;
   currentChannel?: Maybe<Channel>;
+  customerSsoOption?: Maybe<SsoOption>;
   deliveryPoints: Array<DeliveryPoint>;
   features: StoreFeatures;
   freeShippingThreshold: Scalars['Int']['output'];
@@ -2781,6 +2796,18 @@ export type SitemapEntry = {
   __typename?: 'SitemapEntry';
   path: Scalars['String']['output'];
   updatedAt: Scalars['Time']['output'];
+};
+
+export type SsoOption = {
+  __typename?: 'SsoOption';
+  label: Scalars['String']['output'];
+};
+
+export type SsoStart = {
+  __typename?: 'SsoStart';
+  authorizeUrl: Scalars['String']['output'];
+  binding: Scalars['String']['output'];
+  state: Scalars['String']['output'];
 };
 
 export type StoreFeatures = {

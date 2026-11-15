@@ -60,6 +60,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/sitecrawl"
+	"github.com/skeletg/skelet/apps/backend/core/internal/sso"
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
@@ -111,6 +112,7 @@ type Resolver struct {
 	CurrencySvc       *currency.Service
 	CountrySvc        *country.Service
 	DocumentSvc       *documents.Service
+	SsoSvc            *sso.Service
 	MediaLibrarySvc   *medialibrary.Service
 	MenuSvc           *menu.Service
 	ReviewSvc         *review.Service

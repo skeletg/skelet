@@ -40,6 +40,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/searchmerch"
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/internal/shoptools"
+	"github.com/skeletg/skelet/apps/backend/core/internal/sso"
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
@@ -80,6 +81,7 @@ type Resolver struct {
 	LocaleSvc            *locale.Service
 	CurrencySvc          *currency.Service
 	CountrySvc           *country.Service
+	SsoSvc               *sso.Service
 	CustomerRefreshStore *auth.RefreshStore
 	BlogPreviewStore     *preview.Store      // validates short-lived admin-minted preview tokens, used only by previewBlogPost(token)
 	CMSPreviewStore      *preview.Store      // same, for previewCMSPage(token)

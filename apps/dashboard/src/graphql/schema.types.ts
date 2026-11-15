@@ -4325,6 +4325,8 @@ export type Mutation = {
   adminSendCartOffer: AdminCart;
   adminSetCartLinePrice: AdminCart;
   adminSetCustomerConsent: CustomerConsent;
+  adminSsoComplete: AdminAuthPayload;
+  adminSsoStart: SsoStart;
   adminTotpDisable: Scalars['Boolean']['output'];
   adminTotpEnable: Array<Scalars['String']['output']>;
   adminTotpSetup: AdminTotpSetup;
@@ -5002,6 +5004,18 @@ export type MutationAdminSetCustomerConsentArgs = {
   customerId: Scalars['ID']['input'];
   kind: Scalars['String']['input'];
   optedIn: Scalars['Boolean']['input'];
+};
+
+
+export type MutationAdminSsoCompleteArgs = {
+  binding: Scalars['String']['input'];
+  code: Scalars['String']['input'];
+  state: Scalars['String']['input'];
+};
+
+
+export type MutationAdminSsoStartArgs = {
+  redirectUri: Scalars['String']['input'];
 };
 
 
@@ -8644,6 +8658,7 @@ export type Query = {
   adminCartOfferEmailPreview: AdminCartOfferEmailPreview;
   adminCartOfferPaymentMethods: Array<AdminCartOfferPaymentMethod>;
   adminSearch: AdminSearchResult;
+  adminSsoOption?: Maybe<SsoOption>;
   admins: Array<AdminUser>;
   agenticStatus: Array<AgenticStatus>;
   aiInsights: AiInsights;
@@ -11403,6 +11418,18 @@ export type SiteCrawlStatus =
   | 'COMPLETED'
   | 'FAILED'
   | 'RUNNING';
+
+export type SsoOption = {
+  __typename?: 'SsoOption';
+  label: Scalars['String']['output'];
+};
+
+export type SsoStart = {
+  __typename?: 'SsoStart';
+  authorizeUrl: Scalars['String']['output'];
+  binding: Scalars['String']['output'];
+  state: Scalars['String']['output'];
+};
 
 export type StartDataExportInput = {
   channelId?: InputMaybe<Scalars['ID']['input']>;

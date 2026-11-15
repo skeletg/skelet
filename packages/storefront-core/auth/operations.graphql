@@ -99,3 +99,24 @@ mutation SetConsent($kind: String!, $optedIn: Boolean!) {
     optedIn
   }
 }
+
+query CustomerSsoOption {
+  customerSsoOption {
+    label
+  }
+}
+
+mutation CustomerSsoStart($redirectUri: String!) {
+  customerSsoStart(redirectUri: $redirectUri) {
+    authorizeUrl
+    state
+    binding
+  }
+}
+
+mutation CustomerSsoComplete($state: String!, $code: String!, $binding: String!) {
+  customerSsoComplete(state: $state, code: $code, binding: $binding) {
+    accessToken
+    refreshToken
+  }
+}

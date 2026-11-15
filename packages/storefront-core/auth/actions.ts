@@ -19,7 +19,7 @@ import {
   SetDefaultShippingAddressDocument,
   UpdateProfileDocument,
 } from "./operations.gql";
-import { MergeGuestCartDocument } from "../cart/mutations.gql";
+import { mergeGuestCartIfNeeded } from "./merge-cart";
 import {
   clearSessionCookies,
   getAccessToken,
@@ -27,7 +27,6 @@ import {
   setSessionCookies,
 } from "./session";
 import { SIGNED_OUT_COOKIE } from "../analytics/session";
-import { CART_COOKIE } from "../cart/read";
 import { CART_MERGE_FLAG, CART_MERGE_FAILED } from "../cart/merge-flag";
 import { GraphQLRequestError, gqlFetch } from "../graphql";
 import { safeReturnTo } from "./return-to";
@@ -42,23 +41,6 @@ import {
 } from "./schemas";
 import { parseForm, replyReset, type FormResult } from "../forms/schema";
 import { replyError } from "../forms/reply";
-
-// Returns false when the merge failed. The guest cart cookie is the customer's only handle on those lines, so it stays
-// put - dropping it on a backend hiccup throws the basket away for good
-async function mergeGuestCartIfNeeded(): Promise<boolean> {
-  const store = await request().cookies();
-  const guestCartId = store.get(CART_COOKIE)?.value;
-  if (!guestCartId) return true;
-  try {
-    await gqlFetch(MergeGuestCartDocument, { guestCartId });
-  } catch (err) {
-     
-    console.error("guest cart merge failed:", err);
-    return false;
-  }
-  store.delete(CART_COOKIE);
-  return true;
-}
 
 // withFlag appends a one-shot status param the destination page (or the global notice)
 // can react to - the app's existing way of talking back across a redirect
