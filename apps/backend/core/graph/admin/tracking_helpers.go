@@ -16,6 +16,23 @@ import (
 	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
+// trackingCatalogEntry is a platform skelet publishes a plugin for, whether or not this build compiled it in - so the
+// dashboard can show the whole choice, and say how to add the ones that are missing
+type trackingCatalogEntry struct {
+	Kind   string
+	Label  string
+	Plugin string // the slug, and the repository's name: skelet cli plugin add github.com/skeletg/<slug>
+}
+
+// trackingCatalogue lists the destinations of the plugins skelet publishes, each in its own repository. The admin
+// screen is its only reader, so it lives here rather than in the delivery engine
+var trackingCatalogue = []trackingCatalogEntry{
+	{Kind: "ga4", Label: "Google Analytics 4", Plugin: "skelet-tracking-ga4"},
+	{Kind: "google_ads", Label: "Google Ads conversions", Plugin: "skelet-tracking-google-ads"},
+	{Kind: "google_ads_audience", Label: "Google Ads Customer Match", Plugin: "skelet-tracking-google-ads"},
+	{Kind: "meta_capi", Label: "Meta (Facebook, Instagram)", Plugin: "skelet-tracking-meta"},
+}
+
 const (
 	trackingView   = "tracking.view"
 	trackingManage = "tracking.manage"
@@ -173,7 +190,7 @@ func (r *Resolver) trackingPlatforms(ctx context.Context, channelID uuid.UUID) [
 		}
 		out = append(out, p)
 	}
-	for _, e := range tracking.FirstParty {
+	for _, e := range trackingCatalogue {
 		if !seen[e.Kind] {
 			out = append(out, &model.TrackingPlatform{
 				Kind: e.Kind, Label: e.Label, PluginSlug: e.Plugin,
@@ -183,10 +200,10 @@ func (r *Resolver) trackingPlatforms(ctx context.Context, channelID uuid.UUID) [
 	}
 	// The catalogue's own order, so the list reads the same in every build; a third-party kind goes last
 	rank := func(kind string) int {
-		if i := slices.IndexFunc(tracking.FirstParty, func(e tracking.CatalogEntry) bool { return e.Kind == kind }); i >= 0 {
+		if i := slices.IndexFunc(trackingCatalogue, func(e trackingCatalogEntry) bool { return e.Kind == kind }); i >= 0 {
 			return i
 		}
-		return len(tracking.FirstParty)
+		return len(trackingCatalogue)
 	}
 	slices.SortStableFunc(out, func(a, b *model.TrackingPlatform) int { return rank(a.Kind) - rank(b.Kind) })
 	return out
