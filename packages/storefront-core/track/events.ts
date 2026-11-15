@@ -2,7 +2,9 @@
 // the visitor's consent and click ids from cookies and forwards to the backend - no third-party script, nothing an ad
 // blocker sees as tracking, and the backend still sends each one only where the visitor's consent allows. Cart changes,
 // purchases and sign-ups the server reports itself, so the backend takes only the events a browser may report and drops
-// any other name sent here - one list, the backend's tracking.BrowserEvent
+// any other name sent here - one list, the backend's tracking.BrowserEvent, generated into contract.gen.ts
+
+import type { BrowserEventName, Ecommerce } from "./contract.gen";
 
 export const TRACK_PATH = "/t/e";
 
@@ -21,12 +23,12 @@ export function cleanUrl(href: string): string {
 }
 
 // What an event carries besides its name: GA4's ecommerce block, and the term of a search
-export type TrackData = { ecommerce?: unknown; searchTerm?: string };
+export type TrackData = { ecommerce?: Ecommerce; searchTerm?: string };
 
 // The page an event was sent from, as the browser has it
 export type TrackPage = { href: string; referrer: string; locale: string; title?: string };
 
-export function trackPayload(name: string, eventId: string, data: TrackData, page: TrackPage) {
+export function trackPayload(name: BrowserEventName, eventId: string, data: TrackData, page: TrackPage) {
   return {
     event_id: eventId,
     name,
@@ -39,7 +41,7 @@ export function trackPayload(name: string, eventId: string, data: TrackData, pag
   };
 }
 
-export function track(name: string, eventId: string, data: TrackData = {}) {
+export function track(name: BrowserEventName, eventId: string, data: TrackData = {}) {
   if (typeof navigator === "undefined") return;
   const page = { href: location.href, referrer: document.referrer, locale: document.documentElement.lang, title: document.title };
   const body = JSON.stringify(trackPayload(name, eventId, data, page));

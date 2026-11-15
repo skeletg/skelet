@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 
+import type { BrowserEventName } from "@skelet/storefront-core/track/contract.gen";
 import { track, type TrackData } from "@skelet/storefront-core/track/events";
 import { trackingAllowed } from "@skelet/storefront-react/consent/client";
 
@@ -9,7 +10,7 @@ export function AnalyticsEvent({
   event,
   payload,
 }: {
-  event: string;
+  event: BrowserEventName;
   payload?: TrackData;
 }) {
   useEffect(() => {

@@ -1,5 +1,8 @@
+import { readdirSync, readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
+import { BROWSER_EVENT_NAMES, type BrowserEventName } from "./contract.gen";
 import { cleanUrl, trackPayload } from "./events";
 
 describe("browser tracking", () => {
@@ -48,5 +51,27 @@ describe("GA4 items and search", () => {
     const body = trackPayload("search", "e-2", { searchTerm: ` ${"x".repeat(300)} ` }, { href: "https://shop.example/search?q=mug", referrer: "", locale: "en" });
     expect(body.page_url).toBe("https://shop.example/search");
     expect(body.search_term).toHaveLength(200);
+  });
+});
+
+// The bodies core's Go tests read (apps/backend/sdk/testdata/events), one per browser event: what trackPayload builds
+// from an event's parts must be exactly the body core was shown to accept whole
+describe("the golden browser events", () => {
+  const dir = new URL("../../../apps/backend/sdk/testdata/events/", import.meta.url);
+  const files = readdirSync(dir).filter((f) => f.endsWith(".json"));
+
+  it("has a body for every event a browser may send", () => {
+    expect(files.map((f) => f.replace(".json", "")).sort()).toEqual([...BROWSER_EVENT_NAMES].sort());
+  });
+
+  it.each(files)("%s is what trackPayload sends", (file) => {
+    const golden = JSON.parse(readFileSync(new URL(file, dir), "utf8"));
+    const body = trackPayload(golden.name as BrowserEventName, golden.event_id, { ecommerce: golden.ecommerce, searchTerm: golden.search_term }, {
+      href: golden.page_url,
+      referrer: golden.referrer,
+      locale: golden.locale,
+      title: golden.page_title,
+    });
+    expect(JSON.parse(JSON.stringify(body))).toEqual(golden);
   });
 });
