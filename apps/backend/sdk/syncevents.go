@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -17,20 +18,21 @@ import (
 // Accessors carry the event's own prefix because a Go method can't share a field's name, and core's events keep
 // their fields
 const (
-	EventCartLineAdding      = "cart.line.adding"
-	EventCartBundleAdding    = "cart.bundle.adding"
-	EventCartLineUpdating    = "cart.line.updating"
-	EventCartLineRemoving    = "cart.line.removing"
-	EventCheckoutValidating  = "checkout.validating"
-	EventOrderPlacing        = "order.placing"
-	EventOrderCancelling     = "order.cancelling"
-	EventOrderFulfilling     = "order.fulfilling"
-	EventOrderTransitioning  = "order.transitioning"
-	EventInventoryAllocating = "inventory.allocating"
-	EventReviewSubmitting    = "review.submitting"
-	EventCustomerRegistering = "customer.registering"
-	EventCustomerDeleting    = "customer.deleting"
-	EventLoyaltyEarning      = "loyalty.earning"
+	EventCartLineAdding       = "cart.line.adding"
+	EventCartBundleAdding     = "cart.bundle.adding"
+	EventCartLineUpdating     = "cart.line.updating"
+	EventCartLineRemoving     = "cart.line.removing"
+	EventCheckoutValidating   = "checkout.validating"
+	EventOrderPlacing         = "order.placing"
+	EventOrderCancelling      = "order.cancelling"
+	EventOrderFulfilling      = "order.fulfilling"
+	EventOrderTransitioning   = "order.transitioning"
+	EventInventoryAllocating  = "inventory.allocating"
+	EventReviewSubmitting     = "review.submitting"
+	EventCustomerRegistering  = "customer.registering"
+	EventCustomerDeleting     = "customer.deleting"
+	EventLoyaltyEarning       = "loyalty.earning"
+	EventSubscriptionRenewing = "subscription.renewing"
 )
 
 // A line about to be added to a cart - what arrives is what will be written, so a price or quantity set here is the
@@ -259,4 +261,23 @@ type LoyaltyEarning interface {
 	EarningPoints() int64
 	SetEarningPoints(points int64) error // refuses a negative number - 0 earns nothing
 	AddEarningNote(note string)          // shown in the points history beside the order number
+}
+
+// A subscription's next period about to be invoiced - change what it costs, skip it, or move it later. It runs while the
+// subscription is locked for billing, so keep it quick; an error leaves the period for the next billing run
+type SubscriptionRenewing interface {
+	RenewalSubscriptionID() uuid.UUID
+	RenewalChannelID() uuid.UUID
+	RenewalCustomerID() *uuid.UUID // nil for a guest's
+	RenewalProductID() uuid.UUID
+	RenewalSKU() string
+	RenewalQuantity() float64
+	RenewalSequence() int // which invoice this would be, 1 for the first renewal
+	RenewalPeriodStart() time.Time
+	RenewalPeriodEnd() time.Time
+	RenewalCurrencyCode() string
+	RenewalAmountCents() int64
+	SetRenewalAmount(cents int64) error // refuses a negative amount - 0 bills nothing
+	SkipRenewal()                       // the period passes unbilled, and the next comes as usual
+	DelayRenewal(until time.Time) error // refuses a time not ahead of now - later periods count from it, and it wins over a skip
 }

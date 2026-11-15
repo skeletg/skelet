@@ -3,6 +3,7 @@ package subscription
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
 	"math"
 	"time"
@@ -36,7 +37,8 @@ type Service struct {
 	// Publishes lifecycle events for the Synapse activity tracker - nil means none
 	bus *events.Bus
 	// Collects due invoices for renewal and dunning - nil leaves invoices at 'due'
-	charger RenewalCharger
+	charger  RenewalCharger
+	settings Settings
 }
 
 func NewService(repo Repository, txMgr *txrunner.Manager) *Service {
@@ -128,8 +130,26 @@ func (s *Service) billOne(ctx context.Context, id uuid.UUID, now time.Time) erro
 		if len(periods) == maxCatchUpPeriods {
 			log.Printf("[subscription] %s is more than %d periods behind - billing the rest on the next runs", sub.ID, maxCatchUpPeriods)
 		}
-		for _, p := range periods {
-			created, err := r.CreateInvoice(ctx, sub.ID, p.PeriodStart, p.PeriodEnd, cycleAmount(sub), sub.CurrencyCode, p.Sequence)
+		anchor, seq := sub.BillingAnchor, int32(count)
+		for i, p := range periods {
+			ev, err := s.renewing(ctx, sub, p, seq+1, now)
+			if err != nil {
+				return err
+			}
+			if ev.DelayUntil != nil {
+				start, end, next, anchor = sub.CurrentPeriodStart, *ev.DelayUntil, *ev.DelayUntil, *ev.DelayUntil
+				if i > 0 {
+					start = periods[i-1].PeriodStart
+				}
+				break
+			}
+			if ev.Skip {
+				continue
+			}
+			// Numbered as they're minted, so a skipped period leaves no gap for a later run to collide with
+			seq++
+			p.Sequence, p.Amount = seq, ev.AmountCents
+			created, err := r.CreateInvoice(ctx, sub.ID, p.PeriodStart, p.PeriodEnd, p.Amount, sub.CurrencyCode, p.Sequence)
 			if err != nil {
 				return err
 			}
@@ -137,7 +157,7 @@ func (s *Service) billOne(ctx context.Context, id uuid.UUID, now time.Time) erro
 				minted = append(minted, p)
 			}
 		}
-		if _, err := r.AdvancePeriod(ctx, sub.ID, start, end, next, sub.BillingAnchor); err != nil {
+		if _, err := r.AdvancePeriod(ctx, sub.ID, start, end, next, anchor); err != nil {
 			return err
 		}
 		billedSub = sub
@@ -156,6 +176,21 @@ type plannedPeriod struct {
 	PeriodStart time.Time
 	PeriodEnd   time.Time
 	Sequence    int32
+	Amount      int64
+}
+
+func (s *Service) renewing(ctx context.Context, sub Subscription, p plannedPeriod, seq int32, now time.Time) (*Renewing, error) {
+	ev := &Renewing{
+		SubscriptionID: sub.ID, ChannelID: chanOrNil(sub.ChannelID), CustomerID: sub.CustomerID, ProductID: sub.ProductID,
+		SKU: sub.SKU, Quantity: sub.Quantity, Sequence: seq, PeriodStart: p.PeriodStart, PeriodEnd: p.PeriodEnd,
+		CurrencyCode: sub.CurrencyCode, AmountCents: cycleAmount(sub), now: now,
+	}
+	if s.bus != nil {
+		if err := s.bus.PublishSync(ctx, ev); err != nil {
+			return nil, fmt.Errorf("subscription.renewing: %w", err)
+		}
+	}
+	return ev, nil
 }
 
 // Computes the invoices to mint and the resulting current period, numbering after existingInvoices - bill-in-advance, so each elapsed boundary mints one invoice and catches up across periods missed to downtime - Pure, so testable

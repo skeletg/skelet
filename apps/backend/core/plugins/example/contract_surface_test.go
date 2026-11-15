@@ -20,6 +20,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
 	pluginhost "github.com/skeletg/skelet/apps/backend/core/internal/plugin"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
@@ -223,6 +224,15 @@ func TestOrderStageAndItsVeto(t *testing.T) {
 	} {
 		if err := sharedBus().PublishSync(ctx, move); err != nil {
 			t.Errorf("%+v was refused: %v", move, err)
+		}
+	}
+}
+
+func TestHalfPriceSubscriptionsRenewAtHalf(t *testing.T) {
+	for sku, want := range map[string]int64{HalfPricePrefix + "COFFEE": 1250, "COFFEE": 2500} {
+		r := &subscription.Renewing{SKU: sku, AmountCents: 2500}
+		if err := sharedBus().PublishSync(context.Background(), r); err != nil || r.AmountCents != want {
+			t.Errorf("%s: %d, %v - want %d", sku, r.AmountCents, err, want)
 		}
 	}
 }

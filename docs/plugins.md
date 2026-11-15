@@ -208,6 +208,11 @@ all out of tree. This is what the SDK gives it.
   settings, and `Default()`, core's own PDF, for a renderer that only stamps or wraps it. Return
   a PDF; an error reaches the admin who asked, since quietly swapping in core's would hand out
   the wrong paperwork.
+- **`subscription.renewing`** - a sync event as each subscription period is invoiced. Type-assert
+  to `sdk.SubscriptionRenewing` and set what the period costs (0 bills nothing), skip it, or delay
+  it to a later date, after which later periods count from that date. It runs while the
+  subscription is locked for billing, so keep it quick; an error leaves the period for the next
+  billing run.
 
 ### Checkout fields
 

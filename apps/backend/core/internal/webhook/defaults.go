@@ -735,6 +735,14 @@ func init() {
 			"points replaces the amount, and the note joins the order number in the points history; reject earns nothing rather than failing the earn. It can arrive more than once for one order, so answer the same each time.",
 	})
 	RegisterEvent(EventDefinition{
+		Type: subscription.EventRenewing,
+		Kind: KindSync,
+		Name: "Subscription Renewing (sync)",
+		Description: "Fires before a subscription's next period is invoiced, while the subscription is locked for billing. Payload: SubscriptionID, ChannelID, CustomerID, ProductID, SKU, Quantity, Sequence, PeriodStart, PeriodEnd, CurrencyCode, AmountCents. " +
+			`Response schema: {"reject": bool, "reason": string, "amountCents": int, "skip": bool, "delayUntil": RFC 3339 time}. ` +
+			"amountCents replaces what the period costs (0 bills nothing), skip lets the period pass unbilled, and delayUntil moves the renewal later, later periods counting from it. A reject leaves the period for the next billing run.",
+	})
+	RegisterEvent(EventDefinition{
 		Type: customer.EventDeleting,
 		Kind: KindSync,
 		Name: "Customer Deleting (sync)",

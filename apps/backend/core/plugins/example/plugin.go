@@ -27,6 +27,7 @@ const (
 	EventSettling       = "example.settling" // sync - fired pre-commit, handlers may mutate or veto
 	StageAwaitingStock  = "awaiting_stock"
 	DoublePointsPrefix  = "EX-DOUBLE-"
+	HalfPricePrefix     = "EX-HALF-"
 )
 
 //go:embed migrations/*.sql
@@ -47,7 +48,7 @@ func init() {
 		Version:  "0.1.0",
 		SDKRange: "^0.1.0",
 		Emits:    []string{EventSettled, EventSettling},
-		Consumes: []string{EventSettled, EventSettling, sdk.EventOrderPlacing, sdk.EventOrderTransitioning, sdk.EventLoyaltyEarning},
+		Consumes: []string{EventSettled, EventSettling, sdk.EventOrderPlacing, sdk.EventOrderTransitioning, sdk.EventLoyaltyEarning, sdk.EventSubscriptionRenewing},
 		Capabilities: []string{
 			"db.write",
 			"events.publish:" + EventSettled,
@@ -95,6 +96,13 @@ func init() {
 		}
 		if note, given := answers.CheckoutFieldValue("example_gift_note"); given {
 			return meta.SetPlacingMetadata(Slug+".gift_note_length", strconv.Itoa(utf8.RuneCountInString(note)))
+		}
+		return nil
+	})
+
+	p.SubscribeSync(sdk.EventSubscriptionRenewing, 100, func(_ context.Context, e any) error {
+		if renewal, ok := e.(sdk.SubscriptionRenewing); ok && strings.HasPrefix(renewal.RenewalSKU(), HalfPricePrefix) {
+			return renewal.SetRenewalAmount(renewal.RenewalAmountCents() / 2)
 		}
 		return nil
 	})
