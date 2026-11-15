@@ -247,7 +247,7 @@ export async function ProductListShell({
       {filterLabel && (
         <LensTrack
           key={filterLabel}
-          event="product_filter"
+          event="filter_items"
           props={{ filters: filterLabel, ...affinityProps }}
         />
       )}
@@ -255,7 +255,7 @@ export async function ProductListShell({
       {term && (
         <>
           <AnalyticsEvent key={`ga4-search:${term.toLowerCase()}`} event="search" payload={{ searchTerm: term }} />
-          <LensTrack key={`search:${term.toLowerCase()}`} event="$search" props={{ query: term, results: data.totalCount, ...(data.byMeaningOnly && { byMeaningOnly: true }) }} />
+          <LensTrack key={`search:${term.toLowerCase()}`} event="search" props={{ query: term, results: data.totalCount, ...(data.byMeaningOnly && { byMeaningOnly: true }) }} />
         </>
       )}
       <div className="listing-top">

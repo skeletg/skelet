@@ -5,7 +5,7 @@ export type OverviewProduct = { id: string; name: string; url: string };
 export type SearchOverview = { text: string; recap: string; products: OverviewProduct[] };
 
 // The Lens events an overview raises, as Signals counts them
-export const OVERVIEW_EVENTS = { shown: "search_overview_shown", click: "search_overview_click", chat: "search_overview_chat" } as const;
+export const OVERVIEW_EVENTS = { shown: "search_overview_shown", click: "select_overview_item", chat: "open_overview_chat" } as const;
 
 export type OverviewSegment = { kind: "text"; text: string } | { kind: "product"; product: OverviewProduct; position: number };
 

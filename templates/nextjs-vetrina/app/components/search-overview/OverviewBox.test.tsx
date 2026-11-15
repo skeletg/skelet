@@ -81,7 +81,7 @@ describe("OverviewBox", () => {
       </AssistantProvider>,
     );
     fireEvent.click(screen.getByRole("link", { name: "Linen Wrap Skirt" }));
-    expect(track).toHaveBeenCalledWith("search_overview_click", { query: "summer wedding", position: 2 });
+    expect(track).toHaveBeenCalledWith("select_overview_item", { query: "summer wedding", position: 2 });
   });
 
   it("carries the exchange into the chat with its cards, fetched once on the way to the button", async () => {
@@ -99,7 +99,7 @@ describe("OverviewBox", () => {
     expect(cards).toHaveBeenCalledTimes(1);
     expect(cards).toHaveBeenCalledWith(["p1"]);
     expect(take).toHaveBeenCalledWith({ question: chat.question, reply: chat.reply, recap: chat.recap, products: [dressCard] } satisfies Exchange);
-    expect(track).toHaveBeenCalledWith("search_overview_chat", { query: "summer wedding" });
+    expect(track).toHaveBeenCalledWith("open_overview_chat", { query: "summer wedding" });
   });
 
   it("still carries the words on when the cards can't be fetched, and asks for them again next time", async () => {
