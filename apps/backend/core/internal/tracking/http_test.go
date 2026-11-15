@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -116,6 +117,16 @@ func TestTheGoldenBrowserEventsAreReadWhole(t *testing.T) {
 	for name := range browserEvents {
 		if !seen[name] {
 			t.Errorf("no golden body for the browser event %s", name)
+		}
+	}
+}
+
+// The generated contract offers Events and marks the browser's by BrowserEvent, so a browser event missing from the
+// list would never reach a storefront's types
+func TestEveryBrowserEventIsAnEvent(t *testing.T) {
+	for name := range browserEvents {
+		if !slices.Contains(Events, name) {
+			t.Errorf("%s may come from a browser but isn't in Events", name)
 		}
 	}
 }

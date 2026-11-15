@@ -56,6 +56,13 @@ const (
 	MarketingOptOut = "marketing_opt_out"
 )
 
+// Events is every name above - what the storefront's generated contract offers
+var Events = []string{
+	PageView, ViewItemList, SelectItem, ViewItem, ViewCart, BeginCheckout, AddShippingInfo, AddPaymentInfo, AddToCart,
+	RemoveFromCart, Purchase, Refund, SignUp, Login, AddToWishlist, ViewPromotion, SelectPromotion, Search, GenerateLead,
+	MarketingOptOut,
+}
+
 // What a browser may report: what it saw and clicked. Cart changes, checkout choices, purchases, refunds, sign-ins and
 // sign-ups happen on the server, which reports them itself - a browser copy would be forgeable and counted twice
 var browserEvents = map[string]bool{

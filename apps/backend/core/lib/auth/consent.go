@@ -19,8 +19,8 @@ type Consent struct {
 	Personalization bool `json:"personalization"`
 }
 
-// SYNC: the same pattern as V2 in packages/storefront-core/consent/categories.ts - skelet check compares them
-var consentValue = regexp.MustCompile(`^(?:v2|auto):a([01])\.d([01])\.p([01])$`)
+// The storefront reads the same pattern from its generated contract (cmd/trackcontract), so the two can't drift
+var ConsentValue = regexp.MustCompile(`^(?:v2|auto):a([01])\.d([01])\.p([01])$`)
 
 // ParseConsent mirrors the storefront's parseConsent - ok is false for no choice and for anything unrecognised, which must never count as a grant
 func ParseConsent(s string) (Consent, bool) {
@@ -30,7 +30,7 @@ func ParseConsent(s string) (Consent, bool) {
 	case "essential":
 		return Consent{}, true
 	}
-	m := consentValue.FindStringSubmatch(s)
+	m := ConsentValue.FindStringSubmatch(s)
 	if m == nil {
 		return Consent{}, false
 	}
@@ -59,8 +59,8 @@ func sessionID(r *http.Request) string {
 
 const ClickIDsHeader = "X-Click-Ids" // the ad click ids the storefront keeps in first-party cookies, as a query string
 
-// SYNC: the keys of CLICK_IDS in packages/storefront-core/consent/click-ids.ts - skelet check compares them
-var clickIDKeys = []string{"gclid", "gbraid", "wbraid", "msclkid", "ttclid", "fbc", "fbp", "oppref", "obref"}
+// The click ids core keeps - the storefront's CLICK_IDS are typed by the list generated from this one
+var ClickIDKeys = []string{"gclid", "gbraid", "wbraid", "msclkid", "ttclid", "fbc", "fbp", "oppref", "obref"}
 
 var clickIDValue = regexp.MustCompile(`^[\w.~-]{1,255}$`)
 
@@ -75,7 +75,7 @@ func ClickIDs(r *http.Request, c Consent) map[string]string {
 		return nil
 	}
 	var out map[string]string
-	for _, k := range clickIDKeys {
+	for _, k := range ClickIDKeys {
 		if v := q.Get(k); clickIDValue.MatchString(v) {
 			if out == nil {
 				out = map[string]string{}
