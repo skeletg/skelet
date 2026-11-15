@@ -37,6 +37,31 @@ linters:
             # redeclares the slices a plugin legitimately needs
             - pkg: github.com/skeletg/skelet/apps/backend/core/lib
               desc: infrastructure the host shares with the Signals module, not with plugins - the SDK is a plugin's whole surface
+        # The tracking engine queues and delivers; turning the shop's domain events into tracking events is
+        # tracking/emit's, the one place that may know orders, carts and customers
+        tracking-engine-boundary:
+          files:
+            - "**/internal/tracking/*.go"
+            - "!$test"
+          deny:
+            - pkg: github.com/skeletg/skelet/apps/backend/core/internal/cart
+              desc: the engine knows no domain - map carts to a tracking event in tracking/emit
+            - pkg: github.com/skeletg/skelet/apps/backend/core/internal/catalog
+              desc: the engine knows no domain - map products to a tracking event in tracking/emit
+            - pkg: github.com/skeletg/skelet/apps/backend/core/internal/consent
+              desc: the engine knows no domain - map consent records to a tracking event in tracking/emit
+            - pkg: github.com/skeletg/skelet/apps/backend/core/internal/customer
+              desc: the engine knows no domain - map customers to a tracking event in tracking/emit
+            - pkg: github.com/skeletg/skelet/apps/backend/core/internal/events
+              desc: the engine knows no domain - map the event bus to a tracking event in tracking/emit
+            - pkg: github.com/skeletg/skelet/apps/backend/core/internal/order
+              desc: the engine knows no domain - map orders to a tracking event in tracking/emit
+            - pkg: github.com/skeletg/skelet/apps/backend/core/internal/promotion
+              desc: the engine knows no domain - map promotions to a tracking event in tracking/emit
+            - pkg: github.com/skeletg/skelet/apps/backend/core/internal/signupform
+              desc: the engine knows no domain - map sign-up forms to a tracking event in tracking/emit
+            - pkg: github.com/skeletg/skelet/apps/backend/core/internal/wishlist
+              desc: the engine knows no domain - map wishlists to a tracking event in tracking/emit
         # lib/ is the bottom layer - plumbing that doesn't import the domain. Tests are exempt, a lib package's
         # database test drives core's store for it
         lib-is-a-leaf:
