@@ -103,6 +103,7 @@ type Host struct {
 	GraphResolvers      []GraphResolver
 	PriceResolvers      []PriceResolver
 	DraftOrders         []DraftOrder
+	StageMoves          []StageMove
 	Carts               map[uuid.UUID]sdk.Cart
 	// Per-permission channel scope - an absent slug bypasses, matching a global grant
 	ChannelScope map[string][]uuid.UUID
@@ -568,6 +569,24 @@ func (h *Host) CreateDraftOrder(ctx context.Context, req sdk.DraftOrderRequest) 
 		return sdk.DraftOrderResult{}, sdk.ErrDraftOrdersUnavailable
 	}
 	return fn(ctx, req)
+}
+
+type StageMove struct {
+	Plugin  string
+	OrderID uuid.UUID
+	Stage   string
+}
+
+func (h *Host) SetOrderStage(_ context.Context, pluginSlug string, orderID uuid.UUID, key string) error {
+	if key != "" && !slices.ContainsFunc(sdk.OrderStages(), func(r sdk.RegisteredOrderStage) bool {
+		return r.Stage.Key == key && r.PluginSlug == pluginSlug
+	}) {
+		return sdk.Invalid("no stage %s of %s's", key, pluginSlug)
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.StageMoves = append(h.StageMoves, StageMove{Plugin: pluginSlug, OrderID: orderID, Stage: key})
+	return nil
 }
 
 // Carts is what ReadCart serves, keyed by id - an unseeded id answers ErrCartNotOnStore, the same

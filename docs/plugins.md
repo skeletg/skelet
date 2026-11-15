@@ -186,6 +186,16 @@ all out of tree. This is what the SDK gives it.
   apart from the store's under your slug; return letters, digits and `- _ . / #`, at most 64. An
   error, or anything else, and the store's format names the order instead, so placement never
   fails on a number. With two numberers on one channel, the one registered first wins.
+- **`RegisterOrderStage`** - a step of your own inside core's statuses, like "awaiting stock"
+  inside confirmed and processing. The status still drives payment and stock; the stage says
+  where the work stands, and the dashboard shows it, filters by it and lets an admin set it.
+  `p.SetOrderStage(ctx, orderID, key)` moves an order into one of your stages, or out with `""`,
+  and refuses another plugin's. Moving the order to a status the stage doesn't list clears it,
+  and `order.stage_changed` fires either way.
+- **`order.transitioning`** - a sync event before every status or stage move someone asks for:
+  an admin's transition, a customer's cancel, a shipment, a hold or release, a stage move.
+  Placement's own moves don't fire it. Type-assert to `sdk.OrderTransitioning` and return an
+  error to refuse, say a shipment while the order still sits in your awaiting-stock stage.
 
 ### Checkout fields
 

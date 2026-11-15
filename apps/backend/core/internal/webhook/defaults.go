@@ -57,6 +57,12 @@ func init() {
 		Description: "Fires after a non-placement order status transition commits. Payload includes orderId, fromStatus, and toStatus. Response is ignored (async).",
 	})
 	RegisterEvent(EventDefinition{
+		Type:        order.EventStageChanged,
+		Kind:        KindAsync,
+		Name:        "Order Stage Changed",
+		Description: "Fires after an order moves into or out of a plugin's stage, including when a status change clears one the new status doesn't hold. Payload: OrderID, ChannelID, Status, FromStage, ToStage (empty for none).",
+	})
+	RegisterEvent(EventDefinition{
 		Type:        order.EventCancelled,
 		Kind:        KindAsync,
 		Name:        "Order Cancelled",
@@ -672,6 +678,14 @@ func init() {
 		Description: "Fires before a cancel transition commits. Blocks the flow until response. " +
 			`Response schema: {"reject": bool, "reason": string, "note": string}. ` +
 			"Use to gate on refund success or to append a note onto the order_event audit row.",
+	})
+	RegisterEvent(EventDefinition{
+		Type: order.EventTransitioning,
+		Kind: KindSync,
+		Name: "Order Transitioning (sync)",
+		Description: "Fires before a status or stage change someone asked for commits - an admin's transition, a customer's cancel, a shipment, a hold or release, a stage move - never placement's own. Payload: OrderID, ChannelID, FromStatus, ToStatus, FromStage, ToStage; a stage-only move keeps the status. " +
+			`Response schema: {"reject": bool, "reason": string}. ` +
+			"Use to hold an order back while your own process says it isn't ready, like refusing a shipment while it sits in an awaiting-stock stage.",
 	})
 	RegisterEvent(EventDefinition{
 		Type: order.EventFulfilling,

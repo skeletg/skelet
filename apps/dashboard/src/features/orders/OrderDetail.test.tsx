@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import type { MockLink } from '@apollo/client/testing'
 import { describe, expect, it } from 'vitest'
 import { SLOW, meMock, renderPage } from '@/test/page-harness'
-import { CancelOrderDocument, OrderDocument } from './Orders.gql'
+import { CancelOrderDocument, OrderDocument, OrderStagesDocument, SetOrderStageDocument } from './Orders.gql'
 import { OrderDetail } from './OrderDetail'
 
 // What this pins: cancelling an order goes through the shared ConfirmDialog - a refused cancel keeps
@@ -29,6 +29,7 @@ const order = {
   channelId: 'c1',
   number: '1001',
   status: 'PENDING' as const,
+  stage: null,
   paymentStatus: 'UNPAID' as const,
   paymentProvider: 'manual',
   paymentReference: '',
@@ -63,12 +64,14 @@ const order = {
   returns: [],
 }
 
+const stagesMock = { request: { query: OrderStagesDocument, variables: { channelId: 'c1' } }, result: { data: { orderStages: [] } }, maxUsageCount: 3 }
+
 describe('OrderDetail cancel', () => {
   async function confirmCancel(mock: MockLink.MockedResponse) {
     renderPage({
       path: '/orders/o1',
       routes: { '/orders/:id': <OrderDetail /> },
-      mocks: [meMock(), { request: { query: OrderDocument, variables: { id: 'o1' } }, result: { data: { order } }, maxUsageCount: 3 }, mock],
+      mocks: [meMock(), { request: { query: OrderDocument, variables: { id: 'o1' } }, result: { data: { order } }, maxUsageCount: 3 }, stagesMock, mock],
       adminId: 'admin-1',
     })
     fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }, SLOW))
@@ -111,5 +114,28 @@ describe('OrderDetail checkout answers', () => {
     expect(await screen.findByText('At checkout', {}, SLOW)).toBeDefined()
     expect(screen.getByText('Happy birthday')).toBeDefined()
     expect(screen.getByText('Gift wrap').nextElementSibling?.textContent).toBe('Yes')
+  })
+})
+
+describe('OrderDetail stage', () => {
+  it('moves the order into a stage its status holds, and offers none that it does not', async () => {
+    const processing = { ...order, status: 'PROCESSING' as const }
+    const moved = { request: { query: SetOrderStageDocument, variables: { id: 'o1', stage: 'awaiting_stock' } }, result: { data: { setOrderStage: {
+      __typename: 'Order', id: 'o1', status: 'PROCESSING', stage: { __typename: 'OrderStage', key: 'awaiting_stock', label: 'Awaiting stock' },
+    } } } }
+    const stages = { ...stagesMock, result: { data: { orderStages: [
+      { __typename: 'OrderStage', key: 'awaiting_stock', label: 'Awaiting stock', within: ['CONFIRMED', 'PROCESSING'] },
+      { __typename: 'OrderStage', key: 'delivered', label: 'Delivered', within: ['FULFILLED'] },
+    ] } } }
+    renderPage({
+      path: '/orders/o1',
+      routes: { '/orders/:id': <OrderDetail /> },
+      mocks: [meMock(), { request: { query: OrderDocument, variables: { id: 'o1' } }, result: { data: { order: processing } }, maxUsageCount: 3 }, stages, moved],
+      adminId: 'admin-1',
+    })
+    fireEvent.pointerDown(await screen.findByRole('button', { name: 'Stage' }, SLOW), { button: 0, ctrlKey: false, pointerType: 'mouse' })
+    expect(screen.queryByRole('menuitem', { name: /Delivered/ })).toBeNull()
+    fireEvent.click(await screen.findByRole('menuitem', { name: /Awaiting stock/ }))
+    expect(await screen.findByText('Awaiting stock', { selector: '[data-slot="badge"]' }, SLOW)).toBeDefined()
   })
 })

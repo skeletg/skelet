@@ -120,6 +120,28 @@ func (r *mutationResolver) ReleaseOrder(ctx context.Context, id string) (*model.
 	return toOrderModel(updated), nil
 }
 
+func (r *mutationResolver) SetOrderStage(ctx context.Context, id string, stage *string) (*model.Order, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "orders.update"); err != nil {
+		return nil, err
+	}
+	orderID, err := parseID(id, "order")
+	if err != nil {
+		return nil, err
+	}
+	o, err := r.OrderSvc.GetByID(ctx, orderID)
+	if err != nil {
+		return nil, errNotFound("order")
+	}
+	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "orders.update", o.ChannelID, nil); err != nil {
+		return nil, err
+	}
+	updated, err := r.OrderSvc.SetStage(ctx, orderID, ptr.Deref(stage), "")
+	if err != nil {
+		return nil, err
+	}
+	return toOrderModel(updated), nil
+}
+
 // Records a real fulfillment covering the remainder rather than only flipping the status, so inventory decrements and the first shipment captures payment - a sync OrderFulfilling subscriber can still override the carrier and tracking
 func (r *mutationResolver) FulfillOrder(ctx context.Context, id string, carrier *string, trackingNumber *string, insuredValueCents *int32) (*model.Order, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "orders.update"); err != nil {
@@ -805,7 +827,7 @@ func (r *queryResolver) Orders(ctx context.Context, channelID *string) ([]*model
 	return result, nil
 }
 
-func (r *queryResolver) OrdersPaged(ctx context.Context, channelID *string, search *string, statuses []string, paymentStatuses []string, limit *int32, offset *int32) (*model.OrderPage, error) {
+func (r *queryResolver) OrdersPaged(ctx context.Context, channelID *string, search *string, statuses []string, paymentStatuses []string, limit *int32, offset *int32, stages []string) (*model.OrderPage, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "orders.view"); err != nil {
 		return nil, err
 	}
@@ -820,6 +842,7 @@ func (r *queryResolver) OrdersPaged(ctx context.Context, channelID *string, sear
 		ChannelIDs:      channels,
 		Statuses:        lowerAll(statuses),
 		PaymentStatuses: lowerAll(paymentStatuses),
+		Stages:          stages,
 		Limit:           intDeref(limit, 50),
 		Offset:          intDeref(offset, 0),
 	}
@@ -835,6 +858,17 @@ func (r *queryResolver) OrdersPaged(ctx context.Context, channelID *string, sear
 		items = append(items, toOrderModel(o))
 	}
 	return &model.OrderPage{TotalCount: int32(total), Items: items}, nil
+}
+
+func (r *queryResolver) OrderStages(ctx context.Context, channelID *string) ([]*model.OrderStage, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "orders.view"); err != nil {
+		return nil, err
+	}
+	channels, none, err := r.orderChannelScope(ctx, channelID)
+	if err != nil || none {
+		return []*model.OrderStage{}, err
+	}
+	return r.orderStageModels(ctx, channels), nil
 }
 
 // A scoped admin asking by ID for a channel they can't reach gets FORBIDDEN, not the row

@@ -17,5 +17,6 @@ func RegisterOutboxTypes(r OutboxTypes) {
 	r.RegisterType(EventCancelled, func() events.Event { return &OrderCancelled{} })                       // was fire-and-forget after commit while its subscribers claimed outbox durability, so a pod killed in that window left the customer's money spent and the company's credit reserved
 	r.RegisterType(EventRefunded, func() events.Event { return &OrderRefunded{} })                         // REWARD reversals only - a refund already returns the money, so restoring the gift card or store credit it consumed would pay the customer twice
 	r.RegisterType(EventPaymentStatusChanged, func() events.Event { return &OrderPaymentStatusChanged{} }) // money-drift signal - was bus-only, so a crash between commit and handler lost it permanently
-	r.RegisterType(EventEdited, func() events.Event { return &OrderEdited{} })                             // carries Old/NewAmountDue, the other drift signal
+	r.RegisterType(EventStageChanged, func() events.Event { return &OrderStageChanged{} })
+	r.RegisterType(EventEdited, func() events.Event { return &OrderEdited{} }) // carries Old/NewAmountDue, the other drift signal
 }

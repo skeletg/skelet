@@ -25,6 +25,7 @@ const (
 	EventOrderPlacing        = "order.placing"
 	EventOrderCancelling     = "order.cancelling"
 	EventOrderFulfilling     = "order.fulfilling"
+	EventOrderTransitioning  = "order.transitioning"
 	EventInventoryAllocating = "inventory.allocating"
 	EventReviewSubmitting    = "review.submitting"
 	EventCustomerRegistering = "customer.registering"
@@ -181,6 +182,17 @@ type OrderFulfilling interface {
 	// Both refuse an empty value - there is nothing to clear
 	SetFulfillingCarrier(carrier string) error
 	SetFulfillingTrackingNumber(number string) error
+}
+
+// An order about to change status or stage - refuse-only. It fires for the moves someone asks for (an admin's, a
+// customer's cancel, a shipment, a hold, a plugin's stage), not the ones placement makes itself
+type OrderTransitioning interface {
+	TransitioningOrderID() uuid.UUID
+	TransitioningChannelID() uuid.UUID
+	TransitioningFromStatus() string
+	TransitioningToStatus() string // the same as the from status when only the stage moves
+	TransitioningFromStage() string
+	TransitioningToStage() string // empty when the order is left without one
 }
 
 // Stock about to be reserved for an order, line by line - a plugin routes a line to one stock location, and core

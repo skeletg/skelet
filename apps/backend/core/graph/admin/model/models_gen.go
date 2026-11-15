@@ -3748,6 +3748,7 @@ type Order struct {
 	ChannelID           string                `json:"channelId"`
 	Number              string                `json:"number"`
 	Status              OrderStatus           `json:"status"`
+	Stage               *OrderStage           `json:"stage,omitempty"`
 	PaymentStatus       PaymentStatus         `json:"paymentStatus"`
 	PaymentClientSecret *string               `json:"paymentClientSecret,omitempty"`
 	PaymentActionKind   *string               `json:"paymentActionKind,omitempty"`
@@ -3905,6 +3906,13 @@ type OrderShipment struct {
 	ShipTo             *OrderAddress `json:"shipTo,omitempty"`
 	Point              any           `json:"point,omitempty"`
 	Lines              any           `json:"lines"`
+}
+
+type OrderStage struct {
+	Key    string        `json:"key"`
+	Label  string        `json:"label"`
+	Within []OrderStatus `json:"within"`
+	Plugin string        `json:"plugin"`
 }
 
 type OrderTaxLine struct {

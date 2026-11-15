@@ -61,6 +61,7 @@ WHERE  TRUE
         o.billing_last_name ILIKE '%' || escape_like($1::text) || '%')
   AND  ($2::boolean OR o.status = ANY($3::text[]))
   AND  ($4::boolean OR o.payment_status = ANY($5::text[]))
+  AND  ($6::boolean OR o.stage = ANY($7::text[]))
 `
 
 type CountOrdersPagedParams struct {
@@ -69,6 +70,8 @@ type CountOrdersPagedParams struct {
 	Statuses        []string `json:"statuses"`
 	AllPayment      bool     `json:"all_payment"`
 	PaymentStatuses []string `json:"payment_statuses"`
+	AllStages       bool     `json:"all_stages"`
+	Stages          []string `json:"stages"`
 }
 
 func (q *Queries) CountOrdersPaged(ctx context.Context, arg CountOrdersPagedParams) (int64, error) {
@@ -78,6 +81,8 @@ func (q *Queries) CountOrdersPaged(ctx context.Context, arg CountOrdersPagedPara
 		pq.Array(arg.Statuses),
 		arg.AllPayment,
 		pq.Array(arg.PaymentStatuses),
+		arg.AllStages,
+		pq.Array(arg.Stages),
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -94,6 +99,7 @@ WHERE  o.channel_id = ANY($1::uuid[])
         o.billing_last_name ILIKE '%' || escape_like($2::text) || '%')
   AND  ($3::boolean OR o.status = ANY($4::text[]))
   AND  ($5::boolean OR o.payment_status = ANY($6::text[]))
+  AND  ($7::boolean OR o.stage = ANY($8::text[]))
 `
 
 type CountOrdersPagedInChannelsParams struct {
@@ -103,6 +109,8 @@ type CountOrdersPagedInChannelsParams struct {
 	Statuses        []string    `json:"statuses"`
 	AllPayment      bool        `json:"all_payment"`
 	PaymentStatuses []string    `json:"payment_statuses"`
+	AllStages       bool        `json:"all_stages"`
+	Stages          []string    `json:"stages"`
 }
 
 func (q *Queries) CountOrdersPagedInChannels(ctx context.Context, arg CountOrdersPagedInChannelsParams) (int64, error) {
@@ -113,6 +121,8 @@ func (q *Queries) CountOrdersPagedInChannels(ctx context.Context, arg CountOrder
 		pq.Array(arg.Statuses),
 		arg.AllPayment,
 		pq.Array(arg.PaymentStatuses),
+		arg.AllStages,
+		pq.Array(arg.Stages),
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -140,7 +150,7 @@ INSERT INTO orders (
     $32, $33, $34, $35,
     $36, $37, $38, $39, $40, $41, $42, $43,
     $44, $45, $46, $47
-) RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields
+) RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields, stage
 `
 
 type CreateOrderParams struct {
@@ -301,6 +311,7 @@ func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (Order
 		&i.Locale,
 		&i.TaxInclusive,
 		&i.CheckoutFields,
+		&i.Stage,
 	)
 	return i, err
 }
@@ -417,7 +428,7 @@ func (q *Queries) DeleteOrderTaxLines(ctx context.Context, orderID uuid.UUID) er
 }
 
 const getGuestOrder = `-- name: GetGuestOrder :one
-SELECT id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields FROM orders
+SELECT id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields, stage FROM orders
 WHERE  id = $1 AND email = $2 AND customer_id IS NULL
 LIMIT 1
 `
@@ -488,12 +499,13 @@ func (q *Queries) GetGuestOrder(ctx context.Context, arg GetGuestOrderParams) (O
 		&i.Locale,
 		&i.TaxInclusive,
 		&i.CheckoutFields,
+		&i.Stage,
 	)
 	return i, err
 }
 
 const getOrderByID = `-- name: GetOrderByID :one
-SELECT id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields FROM orders WHERE id = $1 LIMIT 1
+SELECT id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields, stage FROM orders WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetOrderByID(ctx context.Context, id uuid.UUID) (Order, error) {
@@ -556,6 +568,7 @@ func (q *Queries) GetOrderByID(ctx context.Context, id uuid.UUID) (Order, error)
 		&i.Locale,
 		&i.TaxInclusive,
 		&i.CheckoutFields,
+		&i.Stage,
 	)
 	return i, err
 }
@@ -564,7 +577,7 @@ const holdOrderFrom = `-- name: HoldOrderFrom :one
 UPDATE orders
 SET    status = 'on_hold', held_from_status = status, updated_at = NOW()
 WHERE  id = $1 AND status = $2
-RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields
+RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields, stage
 `
 
 type HoldOrderFromParams struct {
@@ -633,6 +646,7 @@ func (q *Queries) HoldOrderFrom(ctx context.Context, arg HoldOrderFromParams) (O
 		&i.Locale,
 		&i.TaxInclusive,
 		&i.CheckoutFields,
+		&i.Stage,
 	)
 	return i, err
 }
@@ -823,7 +837,7 @@ func (q *Queries) ListOrderTaxLines(ctx context.Context, orderID uuid.UUID) ([]O
 }
 
 const listOrdersAwaitingPaymentSync = `-- name: ListOrdersAwaitingPaymentSync :many
-SELECT id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields FROM orders
+SELECT id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields, stage FROM orders
 WHERE  payment_status = 'unpaid'
   AND  payment_provider <> ''
   AND  payment_reference <> ''
@@ -907,6 +921,7 @@ func (q *Queries) ListOrdersAwaitingPaymentSync(ctx context.Context, arg ListOrd
 			&i.Locale,
 			&i.TaxInclusive,
 			&i.CheckoutFields,
+			&i.Stage,
 		); err != nil {
 			return nil, err
 		}
@@ -922,7 +937,7 @@ func (q *Queries) ListOrdersAwaitingPaymentSync(ctx context.Context, arg ListOrd
 }
 
 const listOrdersByCustomer = `-- name: ListOrdersByCustomer :many
-SELECT id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields FROM orders WHERE customer_id = $1 ORDER BY created_at DESC
+SELECT id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields, stage FROM orders WHERE customer_id = $1 ORDER BY created_at DESC
 `
 
 func (q *Queries) ListOrdersByCustomer(ctx context.Context, customerID uuid.NullUUID) ([]Order, error) {
@@ -991,6 +1006,7 @@ func (q *Queries) ListOrdersByCustomer(ctx context.Context, customerID uuid.Null
 			&i.Locale,
 			&i.TaxInclusive,
 			&i.CheckoutFields,
+			&i.Stage,
 		); err != nil {
 			return nil, err
 		}
@@ -1006,7 +1022,7 @@ func (q *Queries) ListOrdersByCustomer(ctx context.Context, customerID uuid.Null
 }
 
 const listOrdersPaged = `-- name: ListOrdersPaged :many
-SELECT id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields FROM orders o
+SELECT id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields, stage FROM orders o
 WHERE  TRUE
   AND  ($1::text = '' OR
         o.number ILIKE '%' || escape_like($1::text) || '%' OR
@@ -1015,8 +1031,9 @@ WHERE  TRUE
         o.billing_last_name ILIKE '%' || escape_like($1::text) || '%')
   AND  ($2::boolean OR o.status = ANY($3::text[]))
   AND  ($4::boolean OR o.payment_status = ANY($5::text[]))
+  AND  ($6::boolean OR o.stage = ANY($7::text[]))
 ORDER  BY o.created_at DESC
-LIMIT  $7 OFFSET $6
+LIMIT  $9 OFFSET $8
 `
 
 type ListOrdersPagedParams struct {
@@ -1025,6 +1042,8 @@ type ListOrdersPagedParams struct {
 	Statuses        []string `json:"statuses"`
 	AllPayment      bool     `json:"all_payment"`
 	PaymentStatuses []string `json:"payment_statuses"`
+	AllStages       bool     `json:"all_stages"`
+	Stages          []string `json:"stages"`
 	Off             int32    `json:"off"`
 	Lim             int32    `json:"lim"`
 }
@@ -1038,6 +1057,8 @@ func (q *Queries) ListOrdersPaged(ctx context.Context, arg ListOrdersPagedParams
 		pq.Array(arg.Statuses),
 		arg.AllPayment,
 		pq.Array(arg.PaymentStatuses),
+		arg.AllStages,
+		pq.Array(arg.Stages),
 		arg.Off,
 		arg.Lim,
 	)
@@ -1105,6 +1126,7 @@ func (q *Queries) ListOrdersPaged(ctx context.Context, arg ListOrdersPagedParams
 			&i.Locale,
 			&i.TaxInclusive,
 			&i.CheckoutFields,
+			&i.Stage,
 		); err != nil {
 			return nil, err
 		}
@@ -1120,7 +1142,7 @@ func (q *Queries) ListOrdersPaged(ctx context.Context, arg ListOrdersPagedParams
 }
 
 const listOrdersPagedInChannels = `-- name: ListOrdersPagedInChannels :many
-SELECT id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields FROM orders o
+SELECT id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields, stage FROM orders o
 WHERE  o.channel_id = ANY($1::uuid[])
   AND  ($2::text = '' OR
         o.number ILIKE '%' || escape_like($2::text) || '%' OR
@@ -1129,8 +1151,9 @@ WHERE  o.channel_id = ANY($1::uuid[])
         o.billing_last_name ILIKE '%' || escape_like($2::text) || '%')
   AND  ($3::boolean OR o.status = ANY($4::text[]))
   AND  ($5::boolean OR o.payment_status = ANY($6::text[]))
+  AND  ($7::boolean OR o.stage = ANY($8::text[]))
 ORDER  BY o.created_at DESC
-LIMIT  $8 OFFSET $7
+LIMIT  $10 OFFSET $9
 `
 
 type ListOrdersPagedInChannelsParams struct {
@@ -1140,6 +1163,8 @@ type ListOrdersPagedInChannelsParams struct {
 	Statuses        []string    `json:"statuses"`
 	AllPayment      bool        `json:"all_payment"`
 	PaymentStatuses []string    `json:"payment_statuses"`
+	AllStages       bool        `json:"all_stages"`
+	Stages          []string    `json:"stages"`
 	Off             int32       `json:"off"`
 	Lim             int32       `json:"lim"`
 }
@@ -1153,6 +1178,8 @@ func (q *Queries) ListOrdersPagedInChannels(ctx context.Context, arg ListOrdersP
 		pq.Array(arg.Statuses),
 		arg.AllPayment,
 		pq.Array(arg.PaymentStatuses),
+		arg.AllStages,
+		pq.Array(arg.Stages),
 		arg.Off,
 		arg.Lim,
 	)
@@ -1220,6 +1247,7 @@ func (q *Queries) ListOrdersPagedInChannels(ctx context.Context, arg ListOrdersP
 			&i.Locale,
 			&i.TaxInclusive,
 			&i.CheckoutFields,
+			&i.Stage,
 		); err != nil {
 			return nil, err
 		}
@@ -1269,7 +1297,7 @@ SET    status = COALESCE(NULLIF(held_from_status, ''), 'confirmed'),
        held_from_status = '',
        updated_at = NOW()
 WHERE  id = $1 AND status = 'on_hold'
-RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields
+RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields, stage
 `
 
 // Release a hold back to the remembered status, defaulting to confirmed for
@@ -1334,6 +1362,7 @@ func (q *Queries) ReleaseOrderToHeldFrom(ctx context.Context, id uuid.UUID) (Ord
 		&i.Locale,
 		&i.TaxInclusive,
 		&i.CheckoutFields,
+		&i.Stage,
 	)
 	return i, err
 }
@@ -1342,7 +1371,7 @@ const setOrderGiftCardTender = `-- name: SetOrderGiftCardTender :one
 UPDATE orders
 SET    gift_card_amount = $2, payment_status = $3, updated_at = NOW()
 WHERE  id = $1
-RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields
+RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields, stage
 `
 
 type SetOrderGiftCardTenderParams struct {
@@ -1412,13 +1441,14 @@ func (q *Queries) SetOrderGiftCardTender(ctx context.Context, arg SetOrderGiftCa
 		&i.Locale,
 		&i.TaxInclusive,
 		&i.CheckoutFields,
+		&i.Stage,
 	)
 	return i, err
 }
 
 const setOrderPaymentReference = `-- name: SetOrderPaymentReference :one
 UPDATE orders SET payment_reference = $2, updated_at = NOW() WHERE id = $1
-RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields
+RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields, stage
 `
 
 type SetOrderPaymentReferenceParams struct {
@@ -1487,6 +1517,7 @@ func (q *Queries) SetOrderPaymentReference(ctx context.Context, arg SetOrderPaym
 		&i.Locale,
 		&i.TaxInclusive,
 		&i.CheckoutFields,
+		&i.Stage,
 	)
 	return i, err
 }
@@ -1495,7 +1526,7 @@ const setOrderPaymentState = `-- name: SetOrderPaymentState :one
 UPDATE orders
 SET    payment_status = $2, payment_reference = $3, updated_at = NOW()
 WHERE  id = $1
-RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields
+RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields, stage
 `
 
 type SetOrderPaymentStateParams struct {
@@ -1565,6 +1596,7 @@ func (q *Queries) SetOrderPaymentState(ctx context.Context, arg SetOrderPaymentS
 		&i.Locale,
 		&i.TaxInclusive,
 		&i.CheckoutFields,
+		&i.Stage,
 	)
 	return i, err
 }
@@ -1573,7 +1605,7 @@ const setOrderPaymentStateFrom = `-- name: SetOrderPaymentStateFrom :one
 UPDATE orders
 SET    payment_status = $1, payment_reference = $2, updated_at = NOW()
 WHERE  id = $3 AND payment_status = $4
-RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields
+RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields, stage
 `
 
 type SetOrderPaymentStateFromParams struct {
@@ -1649,8 +1681,50 @@ func (q *Queries) SetOrderPaymentStateFrom(ctx context.Context, arg SetOrderPaym
 		&i.Locale,
 		&i.TaxInclusive,
 		&i.CheckoutFields,
+		&i.Stage,
 	)
 	return i, err
+}
+
+const setOrderStage = `-- name: SetOrderStage :exec
+UPDATE orders SET stage = $1, updated_at = NOW() WHERE id = $2
+`
+
+type SetOrderStageParams struct {
+	Stage string    `json:"stage"`
+	ID    uuid.UUID `json:"id"`
+}
+
+func (q *Queries) SetOrderStage(ctx context.Context, arg SetOrderStageParams) error {
+	_, err := q.db.ExecContext(ctx, setOrderStage, arg.Stage, arg.ID)
+	return err
+}
+
+const setOrderStageFrom = `-- name: SetOrderStageFrom :execrows
+UPDATE orders
+SET    stage = $1, updated_at = NOW()
+WHERE  id = $2 AND status = $3 AND stage = $4
+`
+
+type SetOrderStageFromParams struct {
+	Stage      string    `json:"stage"`
+	ID         uuid.UUID `json:"id"`
+	FromStatus string    `json:"from_status"`
+	FromStage  string    `json:"from_stage"`
+}
+
+// Guarded on the status and stage read, so two moves racing on one order can't both land
+func (q *Queries) SetOrderStageFrom(ctx context.Context, arg SetOrderStageFromParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setOrderStageFrom,
+		arg.Stage,
+		arg.ID,
+		arg.FromStatus,
+		arg.FromStage,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const softDeleteOrderLine = `-- name: SoftDeleteOrderLine :one
@@ -1731,7 +1805,7 @@ SET billing_first_name = $2, billing_last_name = $3, billing_company = $4,
     shipping_phone = $21,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields
+RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields, stage
 `
 
 type UpdateOrderAddressesParams struct {
@@ -1840,6 +1914,7 @@ func (q *Queries) UpdateOrderAddresses(ctx context.Context, arg UpdateOrderAddre
 		&i.Locale,
 		&i.TaxInclusive,
 		&i.CheckoutFields,
+		&i.Stage,
 	)
 	return i, err
 }
@@ -1849,7 +1924,7 @@ UPDATE orders
 SET    subtotal_amount = $2, shipping_amount = $3, discount_amount = $4,
        tax_amount = $5, total_amount = $6, shipping_tax_amount = $7, updated_at = NOW()
 WHERE  id = $1
-RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields
+RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields, stage
 `
 
 type UpdateOrderAmountsParams struct {
@@ -1932,6 +2007,7 @@ func (q *Queries) UpdateOrderAmounts(ctx context.Context, arg UpdateOrderAmounts
 		&i.Locale,
 		&i.TaxInclusive,
 		&i.CheckoutFields,
+		&i.Stage,
 	)
 	return i, err
 }
@@ -1987,7 +2063,7 @@ const updateOrderStatusFrom = `-- name: UpdateOrderStatusFrom :one
 UPDATE orders
 SET    status = $1, updated_at = NOW()
 WHERE  id = $2 AND status = $3
-RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields
+RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields, stage
 `
 
 type UpdateOrderStatusFromParams struct {
@@ -2057,6 +2133,7 @@ func (q *Queries) UpdateOrderStatusFrom(ctx context.Context, arg UpdateOrderStat
 		&i.Locale,
 		&i.TaxInclusive,
 		&i.CheckoutFields,
+		&i.Stage,
 	)
 	return i, err
 }
@@ -2065,7 +2142,7 @@ const updateOrderTracking = `-- name: UpdateOrderTracking :one
 UPDATE orders
 SET    carrier = $2, tracking_number = $3, updated_at = NOW()
 WHERE  id = $1
-RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields
+RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need, assisted_by, locale, tax_inclusive, checkout_fields, stage
 `
 
 type UpdateOrderTrackingParams struct {
@@ -2136,6 +2213,7 @@ func (q *Queries) UpdateOrderTracking(ctx context.Context, arg UpdateOrderTracki
 		&i.Locale,
 		&i.TaxInclusive,
 		&i.CheckoutFields,
+		&i.Stage,
 	)
 	return i, err
 }

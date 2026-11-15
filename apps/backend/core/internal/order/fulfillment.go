@@ -62,6 +62,13 @@ func (s *Service) CreateFulfillment(ctx context.Context, in CreateFulfillmentInp
 		return Order{}, err
 	}
 
+	newStatus := OrderStatusPartiallyFulfilled
+	if fully {
+		newStatus = OrderStatusFulfilled
+	}
+	if err := s.transitioning(ctx, o, newStatus, s.stageAfter(ctx, o, newStatus)); err != nil {
+		return Order{}, err
+	}
 	// Pre-commit OrderFulfilling hook - seed carrier and tracking, and let a subscriber override or abort
 	carrier, tracking := in.Carrier, in.TrackingNumber
 	if s.bus != nil {
@@ -72,13 +79,9 @@ func (s *Service) CreateFulfillment(ctx context.Context, in CreateFulfillmentInp
 		carrier, tracking = ing.Carrier, ing.TrackingNumber
 	}
 
-	newStatus := OrderStatusPartiallyFulfilled
-	if fully {
-		newStatus = OrderStatusFulfilled
-	}
-
 	var evtLines []FulfillmentLineQty
 	var fulfillmentID uuid.UUID
+	var staged *OrderStageChanged
 	err = s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
 		r := s.repo.WithTx(sqlTx)
 		// Re-plan under the order lock - two shipments both planned against the same shipped quantities, and the status guard can't tell partially_fulfilled from itself, so a line of 3 could ship 4
@@ -121,7 +124,11 @@ func (s *Service) CreateFulfillment(ctx context.Context, in CreateFulfillmentInp
 			evtLines = append(evtLines, FulfillmentLineQty{OrderLineID: lineID, Quantity: qty})
 		}
 		// Guarded on the status read above, so two shipments racing on the same order can't both pass planFulfillment's unshipped check and over-ship
-		if _, err := r.UpdateOrderStatusFrom(ctx, o.ID, o.Status, newStatus); err != nil {
+		moved, err := r.UpdateOrderStatusFrom(ctx, o.ID, o.Status, newStatus)
+		if err != nil {
+			return err
+		}
+		if staged, err = s.settleStage(ctx, r, sqlTx, moved); err != nil {
 			return err
 		}
 		if carrier != "" || tracking != "" {
@@ -153,6 +160,7 @@ func (s *Service) CreateFulfillment(ctx context.Context, in CreateFulfillmentInp
 	if err != nil {
 		return Order{}, err
 	}
+	s.publishStageChange(ctx, staged)
 
 	// Without the outbox, fall back to best-effort in-process dispatch
 	if s.bus != nil && s.outbox == nil {

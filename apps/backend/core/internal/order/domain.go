@@ -22,6 +22,8 @@ type Order struct {
 	ChannelID       uuid.UUID
 	Number          string
 	Status          string
+	Stage           string // a plugin's stage key inside the status, empty for none
+	HeldFrom        string // the status an on-hold order returns to
 	PaymentStatus   string
 	PaymentProvider string
 	// The gateway's handle (a Stripe PaymentIntent id, say), set at authorize and used to capture, refund, void and correlate webhooks - empty until authorized
@@ -194,6 +196,7 @@ type ListPageFilter struct {
 	Search          string
 	Statuses        []string
 	PaymentStatuses []string
+	Stages          []string
 	Limit           int32
 	Offset          int32
 	SkipCount       bool // the total is left 0, for callers that never show it
@@ -294,6 +297,8 @@ type Repository interface {
 
 	// Lossless hold round-trip - releasing restores the status held from instead of always confirming
 	HoldOrderFrom(ctx context.Context, orderID uuid.UUID, fromStatus string) (Order, error)
+	SetOrderStage(ctx context.Context, orderID uuid.UUID, stage string) error
+	SetOrderStageFrom(ctx context.Context, orderID uuid.UUID, fromStatus, fromStage, stage string) error
 	ReleaseOrderToHeldFrom(ctx context.Context, orderID uuid.UUID) (Order, error)
 
 	WithTx(tx *sql.Tx) Repository

@@ -22,6 +22,8 @@ const (
 	EventFulfilled            = "order.fulfilled"
 	EventFulfillmentCreated   = "order.fulfillment_created"
 	EventStatusChanged        = "order.status_changed"
+	EventTransitioning        = "order.transitioning"
+	EventStageChanged         = "order.stage_changed"
 	EventPaymentStatusChanged = "order.payment_status_changed"
 	EventReturnReceived       = "order.return_received"
 	EventReturnRequested      = "order.return_requested"
@@ -205,6 +207,34 @@ type OrderStatusChanged struct {
 
 func (*OrderStatusChanged) Type() string                { return EventStatusChanged }
 func (o *OrderStatusChanged) EventChannelID() uuid.UUID { return o.ChannelID }
+
+// Fires BEFORE a status or stage move someone asked for commits, never placement's own - refuse-only - Response {reject, reason}
+type OrderTransitioning struct {
+	OrderID    uuid.UUID
+	ChannelID  uuid.UUID
+	FromStatus string
+	ToStatus   string
+	FromStage  string
+	ToStage    string
+}
+
+func (*OrderTransitioning) Type() string                { return EventTransitioning }
+func (o *OrderTransitioning) EventChannelID() uuid.UUID { return o.ChannelID }
+
+func (o *OrderTransitioning) ApplyWebhookResponse(body []byte) (bool, string, error) {
+	return syncveto.Decode(body)
+}
+
+type OrderStageChanged struct {
+	OrderID   uuid.UUID
+	ChannelID uuid.UUID
+	Status    string
+	FromStage string
+	ToStage   string
+}
+
+func (*OrderStageChanged) Type() string                { return EventStageChanged }
+func (o *OrderStageChanged) EventChannelID() uuid.UUID { return o.ChannelID }
 
 // OrderPaymentStatusChanged fires AFTER payment_status advances, driven by gateway events - Async
 type OrderPaymentStatusChanged struct {

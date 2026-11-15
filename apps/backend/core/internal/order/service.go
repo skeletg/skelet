@@ -1,6 +1,7 @@
 package order
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
@@ -60,6 +61,7 @@ type Service struct {
 	customerSvc *customer.Service
 	tx          *txrunner.Manager
 	bus         *events.Bus
+	stages      func(ctx context.Context, channelID uuid.UUID) []Stage
 	// Baseline calculators - each runs only when the matching OrderPlacing pointer is still nil after the sync chain, i.e. no plugin took the seam - Nil means no baseline
 	tax        *tax.Service
 	shipping   *shippingpkg.Service
@@ -281,7 +283,7 @@ func (s *Service) HoldOrder(ctx context.Context, orderID uuid.UUID, reason strin
 	if !validTransition(o.Status, OrderStatusOnHold) {
 		return Order{}, errInvalidTransition(o.Status, OrderStatusOnHold)
 	}
-	updated, err := s.repo.HoldOrderFrom(ctx, orderID, o.Status) // stamps where it came from, so releasing doesn't confirm a pending order behind the operator's back
+	updated, err := s.moveStatus(ctx, o, OrderStatusOnHold, func(r Repository) (Order, error) { return r.HoldOrderFrom(ctx, orderID, o.Status) }) // stamps where it came from, so releasing doesn't confirm a pending order behind the operator's back
 	if err != nil {
 		return Order{}, err
 	}
@@ -303,7 +305,7 @@ func (s *Service) ReleaseOrder(ctx context.Context, orderID uuid.UUID) (Order, e
 	if o.Status != OrderStatusOnHold {
 		return Order{}, errInvalidTransition(o.Status, "released")
 	}
-	updated, err := s.repo.ReleaseOrderToHeldFrom(ctx, orderID)
+	updated, err := s.moveStatus(ctx, o, cmp.Or(o.HeldFrom, OrderStatusConfirmed), func(r Repository) (Order, error) { return r.ReleaseOrderToHeldFrom(ctx, orderID) })
 	if err != nil {
 		return Order{}, err
 	}
@@ -881,6 +883,9 @@ func (s *Service) UpdateStatusWithTracking(ctx context.Context, orderID uuid.UUI
 // prior is the caller's own read - re-reading it here hydrated the whole order a second time for nothing
 func (s *Service) updateStatusWithEvent(ctx context.Context, prior Order, status, eventType, message, carrier, trackingNumber string) (Order, error) {
 	orderID := prior.ID
+	if err := s.transitioning(ctx, prior, status, s.stageAfter(ctx, prior, status)); err != nil {
+		return Order{}, err
+	}
 	// Sync pre-commit hooks for the gate-able transitions - refund-on-cancel, dispatch-on-fulfill - which can reject or enrich the audit message
 	if s.bus != nil {
 		switch status {
@@ -916,9 +921,14 @@ func (s *Service) updateStatusWithEvent(ctx context.Context, prior Order, status
 		}
 	}
 	refundable := 1.0
+	var staged *OrderStageChanged
 	err := s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
 		r := s.repo.WithTx(sqlTx)
-		if _, err := r.UpdateOrderStatusFrom(ctx, orderID, prior.Status, status); err != nil {
+		moved, err := r.UpdateOrderStatusFrom(ctx, orderID, prior.Status, status)
+		if err != nil {
+			return err
+		}
+		if staged, err = s.settleStage(ctx, r, sqlTx, moved); err != nil {
 			return err
 		}
 		// Read the shipped split with the order row held - read before, a shipment landing on a partially fulfilled order (whose status doesn't change) slipped in and the reversals refunded tenders for goods that had just left
@@ -966,6 +976,7 @@ func (s *Service) updateStatusWithEvent(ctx context.Context, prior Order, status
 	if err != nil {
 		return Order{}, err
 	}
+	s.publishStageChange(ctx, staged)
 	if s.bus != nil {
 		// Fire-and-forget fallback without the outbox - with one, publishing here would double-deliver
 		if s.outbox == nil {

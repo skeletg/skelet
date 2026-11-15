@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -13,6 +14,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
+	"github.com/skeletg/skelet/apps/backend/core/internal/plugin"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/email"
 )
@@ -117,6 +119,37 @@ func (r *mutationResolver) adminTransitionOrderStatusWithTracking(ctx context.Co
 	return toOrderModel(updated), nil
 }
 
+func orderStageModel(key string) *model.OrderStage {
+	if key == "" {
+		return nil
+	}
+	all := plugin.AllOrderStages()
+	if i := slices.IndexFunc(all, func(st order.Stage) bool { return st.Key == key }); i >= 0 {
+		return toOrderStageModel(all[i])
+	}
+	return &model.OrderStage{Key: key, Label: key, Within: []model.OrderStatus{}}
+}
+
+func (r *queryResolver) orderStageModels(ctx context.Context, channels []uuid.UUID) []*model.OrderStage {
+	stages := plugin.AllOrderStages()
+	if len(channels) == 1 {
+		stages = r.OrderSvc.Stages(ctx, channels[0])
+	}
+	out := make([]*model.OrderStage, len(stages))
+	for i, st := range stages {
+		out[i] = toOrderStageModel(st)
+	}
+	return out
+}
+
+func toOrderStageModel(st order.Stage) *model.OrderStage {
+	within := make([]model.OrderStatus, len(st.Within))
+	for i, s := range st.Within {
+		within[i] = model.OrderStatus(strings.ToUpper(s))
+	}
+	return &model.OrderStage{Key: st.Key, Label: st.Label, Within: within, Plugin: st.Plugin}
+}
+
 // lowerAll maps the SCREAMING enum spellings the dashboard sends onto the lowercase status column values
 func lowerAll(in []string) []string {
 	out := make([]string, len(in))
@@ -144,6 +177,7 @@ func toOrderModel(o order.Order) *model.Order {
 		CheckoutFields:     toOrderCheckoutFields(o.CheckoutFields),
 		Metadata:           metadataItems(o.Metadata),
 		Status:             model.OrderStatus(strings.ToUpper(o.Status)),
+		Stage:              orderStageModel(o.Stage),
 		PaymentStatus:      model.PaymentStatus(strings.ToUpper(o.PaymentStatus)),
 		PaymentProvider:    o.PaymentProvider,
 		PaymentReference:   o.PaymentReference,

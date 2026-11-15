@@ -29,6 +29,7 @@ func TestSDKEventNamesAreCores(t *testing.T) {
 		sdk.EventCartLineRemoving:    cart.EventLineRemoving,
 		sdk.EventOrderCancelling:     order.EventCancelling,
 		sdk.EventOrderFulfilling:     order.EventFulfilling,
+		sdk.EventOrderTransitioning:  order.EventTransitioning,
 		sdk.EventInventoryAllocating: inventory.EventAllocating,
 		sdk.EventReviewSubmitting:    review.EventSubmitting,
 		sdk.EventCustomerDeleting:    customer.EventDeleting,
@@ -52,6 +53,7 @@ func TestEachEventMatchesOnlyItsOwnInterface(t *testing.T) {
 		"order.OrderTendering":         &order.OrderTendering{},
 		"order.OrderCancelling":        &order.OrderCancelling{},
 		"order.OrderFulfilling":        &order.OrderFulfilling{},
+		"order.OrderTransitioning":     &order.OrderTransitioning{},
 		"inventory.Allocating":         &inventory.Allocating{},
 		"review.Submitting":            &review.Submitting{},
 		"customer.CustomerRegistering": &customer.CustomerRegistering{},
@@ -66,6 +68,7 @@ func TestEachEventMatchesOnlyItsOwnInterface(t *testing.T) {
 		"Tendering":           func(e any) bool { _, ok := e.(sdk.Tendering); return ok },
 		"OrderCancelling":     func(e any) bool { _, ok := e.(sdk.OrderCancelling); return ok },
 		"OrderFulfilling":     func(e any) bool { _, ok := e.(sdk.OrderFulfilling); return ok },
+		"OrderTransitioning":  func(e any) bool { _, ok := e.(sdk.OrderTransitioning); return ok },
 		"InventoryAllocating": func(e any) bool { _, ok := e.(sdk.InventoryAllocating); return ok },
 		"ReviewSubmitting":    func(e any) bool { _, ok := e.(sdk.ReviewSubmitting); return ok },
 		"CustomerRegistering": func(e any) bool { _, ok := e.(sdk.CustomerRegistering); return ok },
@@ -78,7 +81,7 @@ func TestEachEventMatchesOnlyItsOwnInterface(t *testing.T) {
 		"order.OrderTendering": "Tendering", "order.OrderCancelling": "OrderCancelling",
 		"order.OrderFulfilling": "OrderFulfilling", "inventory.Allocating": "InventoryAllocating",
 		"review.Submitting": "ReviewSubmitting", "customer.CustomerRegistering": "CustomerRegistering",
-		"customer.CustomerDeleting": "CustomerDeleting",
+		"customer.CustomerDeleting": "CustomerDeleting", "order.OrderTransitioning": "OrderTransitioning",
 	}
 	for evName, ev := range evs {
 		for iface, match := range matches {

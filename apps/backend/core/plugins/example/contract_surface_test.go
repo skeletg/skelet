@@ -205,6 +205,26 @@ func TestOrderNumbererNamesOrdersFromItsOwnCount(t *testing.T) {
 	}
 }
 
+func TestOrderStageAndItsVeto(t *testing.T) {
+	ctx := context.Background()
+	stages := pluginhost.OrderStagesFor(ctx, uuid.Nil)
+	if len(stages) != 1 || stages[0].Key != StageAwaitingStock || stages[0].Plugin != Slug {
+		t.Fatalf("stages %+v", stages)
+	}
+	ship := &order.OrderTransitioning{FromStatus: "processing", ToStatus: "fulfilled", FromStage: StageAwaitingStock}
+	if err := sharedBus().PublishSync(ctx, ship); err == nil || !strings.Contains(err.Error(), "awaiting stock") {
+		t.Errorf("shipping an order awaiting stock: %v", err)
+	}
+	for _, move := range []*order.OrderTransitioning{
+		{FromStatus: "processing", ToStatus: "fulfilled"},
+		{FromStatus: "processing", ToStatus: "processing", FromStage: StageAwaitingStock},
+	} {
+		if err := sharedBus().PublishSync(ctx, move); err != nil {
+			t.Errorf("%+v was refused: %v", move, err)
+		}
+	}
+}
+
 // The typed siblings of PluginConfig resolve registered defaults without hand-parsing - the
 // auto-registered kill switch (bool, default true) and rate limit (int, default 0) prove both
 func TestTypedConfigReadsResolveDefaults(t *testing.T) {

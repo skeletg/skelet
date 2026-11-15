@@ -184,7 +184,10 @@ immutable audit log. Numbers follow the channel's `sales/orders/number_format` (
 so `ORD-001000`), from a count kept in `order_number_counters` and taken outside the placement transaction,
 or a plugin's numberer. `PlaceOrder` wraps
 create+lines+event+convert-cart in one tx. Status:
-`pending → confirmed → processing → fulfilled → cancelled`.
+`pending → confirmed → processing → fulfilled → cancelled`. A plugin's
+stage (`orders.stage`, `RegisterOrderStage`) sits inside the statuses it
+lists and clears when the order moves to one it doesn't; `order.transitioning`
+can refuse any status or stage move but placement's own.
 
 **Config**: paths always `section/group/field`. Scope is `default` or
 `channel`; all global values at `default/0`. Resolution:

@@ -128,3 +128,10 @@ func (o *OrderPlacing) SetPlacingMetadata(key, value string) error {
 	o.Metadata[key] = value
 	return nil
 }
+
+func (o *OrderTransitioning) TransitioningOrderID() uuid.UUID   { return o.OrderID }
+func (o *OrderTransitioning) TransitioningChannelID() uuid.UUID { return o.ChannelID }
+func (o *OrderTransitioning) TransitioningFromStatus() string   { return o.FromStatus }
+func (o *OrderTransitioning) TransitioningToStatus() string     { return o.ToStatus }
+func (o *OrderTransitioning) TransitioningFromStage() string    { return o.FromStage }
+func (o *OrderTransitioning) TransitioningToStage() string      { return o.ToStage }

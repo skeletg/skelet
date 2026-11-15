@@ -23,6 +23,7 @@ var (
 	_ sdk.CartLineRemoving    = (*cart.LineRemoving)(nil)
 	_ sdk.OrderCancelling     = (*order.OrderCancelling)(nil)
 	_ sdk.OrderFulfilling     = (*order.OrderFulfilling)(nil)
+	_ sdk.OrderTransitioning  = (*order.OrderTransitioning)(nil)
 	_ sdk.InventoryAllocating = (*inventory.Allocating)(nil)
 	_ sdk.ReviewSubmitting    = (*review.Submitting)(nil)
 	_ sdk.CustomerDeleting    = (*customer.CustomerDeleting)(nil)

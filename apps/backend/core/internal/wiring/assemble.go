@@ -278,6 +278,8 @@ func wireCart(c *cart.Service, bus *events.Bus, ml *medialibrary.Service, ms obj
 func wirePluginRuntime(conn *sql.DB, ord *order.Service, cust *customer.Service, c *cart.Service) {
 	pluginhost.SetDatabase(conn)
 	pluginhost.SetDraftOrderCreator(ord, cust)
+	pluginhost.SetOrderStager(ord)
+	ord.SetStages(pluginhost.OrderStagesFor)
 	pluginhost.SetCartReader(c)
 }
 

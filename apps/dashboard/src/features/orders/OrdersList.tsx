@@ -11,6 +11,7 @@ import {
   CogIcon,
   PackageCheckIcon,
   PackageIcon,
+  SignpostIcon,
   WalletIcon,
 } from 'lucide-react'
 import { PlusIcon, DownloadIcon } from 'lucide-react'
@@ -19,14 +20,16 @@ import { Button } from '@/components/ui/button'
 import { formatCents } from '@/lib/format'
 import type { OrderStatus } from '@/graphql/schema.types'
 import { OrderStatusBadge } from './OrderStatusBadge'
+import { OrderStageBadge } from './OrderStageBadge'
 import { PaymentStatusBadge } from './PaymentStatusBadge'
-import { OrdersPagedDocument } from './Orders.gql'
+import { OrderStagesDocument, OrdersPagedDocument } from './Orders.gql'
 import { usePermissions } from '@/shared/auth/usePermissions'
 
 type OrderRow = {
   id: string
   number: string
   status: OrderStatus
+  stage: { key: string; label: string } | null
   paymentStatus: 'UNPAID' | 'PAID' | 'REFUNDED'
   total: number
   currencyCode: string
@@ -64,12 +67,16 @@ export function OrdersList({ defaultStatus }: { defaultStatus?: OrderStatus[] } 
   const paymentValues = columnFilters.find((f) => f.id === 'paymentStatus')?.value as
     | string[]
     | undefined
+  const stageValues = columnFilters.find((f) => f.id === 'stage')?.value as string[] | undefined
+  const stages = useQuery(OrderStagesDocument).data?.orderStages ?? []
+  const hasStages = stages.length > 0
 
   const { data, loading, error } = useQuery(OrdersPagedDocument, {
     variables: {
       search: debouncedSearch || null,
       statuses: statusValues?.length ? statusValues : null,
       paymentStatuses: paymentValues?.length ? paymentValues : null,
+      stages: stageValues?.length ? stageValues : null,
       limit: pagination.pageSize,
       offset: pagination.pageIndex * pagination.pageSize,
     },
@@ -111,6 +118,18 @@ export function OrdersList({ defaultStatus }: { defaultStatus?: OrderStatus[] } 
         },
         cell: ({ row }) => <OrderStatusBadge status={row.original.status} />,
       },
+      ...(hasStages
+        ? [
+            {
+              id: 'stage',
+              accessorFn: (row: OrderRow) => row.stage?.key ?? '',
+              header: 'Stage',
+              size: 150,
+              cell: ({ row }: { row: Row<OrderRow> }) =>
+                row.original.stage && <OrderStageBadge label={row.original.stage.label} />,
+            },
+          ]
+        : []),
       {
         accessorKey: 'paymentStatus',
         header: 'Payment',
@@ -144,7 +163,7 @@ export function OrdersList({ defaultStatus }: { defaultStatus?: OrderStatus[] } 
         ),
       },
     ],
-    [],
+    [hasStages],
   )
 
   return (
@@ -212,6 +231,9 @@ export function OrdersList({ defaultStatus }: { defaultStatus?: OrderStatus[] } 
             { label: 'Refunded', value: 'REFUNDED', icon: PackageIcon },
           ],
         },
+        ...(hasStages
+          ? [{ column: 'stage', title: 'Stage', options: stages.map((st) => ({ label: st.label, value: st.key, icon: SignpostIcon })) }]
+          : []),
       ]}
     />
   )

@@ -1841,6 +1841,7 @@ type Order struct {
 	Locale              string          `json:"locale"`
 	TaxInclusive        bool            `json:"tax_inclusive"`
 	CheckoutFields      json.RawMessage `json:"checkout_fields"`
+	Stage               string          `json:"stage"`
 }
 
 type OrderEmailLog struct {

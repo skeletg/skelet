@@ -4660,6 +4660,7 @@ export type Mutation = {
   setMenuStores: Menu;
   setMyPreference: Scalars['Boolean']['output'];
   setOptionTemplateRules: OptionTemplate;
+  setOrderStage: Order;
   setPaymentMethodCountries: PaymentMethodAdmin;
   setPaymentMethodEnabled: PaymentMethodAdmin;
   setProductAttributeLocaleValue: ProductAttributeLocaleValue;
@@ -6857,6 +6858,12 @@ export type MutationSetOptionTemplateRulesArgs = {
 };
 
 
+export type MutationSetOrderStageArgs = {
+  id: Scalars['ID']['input'];
+  stage?: InputMaybe<Scalars['String']['input']>;
+};
+
+
 export type MutationSetPaymentMethodCountriesArgs = {
   channelId: Scalars['ID']['input'];
   countries: Array<Scalars['String']['input']>;
@@ -7742,6 +7749,7 @@ export type Order = {
   shippingAmount: Scalars['Int']['output'];
   shippingRefundable: Scalars['Int']['output'];
   shippingTaxAmount: Scalars['Int']['output'];
+  stage?: Maybe<OrderStage>;
   status: OrderStatus;
   storeCreditAmount: Scalars['Int']['output'];
   subtotal: Scalars['Int']['output'];
@@ -7892,6 +7900,14 @@ export type OrderShipment = {
   point?: Maybe<Scalars['JSON']['output']>;
   position: Scalars['Int']['output'];
   shipTo?: Maybe<OrderAddress>;
+};
+
+export type OrderStage = {
+  __typename?: 'OrderStage';
+  key: Scalars['String']['output'];
+  label: Scalars['String']['output'];
+  plugin: Scalars['String']['output'];
+  within: Array<OrderStatus>;
 };
 
 export type OrderStatus =
@@ -8786,6 +8802,7 @@ export type Query = {
   optionTemplates: Array<OptionTemplate>;
   order: Order;
   orderDocumentPdf: Scalars['String']['output'];
+  orderStages: Array<OrderStage>;
   orders: Array<Order>;
   ordersPaged: OrderPage;
   paymentMethods: Array<PaymentMethodAdmin>;
@@ -9649,6 +9666,11 @@ export type QueryOrderDocumentPdfArgs = {
 };
 
 
+export type QueryOrderStagesArgs = {
+  channelId?: InputMaybe<Scalars['ID']['input']>;
+};
+
+
 export type QueryOrdersArgs = {
   channelId?: InputMaybe<Scalars['ID']['input']>;
 };
@@ -9660,6 +9682,7 @@ export type QueryOrdersPagedArgs = {
   offset?: InputMaybe<Scalars['Int']['input']>;
   paymentStatuses?: InputMaybe<Array<Scalars['String']['input']>>;
   search?: InputMaybe<Scalars['String']['input']>;
+  stages?: InputMaybe<Array<Scalars['String']['input']>>;
   statuses?: InputMaybe<Array<Scalars['String']['input']>>;
 };
 

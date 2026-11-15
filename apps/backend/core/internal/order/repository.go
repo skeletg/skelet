@@ -503,6 +503,24 @@ func (r *postgresRepository) HoldOrderFrom(ctx context.Context, orderID uuid.UUI
 	return r.GetOrderByID(ctx, row.ID)
 }
 
+func (r *postgresRepository) SetOrderStage(ctx context.Context, orderID uuid.UUID, stage string) error {
+	if err := r.queries.SetOrderStage(ctx, db.SetOrderStageParams{ID: orderID, Stage: stage}); err != nil {
+		return fmt.Errorf("set order stage: %w", err)
+	}
+	return nil
+}
+
+func (r *postgresRepository) SetOrderStageFrom(ctx context.Context, orderID uuid.UUID, fromStatus, fromStage, stage string) error {
+	n, err := r.queries.SetOrderStageFrom(ctx, db.SetOrderStageFromParams{ID: orderID, FromStatus: fromStatus, FromStage: fromStage, Stage: stage})
+	if err != nil {
+		return fmt.Errorf("set order stage: %w", err)
+	}
+	if n == 0 {
+		return apperr.New("ORDER_STAGE_RACED", apperr.ClassConflict, "the order moved while its stage was being set - reload and try again")
+	}
+	return nil
+}
+
 func (r *postgresRepository) ReleaseOrderToHeldFrom(ctx context.Context, orderID uuid.UUID) (Order, error) {
 	row, err := r.queries.ReleaseOrderToHeldFrom(ctx, orderID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -1057,7 +1075,7 @@ func (r *postgresRepository) ListOrderEventsByOrder(ctx context.Context, orderID
 }
 
 func (r *postgresRepository) ListOrdersPage(ctx context.Context, f ListPageFilter) ([]Order, int64, error) {
-	allStatuses, allPayment := len(f.Statuses) == 0, len(f.PaymentStatuses) == 0
+	allStatuses, allPayment, allStages := len(f.Statuses) == 0, len(f.PaymentStatuses) == 0, len(f.Stages) == 0
 	var (
 		rows  []db.Order
 		total int64
@@ -1066,23 +1084,23 @@ func (r *postgresRepository) ListOrdersPage(ctx context.Context, f ListPageFilte
 	if len(f.ChannelIDs) == 0 {
 		rows, err = r.queries.ListOrdersPaged(ctx, db.ListOrdersPagedParams{
 			Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
-			AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses, Lim: f.Limit, Off: f.Offset,
+			AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses, AllStages: allStages, Stages: f.Stages, Lim: f.Limit, Off: f.Offset,
 		})
 		if err == nil && !f.SkipCount {
 			total, err = r.queries.CountOrdersPaged(ctx, db.CountOrdersPagedParams{
 				Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
-				AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses,
+				AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses, AllStages: allStages, Stages: f.Stages,
 			})
 		}
 	} else {
 		rows, err = r.queries.ListOrdersPagedInChannels(ctx, db.ListOrdersPagedInChannelsParams{
 			ChannelIds: f.ChannelIDs, Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
-			AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses, Lim: f.Limit, Off: f.Offset,
+			AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses, AllStages: allStages, Stages: f.Stages, Lim: f.Limit, Off: f.Offset,
 		})
 		if err == nil && !f.SkipCount {
 			total, err = r.queries.CountOrdersPagedInChannels(ctx, db.CountOrdersPagedInChannelsParams{
 				ChannelIds: f.ChannelIDs, Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
-				AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses,
+				AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses, AllStages: allStages, Stages: f.Stages,
 			})
 		}
 	}
@@ -1258,6 +1276,8 @@ func toOrder(row db.Order) Order {
 		ChannelID:        row.ChannelID,
 		Number:           row.Number,
 		Status:           row.Status,
+		Stage:            row.Stage,
+		HeldFrom:         row.HeldFromStatus,
 		PaymentStatus:    row.PaymentStatus,
 		PaymentProvider:  row.PaymentProvider,
 		PaymentReference: row.PaymentReference,

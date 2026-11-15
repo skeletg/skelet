@@ -24,6 +24,7 @@ const (
 	CarrierSlug         = "example-carrier"
 	EventSettled        = "example.settled"
 	EventSettling       = "example.settling" // sync - fired pre-commit, handlers may mutate or veto
+	StageAwaitingStock  = "awaiting_stock"
 )
 
 //go:embed migrations/*.sql
@@ -44,7 +45,7 @@ func init() {
 		Version:  "0.1.0",
 		SDKRange: "^0.1.0",
 		Emits:    []string{EventSettled, EventSettling},
-		Consumes: []string{EventSettled, EventSettling, sdk.EventOrderPlacing},
+		Consumes: []string{EventSettled, EventSettling, sdk.EventOrderPlacing, sdk.EventOrderTransitioning},
 		Capabilities: []string{
 			"db.write",
 			"events.publish:" + EventSettled,
@@ -92,6 +93,16 @@ func init() {
 		}
 		if note, given := answers.CheckoutFieldValue("example_gift_note"); given {
 			return meta.SetPlacingMetadata(Slug+".gift_note_length", strconv.Itoa(utf8.RuneCountInString(note)))
+		}
+		return nil
+	})
+
+	p.RegisterOrderStage(sdk.OrderStage{Key: StageAwaitingStock, Label: "Awaiting stock", Within: []string{sdk.OrderStatusConfirmed, sdk.OrderStatusProcessing}})
+	p.SubscribeSync(sdk.EventOrderTransitioning, 100, func(_ context.Context, e any) error {
+		move, ok := e.(sdk.OrderTransitioning)
+		if ok && move.TransitioningFromStage() == StageAwaitingStock &&
+			(move.TransitioningToStatus() == sdk.OrderStatusPartiallyFulfilled || move.TransitioningToStatus() == sdk.OrderStatusFulfilled) {
+			return sdk.UserErrorWithCode(sdk.ErrorConflict, "EXAMPLE_AWAITING_STOCK", "the order is still awaiting stock")
 		}
 		return nil
 	})
