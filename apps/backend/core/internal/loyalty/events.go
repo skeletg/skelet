@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -28,6 +29,7 @@ func (s *Service) SubscribeToOrderEvents(bus *events.Bus) {
 	if bus == nil {
 		return
 	}
+	s.bus = bus
 	bus.Subscribe(order.EventPlaced, s.onOrderPlaced)
 	bus.Subscribe(order.EventPaymentStatusChanged, s.onPaymentStatusChanged)
 	bus.Subscribe(order.EventCancelled, s.onOrderCancelled)
@@ -81,18 +83,27 @@ func (s *Service) earnForOrder(ctx context.Context, orderID uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	if !prog.Enabled || prog.EarnPointsPerUnit <= 0 {
+	if !prog.Enabled {
 		return nil
 	}
-	merch := o.SubtotalAmount - o.DiscountAmount
-	if merch <= 0 {
+	if rows, err := s.queries.LoyaltyEntriesForOrder(ctx, uuid.NullUUID{UUID: orderID, Valid: true}); err != nil {
+		return fmt.Errorf("check existing entries: %w", err)
+	} else if len(rows) > 0 {
 		return nil
 	}
-	// Per whole currency unit of the order's own currency - a flat /100 earned yen at a hundredth of the rate and dinars at ten times it
-	unit := int64(math.Pow10(money.ISODecimals(o.CurrencyCode)))
-	points := merch / unit * prog.EarnPointsPerUnit
+	ev := s.earning(o, prog)
+	if s.bus != nil {
+		if err := s.bus.PublishSync(ctx, ev); err != nil {
+			return fmt.Errorf("loyalty.earning: %w", err)
+		}
+	}
+	points := ev.Points
 	if points <= 0 {
 		return nil
+	}
+	reason := fmt.Sprintf("order %s", o.Number)
+	if len(ev.Notes) > 0 {
+		reason += " - " + strings.Join(ev.Notes, "; ")
 	}
 	customerID := *o.CustomerID
 	return s.tx.InTransaction(ctx, func(t *sql.Tx) error {
@@ -112,12 +123,28 @@ func (s *Service) earnForOrder(ctx context.Context, orderID uuid.UUID) error {
 			CustomerID: customerID,
 			OrderID:    uuid.NullUUID{UUID: orderID, Valid: true},
 			Points:     points,
-			Reason:     fmt.Sprintf("order %s", o.Number),
+			Reason:     reason,
 		}); err != nil {
 			return fmt.Errorf("insert earn entry: %w", err)
 		}
 		return nil
 	})
+}
+
+// earning is what the channel's rate earns on the order, before any plugin's say
+func (s *Service) earning(o order.Order, prog Program) *Earning {
+	merch := max(o.SubtotalAmount-o.DiscountAmount, 0)
+	// Per whole currency unit of the order's own currency - a flat /100 earned yen at a hundredth of the rate and dinars at ten times it
+	unit := int64(math.Pow10(money.ISODecimals(o.CurrencyCode)))
+	e := &Earning{
+		OrderID: o.ID, ChannelID: o.ChannelID, CustomerID: *o.CustomerID, CurrencyCode: o.CurrencyCode,
+		UnitCents: unit, PointsPerUnit: max(prog.EarnPointsPerUnit, 0), MerchandiseCents: merch,
+		Points: merch / unit * max(prog.EarnPointsPerUnit, 0),
+	}
+	for _, l := range o.Lines {
+		e.Lines = append(e.Lines, EarningLine{SKU: l.ProductSku, Quantity: l.Quantity, TotalCents: l.TotalPrice})
+	}
+	return e
 }
 
 func (s *Service) onOrderCancelled(ctx context.Context, e events.Event) error {

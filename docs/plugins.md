@@ -196,6 +196,12 @@ all out of tree. This is what the SDK gives it.
   an admin's transition, a customer's cancel, a shipment, a hold or release, a stage move.
   Placement's own moves don't fire it. Type-assert to `sdk.OrderTransitioning` and return an
   error to refuse, say a shipment while the order still sits in your awaiting-stock stage.
+- **`loyalty.earning`** - a sync event before a paid-for order's points are written, with the
+  channel's rate already applied. Type-assert to `sdk.LoyaltyEarning`, read the lines, and set
+  the points for a rule of your own - double points on a category, none on sale items. A note
+  you add shows in the customer's points history beside the order number. It can arrive more
+  than once for an order, so compute rather than act; an error leaves the points unearned and
+  the earn is tried again.
 
 ### Checkout fields
 

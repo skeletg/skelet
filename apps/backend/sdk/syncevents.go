@@ -30,6 +30,7 @@ const (
 	EventReviewSubmitting    = "review.submitting"
 	EventCustomerRegistering = "customer.registering"
 	EventCustomerDeleting    = "customer.deleting"
+	EventLoyaltyEarning      = "loyalty.earning"
 )
 
 // A line about to be added to a cart - what arrives is what will be written, so a price or quantity set here is the
@@ -241,4 +242,21 @@ type CustomerDeleting interface {
 	DeletingCustomerID() uuid.UUID
 	DeletingChannelID() uuid.UUID
 	DeletingEmail() string
+}
+
+// Points about to be earned on a paid-for order, the channel's rate already applied - change them for a rule of your
+// own, like double points on a category or none on sale items. It can arrive more than once for an order, so compute
+type LoyaltyEarning interface {
+	EarningOrderID() uuid.UUID
+	EarningChannelID() uuid.UUID
+	EarningCustomerID() uuid.UUID
+	EarningCurrencyCode() string
+	EarningUnitCents() int64 // cents in one whole currency unit, what the rate earns per
+	EarningPointsPerUnit() int64
+	EarningMerchandiseCents() int64 // the subtotal less discounts, what core's points came from
+	EarningLineCount() int
+	EarningLine(i int) (sku string, quantity float64, totalCents int64)
+	EarningPoints() int64
+	SetEarningPoints(points int64) error // refuses a negative number - 0 earns nothing
+	AddEarningNote(note string)          // shown in the points history beside the order number
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/core/internal/loyalty"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
 	"github.com/skeletg/skelet/apps/backend/sdk"
@@ -33,6 +34,7 @@ func TestSDKEventNamesAreCores(t *testing.T) {
 		sdk.EventInventoryAllocating: inventory.EventAllocating,
 		sdk.EventReviewSubmitting:    review.EventSubmitting,
 		sdk.EventCustomerDeleting:    customer.EventDeleting,
+		sdk.EventLoyaltyEarning:      loyalty.EventEarning,
 	} {
 		if sdkName != coreName {
 			t.Errorf("sdk says %q, core publishes %q - a plugin subscribing by the sdk name would never fire", sdkName, coreName)
@@ -58,6 +60,7 @@ func TestEachEventMatchesOnlyItsOwnInterface(t *testing.T) {
 		"review.Submitting":            &review.Submitting{},
 		"customer.CustomerRegistering": &customer.CustomerRegistering{},
 		"customer.CustomerDeleting":    &customer.CustomerDeleting{},
+		"loyalty.Earning":              &loyalty.Earning{},
 	}
 	matches := map[string]func(any) bool{
 		"CartLineAdding":      func(e any) bool { _, ok := e.(sdk.CartLineAdding); return ok },
@@ -73,6 +76,7 @@ func TestEachEventMatchesOnlyItsOwnInterface(t *testing.T) {
 		"ReviewSubmitting":    func(e any) bool { _, ok := e.(sdk.ReviewSubmitting); return ok },
 		"CustomerRegistering": func(e any) bool { _, ok := e.(sdk.CustomerRegistering); return ok },
 		"CustomerDeleting":    func(e any) bool { _, ok := e.(sdk.CustomerDeleting); return ok },
+		"LoyaltyEarning":      func(e any) bool { _, ok := e.(sdk.LoyaltyEarning); return ok },
 	}
 	want := map[string]string{
 		"cart.LineAdding": "CartLineAdding", "cart.BundleAdding": "CartLineAdding",
@@ -81,7 +85,7 @@ func TestEachEventMatchesOnlyItsOwnInterface(t *testing.T) {
 		"order.OrderTendering": "Tendering", "order.OrderCancelling": "OrderCancelling",
 		"order.OrderFulfilling": "OrderFulfilling", "inventory.Allocating": "InventoryAllocating",
 		"review.Submitting": "ReviewSubmitting", "customer.CustomerRegistering": "CustomerRegistering",
-		"customer.CustomerDeleting": "CustomerDeleting", "order.OrderTransitioning": "OrderTransitioning",
+		"customer.CustomerDeleting": "CustomerDeleting", "order.OrderTransitioning": "OrderTransitioning", "loyalty.Earning": "LoyaltyEarning",
 	}
 	for evName, ev := range evs {
 		for iface, match := range matches {

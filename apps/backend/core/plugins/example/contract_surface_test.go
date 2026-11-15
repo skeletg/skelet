@@ -14,6 +14,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/datapatch"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/internal/loyalty"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
 	pluginhost "github.com/skeletg/skelet/apps/backend/core/internal/plugin"
@@ -222,6 +223,19 @@ func TestOrderStageAndItsVeto(t *testing.T) {
 		if err := sharedBus().PublishSync(ctx, move); err != nil {
 			t.Errorf("%+v was refused: %v", move, err)
 		}
+	}
+}
+
+func TestFeaturedItemsEarnDoublePoints(t *testing.T) {
+	e := &loyalty.Earning{UnitCents: 100, PointsPerUnit: 2, Points: 50, Lines: []loyalty.EarningLine{
+		{SKU: DoublePointsPrefix + "COAT", Quantity: 1, TotalCents: 1500},
+		{SKU: "TEE", Quantity: 2, TotalCents: 1000},
+	}}
+	if err := sharedBus().PublishSync(context.Background(), e); err != nil {
+		t.Fatal(err)
+	}
+	if e.Points != 80 || len(e.Notes) != 1 {
+		t.Errorf("%d points, notes %q - want the coat's 30 again on top", e.Points, e.Notes)
 	}
 }
 

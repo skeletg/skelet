@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/skeletg/skelet/apps/backend/sdk"
@@ -25,6 +26,7 @@ const (
 	EventSettled        = "example.settled"
 	EventSettling       = "example.settling" // sync - fired pre-commit, handlers may mutate or veto
 	StageAwaitingStock  = "awaiting_stock"
+	DoublePointsPrefix  = "EX-DOUBLE-"
 )
 
 //go:embed migrations/*.sql
@@ -45,7 +47,7 @@ func init() {
 		Version:  "0.1.0",
 		SDKRange: "^0.1.0",
 		Emits:    []string{EventSettled, EventSettling},
-		Consumes: []string{EventSettled, EventSettling, sdk.EventOrderPlacing, sdk.EventOrderTransitioning},
+		Consumes: []string{EventSettled, EventSettling, sdk.EventOrderPlacing, sdk.EventOrderTransitioning, sdk.EventLoyaltyEarning},
 		Capabilities: []string{
 			"db.write",
 			"events.publish:" + EventSettled,
@@ -111,6 +113,24 @@ func init() {
 	p.RegisterOrderNumberer(func(_ context.Context, req sdk.OrderNumberRequest) (string, error) {
 		n, err := req.Next("orders", strconv.Itoa(req.PlacedAt.Year()))
 		return fmt.Sprintf("EX-%d-%05d", req.PlacedAt.Year(), n), err
+	})
+
+	p.SubscribeSync(sdk.EventLoyaltyEarning, 100, func(_ context.Context, e any) error {
+		earning, ok := e.(sdk.LoyaltyEarning)
+		if !ok {
+			return nil
+		}
+		extra := int64(0)
+		for i := range earning.EarningLineCount() {
+			if sku, _, cents := earning.EarningLine(i); strings.HasPrefix(sku, DoublePointsPrefix) {
+				extra += cents / earning.EarningUnitCents() * earning.EarningPointsPerUnit()
+			}
+		}
+		if extra == 0 {
+			return nil
+		}
+		earning.AddEarningNote("double points on featured items")
+		return earning.SetEarningPoints(earning.EarningPoints() + extra)
 	})
 
 	p.RegisterPromotionCondition(minSubtotalCondition{})

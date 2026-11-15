@@ -12,6 +12,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/core/internal/loyalty"
 	"github.com/skeletg/skelet/apps/backend/core/internal/menu"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
@@ -724,6 +725,14 @@ func init() {
 		Name: "CMS Page Publishing (sync)",
 		Description: "Fires before a CMS page transitions to is_published=true - admin click, bulk publish or scheduler promotion. A scheduled page that is rejected stays scheduled and is asked again on the next run. " +
 			`Response schema: {"reject": bool, "reason": string}.`,
+	})
+	RegisterEvent(EventDefinition{
+		Type: loyalty.EventEarning,
+		Kind: KindSync,
+		Name: "Loyalty Earning (sync)",
+		Description: "Fires before a paid-for order's loyalty points are written, with the channel's rate already applied. Payload: OrderID, ChannelID, CustomerID, CurrencyCode, UnitCents, PointsPerUnit, MerchandiseCents, Lines (SKU, Quantity, TotalCents), Points. " +
+			`Response schema: {"reject": bool, "reason": string, "points": int, "note": string}. ` +
+			"points replaces the amount, and the note joins the order number in the points history; reject earns nothing rather than failing the earn. It can arrive more than once for one order, so answer the same each time.",
 	})
 	RegisterEvent(EventDefinition{
 		Type: customer.EventDeleting,

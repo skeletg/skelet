@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
@@ -54,6 +55,7 @@ type Service struct {
 	cfg     *config.Service
 	credit  *storecredit.Service
 	orders  OrderLookup
+	bus     *events.Bus
 }
 
 func NewService(queries *db.Queries, txMgr *txrunner.Manager, cfg *config.Service, credit *storecredit.Service) *Service {
