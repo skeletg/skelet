@@ -24,6 +24,10 @@ query CustomersPaged(
       isActive
       isEmailVerified
       createdAt
+      metadata {
+        key
+        value
+      }
       group {
         id
         slug

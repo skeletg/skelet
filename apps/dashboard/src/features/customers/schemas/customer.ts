@@ -132,7 +132,7 @@ export function customerDiff(names: { group: (id: string) => string; consent: (k
     ...customerChanges(original, draft)
       .consents.map((c) => changed(names.consent(c.kind), optIn(original.consents[c.kind]), optIn(c.optedIn)))
       .filter((e) => e !== null),
-    ...metadataDiff(original.metadata, draft.metadata),
+    ...metadataDiff(original.metadata, draft.metadata, 'Metadata', 'customer'),
   ]
 }
 

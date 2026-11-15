@@ -181,6 +181,6 @@ export function localeDiff(original: LocaleValues, draft: LocaleValues): Section
         value: (o: LocaleValues) => (k === 'firstDayOfWeek' ? WEEKDAY_LABELS[o.firstDayOfWeek] : o[k]),
       })),
     ),
-    ...metadataDiff(original.metadata, draft.metadata),
+    ...metadataDiff(original.metadata, draft.metadata, 'Metadata', 'locale'),
   ]
 }

@@ -642,7 +642,7 @@ export function toProductMetadataValues(product: { metadata: MetadataEntry[]; pr
 }
 
 export function productMetadataDiff(original: ProductMetadataValues, draft: ProductMetadataValues): SectionDiffEntry[] {
-  return [...metadataDiff(original.metadata, draft.metadata), ...metadataDiff(original.privateMetadata, draft.privateMetadata, 'Private metadata')]
+  return [...metadataDiff(original.metadata, draft.metadata, 'Metadata', 'product'), ...metadataDiff(original.privateMetadata, draft.privateMetadata, 'Private metadata')]
 }
 
 // ---------- Categories: which categories the product sits in, and its primary one ----------

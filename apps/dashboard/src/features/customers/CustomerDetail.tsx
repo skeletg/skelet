@@ -382,7 +382,7 @@ function CustomerForm({ customer }: { customer: Customer }) {
 
       <DetailPageSection title="Metadata" description="Arbitrary key-value pairs.">
         <EditGate locked={!canManage}>
-          <form.AppField name="metadata">{(f) => <f.MetadataField />}</form.AppField>
+          <form.AppField name="metadata">{(f) => <f.MetadataField target="customer" />}</form.AppField>
         </EditGate>
       </DetailPageSection>
 

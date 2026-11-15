@@ -255,6 +255,20 @@ each half hooks into, so a plugin's UI never edits a core page.
 `src/plugins/loader.ts` glob imports every one eagerly, and the import-time
 `extendGroup` / `registerNavNode` / `registerDetailRoute` calls are the whole wiring.
 
+Inside core's own pages a plugin reaches in through registries keyed by a target name:
+
+- **`registerDetailField`** puts a field on a record's page - `product`, `customer`,
+  `collection`, `country`, `currency`, `location` or `locale` - stored under a metadata key of
+  that record. It edits the page's own metadata, so the page's Save, its before-and-after dialog
+  and the unsaved-work guard cover it, and the dialog names it by your label. Text, textarea,
+  number, checkbox, select or date; the key leaves the free-form metadata rows so nothing edits it
+  twice.
+- **`registerDetailSection`** adds a whole section, with `useSaveSection` to join the page's Save.
+- **`registerListColumn`**, `registerListFilter`, `registerListRowAction` and
+  `registerListMassAction` extend a list - `catalog.products`, `customers`, `orders`.
+  `metadataColumn(key, header)` shows one of your metadata fields as a column on the products
+  and customers lists, whose rows carry metadata.
+
 **Storefront.** `app/plugins/<slug>/` plus one line in `app/plugins/loaded.ts`. Routes need
 no registration - Next's filesystem router is already the glob, so a page copied to its real
 path simply exists. What `app/plugins/registry.ts` covers is the places a plugin appears

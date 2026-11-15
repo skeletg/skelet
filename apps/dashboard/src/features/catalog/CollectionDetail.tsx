@@ -284,7 +284,7 @@ function CollectionForm({ collection, locale }: { collection: CollectionRecord; 
               <h3 className="text-sm font-medium">Metadata</h3>
               <p className="text-sm text-muted-foreground">Publicly exposable values available to channels and APIs.</p>
             </div>
-            <form.AppField name="metadata">{(f) => <f.MetadataField />}</form.AppField>
+            <form.AppField name="metadata">{(f) => <f.MetadataField target="collection" />}</form.AppField>
           </section>
           <Separator />
           <section className="grid gap-3">

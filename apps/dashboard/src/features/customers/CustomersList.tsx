@@ -305,6 +305,7 @@ export function CustomersList() {
   return (
     <>
       <DataTable
+        target="customers"
         prefsKey="customers.list"
         viewsKey="customers.list"
         enableColumnControls

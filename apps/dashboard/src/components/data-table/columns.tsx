@@ -296,3 +296,19 @@ export function linkColumn<TData extends RowData>({
     },
   }
 }
+
+type WithMetadata = { metadata?: readonly { key: string; value: string }[] | null }
+
+// A column showing one metadata key of the row, for registerListColumn on a list whose rows carry metadata - products, customers
+export function metadataColumn<TData extends WithMetadata>(key: string, header: string, format: (value: string) => ReactNode = (v) => v): ColumnDef<TData, unknown> {
+  return {
+    id: `metadata:${key}`,
+    header,
+    enableSorting: false,
+    accessorFn: (row) => row.metadata?.find((m) => m.key === key)?.value ?? '',
+    cell: ({ getValue }) => {
+      const v = getValue() as string
+      return v === '' ? <span className="text-muted-foreground">-</span> : format(v)
+    },
+  }
+}

@@ -169,6 +169,7 @@ export function OrdersList({ defaultStatus }: { defaultStatus?: OrderStatus[] } 
   return (
     <DataTable
       key={defaultStatus ? defaultStatus.join(',') : 'all'}
+      target="orders"
       prefsKey="orders.list"
       viewsKey="orders.list"
       enableColumnControls

@@ -156,7 +156,8 @@ export function DataTable<TData extends RowData>({
   const allColumns = useMemo(() => {
     const extra = getListColumns<TData>(target).map((e) => e.column)
     const actions = [...(rowActions ?? []), ...getListRowActions<TData>(target)]
-    const base = [...columns, ...extra]
+    const ownMenu = columns.at(-1)?.id === 'actions'
+    const base = ownMenu ? [...columns.slice(0, -1), ...extra, columns[columns.length - 1]] : [...columns, ...extra]
     if (actions.length === 0) return base
     // The action menu stays last even when an extension adds a column after it
     return [...base, rowActionsColumn<TData>({ actions, label: rowActionLabel })]

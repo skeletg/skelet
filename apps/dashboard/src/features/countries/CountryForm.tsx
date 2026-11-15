@@ -254,7 +254,7 @@ function CountryFormPage({ mode, country }: { mode: 'create' | 'edit'; country?:
       {country && <IsoReference country={country} />}
 
       <DetailPageSection title="Metadata">
-        <form.AppField name="metadata">{(f) => <f.MetadataField note={clash('metadata')} />}</form.AppField>
+        <form.AppField name="metadata">{(f) => <f.MetadataField target="country" note={clash('metadata')} />}</form.AppField>
       </DetailPageSection>
     </RecordFormPage>
   )

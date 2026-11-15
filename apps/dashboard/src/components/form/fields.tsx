@@ -9,7 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { formatAsTyped, formatPhone } from '@/lib/phone'
+import { getDetailFields } from '@/plugins/field-registry'
 import { useFieldContext } from './form-context'
+import { PluginMetadataFields } from './PluginMetadataFields'
 import { fieldErrorText } from './field-errors'
 
 // The dashboard's bound fields - rendered as <form.AppField name="x">{(f) => <f.TextField … />}</form.AppField>
@@ -241,27 +243,35 @@ type MetadataRow = { key: string; value: string }
 // Free-form key/value rows (shared/schemas/metadata) - edits the whole array in one go, which keeps
 // the diff and the stored draft working on the field as one value
 // `label` names the rows for screen readers - pages with two lists (public, private) tell them apart
-export function MetadataField({ note, label = 'Metadata' }: { note?: ReactNode; label?: string }) {
+export function MetadataField({ note, label = 'Metadata', target }: { note?: ReactNode; label?: string; target?: string }) {
   const field = useFieldContext<MetadataRow[]>()
   const rows = field.state.value
   const error = fieldErrorText(field)
   const set = (next: MetadataRow[]) => field.handleChange(next)
+  const plugin = getDetailFields(target)
+  const claimed = new Set(plugin.map((f) => f.key))
+  const free = rows.map((row, i) => ({ row, i })).filter(({ row }) => !claimed.has(row.key.trim()))
   return (
     <div className="grid gap-2">
-      {rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No metadata yet.</p>
+      {plugin.length > 0 && (
+        <div className="mb-2 border-b pb-4">
+          <PluginMetadataFields fields={plugin} rows={rows} onChange={set} />
+        </div>
+      )}
+      {free.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{plugin.length > 0 ? 'No other metadata.' : 'No metadata yet.'}</p>
       ) : (
-        rows.map((row, i) => (
+        free.map(({ row, i }, n) => (
           <div key={i} className="grid grid-cols-[1fr_2fr_auto] items-center gap-2">
             <Input
               placeholder="Key"
-              aria-label={`${label} ${i + 1} key`}
+              aria-label={`${label} ${n + 1} key`}
               value={row.key}
               onChange={(e) => set(rows.map((r, j) => (j === i ? { ...r, key: e.target.value } : r)))}
             />
             <Input
               placeholder="Value"
-              aria-label={`${label} ${i + 1} value`}
+              aria-label={`${label} ${n + 1} value`}
               value={row.value}
               onChange={(e) => set(rows.map((r, j) => (j === i ? { ...r, value: e.target.value } : r)))}
             />
@@ -270,7 +280,7 @@ export function MetadataField({ note, label = 'Metadata' }: { note?: ReactNode; 
               variant="ghost"
               size="icon"
               className="size-8"
-              aria-label={`Remove ${label.toLowerCase()} ${i + 1}`}
+              aria-label={`Remove ${label.toLowerCase()} ${n + 1}`}
               onClick={() => set(rows.filter((_, j) => j !== i))}
             >
               <Trash2Icon className="size-4" />

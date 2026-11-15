@@ -160,6 +160,6 @@ export function countryDiff(original: CountryValues, draft: CountryValues): Sect
     ...fieldDiff(original, draft, [
       { label: COUNTRY_LABELS.businessIdFields, value: (o: CountryValues) => describeFields(o.businessIdFields) },
     ]),
-    ...metadataDiff(original.metadata, draft.metadata),
+    ...metadataDiff(original.metadata, draft.metadata, 'Metadata', 'country'),
   ]
 }

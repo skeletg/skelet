@@ -42,7 +42,7 @@ export function ProductMetadataEditor({
             <h3 className="text-sm font-medium">Metadata</h3>
             <p className="text-sm text-muted-foreground">Publicly exposable key-value pairs for channels, APIs, and integrations.</p>
           </div>
-          <form.AppField name="metadata">{(f) => <f.MetadataField />}</form.AppField>
+          <form.AppField name="metadata">{(f) => <f.MetadataField target="product" />}</form.AppField>
         </section>
         <Separator />
         <section className="grid gap-3">
