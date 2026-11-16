@@ -125,7 +125,7 @@ type BoardReportDefinition {
   kind:        BoardReportKind!
   sinceDays:   Int                   # unset = the board's period
   event:       String                # insights, stickiness, the flow's focus
-  measure:     String                # insights: total | unique
+  measure:     String                # insights: total | unique | sum
   unit:        String                # insights and retention: day | week
   breakdown:   String                # insights, funnel
   steps:       [String!]             # funnel
@@ -136,12 +136,28 @@ type BoardReportDefinition {
   periods:     Int                   # retention
   depth:       Int                   # flow
   windowDays:  Int                   # stickiness: the return window, unset = the shop's default
+  events:      [String!]             # insights: several events counted together, in place of event
+  sumKey:      String                # insights with measure sum: the integer property added up
+  where:       [BoardReportCondition!] # what the events must carry: insights, stickiness, the flow's focus
+  startWhere:  [BoardReportCondition!] # retention's start
+  returnWhere: [BoardReportCondition!] # retention's return
+  notThen:     String                # flow: only the people who didn't do this after the focus
+  notThenWithinHours: Int            # flow: how long after, unset = anywhere in the period
 }
 
 type BoardReportFilter {
-  step:  Int!   # 0-based
-  key:   String!
-  value: String!
+  step:   Int!   # 0-based
+  key:    String!
+  value:  String!
+  op:     PropertyFilterOp
+  values: [String!]
+}
+
+# Holds a report's events to those whose property compares to the values: eq (one value), neq or in
+type BoardReportCondition {
+  key:    String!
+  op:     PropertyFilterOp!
+  values: [String!]!
 }
 
 input BoardReportDefinitionInput {
@@ -159,6 +175,13 @@ input BoardReportDefinitionInput {
   periods:     Int
   depth:       Int
   windowDays:  Int
+  events:      [String!]
+  sumKey:      String
+  where:       [SynapsePropertyFilterInput!]
+  startWhere:  [SynapsePropertyFilterInput!]
+  returnWhere: [SynapsePropertyFilterInput!]
+  notThen:     String
+  notThenWithinHours: Int
 }
 
 input BoardReportInput {

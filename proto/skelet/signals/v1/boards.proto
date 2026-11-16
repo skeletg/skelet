@@ -113,7 +113,7 @@ message BoardReportDefinition {
   string kind = 1; // insights | funnel | retention | stickiness | flow
   int32 since_days = 2; // 0 = the board's period
   string event = 3; // insights, stickiness, the flow's focus
-  string measure = 4; // insights: total | unique
+  string measure = 4; // insights: total | unique | sum
   string unit = 5; // insights and retention: day | week
   string breakdown = 6; // insights, funnel
   repeated string steps = 7; // funnel
@@ -124,6 +124,14 @@ message BoardReportDefinition {
   int32 periods = 12; // retention
   int32 depth = 13; // flow
   int32 window_days = 14; // stickiness: the return window, 0 = the shop's default
+  repeated string events = 15; // insights: several events counted together, in place of event
+  string sum_key = 16; // insights with measure sum: the integer property added up
+  // What the report's events must carry: insights, stickiness and the flow's focus - and retention's start and return
+  repeated PropertyFilter where = 17;
+  repeated PropertyFilter start_where = 18;
+  repeated PropertyFilter return_where = 19;
+  string not_then = 20; // flow: only the people who didn't do this after the focus
+  int32 not_then_within_hours = 21; // flow: how long after, 0 = anywhere in the period
 }
 
 message ListBoardsRequest {

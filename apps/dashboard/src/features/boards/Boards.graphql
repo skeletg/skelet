@@ -13,6 +13,8 @@ fragment BoardReportFields on BoardReport {
       step
       key
       value
+      op
+      values
     }
     windowHours
     startEvent
@@ -20,6 +22,25 @@ fragment BoardReportFields on BoardReport {
     periods
     depth
     windowDays
+    events
+    sumKey
+    where {
+      key
+      op
+      values
+    }
+    startWhere {
+      key
+      op
+      values
+    }
+    returnWhere {
+      key
+      op
+      values
+    }
+    notThen
+    notThenWithinHours
   }
 }
 

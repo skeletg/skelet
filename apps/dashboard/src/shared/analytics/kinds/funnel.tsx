@@ -5,8 +5,16 @@ import { cn } from '@/lib/utils'
 import { formatNumber } from '@/lib/format'
 import { eventLabel } from '@/features/synapse/eventLabel'
 import { SynapseFunnelDocument } from '@/features/synapse/Synapse.gql'
-import type { ControlsProps, Kind, ReportDefinition, ResultProps } from './definition'
+import { CONDITION_OP_LABEL, funnelFilters, type ConditionOp, type ControlsProps, type Kind, type ReportDefinition, type ResultProps } from './definition'
+import { KNOWN_KEYS, keyLabel } from './conditions'
 import { Note, State, pct, useTopEvents } from './ui'
+
+// The Flow report that follows a step's drop-offs: who did step i and didn't go on to step i+1, held to step i's filters
+export function dropOffFlow(d: ReportDefinition, i: number): ReportDefinition {
+  const steps = d.steps ?? []
+  const where = funnelFilters(d.filters).filter((f) => f.step === i).map(({ key, op, values }) => ({ key, op, values }))
+  return { kind: 'FLOW', event: steps[i], depth: 4, notThen: steps[i + 1], notThenWithinHours: d.windowHours, where: where.length ? where : undefined }
+}
 
 const WINDOWS: { label: string; hours: number | null }[] = [
   { label: 'Any time in the period', hours: null },
@@ -34,7 +42,7 @@ export function removeStep(d: ReportDefinition, i: number): ReportDefinition {
 function FunnelControls({ channelId, value: d, onChange }: ControlsProps) {
   const available = useTopEvents(channelId)
   const steps = d.steps ?? []
-  const filters = d.filters ?? []
+  const filters = funnelFilters(d.filters)
   const [filtering, setFiltering] = useState<number | null>(null) // the step whose filter form is open
   const [breakdownDraft, setBreakdownDraft] = useState(d.breakdown ?? '')
   const set = (next: ReportDefinition) => {
@@ -68,7 +76,7 @@ function FunnelControls({ channelId, value: d, onChange }: ControlsProps) {
               {filters.map((f, j) =>
                 f.step !== i ? null : (
                   <span key={`${f.key}-${j}`} className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-xs">
-                    <span className="font-mono">{f.key}</span> = <span className="font-mono">{f.value}</span>
+                    <span>{keyLabel(f.key)}</span> {CONDITION_OP_LABEL[f.op]} <span className="font-mono">{f.values.join(', ')}</span>
                     <button type="button" aria-label={`Remove filter ${f.key} from step ${i + 1}`} onClick={() => set({ ...d, filters: filters.filter((_, n) => n !== j) })} className="text-muted-foreground hover:text-foreground">
                       <XIcon className="size-3" />
                     </button>
@@ -136,33 +144,49 @@ function FunnelControls({ channelId, value: d, onChange }: ControlsProps) {
   )
 }
 
-// StepFilterForm holds one step to events carrying a property with a value
-function StepFilterForm({ step, onAdd }: { step: number; onAdd: (f: { key: string; value: string }) => void }) {
-  const [key, setKey] = useState('')
+// StepFilterForm holds one step to events whose property compares to a value - the property picked, not typed, since a
+// typo would quietly filter everything out
+function StepFilterForm({ step, onAdd }: { step: number; onAdd: (f: { key: string; op: ConditionOp; values: string[] }) => void }) {
+  const [key, setKey] = useState(KNOWN_KEYS[0].key)
+  const [op, setOp] = useState<ConditionOp>('EQ')
   const [value, setValue] = useState('')
   return (
     <form
       className="mt-2 flex flex-wrap items-center gap-2 pl-7"
       onSubmit={(e) => {
         e.preventDefault()
-        if (key.trim()) onAdd({ key: key.trim(), value })
+        if (!key.trim() || !value.trim()) return
+        const values = value.split(',').map((v) => v.trim()).filter(Boolean)
+        onAdd({ key: key.trim(), op, values: op === 'IN' ? values : [value.trim()] })
       }}
     >
-      <input aria-label={`Property for step ${step}`} value={key} onChange={(e) => setKey(e.target.value)} placeholder="property, e.g. device" className="w-44 rounded border bg-background px-2 py-1 text-xs" />
-      <span className="text-xs text-muted-foreground">=</span>
-      <input aria-label={`Value for step ${step}`} value={value} onChange={(e) => setValue(e.target.value)} placeholder="value" className="w-36 rounded border bg-background px-2 py-1 text-xs" />
-      <button type="submit" disabled={!key.trim()} className="rounded border px-2 py-1 text-xs hover:bg-muted disabled:opacity-40">
+      <select aria-label={`Property for step ${step}`} value={key} onChange={(e) => setKey(e.target.value)} className="rounded border bg-background px-2 py-1 text-xs">
+        {KNOWN_KEYS.map((k) => (
+          <option key={k.key} value={k.key}>
+            {k.label}
+          </option>
+        ))}
+      </select>
+      <select aria-label={`Operator for step ${step}`} value={op} onChange={(e) => setOp(e.target.value as ConditionOp)} className="rounded border bg-background px-2 py-1 text-xs">
+        {(Object.keys(CONDITION_OP_LABEL) as ConditionOp[]).map((o) => (
+          <option key={o} value={o}>
+            {CONDITION_OP_LABEL[o]}
+          </option>
+        ))}
+      </select>
+      <input aria-label={`Value for step ${step}`} value={value} onChange={(e) => setValue(e.target.value)} placeholder={op === 'IN' ? 'values, comma separated' : 'value'} className="w-36 rounded border bg-background px-2 py-1 text-xs" />
+      <button type="submit" disabled={!key.trim() || !value.trim()} className="rounded border px-2 py-1 text-xs hover:bg-muted disabled:opacity-40">
         Add filter
       </button>
     </form>
   )
 }
 
-function FunnelResult({ channelId, d, sinceDays, compact }: ResultProps) {
+function FunnelResult({ channelId, d, sinceDays, compact, onAddReport }: ResultProps) {
   const steps = d.steps ?? []
   const breakdown = d.breakdown ?? ''
   const { data, loading, error } = useQuery(SynapseFunnelDocument, {
-    variables: { channelId, steps, sinceDays, windowHours: d.windowHours ?? null, filters: d.filters ?? [], breakdown: breakdown || null },
+    variables: { channelId, steps, sinceDays, windowHours: d.windowHours ?? null, filters: funnelFilters(d.filters), breakdown: breakdown || null },
     skip: !channelId || steps.length < 2,
     fetchPolicy: 'cache-and-network',
   })
@@ -193,8 +217,19 @@ function FunnelResult({ channelId, d, sinceDays, compact }: ResultProps) {
                   <div className="h-full rounded-full bg-series-1" style={{ width: `${overall}%` }} />
                 </div>
                 {!compact && i > 0 && (
-                  <div className={cn('mt-1 text-xs', fromPrev < 50 ? 'text-warning' : 'text-muted-foreground')}>
-                    {fromPrev}% from previous step · {100 - fromPrev}% drop-off
+                  <div className={cn('mt-1 flex flex-wrap items-center gap-2 text-xs', fromPrev < 50 ? 'text-warning' : 'text-muted-foreground')}>
+                    <span>
+                      {fromPrev}% from previous step · {100 - fromPrev}% drop-off
+                    </span>
+                    {onAddReport && fromPrev < 100 && (
+                      <button
+                        type="button"
+                        onClick={() => onAddReport(`After ${eventLabel(steps[i - 1])}, not ${eventLabel(steps[i])}`, dropOffFlow(d, i - 1))}
+                        className="rounded border px-1.5 py-0.5 text-foreground hover:bg-muted"
+                      >
+                        See where the {formatNumber(result[i - 1].count - s.count)} went
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -244,6 +279,7 @@ function FunnelResult({ channelId, d, sinceDays, compact }: ResultProps) {
 }
 
 export const funnel: Kind = {
+  page: '/synapse/funnels',
   label: 'Funnel',
   menu: { label: 'Funnel', hint: 'Conversion through steps, in order' },
   describe: (d) => (d.steps ?? []).join(' → ') + (d.windowHours ? ` within ${d.windowHours} h` : ''),
