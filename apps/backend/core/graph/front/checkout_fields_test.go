@@ -45,6 +45,14 @@ func TestCheckoutFieldsAreAskedAnsweredAndOwed(t *testing.T) {
 	if err := r.missingField(ctx, c); err != nil {
 		t.Errorf("a cart with every answer still owes %v", err)
 	}
+	if err := r.recheckFields(ctx, c); err != nil {
+		t.Errorf("placing a cart whose answers still hold: %v", err)
+	}
+	asked[0].MaxLength = 1
+	if apperr.CodeOf(r.recheckFields(ctx, c)) != "CHECKOUT_FIELD_TOO_LONG" {
+		t.Error("an answer the field has since outgrown was placed")
+	}
+	asked[0].MaxLength = 20
 
 	models := r.fieldModels(ctx, c)
 	if len(models) != 2 || models[0].Type != frontmodel.CheckoutFieldTypeTextarea || models[0].MaxLength != 20 || models[0].Value != "hi" ||

@@ -110,7 +110,7 @@ func answers(fields []CheckoutFieldAnswer) map[string]string {
 	return out
 }
 
-var metadataKey = regexp.MustCompile(`^[a-z][a-z0-9_.-]{0,63}$`)
+var metadataKey = regexp.MustCompile(`^[a-z][a-z0-9_.:-]{0,63}$`) // ":" for the <plugin>:<key> SetOrderMetadata writes
 
 const maxMetadataValue = 2000
 

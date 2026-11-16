@@ -3,6 +3,7 @@ package order
 import (
 	"cmp"
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"regexp"
@@ -24,12 +25,13 @@ const (
 	numberResetPath     = "sales/orders/number_reset"
 	DefaultNumberFormat = "ORD-{seq:6}"
 	maxNumberFormat     = 64
+	maxNumberDraws      = 50 // counts drawn past numbers already given out before the last one gets a random tail
 )
 
 func init() {
 	config.Register(config.Definition{
 		Path: numberFormatPath, Type: config.TypeString, Default: DefaultNumberFormat, Label: "Order number format",
-		Description: "How a new order's number reads. {seq} is the count, {seq:6} the count padded to six digits, {yyyy} {yy} and {mm} the date it was placed and {channel} the channel's slug, with letters, digits and - _ . / # around them. Orders already placed keep their number.",
+		Description: "How a new order's number reads, in capitals. {seq} is the count, {seq:6} the count padded to six digits, {yyyy} {yy} and {mm} the date it was placed and {channel} the channel's slug, with letters, digits and - _ . / # around them. Orders already placed keep their number, and a new one skips any number already given out.",
 		MaxLen:      maxNumberFormat, Check: checkNumberFormat,
 	})
 	config.Register(config.Definition{
@@ -137,76 +139,132 @@ type NumberRequest struct {
 	ChannelID   uuid.UUID
 	ChannelSlug string
 	At          time.Time
-	Next        func(scope, period string) (int64, error)
+	Next        func(ctx context.Context, scope, period string) (int64, error)
 }
 
 type NumberSettings interface {
 	GetString(ctx context.Context, path string, scope config.Scope) (string, error)
 }
 
-// Numbering names new orders - a plugin's numberer when one is on for the channel, else the channel's format
+// Numbering names new orders - a plugin's numberer when one is on for the channel, else the channel's format. Numbers
+// are upper case, the way shoppers retype them to track an order
 type Numbering struct {
 	settings NumberSettings
 	next     func(ctx context.Context, scope, period string) (int64, error)
+	taken    func(ctx context.Context, number string) (bool, error)
 	plugin   func(ctx context.Context, req NumberRequest) (string, bool, error)
 }
 
-func NewNumbering(settings NumberSettings, next func(ctx context.Context, scope, period string) (int64, error), plugin func(ctx context.Context, req NumberRequest) (string, bool, error)) *Numbering {
-	return &Numbering{settings: settings, next: next, plugin: plugin}
+func NewNumbering(settings NumberSettings, next func(ctx context.Context, scope, period string) (int64, error), taken func(ctx context.Context, number string) (bool, error),
+	plugin func(ctx context.Context, req NumberRequest) (string, bool, error)) *Numbering {
+	return &Numbering{settings: settings, next: next, taken: taken, plugin: plugin}
 }
 
-func (n *Numbering) setting(ctx context.Context, path string, scope config.Scope) string {
+// A failed check reads as free: the insert's unique number is the last word anyway
+func (n *Numbering) free(ctx context.Context, number string) bool {
+	if n.taken == nil {
+		return true
+	}
+	taken, err := n.taken(ctx, number)
+	if err != nil {
+		applog.From(ctx).Warn("order: couldn't check whether an order number is taken", "number", number, "err", err)
+	}
+	return err != nil || !taken
+}
+
+// A failed read fails the order rather than numbering it from another series - a run of invoices with one out of
+// sequence is worse than a placement to retry
+func (n *Numbering) setting(ctx context.Context, path string, scope config.Scope) (string, error) {
 	if n.settings == nil {
-		return ""
+		return "", nil
 	}
 	v, err := n.settings.GetString(ctx, path, scope)
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("read %s: %w", path, err)
 	}
-	return strings.TrimSpace(v)
+	return strings.TrimSpace(v), nil
+}
+
+// placedAt is now in the channel's timezone, the clock its dates and yearly restarts follow
+func (n *Numbering) placedAt(ctx context.Context, ch channel.Channel, now time.Time) (time.Time, error) {
+	tz, err := n.setting(ctx, channel.ConfigTimezone, config.Scope{Kind: config.ScopeChannel, ChannelID: &ch.ID})
+	if err != nil {
+		return time.Time{}, err
+	}
+	if loc, err := time.LoadLocation(tz); err == nil {
+		return now.In(loc), nil
+	}
+	return now, nil
 }
 
 func (n *Numbering) Number(ctx context.Context, ch channel.Channel, now time.Time) (string, error) {
-	scope := config.Scope{Kind: config.ScopeChannel, ChannelID: &ch.ID}
-	at := now
-	if loc, err := time.LoadLocation(n.setting(ctx, "general/store_information/timezone", scope)); err == nil {
-		at = now.In(loc)
+	at, err := n.placedAt(ctx, ch, now)
+	if err != nil {
+		return "", err
 	}
-	log := applog.From(ctx)
 	if n.plugin != nil {
-		num, ok, err := n.plugin(ctx, NumberRequest{ChannelID: ch.ID, ChannelSlug: ch.Slug, At: at, Next: func(scope, period string) (int64, error) {
-			return n.next(ctx, scope, period)
-		}})
+		num, ok, err := n.plugin(ctx, NumberRequest{ChannelID: ch.ID, ChannelSlug: ch.Slug, At: at, Next: n.next})
+		num = strings.ToUpper(num)
 		switch {
-		case ok && err == nil && usableNumber.MatchString(num):
+		case ok && err == nil && usableNumber.MatchString(num) && n.free(ctx, num):
 			return num, nil
 		case ok:
-			log.Warn("order: a plugin's order number is unusable, the store's format names the order", "number", num, "err", err)
+			applog.From(ctx).Warn("order: a plugin's order number is unusable or taken, the store's format names the order", "number", num, "err", err)
 		}
 	}
-	f, err := parseNumberFormat(cmp.Or(n.setting(ctx, numberFormatPath, scope), DefaultNumberFormat))
+	return n.storeNumber(ctx, ch, at)
+}
+
+// StoreNumber is a number in the channel's own format, never a plugin's - for an order whose plugin number lost a race
+func (n *Numbering) StoreNumber(ctx context.Context, ch channel.Channel, now time.Time) (string, error) {
+	at, err := n.placedAt(ctx, ch, now)
+	if err != nil {
+		return "", err
+	}
+	return n.storeNumber(ctx, ch, at)
+}
+
+func (n *Numbering) storeNumber(ctx context.Context, ch channel.Channel, at time.Time) (string, error) {
+	scope := config.Scope{Kind: config.ScopeChannel, ChannelID: &ch.ID}
+	read := map[string]string{}
+	for _, path := range []string{numberFormatPath, numberCountPath, numberResetPath} {
+		v, err := n.setting(ctx, path, scope)
+		if err != nil {
+			return "", err
+		}
+		read[path] = v
+	}
+	log := applog.From(ctx)
+	f, err := parseNumberFormat(cmp.Or(read[numberFormatPath], DefaultNumberFormat))
 	if err != nil {
 		log.Warn("order: the order number format is unusable, the default stands in", "err", err)
 		f, _ = parseNumberFormat(DefaultNumberFormat)
 	}
 	count, period := "", ""
-	if n.setting(ctx, numberCountPath, scope) == "channel" {
+	if read[numberCountPath] == "channel" {
 		if f.has("channel") {
 			count = ch.ID.String()
 		} else {
 			log.Warn("order: a count per channel needs {channel} in the format, so the store's count runs", "channel", ch.Slug)
 		}
 	}
-	if n.setting(ctx, numberResetPath, scope) == "yearly" {
+	if read[numberResetPath] == "yearly" {
 		if f.has("yyyy", "yy") {
 			period = strconv.Itoa(at.Year())
 		} else {
 			log.Warn("order: a yearly restart needs {yyyy} or {yy} in the format, so the count runs on", "channel", ch.Slug)
 		}
 	}
-	seq, err := n.next(ctx, count, period)
-	if err != nil {
-		return "", fmt.Errorf("next order number: %w", err)
+	var num string
+	for range maxNumberDraws {
+		seq, err := n.next(ctx, count, period)
+		if err != nil {
+			return "", fmt.Errorf("next order number: %w", err)
+		}
+		if num = strings.ToUpper(f.render(seq, at, ch.Slug)); n.free(ctx, num) {
+			return num, nil
+		}
 	}
-	return f.render(seq, at, ch.Slug), nil
+	log.Error("order: every number drawn was already given out, so this one takes a random tail - check the number format", "number", num)
+	return num + "-" + rand.Text()[:6], nil
 }

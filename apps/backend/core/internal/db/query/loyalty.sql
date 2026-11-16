@@ -12,6 +12,10 @@ WHERE  customer_id = $1;
 -- Same trick as LockCustomerForStoreCredit - the points ledger is an aggregate and can't be locked, so the owning customer row stands in for it - revokeForOrder has to hold this before it sums what's already revoked, since order.cancelled arrives at-least-once and the outbox dispatches a claimed batch concurrently
 SELECT 1 FROM customers WHERE id = $1 FOR UPDATE;
 
+-- name: LoyaltyOrderState :one
+-- Re-read under the customer lock, so an order cancelled while plugins weighed its points earns nothing
+SELECT status, payment_status FROM orders WHERE id = $1;
+
 -- name: ListLoyaltyEntries :many
 SELECT * FROM loyalty_point_entries
 WHERE  customer_id = $1
@@ -22,3 +26,12 @@ LIMIT  $2;
 SELECT * FROM loyalty_point_entries
 WHERE  order_id = $1
 ORDER  BY created_at;
+
+-- name: LoyaltyLineProducts :many
+-- Each sku's product and its categories, for a rule like double points on a category
+SELECT p.sku, p.id,
+       coalesce(array_agg(pc.category_id ORDER BY pc.position) FILTER (WHERE pc.category_id IS NOT NULL), '{}')::uuid[] AS category_ids
+FROM catalog_products p
+LEFT JOIN catalog_product_categories pc ON pc.product_id = p.id
+WHERE p.sku = ANY(sqlc.arg(skus)::text[])
+GROUP BY p.sku, p.id;

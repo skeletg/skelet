@@ -6,6 +6,7 @@ import (
 	"bytes"
 	_ "embed"
 	"fmt"
+	"image"
 	"strings"
 	"time"
 
@@ -33,6 +34,8 @@ type StoreInfo struct {
 	Name  string
 	Lines []string // address / VAT id / support email, pre-formatted
 	Logo  []byte   // PNG, JPEG, GIF or WebP - anything else is left off
+	// The logo's size in pixels when Logo is already the PNG documents print, so it isn't decoded again
+	LogoSize image.Point
 }
 
 // Kind selects the document flavor
@@ -59,7 +62,7 @@ type Input struct {
 	// The channel's prices carry their tax, so the tax is a portion of the total rather than added on top of it
 	TaxInclusive bool
 	Footer       string // the channel's closing text for this kind of document
-	Note         string // the buyer's country's note, printed on invoices and credit memos
+	Note         string // the buyer's country's note, printed on a business purchase's invoices and credit memos
 }
 
 type doc struct {

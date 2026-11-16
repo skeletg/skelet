@@ -15,12 +15,15 @@ type RenewalCharger interface {
 // Optional - without it invoices mint as 'due' and wait
 func (s *Service) SetRenewalCharger(c RenewalCharger) { s.charger = c }
 
-// The retry ladder - the Nth failure schedules the next attempt this far out, and exhausting it cancels the subscription
-var dunningBackoff = []time.Duration{
-	24 * time.Hour,
-	3 * 24 * time.Hour,
-	7 * 24 * time.Hour,
-}
+// The retry ladder when a channel's setting can't be read - the Nth failure schedules the next attempt this far out, and
+// exhausting it cancels the subscription. The setting's own default, so the two can't drift
+var dunningBackoff = func() []time.Duration {
+	ladder, err := parseRetryDays(defaultRetries)
+	if err != nil {
+		panic("subscription: the default retry schedule doesn't parse: " + err.Error())
+	}
+	return ladder
+}()
 
 // Charges every due invoice whose dunning clock has arrived - one failure never aborts the sweep - Returns how many were collected
 func (s *Service) CollectDue(ctx context.Context, now time.Time) (int, error) {

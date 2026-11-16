@@ -114,6 +114,10 @@ func (r *postgresRepository) ListDue(ctx context.Context, now time.Time, limit i
 	return toSubscriptions(rows), nil
 }
 
+func (r *postgresRepository) DeferRenewal(ctx context.Context, id uuid.UUID, now time.Time) error {
+	return r.queries.DeferSubscriptionRenewal(ctx, db.DeferSubscriptionRenewalParams{ID: id, Now: now})
+}
+
 func (r *postgresRepository) AdvancePeriod(ctx context.Context, id uuid.UUID, start, end, next, anchor time.Time) (Subscription, error) {
 	row, err := r.queries.AdvanceSubscriptionPeriod(ctx, db.AdvanceSubscriptionPeriodParams{
 		ID:                 id,

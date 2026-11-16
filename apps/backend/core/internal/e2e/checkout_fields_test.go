@@ -30,7 +30,7 @@ func TestCheckoutFieldsAndPluginMetadataLandOnTheOrder(t *testing.T) {
 	})
 
 	email := "fields@e2e.test"
-	answers := []order.CheckoutFieldAnswer{{Key: "gift_message", Label: "Gift message", Value: "Happy birthday"}}
+	answers := []order.CheckoutFieldAnswer{{Key: "gift_message", Label: "Gift message", Value: "Happy birthday", Type: "textarea"}}
 	placed, err := h.TryPlace(t, f.Channel, cartID, func(in *order.PlaceOrderInput) {
 		in.Email, in.CheckoutFields = email, answers
 	})

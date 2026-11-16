@@ -219,7 +219,7 @@ function CountryFormPage({ mode, country }: { mode: 'create' | 'edit'; country?:
 
       <DetailPageSection
         title="On invoices"
-        description="Printed on invoices and credit memos billed to this country, above the channel's own footer - a reverse-charge or export note, say."
+        description="Printed on the invoices and credit memos of business purchases billed to this country, above the channel's own footer - a reverse-charge or export note, say."
       >
         <form.AppField name="invoiceNote">
           {(f) => (

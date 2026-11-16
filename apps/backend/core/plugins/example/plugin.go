@@ -87,15 +87,15 @@ func init() {
 	})
 
 	// Kept on the order with its label - order.placing records the answer's length in the order's metadata
-	p.RegisterCheckoutField(sdk.CheckoutField{Key: "example_gift_note", Label: "Gift note", Type: sdk.CheckoutFieldTextarea, MaxLength: 200})
+	p.RegisterCheckoutField(sdk.CheckoutField{Key: "gift_note", Label: "Gift note", Type: sdk.CheckoutFieldTextarea, MaxLength: 200})
 	p.SubscribeSync(sdk.EventOrderPlacing, 100, func(_ context.Context, e any) error {
 		answers, ok := e.(sdk.CheckoutFieldAnswers)
 		meta, ok2 := e.(sdk.OrderPlacingMetadata)
 		if !ok || !ok2 {
 			return nil
 		}
-		if note, given := answers.CheckoutFieldValue("example_gift_note"); given {
-			return meta.SetPlacingMetadata(Slug+".gift_note_length", strconv.Itoa(utf8.RuneCountInString(note)))
+		if note, given := p.CheckoutAnswer(answers, "gift_note"); given {
+			return p.SetOrderMetadata(meta, "gift_note_length", strconv.Itoa(utf8.RuneCountInString(note)))
 		}
 		return nil
 	})
@@ -110,7 +110,7 @@ func init() {
 	p.RegisterOrderStage(sdk.OrderStage{Key: StageAwaitingStock, Label: "Awaiting stock", Within: []string{sdk.OrderStatusConfirmed, sdk.OrderStatusProcessing}})
 	p.SubscribeSync(sdk.EventOrderTransitioning, 100, func(_ context.Context, e any) error {
 		move, ok := e.(sdk.OrderTransitioning)
-		if ok && move.TransitioningFromStage() == StageAwaitingStock &&
+		if ok && move.TransitioningFromStage() == p.Key(StageAwaitingStock) &&
 			(move.TransitioningToStatus() == sdk.OrderStatusPartiallyFulfilled || move.TransitioningToStatus() == sdk.OrderStatusFulfilled) {
 			return sdk.UserErrorWithCode(sdk.ErrorConflict, "EXAMPLE_AWAITING_STOCK", "the order is still awaiting stock")
 		}
@@ -118,8 +118,8 @@ func init() {
 	})
 
 	// Names the orders of every channel the plugin is on, from a yearly count of its own
-	p.RegisterOrderNumberer(func(_ context.Context, req sdk.OrderNumberRequest) (string, error) {
-		n, err := req.Next("orders", strconv.Itoa(req.PlacedAt.Year()))
+	p.RegisterOrderNumberer(func(ctx context.Context, req sdk.OrderNumberRequest) (string, error) {
+		n, err := req.Next(ctx, "orders", strconv.Itoa(req.PlacedAt.Year()))
 		return fmt.Sprintf("EX-%d-%05d", req.PlacedAt.Year(), n), err
 	})
 

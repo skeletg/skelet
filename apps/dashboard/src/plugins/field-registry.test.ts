@@ -16,6 +16,8 @@ describe('detail field registry', () => {
     expect(() => registerDetailField({ id: 'other:tier', target: 'customer', key: 'tier', label: 'T' })).toThrow(/already has a field/)
     expect(() => registerDetailField({ id: 'other:size', target: 'customer', key: 'size', label: 'S', type: 'select' })).toThrow(/needs options/)
     expect(() => registerDetailField({ id: 'other:blank', target: 'customer', key: ' ', label: 'B' })).toThrow(/metadata key/)
+    expect(() => registerDetailField({ id: 'other:long', target: 'customer', key: 'k'.repeat(101), label: 'L' })).toThrow(/metadata key/)
+    expect(() => registerDetailField({ id: 'other:spaced', target: 'customer', key: 'gift note', label: 'G' })).toThrow(/metadata key/)
   })
 
   it('reads a value the way the field shows it', () => {

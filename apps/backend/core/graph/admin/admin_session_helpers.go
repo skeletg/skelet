@@ -7,6 +7,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/admin"
+	"github.com/skeletg/skelet/apps/backend/core/internal/sso"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
@@ -47,4 +48,8 @@ func (r *Resolver) adminSession(ctx context.Context, user admin.AdminUser) (*mod
 		Admin:        adminModel,
 		FirstLogin:   firstLogin,
 	}, nil
+}
+
+func toAdminSsoLinkModel(l sso.AdminLink) *model.AdminSsoLink {
+	return &model.AdminSsoLink{ID: l.ID.String(), Issuer: l.Issuer, Email: l.Email, CreatedAt: l.CreatedAt, LastUsedAt: l.LastUsedAt}
 }

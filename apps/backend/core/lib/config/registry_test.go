@@ -84,12 +84,13 @@ func TestValidateCatchesStructuralErrorsRegisterCannot(t *testing.T) {
 	Register(Definition{Path: "shop/ghost/name", Type: TypeString})
 	Register(Definition{Path: "ghost/general/name", Type: TypeString})
 	Register(Definition{Path: "not-a-path", Type: TypeString})
+	Register(Definition{Path: "shop/general/url", Type: TypeString, Clears: []string{"shop/general/no_such_secret"}})
 
 	err := Validate()
 	if err == nil {
-		t.Fatal("Validate = nil, want the three structural problems reported")
+		t.Fatal("Validate = nil, want the structural problems reported")
 	}
-	for _, want := range []string{"unknown group", "unknown section", "not section/group/field"} {
+	for _, want := range []string{"unknown group", "unknown section", "not section/group/field", "clears unknown path"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("Validate error = %v, want it to mention %q", err, want)
 		}

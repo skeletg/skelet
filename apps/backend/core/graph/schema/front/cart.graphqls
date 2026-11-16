@@ -229,12 +229,18 @@ type BusinessIdValue {
   value: String!
 }
 
+# A select's choice - send value back as the answer, show label.
+type CheckoutFieldOption {
+  value: String!
+  label: String!
+}
+
 type CheckoutField {
   key:       String!
   label:     String!
   hint:      String!
   type:      CheckoutFieldType!
-  options:   [String!]!
+  options:   [CheckoutFieldOption!]!
   required:  Boolean!
   maxLength: Int!
   value:     String!

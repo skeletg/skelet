@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
@@ -767,6 +768,10 @@ func (r *postgresRepository) NextOrderNumber(ctx context.Context, scope, period 
 	return r.queries.NextOrderNumber(ctx, db.NextOrderNumberParams{Scope: scope, Period: period})
 }
 
+func (r *postgresRepository) OrderNumberTaken(ctx context.Context, number string) (bool, error) {
+	return r.queries.OrderNumberTaken(ctx, number)
+}
+
 func (r *postgresRepository) CreateOrder(ctx context.Context, o Order) (Order, error) {
 	if o.Number == "" {
 		n, err := r.queries.DefaultOrderNumber(ctx)
@@ -824,7 +829,8 @@ func (r *postgresRepository) CreateOrder(ctx context.Context, o Order) (Order, e
 		CustomerNote:        sqlnull.StringValueNonEmpty(o.CustomerNote),
 		PoNumber:            sqlnull.StringValueNonEmpty(o.PONumber),
 		BusinessIds:         businessIDsJSON(o.BusinessIDs),
-		CheckoutFields:      businessIDsJSON(o.CheckoutFields),
+		CheckoutFields:      checkoutFieldsJSON(o.CheckoutFields),
+		Seller:              sellerJSON(o.Seller),
 		PaymentProvider:     o.PaymentProvider,
 		ShippingMethodID:    sqlnull.UUID(o.ShippingMethodID),
 		ShippingCarrierSlug: sqlnull.String(o.ShippingCarrierSlug),
@@ -836,10 +842,21 @@ func (r *postgresRepository) CreateOrder(ctx context.Context, o Order) (Order, e
 		TaxInclusive:        o.TaxInclusive,
 		Number:              o.Number,
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return Order{}, ErrOrderNumberTaken
+	}
 	if err != nil {
 		return Order{}, fmt.Errorf("create order: %w", err)
 	}
 	return toOrder(row), nil
+}
+
+func (r *postgresRepository) DefaultOrderNumber(ctx context.Context) (string, error) {
+	n, err := r.queries.DefaultOrderNumber(ctx)
+	if err != nil {
+		return "", fmt.Errorf("next order number: %w", err)
+	}
+	return n, nil
 }
 
 func (r *postgresRepository) UpdateOrderLineQuantity(ctx context.Context, lineID uuid.UUID, quantity float64, totalPrice int64) (OrderLine, error) {
@@ -1264,6 +1281,7 @@ func (r *postgresRepository) UpdateOrderStatusFrom(ctx context.Context, id uuid.
 // --- mappers ---
 
 func toOrder(row db.Order) Order {
+	shopper, metadata := decodeMetadata(row.Metadata)
 	var customerID *uuid.UUID
 	if row.CustomerID.Valid {
 		c := row.CustomerID.UUID
@@ -1322,9 +1340,10 @@ func toOrder(row db.Order) Order {
 		PONumber:          row.PoNumber.String,
 		FulfillmentNeed:   row.FulfillmentNeed,
 		BusinessIDs:       decodeBusinessIDs(row.BusinessIds),
-		CheckoutFields:    decodeBusinessIDs(row.CheckoutFields),
-		Shopper:           decodeShopper(row.Metadata),
-		Metadata:          decodeMetadata(row.Metadata),
+		CheckoutFields:    decodeCheckoutFields(row.CheckoutFields),
+		Seller:            decodeSeller(row.Seller),
+		Shopper:           shopper,
+		Metadata:          metadata,
 		Carrier:           row.Carrier,
 		TrackingNumber:    row.TrackingNumber,
 		CreatedAt:         row.CreatedAt,
@@ -1496,35 +1515,65 @@ func orderMetadataJSON(t *auth.Shopper, plugins map[string]string) json.RawMessa
 }
 
 // The plugins' string values - the tracking snapshot is an object, so it never reads as one
-func decodeMetadata(raw json.RawMessage) map[string]string {
-	var m map[string]any
+// decodeMetadata reads the column once for both of its halves: the shopper's tracking, and the string keys plugins set
+func decodeMetadata(raw json.RawMessage) (*auth.Shopper, map[string]string) {
+	var m map[string]json.RawMessage
 	if json.Unmarshal(raw, &m) != nil {
-		return nil
+		return nil, nil
 	}
+	var shopper *auth.Shopper
 	out := map[string]string{}
 	for k, v := range m {
-		if s, ok := v.(string); ok && k != "tracking" {
+		if k == "tracking" {
+			_ = json.Unmarshal(v, &shopper)
+			continue
+		}
+		var s string
+		if json.Unmarshal(v, &s) == nil {
 			out[k] = s
 		}
 	}
 	if len(out) == 0 {
-		return nil
+		out = nil
 	}
-	return out
+	return shopper, out
 }
 
 // An undecodable snapshot reads as none - the order's events then go out as if no shop had placed it
-func decodeShopper(raw json.RawMessage) *auth.Shopper {
-	var m struct {
-		Tracking *auth.Shopper `json:"tracking"`
-	}
-	if json.Unmarshal(raw, &m) != nil {
-		return nil
-	}
-	return m.Tracking
-}
 
 // Only placement writes the column, so an undecodable one reads as none rather than failing the order
+func sellerJSON(s *Seller) pqtype.NullRawMessage {
+	if s == nil {
+		return pqtype.NullRawMessage{}
+	}
+	b, _ := json.Marshal(s) // plain strings - can't fail
+	return pqtype.NullRawMessage{RawMessage: b, Valid: true}
+}
+
+func decodeSeller(raw pqtype.NullRawMessage) *Seller {
+	var s Seller
+	if !raw.Valid || json.Unmarshal(raw.RawMessage, &s) != nil {
+		return nil
+	}
+	return &s
+}
+
+func checkoutFieldsJSON(fields []CheckoutFieldAnswer) json.RawMessage {
+	if fields == nil {
+		fields = []CheckoutFieldAnswer{}
+	}
+	b, _ := json.Marshal(fields) // plain strings - can't fail
+	return b
+}
+
+func decodeCheckoutFields(raw json.RawMessage) []CheckoutFieldAnswer {
+	var fields []CheckoutFieldAnswer
+	if json.Unmarshal(raw, &fields) != nil {
+		return nil
+	}
+	return fields
+}
+
 func decodeBusinessIDs(raw json.RawMessage) []BusinessID {
 	var ids []BusinessID
 	if json.Unmarshal(raw, &ids) != nil {

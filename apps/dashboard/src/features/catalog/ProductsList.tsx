@@ -3,6 +3,7 @@ import { useDebounced } from '@/shared/hooks/useDebounced'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef, type SortingState } from '@/components/data-table/tanstack'
+import { hasListColumns } from '@/components/data-table/extensions'
 import { ArrowUpDownIcon, PlusIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -80,6 +81,7 @@ function getPublishedCount(product: ProductRow) {
 
 // Module-level so the reference is stable - it feeds the table's sorting state every render
 const DEFAULT_SORTING: SortingState = [{ id: 'updatedAt', desc: true }]
+const LIST_TARGET = 'catalog.products'
 
 export function ProductsList() {
   const { has } = usePermissions()
@@ -124,6 +126,7 @@ export function ProductsList() {
       ...productFilterVariables(columnFilters),
       sortKey: sorting[0]?.id ?? 'updatedAt',
       sortDesc: sorting[0]?.desc ?? true,
+      withMetadata: hasListColumns(LIST_TARGET),
     },
     notifyOnNetworkStatusChange: true,
   })
@@ -329,7 +332,7 @@ export function ProductsList() {
         emptyState="No products yet."
         searchPlaceholder="Search name, slug, or SKU…"
         initialColumnVisibility={hiddenColumnVisibility}
-        target="catalog.products"
+        target={LIST_TARGET}
         enableDensityToggle
         enableColumnControls
         manual={{

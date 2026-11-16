@@ -2,6 +2,7 @@ package loyalty
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"sync"
 	"testing"
@@ -11,10 +12,12 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 )
 
+// The order as the service's lookup reads it, kept in step with its row, which earning re-reads under its lock
 type orderState struct {
-	mu  sync.Mutex
-	o   order.Order
-	err error
+	mu   sync.Mutex
+	o    order.Order
+	err  error
+	conn *sql.DB
 }
 
 func (s *orderState) GetByID(context.Context, uuid.UUID) (order.Order, error) {
@@ -27,6 +30,9 @@ func (s *orderState) set(status, payment string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.o.Status, s.o.PaymentStatus = status, payment
+	if s.conn != nil {
+		_, _ = s.conn.Exec(`UPDATE orders SET status = $2, payment_status = $3 WHERE id = $1`, s.o.ID, status, payment)
+	}
 }
 
 func earnFixture(t *testing.T, currency string, subtotal int64) (*Service, *orderState, uuid.UUID, uuid.UUID) {
@@ -35,10 +41,11 @@ func earnFixture(t *testing.T, currency string, subtotal int64) (*Service, *orde
 	svc, _, customerID, channelID := newFixture(t, conn)
 	setProgram(t, conn, channelID, true, 1)
 	orderID := seedOrder(t, svc, channelID)
-	st := &orderState{o: order.Order{
+	st := &orderState{conn: conn, o: order.Order{
 		ID: orderID, CustomerID: &customerID, ChannelID: channelID, Number: "1001",
 		Status: "pending", PaymentStatus: order.PaymentUnpaid, SubtotalAmount: subtotal, CurrencyCode: currency,
 	}}
+	st.set("pending", order.PaymentUnpaid)
 	svc.SetOrderLookup(st)
 	return svc, st, customerID, orderID
 }
@@ -162,5 +169,21 @@ func TestARevokeWhoseOrderLookupFailsIsRetried(t *testing.T) {
 	}
 	if got := orderPoints(t, svc, orderID); got != 25 {
 		t.Fatalf("a failed revoke still moved the ledger to %d", got)
+	}
+}
+
+// A plugin weighing the points while the order is cancelled underneath it earns nothing, since the cancel's clawback
+// found no points to take back
+func TestAnOrderCancelledWhileItsPointsWereWeighedEarnsNothing(t *testing.T) {
+	var st *orderState
+	svc, st, _, orderID, _ := earnWith(t, func(*Earning) error {
+		st.set(order.OrderStatusCancelled, order.PaymentPaid)
+		return nil
+	})
+	if err := paid(svc, orderID, order.PaymentPaid); err != nil {
+		t.Fatal(err)
+	}
+	if got := orderPoints(t, svc, orderID); got != 0 {
+		t.Errorf("a cancelled order earned %d points", got)
 	}
 }

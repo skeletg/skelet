@@ -1,6 +1,7 @@
 package subscription
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -21,12 +22,14 @@ const (
 	maxRetries     = 10
 	maxRetryDays   = 60
 	defaultRetries = "1, 3, 7"
+	// The most a hook can make one period cost, in minor units - far past any real renewal, short of a total that overflows
+	MaxRenewalCents = 10_000_000_000
 )
 
 func init() {
 	config.RegisterGroup(config.Group{Section: "sales", Slug: "subscriptions", Label: "Subscriptions", SortOrder: 5, Scoping: config.ScopingChannel})
 	config.Register(config.Definition{Path: retryDaysPath, Type: config.TypeString, Default: defaultRetries, Label: "Retry a failed renewal after (days)",
-		Description: "The days to wait before each retry of a renewal charge that failed, in order - 1, 3, 7 tries again a day later, then three days after that, then a week after that, and cancels the subscription when the last one fails. 0 cancels at the first failure.",
+		Description: "The days to wait before each retry of a renewal charge that failed, in order - 1, 3, 7 tries again a day later, then three days after that, then a week after that, and cancels the subscription when the last one fails. 0 cancels at the first failure, and empty uses 1, 3, 7.",
 		Check:       func(v string) error { _, err := parseRetryDays(v); return err }})
 }
 
@@ -60,6 +63,7 @@ func (s *Service) retryLadder(ctx context.Context, sub Subscription) []time.Dura
 	if s.settings == nil {
 		return dunningBackoff
 	}
+	// A cleared field means the default, never "no retries" - "0" says that
 	scope := config.DefaultScope
 	if sub.ChannelID != nil {
 		scope = config.Scope{Kind: config.ScopeChannel, ChannelID: sub.ChannelID}
@@ -68,15 +72,16 @@ func (s *Service) retryLadder(ctx context.Context, sub Subscription) []time.Dura
 	if err != nil {
 		return dunningBackoff
 	}
-	ladder, err := parseRetryDays(v)
+	ladder, err := parseRetryDays(cmp.Or(strings.TrimSpace(v), defaultRetries))
 	if err != nil {
 		return dunningBackoff
 	}
 	return ladder
 }
 
-// Fires BEFORE a period is invoiced, inside the billing lock - sync handlers set the amount, skip the period or move it
-// later - Response {reject, reason, amountCents, skip, delayUntil}
+// Fires BEFORE a period is invoiced, ahead of the billing lock, and may come again for the same period when the plan
+// is thrown away - sync handlers set the amount, skip the period or move it later - Response {reject, reason,
+// amountCents, skip, delayUntil}
 type Renewing struct {
 	SubscriptionID uuid.UUID
 	ChannelID      uuid.UUID
@@ -142,8 +147,11 @@ func (r *Renewing) RenewalAmountCents() int64        { return r.AmountCents }
 func (r *Renewing) SkipRenewal()                     { r.Skip = true }
 
 func (r *Renewing) SetRenewalAmount(cents int64) error {
-	if cents < 0 {
+	switch {
+	case cents < 0:
 		return errors.New("a renewal can't cost less than nothing")
+	case cents > MaxRenewalCents:
+		return fmt.Errorf("a renewal costs at most %d in minor units", MaxRenewalCents)
 	}
 	r.AmountCents = cents
 	return nil

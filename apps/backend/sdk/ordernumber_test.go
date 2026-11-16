@@ -7,7 +7,7 @@ import (
 )
 
 func TestRegisterOrderNumberer(t *testing.T) {
-	t.Cleanup(func() { orderNumberers = nil })
+	t.Cleanup(orderNumberers.reset)
 	acme := &Plugin{slug: "acme"}
 	acme.RegisterOrderNumberer(func(context.Context, OrderNumberRequest) (string, error) { return "A-1", nil })
 	if got := OrderNumberers(); len(got) != 1 || got[0].PluginSlug != "acme" {

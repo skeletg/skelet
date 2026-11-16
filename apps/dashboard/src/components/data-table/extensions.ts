@@ -58,6 +58,11 @@ export function registerListMassAction<TData extends RowData = RowData>(entry: L
 export function getListColumns<TData extends RowData>(target?: string): ListColumnEntry<TData>[] {
   return forTarget(columns, target) as ListColumnEntry<TData>[]
 }
+// A list loads what plugin columns read, like each row's metadata, only when one is registered for it
+export function hasListColumns(target: string): boolean {
+  return getListColumns(target).length > 0
+}
+
 export function getListFilters(target?: string): DataTableFilter[] {
   return forTarget(filters, target).map((e) => e.filter)
 }

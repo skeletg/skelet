@@ -21,11 +21,13 @@ func shopRequest(consent string) context.Context {
 
 func TestTrackingRoundTripsThroughMetadata(t *testing.T) {
 	in := auth.ShopperFromContext(shopRequest("v2:a1.d1.p0"))
-	out := decodeShopper(orderMetadataJSON(in, nil))
+	out, _ := decodeMetadata(orderMetadataJSON(in, nil))
 	if out == nil || out.Consent != in.Consent || out.AnonID != in.AnonID || out.IP != in.IP || out.UserAgent != in.UserAgent || !maps.Equal(out.ClickIDs, in.ClickIDs) {
 		t.Fatalf("round trip: %+v, want %+v", out, in)
 	}
-	if string(orderMetadataJSON(nil, nil)) != "{}" || decodeShopper([]byte("{}")) != nil || decodeShopper([]byte("garbage")) != nil {
+	empty, _ := decodeMetadata([]byte("{}"))
+	garbage, _ := decodeMetadata([]byte("garbage"))
+	if string(orderMetadataJSON(nil, nil)) != "{}" || empty != nil || garbage != nil {
 		t.Fatal("an order a shop didn't place must store and read no snapshot")
 	}
 }
@@ -48,8 +50,8 @@ func TestPluginMetadataSitsBesideTheTrackingSnapshot(t *testing.T) {
 	}
 	shopper := auth.ShopperFromContext(shopRequest("v2:a1.d1.p0"))
 	raw := orderMetadataJSON(shopper, p.Metadata)
-	if got := decodeMetadata(raw); !maps.Equal(got, map[string]string{"acme.slot": "morning"}) || decodeShopper(raw) == nil {
-		t.Errorf("metadata %v, tracking kept %v - want both, apart", got, decodeShopper(raw) != nil)
+	if kept, got := decodeMetadata(raw); !maps.Equal(got, map[string]string{"acme.slot": "morning"}) || kept == nil {
+		t.Errorf("metadata %v, tracking kept %v - want both, apart", got, kept != nil)
 	}
 }
 

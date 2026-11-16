@@ -9,7 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { useAuth } from '@/shared/auth/auth'
 import { AuthHeader } from './AuthShell'
 import { AdminLoginDocument, AdminSsoOptionDocument, AdminSsoStartDocument } from './Login.gql'
-import { keepPendingSso, ssoReturnUrl } from './sso'
+import { goToProvider, ssoReturnUrl } from './sso'
 import { markFirstLogin } from '@/features/onboarding/first-login'
 
 export function Login() {
@@ -28,12 +28,11 @@ export function Login() {
   const [login, { loading, error }] = useMutation(AdminLoginDocument)
   const sso = useQuery(AdminSsoOptionDocument).data?.adminSsoOption
   const [startSso, ssoStart] = useMutation(AdminSsoStartDocument)
+  const [badProvider, setBadProvider] = useState(false)
 
   async function onSso() {
     const { data } = await startSso({ variables: { redirectUri: ssoReturnUrl() } }).catch(() => ({ data: undefined }))
-    if (!data) return
-    keepPendingSso({ state: data.adminSsoStart.state, binding: data.adminSsoStart.binding, redirectTo })
-    window.location.assign(data.adminSsoStart.authorizeUrl)
+    if (data) setBadProvider(!goToProvider(data.adminSsoStart, redirectTo, 'signin'))
   }
 
   if (auth) return <Navigate to={redirectTo} replace />
@@ -140,9 +139,9 @@ export function Login() {
             >
               {sso.label}
             </Button>
-            {ssoStart.error && (
+            {(ssoStart.error || badProvider) && (
               <Alert variant="destructive">
-                <AlertDescription>{ssoStart.error.message}</AlertDescription>
+                <AlertDescription>{ssoStart.error?.message ?? t`The provider's sign-in address isn't a safe one to open - ask an administrator to check the provider settings.`}</AlertDescription>
               </Alert>
             )}
           </>

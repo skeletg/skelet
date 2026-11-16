@@ -30,8 +30,18 @@ func AllOrderStages() []order.Stage {
 	return out
 }
 
+// OrderStageByKey is the stage a key names, enabled anywhere or not - one order's label without building every stage
+func OrderStageByKey(key string) (order.Stage, bool) {
+	for _, r := range sdk.OrderStages() {
+		if r.Key() == key {
+			return orderStage(r), true
+		}
+	}
+	return order.Stage{}, false
+}
+
 func orderStage(r sdk.RegisteredOrderStage) order.Stage {
-	return order.Stage{Key: r.Stage.Key, Label: r.Stage.Label, Within: r.Stage.Within, Plugin: r.PluginSlug}
+	return order.Stage{Key: r.Key(), Label: r.Stage.Label, Within: r.Stage.Within, Plugin: r.PluginSlug}
 }
 
 type OrderStager interface {
@@ -56,6 +66,9 @@ func (h *Host) SetOrderStage(ctx context.Context, pluginSlug string, orderID uui
 	s := orderStager.Load()
 	if s == nil {
 		return sdk.ErrOrderStagesUnavailable
+	}
+	if key != "" {
+		key = pluginSlug + ":" + key
 	}
 	_, err := (*s).SetStage(ctx, orderID, key, pluginSlug)
 	return err

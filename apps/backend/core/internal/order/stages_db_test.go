@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	dbsqlc "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
@@ -30,12 +32,12 @@ func newStageRig(t *testing.T) (*stageRig, uuid.UUID) {
 	conn := testdb.Require(t)
 	r := &stageRig{bus: events.NewBus(), seen: make(chan OrderStageChanged, 8)}
 	r.svc = &Service{repo: NewRepository(dbsqlc.New(conn)), tx: txrunner.New(conn), bus: r.bus}
-	r.svc.SetStages(func(context.Context, uuid.UUID) []Stage {
-		return []Stage{
-			{Key: "awaiting_stock", Label: "Awaiting stock", Within: []string{OrderStatusConfirmed, OrderStatusProcessing}, Plugin: "acme"},
-			{Key: "packed", Label: "Packed", Within: []string{OrderStatusProcessing}, Plugin: "other"},
-		}
-	})
+	all := []Stage{
+		{Key: "awaiting_stock", Label: "Awaiting stock", Within: []string{OrderStatusConfirmed, OrderStatusProcessing}, Plugin: "acme"},
+		{Key: "packed", Label: "Packed", Within: []string{OrderStatusProcessing}, Plugin: "other"},
+		{Key: "switched_off", Label: "Switched off", Within: []string{OrderStatusConfirmed, OrderStatusProcessing}, Plugin: "gone"},
+	}
+	r.svc.SetStages(func(context.Context, uuid.UUID) []Stage { return all[:2] }, func() []Stage { return all })
 	r.bus.SubscribeSync(EventTransitioning, 100, func(_ context.Context, e events.Event) error {
 		r.mu.Lock()
 		defer r.mu.Unlock()
@@ -120,6 +122,28 @@ func TestAnOrderMovesThroughStagesWithItsStatus(t *testing.T) {
 	if c := r.changed(t); c.Status != OrderStatusCancelled || c.FromStage != "packed" || c.ToStage != "" {
 		t.Errorf("the cleared stage announced %+v", c)
 	}
+	if !slices.ContainsFunc(o.Events, func(e OrderEvent) bool { return e.Message == "Left the Packed stage" }) {
+		t.Errorf("the timeline doesn't say the move cleared the stage: %+v", o.Events)
+	}
+}
+
+// A plugin switched off on the channel takes no new orders into its stage, and the ones there stay its own
+func TestAStageOutlivesItsPluginBeingSwitchedOff(t *testing.T) {
+	r, id := newStageRig(t)
+	ctx := context.Background()
+	if _, err := r.svc.SetStage(ctx, id, "switched_off", ""); conflictCode(err) != "ORDER_STAGE_UNKNOWN" {
+		t.Errorf("entering a stage the channel no longer offers: %v", err)
+	}
+	if err := r.svc.repo.SetOrderStage(ctx, id, "switched_off"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.svc.SetStage(ctx, id, "", "acme"); conflictCode(err) != "ORDER_STAGE_NOT_YOURS" {
+		t.Errorf("another plugin clearing it: %v", err)
+	}
+	o, err := r.svc.UpdateStatus(ctx, id, OrderStatusProcessing)
+	if err != nil || o.Stage != "switched_off" {
+		t.Errorf("a status the stage sits in too: %v, stage %q", err, o.Stage)
+	}
 }
 
 func TestAPluginMovesOnlyItsOwnStages(t *testing.T) {
@@ -162,4 +186,60 @@ func TestAHoldClearsAStageItDoesntHold(t *testing.T) {
 	if _, err := r.svc.ReleaseOrder(ctx, id); err == nil {
 		t.Error("a subscriber's refusal didn't keep the hold")
 	}
+}
+
+// A stage that moves between the veto's answer and the status write means the answer was about another order
+func TestAStatusMoveRefusesAStageThatChangedUnderIt(t *testing.T) {
+	r, id := newStageRig(t)
+	ctx := context.Background()
+	r.refuse = func(m OrderTransitioning) error {
+		if m.ToStatus == OrderStatusProcessing {
+			r.refuse = nil
+			return r.svc.repo.SetOrderStage(ctx, id, "awaiting_stock")
+		}
+		return nil
+	}
+	if _, err := r.svc.UpdateStatus(ctx, id, OrderStatusProcessing); conflictCode(err) != "ORDER_STAGE_RACED" {
+		t.Errorf("a stage set while the move was being decided: %v", err)
+	}
+}
+
+// A handler moving the order it's being asked about is refused, rather than the two asking each other forever
+func TestAMoveDecidedInsideAnotherIsRefused(t *testing.T) {
+	r, id := newStageRig(t)
+	var nested error
+	asked := false
+	r.bus.SubscribeSync(EventTransitioning, 200, func(ctx context.Context, e events.Event) error {
+		if m := e.(*OrderTransitioning); m.ToStage == "awaiting_stock" && !asked {
+			asked = true
+			_, nested = r.svc.SetStage(ctx, id, "awaiting_stock", "")
+		}
+		return nil
+	})
+	if _, err := r.svc.SetStage(context.Background(), id, "awaiting_stock", ""); err != nil {
+		t.Fatal(err)
+	}
+	if conflictCode(nested) != "ORDER_MOVE_NESTED" {
+		t.Errorf("a move asked from inside the answer about it: %v", nested)
+	}
+}
+
+// A plugin's number taken between its check and the insert names the order again in the store's own format
+func TestAnOrderWhoseNumberWasTakenIsNamedAgain(t *testing.T) {
+	r, seeded := newStageRig(t)
+	ctx := context.Background()
+	taken, err := r.svc.repo.GetOrderByID(ctx, seeded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prefix := "T" + strings.ToUpper(uuid.NewString()[:6])
+	r.svc.numbering = NewNumbering(fakeSettings{numberFormatPath: prefix + "-{seq}"}, counts{}.next, nil, nil)
+	ch := &channel.Channel{ID: taken.ChannelID, Slug: "test"}
+	created, err := r.svc.createOrder(ctx, r.svc.repo, ch, Order{ChannelID: taken.ChannelID, CurrencyCode: "USD", Status: OrderStatusPending,
+		PaymentStatus: PaymentUnpaid, Number: taken.Number})
+	if err != nil || created.Number != prefix+"-1" {
+		t.Fatalf("an order given a taken number: %q, %v - want %s-1", created.Number, err, prefix)
+	}
+	conn := testdb.Require(t)
+	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM orders WHERE id = $1`, created.ID) })
 }

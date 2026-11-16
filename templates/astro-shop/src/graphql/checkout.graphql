@@ -30,7 +30,10 @@ query Checkout($id: ID!) {
         label
         hint
         type
-        options
+        options {
+          value
+          label
+        }
         required
         maxLength
         value

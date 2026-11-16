@@ -246,14 +246,29 @@ it("sends an answer to every field the store's plugins ask, an unticked box as e
   const spec = { hint: "", options: [], required: false, maxLength: 200, value: "" };
   mocks.checkout.mockResolvedValue({
     email: "guest@example.com", requirements: [], deliveryGroups: [], destination: { countryCode: "DE" },
-    fields: [{ ...spec, key: "gift_message", label: "Gift message", type: "TEXTAREA" }, { ...spec, key: "wrap", label: "Wrap it", type: "CHECKBOX" }],
+    fields: [{ ...spec, key: "acme:gift_message", label: "Gift message", type: "TEXTAREA" }, { ...spec, key: "acme:wrap", label: "Wrap it", type: "CHECKBOX" }],
   });
   mocks.gqlFetch.mockResolvedValue({ setCartDetails: { id: "cart-1", checkout: { deliveryGroups: [] } } });
   const data = new FormData();
   data.set("cartId", "cart-1");
-  data.set("fields.gift_message", " Happy birthday ");
+  data.set("fields.acme:gift_message", " Happy birthday ");
   await saveDetailsStep(undefined, data).catch(() => undefined);
   expect(mocks.gqlFetch).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-    input: expect.objectContaining({ fields: [{ key: "gift_message", value: "Happy birthday" }, { key: "wrap", value: "" }] }),
+    input: expect.objectContaining({ fields: [{ key: "acme:gift_message", value: "Happy birthday" }, { key: "acme:wrap", value: "" }] }),
   }));
+});
+
+it("says so on the form when a plugin asks something the page never drew, and re-reads the cart", async () => {
+  const spec = { hint: "", options: [], required: true, maxLength: 200, value: "" };
+  mocks.checkout.mockResolvedValue({
+    email: "guest@example.com", requirements: [], deliveryGroups: [], destination: { countryCode: "DE" },
+    fields: [{ ...spec, key: "acme:po_ref", label: "PO reference", type: "TEXT" }],
+  });
+  const data = new FormData();
+  data.set("cartId", "cart-1");
+  data.set("email", "guest@example.com");
+  data.set("fieldsAsked", "");
+  const result = await saveDetailsStep(undefined, data);
+  expect(result?.error?.[""]).toEqual(["checkoutFieldsChanged"]);
+  expect(mocks.gqlFetch).not.toHaveBeenCalled();
 });

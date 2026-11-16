@@ -7,7 +7,7 @@ import (
 )
 
 func TestRegisterDataResource(t *testing.T) {
-	t.Cleanup(func() { dataResources = nil })
+	t.Cleanup(dataResources.reset)
 	export := func(context.Context, DataRun, func(DataRecord) error) error { return nil }
 	imp := func(context.Context, DataRun, DataRow) (DataOutcome, error) { return DataSkipped, nil }
 	ok := DataResource{Slug: "points", Label: "Points", ViewPermission: "acme.view", Fields: []DataField{{Name: "email", Identifier: true}}, Export: export}
@@ -29,6 +29,10 @@ func TestRegisterDataResource(t *testing.T) {
 		"a column with a space":   func(r DataResource) DataResource { r.Slug, r.Fields = "e", []DataField{{Name: "first name"}}; return r },
 		"a repeated column": func(r DataResource) DataResource {
 			r.Slug, r.Fields = "f", []DataField{{Name: "email"}, {Name: "email"}}
+			return r
+		},
+		"a column of no known type": func(r DataResource) DataResource {
+			r.Slug, r.Fields = "h", []DataField{{Name: "email", Type: "currency"}}
 			return r
 		},
 		"an empty select": func(r DataResource) DataResource {

@@ -9,13 +9,9 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
-func (s *Service) IDByEmail(ctx context.Context, email string) (uuid.UUID, error) {
-	u, err := s.repo.GetByEmail(ctx, normalizeEmail(email))
-	return u.ID, err
-}
-
-// SignInVouched is a password sign-in's checks and events without the password - the provider asks any second factor
-func (s *Service) SignInVouched(ctx context.Context, id uuid.UUID) (AdminUser, error) {
+// SignInVouched is a password sign-in's checks and events without the password. The admin's own second factor is still
+// owed unless the provider proved one
+func (s *Service) SignInVouched(ctx context.Context, id uuid.UUID, totpCode string, providerMFA bool) (AdminUser, error) {
 	ip, ua := clientAttribution(ctx)
 	user, err := s.repo.GetByID(ctx, id)
 	if err != nil {
@@ -31,6 +27,11 @@ func (s *Service) SignInVouched(ctx context.Context, id uuid.UUID) (AdminUser, e
 	if !user.IsActive {
 		s.publishLoginFailed(ctx, user.Email, ip, ua, "account_disabled")
 		return AdminUser{}, fmt.Errorf("account is disabled")
+	}
+	if user.TotpEnabled && !providerMFA {
+		if err := s.secondFactor(ctx, &user, totpCode, ip, ua); err != nil {
+			return AdminUser{}, err
+		}
 	}
 	if user.Roles, err = s.repo.GetRoles(ctx, user.ID); err != nil {
 		return AdminUser{}, fmt.Errorf("load roles: %w", err)

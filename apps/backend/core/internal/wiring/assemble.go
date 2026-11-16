@@ -19,6 +19,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/country"
 	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
+	"github.com/skeletg/skelet/apps/backend/core/internal/documents"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
@@ -117,6 +118,7 @@ type orderPlacementDeps struct {
 	Customer    *customer.Service
 	Config      *config.Service
 	Address     *address.Service
+	Documents   *documents.Service
 
 	SegmentReads *SegmentLookup
 }
@@ -139,6 +141,7 @@ func wireOrderPlacement(d orderPlacementDeps) {
 	d.Order.SetProductPricer(NewOrderProductPricer(NewCartCatalogAdapter(d.Catalog, d.Customer, d.Channel)))
 	d.Order.SetRiskHoldThreshold(NewRiskHoldThreshold(d.Config))
 	d.Order.SetNumbering(d.Config, pluginhost.OrderNumber)
+	d.Order.SetSeller(d.Documents.Seller)
 	d.Order.SetShippingTax(NewShippingTax(d.Config))
 	d.Order.SetAddressChecker(d.Address)
 	// EvaluateCart resolves the buyer's segments itself so the storefront and placement can't price a cart differently - without this seam every segment-gated condition sees an empty list and matches nobody
@@ -279,7 +282,7 @@ func wirePluginRuntime(conn *sql.DB, ord *order.Service, cust *customer.Service,
 	pluginhost.SetDatabase(conn)
 	pluginhost.SetDraftOrderCreator(ord, cust)
 	pluginhost.SetOrderStager(ord)
-	ord.SetStages(pluginhost.OrderStagesFor)
+	ord.SetStages(pluginhost.OrderStagesFor, pluginhost.AllOrderStages)
 	pluginhost.SetCartReader(c)
 }
 

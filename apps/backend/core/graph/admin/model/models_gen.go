@@ -488,6 +488,19 @@ type AdminSession struct {
 	IsCurrent    bool      `json:"isCurrent"`
 }
 
+type AdminSsoLink struct {
+	ID         string    `json:"id"`
+	Issuer     string    `json:"issuer"`
+	Email      string    `json:"email"`
+	CreatedAt  time.Time `json:"createdAt"`
+	LastUsedAt time.Time `json:"lastUsedAt"`
+}
+
+type AdminSsoResult struct {
+	Session    *AdminAuthPayload `json:"session,omitempty"`
+	TotpTicket *string           `json:"totpTicket,omitempty"`
+}
+
 type AdminTotpSetup struct {
 	Secret     string `json:"secret"`
 	OtpauthURL string `json:"otpauthUrl"`
@@ -3812,9 +3825,10 @@ type OrderBusinessID struct {
 }
 
 type OrderCheckoutField struct {
-	Key   string `json:"key"`
-	Label string `json:"label"`
-	Value string `json:"value"`
+	Key   string                 `json:"key"`
+	Label string                 `json:"label"`
+	Value string                 `json:"value"`
+	Type  OrderCheckoutFieldType `json:"type"`
 }
 
 type OrderEvent struct {
@@ -9212,6 +9226,67 @@ func (e *MenuItemTargetType) UnmarshalJSON(b []byte) error {
 }
 
 func (e MenuItemTargetType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type OrderCheckoutFieldType string
+
+const (
+	OrderCheckoutFieldTypeText     OrderCheckoutFieldType = "TEXT"
+	OrderCheckoutFieldTypeTextarea OrderCheckoutFieldType = "TEXTAREA"
+	OrderCheckoutFieldTypeCheckbox OrderCheckoutFieldType = "CHECKBOX"
+	OrderCheckoutFieldTypeSelect   OrderCheckoutFieldType = "SELECT"
+	OrderCheckoutFieldTypeDate     OrderCheckoutFieldType = "DATE"
+)
+
+var AllOrderCheckoutFieldType = []OrderCheckoutFieldType{
+	OrderCheckoutFieldTypeText,
+	OrderCheckoutFieldTypeTextarea,
+	OrderCheckoutFieldTypeCheckbox,
+	OrderCheckoutFieldTypeSelect,
+	OrderCheckoutFieldTypeDate,
+}
+
+func (e OrderCheckoutFieldType) IsValid() bool {
+	switch e {
+	case OrderCheckoutFieldTypeText, OrderCheckoutFieldTypeTextarea, OrderCheckoutFieldTypeCheckbox, OrderCheckoutFieldTypeSelect, OrderCheckoutFieldTypeDate:
+		return true
+	}
+	return false
+}
+
+func (e OrderCheckoutFieldType) String() string {
+	return string(e)
+}
+
+func (e *OrderCheckoutFieldType) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = OrderCheckoutFieldType(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid OrderCheckoutFieldType", str)
+	}
+	return nil
+}
+
+func (e OrderCheckoutFieldType) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *OrderCheckoutFieldType) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e OrderCheckoutFieldType) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

@@ -190,34 +190,46 @@ function ContactSection({ values: v, asked }: Pick<Props, "values"> & { asked: A
   );
 }
 
+// The hint sits outside the label and is linked to the control, so it isn't read as part of the field's name
 function PluginField({ f, value }: { f: Asked[number]; value: string }) {
   const name = `field:${f.key}`;
+  const hintId = f.hint ? `${name.replace(/[^a-zA-Z0-9_-]/g, "-")}-hint` : undefined;
+  const hint = f.hint && (
+    <span id={hintId} className="text-xs text-muted-foreground">
+      {f.hint}
+    </span>
+  );
   if (f.type === "CHECKBOX") {
     return (
-      <label className="flex items-center gap-3 text-sm sm:col-span-2">
-        <input type="checkbox" name={name} required={f.required} defaultChecked={value === "true" || value === "on"} className="size-5 min-h-0 w-auto accent-primary" />
-        {f.label}
-      </label>
+      <div className="grid gap-1 sm:col-span-2">
+        <label className="flex items-center gap-3 text-sm">
+          <input type="checkbox" name={name} required={f.required} defaultChecked={value === "true" || value === "on"} aria-describedby={hintId} className="size-5 min-h-0 w-auto accent-primary" />
+          {f.label}
+        </label>
+        {hint}
+      </div>
     );
   }
   return (
-    <Field label={f.label} optional={!f.required} wide>
-      {f.type === "SELECT" ? (
-        <select name={name} required={f.required} defaultValue={value}>
-          <option value="">Choose…</option>
-          {f.options.map((o) => (
-            <option key={o} value={o}>
-              {o}
-            </option>
-          ))}
-        </select>
-      ) : f.type === "TEXTAREA" ? (
-        <textarea name={name} required={f.required} maxLength={f.maxLength} rows={3} defaultValue={value} />
-      ) : (
-        <input type={f.type === "DATE" ? "date" : "text"} name={name} required={f.required} maxLength={f.type === "TEXT" ? f.maxLength : undefined} defaultValue={value} />
-      )}
-      {f.hint && <span className="text-xs font-normal text-muted-foreground">{f.hint}</span>}
-    </Field>
+    <div className="grid gap-1 sm:col-span-2">
+      <Field label={f.label} optional={!f.required}>
+        {f.type === "SELECT" ? (
+          <select name={name} required={f.required} defaultValue={value} aria-describedby={hintId}>
+            <option value="">Choose…</option>
+            {f.options.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        ) : f.type === "TEXTAREA" ? (
+          <textarea name={name} required={f.required} maxLength={f.maxLength} rows={3} defaultValue={value} aria-describedby={hintId} />
+        ) : (
+          <input type={f.type === "DATE" ? "date" : "text"} name={name} required={f.required} maxLength={f.type === "TEXT" ? f.maxLength : undefined} defaultValue={value} aria-describedby={hintId} />
+        )}
+      </Field>
+      {hint}
+    </div>
   );
 }
 

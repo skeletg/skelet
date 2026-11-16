@@ -563,6 +563,11 @@ type ComplexityRoot struct {
 		Value     func(childComplexity int) int
 	}
 
+	CheckoutFieldOption struct {
+		Label func(childComplexity int) int
+		Value func(childComplexity int) int
+	}
+
 	CheckoutRequirement struct {
 		Code    func(childComplexity int) int
 		Label   func(childComplexity int) int
@@ -4141,6 +4146,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CheckoutField.Value(childComplexity), true
+
+	case "CheckoutFieldOption.label":
+		if e.ComplexityRoot.CheckoutFieldOption.Label == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CheckoutFieldOption.Label(childComplexity), true
+	case "CheckoutFieldOption.value":
+		if e.ComplexityRoot.CheckoutFieldOption.Value == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CheckoutFieldOption.Value(childComplexity), true
 
 	case "CheckoutRequirement.code":
 		if e.ComplexityRoot.CheckoutRequirement.Code == nil {
@@ -10252,12 +10270,18 @@ type BusinessIdValue {
   value: String!
 }
 
+# A select's choice - send value back as the answer, show label.
+type CheckoutFieldOption {
+  value: String!
+  label: String!
+}
+
 type CheckoutField {
   key:       String!
   label:     String!
   hint:      String!
   type:      CheckoutFieldType!
-  options:   [String!]!
+  options:   [CheckoutFieldOption!]!
   required:  Boolean!
   maxLength: Int!
   value:     String!
@@ -13568,6 +13592,16 @@ func (ec *executionContext) childFields_CheckoutField(ctx context.Context, field
 		return ec.fieldContext_CheckoutField_value(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type CheckoutField", field.Name)
+}
+
+func (ec *executionContext) childFields_CheckoutFieldOption(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "value":
+		return ec.fieldContext_CheckoutFieldOption_value(ctx, field)
+	case "label":
+		return ec.fieldContext_CheckoutFieldOption_label(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CheckoutFieldOption", field.Name)
 }
 
 func (ec *executionContext) childFields_CheckoutRequirement(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -26755,15 +26789,24 @@ func (ec *executionContext) _CheckoutField_options(ctx context.Context, field gr
 			return obj.Options, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
-			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v []*model1.CheckoutFieldOption) graphql.Marshaler {
+			return ec.marshalNCheckoutFieldOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐCheckoutFieldOptionᚄ(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
 func (ec *executionContext) fieldContext_CheckoutField_options(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("CheckoutField", field, false, false, errors.New("field of type String does not have child fields"))
+	fc = &graphql.FieldContext{
+		Object:     "CheckoutField",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CheckoutFieldOption(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _CheckoutField_required(ctx context.Context, field graphql.CollectedField, obj *model1.CheckoutField) (ret graphql.Marshaler) {
@@ -26833,6 +26876,52 @@ func (ec *executionContext) _CheckoutField_value(ctx context.Context, field grap
 }
 func (ec *executionContext) fieldContext_CheckoutField_value(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CheckoutField", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _CheckoutFieldOption_value(ctx context.Context, field graphql.CollectedField, obj *model1.CheckoutFieldOption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CheckoutFieldOption_value(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Value, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CheckoutFieldOption_value(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CheckoutFieldOption", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _CheckoutFieldOption_label(ctx context.Context, field graphql.CollectedField, obj *model1.CheckoutFieldOption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CheckoutFieldOption_label(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Label, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CheckoutFieldOption_label(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CheckoutFieldOption", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _CheckoutRequirement_scope(ctx context.Context, field graphql.CollectedField, obj *model1.CheckoutRequirement) (ret graphql.Marshaler) {
@@ -55291,6 +55380,49 @@ func (ec *executionContext) _CheckoutField(ctx context.Context, sel ast.Selectio
 	return out
 }
 
+var checkoutFieldOptionImplementors = []string{"CheckoutFieldOption"}
+
+func (ec *executionContext) _CheckoutFieldOption(ctx context.Context, sel ast.SelectionSet, obj *model1.CheckoutFieldOption) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, checkoutFieldOptionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CheckoutFieldOption")
+		case "value":
+			out.Values[i] = ec._CheckoutFieldOption_value(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "label":
+			out.Values[i] = ec._CheckoutFieldOption_label(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var checkoutRequirementImplementors = []string{"CheckoutRequirement"}
 
 func (ec *executionContext) _CheckoutRequirement(ctx context.Context, sel ast.SelectionSet, obj *model1.CheckoutRequirement) graphql.Marshaler {
@@ -67716,6 +67848,32 @@ func (ec *executionContext) marshalNCheckoutField2ᚖgithubᚗcomᚋskeletgᚋsk
 		return graphql.Null
 	}
 	return ec._CheckoutField(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNCheckoutFieldOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐCheckoutFieldOptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.CheckoutFieldOption) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNCheckoutFieldOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐCheckoutFieldOption(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNCheckoutFieldOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐCheckoutFieldOption(ctx context.Context, sel ast.SelectionSet, v *model1.CheckoutFieldOption) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CheckoutFieldOption(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNCheckoutFieldType2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐCheckoutFieldType(ctx context.Context, v any) (model1.CheckoutFieldType, error) {

@@ -57,6 +57,7 @@ query Order($id: ID!) {
       key
       label
       value
+      type
     }
     carrier
     trackingNumber

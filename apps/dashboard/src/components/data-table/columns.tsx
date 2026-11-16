@@ -111,11 +111,16 @@ function renderAction<TData extends RowData>(action: RowAction<TData>, row: TDat
   )
 }
 
+// The id a list's own trailing menu column goes by - DataTable keeps plugin columns ahead of it
+export const ACTIONS_COLUMN_ID = 'actions'
+// Where plugin row actions go on a list that has a menu of its own
+export const PLUGIN_ACTIONS_COLUMN_ID = 'plugin-actions'
+
 // The trailing per-row menu - `label` names the row so the trigger gets a distinguishable aria-label
 export function rowActionsColumn<TData extends RowData>({
   actions,
   label,
-  id = 'actions',
+  id = ACTIONS_COLUMN_ID,
 }: {
   actions: RowAction<TData>[]
   label?: (row: TData) => string

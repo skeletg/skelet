@@ -322,6 +322,26 @@ func TestTotpLoginCodeWorksOnce(t *testing.T) {
 	}
 }
 
+func TestAProviderSignInStillAsksForTheAdminsOwnCode(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	u := h.admin(t, "a@shop.test")
+	secret := h.withTotp(t, u)
+
+	if _, err := h.svc.SignInVouched(ctx, u.ID, "", false); !errors.Is(err, ErrTotpRequired) {
+		t.Fatalf("no code: err = %v, want ErrTotpRequired", err)
+	}
+	if _, err := h.svc.SignInVouched(ctx, u.ID, wrongCode(h.code(t, secret)), false); err == nil {
+		t.Fatal("a wrong code signed in")
+	}
+	if got, err := h.svc.SignInVouched(ctx, u.ID, h.code(t, secret), false); err != nil || got.ID != u.ID {
+		t.Fatalf("the right code: %+v, %v", got, err)
+	}
+	if _, err := h.svc.SignInVouched(ctx, u.ID, "", true); err != nil {
+		t.Errorf("a second factor the provider proved: %v", err)
+	}
+}
+
 func TestTotpLocksOutAfterRepeatedMisses(t *testing.T) {
 	h := newHarness(t)
 	ctx := context.Background()

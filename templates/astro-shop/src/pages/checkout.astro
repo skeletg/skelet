@@ -1,5 +1,6 @@
 ---
 import { getOwnCartId } from "@skelet/storefront-core/cart/read";
+import { fieldAnswer, fieldIssue } from "@skelet/storefront-core/checkout/fields";
 
 import Base from "../layouts/Base.astro";
 import { forgetCart } from "../lib/cart";
@@ -62,8 +63,12 @@ if (Astro.request.method === "POST") {
       };
       // The backend takes "same as shipping" only when the chosen delivery ships to the shopper - for a pickup it
       // asks for billing, and the address typed here is it
-      // The plugins' fields post as field:<key> - an unticked box posts nothing, which the backend reads as no answer
-      const fields = [...posted.keys()].filter((k) => k.startsWith("field:")).map((k) => ({ key: k.slice(6), value: field(k) }));
+      // The plugins' fields post as field:<key>, read and checked by the same rules the other template uses - an unticked
+      // box posts nothing, which is no answer
+      const asked = (await gql(CheckoutDocument, { id })).cart?.checkout.fields ?? [];
+      const raw = (f: (typeof asked)[number]) => posted?.get(`field:${f.key}`)?.toString() ?? null;
+      if (asked.some((f) => fieldIssue(f, raw(f)) !== null)) throw new GqlError("Check your answers to the questions under your details.", "VALIDATION");
+      const fields = asked.map((f) => ({ key: f.key, value: fieldAnswer(f, raw(f)) }));
       await gql(SetDetailsDocument, {
         cartId: id,
         input: { email: field("email").trim(), phone: opt("phone"), billingSameAsShipping: true, shippingAddress: address, billingAddress: address, fields },

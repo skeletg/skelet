@@ -195,10 +195,10 @@ describe("DetailsStep plugin fields", () => {
     renderStep({
       checkout: checkout({
         fields: [
-          { ...spec, key: "gift_message", label: "Gift message", type: "TEXTAREA", value: "Happy birthday" },
-          { ...spec, key: "wrap", label: "Wrapping", type: "SELECT", options: ["Paper", "Box"], required: true },
-          { ...spec, key: "terms", label: "Accept the gift terms", type: "CHECKBOX", required: true, value: "true" },
-          { ...spec, key: "day", label: "Delivery day", type: "DATE", hint: "We deliver on weekdays" },
+          { ...spec, key: "acme:gift_message", label: "Gift message", type: "TEXTAREA", value: "Happy birthday" },
+          { ...spec, key: "acme:wrap", label: "Wrapping", type: "SELECT", options: [{ value: "paper", label: "Paper" }, { value: "box", label: "Box" }], required: true },
+          { ...spec, key: "acme:terms", label: "Accept the gift terms", type: "CHECKBOX", required: true, value: "true" },
+          { ...spec, key: "acme:day", label: "Delivery day", type: "DATE", hint: "We deliver on weekdays" },
         ],
       }),
     });

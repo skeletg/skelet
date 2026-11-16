@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const insertLoyaltyEntry = `-- name: InsertLoyaltyEntry :one
@@ -142,4 +143,60 @@ func (q *Queries) LoyaltyEntriesForOrder(ctx context.Context, orderID uuid.NullU
 		return nil, err
 	}
 	return items, nil
+}
+
+const loyaltyLineProducts = `-- name: LoyaltyLineProducts :many
+SELECT p.sku, p.id,
+       coalesce(array_agg(pc.category_id ORDER BY pc.position) FILTER (WHERE pc.category_id IS NOT NULL), '{}')::uuid[] AS category_ids
+FROM catalog_products p
+LEFT JOIN catalog_product_categories pc ON pc.product_id = p.id
+WHERE p.sku = ANY($1::text[])
+GROUP BY p.sku, p.id
+`
+
+type LoyaltyLineProductsRow struct {
+	Sku         string      `json:"sku"`
+	ID          uuid.UUID   `json:"id"`
+	CategoryIds []uuid.UUID `json:"category_ids"`
+}
+
+// Each sku's product and its categories, for a rule like double points on a category
+func (q *Queries) LoyaltyLineProducts(ctx context.Context, skus []string) ([]LoyaltyLineProductsRow, error) {
+	rows, err := q.db.QueryContext(ctx, loyaltyLineProducts, pq.Array(skus))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LoyaltyLineProductsRow{}
+	for rows.Next() {
+		var i LoyaltyLineProductsRow
+		if err := rows.Scan(&i.Sku, &i.ID, pq.Array(&i.CategoryIds)); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const loyaltyOrderState = `-- name: LoyaltyOrderState :one
+SELECT status, payment_status FROM orders WHERE id = $1
+`
+
+type LoyaltyOrderStateRow struct {
+	Status        string `json:"status"`
+	PaymentStatus string `json:"payment_status"`
+}
+
+// Re-read under the customer lock, so an order cancelled while plugins weighed its points earns nothing
+func (q *Queries) LoyaltyOrderState(ctx context.Context, id uuid.UUID) (LoyaltyOrderStateRow, error) {
+	row := q.db.QueryRowContext(ctx, loyaltyOrderState, id)
+	var i LoyaltyOrderStateRow
+	err := row.Scan(&i.Status, &i.PaymentStatus)
+	return i, err
 }

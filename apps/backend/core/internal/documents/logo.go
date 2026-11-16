@@ -13,15 +13,23 @@ import (
 )
 
 const (
-	logoHeight   = 14.0 // mm
-	logoMaxWidth = 60.0
-	logoMaxPx    = 800
+	logoHeight    = 14.0 // mm
+	logoMaxWidth  = 60.0
+	logoMaxPx     = 800
+	logoMaxPixels = 40_000_000 // a few kilobytes can claim a picture that decodes to gigabytes, so the size is read first
 )
 
 // logoPNG decodes the logo and hands fpdf a PNG it can embed, scaled down so a camera-sized upload doesn't bloat every
 // document - false when it isn't an image fpdf could print, an SVG say
 func logoPNG(raw []byte) ([]byte, image.Point, bool) {
 	if len(raw) == 0 {
+		return nil, image.Point{}, false
+	}
+	cfg, err := webp.DecodeConfig(bytes.NewReader(raw))
+	if err != nil {
+		cfg, _, err = image.DecodeConfig(bytes.NewReader(raw))
+	}
+	if err != nil || cfg.Width <= 0 || cfg.Height <= 0 || int64(cfg.Width)*int64(cfg.Height) > logoMaxPixels {
 		return nil, image.Point{}, false
 	}
 	img, err := webp.Decode(bytes.NewReader(raw))
@@ -47,7 +55,10 @@ func logoPNG(raw []byte) ([]byte, image.Point, bool) {
 }
 
 func (d doc) logo() {
-	raw, size, ok := logoPNG(d.in.Store.Logo)
+	raw, size, ok := d.in.Store.Logo, d.in.Store.LogoSize, len(d.in.Store.Logo) > 0
+	if size == (image.Point{}) {
+		raw, size, ok = logoPNG(raw)
+	}
 	if !ok {
 		return
 	}

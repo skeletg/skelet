@@ -17,3 +17,12 @@ DELETE FROM identity_links WHERE id = sqlc.arg(id);
 
 -- name: DeleteIdentityLinksForUser :exec
 DELETE FROM identity_links WHERE kind = sqlc.arg(kind) AND user_id = sqlc.arg(user_id);
+
+-- name: ListIdentityLinksForUser :many
+SELECT * FROM identity_links WHERE kind = sqlc.arg(kind) AND user_id = sqlc.arg(user_id) ORDER BY created_at;
+
+-- name: DeleteIdentityLinkForUser :execrows
+DELETE FROM identity_links WHERE id = sqlc.arg(id) AND kind = sqlc.arg(kind) AND user_id = sqlc.arg(user_id);
+
+-- name: DeleteIdentityLinksForUserIssuer :exec
+DELETE FROM identity_links WHERE kind = sqlc.arg(kind) AND user_id = sqlc.arg(user_id) AND issuer = sqlc.arg(issuer);

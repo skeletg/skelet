@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DataTable } from './DataTable'
 import { metadataColumn } from './columns'
-import { __resetListExtensionsForTests, registerListColumn } from './extensions'
+import { __resetListExtensionsForTests, hasListColumns, registerListColumn, registerListRowAction } from './extensions'
 
 vi.mock('@/lib/admin-prefs', () => ({
   usePreference: <T,>(_key: string, fallback: T) => [fallback, () => {}],
@@ -25,5 +25,25 @@ describe('metadataColumn', () => {
     expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Name', 'Tier', 'Menu'])
     expect(screen.getByText('GOLD')).toBeDefined()
     expect(screen.getByText('-')).toBeDefined()
+  })
+})
+
+describe('hasListColumns', () => {
+  it('tells a list whether to load what plugin columns read', () => {
+    expect(hasListColumns('customers')).toBe(false)
+    registerListColumn<Row>({ id: 'acme:tier', target: 'customers', column: metadataColumn<Row>('tier', 'Tier') })
+    expect(hasListColumns('customers')).toBe(true)
+    expect(hasListColumns('catalog.products')).toBe(false)
+  })
+})
+
+describe('a list with its own menu and a plugin row action', () => {
+  it('keeps one column per id, the list’s own menu last', () => {
+    registerListRowAction<Row>({ id: 'acme:flag', target: 'customers', action: { label: 'Flag', onSelect: () => {} } })
+    const menu = { id: 'actions', header: 'Menu', cell: () => '…' }
+    render(<DataTable<Row> target="customers" columns={[{ accessorKey: 'name', header: 'Name' }, menu]} data={[{ id: '1', name: 'Ada', metadata: [] }]} />)
+    const headers = screen.getAllByRole('columnheader')
+    expect(headers.at(-1)?.textContent).toBe('Menu')
+    expect(headers).toHaveLength(3)
   })
 })

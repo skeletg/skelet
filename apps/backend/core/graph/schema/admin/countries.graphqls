@@ -19,7 +19,7 @@ type Country {
   metadata:              [MetadataItem!]!
   # The company identifiers a business purchase from this country asks for at checkout - a company registry number, a VAT number. Empty falls back to one generic tax ID, per sales/checkout/tax_id_field.
   businessIdFields:      [BusinessIdField!]!
-  # Printed on invoices and credit memos billed to this country - a reverse-charge or export note, say.
+  # Printed on the invoices and credit memos of business purchases billed to this country - a reverse-charge or export note, say.
   invoiceNote:           String!
   # ISO 3166-2 subdivisions (states/provinces) seeded for this country. Empty for countries that use free-text regions. Field resolver - only fetched when requested (e.g. the country detail page).
   regions:               [Region!]!

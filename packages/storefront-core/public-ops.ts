@@ -2,6 +2,7 @@
 // Opt-out on purpose: a query missing from this list keeps its token, so forgetting one costs performance, never correctness
 export const PUBLIC_OPS: ReadonlySet<string> = new Set([
   "Product",
+  "CustomerSsoOption",
   "ProductWithReviews",
   "ProductsByIds",
   "ProductConfigurator",

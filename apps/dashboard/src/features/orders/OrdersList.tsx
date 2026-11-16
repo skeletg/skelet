@@ -68,6 +68,7 @@ export function OrdersList({ defaultStatus }: { defaultStatus?: OrderStatus[] } 
     | string[]
     | undefined
   const stageValues = columnFilters.find((f) => f.id === 'stage')?.value as string[] | undefined
+  // Network-only like the rest: which stages apply follows the header's channel, which the cache key doesn't carry
   const stages = useQuery(OrderStagesDocument).data?.orderStages ?? []
   const hasStages = stages.length > 0
 

@@ -1,4 +1,4 @@
-import type { ComponentProps, ReactNode } from 'react'
+import { useRef, type ComponentProps, type ReactNode } from 'react'
 import type { AnyFieldApi } from '@tanstack/react-form'
 import { PlusIcon, Trash2Icon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -240,6 +240,34 @@ export function SelectField({
 
 type MetadataRow = { key: string; value: string }
 
+// Which rows the plugin fields own: on a value loaded or reset from outside, the first row with each claimed key, and
+// afterwards the rows the fields themselves write. A free row typed into a claimed key stays free, flagged rather than
+// vanishing mid-word
+function usePluginRows(rows: MetadataRow[], claimed: Set<string>) {
+  const owned = useRef(new WeakSet<MetadataRow>())
+  const written = useRef<MetadataRow[] | null>(null)
+  if (rows !== written.current) {
+    const fresh = new WeakSet<MetadataRow>()
+    const taken = new Set<string>()
+    for (const r of rows) {
+      const k = r.key.trim()
+      if (claimed.has(k) && !taken.has(k)) {
+        fresh.add(r)
+        taken.add(k)
+      }
+    }
+    owned.current = fresh
+  }
+  return {
+    owns: (r: MetadataRow) => owned.current.has(r),
+    own: (r: MetadataRow) => owned.current.add(r),
+    wrote: (next: MetadataRow[], commit: (next: MetadataRow[]) => void) => {
+      written.current = next
+      commit(next)
+    },
+  }
+}
+
 // Free-form key/value rows (shared/schemas/metadata) - edits the whole array in one go, which keeps
 // the diff and the stored draft working on the field as one value
 // `label` names the rows for screen readers - pages with two lists (public, private) tell them apart
@@ -247,15 +275,16 @@ export function MetadataField({ note, label = 'Metadata', target }: { note?: Rea
   const field = useFieldContext<MetadataRow[]>()
   const rows = field.state.value
   const error = fieldErrorText(field)
-  const set = (next: MetadataRow[]) => field.handleChange(next)
   const plugin = getDetailFields(target)
   const claimed = new Set(plugin.map((f) => f.key))
-  const free = rows.map((row, i) => ({ row, i })).filter(({ row }) => !claimed.has(row.key.trim()))
+  const owned = usePluginRows(rows, claimed)
+  const set = (next: MetadataRow[]) => owned.wrote(next, field.handleChange)
+  const free = rows.map((row, i) => ({ row, i })).filter(({ row }) => !owned.owns(row))
   return (
     <div className="grid gap-2">
       {plugin.length > 0 && (
         <div className="mb-2 border-b pb-4">
-          <PluginMetadataFields fields={plugin} rows={rows} onChange={set} />
+          <PluginMetadataFields fields={plugin} rows={rows} onChange={set} owns={owned.owns} own={owned.own} />
         </div>
       )}
       {free.length === 0 ? (
@@ -285,6 +314,11 @@ export function MetadataField({ note, label = 'Metadata', target }: { note?: Rea
             >
               <Trash2Icon className="size-4" />
             </Button>
+            {claimed.has(row.key.trim()) && (
+              <p className="col-span-3 -mt-1 text-xs text-destructive">
+                {plugin.find((f) => f.key === row.key.trim())?.label} has its own field above - use that, or another key
+              </p>
+            )}
           </div>
         ))
       )}

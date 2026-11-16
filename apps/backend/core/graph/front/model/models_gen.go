@@ -337,14 +337,19 @@ type CheckoutDetailsInput struct {
 }
 
 type CheckoutField struct {
-	Key       string            `json:"key"`
-	Label     string            `json:"label"`
-	Hint      string            `json:"hint"`
-	Type      CheckoutFieldType `json:"type"`
-	Options   []string          `json:"options"`
-	Required  bool              `json:"required"`
-	MaxLength int32             `json:"maxLength"`
-	Value     string            `json:"value"`
+	Key       string                 `json:"key"`
+	Label     string                 `json:"label"`
+	Hint      string                 `json:"hint"`
+	Type      CheckoutFieldType      `json:"type"`
+	Options   []*CheckoutFieldOption `json:"options"`
+	Required  bool                   `json:"required"`
+	MaxLength int32                  `json:"maxLength"`
+	Value     string                 `json:"value"`
+}
+
+type CheckoutFieldOption struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
 }
 
 type CheckoutFieldValueInput struct {

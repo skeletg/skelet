@@ -95,7 +95,9 @@
       "trackOrderFailed": "Could not look up your order. Please try again.",
       "fieldTick": "Tick this to continue.",
       "fieldInvalid": "Check this answer.",
-      "checkoutFieldRequired": "Answer the questions marked as required."
+      "checkoutFieldRequired": "Answer the questions marked as required.",
+      "checkoutFieldInvalid": "One of your answers needs another look - go back to your details to change it.",
+      "checkoutFieldsChanged": "The store asks something more since this page opened - check the questions below and continue."
     },
     "fields": {
       "email": "Email",

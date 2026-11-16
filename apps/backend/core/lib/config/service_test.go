@@ -698,3 +698,35 @@ func TestOnChangeFiresForSavesAndResetsOnly(t *testing.T) {
 		t.Errorf("OnChange saw %v, want the save and the reset only", seen)
 	}
 }
+
+func TestChangingAnAddressClearsTheSecretKeptForIt(t *testing.T) {
+	svc, repo := newTestService(t,
+		Definition{Path: "shop/general/issuer", Type: TypeString, Clears: []string{"shop/general/secret"}},
+		Definition{Path: "shop/general/secret", Type: TypeSecret},
+	)
+	ctx := context.Background()
+	for _, step := range []struct{ path, value string }{{"shop/general/issuer", "https://a.example"}, {"shop/general/secret", "s3cret"}} {
+		if _, err := svc.Set(ctx, step.path, step.value, DefaultScope); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := svc.Set(ctx, "shop/general/issuer", "https://a.example", DefaultScope); err != nil {
+		t.Fatal(err)
+	}
+	if e, _ := svc.Get(ctx, "shop/general/secret", DefaultScope); e.Value != "s3cret" {
+		t.Errorf("an unchanged address cleared the secret: %q", e.Value)
+	}
+	if _, err := svc.Set(ctx, "shop/general/issuer", "https://b.example", DefaultScope); err != nil {
+		t.Fatal(err)
+	}
+	if e, _ := svc.Get(ctx, "shop/general/secret", DefaultScope); e.Value != "" {
+		t.Errorf("the secret followed a new address: %q", e.Value)
+	}
+	repo.deleteErr = errors.New("db down")
+	if _, err := svc.Set(ctx, "shop/general/issuer", "https://c.example", DefaultScope); err == nil {
+		t.Error("the address changed with its secret still in place")
+	}
+	if e, _ := svc.Get(ctx, "shop/general/issuer", DefaultScope); e.Value != "https://b.example" {
+		t.Errorf("a failed clear still moved the address: %q", e.Value)
+	}
+}

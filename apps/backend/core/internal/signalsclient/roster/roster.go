@@ -137,7 +137,7 @@ func PushChannels(ctx context.Context, chans *channel.Service, cfg *config.Servi
 			}
 			entry.FromAddress, _ = cfg.GetString(ctx, "general/contact/email_from_address", scope)
 			entry.FromName, _ = cfg.GetString(ctx, "general/contact/email_from_name", scope)
-			entry.LogoURL, _ = cfg.GetString(ctx, "general/branding/logo_url", scope)
+			entry.LogoURL, _ = cfg.GetString(ctx, channel.ConfigLogoURL, scope)
 		}
 		entries = append(entries, entry)
 	}

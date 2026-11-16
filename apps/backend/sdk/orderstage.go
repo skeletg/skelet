@@ -3,9 +3,7 @@ package sdk
 import (
 	"context"
 	"errors"
-	"regexp"
 	"slices"
-	"sync"
 
 	"github.com/google/uuid"
 )
@@ -23,7 +21,7 @@ const (
 // A step of a plugin's own inside core's statuses - "awaiting stock" inside confirmed, say. The status still drives
 // payment and stock; the stage says where the work stands, and clears when the order moves outside Within
 type OrderStage struct {
-	Key    string // lowercase, stable - the order keeps it ("awaiting_stock")
+	Key    string // lowercase, stable - the order keeps pl.Key of it ("<plugin>:awaiting_stock")
 	Label  string
 	Within []string
 }
@@ -33,19 +31,23 @@ type RegisteredOrderStage struct {
 	Stage      OrderStage
 }
 
+// Key is the stage's key as the order keeps it, "<plugin>:<key>"
+func (r RegisteredOrderStage) Key() string { return r.PluginSlug + ":" + r.Stage.Key }
+
 var (
-	orderStagesMu  sync.Mutex
-	orderStages    []RegisteredOrderStage
-	orderStageKey  = regexp.MustCompile(`^[a-z][a-z0-9_]{0,39}$`)
+	orderStages    registry[RegisteredOrderStage]
 	stagedStatuses = []string{OrderStatusPending, OrderStatusConfirmed, OrderStatusOnHold, OrderStatusProcessing,
 		OrderStatusPartiallyFulfilled, OrderStatusFulfilled, OrderStatusCancelled}
 )
 
-// Offered on every channel the plugin is enabled for - panics on a malformed stage or a key another plugin registered
+// StagedStatuses is every status a stage can sit in - all but a draft
+func StagedStatuses() []string { return slices.Clone(stagedStatuses) }
+
+// Offered on every channel the plugin is enabled for - panics on a malformed stage or a key the plugin already registered
 func (pl *Plugin) RegisterOrderStage(s OrderStage) {
 	switch {
-	case !orderStageKey.MatchString(s.Key):
-		panic("sdk.RegisterOrderStage: key " + s.Key + " must be lowercase letters, digits and underscores, starting with a letter")
+	case !hookKey.MatchString(s.Key):
+		panic("sdk.RegisterOrderStage: key " + s.Key + hookKeyRule)
 	case s.Label == "":
 		panic("sdk.RegisterOrderStage: " + s.Key + " needs a label")
 	case len(s.Within) == 0:
@@ -56,19 +58,14 @@ func (pl *Plugin) RegisterOrderStage(s OrderStage) {
 			panic("sdk.RegisterOrderStage: " + s.Key + " can't sit in " + st + " - a draft has no stage")
 		}
 	}
-	orderStagesMu.Lock()
-	defer orderStagesMu.Unlock()
-	if slices.ContainsFunc(orderStages, func(r RegisteredOrderStage) bool { return r.Stage.Key == s.Key }) {
-		panic("sdk.RegisterOrderStage: another plugin already registered " + s.Key)
-	}
 	s.Within = slices.Clone(s.Within)
-	orderStages = append(orderStages, RegisteredOrderStage{PluginSlug: pl.slug, Stage: s})
+	orderStages.add(RegisteredOrderStage{PluginSlug: pl.slug, Stage: s},
+		func(r RegisteredOrderStage) bool { return r.PluginSlug == pl.slug && r.Stage.Key == s.Key },
+		"sdk.RegisterOrderStage: "+pl.slug+" already registered "+s.Key)
 }
 
 func OrderStages() []RegisteredOrderStage {
-	orderStagesMu.Lock()
-	defer orderStagesMu.Unlock()
-	out := slices.Clone(orderStages)
+	out := orderStages.all()
 	for i := range out {
 		out[i].Stage.Within = slices.Clone(out[i].Stage.Within)
 	}
@@ -81,8 +78,9 @@ type orderStager interface {
 	SetOrderStage(ctx context.Context, pluginSlug string, orderID uuid.UUID, key string) error
 }
 
-// Moves an order into one of this plugin's stages, or out of one with "" - another plugin's stage is refused, and so is
-// one the order's status doesn't hold. order.transitioning subscribers can refuse it too
+// Moves an order into one of this plugin's stages by the key it registered, or out of one with "" - a stage another
+// plugin holds is left alone, and one the order's status doesn't hold is refused. order.transitioning subscribers can
+// refuse it too
 func (pl *Plugin) SetOrderStage(ctx context.Context, orderID uuid.UUID, key string) error {
 	h, ok := hostNow().(orderStager)
 	if !ok {

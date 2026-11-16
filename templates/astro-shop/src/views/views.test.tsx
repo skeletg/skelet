@@ -108,7 +108,7 @@ describe("CheckoutView", () => {
   it("asks what the store's plugins ask beside the contact details", () => {
     const spec = { hint: "", options: [], required: false, maxLength: 200, value: "" };
     const asked = [
-      { ...spec, key: "gift_message", label: "Gift message", type: "TEXTAREA" as const },
+      { ...spec, key: "acme:gift_message", label: "Gift message", type: "TEXTAREA" as const, hint: "Printed on the card" },
       { ...spec, key: "terms", label: "Accept the gift terms", type: "CHECKBOX" as const, required: true },
     ];
     render(
@@ -116,11 +116,12 @@ describe("CheckoutView", () => {
         {...base}
         cart={{ ...cart, checkout: { ...cart.checkout, fields: asked } }}
         dest={{ countryCode: "DE", postalCode: "10115" }}
-        values={{ ...values, fields: { gift_message: "Happy birthday", terms: "true" } }}
+        values={{ ...values, fields: { "acme:gift_message": "Happy birthday", terms: "true" } }}
       />,
     );
-    const message = screen.getByRole("textbox", { name: /Gift message/ }) as HTMLTextAreaElement;
-    expect([message.value, message.name]).toEqual(["Happy birthday", "field:gift_message"]);
+    const message = screen.getByRole("textbox", { name: /^Gift message\s*\(optional\)$/ }) as HTMLTextAreaElement;
+    expect([message.value, message.name]).toEqual(["Happy birthday", "field:acme:gift_message"]);
+    expect(document.getElementById(message.getAttribute("aria-describedby") ?? "")?.textContent).toBe("Printed on the card");
     expect((screen.getByRole("checkbox", { name: "Accept the gift terms" }) as HTMLInputElement).checked).toBe(true);
   });
 

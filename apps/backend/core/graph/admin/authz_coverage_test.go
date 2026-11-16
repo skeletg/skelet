@@ -20,7 +20,8 @@ var publicResolvers = map[string]string{
 	"Logout":                    "clears the session, safe to call without one",
 	"AdminSsoOption":            "pre-auth, the sign-in page's button label and nothing else",
 	"AdminSsoStart":             "pre-auth, it only hands out the provider's sign-in address",
-	"AdminSsoComplete":          "pre-auth, the provider's code, state and binding are the credential, and only an existing admin signs in",
+	"AdminSsoComplete":          "pre-auth, the provider's code, state and binding are the credential, and only an admin who connected that provider account signs in",
+	"AdminSsoTotp":              "pre-auth, the ticket a provider sign-in left plus the admin's own second factor are the credential",
 
 	"DevAdmins":      "refuses unless r.DevMode",
 	"DevImpersonate": "refuses unless r.DevMode",

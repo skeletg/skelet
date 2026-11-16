@@ -42,7 +42,7 @@ import { ColumnControls } from './ColumnControls'
 import { exportTableToCsv } from './exportRows'
 import { getListColumns, getListFilters, getListMassActions, getListRowActions } from './extensions'
 import type { ListUrlState } from './useListUrlState'
-import { rowActionsColumn, type RowAction } from './columns'
+import { ACTIONS_COLUMN_ID, PLUGIN_ACTIONS_COLUMN_ID, rowActionsColumn, type RowAction } from './columns'
 import { useDefaultPageSize, useTablePrefs } from './useTablePrefs'
 import { SavedViews } from './SavedViews'
 import { booleanFilterFn, dateRangeFilterFn, numberRangeFilterFn } from './filterFns'
@@ -156,11 +156,12 @@ export function DataTable<TData extends RowData>({
   const allColumns = useMemo(() => {
     const extra = getListColumns<TData>(target).map((e) => e.column)
     const actions = [...(rowActions ?? []), ...getListRowActions<TData>(target)]
-    const ownMenu = columns.at(-1)?.id === 'actions'
-    const base = ownMenu ? [...columns.slice(0, -1), ...extra, columns[columns.length - 1]] : [...columns, ...extra]
-    if (actions.length === 0) return base
-    // The action menu stays last even when an extension adds a column after it
-    return [...base, rowActionsColumn<TData>({ actions, label: rowActionLabel })]
+    const ownMenu = columns.at(-1)?.id === ACTIONS_COLUMN_ID ? columns[columns.length - 1] : null
+    const own = ownMenu ? columns.slice(0, -1) : columns
+    // A list with a menu of its own keeps it last, and plugin actions get one beside it under their own id - two
+    // columns sharing an id would share their state too
+    const menu = actions.length > 0 ? [rowActionsColumn<TData>({ actions, label: rowActionLabel, id: ownMenu ? PLUGIN_ACTIONS_COLUMN_ID : undefined })] : []
+    return [...own, ...extra, ...menu, ...(ownMenu ? [ownMenu] : [])]
   }, [columns, target, rowActions, rowActionLabel])
 
   const allFilters = useMemo(() => [...(filters ?? []), ...getListFilters(target)], [filters, target])

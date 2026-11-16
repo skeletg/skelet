@@ -3,6 +3,7 @@ package e2e
 import (
 	"fmt"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,11 +30,19 @@ func TestOrderNumbersFollowEachChannelsFormat(t *testing.T) {
 
 	year := time.Now().UTC().Year()
 	for i, want := range []string{"%s-%d-0001", "%s-%d-0002"} {
-		if got := h.PlaceGuestCOD(t, own, 1).Number; got != fmt.Sprintf(want, own.Channel.Slug, year) {
+		if got := h.PlaceGuestCOD(t, own, 1).Number; got != fmt.Sprintf(want, strings.ToUpper(own.Channel.Slug), year) {
 			t.Errorf("order %d on the channel with its own format = %q", i+1, got)
 		}
 	}
 	if got := h.PlaceGuestCOD(t, plain, 1).Number; !regexp.MustCompile(`^ORD-\d{6,}$`).MatchString(got) {
 		t.Errorf("the channel left alone = %q, want the store's format", got)
+	}
+
+	// The count restarted under a format that once gave these numbers out skips past them
+	if _, err := h.D.Config.Set(h.Ctx, "sales/orders/number_reset", "never", scope); err != nil {
+		t.Fatal(err)
+	}
+	if got := h.PlaceGuestCOD(t, own, 1).Number; got != fmt.Sprintf("%s-%d-0003", strings.ToUpper(own.Channel.Slug), year) {
+		t.Errorf("a count that would reuse a number = %q", got)
 	}
 }

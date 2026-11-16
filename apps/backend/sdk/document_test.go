@@ -7,7 +7,7 @@ import (
 )
 
 func TestRegisterDocumentRenderer(t *testing.T) {
-	t.Cleanup(func() { documentRenderers = nil })
+	t.Cleanup(documentRenderers.reset)
 	pdf := func(context.Context, DocumentRequest) ([]byte, error) { return []byte("%PDF-1.7"), nil }
 	acme := &Plugin{slug: "acme"}
 	acme.RegisterDocumentRenderer(DocumentInvoice, pdf)

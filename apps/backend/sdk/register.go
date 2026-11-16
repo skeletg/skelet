@@ -107,6 +107,14 @@ func ResetForTest() {
 	manifestMu.Lock()
 	recordedManifests = nil
 	manifestMu.Unlock()
+	destinationsMu.Lock()
+	destinations = nil
+	destinationsMu.Unlock()
+	checkoutFields.reset()
+	orderNumberers.reset()
+	orderStages.reset()
+	documentRenderers.reset()
+	dataResources.reset()
 }
 
 func withHost(op func(Host) error) {

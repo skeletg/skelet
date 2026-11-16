@@ -13,6 +13,7 @@ import (
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
@@ -91,9 +92,17 @@ func (s *Service) earnForOrder(ctx context.Context, orderID uuid.UUID) error {
 	} else if len(rows) > 0 {
 		return nil
 	}
-	ev := s.earning(o, prog)
+	ev, err := s.earning(ctx, o, prog)
+	if err != nil {
+		return err
+	}
 	if s.bus != nil {
 		if err := s.bus.PublishSync(ctx, ev); err != nil {
+			// A refusal a plugin worded for people is its answer - earn nothing, as a webhook's reject does. Anything
+			// else is a fault, retried with the event
+			if refusal(err) {
+				return nil
+			}
 			return fmt.Errorf("loyalty.earning: %w", err)
 		}
 	}
@@ -119,6 +128,13 @@ func (s *Service) earnForOrder(ctx context.Context, orderID uuid.UUID) error {
 		if len(rows) > 0 {
 			return nil
 		}
+		now, err := q.LoyaltyOrderState(ctx, orderID)
+		if err != nil {
+			return fmt.Errorf("re-read the order: %w", err)
+		}
+		if now.Status == order.OrderStatusCancelled || !order.PaidFor(now.PaymentStatus) {
+			return nil
+		}
 		if _, err := q.InsertLoyaltyEntry(ctx, db.InsertLoyaltyEntryParams{
 			CustomerID: customerID,
 			OrderID:    uuid.NullUUID{UUID: orderID, Valid: true},
@@ -131,8 +147,9 @@ func (s *Service) earnForOrder(ctx context.Context, orderID uuid.UUID) error {
 	})
 }
 
-// earning is what the channel's rate earns on the order, before any plugin's say
-func (s *Service) earning(o order.Order, prog Program) *Earning {
+// earning is what the channel's rate earns on the order, before any plugin's say, with each line's product and
+// categories for a rule that keys on them
+func (s *Service) earning(ctx context.Context, o order.Order, prog Program) (*Earning, error) {
 	merch := max(o.SubtotalAmount-o.DiscountAmount, 0)
 	// Per whole currency unit of the order's own currency - a flat /100 earned yen at a hundredth of the rate and dinars at ten times it
 	unit := int64(math.Pow10(money.ISODecimals(o.CurrencyCode)))
@@ -141,10 +158,26 @@ func (s *Service) earning(o order.Order, prog Program) *Earning {
 		UnitCents: unit, PointsPerUnit: max(prog.EarnPointsPerUnit, 0), MerchandiseCents: merch,
 		Points: merch / unit * max(prog.EarnPointsPerUnit, 0),
 	}
+	skus := make([]string, 0, len(o.Lines))
 	for _, l := range o.Lines {
-		e.Lines = append(e.Lines, EarningLine{SKU: l.ProductSku, Quantity: l.Quantity, TotalCents: l.TotalPrice})
+		skus = append(skus, l.ProductSku)
 	}
-	return e
+	products := map[string]db.LoyaltyLineProductsRow{}
+	if len(skus) > 0 {
+		rows, err := s.queries.LoyaltyLineProducts(ctx, skus)
+		if err != nil {
+			return nil, fmt.Errorf("read the lines' products: %w", err)
+		}
+		for _, r := range rows {
+			products[r.Sku] = r
+		}
+	}
+	for _, l := range o.Lines {
+		p := products[l.ProductSku]
+		e.Lines = append(e.Lines, EarningLine{SKU: l.ProductSku, ProductID: p.ID, CategoryIDs: p.CategoryIds, Quantity: l.Quantity,
+			UnitCents: l.UnitPrice, TotalCents: l.TotalPrice, Gift: l.IsGift})
+	}
+	return e, nil
 }
 
 func (s *Service) onOrderCancelled(ctx context.Context, e events.Event) error {
@@ -248,4 +281,12 @@ func (s *Service) revokeForOrder(ctx context.Context, orderID uuid.UUID, fractio
 		}
 		return nil
 	})
+}
+
+func refusal(err error) bool {
+	switch apperr.ClassOf(err) {
+	case apperr.ClassUnknown, apperr.ClassInternal, apperr.ClassUnavailable:
+		return false
+	}
+	return true
 }

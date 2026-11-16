@@ -14,29 +14,35 @@ import (
 	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
+// Key is the field's key as carts and orders keep it, "<plugin>:<key>"
 type CheckoutField struct {
 	Plugin string
+	Key    string
 	sdk.CheckoutField
 }
 
 // CheckoutFieldsFor is the fields of every compiled-in plugin enabled on the channel, in registration order
 func CheckoutFieldsFor(ctx context.Context, channelID uuid.UUID) []CheckoutField {
 	var out []CheckoutField
+	on := map[string]bool{}
 	for _, r := range sdk.CheckoutFields() {
-		if Enabled(ctx, r.PluginSlug, channelID) {
-			out = append(out, CheckoutField{Plugin: r.PluginSlug, CheckoutField: r.Field})
+		enabled, asked := on[r.PluginSlug]
+		if !asked {
+			enabled = Enabled(ctx, r.PluginSlug, channelID)
+			on[r.PluginSlug] = enabled
+		}
+		if enabled {
+			out = append(out, CheckoutField{Plugin: r.PluginSlug, Key: r.Key(), CheckoutField: r.Field})
 		}
 	}
 	return out
 }
 
-const defaultCheckoutFieldMax = 500
-
 func (f CheckoutField) Max() int {
 	if f.MaxLength > 0 {
 		return f.MaxLength
 	}
-	return defaultCheckoutFieldMax
+	return sdk.DefaultCheckoutAnswer
 }
 
 // Answer is the answer as the order keeps it - trimmed, held to the field's type, empty when not given - or why it won't do
@@ -56,7 +62,7 @@ func (f CheckoutField) Answer(ctx context.Context, channelID uuid.UUID, raw stri
 			return "", invalid("is either ticked or not")
 		}
 	case sdk.CheckoutFieldSelect:
-		if v != "" && !slices.Contains(f.Options, v) {
+		if v != "" && !slices.ContainsFunc(f.Options, func(o sdk.CheckoutFieldOption) bool { return o.Value == v }) {
 			return "", invalid("has to be one of its options")
 		}
 	case sdk.CheckoutFieldDate:
@@ -77,12 +83,12 @@ func (f CheckoutField) Answer(ctx context.Context, channelID uuid.UUID, raw stri
 	if f.Validate == nil {
 		return v, nil
 	}
-	ctx, finish, gate := Instrument(ctx, f.Plugin, "checkout field "+f.Key, channelID)
+	ctx, finish, gate := Instrument(ctx, f.Plugin, "checkout field "+f.Key, channelID, Unmetered())
 	defer finish(&err)
 	if gate != nil {
 		return "", gate
 	}
-	if err := f.Validate(ctx, channelID, v); err != nil {
+	if err := f.Validate(ctx, sdk.CheckoutFieldCheck{ChannelID: channelID, Value: v}); err != nil {
 		return "", translateUserError(err)
 	}
 	return v, nil

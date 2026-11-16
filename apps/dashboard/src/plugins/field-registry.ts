@@ -1,3 +1,5 @@
+import { formatYesNo } from '@/lib/format'
+
 // Plugin fields on core detail pages, each one a metadata key of the record. They edit the page's own metadata, so the
 // header Save, its before-and-after dialog and the unsaved-work guard cover them with no wiring of their own
 
@@ -15,10 +17,13 @@ export type DetailFieldEntry = {
 }
 
 const fields: DetailFieldEntry[] = []
+const METADATA_KEY = /^[\w.:-]{1,100}$/
 
 export function registerDetailField(entry: DetailFieldEntry) {
   if (fields.some((f) => f.id === entry.id)) throw new Error(`detail-fields: duplicate id "${entry.id}"`)
-  if (!entry.key.trim()) throw new Error(`detail-fields: "${entry.id}" needs a metadata key`)
+  if (!METADATA_KEY.test(entry.key)) {
+    throw new Error(`detail-fields: "${entry.id}" needs a metadata key of letters, digits and _ . : -, at most 100 characters`)
+  }
   if (fields.some((f) => f.target === entry.target && f.key === entry.key)) {
     throw new Error(`detail-fields: "${entry.target}" already has a field on "${entry.key}"`)
   }
@@ -36,7 +41,7 @@ export function detailFieldFor(target: string | undefined, key: string): DetailF
 }
 
 export function detailFieldText(field: DetailFieldEntry, raw: string): string {
-  if (field.type === 'checkbox') return raw === 'true' ? 'Yes' : 'No'
+  if (field.type === 'checkbox') return formatYesNo(raw)
   if (field.type === 'select') return field.options?.find((o) => o.value === raw)?.label ?? raw
   return raw
 }

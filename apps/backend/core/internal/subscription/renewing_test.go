@@ -3,6 +3,7 @@ package subscription
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -47,6 +48,16 @@ func TestFailedRenewalsRetryOnTheChannelsSchedule(t *testing.T) {
 	if len(repo.statuses) != 1 || repo.statuses[0].status != StatusCanceled {
 		t.Errorf("with no retries: %+v, want cancelled at the first failure", repo.statuses)
 	}
+
+	svc, repo, _, inv = newCollector(t, StatusActive, 0, errors.New("declined"))
+	svc.SetSettings(retrySettings("  "))
+	if _, err := svc.collectOne(context.Background(), inv, now); err != nil {
+		t.Fatal(err)
+	}
+	cancelled := slices.ContainsFunc(repo.statuses, func(st recordedStatus) bool { return st.status == StatusCanceled })
+	if cancelled || len(repo.attempts) == 0 || repo.attempts[0].next == nil || !repo.attempts[0].next.Equal(now.AddDate(0, 0, 1)) {
+		t.Errorf("a cleared schedule: %+v / %+v, want the default's first retry a day on", repo.statuses, repo.attempts)
+	}
 }
 
 func TestAFreePeriodIsPaidWithoutACharge(t *testing.T) {
@@ -78,5 +89,12 @@ func TestARenewingWebhookAnswer(t *testing.T) {
 		if _, _, err := (&Renewing{now: now}).ApplyWebhookResponse([]byte(body)); err == nil {
 			t.Errorf("%s was taken", body)
 		}
+	}
+}
+
+func TestARenewalCostsNoMoreThanTheCeiling(t *testing.T) {
+	r := &Renewing{AmountCents: 100}
+	if err := r.SetRenewalAmount(MaxRenewalCents + 1); err == nil || r.AmountCents != 100 {
+		t.Errorf("a period priced past the ceiling: %v, %d", err, r.AmountCents)
 	}
 }

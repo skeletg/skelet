@@ -60,6 +60,24 @@ func (q *Queries) DeleteIdentityLink(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const deleteIdentityLinkForUser = `-- name: DeleteIdentityLinkForUser :execrows
+DELETE FROM identity_links WHERE id = $1 AND kind = $2 AND user_id = $3
+`
+
+type DeleteIdentityLinkForUserParams struct {
+	ID     uuid.UUID `json:"id"`
+	Kind   string    `json:"kind"`
+	UserID uuid.UUID `json:"user_id"`
+}
+
+func (q *Queries) DeleteIdentityLinkForUser(ctx context.Context, arg DeleteIdentityLinkForUserParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteIdentityLinkForUser, arg.ID, arg.Kind, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteIdentityLinksForUser = `-- name: DeleteIdentityLinksForUser :exec
 DELETE FROM identity_links WHERE kind = $1 AND user_id = $2
 `
@@ -71,6 +89,21 @@ type DeleteIdentityLinksForUserParams struct {
 
 func (q *Queries) DeleteIdentityLinksForUser(ctx context.Context, arg DeleteIdentityLinksForUserParams) error {
 	_, err := q.db.ExecContext(ctx, deleteIdentityLinksForUser, arg.Kind, arg.UserID)
+	return err
+}
+
+const deleteIdentityLinksForUserIssuer = `-- name: DeleteIdentityLinksForUserIssuer :exec
+DELETE FROM identity_links WHERE kind = $1 AND user_id = $2 AND issuer = $3
+`
+
+type DeleteIdentityLinksForUserIssuerParams struct {
+	Kind   string    `json:"kind"`
+	UserID uuid.UUID `json:"user_id"`
+	Issuer string    `json:"issuer"`
+}
+
+func (q *Queries) DeleteIdentityLinksForUserIssuer(ctx context.Context, arg DeleteIdentityLinksForUserIssuerParams) error {
+	_, err := q.db.ExecContext(ctx, deleteIdentityLinksForUserIssuer, arg.Kind, arg.UserID, arg.Issuer)
 	return err
 }
 
@@ -107,6 +140,48 @@ func (q *Queries) GetIdentityLink(ctx context.Context, arg GetIdentityLinkParams
 		&i.LastUsedAt,
 	)
 	return i, err
+}
+
+const listIdentityLinksForUser = `-- name: ListIdentityLinksForUser :many
+SELECT id, issuer, subject, kind, channel_id, user_id, email, created_at, last_used_at FROM identity_links WHERE kind = $1 AND user_id = $2 ORDER BY created_at
+`
+
+type ListIdentityLinksForUserParams struct {
+	Kind   string    `json:"kind"`
+	UserID uuid.UUID `json:"user_id"`
+}
+
+func (q *Queries) ListIdentityLinksForUser(ctx context.Context, arg ListIdentityLinksForUserParams) ([]IdentityLink, error) {
+	rows, err := q.db.QueryContext(ctx, listIdentityLinksForUser, arg.Kind, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []IdentityLink{}
+	for rows.Next() {
+		var i IdentityLink
+		if err := rows.Scan(
+			&i.ID,
+			&i.Issuer,
+			&i.Subject,
+			&i.Kind,
+			&i.ChannelID,
+			&i.UserID,
+			&i.Email,
+			&i.CreatedAt,
+			&i.LastUsedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const touchIdentityLink = `-- name: TouchIdentityLink :exec

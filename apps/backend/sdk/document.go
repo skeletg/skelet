@@ -3,16 +3,18 @@ package sdk
 import (
 	"context"
 	"slices"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
 )
 
+// Which document a renderer makes
+type DocumentKind string
+
 const (
-	DocumentInvoice     = "invoice"
-	DocumentPackingSlip = "packing_slip"
-	DocumentCreditMemo  = "credit_memo"
+	DocumentInvoice     DocumentKind = "invoice"
+	DocumentPackingSlip DocumentKind = "packing_slip"
+	DocumentCreditMemo  DocumentKind = "credit_memo"
 )
 
 type DocumentAddress struct {
@@ -65,7 +67,8 @@ type DocumentMemo struct {
 	Reason          string
 }
 
-// The channel's document settings - Note is the one set on the buyer's country, for invoices and credit memos
+// The channel's document settings, everything but the logo as it read when the order was placed. Logo is a PNG at
+// most 800 pixels wide, and Note the one set on the buyer's country, for a business purchase's invoices and credit memos
 type DocumentSeller struct {
 	Name    string
 	Details []string
@@ -76,7 +79,7 @@ type DocumentSeller struct {
 
 // Default is core's own PDF, for a renderer that only stamps or wraps it
 type DocumentRequest struct {
-	Kind      string
+	Kind      DocumentKind
 	ChannelID uuid.UUID
 	Order     DocumentOrder
 	Memo      *DocumentMemo // a credit memo's, nil otherwise
@@ -89,34 +92,24 @@ type DocumentRenderer func(ctx context.Context, req DocumentRequest) ([]byte, er
 
 type RegisteredDocumentRenderer struct {
 	PluginSlug string
-	Kind       string
+	Kind       DocumentKind
 	Render     DocumentRenderer
 }
 
-var (
-	documentRenderersMu sync.Mutex
-	documentRenderers   []RegisteredDocumentRenderer
-)
+var documentRenderers registry[RegisteredDocumentRenderer]
 
 // Makes the kind's documents on every channel the plugin is enabled for - panics on an unknown kind, a nil renderer or a
 // second one for the same kind from the same plugin
-func (pl *Plugin) RegisterDocumentRenderer(kind string, r DocumentRenderer) {
+func (pl *Plugin) RegisterDocumentRenderer(kind DocumentKind, r DocumentRenderer) {
 	switch {
-	case !slices.Contains([]string{DocumentInvoice, DocumentPackingSlip, DocumentCreditMemo}, kind):
-		panic("sdk.RegisterDocumentRenderer: unknown document kind " + kind)
+	case !slices.Contains([]DocumentKind{DocumentInvoice, DocumentPackingSlip, DocumentCreditMemo}, kind):
+		panic("sdk.RegisterDocumentRenderer: unknown document kind " + string(kind))
 	case r == nil:
-		panic("sdk.RegisterDocumentRenderer: nil renderer for " + kind)
+		panic("sdk.RegisterDocumentRenderer: nil renderer for " + string(kind))
 	}
-	documentRenderersMu.Lock()
-	defer documentRenderersMu.Unlock()
-	if slices.ContainsFunc(documentRenderers, func(d RegisteredDocumentRenderer) bool { return d.PluginSlug == pl.slug && d.Kind == kind }) {
-		panic("sdk.RegisterDocumentRenderer: " + pl.slug + " already renders " + kind)
-	}
-	documentRenderers = append(documentRenderers, RegisteredDocumentRenderer{PluginSlug: pl.slug, Kind: kind, Render: r})
+	documentRenderers.add(RegisteredDocumentRenderer{PluginSlug: pl.slug, Kind: kind, Render: r},
+		func(d RegisteredDocumentRenderer) bool { return d.PluginSlug == pl.slug && d.Kind == kind },
+		"sdk.RegisterDocumentRenderer: "+pl.slug+" already renders "+string(kind))
 }
 
-func DocumentRenderers() []RegisteredDocumentRenderer {
-	documentRenderersMu.Lock()
-	defer documentRenderersMu.Unlock()
-	return slices.Clone(documentRenderers)
-}
+func DocumentRenderers() []RegisteredDocumentRenderer { return documentRenderers.all() }

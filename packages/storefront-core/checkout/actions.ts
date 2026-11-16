@@ -37,7 +37,7 @@ import {
   splitSelection,
   type DetailsValues,
 } from "./schemas";
-import { fieldAnswer } from "./fields";
+import { FIELDS_ASKED, fieldAnswer } from "./fields";
 import { getCheckoutSettings } from "../config/read";
 import { getCountries } from "../countries/read";
 import { getCustomerOrNull } from "../customer/read";
@@ -67,6 +67,7 @@ const CODE_KEYS: Record<string, string> = {
   CHECKOUT_BUSINESS_ID_REQUIRED: "checkoutBusinessIdRequired",
   CHECKOUT_BUSINESS_ID_INVALID: "businessIdInvalid",
   CHECKOUT_FIELD_REQUIRED: "checkoutFieldRequired",
+  CHECKOUT_FIELD_INVALID: "checkoutFieldInvalid",
   CHECKOUT_PICKUP_CONTACT_REQUIRED: "checkoutPickupContactRequired",
   CHECKOUT_SHIPPING_ADDRESS_REQUIRED: "checkoutAddressRequired",
   CHECKOUT_BILLING_ADDRESS_REQUIRED: "checkoutBillingRequired",
@@ -101,6 +102,17 @@ const CODE_KEYS: Record<string, string> = {
   // The front API scrubs an unavailable-class message, so the code is all that survives
   ADDRESS_VALIDATION_UNAVAILABLE: "addressValidationUnavailable",
 };
+
+// The page lists the plugin fields it drew in FIELDS_ASKED - an error on one it didn't is one the shopper can't see.
+// A template that doesn't send the list gets the errors as they are
+function unrenderedFieldError(formData: FormData, errors: Record<string, unknown> | null | undefined): boolean {
+  const asked = formData.get(FIELDS_ASKED);
+  if (typeof asked !== "string" || !errors) return false;
+  const drawn = new Set(asked.split("\n").filter(Boolean));
+  return Object.entries(errors).some(
+    ([name, msgs]) => Array.isArray(msgs) && msgs.length > 0 && name.startsWith("fields.") && !drawn.has(name.slice("fields.".length)),
+  );
+}
 
 function checkoutError(submission: AnySubmission, err: unknown, fallbackKey: string): FormResult {
   const code = err instanceof GraphQLRequestError ? err.errors[0]?.extensions?.code : undefined;
@@ -231,7 +243,15 @@ export async function saveDetailsStep(
   };
   const { signedIn } = mode;
   const submission = parseForm(formData, detailsStepSchema(settings, mode));
-  if (submission.status !== "success") return submission.reply();
+  if (submission.status !== "success") {
+    // A field a plugin started asking after the page rendered has nowhere to show its error, so say it on the form
+    // and re-read the cart, which draws the new field
+    if (unrenderedFieldError(formData, submission.error)) {
+      request().refresh();
+      return submission.reply({ formErrors: ["checkoutFieldsChanged"] });
+    }
+    return submission.reply();
+  }
   if (!cartId || !checkout) return submission.reply({ formErrors: ["checkoutCartMissing"] });
   const v = submission.value;
   const business = settings.business && v.purchaseType === "business";

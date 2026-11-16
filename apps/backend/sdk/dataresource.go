@@ -4,7 +4,6 @@ import (
 	"context"
 	"regexp"
 	"slices"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,6 +22,11 @@ const (
 	DataList    DataFieldType = "list"
 	DataJSON    DataFieldType = "json"
 )
+
+// DataFieldTypes is every column type the data hub reads
+func DataFieldTypes() []DataFieldType {
+	return []DataFieldType{DataText, DataInteger, DataNumber, DataBool, DataDate, DataMoney, DataList, DataJSON}
+}
 
 type DataField struct {
 	Name        string // the column header, lowercase
@@ -68,7 +72,8 @@ type DataRun struct {
 	Options   map[string]string
 }
 
-// One decoded row - a malformed cell fails the row by itself, and Fail fails it with your own reason
+// One decoded row - a malformed cell fails the row by itself, and Fail fails it with your own reason. A Required field
+// is yours to insist on when the row creates a record (Require), since only you know whether it does
 type DataRow interface {
 	Has(name string) bool
 	Str(name string) string
@@ -77,6 +82,8 @@ type DataRow interface {
 	Bool(name string) bool
 	Time(name string) *time.Time
 	List(name string) []string
+	JSON(name string, into any) bool // false on an empty cell, and on one that isn't valid JSON, which fails the row
+	Require(names ...string) bool    // fails the row unless every named column carries a value
 	Fail(format string, args ...any)
 }
 
@@ -88,13 +95,17 @@ const (
 	DataUpdated
 )
 
+// A json field's value is marshalled unless it's a string already
 type DataRecord map[string]any
 
 // Core owns the file: parsing, validation against the fields, dry runs, error isolation and progress. Import runs
 // once per row, and an error fails only that row; Export streams records until it returns
 type DataResource struct {
-	Slug             string // lowercase, unique within the plugin - core files it as "<plugin>.<slug>"
-	Label            string
+	Slug  string // lowercase, unique within the plugin - core files it as "<plugin>.<slug>"
+	Label string
+	// Global is for rows the whole installation shares, which a run needs an unscoped grant for. A resource left
+	// channel-scoped has to keep to run.ChannelID itself: core checks the grant on that channel, not what you read
+	Global           bool
 	Description      string
 	Fields           []DataField
 	Options          []DataOption
@@ -110,18 +121,16 @@ type RegisteredDataResource struct {
 }
 
 var (
-	dataResourcesMu sync.Mutex
-	dataResources   []RegisteredDataResource
-	dataResourceKey = regexp.MustCompile(`^[a-z][a-z0-9_]{0,39}$`)
-	dataColumn      = regexp.MustCompile(`^[a-z0-9_:.-]+$`)
+	dataResources registry[RegisteredDataResource]
+	dataColumn    = regexp.MustCompile(`^[a-z0-9_:.-]+$`)
 )
 
 // Lists the resource in the dashboard's data hub - panics on a malformed one or a slug the plugin already used
 func (pl *Plugin) RegisterDataResource(r DataResource) {
 	identified := slices.ContainsFunc(r.Fields, func(f DataField) bool { return f.Identifier })
 	switch {
-	case !dataResourceKey.MatchString(r.Slug):
-		panic("sdk.RegisterDataResource: slug " + r.Slug + " must be lowercase letters, digits and underscores, starting with a letter")
+	case !hookKey.MatchString(r.Slug):
+		panic("sdk.RegisterDataResource: slug " + r.Slug + hookKeyRule)
 	case r.Label == "" || r.ViewPermission == "" || len(r.Fields) == 0:
 		panic("sdk.RegisterDataResource: " + r.Slug + " needs a label, a view permission and at least one field")
 	case r.Export == nil && r.Import == nil:
@@ -134,6 +143,9 @@ func (pl *Plugin) RegisterDataResource(r DataResource) {
 		if !dataColumn.MatchString(f.Name) || seen[f.Name] {
 			panic("sdk.RegisterDataResource: " + r.Slug + " has a missing, repeated or not lowercase column " + f.Name)
 		}
+		if f.Type != "" && !slices.Contains(DataFieldTypes(), f.Type) {
+			panic("sdk.RegisterDataResource: " + r.Slug + "'s column " + f.Name + " has an unknown type " + string(f.Type))
+		}
 		seen[f.Name] = true
 	}
 	for _, o := range r.Options {
@@ -141,16 +153,28 @@ func (pl *Plugin) RegisterDataResource(r DataResource) {
 			panic("sdk.RegisterDataResource: " + r.Slug + " has an option without a name, or a select without choices")
 		}
 	}
-	dataResourcesMu.Lock()
-	defer dataResourcesMu.Unlock()
-	if slices.ContainsFunc(dataResources, func(d RegisteredDataResource) bool { return d.PluginSlug == pl.slug && d.Resource.Slug == r.Slug }) {
-		panic("sdk.RegisterDataResource: " + pl.slug + " already registered " + r.Slug)
-	}
-	dataResources = append(dataResources, RegisteredDataResource{PluginSlug: pl.slug, Resource: r})
+	dataResources.add(RegisteredDataResource{PluginSlug: pl.slug, Resource: cloneDataResource(r)},
+		func(d RegisteredDataResource) bool { return d.PluginSlug == pl.slug && d.Resource.Slug == r.Slug },
+		"sdk.RegisterDataResource: "+pl.slug+" already registered "+r.Slug)
 }
 
 func DataResources() []RegisteredDataResource {
-	dataResourcesMu.Lock()
-	defer dataResourcesMu.Unlock()
-	return slices.Clone(dataResources)
+	out := dataResources.all()
+	for i := range out {
+		out[i].Resource = cloneDataResource(out[i].Resource)
+	}
+	return out
+}
+
+// A copy sharing no slice with the plugin's own, so neither side can change the other's
+func cloneDataResource(r DataResource) DataResource {
+	r.Fields = slices.Clone(r.Fields)
+	for i := range r.Fields {
+		r.Fields[i].Enum = slices.Clone(r.Fields[i].Enum)
+	}
+	r.Options = slices.Clone(r.Options)
+	for i := range r.Options {
+		r.Options[i].Choices = slices.Clone(r.Options[i].Choices)
+	}
+	return r
 }

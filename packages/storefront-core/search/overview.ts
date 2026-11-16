@@ -1,5 +1,7 @@
 // The AI overview above a search's results: [[n]] in its text stands for the nth of its products
 
+import { requestHost } from "../site-url";
+
 export type OverviewProduct = { id: string; name: string; url: string };
 // recap is the backend's own record of what the overview showed, for a chat it's carried into
 export type SearchOverview = { text: string; recap: string; products: OverviewProduct[] };
@@ -56,7 +58,7 @@ export function searchedOnSite(headers: Pick<Headers, "get">): boolean {
   const site = headers.get("sec-fetch-site");
   if (site !== null) return site === "same-origin";
   const referer = headers.get("referer");
-  const host = (headers.get("x-forwarded-host") ?? headers.get("host") ?? "").split(",")[0].trim();
+  const host = requestHost(headers);
   if (!referer || !host) return false;
   try {
     return new URL(referer).host === host;

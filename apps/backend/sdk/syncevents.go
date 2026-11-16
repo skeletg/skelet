@@ -114,7 +114,8 @@ type CheckoutFieldAnswers interface {
 	CheckoutFieldValue(key string) (string, bool)
 }
 
-// On order.placing, into the order's metadata - prefix the key with your slug ("acme.slot"), and "tracking" is core's
+// On order.placing, into the order's metadata - Plugin.SetOrderMetadata keeps a key under your slug, and "tracking" is
+// core's
 type OrderPlacingMetadata interface {
 	SetPlacingMetadata(key, value string) error
 }
@@ -247,7 +248,8 @@ type CustomerDeleting interface {
 }
 
 // Points about to be earned on a paid-for order, the channel's rate already applied - change them for a rule of your
-// own, like double points on a category or none on sale items. It can arrive more than once for an order, so compute
+// own, like double points on a category or none on free gifts. It can arrive more than once for an order, so compute
+// the points from the event alone rather than counting what you've seen
 type LoyaltyEarning interface {
 	EarningOrderID() uuid.UUID
 	EarningChannelID() uuid.UUID
@@ -258,13 +260,17 @@ type LoyaltyEarning interface {
 	EarningMerchandiseCents() int64 // the subtotal less discounts, what core's points came from
 	EarningLineCount() int
 	EarningLine(i int) (sku string, quantity float64, totalCents int64)
+	EarningLineProduct(i int) (productID uuid.UUID, categoryIDs []uuid.UUID) // uuid.Nil for a line with no catalog product
+	EarningLineUnitCents(i int) int64                                        // what one unit sold for
+	EarningLineGift(i int) bool                                              // a promotion's free gift
 	EarningPoints() int64
-	SetEarningPoints(points int64) error // refuses a negative number - 0 earns nothing
-	AddEarningNote(note string)          // shown in the points history beside the order number
+	SetEarningPoints(points int64) error // refuses a negative number, or one past 100,000,000 - 0 earns nothing
+	AddEarningNote(note string)          // shown in the points history beside the order number - five at most, 200 characters each
 }
 
-// A subscription's next period about to be invoiced - change what it costs, skip it, or move it later. It runs while the
-// subscription is locked for billing, so keep it quick; an error leaves the period for the next billing run
+// A subscription's next period about to be invoiced - change what it costs, skip it, or move it later. It runs before
+// the subscription is locked for billing and can arrive more than once for a period, so decide from the event alone;
+// an error leaves the period for a later run, a minute on and longer each time
 type SubscriptionRenewing interface {
 	RenewalSubscriptionID() uuid.UUID
 	RenewalChannelID() uuid.UUID
@@ -277,7 +283,7 @@ type SubscriptionRenewing interface {
 	RenewalPeriodEnd() time.Time
 	RenewalCurrencyCode() string
 	RenewalAmountCents() int64
-	SetRenewalAmount(cents int64) error // refuses a negative amount - 0 bills nothing
+	SetRenewalAmount(cents int64) error // refuses a negative amount, or one past 10,000,000,000 - 0 bills nothing
 	SkipRenewal()                       // the period passes unbilled, and the next comes as usual
 	DelayRenewal(until time.Time) error // refuses a time not ahead of now - later periods count from it, and it wins over a skip
 }

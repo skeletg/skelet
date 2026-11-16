@@ -31,6 +31,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/phone"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 var (
@@ -252,7 +253,7 @@ func (r *Resolver) placeOrderInput(ctx context.Context, v *checkoutView, payment
 	}
 	for _, f := range r.checkoutFields(ctx, c.ChannelID) {
 		if v := co.Fields[f.Key]; v != "" {
-			in.CheckoutFields = append(in.CheckoutFields, order.CheckoutFieldAnswer{Key: f.Key, Label: f.Label, Value: v})
+			in.CheckoutFields = append(in.CheckoutFields, order.CheckoutFieldAnswer{Key: f.Key, Label: f.Label, Value: v, Type: string(f.Type)})
 		}
 	}
 	shipments, primary := r.placementShipments(ctx, v)
@@ -706,12 +707,31 @@ func (r *Resolver) missingField(ctx context.Context, c cart.Cart) error {
 	return nil
 }
 
+// recheckFields holds every saved answer to the rules as they stand at placement - a field may have changed, or its
+// plugin's own check, since the details step saved it
+func (r *Resolver) recheckFields(ctx context.Context, c cart.Cart) error {
+	for _, f := range r.checkoutFields(ctx, c.ChannelID) {
+		if _, err := f.Answer(ctx, c.ChannelID, c.Checkout.Fields[f.Key]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func fieldOptionModels(opts []sdk.CheckoutFieldOption) []*frontmodel.CheckoutFieldOption {
+	out := make([]*frontmodel.CheckoutFieldOption, len(opts))
+	for i, o := range opts {
+		out[i] = &frontmodel.CheckoutFieldOption{Value: o.Value, Label: o.Label}
+	}
+	return out
+}
+
 func (r *Resolver) fieldModels(ctx context.Context, c cart.Cart) []*frontmodel.CheckoutField {
 	out := []*frontmodel.CheckoutField{}
 	for _, f := range r.checkoutFields(ctx, c.ChannelID) {
 		out = append(out, &frontmodel.CheckoutField{
 			Key: f.Key, Label: f.Label, Hint: f.Hint, Type: frontmodel.CheckoutFieldType(strings.ToUpper(string(f.Type))),
-			Options: append([]string{}, f.Options...), Required: f.Required, MaxLength: int32(f.Max()), Value: c.Checkout.Fields[f.Key],
+			Options: fieldOptionModels(f.Options), Required: f.Required, MaxLength: int32(f.Max()), Value: c.Checkout.Fields[f.Key],
 		})
 	}
 	return out

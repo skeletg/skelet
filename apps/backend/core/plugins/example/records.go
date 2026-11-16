@@ -8,7 +8,7 @@ import (
 )
 
 var recordsResource = sdk.DataResource{
-	Slug: "records", Label: "Example records", Description: "The example plugin's notes.",
+	Slug: "records", Label: "Example records", Description: "The example plugin's notes.", Global: true, // one table for the whole installation, so a run needs an unscoped grant
 	ViewPermission: "example.manage", ImportPermission: "example.manage",
 	Fields: []sdk.DataField{
 		{Name: "id", Type: sdk.DataInteger, Identifier: true, Description: "Blank adds a record"},

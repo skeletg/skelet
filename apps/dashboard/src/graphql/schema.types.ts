@@ -528,6 +528,21 @@ export type AdminSession = {
   userAgent?: Maybe<Scalars['String']['output']>;
 };
 
+export type AdminSsoLink = {
+  __typename?: 'AdminSsoLink';
+  createdAt: Scalars['Time']['output'];
+  email: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  issuer: Scalars['String']['output'];
+  lastUsedAt: Scalars['Time']['output'];
+};
+
+export type AdminSsoResult = {
+  __typename?: 'AdminSsoResult';
+  session?: Maybe<AdminAuthPayload>;
+  totpTicket?: Maybe<Scalars['String']['output']>;
+};
+
 export type AdminTotpSetup = {
   __typename?: 'AdminTotpSetup';
   otpauthUrl: Scalars['String']['output'];
@@ -4325,8 +4340,12 @@ export type Mutation = {
   adminSendCartOffer: AdminCart;
   adminSetCartLinePrice: AdminCart;
   adminSetCustomerConsent: CustomerConsent;
-  adminSsoComplete: AdminAuthPayload;
+  adminSsoComplete: AdminSsoResult;
+  adminSsoLinkComplete: AdminSsoLink;
+  adminSsoLinkStart: SsoStart;
   adminSsoStart: SsoStart;
+  adminSsoTotp: AdminAuthPayload;
+  adminSsoUnlink: Scalars['Boolean']['output'];
   adminTotpDisable: Scalars['Boolean']['output'];
   adminTotpEnable: Array<Scalars['String']['output']>;
   adminTotpSetup: AdminTotpSetup;
@@ -5014,8 +5033,31 @@ export type MutationAdminSsoCompleteArgs = {
 };
 
 
+export type MutationAdminSsoLinkCompleteArgs = {
+  binding: Scalars['String']['input'];
+  code: Scalars['String']['input'];
+  state: Scalars['String']['input'];
+};
+
+
+export type MutationAdminSsoLinkStartArgs = {
+  redirectUri: Scalars['String']['input'];
+};
+
+
 export type MutationAdminSsoStartArgs = {
   redirectUri: Scalars['String']['input'];
+};
+
+
+export type MutationAdminSsoTotpArgs = {
+  code: Scalars['String']['input'];
+  ticket: Scalars['String']['input'];
+};
+
+
+export type MutationAdminSsoUnlinkArgs = {
+  id: Scalars['ID']['input'];
 };
 
 
@@ -7802,8 +7844,16 @@ export type OrderCheckoutField = {
   __typename?: 'OrderCheckoutField';
   key: Scalars['String']['output'];
   label: Scalars['String']['output'];
+  type: OrderCheckoutFieldType;
   value: Scalars['String']['output'];
 };
+
+export type OrderCheckoutFieldType =
+  | 'CHECKBOX'
+  | 'DATE'
+  | 'SELECT'
+  | 'TEXT'
+  | 'TEXTAREA';
 
 export type OrderDocumentKind =
   | 'CREDIT_MEMO'
@@ -8658,6 +8708,7 @@ export type Query = {
   adminCartOfferEmailPreview: AdminCartOfferEmailPreview;
   adminCartOfferPaymentMethods: Array<AdminCartOfferPaymentMethod>;
   adminSearch: AdminSearchResult;
+  adminSsoLinks: Array<AdminSsoLink>;
   adminSsoOption?: Maybe<SsoOption>;
   admins: Array<AdminUser>;
   agenticStatus: Array<AgenticStatus>;

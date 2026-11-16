@@ -2,15 +2,22 @@ package admin
 
 import (
 	"context"
-	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
 
 // Editing the default scope rewrites the baseline every channel inherits, which is why it needs its own slug rather than config.manage Secret-typed paths take config.manage_secrets ON TOP of the ordinary write grant - gateway keys and signing secrets move money and trust, a date format does not, and one grant covering both meant every settings operator could repoint Stripe. Unknown paths pass through so Set's own validation answers
 func requireSecretWritePermission(ctx context.Context, checker auth.ScopedPermissionChecker, path string, scope config.Scope) error {
 	def, ok := config.Find(path)
+	if ok && def.SuperuserOnly {
+		if claims, signedIn := auth.AdminFromContext(ctx); !signedIn || !claims.IsSuperuser {
+			return errSuperuserOnly
+		}
+		return nil
+	}
 	if !ok || def.Type != config.TypeSecret {
 		return nil
 	}
@@ -176,3 +183,5 @@ func scopeFromInput(in *model.ConfigScopeInput) config.Scope {
 	scope.Locale = in.Locale
 	return scope
 }
+
+var errSuperuserOnly = apperr.New("CONFIG_SUPERUSER_ONLY", apperr.ClassForbidden, "only a superuser can change this setting")

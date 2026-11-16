@@ -24,7 +24,7 @@ func TestARenewalRuleSetsWhatAPeriodCosts(t *testing.T) {
 		}
 		return r.SetRenewalAmount(1999)
 	})
-	if err := svc.billOne(ctx, id, now); err != nil {
+	if _, err := svc.billOne(ctx, id, now); err != nil {
 		t.Fatal(err)
 	}
 	if invs, err := svc.Invoices(ctx, id); err != nil || len(invs) != 1 || invs[0].Amount != 1999 {
@@ -45,7 +45,7 @@ func TestASkippedPeriodPassesUnbilled(t *testing.T) {
 		}
 		return nil
 	})
-	if err := svc.billOne(ctx, id, now); err != nil {
+	if _, err := svc.billOne(ctx, id, now); err != nil {
 		t.Fatal(err)
 	}
 	invs, err := svc.Invoices(ctx, id)
@@ -70,7 +70,7 @@ func TestADelayedRenewalMovesTheBillingDate(t *testing.T) {
 		r.SkipRenewal()
 		return r.DelayRenewal(until)
 	})
-	if err := svc.billOne(ctx, id, now); err != nil {
+	if _, err := svc.billOne(ctx, id, now); err != nil {
 		t.Fatal(err)
 	}
 	invs, _ := svc.Invoices(ctx, id)
@@ -86,12 +86,76 @@ func TestAFailingRenewalRuleLeavesThePeriodForTheNextRun(t *testing.T) {
 	id := insert(StatusActive, 1, now.Add(-time.Minute))
 	before, _ := svc.Get(ctx, id)
 	withRenewalRule(svc, func(*Renewing) error { return errors.New("pricing service down") })
-	if err := svc.billOne(ctx, id, now); err == nil {
+	if _, err := svc.billOne(ctx, id, now); err == nil {
 		t.Fatal("a failing rule billed anyway")
 	}
 	invs, _ := svc.Invoices(ctx, id)
 	after, _ := svc.Get(ctx, id)
 	if len(invs) != 0 || !after.NextBillingAt.Equal(before.NextBillingAt) {
 		t.Errorf("%d invoices, next billing moved from %v to %v", len(invs), before.NextBillingAt, after.NextBillingAt)
+	}
+}
+
+// A slow rule must not hold the subscription's row, and whatever changes it meanwhile wins over what the rule planned
+func TestARenewalRuleRunsOutsideTheBillingLock(t *testing.T) {
+	svc, conn, insert := newLifecycleDB(t)
+	ctx, now := context.Background(), time.Now()
+	id := insert(StatusActive, 1, now.Add(-time.Minute))
+	withRenewalRule(svc, func(*Renewing) error {
+		tx, err := conn.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`SELECT 1 FROM subscriptions WHERE id = $1 FOR UPDATE NOWAIT`, id); err != nil {
+			t.Errorf("the row was locked while the rule ran: %v", err)
+		}
+		if err := tx.Rollback(); err != nil {
+			return err
+		}
+		_, err = conn.Exec(`UPDATE subscriptions SET status = $2 WHERE id = $1`, id, StatusPaused)
+		return err
+	})
+	if _, err := svc.billOne(ctx, id, now); err != nil {
+		t.Fatal(err)
+	}
+	if invs, _ := svc.Invoices(ctx, id); len(invs) != 0 {
+		t.Errorf("a subscription paused while its rule ran was billed %d times", len(invs))
+	}
+}
+
+// A renewal whose rule keeps failing waits its turn rather than heading every run's batch, so the others still bill
+func TestAFailingRenewalRuleWaitsWithoutHoldingUpTheOthers(t *testing.T) {
+	svc, _, insert := newLifecycleDB(t)
+	ctx, now := context.Background(), time.Now()
+	stuck := insert(StatusActive, 1, now.Add(-2*time.Minute))
+	fine := insert(StatusActive, 1, now.Add(-time.Minute))
+	calls, down := 0, true
+	withRenewalRule(svc, func(r *Renewing) error {
+		if r.SubscriptionID != stuck {
+			return nil
+		}
+		calls++
+		if down {
+			return errors.New("pricing service down")
+		}
+		return nil
+	})
+	for _, at := range []time.Duration{0, 30 * time.Second, 61 * time.Second, 150 * time.Second} {
+		if _, err := svc.ProcessDue(ctx, now.Add(at)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if calls != 2 {
+		t.Errorf("asked %d times in two and a half minutes, want twice - once, then a minute later, then not for two more", calls)
+	}
+	if invs, _ := svc.Invoices(ctx, fine); len(invs) != 1 {
+		t.Errorf("the subscription behind the failing one billed %d times", len(invs))
+	}
+	down = false
+	if _, err := svc.ProcessDue(ctx, now.Add(4*time.Minute)); err != nil || calls != 3 {
+		t.Fatalf("after the wait: %v, %d calls", err, calls)
+	}
+	if invs, _ := svc.Invoices(ctx, stuck); len(invs) != 1 {
+		t.Errorf("%d invoices once the rule recovered", len(invs))
 	}
 }

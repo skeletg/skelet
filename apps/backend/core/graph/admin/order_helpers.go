@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -123,9 +122,8 @@ func orderStageModel(key string) *model.OrderStage {
 	if key == "" {
 		return nil
 	}
-	all := plugin.AllOrderStages()
-	if i := slices.IndexFunc(all, func(st order.Stage) bool { return st.Key == key }); i >= 0 {
-		return toOrderStageModel(all[i])
+	if st, ok := plugin.OrderStageByKey(key); ok {
+		return toOrderStageModel(st)
 	}
 	return &model.OrderStage{Key: key, Label: key, Within: []model.OrderStatus{}}
 }
@@ -500,7 +498,7 @@ func (r *queryResolver) readableChannels(ctx context.Context, slug string, chann
 func toOrderCheckoutFields(answers []order.CheckoutFieldAnswer) []*model.OrderCheckoutField {
 	out := make([]*model.OrderCheckoutField, len(answers))
 	for i, a := range answers {
-		out[i] = &model.OrderCheckoutField{Key: a.Key, Label: a.Label, Value: a.Value}
+		out[i] = &model.OrderCheckoutField{Key: a.Key, Label: a.Label, Value: a.Value, Type: model.OrderCheckoutFieldType(strings.ToUpper(cmp.Or(a.Type, "text")))}
 	}
 	return out
 }

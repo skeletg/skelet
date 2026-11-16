@@ -10,11 +10,12 @@ import (
 )
 
 func TestRegisterOrderStage(t *testing.T) {
-	t.Cleanup(func() { orderStages = nil })
+	t.Cleanup(orderStages.reset)
 	acme := &Plugin{slug: "acme"}
 	acme.RegisterOrderStage(OrderStage{Key: "awaiting_stock", Label: "Awaiting stock", Within: []string{OrderStatusConfirmed}})
+	(&Plugin{slug: "other"}).RegisterOrderStage(OrderStage{Key: "awaiting_stock", Label: "Theirs", Within: []string{OrderStatusConfirmed}})
 	got := OrderStages()
-	if len(got) != 1 || got[0].PluginSlug != "acme" || got[0].Stage.Within[0] != OrderStatusConfirmed {
+	if len(got) != 2 || got[0].PluginSlug != "acme" || got[0].Stage.Within[0] != OrderStatusConfirmed || got[0].Key() != "acme:awaiting_stock" || got[1].Key() != "other:awaiting_stock" {
 		t.Fatalf("registered %+v", got)
 	}
 	got[0].Stage.Within[0] = "changed"
@@ -35,7 +36,7 @@ func TestRegisterOrderStage(t *testing.T) {
 					t.Errorf("panic %q", r)
 				}
 			}()
-			(&Plugin{slug: "other"}).RegisterOrderStage(s)
+			acme.RegisterOrderStage(s)
 		})
 	}
 }

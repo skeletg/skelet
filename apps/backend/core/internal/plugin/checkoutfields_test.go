@@ -16,7 +16,7 @@ func TestCheckoutFieldAnswers(t *testing.T) {
 	field := func(f sdk.CheckoutField) CheckoutField { return CheckoutField{Plugin: "acme", CheckoutField: f} }
 	text := field(sdk.CheckoutField{Key: "note", Label: "note", MaxLength: 5})
 	tick := field(sdk.CheckoutField{Key: "agree", Label: "the gift terms", Type: sdk.CheckoutFieldCheckbox, Required: true})
-	pick := field(sdk.CheckoutField{Key: "wrap", Label: "wrapping", Type: sdk.CheckoutFieldSelect, Options: []string{"paper", "box"}})
+	pick := field(sdk.CheckoutField{Key: "wrap", Label: "wrapping", Type: sdk.CheckoutFieldSelect, Options: []sdk.CheckoutFieldOption{{Value: "paper", Label: "Paper"}, {Value: "box", Label: "Box"}}})
 	day := field(sdk.CheckoutField{Key: "day", Label: "delivery day", Type: sdk.CheckoutFieldDate})
 	for name, tc := range map[string]struct {
 		f        CheckoutField
@@ -45,12 +45,12 @@ func TestCheckoutFieldAnswers(t *testing.T) {
 	}
 
 	called := 0
-	vetted := field(sdk.CheckoutField{Key: "msg", Label: "message", Validate: func(_ context.Context, got uuid.UUID, v string) error {
+	vetted := field(sdk.CheckoutField{Key: "msg", Label: "message", Validate: func(_ context.Context, check sdk.CheckoutFieldCheck) error {
 		called++
-		if got != ch {
-			t.Errorf("Validate saw channel %s", got)
+		if check.ChannelID != ch {
+			t.Errorf("Validate saw channel %s", check.ChannelID)
 		}
-		if v == "rude" {
+		if check.Value == "rude" {
 			return sdk.UserErrorWithCode(sdk.ErrorValidation, "ACME_RUDE", "keep the message kind")
 		}
 		return nil
@@ -61,5 +61,20 @@ func TestCheckoutFieldAnswers(t *testing.T) {
 	_, err := vetted.Answer(ctx, ch, " rude ")
 	if ae, ok := apperr.AsAppError(err); !ok || ae.Code != "ACME_RUDE" || ae.Class != apperr.ClassValidation || ae.Message != "keep the message kind" {
 		t.Errorf("a plugin's refusal reached the shopper as %v", err)
+	}
+}
+
+// One shopper flooding the details step must not refuse everyone else's answers, so a field's check skips the
+// plugin's per-minute allowance
+func TestAPluginOverItsAllowanceStillChecksCheckoutAnswers(t *testing.T) {
+	origEnabled, origLimit := isEnabledFromContext, checkRateLimitFn
+	t.Cleanup(func() { isEnabledFromContext, checkRateLimitFn = origEnabled, origLimit })
+	isEnabledFromContext = func(context.Context, string, uuid.UUID) bool { return true }
+	checkRateLimitFn = func(context.Context, string) error { return ErrPluginRateLimited }
+	asked := false
+	f := CheckoutField{Plugin: "acme", Key: "acme:msg", CheckoutField: sdk.CheckoutField{Key: "msg", Label: "message",
+		Validate: func(context.Context, sdk.CheckoutFieldCheck) error { asked = true; return nil }}}
+	if v, err := f.Answer(context.Background(), uuid.New(), "hi"); err != nil || v != "hi" || !asked {
+		t.Errorf("answer %q, %v, asked %v", v, err, asked)
 	}
 }

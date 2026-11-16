@@ -10,6 +10,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 )
 
 func earnWith(t *testing.T, rule func(*Earning) error) (*Service, *orderState, uuid.UUID, uuid.UUID, *int) {
@@ -101,5 +102,40 @@ func TestAnEarningWebhookAnswer(t *testing.T) {
 	}
 	if _, _, err := (&Earning{}).ApplyWebhookResponse([]byte(`{"points": -5}`)); err == nil {
 		t.Error("negative points were taken")
+	}
+}
+
+func TestAnEarningRuleIsHeldToSaneAmounts(t *testing.T) {
+	e := &Earning{}
+	if err := e.SetEarningPoints(MaxEarningPoints + 1); err == nil {
+		t.Error("an order earned past the ceiling")
+	}
+	for range maxEarningNotes + 2 {
+		e.AddEarningNote(strings.Repeat("x", maxEarningNote+50))
+	}
+	if len(e.Notes) != maxEarningNotes || len([]rune(e.Notes[0])) != maxEarningNote {
+		t.Errorf("%d notes, the first %d long", len(e.Notes), len([]rune(e.Notes[0])))
+	}
+}
+
+// A plugin refusing in words meant for people earns nothing, as a webhook's reject does - only a fault is retried
+func TestAnEarningRuleRefusingEarnsNothing(t *testing.T) {
+	svc, _, _, orderID, calls := earnWith(t, func(*Earning) error {
+		return apperr.New("ACME_NO_POINTS", apperr.ClassValidation, "no points on staff orders")
+	})
+	if err := paid(svc, orderID, order.PaymentPaid); err != nil || orderPoints(t, svc, orderID) != 0 || *calls != 1 {
+		t.Errorf("a refusal: %v, %d points after %d calls", err, orderPoints(t, svc, orderID), *calls)
+	}
+}
+
+func TestAnEarningLineSaysWhatItSold(t *testing.T) {
+	cat := uuid.New()
+	e := &Earning{Lines: []EarningLine{{SKU: "COAT-1", ProductID: uuid.New(), CategoryIDs: []uuid.UUID{cat}, Quantity: 2, UnitCents: 4500, TotalCents: 9000},
+		{SKU: "SOCK-GIFT", Gift: true}}}
+	if _, cats := e.EarningLineProduct(0); len(cats) != 1 || cats[0] != cat || e.EarningLineUnitCents(0) != 4500 || e.EarningLineGift(0) {
+		t.Errorf("the coat line: %v, %d, gift %v", cats, e.EarningLineUnitCents(0), e.EarningLineGift(0))
+	}
+	if id, _ := e.EarningLineProduct(5); id != uuid.Nil || !e.EarningLineGift(1) {
+		t.Error("a line past the end, or the gift")
 	}
 }

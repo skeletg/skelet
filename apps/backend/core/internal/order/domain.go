@@ -4,6 +4,7 @@ package order
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -55,6 +56,7 @@ type Order struct {
 	PONumber          string
 	BusinessIDs       []BusinessID // the buyer's company identifiers, empty on personal purchases
 	CheckoutFields    []CheckoutFieldAnswer
+	Seller            *Seller // the letterhead as it read at placement, nil on orders placed before it was kept
 	// What plugins recorded at placement, by their own keys - core's tracking snapshot lives beside it, not in it
 	Metadata map[string]string
 	// Stamped at fulfillment, from admin args or an OrderFulfilling subscriber, and empty otherwise
@@ -97,7 +99,13 @@ type BusinessID struct {
 	Value string `json:"value"`
 }
 
-type CheckoutFieldAnswer = BusinessID
+// CheckoutFieldAnswer is a plugin's checkout field as the shopper answered it, with the label and type they saw
+type CheckoutFieldAnswer struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+	Value string `json:"value"`
+	Type  string `json:"type,omitempty"` // empty on orders placed before it was kept, which read as text
+}
 
 type OrderAmounts struct {
 	Subtotal, Shipping, Discount, Tax, ShippingTax, Total int64
@@ -206,6 +214,8 @@ type Repository interface {
 	CreateOrder(ctx context.Context, o Order) (Order, error)
 	// Takes the scope's count for the period on its own - never inside the placement transaction
 	NextOrderNumber(ctx context.Context, scope, period string) (int64, error)
+	OrderNumberTaken(ctx context.Context, number string) (bool, error)
+	DefaultOrderNumber(ctx context.Context) (string, error)
 	AddOrderLine(ctx context.Context, line OrderLine) (OrderLine, error)
 	AddOrderLineComponent(ctx context.Context, component OrderLineComponent) (OrderLineComponent, error)
 	AddOrderLineStockParts(ctx context.Context, orderLineID uuid.UUID, parts []OrderLineStockPart) error
@@ -431,4 +441,16 @@ type OrderReturnLine struct {
 	RefundUnitCents int64
 	// Set when the line returns one component of a bundle line - Quantity then counts that component's units
 	ComponentID *uuid.UUID
+}
+
+// ErrOrderNumberTaken is an insert whose number another order took first
+var ErrOrderNumberTaken = errors.New("order number already taken")
+
+// Seller is what an order's documents say as of its placement: who sold it, each document kind's closing text, and the
+// note set on the buyer's country for a business purchase
+type Seller struct {
+	Name    string            `json:"name"`
+	Lines   []string          `json:"lines"`
+	Footers map[string]string `json:"footers,omitempty"`
+	Note    string            `json:"note,omitempty"`
 }

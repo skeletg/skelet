@@ -30,13 +30,13 @@ import {
   DetailPageLayout,
   DetailPageSection,
 } from '@/components/layout/detail-page'
-import { formatCents } from '@/lib/format'
+import { formatCents, formatDate, formatYesNo } from '@/lib/format'
 import { LoadError } from '@/shared/errors/LoadError'
 import { EntityChannelForbidden, EntityWrongChannel } from '@/shared/errors/ChannelScopeError'
 import { isForbiddenError } from '@/shared/errors/isForbiddenError'
 import { useConfigScope } from '@/lib/config-scope'
 import { usePermissions } from '@/shared/auth/usePermissions'
-import type { OrderStatus } from '@/graphql/schema.types'
+import type { OrderCheckoutFieldType, OrderStatus } from '@/graphql/schema.types'
 import { ResendEmailMenu } from './ResendEmailMenu'
 import { OrderStatusBadge } from './OrderStatusBadge'
 import { OrderStageBadge } from './OrderStageBadge'
@@ -870,7 +870,14 @@ function BusinessBlock({
   )
 }
 
-function CheckoutFieldsBlock({ answers }: { answers: { key: string; label: string; value: string }[] }) {
+// A date-only answer read as local midnight, so it isn't shown a day early west of UTC
+function checkoutAnswer(a: { value: string; type: OrderCheckoutFieldType }): string {
+  if (a.type === 'CHECKBOX') return formatYesNo(a.value)
+  if (a.type === 'DATE') return formatDate(`${a.value}T00:00:00`)
+  return a.value
+}
+
+function CheckoutFieldsBlock({ answers }: { answers: { key: string; label: string; value: string; type: OrderCheckoutFieldType }[] }) {
   return (
     <div className="rounded-md border p-4 text-sm md:col-span-2">
       <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">At checkout</div>
@@ -878,7 +885,7 @@ function CheckoutFieldsBlock({ answers }: { answers: { key: string; label: strin
         {answers.map((a) => (
           <div key={a.key} className="contents">
             <dt className="text-muted-foreground">{a.label}</dt>
-            <dd className="whitespace-pre-line">{a.value === 'true' ? 'Yes' : a.value}</dd>
+            <dd className="whitespace-pre-line">{checkoutAnswer(a)}</dd>
           </div>
         ))}
       </dl>

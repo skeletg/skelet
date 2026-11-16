@@ -2,8 +2,6 @@ package sdk
 
 import (
 	"context"
-	"slices"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,7 +12,7 @@ type OrderNumberRequest struct {
 	ChannelID   uuid.UUID
 	ChannelSlug string
 	PlacedAt    time.Time
-	Next        func(scope, period string) (int64, error)
+	Next        func(ctx context.Context, scope, period string) (int64, error)
 }
 
 // Letters, digits and - _ . / #, at most 64 - an error or anything else hands the order to the store's own format
@@ -25,25 +23,14 @@ type RegisteredOrderNumberer struct {
 	Numberer   OrderNumberer
 }
 
-var (
-	orderNumberersMu sync.Mutex
-	orderNumberers   []RegisteredOrderNumberer
-)
+var orderNumberers registry[RegisteredOrderNumberer]
 
 func (pl *Plugin) RegisterOrderNumberer(fn OrderNumberer) {
 	if fn == nil {
 		panic("sdk.RegisterOrderNumberer: nil numberer")
 	}
-	orderNumberersMu.Lock()
-	defer orderNumberersMu.Unlock()
-	if slices.ContainsFunc(orderNumberers, func(r RegisteredOrderNumberer) bool { return r.PluginSlug == pl.slug }) {
-		panic("sdk.RegisterOrderNumberer: " + pl.slug + " already names orders")
-	}
-	orderNumberers = append(orderNumberers, RegisteredOrderNumberer{PluginSlug: pl.slug, Numberer: fn})
+	orderNumberers.add(RegisteredOrderNumberer{PluginSlug: pl.slug, Numberer: fn},
+		func(r RegisteredOrderNumberer) bool { return r.PluginSlug == pl.slug }, "sdk.RegisterOrderNumberer: "+pl.slug+" already names orders")
 }
 
-func OrderNumberers() []RegisteredOrderNumberer {
-	orderNumberersMu.Lock()
-	defer orderNumberersMu.Unlock()
-	return slices.Clone(orderNumberers)
-}
+func OrderNumberers() []RegisteredOrderNumberer { return orderNumberers.all() }

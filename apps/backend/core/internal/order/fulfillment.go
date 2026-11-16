@@ -66,7 +66,7 @@ func (s *Service) CreateFulfillment(ctx context.Context, in CreateFulfillmentInp
 	if fully {
 		newStatus = OrderStatusFulfilled
 	}
-	if err := s.transitioning(ctx, o, newStatus, s.stageAfter(ctx, o, newStatus)); err != nil {
+	if err := s.transitioning(ctx, o, newStatus, s.stageAfter(o, newStatus)); err != nil {
 		return Order{}, err
 	}
 	// Pre-commit OrderFulfilling hook - seed carrier and tracking, and let a subscriber override or abort
@@ -128,7 +128,7 @@ func (s *Service) CreateFulfillment(ctx context.Context, in CreateFulfillmentInp
 		if err != nil {
 			return err
 		}
-		if staged, err = s.settleStage(ctx, r, sqlTx, moved); err != nil {
+		if staged, err = s.settleStage(ctx, r, sqlTx, moved, o.Stage); err != nil {
 			return err
 		}
 		if carrier != "" || tracking != "" {

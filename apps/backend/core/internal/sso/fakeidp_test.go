@@ -137,8 +137,17 @@ func (m *memTokens) DeleteSubject(context.Context, string, uuid.UUID) error { re
 
 type fakeSettings map[string]string
 
-func (f fakeSettings) GetString(_ context.Context, path string, _ config.Scope) (string, error) {
-	return f[path], nil
+// Get reads every path at the default scope, except a "<path>@channel" key, which sets it at the channel's
+func (f fakeSettings) Get(_ context.Context, path string, scope config.Scope) (config.Entry, error) {
+	if v, ok := f[path+"@channel"]; ok && scope.Kind == config.ScopeChannel {
+		return config.Entry{Value: v, Scope: scope}, nil
+	}
+	return config.Entry{Value: f[path], Scope: config.DefaultScope}, nil
+}
+
+func (f fakeSettings) GetString(ctx context.Context, path string, scope config.Scope) (string, error) {
+	e, err := f.Get(ctx, path, scope)
+	return e.Value, err
 }
 func (f fakeSettings) GetBool(_ context.Context, path string, _ config.Scope) (bool, error) {
 	return f[path] == "true", nil

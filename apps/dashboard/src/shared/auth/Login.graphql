@@ -1,20 +1,24 @@
+fragment AdminSession on AdminAuthPayload {
+  accessToken
+  refreshToken
+  firstLogin
+  admin {
+    id
+    email
+    firstName
+    lastName
+    isSuperuser
+    roles {
+      id
+      slug
+      name
+    }
+  }
+}
+
 mutation AdminLogin($input: AdminLoginInput!) {
   adminLogin(input: $input) {
-    accessToken
-    refreshToken
-    firstLogin
-    admin {
-      id
-      email
-      firstName
-      lastName
-      isSuperuser
-      roles {
-        id
-        slug
-        name
-      }
-    }
+    ...AdminSession
   }
 }
 
@@ -34,20 +38,50 @@ mutation AdminSsoStart($redirectUri: String!) {
 
 mutation AdminSsoComplete($state: String!, $code: String!, $binding: String!) {
   adminSsoComplete(state: $state, code: $code, binding: $binding) {
-    accessToken
-    refreshToken
-    firstLogin
-    admin {
-      id
-      email
-      firstName
-      lastName
-      isSuperuser
-      roles {
-        id
-        slug
-        name
-      }
+    session {
+      ...AdminSession
     }
+    totpTicket
   }
+}
+
+mutation AdminSsoTotp($ticket: String!, $code: String!) {
+  adminSsoTotp(ticket: $ticket, code: $code) {
+    ...AdminSession
+  }
+}
+
+query AdminSsoLinks {
+  adminSsoOption {
+    label
+  }
+  adminSsoLinks {
+    id
+    issuer
+    email
+    createdAt
+    lastUsedAt
+  }
+}
+
+mutation AdminSsoLinkStart($redirectUri: String!) {
+  adminSsoLinkStart(redirectUri: $redirectUri) {
+    authorizeUrl
+    state
+    binding
+  }
+}
+
+mutation AdminSsoLinkComplete($state: String!, $code: String!, $binding: String!) {
+  adminSsoLinkComplete(state: $state, code: $code, binding: $binding) {
+    id
+    issuer
+    email
+    createdAt
+    lastUsedAt
+  }
+}
+
+mutation AdminSsoUnlink($id: ID!) {
+  adminSsoUnlink(id: $id)
 }

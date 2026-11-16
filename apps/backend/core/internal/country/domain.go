@@ -29,6 +29,7 @@ var codeSettings = []string{CfgAllowedCountries, CfgDefaultCountry, CfgRequiredR
 const (
 	maxMetadataKeys        = 50
 	maxMetadataValueLength = 1024
+	maxInvoiceNote         = 1000
 )
 
 func init() {

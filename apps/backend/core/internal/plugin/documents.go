@@ -1,8 +1,10 @@
 package plugin
 
 import (
+	"bytes"
 	"cmp"
 	"context"
+	"slices"
 
 	"github.com/google/uuid"
 
@@ -14,16 +16,18 @@ import (
 // DocumentRender hands the document to the first plugin on the channel that renders its kind
 func DocumentRender(ctx context.Context, in documents.Input, core func() ([]byte, error)) (pdf []byte, ok bool, err error) {
 	for _, r := range sdk.DocumentRenderers() {
-		if r.Kind != string(in.Kind) || !Enabled(ctx, r.PluginSlug, in.Order.ChannelID) {
+		if string(r.Kind) != string(in.Kind) || !Enabled(ctx, r.PluginSlug, in.Order.ChannelID) {
 			continue
 		}
-		ctx, finish, gate := Instrument(ctx, r.PluginSlug, "document "+r.Kind, in.Order.ChannelID)
+		ctx, finish, gate := Instrument(ctx, r.PluginSlug, "document "+string(r.Kind), in.Order.ChannelID)
 		defer finish(&err)
 		if gate != nil {
 			return nil, true, gate
 		}
+		// ok is set before the call, so a panic finish turns into an error still reads as this plugin's answer, never core's
+		ok = true
 		pdf, err = r.Render(ctx, documentRequest(in, core))
-		return pdf, true, translateUserError(err)
+		return pdf, ok, translateUserError(err)
 	}
 	return nil, false, nil
 }
@@ -31,10 +35,11 @@ func DocumentRender(ctx context.Context, in documents.Input, core func() ([]byte
 func documentRequest(in documents.Input, core func() ([]byte, error)) sdk.DocumentRequest {
 	o := in.Order
 	req := sdk.DocumentRequest{
-		Kind:      string(in.Kind),
+		Kind:      sdk.DocumentKind(in.Kind),
 		ChannelID: o.ChannelID,
-		Seller:    sdk.DocumentSeller{Name: in.Store.Name, Details: in.Store.Lines, Logo: in.Store.Logo, Footer: in.Footer, Note: in.Note},
-		Default:   core,
+		Seller: sdk.DocumentSeller{Name: in.Store.Name, Details: slices.Clone(in.Store.Lines), Logo: bytes.Clone(in.Store.Logo), Footer: in.Footer,
+			Note: in.Note},
+		Default: core,
 		Order: sdk.DocumentOrder{
 			ID: o.ID, Number: o.Number, PlacedAt: o.CreatedAt, Email: o.Email, CurrencyCode: o.CurrencyCode,
 			Decimals: in.Decimals, TaxIncluded: in.TaxInclusive, PONumber: o.PONumber,

@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 
 import { Field, FieldErrors, inputClass } from "@/app/components/account/AccountUI";
-import type { CheckoutFieldSpec } from "@skelet/storefront-core/checkout/fields";
+import { FIELDS_ASKED, type CheckoutFieldSpec } from "@skelet/storefront-core/checkout/fields";
 
 import type { ValueField } from "./fields";
 
@@ -11,9 +11,10 @@ import type { ValueField } from "./fields";
 // with the step
 export function PluginFields({ id, asked, fields }: { id: string; asked: readonly CheckoutFieldSpec[]; fields: Record<string, ValueField> }) {
   const t = useTranslations("checkout.details");
-  if (asked.length === 0) return null;
+  if (asked.length === 0) return <input type="hidden" name={FIELDS_ASKED} value="" />;
   return (
     <section className="grid gap-3" aria-labelledby={`${id}-more`}>
+      <input type="hidden" name={FIELDS_ASKED} value={asked.map((f) => f.key).join("\n")} />
       <h3 id={`${id}-more`} className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         {t("moreDetails")}
       </h3>
@@ -79,8 +80,8 @@ function Control({ spec, label, field }: { spec: CheckoutFieldSpec; label: strin
         <select key={field.key} defaultValue={initial} className={className} {...shared}>
           <option value="">{t("choose")}</option>
           {spec.options.map((o) => (
-            <option key={o} value={o}>
-              {o}
+            <option key={o.value} value={o.value}>
+              {o.label}
             </option>
           ))}
         </select>

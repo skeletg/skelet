@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
@@ -64,6 +65,9 @@ func (s *Service) Create(ctx context.Context, input CreateCountryInput) (Country
 	if err := validateMetadata(input.Metadata); err != nil {
 		return Country{}, err
 	}
+	if err := validateInvoiceNote(input.InvoiceNote); err != nil {
+		return Country{}, err
+	}
 	fields, err := NormalizeBusinessIDFields(input.BusinessIDFields)
 	if err != nil {
 		return Country{}, err
@@ -100,6 +104,11 @@ func (s *Service) Update(ctx context.Context, input UpdateCountryInput) (Country
 	}
 	if input.Metadata != nil {
 		if err := validateMetadata(*input.Metadata); err != nil {
+			return Country{}, err
+		}
+	}
+	if input.InvoiceNote != nil {
+		if err := validateInvoiceNote(*input.InvoiceNote); err != nil {
 			return Country{}, err
 		}
 	}
@@ -302,6 +311,14 @@ func parseCodes(raw string) []string {
 
 func normalizeCode(code string) string {
 	return strings.ToUpper(strings.TrimSpace(code))
+}
+
+// It prints in an invoice's footer, so a few lines at most
+func validateInvoiceNote(note string) error {
+	if utf8.RuneCountInString(strings.TrimSpace(note)) > maxInvoiceNote {
+		return apperr.New("COUNTRY_INVOICE_NOTE_TOO_LONG", apperr.ClassValidation, fmt.Sprintf("the invoice note takes at most %d characters", maxInvoiceNote))
+	}
+	return nil
 }
 
 func validateCode(code string) error {

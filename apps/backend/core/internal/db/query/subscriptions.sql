@@ -65,7 +65,7 @@ WHERE (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status')::text)
 -- name: ListDueSubscriptions :many
 -- The scheduler's hot path: active subscriptions whose next charge is due
 SELECT * FROM subscriptions
-WHERE status = 'active' AND next_billing_at <= $1
+WHERE status = 'active' AND next_billing_at <= $1 AND (renewal_retry_at IS NULL OR renewal_retry_at <= $1)
 ORDER BY next_billing_at
 LIMIT $2;
 
@@ -75,9 +75,18 @@ SET current_period_start = $2,
     current_period_end   = $3,
     next_billing_at      = $4,
     billing_anchor       = $5,
+    renewal_failures     = 0,
+    renewal_retry_at     = NULL,
     updated_at           = NOW()
 WHERE id = $1
 RETURNING *;
+
+-- name: DeferSubscriptionRenewal :exec
+-- A minute after the first failure, twice as long after each next one, six hours at most
+UPDATE subscriptions
+SET renewal_failures = renewal_failures + 1,
+    renewal_retry_at = sqlc.arg(now)::timestamptz + make_interval(mins => least(power(2, renewal_failures), 360)::int)
+WHERE id = sqlc.arg(id);
 
 -- name: SetSubscriptionStatus :one
 UPDATE subscriptions

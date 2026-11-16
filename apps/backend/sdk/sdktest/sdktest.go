@@ -583,6 +583,9 @@ func (h *Host) SetOrderStage(_ context.Context, pluginSlug string, orderID uuid.
 	}) {
 		return sdk.Invalid("no stage %s of %s's", key, pluginSlug)
 	}
+	if key != "" {
+		key = pluginSlug + ":" + key // as the real host keeps it, so a test reads the key the order would carry
+	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.StageMoves = append(h.StageMoves, StageMove{Plugin: pluginSlug, OrderID: orderID, Stage: key})

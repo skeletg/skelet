@@ -542,4 +542,14 @@ type OrderCheckoutField {
   key:   String!
   label: String!
   value: String!
+  # How the shopper answered - a ticked checkbox is "true", a date YYYY-MM-DD. TEXT on orders placed before it was kept.
+  type:  OrderCheckoutFieldType!
+}
+
+enum OrderCheckoutFieldType {
+  TEXT
+  TEXTAREA
+  CHECKBOX
+  SELECT
+  DATE
 }

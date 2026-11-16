@@ -29,7 +29,7 @@ import {
 import { SIGNED_OUT_COOKIE } from "../analytics/session";
 import { CART_MERGE_FLAG, CART_MERGE_FAILED } from "../cart/merge-flag";
 import { GraphQLRequestError, gqlFetch } from "../graphql";
-import { safeReturnTo } from "./return-to";
+import { safeReturnTo, withFlag } from "./return-to";
 import {
   addressSchema,
   changePasswordSchema,
@@ -41,13 +41,6 @@ import {
 } from "./schemas";
 import { parseForm, replyReset, type FormResult } from "../forms/schema";
 import { replyError } from "../forms/reply";
-
-// withFlag appends a one-shot status param the destination page (or the global notice)
-// can react to - the app's existing way of talking back across a redirect
-function withFlag(path: string, key: string, value: string): string {
-  const sep = path.includes("?") ? "&" : "?";
-  return `${path}${sep}${key}=${value}`;
-}
 
 // Never echoed back into a re-rendered form - a failed submit clears them
 const PASSWORD_FIELDS = [

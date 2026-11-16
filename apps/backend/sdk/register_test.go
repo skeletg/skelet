@@ -550,3 +550,17 @@ func TestNamespacedConfigRefusesAnySlash(t *testing.T) {
 		}
 	}
 }
+
+func TestResetForTestForgetsEveryHook(t *testing.T) {
+	p := &Plugin{slug: "acme"}
+	p.RegisterCheckoutField(CheckoutField{Key: "note", Label: "Note"})
+	p.RegisterOrderStage(OrderStage{Key: "picking", Label: "Picking", Within: []string{OrderStatusProcessing}})
+	p.RegisterOrderNumberer(func(context.Context, OrderNumberRequest) (string, error) { return "", nil })
+	p.RegisterDocumentRenderer(DocumentInvoice, func(context.Context, DocumentRequest) ([]byte, error) { return nil, nil })
+	p.RegisterDataResource(DataResource{Slug: "notes", Label: "Notes", ViewPermission: "acme.view", Fields: []DataField{{Name: "id"}},
+		Export: func(context.Context, DataRun, func(DataRecord) error) error { return nil }})
+	ResetForTest()
+	if len(CheckoutFields())+len(OrderStages())+len(OrderNumberers())+len(DocumentRenderers())+len(DataResources()) != 0 {
+		t.Error("a hook outlived ResetForTest")
+	}
+}

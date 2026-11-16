@@ -172,12 +172,17 @@ func (s *Service) CreateDraftOrder(ctx context.Context, in CreateDraftOrderInput
 	if err != nil {
 		return Order{}, err
 	}
+	seller, err := s.sellerFor(ctx, *store, billing.CountryCode, false) // a draft is never a business purchase, so it carries no country note
+	if err != nil {
+		return Order{}, err
+	}
 
 	err = s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
 		orderR := s.repo.WithTx(sqlTx)
-		order, err := orderR.CreateOrder(ctx, Order{
+		order, err := s.createOrder(ctx, orderR, store, Order{
 			ID:                  orderID,
 			Number:              number,
+			Seller:              seller,
 			CustomerID:          in.CustomerID,
 			Email:               in.Email,
 			ChannelID:           store.ID,

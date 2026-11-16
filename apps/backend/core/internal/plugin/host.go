@@ -586,6 +586,12 @@ func attachSyncHandler(bus *events.Bus, slug, eventType string, priority int, ha
 		if slug != "" && !always && !isEnabledFromContext(ctx, slug, eventChannel(e)) {
 			return nil // disabled - don't participate, don't abort
 		}
+		// The plugin's own deadline, as on its other hooks - a background worker asking it (loyalty, renewals) has none of its own
+		if slug != "" {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, hookTimeoutFromContext(ctx, slug))
+			defer cancel()
+		}
 		// A sync veto is the plugin telling the SHOPPER why their order was refused ("your company credit line is short"), so classify it here for the same reason the graph boundary does - unclassified, the presenter scrubs it to "internal error" and the message is wasted
 		return translateUserError(handler(ctx, e))
 	})

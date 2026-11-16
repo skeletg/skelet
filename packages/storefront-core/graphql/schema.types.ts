@@ -725,9 +725,15 @@ export type CheckoutField = {
   key: Scalars['String']['output'];
   label: Scalars['String']['output'];
   maxLength: Scalars['Int']['output'];
-  options: Array<Scalars['String']['output']>;
+  options: Array<CheckoutFieldOption>;
   required: Scalars['Boolean']['output'];
   type: CheckoutFieldType;
+  value: Scalars['String']['output'];
+};
+
+export type CheckoutFieldOption = {
+  __typename?: 'CheckoutFieldOption';
+  label: Scalars['String']['output'];
   value: Scalars['String']['output'];
 };
 

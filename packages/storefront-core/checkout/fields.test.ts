@@ -19,8 +19,8 @@ describe("checkout fields", () => {
     [field({ type: "CHECKBOX", required: true }), undefined, "fieldTick"],
     [field({}), "toolong", "checkoutFieldTooLong"],
     [field({}), "", null],
-    [field({ type: "SELECT", options: ["paper", "box"] }), "bag", "fieldInvalid"],
-    [field({ type: "SELECT", options: ["paper", "box"] }), "box", null],
+    [field({ type: "SELECT", options: [{ value: "paper", label: "Paper" }, { value: "box", label: "Box" }] }), "bag", "fieldInvalid"],
+    [field({ type: "SELECT", options: [{ value: "paper", label: "Paper" }, { value: "box", label: "Box" }] }), "box", null],
     [field({ type: "DATE" }), "2026-02-31", "fieldInvalid"],
     [field({ type: "DATE" }), "2026-12-24", null],
   ] as const)("judges %o's answer %o", (f, raw, why) => {

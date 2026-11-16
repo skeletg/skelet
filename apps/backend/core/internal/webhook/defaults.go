@@ -738,9 +738,9 @@ func init() {
 		Type: subscription.EventRenewing,
 		Kind: KindSync,
 		Name: "Subscription Renewing (sync)",
-		Description: "Fires before a subscription's next period is invoiced, while the subscription is locked for billing. Payload: SubscriptionID, ChannelID, CustomerID, ProductID, SKU, Quantity, Sequence, PeriodStart, PeriodEnd, CurrencyCode, AmountCents. " +
+		Description: "Fires before a subscription's next period is invoiced, ahead of the billing lock, and can arrive more than once for the same period, so answer it the same way each time. Payload: SubscriptionID, ChannelID, CustomerID, ProductID, SKU, Quantity, Sequence, PeriodStart, PeriodEnd, CurrencyCode, AmountCents. " +
 			`Response schema: {"reject": bool, "reason": string, "amountCents": int, "skip": bool, "delayUntil": RFC 3339 time}. ` +
-			"amountCents replaces what the period costs (0 bills nothing), skip lets the period pass unbilled, and delayUntil moves the renewal later, later periods counting from it. A reject leaves the period for the next billing run.",
+			"amountCents replaces what the period costs (0 bills nothing), skip lets the period pass unbilled, and delayUntil moves the renewal later, later periods counting from it. A reject leaves the period for a later run - a minute on, then twice as long each time, up to six hours.",
 	})
 	RegisterEvent(EventDefinition{
 		Type: customer.EventDeleting,

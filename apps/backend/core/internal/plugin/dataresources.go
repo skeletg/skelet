@@ -2,7 +2,9 @@ package plugin
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"slices"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/dataio"
 	"github.com/skeletg/skelet/apps/backend/sdk"
@@ -23,7 +25,7 @@ func dataResource(reg sdk.RegisteredDataResource) dataio.Resource {
 	d, slug := reg.Resource, reg.PluginSlug
 	res := dataio.Resource{
 		Slug: slug + "." + d.Slug, Label: d.Label, Group: "Plugins", Description: d.Description,
-		ViewPermission: d.ViewPermission, ImportPermission: d.ImportPermission,
+		ViewPermission: d.ViewPermission, ImportPermission: d.ImportPermission, RequireGlobalPermission: d.Global,
 	}
 	for _, f := range d.Fields {
 		res.Fields = append(res.Fields, dataio.Field{
@@ -43,7 +45,7 @@ func dataResource(reg sdk.RegisteredDataResource) dataio.Resource {
 			if !Enabled(ctx, slug, o.ChannelID) {
 				return nil, pluginOff(slug)
 			}
-			return pluginExporter{run: dataRun(o), export: d.Export}, nil
+			return pluginExporter{slug: slug, run: dataRun(o), export: d.Export, fields: d.Fields}, nil
 		}
 	}
 	if d.Import != nil {
@@ -51,7 +53,7 @@ func dataResource(reg sdk.RegisteredDataResource) dataio.Resource {
 			if !Enabled(ctx, slug, o.ChannelID) {
 				return nil, pluginOff(slug)
 			}
-			return pluginImporter{run: dataRun(o), imp: d.Import, fields: d.Fields}, nil
+			return pluginImporter{slug: slug, run: dataRun(o), imp: d.Import, fields: d.Fields}, nil
 		}
 	}
 	return res
@@ -73,32 +75,56 @@ func dataRun(o dataio.Opts) sdk.DataRun {
 }
 
 type pluginExporter struct {
+	slug   string
 	run    sdk.DataRun
 	export func(context.Context, sdk.DataRun, func(sdk.DataRecord) error) error
+	fields []sdk.DataField
 }
 
 func (pluginExporter) Columns(context.Context) ([]dataio.Field, error) { return nil, nil }
 
-func (e pluginExporter) Stream(ctx context.Context, emit func(*dataio.Row) error) error {
+// Instrumented for attribution, metrics and panics, but never timed or metered - an export runs as long as its data
+func (e pluginExporter) Stream(ctx context.Context, emit func(*dataio.Row) error) (err error) {
+	ctx, finish, gate := Instrument(ctx, e.slug, "data export", e.run.ChannelID, Unmetered(), Untimed())
+	defer finish(&err)
+	if gate != nil {
+		return gate
+	}
 	return translateUserError(e.export(ctx, e.run, func(rec sdk.DataRecord) error {
 		row := dataio.NewRow()
 		for name, v := range rec {
+			if _, isText := v.(string); !isText && e.isJSON(name) {
+				b, err := json.Marshal(v)
+				if err != nil {
+					return fmt.Errorf("the %s column isn't JSON: %w", name, err)
+				}
+				v = string(b)
+			}
 			row.Set(name, v)
 		}
 		return emit(row)
 	}))
 }
 
+func (e pluginExporter) isJSON(name string) bool {
+	return slices.ContainsFunc(e.fields, func(f sdk.DataField) bool { return f.Name == name && f.Type == sdk.DataJSON })
+}
+
 type pluginImporter struct {
+	slug   string
 	run    sdk.DataRun
 	imp    func(context.Context, sdk.DataRun, sdk.DataRow) (sdk.DataOutcome, error)
 	fields []sdk.DataField
 }
 
 // Every typed cell is parsed before the plugin sees the row, so a bad one fails it on a dry run too, whichever cells
-// the plugin's own code reads
-func (i pluginImporter) Row(ctx context.Context, r *dataio.Row) (dataio.Outcome, error) {
+// the plugin's own code reads - all but read-only ones, which an import ignores, so a spreadsheet's reformatting of
+// them never fails a row
+func (i pluginImporter) Row(ctx context.Context, r *dataio.Row) (out dataio.Outcome, err error) {
 	for _, f := range i.fields {
+		if f.ReadOnly {
+			continue
+		}
 		switch f.Type {
 		case sdk.DataInteger, sdk.DataMoney:
 			r.Int(f.Name)
@@ -116,11 +142,16 @@ func (i pluginImporter) Row(ctx context.Context, r *dataio.Row) (dataio.Outcome,
 	if err := r.Err(); err != nil {
 		return dataio.OutcomeSkipped, err
 	}
-	out, err := i.imp(ctx, i.run, r)
+	ctx, finish, gate := Instrument(ctx, i.slug, "data import", i.run.ChannelID, Unmetered(), Untimed())
+	defer finish(&err)
+	if gate != nil {
+		return dataio.OutcomeSkipped, gate
+	}
+	got, err := i.imp(ctx, i.run, r)
 	if err != nil {
 		return dataio.OutcomeSkipped, translateUserError(err)
 	}
-	switch out {
+	switch got {
 	case sdk.DataCreated:
 		return dataio.OutcomeCreated, nil
 	case sdk.DataUpdated:

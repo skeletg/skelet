@@ -4,6 +4,10 @@ import type { CheckoutState } from "./read";
 
 export type CheckoutFieldSpec = CheckoutState["fields"][number];
 
+// The form field naming the plugin fields a page drew, one key a line, so the action can tell a field the shopper
+// never saw from one they left empty
+export const FIELDS_ASKED = "fieldsAsked";
+
 // The answer as the backend takes it - a ticked box is "true", an unticked one empty
 export function fieldAnswer(f: CheckoutFieldSpec, raw: string | null | undefined): string {
   const v = (raw ?? "").trim();
@@ -21,7 +25,7 @@ export function fieldIssue(f: CheckoutFieldSpec, raw: string | null | undefined)
   if (!v) return f.required ? (f.type === "CHECKBOX" ? "fieldTick" : "required") : null;
   switch (f.type) {
     case "SELECT":
-      return f.options.includes(v) ? null : "fieldInvalid";
+      return f.options.some((o) => o.value === v) ? null : "fieldInvalid";
     case "DATE":
       return isDate(v) ? null : "fieldInvalid";
     case "CHECKBOX":

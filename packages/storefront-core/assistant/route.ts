@@ -2,6 +2,7 @@ import { getCurrentChannelLocales } from "../locale/read";
 import { boundedText } from "../revalidate-payload";
 import { askAssistant, assistantPage, keepAssistantCart } from "./ask";
 import type { AssistantStreamLine } from "./types";
+import { requestHost } from "../site-url";
 
 const MAX_BODY_BYTES = 256 * 1024;
 
@@ -14,7 +15,7 @@ export function sameOrigin(req: Request): boolean {
     const site = req.headers.get("sec-fetch-site");
     return site === null || site === "same-origin";
   }
-  const host = (req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? "").split(",")[0].trim();
+  const host = requestHost(req.headers);
   try {
     return host !== "" && new URL(origin).host === host;
   } catch {

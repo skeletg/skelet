@@ -184,15 +184,15 @@ func TestSyncSubscriberMutatesTheEvent(t *testing.T) {
 
 // The gift note is asked at checkout, and order.placing turns its answer into order metadata
 func TestCheckoutFieldReachesTheOrder(t *testing.T) {
-	i := slices.IndexFunc(sdk.CheckoutFields(), func(r sdk.RegisteredCheckoutField) bool { return r.Field.Key == "example_gift_note" })
+	i := slices.IndexFunc(sdk.CheckoutFields(), func(r sdk.RegisteredCheckoutField) bool { return r.Key() == Slug+":gift_note" })
 	if i < 0 || sdk.CheckoutFields()[i].PluginSlug != Slug {
 		t.Fatalf("the gift note isn't registered to %s: %+v", Slug, sdk.CheckoutFields())
 	}
-	ev := &order.OrderPlacing{Answers: map[string]string{"example_gift_note": "For Ana"}}
+	ev := &order.OrderPlacing{Answers: map[string]string{Slug + ":gift_note": "For Ana"}}
 	if err := sharedBus().PublishSync(context.Background(), ev); err != nil {
 		t.Fatalf("publish sync: %v", err)
 	}
-	if got := ev.Metadata[Slug+".gift_note_length"]; got != "7" {
+	if got := ev.Metadata[Slug+":gift_note_length"]; got != "7" {
 		t.Errorf("metadata %v, want the note's length recorded", ev.Metadata)
 	}
 }
@@ -201,7 +201,10 @@ func TestOrderNumbererNamesOrdersFromItsOwnCount(t *testing.T) {
 	var drawn string
 	num, ok, err := pluginhost.OrderNumber(context.Background(), order.NumberRequest{
 		ChannelID: uuid.New(), At: time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
-		Next: func(scope, period string) (int64, error) { drawn = scope + "|" + period; return 7, nil },
+		Next: func(_ context.Context, scope, period string) (int64, error) {
+			drawn = scope + "|" + period
+			return 7, nil
+		},
 	})
 	if err != nil || !ok || num != "EX-2026-00007" || drawn != "plugin:"+Slug+":orders|2026" {
 		t.Errorf("numbered %q, %v, %v - drew %q", num, ok, err, drawn)
@@ -211,16 +214,17 @@ func TestOrderNumbererNamesOrdersFromItsOwnCount(t *testing.T) {
 func TestOrderStageAndItsVeto(t *testing.T) {
 	ctx := context.Background()
 	stages := pluginhost.OrderStagesFor(ctx, uuid.Nil)
-	if len(stages) != 1 || stages[0].Key != StageAwaitingStock || stages[0].Plugin != Slug {
+	awaiting := Slug + ":" + StageAwaitingStock
+	if len(stages) != 1 || stages[0].Key != awaiting || stages[0].Plugin != Slug {
 		t.Fatalf("stages %+v", stages)
 	}
-	ship := &order.OrderTransitioning{FromStatus: "processing", ToStatus: "fulfilled", FromStage: StageAwaitingStock}
+	ship := &order.OrderTransitioning{FromStatus: "processing", ToStatus: "fulfilled", FromStage: awaiting}
 	if err := sharedBus().PublishSync(ctx, ship); err == nil || !strings.Contains(err.Error(), "awaiting stock") {
 		t.Errorf("shipping an order awaiting stock: %v", err)
 	}
 	for _, move := range []*order.OrderTransitioning{
 		{FromStatus: "processing", ToStatus: "fulfilled"},
-		{FromStatus: "processing", ToStatus: "processing", FromStage: StageAwaitingStock},
+		{FromStatus: "processing", ToStatus: "processing", FromStage: awaiting},
 	} {
 		if err := sharedBus().PublishSync(ctx, move); err != nil {
 			t.Errorf("%+v was refused: %v", move, err)
