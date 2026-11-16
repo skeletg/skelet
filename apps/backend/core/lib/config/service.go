@@ -246,6 +246,9 @@ func (s *Service) Set(ctx context.Context, path, value string, scope Scope) (Ent
 	if same, ok := s.unchanged(ctx, repo, def, scope, normalized); ok { // nothing to write, and nothing changed for a hook to react to
 		return same, nil
 	}
+	if err := s.clear(ctx, def, scope); err != nil {
+		return Entry{}, err
+	}
 	stored, err := repo.Upsert(ctx, scope, path, toStore)
 	if err != nil {
 		return Entry{}, err
@@ -295,12 +298,32 @@ func (s *Service) Reset(ctx context.Context, path string, scope Scope) (Entry, e
 	if repo == nil {
 		return Entry{}, ErrStoreUnavailable
 	}
+	if err := s.clear(ctx, def, scope); err != nil {
+		return Entry{}, err
+	}
 	if err := repo.Delete(ctx, scope, path); err != nil {
 		return Entry{}, err
 	}
 	s.invalidate(ctx)
 	s.changed(ctx, def)
 	return s.Get(ctx, path, scope)
+}
+
+// Emptied before the value changes, so a failed write leaves the old value with nothing to send rather than a new one with a stale secret
+func (s *Service) clear(ctx context.Context, def Definition, scope Scope) error {
+	for _, path := range def.Clears {
+		repo := s.storeFor(path)
+		if repo == nil {
+			return ErrStoreUnavailable
+		}
+		if err := repo.Delete(ctx, scope, path); err != nil {
+			return fmt.Errorf("clear %s: %w", path, err)
+		}
+		if cleared, ok := Find(path); ok {
+			s.changed(ctx, cleared)
+		}
+	}
+	return nil
 }
 
 // One Entry per Registry definition in declaration order at the given scope - orphan DB rows, whose paths were removed from the Registry, are silently skipped, and ListOrphans surfaces them

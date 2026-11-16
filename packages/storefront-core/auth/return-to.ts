@@ -11,3 +11,8 @@ export function safeReturnTo(raw: unknown): string | null {
     return null;
   }
 }
+
+// A one-shot status param the destination page (or the global notice) can react to - the app's way of talking back across a redirect
+export function withFlag(path: string, key: string, value: string): string {
+  return `${path}${path.includes("?") ? "&" : "?"}${key}=${encodeURIComponent(value)}`;
+}

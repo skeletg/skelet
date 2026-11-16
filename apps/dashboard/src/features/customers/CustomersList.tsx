@@ -3,6 +3,7 @@ import { useDebounced } from '@/shared/hooks/useDebounced'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
+import { hasListColumns } from '@/components/data-table/extensions'
 import {
   CheckCircle2Icon,
   CircleIcon,
@@ -60,6 +61,8 @@ function activeFilter(values: string[] | undefined): boolean | null {
   return values[0] === 'active'
 }
 
+
+const LIST_TARGET = 'customers'
 export function CustomersList() {
   // Header scope is the sole source of truth: in CHANNEL mode the list is
   // scoped to that store's customers; in GLOBAL mode every customer across
@@ -92,6 +95,7 @@ export function CustomersList() {
       isActive: activeFilter(statusValues),
       limit: pagination.pageSize,
       offset: pagination.pageIndex * pagination.pageSize,
+      withMetadata: hasListColumns(LIST_TARGET),
     }),
     [debouncedSearch, groupValues, statusValues, pagination.pageIndex, pagination.pageSize],
   )
@@ -305,6 +309,7 @@ export function CustomersList() {
   return (
     <>
       <DataTable
+        target={LIST_TARGET}
         prefsKey="customers.list"
         viewsKey="customers.list"
         enableColumnControls

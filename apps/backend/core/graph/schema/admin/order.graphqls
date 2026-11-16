@@ -29,6 +29,7 @@ type Order {
   channelId:       ID!
   number:          String!
   status:          OrderStatus!
+  stage:           OrderStage
   paymentStatus:   PaymentStatus!
   # Transient: populated only on the storefront placeOrder response when the
   # gateway needs a client-side 3DS step. Always null on admin reads.
@@ -53,6 +54,10 @@ type Order {
   poNumber: String
   # The buyer's company identifiers on a business purchase, with the labels the shopper saw (a VAT number, a company registry number). Empty for personal purchases.
   businessIds: [OrderBusinessId!]!
+  # The answers to the plugins' checkout fields, with the labels the shopper saw.
+  checkoutFields: [OrderCheckoutField!]!
+  # What plugins recorded on the order at placement, by their own keys.
+  metadata: [MetadataItem!]!
   lines:           [OrderLine!]!
   events:          [OrderEvent!]!
   subtotal:        Int!
@@ -91,6 +96,15 @@ type Order {
   # before the breakdown was recorded. A field resolver.
   taxLines: [OrderTaxLine!]!
   createdAt:       Time!
+}
+
+# A plugin's own step inside an order's status ("awaiting stock" inside CONFIRMED). The status still drives payment and stock; a stage says where the work stands.
+type OrderStage {
+  key:    String!
+  label:  String!
+  # The statuses it can sit in - moving the order to any other clears it.
+  within: [OrderStatus!]!
+  plugin: String!
 }
 
 # A shipment covering some or all of an order's line quantities. An order may have many; status SHIPPED is the norm, CANCELLED marks a voided shipment (its lines no longer count toward shipped totals).
@@ -289,7 +303,9 @@ extend type Query {
   orders(channelId: ID): [Order!]!
   # Server-side page for the orders grid - statuses/paymentStatuses take the
   # SCREAMING enum spellings, search matches number, email and last names
-  ordersPaged(channelId: ID, search: String, statuses: [String!], paymentStatuses: [String!], limit: Int, offset: Int): OrderPage!
+  ordersPaged(channelId: ID, search: String, statuses: [String!], paymentStatuses: [String!], limit: Int, offset: Int, stages: [String!]): OrderPage!
+  # The stages the plugins enabled on a channel offer, or every compiled-in plugin's without channelId
+  orderStages(channelId: ID): [OrderStage!]!
   order(id: ID!):          Order!
 }
 
@@ -306,6 +322,8 @@ extend type Mutation {
   # payment stays as-is). Release returns it to CONFIRMED.
   holdOrder(id: ID!, reason: String): Order!
   releaseOrder(id: ID!):   Order!
+  # Move an order into a stage its status holds, or out of its stage with null. order.transitioning subscribers can refuse. Requires orders.update.
+  setOrderStage(id: ID!, stage: String): Order!
   # Mark an order shipped. Optional carrier + tracking are stamped on the order at fulfillment time and surfaced on the admin Order type. Both fields can be omitted when the store doesn't integrate with a carrier - a sync OrderFulfilling subscriber (e.g. a shipping-API plugin) can also fill these and its values win over the admin-supplied args.
   fulfillOrder(id: ID!, carrier: String, trackingNumber: String, insuredValueCents: Int): Order!
 
@@ -518,4 +536,20 @@ type OrderBusinessId {
   key:   String!
   label: String!
   value: String!
+}
+
+type OrderCheckoutField {
+  key:   String!
+  label: String!
+  value: String!
+  # How the shopper answered - a ticked checkbox is "true", a date YYYY-MM-DD. TEXT on orders placed before it was kept.
+  type:  OrderCheckoutFieldType!
+}
+
+enum OrderCheckoutFieldType {
+  TEXT
+  TEXTAREA
+  CHECKBOX
+  SELECT
+  DATE
 }

@@ -215,6 +215,13 @@ func mergeCheckout(guest, customer Checkout) Checkout {
 	if guest.PickupContact != nil {
 		out.PickupContact = guest.PickupContact
 	}
+	if len(guest.Fields) > 0 {
+		out.Fields = maps.Clone(customer.Fields)
+		if out.Fields == nil {
+			out.Fields = map[string]string{}
+		}
+		maps.Copy(out.Fields, guest.Fields)
+	}
 	if len(guest.Deliveries) > 0 { // the guest's delivery choices win per group, and the split they chose them under travels with them
 		out.Deliveries = maps.Clone(customer.Deliveries)
 		if out.Deliveries == nil {

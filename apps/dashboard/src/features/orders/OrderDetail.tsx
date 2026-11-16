@@ -30,15 +30,17 @@ import {
   DetailPageLayout,
   DetailPageSection,
 } from '@/components/layout/detail-page'
-import { formatCents } from '@/lib/format'
+import { formatCents, formatDate, formatYesNo } from '@/lib/format'
 import { LoadError } from '@/shared/errors/LoadError'
 import { EntityChannelForbidden, EntityWrongChannel } from '@/shared/errors/ChannelScopeError'
 import { isForbiddenError } from '@/shared/errors/isForbiddenError'
 import { useConfigScope } from '@/lib/config-scope'
 import { usePermissions } from '@/shared/auth/usePermissions'
-import type { OrderStatus } from '@/graphql/schema.types'
+import type { OrderCheckoutFieldType, OrderStatus } from '@/graphql/schema.types'
 import { ResendEmailMenu } from './ResendEmailMenu'
 import { OrderStatusBadge } from './OrderStatusBadge'
+import { OrderStageBadge } from './OrderStageBadge'
+import { OrderStageMenu } from './OrderStageMenu'
 import { PaymentStatusBadge } from './PaymentStatusBadge'
 import { OrderPaymentsSection } from './OrderPaymentsSection'
 import { OrderSummaryPanel } from './OrderSummaryPanel'
@@ -54,6 +56,7 @@ import {
   ConfirmOrderDocument,
   HoldOrderDocument,
   ReleaseOrderDocument,
+  SetOrderStageDocument,
   FulfillOrderDocument,
   GenerateShippingLabelDocument,
   MarkOrderProcessingDocument,
@@ -118,6 +121,7 @@ export function OrderDetail() {
   const [markProcessing,   processingState] = useMutation(MarkOrderProcessingDocument,{ refetchQueries: refetch })
   const [holdOrder,        holdState]       = useMutation(HoldOrderDocument,           { refetchQueries: refetch })
   const [releaseOrder,     releaseState]    = useMutation(ReleaseOrderDocument,        { refetchQueries: refetch })
+  const [setStage,         stageState]      = useMutation(SetOrderStageDocument,       { refetchQueries: refetch })
   const [fulfillOrder,     fulfillState]    = useMutation(FulfillOrderDocument,       { refetchQueries: refetch })
   const [cancelOrder,      cancelState]     = useMutation(CancelOrderDocument,        { refetchQueries: refetch })
   const [generateLabel,    labelState]      = useMutation(GenerateShippingLabelDocument, { refetchQueries: refetch })
@@ -216,7 +220,7 @@ export function OrderDetail() {
 
   const isTerminal = order.status === 'FULFILLED' || order.status === 'CANCELLED'
   const anyRunning =
-    confirmState.loading || processingState.loading || fulfillState.loading || cancelState.loading
+    confirmState.loading || processingState.loading || fulfillState.loading || cancelState.loading || stageState.loading
 
   const canUpdate = permissions.canAccessChannelScope('orders.update', order.channelId)
   const isDraft = order.status === 'DRAFT'
@@ -225,6 +229,17 @@ export function OrderDetail() {
     isDraft || order.status === 'PENDING' || order.status === 'CONFIRMED' || order.status === 'PROCESSING'
   // Per-line shipments make sense once processing and until fully shipped
   const canShip = order.status === 'PROCESSING' || order.status === 'PARTIALLY_FULFILLED'
+
+  const stageMenu = canUpdate && (
+    <OrderStageMenu
+      channelId={order.channelId}
+      status={order.status}
+      stage={order.stage?.key ?? null}
+      disabled={anyRunning}
+      running={stageState.loading}
+      onMove={(stage) => runTransition(() => setStage({ variables: { id, stage } }))}
+    />
+  )
 
   const resendProps = {
     orderId: id,
@@ -282,6 +297,7 @@ export function OrderDetail() {
         badges={
           <>
             <OrderStatusBadge status={order.status} />
+            {order.stage && <OrderStageBadge label={order.stage.label} />}
             <PaymentStatusBadge status={order.paymentStatus} />
           </>
         }
@@ -332,11 +348,13 @@ export function OrderDetail() {
             <>
               <DocumentButtons orderId={id} />
               {canUpdate && <ResendEmailMenu {...resendProps} />}
+              {stageMenu}
             </>
           ) : (
             <>
             <DocumentButtons orderId={id} />
             {canUpdate && <ResendEmailMenu {...resendProps} />}
+            {stageMenu}
             <TransitionButtons
               status={order.status}
               disabled={anyRunning}
@@ -507,6 +525,7 @@ export function OrderDetail() {
             {(order.businessIds.length > 0 || order.poNumber) && (
               <BusinessBlock ids={order.businessIds} poNumber={order.poNumber ?? null} />
             )}
+            {order.checkoutFields.length > 0 && <CheckoutFieldsBlock answers={order.checkoutFields} />}
           </div>
         </DetailPageSection>
 
@@ -846,6 +865,29 @@ function BusinessBlock({
             <dd className="font-mono">{poNumber}</dd>
           </>
         )}
+      </dl>
+    </div>
+  )
+}
+
+// A date-only answer read as local midnight, so it isn't shown a day early west of UTC
+function checkoutAnswer(a: { value: string; type: OrderCheckoutFieldType }): string {
+  if (a.type === 'CHECKBOX') return formatYesNo(a.value)
+  if (a.type === 'DATE') return formatDate(`${a.value}T00:00:00`)
+  return a.value
+}
+
+function CheckoutFieldsBlock({ answers }: { answers: { key: string; label: string; value: string; type: OrderCheckoutFieldType }[] }) {
+  return (
+    <div className="rounded-md border p-4 text-sm md:col-span-2">
+      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">At checkout</div>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+        {answers.map((a) => (
+          <div key={a.key} className="contents">
+            <dt className="text-muted-foreground">{a.label}</dt>
+            <dd className="whitespace-pre-line">{checkoutAnswer(a)}</dd>
+          </div>
+        ))}
       </dl>
     </div>
   )

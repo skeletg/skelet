@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -12,10 +13,14 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/datapatch"
+	"github.com/skeletg/skelet/apps/backend/core/internal/documents"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/internal/loyalty"
+	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
 	pluginhost "github.com/skeletg/skelet/apps/backend/core/internal/plugin"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
@@ -175,6 +180,103 @@ func TestSyncSubscriberMutatesTheEvent(t *testing.T) {
 	if !ev.settling {
 		t.Fatal("sync handler never mutated the event - the init()-time SubscribeSync did not replay")
 	}
+}
+
+// The gift note is asked at checkout, and order.placing turns its answer into order metadata
+func TestCheckoutFieldReachesTheOrder(t *testing.T) {
+	i := slices.IndexFunc(sdk.CheckoutFields(), func(r sdk.RegisteredCheckoutField) bool { return r.Key() == Slug+":gift_note" })
+	if i < 0 || sdk.CheckoutFields()[i].PluginSlug != Slug {
+		t.Fatalf("the gift note isn't registered to %s: %+v", Slug, sdk.CheckoutFields())
+	}
+	ev := &order.OrderPlacing{Answers: map[string]string{Slug + ":gift_note": "For Ana"}}
+	if err := sharedBus().PublishSync(context.Background(), ev); err != nil {
+		t.Fatalf("publish sync: %v", err)
+	}
+	if got := ev.Metadata[Slug+":gift_note_length"]; got != "7" {
+		t.Errorf("metadata %v, want the note's length recorded", ev.Metadata)
+	}
+}
+
+func TestOrderNumbererNamesOrdersFromItsOwnCount(t *testing.T) {
+	var drawn string
+	num, ok, err := pluginhost.OrderNumber(context.Background(), order.NumberRequest{
+		ChannelID: uuid.New(), At: time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
+		Next: func(_ context.Context, scope, period string) (int64, error) {
+			drawn = scope + "|" + period
+			return 7, nil
+		},
+	})
+	if err != nil || !ok || num != "EX-2026-00007" || drawn != "plugin:"+Slug+":orders|2026" {
+		t.Errorf("numbered %q, %v, %v - drew %q", num, ok, err, drawn)
+	}
+}
+
+func TestOrderStageAndItsVeto(t *testing.T) {
+	ctx := context.Background()
+	stages := pluginhost.OrderStagesFor(ctx, uuid.Nil)
+	awaiting := Slug + ":" + StageAwaitingStock
+	if len(stages) != 1 || stages[0].Key != awaiting || stages[0].Plugin != Slug {
+		t.Fatalf("stages %+v", stages)
+	}
+	ship := &order.OrderTransitioning{FromStatus: "processing", ToStatus: "fulfilled", FromStage: awaiting}
+	if err := sharedBus().PublishSync(ctx, ship); err == nil || !strings.Contains(err.Error(), "awaiting stock") {
+		t.Errorf("shipping an order awaiting stock: %v", err)
+	}
+	for _, move := range []*order.OrderTransitioning{
+		{FromStatus: "processing", ToStatus: "fulfilled"},
+		{FromStatus: "processing", ToStatus: "processing", FromStage: awaiting},
+	} {
+		if err := sharedBus().PublishSync(ctx, move); err != nil {
+			t.Errorf("%+v was refused: %v", move, err)
+		}
+	}
+}
+
+func TestHalfPriceSubscriptionsRenewAtHalf(t *testing.T) {
+	for sku, want := range map[string]int64{HalfPricePrefix + "COFFEE": 1250, "COFFEE": 2500} {
+		r := &subscription.Renewing{SKU: sku, AmountCents: 2500}
+		if err := sharedBus().PublishSync(context.Background(), r); err != nil || r.AmountCents != want {
+			t.Errorf("%s: %d, %v - want %d", sku, r.AmountCents, err, want)
+		}
+	}
+}
+
+func TestFeaturedItemsEarnDoublePoints(t *testing.T) {
+	e := &loyalty.Earning{UnitCents: 100, PointsPerUnit: 2, Points: 50, Lines: []loyalty.EarningLine{
+		{SKU: DoublePointsPrefix + "COAT", Quantity: 1, TotalCents: 1500},
+		{SKU: "TEE", Quantity: 2, TotalCents: 1000},
+	}}
+	if err := sharedBus().PublishSync(context.Background(), e); err != nil {
+		t.Fatal(err)
+	}
+	if e.Points != 80 || len(e.Notes) != 1 {
+		t.Errorf("%d points, notes %q - want the coat's 30 again on top", e.Points, e.Notes)
+	}
+}
+
+func TestThePackingSlipRendererWrapsCoresOwn(t *testing.T) {
+	in := documents.Input{Kind: documents.KindPackingSlip, Decimals: 2, Store: documents.StoreInfo{Name: "Shop"},
+		Order: order.Order{Number: "ORD-1", Lines: []order.OrderLine{{ProductSku: "TEE", ProductName: "Tee", Quantity: 1}}}}
+	core := func() ([]byte, error) { return documents.Render(in) }
+	if pdf, ok, err := pluginhost.DocumentRender(context.Background(), in, core); !ok || err != nil || !strings.HasPrefix(string(pdf), "%PDF-") {
+		t.Errorf("slip: ok %v, %v", ok, err)
+	}
+	in.Order.Lines = nil
+	if _, _, err := pluginhost.DocumentRender(context.Background(), in, core); err == nil || !strings.Contains(err.Error(), "nothing to pack") {
+		t.Errorf("an empty slip: %v", err)
+	}
+}
+
+func TestTheRecordsReachTheDataHub(t *testing.T) {
+	for _, res := range pluginhost.DataResources() {
+		if res.Slug == Slug+".records" {
+			if !res.CanImport() || !res.CanExport() || res.ViewPermission != "example.manage" || len(res.Fields) != 3 {
+				t.Errorf("resource %+v", res)
+			}
+			return
+		}
+	}
+	t.Error("example.records isn't in the data hub")
 }
 
 // The typed siblings of PluginConfig resolve registered defaults without hand-parsing - the

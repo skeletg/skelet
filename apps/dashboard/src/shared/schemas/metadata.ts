@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { added, changed, removed } from '@/shared/saving/diff'
+import { detailFieldFor, detailFieldText } from '@/plugins/field-registry'
 
 // Free-form key/value metadata - the JSONB column half the records carry. One schema, one cleanup
 // and one diff, so every form lists "Metadata · carrier: dhl → ups" the same way and none of them
@@ -31,23 +32,30 @@ export function cleanMetadata(entries: readonly MetadataEntry[], opts: { trimVal
 
 // One entry per key - added, removed or changed - over the cleaned rows, so a blank row being typed
 // doesn't show up as a change
+// `target` names the page, so a plugin field's key reads by the field's label and its value as the field shows it
 export function metadataDiff(
   before: readonly MetadataEntry[],
   after: readonly MetadataEntry[],
   label = 'Metadata',
+  target?: string,
 ): SectionDiffEntry[] {
   const asMap = (rows: readonly MetadataEntry[]) => new Map(cleanMetadata(rows).map((e) => [e.key, e.value]))
   const was = asMap(before)
   const now = asMap(after)
+  const name = (key: string) => detailFieldFor(target, key)?.label ?? `${label} · ${key}`
+  const text = (key: string, v: string) => {
+    const f = detailFieldFor(target, key)
+    return f ? detailFieldText(f, v) : v
+  }
   const out: SectionDiffEntry[] = []
   for (const [key, value] of now) {
-    if (!was.has(key)) out.push(added(`${label} · ${key}`, value))
+    if (!was.has(key)) out.push(added(name(key), text(key, value)))
     else {
-      const entry = changed(`${label} · ${key}`, was.get(key), value)
+      const entry = changed(name(key), text(key, was.get(key) ?? ''), text(key, value))
       if (entry) out.push(entry)
     }
   }
-  for (const [key, value] of was) if (!now.has(key)) out.push(removed(`${label} · ${key}`, value))
+  for (const [key, value] of was) if (!now.has(key)) out.push(removed(name(key), text(key, value)))
   return out
 }
 

@@ -20,6 +20,7 @@ import (
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
 	"github.com/skeletg/skelet/apps/backend/core/internal/orderio"
+	pluginhost "github.com/skeletg/skelet/apps/backend/core/internal/plugin"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
@@ -88,6 +89,9 @@ func newDataRegistry(d dataResourceDeps) *dataio.Registry { // registered here r
 	reg.Register(promotion.CodeResource(d.Promotion))
 	// Membership is the suite's and addresses are core's, so the export asks each for its own half
 	reg.Register(audienceio.Resource(d.segmentMembers, d.customerEmails))
+	for _, res := range pluginhost.DataResources() {
+		reg.Register(res)
+	}
 
 	// Mirrors config.RegisterSource - what keeps entity pickers out of the dashboard entirely
 	reg.RegisterSource(promotion.SourceRules, func(ctx context.Context) ([]dataio.Choice, error) {

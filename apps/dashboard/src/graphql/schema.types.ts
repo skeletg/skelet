@@ -528,6 +528,21 @@ export type AdminSession = {
   userAgent?: Maybe<Scalars['String']['output']>;
 };
 
+export type AdminSsoLink = {
+  __typename?: 'AdminSsoLink';
+  createdAt: Scalars['Time']['output'];
+  email: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  issuer: Scalars['String']['output'];
+  lastUsedAt: Scalars['Time']['output'];
+};
+
+export type AdminSsoResult = {
+  __typename?: 'AdminSsoResult';
+  session?: Maybe<AdminAuthPayload>;
+  totpTicket?: Maybe<Scalars['String']['output']>;
+};
+
 export type AdminTotpSetup = {
   __typename?: 'AdminTotpSetup';
   otpauthUrl: Scalars['String']['output'];
@@ -2090,6 +2105,7 @@ export type Country = {
   defaultCurrency?: Maybe<Currency>;
   defaultCurrencyCode: Scalars['String']['output'];
   emojiFlag: Scalars['String']['output'];
+  invoiceNote: Scalars['String']['output'];
   isActive: Scalars['Boolean']['output'];
   iso3Code: Scalars['String']['output'];
   metadata: Array<MetadataItem>;
@@ -2388,6 +2404,7 @@ export type CreateCountryInput = {
   code: Scalars['String']['input'];
   defaultCurrencyCode?: InputMaybe<Scalars['String']['input']>;
   emojiFlag?: InputMaybe<Scalars['String']['input']>;
+  invoiceNote?: InputMaybe<Scalars['String']['input']>;
   isActive?: InputMaybe<Scalars['Boolean']['input']>;
   metadata?: InputMaybe<Array<MetadataInput>>;
   name: Scalars['String']['input'];
@@ -4323,6 +4340,12 @@ export type Mutation = {
   adminSendCartOffer: AdminCart;
   adminSetCartLinePrice: AdminCart;
   adminSetCustomerConsent: CustomerConsent;
+  adminSsoComplete: AdminSsoResult;
+  adminSsoLinkComplete: AdminSsoLink;
+  adminSsoLinkStart: SsoStart;
+  adminSsoStart: SsoStart;
+  adminSsoTotp: AdminAuthPayload;
+  adminSsoUnlink: Scalars['Boolean']['output'];
   adminTotpDisable: Scalars['Boolean']['output'];
   adminTotpEnable: Array<Scalars['String']['output']>;
   adminTotpSetup: AdminTotpSetup;
@@ -4660,6 +4683,7 @@ export type Mutation = {
   setMenuStores: Menu;
   setMyPreference: Scalars['Boolean']['output'];
   setOptionTemplateRules: OptionTemplate;
+  setOrderStage: Order;
   setPaymentMethodCountries: PaymentMethodAdmin;
   setPaymentMethodEnabled: PaymentMethodAdmin;
   setProductAttributeLocaleValue: ProductAttributeLocaleValue;
@@ -4999,6 +5023,41 @@ export type MutationAdminSetCustomerConsentArgs = {
   customerId: Scalars['ID']['input'];
   kind: Scalars['String']['input'];
   optedIn: Scalars['Boolean']['input'];
+};
+
+
+export type MutationAdminSsoCompleteArgs = {
+  binding: Scalars['String']['input'];
+  code: Scalars['String']['input'];
+  state: Scalars['String']['input'];
+};
+
+
+export type MutationAdminSsoLinkCompleteArgs = {
+  binding: Scalars['String']['input'];
+  code: Scalars['String']['input'];
+  state: Scalars['String']['input'];
+};
+
+
+export type MutationAdminSsoLinkStartArgs = {
+  redirectUri: Scalars['String']['input'];
+};
+
+
+export type MutationAdminSsoStartArgs = {
+  redirectUri: Scalars['String']['input'];
+};
+
+
+export type MutationAdminSsoTotpArgs = {
+  code: Scalars['String']['input'];
+  ticket: Scalars['String']['input'];
+};
+
+
+export type MutationAdminSsoUnlinkArgs = {
+  id: Scalars['ID']['input'];
 };
 
 
@@ -6857,6 +6916,12 @@ export type MutationSetOptionTemplateRulesArgs = {
 };
 
 
+export type MutationSetOrderStageArgs = {
+  id: Scalars['ID']['input'];
+  stage?: InputMaybe<Scalars['String']['input']>;
+};
+
+
 export type MutationSetPaymentMethodCountriesArgs = {
   channelId: Scalars['ID']['input'];
   countries: Array<Scalars['String']['input']>;
@@ -7713,6 +7778,7 @@ export type Order = {
   businessIds: Array<OrderBusinessId>;
   carrier: Scalars['String']['output'];
   channelId: Scalars['ID']['output'];
+  checkoutFields: Array<OrderCheckoutField>;
   createdAt: Scalars['Time']['output'];
   currencyCode: Scalars['String']['output'];
   customerId?: Maybe<Scalars['ID']['output']>;
@@ -7725,6 +7791,7 @@ export type Order = {
   giftCardAmount: Scalars['Int']['output'];
   id: Scalars['ID']['output'];
   lines: Array<OrderLine>;
+  metadata: Array<MetadataItem>;
   number: Scalars['String']['output'];
   paymentActionKind?: Maybe<Scalars['String']['output']>;
   paymentClientSecret?: Maybe<Scalars['String']['output']>;
@@ -7740,6 +7807,7 @@ export type Order = {
   shippingAmount: Scalars['Int']['output'];
   shippingRefundable: Scalars['Int']['output'];
   shippingTaxAmount: Scalars['Int']['output'];
+  stage?: Maybe<OrderStage>;
   status: OrderStatus;
   storeCreditAmount: Scalars['Int']['output'];
   subtotal: Scalars['Int']['output'];
@@ -7771,6 +7839,21 @@ export type OrderBusinessId = {
   label: Scalars['String']['output'];
   value: Scalars['String']['output'];
 };
+
+export type OrderCheckoutField = {
+  __typename?: 'OrderCheckoutField';
+  key: Scalars['String']['output'];
+  label: Scalars['String']['output'];
+  type: OrderCheckoutFieldType;
+  value: Scalars['String']['output'];
+};
+
+export type OrderCheckoutFieldType =
+  | 'CHECKBOX'
+  | 'DATE'
+  | 'SELECT'
+  | 'TEXT'
+  | 'TEXTAREA';
 
 export type OrderDocumentKind =
   | 'CREDIT_MEMO'
@@ -7883,6 +7966,14 @@ export type OrderShipment = {
   point?: Maybe<Scalars['JSON']['output']>;
   position: Scalars['Int']['output'];
   shipTo?: Maybe<OrderAddress>;
+};
+
+export type OrderStage = {
+  __typename?: 'OrderStage';
+  key: Scalars['String']['output'];
+  label: Scalars['String']['output'];
+  plugin: Scalars['String']['output'];
+  within: Array<OrderStatus>;
 };
 
 export type OrderStatus =
@@ -8617,6 +8708,8 @@ export type Query = {
   adminCartOfferEmailPreview: AdminCartOfferEmailPreview;
   adminCartOfferPaymentMethods: Array<AdminCartOfferPaymentMethod>;
   adminSearch: AdminSearchResult;
+  adminSsoLinks: Array<AdminSsoLink>;
+  adminSsoOption?: Maybe<SsoOption>;
   admins: Array<AdminUser>;
   agenticStatus: Array<AgenticStatus>;
   aiInsights: AiInsights;
@@ -8777,6 +8870,7 @@ export type Query = {
   optionTemplates: Array<OptionTemplate>;
   order: Order;
   orderDocumentPdf: Scalars['String']['output'];
+  orderStages: Array<OrderStage>;
   orders: Array<Order>;
   ordersPaged: OrderPage;
   paymentMethods: Array<PaymentMethodAdmin>;
@@ -9640,6 +9734,11 @@ export type QueryOrderDocumentPdfArgs = {
 };
 
 
+export type QueryOrderStagesArgs = {
+  channelId?: InputMaybe<Scalars['ID']['input']>;
+};
+
+
 export type QueryOrdersArgs = {
   channelId?: InputMaybe<Scalars['ID']['input']>;
 };
@@ -9651,6 +9750,7 @@ export type QueryOrdersPagedArgs = {
   offset?: InputMaybe<Scalars['Int']['input']>;
   paymentStatuses?: InputMaybe<Array<Scalars['String']['input']>>;
   search?: InputMaybe<Scalars['String']['input']>;
+  stages?: InputMaybe<Array<Scalars['String']['input']>>;
   statuses?: InputMaybe<Array<Scalars['String']['input']>>;
 };
 
@@ -11370,6 +11470,18 @@ export type SiteCrawlStatus =
   | 'FAILED'
   | 'RUNNING';
 
+export type SsoOption = {
+  __typename?: 'SsoOption';
+  label: Scalars['String']['output'];
+};
+
+export type SsoStart = {
+  __typename?: 'SsoStart';
+  authorizeUrl: Scalars['String']['output'];
+  binding: Scalars['String']['output'];
+  state: Scalars['String']['output'];
+};
+
 export type StartDataExportInput = {
   channelId?: InputMaybe<Scalars['ID']['input']>;
   format?: Scalars['String']['input'];
@@ -12039,6 +12151,7 @@ export type UpdateCountryInput = {
   code: Scalars['String']['input'];
   defaultCurrencyCode?: InputMaybe<Scalars['String']['input']>;
   emojiFlag?: InputMaybe<Scalars['String']['input']>;
+  invoiceNote?: InputMaybe<Scalars['String']['input']>;
   isActive?: InputMaybe<Scalars['Boolean']['input']>;
   metadata?: InputMaybe<Array<MetadataInput>>;
   name?: InputMaybe<Scalars['String']['input']>;

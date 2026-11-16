@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
@@ -124,6 +125,9 @@ func TestInstrument_RateLimitGate(t *testing.T) {
 	var perr *PluginError
 	if !errors.As(err, &perr) || perr.Slug != "test-plugin" {
 		t.Errorf("expected *PluginError attributed to test-plugin, got %v", err)
+	}
+	if apperr.ClassOf(err) != apperr.ClassUnavailable || apperr.CodeOf(err) != "PLUGIN_RATE_LIMITED" {
+		t.Errorf("a refusal to try again later reads as %s %s", apperr.ClassOf(err), apperr.CodeOf(err))
 	}
 }
 

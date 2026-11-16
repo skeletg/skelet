@@ -335,7 +335,7 @@ function LocaleFormPage({ mode, locale }: { mode: 'create' | 'edit'; locale?: Ex
       </DetailPageSection>
 
       <DetailPageSection title="Metadata" description="Free-form key/value pairs for integration-specific data.">
-        <form.AppField name="metadata">{(f) => <f.MetadataField note={clash('metadata')} />}</form.AppField>
+        <form.AppField name="metadata">{(f) => <f.MetadataField target="locale" note={clash('metadata')} />}</form.AppField>
       </DetailPageSection>
     </RecordFormPage>
   )

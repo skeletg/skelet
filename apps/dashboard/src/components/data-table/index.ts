@@ -12,6 +12,7 @@ export {
   moneyColumn,
   badgeColumn,
   linkColumn,
+  metadataColumn,
   type RowAction,
   type ImageRef,
 } from './columns'

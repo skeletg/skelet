@@ -11,7 +11,7 @@ vi.mock("../customer/read", () => ({ getCustomerOrNull: vi.fn() }));
 vi.mock("../locale/read", () => ({ getCurrentLocale: async () => "en" }));
 vi.mock("../locale/path", () => ({ withLocalePrefix: async (path: string, locale: string) => `/${locale}${path}` }));
 vi.mock("./read", () => ({ getCheckoutState: mocks.checkout, checkoutPaymentMethods: mocks.methods }));
-const { placeOrderAction, finalizePlacedPaymentAction, applyCheckoutCouponAction, saveDestinationStep, saveGroupDeliveryAction, saveDeliveryPointAction, saveSplitDeliveryAction } = await import("./actions");
+const { placeOrderAction, finalizePlacedPaymentAction, applyCheckoutCouponAction, saveDestinationStep, saveGroupDeliveryAction, saveDeliveryPointAction, saveSplitDeliveryAction, saveDetailsStep } = await import("./actions");
 beforeEach(() => { vi.clearAllMocks(); mocks.signedIn = false; mocks.gqlFetch.mockResolvedValue({ data: {} }); mocks.checkoutCart.mockImplementation(async (id: string) => id === "offer-1" ? { id, offer: { isGuest: true } } : id === "cart-1" ? { id, offer: null } : null); mocks.settings.mockResolvedValue({ termsConsent: "notice" }); mocks.checkout.mockResolvedValue({ email: "guest@example.com", totals: { amountDueCents: 0 } }); });
 it.each([
   [saveDestinationStep, { countryCode: "DE", postalCode: "10115" }],
@@ -240,4 +240,35 @@ describe("the checkout email opt-in", () => {
     expect(optIns()).toEqual([]);
     expect(placed().at(-1)?.marketingOptIn).toBe(true);
   });
+});
+
+it("sends an answer to every field the store's plugins ask, an unticked box as empty", async () => {
+  const spec = { hint: "", options: [], required: false, maxLength: 200, value: "" };
+  mocks.checkout.mockResolvedValue({
+    email: "guest@example.com", requirements: [], deliveryGroups: [], destination: { countryCode: "DE" },
+    fields: [{ ...spec, key: "acme:gift_message", label: "Gift message", type: "TEXTAREA" }, { ...spec, key: "acme:wrap", label: "Wrap it", type: "CHECKBOX" }],
+  });
+  mocks.gqlFetch.mockResolvedValue({ setCartDetails: { id: "cart-1", checkout: { deliveryGroups: [] } } });
+  const data = new FormData();
+  data.set("cartId", "cart-1");
+  data.set("fields.acme:gift_message", " Happy birthday ");
+  await saveDetailsStep(undefined, data).catch(() => undefined);
+  expect(mocks.gqlFetch).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+    input: expect.objectContaining({ fields: [{ key: "acme:gift_message", value: "Happy birthday" }, { key: "acme:wrap", value: "" }] }),
+  }));
+});
+
+it("says so on the form when a plugin asks something the page never drew, and re-reads the cart", async () => {
+  const spec = { hint: "", options: [], required: true, maxLength: 200, value: "" };
+  mocks.checkout.mockResolvedValue({
+    email: "guest@example.com", requirements: [], deliveryGroups: [], destination: { countryCode: "DE" },
+    fields: [{ ...spec, key: "acme:po_ref", label: "PO reference", type: "TEXT" }],
+  });
+  const data = new FormData();
+  data.set("cartId", "cart-1");
+  data.set("email", "guest@example.com");
+  data.set("fieldsAsked", "");
+  const result = await saveDetailsStep(undefined, data);
+  expect(result?.error?.[""]).toEqual(["checkoutFieldsChanged"]);
+  expect(mocks.gqlFetch).not.toHaveBeenCalled();
 });

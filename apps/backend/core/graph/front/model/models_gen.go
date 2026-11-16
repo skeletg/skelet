@@ -229,6 +229,7 @@ type CartCheckout struct {
 	Company               string                 `json:"company"`
 	BusinessIds           []*BusinessIDValue     `json:"businessIds"`
 	PoNumber              string                 `json:"poNumber"`
+	Fields                []*CheckoutField       `json:"fields"`
 	ShippingAddress       *CartAddress           `json:"shippingAddress,omitempty"`
 	BillingSameAsShipping bool                   `json:"billingSameAsShipping"`
 	BillingAddress        *CartAddress           `json:"billingAddress,omitempty"`
@@ -320,18 +321,40 @@ type CheckoutDestination struct {
 }
 
 type CheckoutDetailsInput struct {
-	Email                 *string                 `json:"email,omitempty"`
-	Phone                 *string                 `json:"phone,omitempty"`
-	PurchaseType          PurchaseType            `json:"purchaseType"`
-	Company               *string                 `json:"company,omitempty"`
-	BusinessIds           []*BusinessIDValueInput `json:"businessIds,omitempty"`
-	PoNumber              *string                 `json:"poNumber,omitempty"`
-	ShippingAddressID     *string                 `json:"shippingAddressId,omitempty"`
-	ShippingAddress       *model.AddressInput     `json:"shippingAddress,omitempty"`
-	PickupContact         *PickupContactInput     `json:"pickupContact,omitempty"`
-	BillingSameAsShipping bool                    `json:"billingSameAsShipping"`
-	BillingAddressID      *string                 `json:"billingAddressId,omitempty"`
-	BillingAddress        *model.AddressInput     `json:"billingAddress,omitempty"`
+	Email                 *string                    `json:"email,omitempty"`
+	Phone                 *string                    `json:"phone,omitempty"`
+	PurchaseType          PurchaseType               `json:"purchaseType"`
+	Company               *string                    `json:"company,omitempty"`
+	BusinessIds           []*BusinessIDValueInput    `json:"businessIds,omitempty"`
+	PoNumber              *string                    `json:"poNumber,omitempty"`
+	Fields                []*CheckoutFieldValueInput `json:"fields,omitempty"`
+	ShippingAddressID     *string                    `json:"shippingAddressId,omitempty"`
+	ShippingAddress       *model.AddressInput        `json:"shippingAddress,omitempty"`
+	PickupContact         *PickupContactInput        `json:"pickupContact,omitempty"`
+	BillingSameAsShipping bool                       `json:"billingSameAsShipping"`
+	BillingAddressID      *string                    `json:"billingAddressId,omitempty"`
+	BillingAddress        *model.AddressInput        `json:"billingAddress,omitempty"`
+}
+
+type CheckoutField struct {
+	Key       string                 `json:"key"`
+	Label     string                 `json:"label"`
+	Hint      string                 `json:"hint"`
+	Type      CheckoutFieldType      `json:"type"`
+	Options   []*CheckoutFieldOption `json:"options"`
+	Required  bool                   `json:"required"`
+	MaxLength int32                  `json:"maxLength"`
+	Value     string                 `json:"value"`
+}
+
+type CheckoutFieldOption struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+}
+
+type CheckoutFieldValueInput struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
 type CheckoutRequirement struct {
@@ -915,6 +938,67 @@ func (e *BrowseFacetH1Position) UnmarshalJSON(b []byte) error {
 }
 
 func (e BrowseFacetH1Position) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type CheckoutFieldType string
+
+const (
+	CheckoutFieldTypeText     CheckoutFieldType = "TEXT"
+	CheckoutFieldTypeTextarea CheckoutFieldType = "TEXTAREA"
+	CheckoutFieldTypeCheckbox CheckoutFieldType = "CHECKBOX"
+	CheckoutFieldTypeSelect   CheckoutFieldType = "SELECT"
+	CheckoutFieldTypeDate     CheckoutFieldType = "DATE"
+)
+
+var AllCheckoutFieldType = []CheckoutFieldType{
+	CheckoutFieldTypeText,
+	CheckoutFieldTypeTextarea,
+	CheckoutFieldTypeCheckbox,
+	CheckoutFieldTypeSelect,
+	CheckoutFieldTypeDate,
+}
+
+func (e CheckoutFieldType) IsValid() bool {
+	switch e {
+	case CheckoutFieldTypeText, CheckoutFieldTypeTextarea, CheckoutFieldTypeCheckbox, CheckoutFieldTypeSelect, CheckoutFieldTypeDate:
+		return true
+	}
+	return false
+}
+
+func (e CheckoutFieldType) String() string {
+	return string(e)
+}
+
+func (e *CheckoutFieldType) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = CheckoutFieldType(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid CheckoutFieldType", str)
+	}
+	return nil
+}
+
+func (e CheckoutFieldType) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *CheckoutFieldType) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e CheckoutFieldType) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

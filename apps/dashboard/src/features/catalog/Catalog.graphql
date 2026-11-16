@@ -587,6 +587,7 @@ query ProductsPaged(
   $sortDesc: Boolean
   $limit: Int
   $offset: Int
+  $withMetadata: Boolean! = false
 ) {
   productsPaged(
     channelId: $channelId
@@ -616,6 +617,10 @@ query ProductsPaged(
       name
       shortDescription
       locale
+    }
+    metadata @include(if: $withMetadata) {
+      key
+      value
     }
     mainImage {
       id

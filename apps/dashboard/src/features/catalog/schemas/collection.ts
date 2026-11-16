@@ -133,7 +133,7 @@ export function collectionDiff(original: CollectionValues, draft: CollectionValu
       { label: COLLECTION_LABELS.metaKeywords, value: (v) => v.metaKeywords },
     ]),
     ...(formatting ? [formatting] : []),
-    ...metadataDiff(original.metadata, draft.metadata),
+    ...metadataDiff(original.metadata, draft.metadata, 'Metadata', 'collection'),
     ...metadataDiff(original.privateMetadata, draft.privateMetadata, 'Private metadata'),
   ]
 }

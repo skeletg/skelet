@@ -376,6 +376,19 @@ type ComplexityRoot struct {
 		UserAgent    func(childComplexity int) int
 	}
 
+	AdminSsoLink struct {
+		CreatedAt  func(childComplexity int) int
+		Email      func(childComplexity int) int
+		ID         func(childComplexity int) int
+		Issuer     func(childComplexity int) int
+		LastUsedAt func(childComplexity int) int
+	}
+
+	AdminSsoResult struct {
+		Session    func(childComplexity int) int
+		TotpTicket func(childComplexity int) int
+	}
+
 	AdminTotpSetup struct {
 		OtpauthURL func(childComplexity int) int
 		Secret     func(childComplexity int) int
@@ -1463,6 +1476,7 @@ type ComplexityRoot struct {
 		DefaultCurrency     func(childComplexity int) int
 		DefaultCurrencyCode func(childComplexity int) int
 		EmojiFlag           func(childComplexity int) int
+		InvoiceNote         func(childComplexity int) int
 		IsActive            func(childComplexity int) int
 		Iso3Code            func(childComplexity int) int
 		Metadata            func(childComplexity int) int
@@ -2791,6 +2805,12 @@ type ComplexityRoot struct {
 		AdminSendCartOffer                func(childComplexity int, cartID string) int
 		AdminSetCartLinePrice             func(childComplexity int, cartID string, lineID string, unitPrice *int32) int
 		AdminSetCustomerConsent           func(childComplexity int, customerID string, kind string, optedIn bool) int
+		AdminSsoComplete                  func(childComplexity int, state string, code string, binding string) int
+		AdminSsoLinkComplete              func(childComplexity int, state string, code string, binding string) int
+		AdminSsoLinkStart                 func(childComplexity int, redirectURI string) int
+		AdminSsoStart                     func(childComplexity int, redirectURI string) int
+		AdminSsoTotp                      func(childComplexity int, ticket string, code string) int
+		AdminSsoUnlink                    func(childComplexity int, id string) int
 		AdminTotpDisable                  func(childComplexity int, code string) int
 		AdminTotpEnable                   func(childComplexity int, code string) int
 		AdminTotpSetup                    func(childComplexity int) int
@@ -3127,6 +3147,7 @@ type ComplexityRoot struct {
 		SetMenuStores                     func(childComplexity int, menuID string, channelIds []string) int
 		SetMyPreference                   func(childComplexity int, key string, value interface{}) int
 		SetOptionTemplateRules            func(childComplexity int, templateID string, rules []*model.ProductOptionRuleInput) int
+		SetOrderStage                     func(childComplexity int, id string, stage *string) int
 		SetPaymentMethodCountries         func(childComplexity int, channelID string, providerSlug string, mode string, countries []string) int
 		SetPaymentMethodEnabled           func(childComplexity int, channelID string, providerSlug string, enabled bool) int
 		SetProductAttributeLocaleValue    func(childComplexity int, productID string, attributeID string, locale string, value string) int
@@ -3304,6 +3325,7 @@ type ComplexityRoot struct {
 		BusinessIds         func(childComplexity int) int
 		Carrier             func(childComplexity int) int
 		ChannelID           func(childComplexity int) int
+		CheckoutFields      func(childComplexity int) int
 		CreatedAt           func(childComplexity int) int
 		CurrencyCode        func(childComplexity int) int
 		CustomerID          func(childComplexity int) int
@@ -3316,6 +3338,7 @@ type ComplexityRoot struct {
 		GiftCardAmount      func(childComplexity int) int
 		ID                  func(childComplexity int) int
 		Lines               func(childComplexity int) int
+		Metadata            func(childComplexity int) int
 		Number              func(childComplexity int) int
 		PaymentActionKind   func(childComplexity int) int
 		PaymentClientSecret func(childComplexity int) int
@@ -3331,6 +3354,7 @@ type ComplexityRoot struct {
 		ShippingAmount      func(childComplexity int) int
 		ShippingRefundable  func(childComplexity int) int
 		ShippingTaxAmount   func(childComplexity int) int
+		Stage               func(childComplexity int) int
 		Status              func(childComplexity int) int
 		StoreCreditAmount   func(childComplexity int) int
 		Subtotal            func(childComplexity int) int
@@ -3358,6 +3382,13 @@ type ComplexityRoot struct {
 	OrderBusinessId struct {
 		Key   func(childComplexity int) int
 		Label func(childComplexity int) int
+		Value func(childComplexity int) int
+	}
+
+	OrderCheckoutField struct {
+		Key   func(childComplexity int) int
+		Label func(childComplexity int) int
+		Type  func(childComplexity int) int
 		Value func(childComplexity int) int
 	}
 
@@ -3452,6 +3483,13 @@ type ComplexityRoot struct {
 		Point              func(childComplexity int) int
 		Position           func(childComplexity int) int
 		ShipTo             func(childComplexity int) int
+	}
+
+	OrderStage struct {
+		Key    func(childComplexity int) int
+		Label  func(childComplexity int) int
+		Plugin func(childComplexity int) int
+		Within func(childComplexity int) int
 	}
 
 	OrderTaxLine struct {
@@ -3970,6 +4008,8 @@ type ComplexityRoot struct {
 		AdminCartOfferEmailPreview   func(childComplexity int, cartID string) int
 		AdminCartOfferPaymentMethods func(childComplexity int, cartID string) int
 		AdminSearch                  func(childComplexity int, term string) int
+		AdminSsoLinks                func(childComplexity int) int
+		AdminSsoOption               func(childComplexity int) int
 		Admins                       func(childComplexity int) int
 		AgenticStatus                func(childComplexity int, channelID string) int
 		AiInsights                   func(childComplexity int, channelID string, days *int32) int
@@ -4128,8 +4168,9 @@ type ComplexityRoot struct {
 		OptionTemplates              func(childComplexity int) int
 		Order                        func(childComplexity int, id string) int
 		OrderDocumentPDF             func(childComplexity int, orderID string, kind model.OrderDocumentKind, creditMemoID *string) int
+		OrderStages                  func(childComplexity int, channelID *string) int
 		Orders                       func(childComplexity int, channelID *string) int
-		OrdersPaged                  func(childComplexity int, channelID *string, search *string, statuses []string, paymentStatuses []string, limit *int32, offset *int32) int
+		OrdersPaged                  func(childComplexity int, channelID *string, search *string, statuses []string, paymentStatuses []string, limit *int32, offset *int32, stages []string) int
 		PaymentMethods               func(childComplexity int, channelID string) int
 		PaymentProviders             func(childComplexity int, channelID *string) int
 		PermissionGroups             func(childComplexity int) int
@@ -4894,6 +4935,16 @@ type ComplexityRoot struct {
 		RespectRobots func(childComplexity int) int
 		StartedAt     func(childComplexity int) int
 		Status        func(childComplexity int) int
+	}
+
+	SsoOption struct {
+		Label func(childComplexity int) int
+	}
+
+	SsoStart struct {
+		AuthorizeURL func(childComplexity int) int
+		Binding      func(childComplexity int) int
+		State        func(childComplexity int) int
 	}
 
 	StoreCreditEntry struct {
@@ -5797,6 +5848,7 @@ type MutationResolver interface {
 	MarkProcessing(ctx context.Context, id string) (*model.Order, error)
 	HoldOrder(ctx context.Context, id string, reason *string) (*model.Order, error)
 	ReleaseOrder(ctx context.Context, id string) (*model.Order, error)
+	SetOrderStage(ctx context.Context, id string, stage *string) (*model.Order, error)
 	FulfillOrder(ctx context.Context, id string, carrier *string, trackingNumber *string, insuredValueCents *int32) (*model.Order, error)
 	EditOrder(ctx context.Context, input model.EditOrderInput) (*model.Order, error)
 	EditOrderAddress(ctx context.Context, input model.EditOrderAddressInput) (*model.Order, error)
@@ -5904,6 +5956,12 @@ type MutationResolver interface {
 	SynapseSaveSegment(ctx context.Context, channelID string, name string, segmentID *string, root *model.SegmentNodeInput, conditions []*model.SegmentConditionInput, trait *model.SegmentTraitInput, affinity *model.SegmentAffinityInput) (*model.SynapseSegment, error)
 	SynapseRefreshSegment(ctx context.Context, segmentID string) (*model.SynapseSegment, error)
 	SynapseSetSegmentLifecycleWindows(ctx context.Context, segmentID string, windows *model.SegmentLifecycleWindowsInput) (*model.SynapseSegment, error)
+	AdminSsoStart(ctx context.Context, redirectURI string) (*model.SsoStart, error)
+	AdminSsoComplete(ctx context.Context, state string, code string, binding string) (*model.AdminSsoResult, error)
+	AdminSsoTotp(ctx context.Context, ticket string, code string) (*model.AdminAuthPayload, error)
+	AdminSsoLinkStart(ctx context.Context, redirectURI string) (*model.SsoStart, error)
+	AdminSsoLinkComplete(ctx context.Context, state string, code string, binding string) (*model.AdminSsoLink, error)
+	AdminSsoUnlink(ctx context.Context, id string) (bool, error)
 	CancelSubscription(ctx context.Context, id string) (*model.CustomerSubscription, error)
 	PauseSubscription(ctx context.Context, id string) (*model.CustomerSubscription, error)
 	ResumeSubscription(ctx context.Context, id string) (*model.CustomerSubscription, error)
@@ -6147,7 +6205,8 @@ type QueryResolver interface {
 	Notifications(ctx context.Context, unreadOnly *bool, limit *int32) ([]*model.AdminNotification, error)
 	NotificationUnreadCount(ctx context.Context) (int32, error)
 	Orders(ctx context.Context, channelID *string) ([]*model.Order, error)
-	OrdersPaged(ctx context.Context, channelID *string, search *string, statuses []string, paymentStatuses []string, limit *int32, offset *int32) (*model.OrderPage, error)
+	OrdersPaged(ctx context.Context, channelID *string, search *string, statuses []string, paymentStatuses []string, limit *int32, offset *int32, stages []string) (*model.OrderPage, error)
+	OrderStages(ctx context.Context, channelID *string) ([]*model.OrderStage, error)
 	Order(ctx context.Context, id string) (*model.Order, error)
 	OrderDocumentPDF(ctx context.Context, orderID string, kind model.OrderDocumentKind, creditMemoID *string) (string, error)
 	CreditMemos(ctx context.Context, orderID string) ([]*model.CreditMemo, error)
@@ -6232,6 +6291,8 @@ type QueryResolver interface {
 	SynapseRetention(ctx context.Context, channelID string, startEvent string, returnEvent string, sinceDays *int32, periods *int32, unit *string) (*model.SynapseRetention, error)
 	VisitorProfile(ctx context.Context, channelID string, anonID string, sinceDays *int32) (*model.CustomerProfile, error)
 	CustomerAudiences(ctx context.Context, customerID string) ([]*model.SignalSegment, error)
+	AdminSsoOption(ctx context.Context) (*model.SsoOption, error)
+	AdminSsoLinks(ctx context.Context) ([]*model.AdminSsoLink, error)
 	Subscriptions(ctx context.Context, status *model.SubscriptionStatus, limit *int32, offset *int32) ([]*model.CustomerSubscription, error)
 	SubscriptionsPaged(ctx context.Context, status *model.SubscriptionStatus, limit *int32, offset *int32) (*model.SubscriptionPage, error)
 	Subscription(ctx context.Context, id string) (*model.CustomerSubscription, error)
@@ -7582,6 +7643,50 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AdminSession.UserAgent(childComplexity), true
+
+	case "AdminSsoLink.createdAt":
+		if e.ComplexityRoot.AdminSsoLink.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminSsoLink.CreatedAt(childComplexity), true
+	case "AdminSsoLink.email":
+		if e.ComplexityRoot.AdminSsoLink.Email == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminSsoLink.Email(childComplexity), true
+	case "AdminSsoLink.id":
+		if e.ComplexityRoot.AdminSsoLink.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminSsoLink.ID(childComplexity), true
+	case "AdminSsoLink.issuer":
+		if e.ComplexityRoot.AdminSsoLink.Issuer == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminSsoLink.Issuer(childComplexity), true
+	case "AdminSsoLink.lastUsedAt":
+		if e.ComplexityRoot.AdminSsoLink.LastUsedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminSsoLink.LastUsedAt(childComplexity), true
+
+	case "AdminSsoResult.session":
+		if e.ComplexityRoot.AdminSsoResult.Session == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminSsoResult.Session(childComplexity), true
+	case "AdminSsoResult.totpTicket":
+		if e.ComplexityRoot.AdminSsoResult.TotpTicket == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminSsoResult.TotpTicket(childComplexity), true
 
 	case "AdminTotpSetup.otpauthUrl":
 		if e.ComplexityRoot.AdminTotpSetup.OtpauthURL == nil {
@@ -12178,6 +12283,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Country.EmojiFlag(childComplexity), true
+	case "Country.invoiceNote":
+		if e.ComplexityRoot.Country.InvoiceNote == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Country.InvoiceNote(childComplexity), true
 	case "Country.isActive":
 		if e.ComplexityRoot.Country.IsActive == nil {
 			break
@@ -18116,6 +18227,72 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.AdminSetCustomerConsent(childComplexity, args["customerId"].(string), args["kind"].(string), args["optedIn"].(bool)), true
+	case "Mutation.adminSsoComplete":
+		if e.ComplexityRoot.Mutation.AdminSsoComplete == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_adminSsoComplete_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.AdminSsoComplete(childComplexity, args["state"].(string), args["code"].(string), args["binding"].(string)), true
+	case "Mutation.adminSsoLinkComplete":
+		if e.ComplexityRoot.Mutation.AdminSsoLinkComplete == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_adminSsoLinkComplete_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.AdminSsoLinkComplete(childComplexity, args["state"].(string), args["code"].(string), args["binding"].(string)), true
+	case "Mutation.adminSsoLinkStart":
+		if e.ComplexityRoot.Mutation.AdminSsoLinkStart == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_adminSsoLinkStart_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.AdminSsoLinkStart(childComplexity, args["redirectUri"].(string)), true
+	case "Mutation.adminSsoStart":
+		if e.ComplexityRoot.Mutation.AdminSsoStart == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_adminSsoStart_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.AdminSsoStart(childComplexity, args["redirectUri"].(string)), true
+	case "Mutation.adminSsoTotp":
+		if e.ComplexityRoot.Mutation.AdminSsoTotp == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_adminSsoTotp_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.AdminSsoTotp(childComplexity, args["ticket"].(string), args["code"].(string)), true
+	case "Mutation.adminSsoUnlink":
+		if e.ComplexityRoot.Mutation.AdminSsoUnlink == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_adminSsoUnlink_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.AdminSsoUnlink(childComplexity, args["id"].(string)), true
 	case "Mutation.adminTotpDisable":
 		if e.ComplexityRoot.Mutation.AdminTotpDisable == nil {
 			break
@@ -21802,6 +21979,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetOptionTemplateRules(childComplexity, args["templateId"].(string), args["rules"].([]*model.ProductOptionRuleInput)), true
+	case "Mutation.setOrderStage":
+		if e.ComplexityRoot.Mutation.SetOrderStage == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setOrderStage_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetOrderStage(childComplexity, args["id"].(string), args["stage"].(*string)), true
 	case "Mutation.setPaymentMethodCountries":
 		if e.ComplexityRoot.Mutation.SetPaymentMethodCountries == nil {
 			break
@@ -23496,6 +23684,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Order.ChannelID(childComplexity), true
+	case "Order.checkoutFields":
+		if e.ComplexityRoot.Order.CheckoutFields == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Order.CheckoutFields(childComplexity), true
 	case "Order.createdAt":
 		if e.ComplexityRoot.Order.CreatedAt == nil {
 			break
@@ -23568,6 +23762,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Order.Lines(childComplexity), true
+	case "Order.metadata":
+		if e.ComplexityRoot.Order.Metadata == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Order.Metadata(childComplexity), true
 	case "Order.number":
 		if e.ComplexityRoot.Order.Number == nil {
 			break
@@ -23658,6 +23858,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Order.ShippingTaxAmount(childComplexity), true
+	case "Order.stage":
+		if e.ComplexityRoot.Order.Stage == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Order.Stage(childComplexity), true
 	case "Order.status":
 		if e.ComplexityRoot.Order.Status == nil {
 			break
@@ -23792,6 +23998,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OrderBusinessId.Value(childComplexity), true
+
+	case "OrderCheckoutField.key":
+		if e.ComplexityRoot.OrderCheckoutField.Key == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderCheckoutField.Key(childComplexity), true
+	case "OrderCheckoutField.label":
+		if e.ComplexityRoot.OrderCheckoutField.Label == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderCheckoutField.Label(childComplexity), true
+	case "OrderCheckoutField.type":
+		if e.ComplexityRoot.OrderCheckoutField.Type == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderCheckoutField.Type(childComplexity), true
+	case "OrderCheckoutField.value":
+		if e.ComplexityRoot.OrderCheckoutField.Value == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderCheckoutField.Value(childComplexity), true
 
 	case "OrderEvent.actorEmail":
 		if e.ComplexityRoot.OrderEvent.ActorEmail == nil {
@@ -24197,6 +24428,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OrderShipment.ShipTo(childComplexity), true
+
+	case "OrderStage.key":
+		if e.ComplexityRoot.OrderStage.Key == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderStage.Key(childComplexity), true
+	case "OrderStage.label":
+		if e.ComplexityRoot.OrderStage.Label == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderStage.Label(childComplexity), true
+	case "OrderStage.plugin":
+		if e.ComplexityRoot.OrderStage.Plugin == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderStage.Plugin(childComplexity), true
+	case "OrderStage.within":
+		if e.ComplexityRoot.OrderStage.Within == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderStage.Within(childComplexity), true
 
 	case "OrderTaxLine.amount":
 		if e.ComplexityRoot.OrderTaxLine.Amount == nil {
@@ -26551,6 +26807,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.AdminSearch(childComplexity, args["term"].(string)), true
+	case "Query.adminSsoLinks":
+		if e.ComplexityRoot.Query.AdminSsoLinks == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.AdminSsoLinks(childComplexity), true
+	case "Query.adminSsoOption":
+		if e.ComplexityRoot.Query.AdminSsoOption == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.AdminSsoOption(childComplexity), true
 	case "Query.admins":
 		if e.ComplexityRoot.Query.Admins == nil {
 			break
@@ -28120,6 +28388,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.OrderDocumentPDF(childComplexity, args["orderId"].(string), args["kind"].(model.OrderDocumentKind), args["creditMemoId"].(*string)), true
+	case "Query.orderStages":
+		if e.ComplexityRoot.Query.OrderStages == nil {
+			break
+		}
+
+		args, err := ec.field_Query_orderStages_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.OrderStages(childComplexity, args["channelId"].(*string)), true
 	case "Query.orders":
 		if e.ComplexityRoot.Query.Orders == nil {
 			break
@@ -28141,7 +28420,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.OrdersPaged(childComplexity, args["channelId"].(*string), args["search"].(*string), args["statuses"].([]string), args["paymentStatuses"].([]string), args["limit"].(*int32), args["offset"].(*int32)), true
+		return e.ComplexityRoot.Query.OrdersPaged(childComplexity, args["channelId"].(*string), args["search"].(*string), args["statuses"].([]string), args["paymentStatuses"].([]string), args["limit"].(*int32), args["offset"].(*int32), args["stages"].([]string)), true
 	case "Query.paymentMethods":
 		if e.ComplexityRoot.Query.PaymentMethods == nil {
 			break
@@ -31835,6 +32114,32 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SiteCrawl.Status(childComplexity), true
+
+	case "SsoOption.label":
+		if e.ComplexityRoot.SsoOption.Label == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SsoOption.Label(childComplexity), true
+
+	case "SsoStart.authorizeUrl":
+		if e.ComplexityRoot.SsoStart.AuthorizeURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SsoStart.AuthorizeURL(childComplexity), true
+	case "SsoStart.binding":
+		if e.ComplexityRoot.SsoStart.Binding == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SsoStart.Binding(childComplexity), true
+	case "SsoStart.state":
+		if e.ComplexityRoot.SsoStart.State == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SsoStart.State(childComplexity), true
 
 	case "StoreCreditEntry.amountCents":
 		if e.ComplexityRoot.StoreCreditEntry.AmountCents == nil {
@@ -38439,6 +38744,8 @@ extend type Mutation {
   metadata:              [MetadataItem!]!
   # The company identifiers a business purchase from this country asks for at checkout - a company registry number, a VAT number. Empty falls back to one generic tax ID, per sales/checkout/tax_id_field.
   businessIdFields:      [BusinessIdField!]!
+  # Printed on the invoices and credit memos of business purchases billed to this country - a reverse-charge or export note, say.
+  invoiceNote:           String!
   # ISO 3166-2 subdivisions (states/provinces) seeded for this country. Empty for countries that use free-text regions. Field resolver - only fetched when requested (e.g. the country detail page).
   regions:               [Region!]!
   createdAt:             Time!
@@ -38484,6 +38791,7 @@ input CreateCountryInput {
   sortOrder:             Int
   metadata:              [MetadataInput!]
   businessIdFields:      [BusinessIdFieldInput!]
+  invoiceNote:           String
 }
 
 # Code is the PK and never updates - to "rename" a country you delete
@@ -38500,6 +38808,7 @@ input UpdateCountryInput {
   metadata:              [MetadataInput!]
   # Replaces the whole list when given.
   businessIdFields:      [BusinessIdFieldInput!]
+  invoiceNote:           String
 }
 
 extend type Query {
@@ -40534,6 +40843,7 @@ type Order {
   channelId:       ID!
   number:          String!
   status:          OrderStatus!
+  stage:           OrderStage
   paymentStatus:   PaymentStatus!
   # Transient: populated only on the storefront placeOrder response when the
   # gateway needs a client-side 3DS step. Always null on admin reads.
@@ -40558,6 +40868,10 @@ type Order {
   poNumber: String
   # The buyer's company identifiers on a business purchase, with the labels the shopper saw (a VAT number, a company registry number). Empty for personal purchases.
   businessIds: [OrderBusinessId!]!
+  # The answers to the plugins' checkout fields, with the labels the shopper saw.
+  checkoutFields: [OrderCheckoutField!]!
+  # What plugins recorded on the order at placement, by their own keys.
+  metadata: [MetadataItem!]!
   lines:           [OrderLine!]!
   events:          [OrderEvent!]!
   subtotal:        Int!
@@ -40596,6 +40910,15 @@ type Order {
   # before the breakdown was recorded. A field resolver.
   taxLines: [OrderTaxLine!]!
   createdAt:       Time!
+}
+
+# A plugin's own step inside an order's status ("awaiting stock" inside CONFIRMED). The status still drives payment and stock; a stage says where the work stands.
+type OrderStage {
+  key:    String!
+  label:  String!
+  # The statuses it can sit in - moving the order to any other clears it.
+  within: [OrderStatus!]!
+  plugin: String!
 }
 
 # A shipment covering some or all of an order's line quantities. An order may have many; status SHIPPED is the norm, CANCELLED marks a voided shipment (its lines no longer count toward shipped totals).
@@ -40794,7 +41117,9 @@ extend type Query {
   orders(channelId: ID): [Order!]!
   # Server-side page for the orders grid - statuses/paymentStatuses take the
   # SCREAMING enum spellings, search matches number, email and last names
-  ordersPaged(channelId: ID, search: String, statuses: [String!], paymentStatuses: [String!], limit: Int, offset: Int): OrderPage!
+  ordersPaged(channelId: ID, search: String, statuses: [String!], paymentStatuses: [String!], limit: Int, offset: Int, stages: [String!]): OrderPage!
+  # The stages the plugins enabled on a channel offer, or every compiled-in plugin's without channelId
+  orderStages(channelId: ID): [OrderStage!]!
   order(id: ID!):          Order!
 }
 
@@ -40811,6 +41136,8 @@ extend type Mutation {
   # payment stays as-is). Release returns it to CONFIRMED.
   holdOrder(id: ID!, reason: String): Order!
   releaseOrder(id: ID!):   Order!
+  # Move an order into a stage its status holds, or out of its stage with null. order.transitioning subscribers can refuse. Requires orders.update.
+  setOrderStage(id: ID!, stage: String): Order!
   # Mark an order shipped. Optional carrier + tracking are stamped on the order at fulfillment time and surfaced on the admin Order type. Both fields can be omitted when the store doesn't integrate with a carrier - a sync OrderFulfilling subscriber (e.g. a shipping-API plugin) can also fill these and its values win over the admin-supplied args.
   fulfillOrder(id: ID!, carrier: String, trackingNumber: String, insuredValueCents: Int): Order!
 
@@ -41023,6 +41350,22 @@ type OrderBusinessId {
   key:   String!
   label: String!
   value: String!
+}
+
+type OrderCheckoutField {
+  key:   String!
+  label: String!
+  value: String!
+  # How the shopper answered - a ticked checkbox is "true", a date YYYY-MM-DD. TEXT on orders placed before it was kept.
+  type:  OrderCheckoutFieldType!
+}
+
+enum OrderCheckoutFieldType {
+  TEXT
+  TEXTAREA
+  CHECKBOX
+  SELECT
+  DATE
 }
 `, BuiltIn: false},
 	{Name: "../schema/admin/payment.graphqls", Input: `# A payment provider registered in code, paired with its per-channel payment_methods row. providerSlug is stable; isEnabled/countryMode/ allowedCountries are the admin-managed settings for this channel.
@@ -43702,6 +44045,51 @@ type CustomerTraits {
   computedAt:      Time!
 }
 `, BuiltIn: false},
+	{Name: "../schema/admin/sso.graphqls", Input: `# Signing in through an outside OpenID Connect provider, set up under Admin sign-in. Start, send the browser to authorizeUrl, and complete with the code and state the provider hands back plus the binding start returned, which only the starting browser holds.
+type SsoStart {
+  authorizeUrl: String!
+  state:        String!
+  binding:      String!
+}
+
+type SsoOption {
+  label: String!
+}
+
+# A provider account an admin connected to their own account, which then signs them in.
+type AdminSsoLink {
+  id:         ID!
+  issuer:     String!
+  email:      String!
+  createdAt:  Time!
+  lastUsedAt: Time!
+}
+
+extend type Query {
+  # Null while no provider is set up. Unauthenticated, for the sign-in page.
+  adminSsoOption: SsoOption
+  # The signed-in admin's own connected provider accounts.
+  adminSsoLinks: [AdminSsoLink!]!
+}
+
+# A finished sign-in carries session. An admin with two-factor on whose provider didn't prove a second factor gets totpTicket instead, and finishes with adminSsoTotp.
+type AdminSsoResult {
+  session:    AdminAuthPayload
+  totpTicket: String
+}
+
+extend type Mutation {
+  # redirectUri is the dashboard page the provider returns to - it has to be on one of the dashboard's origins and registered at the provider.
+  adminSsoStart(redirectUri: String!): SsoStart!
+  adminSsoComplete(state: String!, code: String!, binding: String!): AdminSsoResult!
+  # The ticket lasts five minutes. A wrong code can be tried again until the account's two-factor lockout; code takes a recovery code too.
+  adminSsoTotp(ticket: String!, code: String!): AdminAuthPayload!
+  # Connecting a provider account to the signed-in admin: start, send the browser to authorizeUrl, and complete on the same return page.
+  adminSsoLinkStart(redirectUri: String!): SsoStart!
+  adminSsoLinkComplete(state: String!, code: String!, binding: String!): AdminSsoLink!
+  adminSsoUnlink(id: ID!): Boolean!
+}
+`, BuiltIn: false},
 	{Name: "../schema/admin/subscriptions.graphqls", Input: `# Subscription management (admin). A subscription is one customer's recurring commitment to a kind=SUBSCRIPTION product, started when they purchase it. A background scheduler advances active subscriptions through billing periods, minting one invoice per period. Payment isn't captured platform-wide, so invoices stay DUE - admins can cancel/pause but not charge.
 
 enum SubscriptionStatus {
@@ -45017,6 +45405,32 @@ func (ec *executionContext) childFields_AdminSession(ctx context.Context, field 
 		return ec.fieldContext_AdminSession_isCurrent(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type AdminSession", field.Name)
+}
+
+func (ec *executionContext) childFields_AdminSsoLink(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_AdminSsoLink_id(ctx, field)
+	case "issuer":
+		return ec.fieldContext_AdminSsoLink_issuer(ctx, field)
+	case "email":
+		return ec.fieldContext_AdminSsoLink_email(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_AdminSsoLink_createdAt(ctx, field)
+	case "lastUsedAt":
+		return ec.fieldContext_AdminSsoLink_lastUsedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AdminSsoLink", field.Name)
+}
+
+func (ec *executionContext) childFields_AdminSsoResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "session":
+		return ec.fieldContext_AdminSsoResult_session(ctx, field)
+	case "totpTicket":
+		return ec.fieldContext_AdminSsoResult_totpTicket(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AdminSsoResult", field.Name)
 }
 
 func (ec *executionContext) childFields_AdminTotpSetup(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -47207,6 +47621,8 @@ func (ec *executionContext) childFields_Country(ctx context.Context, field graph
 		return ec.fieldContext_Country_metadata(ctx, field)
 	case "businessIdFields":
 		return ec.fieldContext_Country_businessIdFields(ctx, field)
+	case "invoiceNote":
+		return ec.fieldContext_Country_invoiceNote(ctx, field)
 	case "regions":
 		return ec.fieldContext_Country_regions(ctx, field)
 	case "createdAt":
@@ -49809,6 +50225,8 @@ func (ec *executionContext) childFields_Order(ctx context.Context, field graphql
 		return ec.fieldContext_Order_number(ctx, field)
 	case "status":
 		return ec.fieldContext_Order_status(ctx, field)
+	case "stage":
+		return ec.fieldContext_Order_stage(ctx, field)
 	case "paymentStatus":
 		return ec.fieldContext_Order_paymentStatus(ctx, field)
 	case "paymentClientSecret":
@@ -49833,6 +50251,10 @@ func (ec *executionContext) childFields_Order(ctx context.Context, field graphql
 		return ec.fieldContext_Order_poNumber(ctx, field)
 	case "businessIds":
 		return ec.fieldContext_Order_businessIds(ctx, field)
+	case "checkoutFields":
+		return ec.fieldContext_Order_checkoutFields(ctx, field)
+	case "metadata":
+		return ec.fieldContext_Order_metadata(ctx, field)
 	case "lines":
 		return ec.fieldContext_Order_lines(ctx, field)
 	case "events":
@@ -49923,6 +50345,20 @@ func (ec *executionContext) childFields_OrderBusinessId(ctx context.Context, fie
 		return ec.fieldContext_OrderBusinessId_value(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type OrderBusinessId", field.Name)
+}
+
+func (ec *executionContext) childFields_OrderCheckoutField(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "key":
+		return ec.fieldContext_OrderCheckoutField_key(ctx, field)
+	case "label":
+		return ec.fieldContext_OrderCheckoutField_label(ctx, field)
+	case "value":
+		return ec.fieldContext_OrderCheckoutField_value(ctx, field)
+	case "type":
+		return ec.fieldContext_OrderCheckoutField_type(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type OrderCheckoutField", field.Name)
 }
 
 func (ec *executionContext) childFields_OrderEvent(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -50109,6 +50545,20 @@ func (ec *executionContext) childFields_OrderShipment(ctx context.Context, field
 		return ec.fieldContext_OrderShipment_lines(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type OrderShipment", field.Name)
+}
+
+func (ec *executionContext) childFields_OrderStage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "key":
+		return ec.fieldContext_OrderStage_key(ctx, field)
+	case "label":
+		return ec.fieldContext_OrderStage_label(ctx, field)
+	case "within":
+		return ec.fieldContext_OrderStage_within(ctx, field)
+	case "plugin":
+		return ec.fieldContext_OrderStage_plugin(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type OrderStage", field.Name)
 }
 
 func (ec *executionContext) childFields_OrderTaxLine(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -52451,6 +52901,26 @@ func (ec *executionContext) childFields_SiteCrawl(ctx context.Context, field gra
 	return nil, fmt.Errorf("no field named %q was found under type SiteCrawl", field.Name)
 }
 
+func (ec *executionContext) childFields_SsoOption(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "label":
+		return ec.fieldContext_SsoOption_label(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SsoOption", field.Name)
+}
+
+func (ec *executionContext) childFields_SsoStart(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "authorizeUrl":
+		return ec.fieldContext_SsoStart_authorizeUrl(ctx, field)
+	case "state":
+		return ec.fieldContext_SsoStart_state(ctx, field)
+	case "binding":
+		return ec.fieldContext_SsoStart_binding(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SsoStart", field.Name)
+}
+
 func (ec *executionContext) childFields_StoreCreditEntry(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -54256,6 +54726,130 @@ func (ec *executionContext) field_Mutation_adminSetCustomerConsent_args(ctx cont
 		return nil, err
 	}
 	args["optedIn"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_adminSsoComplete_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "state",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["state"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "code",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["code"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "binding",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["binding"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_adminSsoLinkComplete_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "state",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["state"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "code",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["code"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "binding",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["binding"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_adminSsoLinkStart_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "redirectUri",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["redirectUri"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_adminSsoStart_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "redirectUri",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["redirectUri"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_adminSsoTotp_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "ticket",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["ticket"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "code",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["code"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_adminSsoUnlink_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -60415,6 +61009,28 @@ func (ec *executionContext) field_Mutation_setOptionTemplateRules_args(ctx conte
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_setOrderStage_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "stage",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["stage"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_setPaymentMethodCountries_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -65997,6 +66613,20 @@ func (ec *executionContext) field_Query_orderDocumentPdf_args(ctx context.Contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_orderStages_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOID2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_order_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -66062,6 +66692,14 @@ func (ec *executionContext) field_Query_ordersPaged_args(ctx context.Context, ra
 		return nil, err
 	}
 	args["offset"] = arg5
+	arg6, err := graphql.ProcessArgField(ctx, rawArgs, "stages",
+		func(ctx context.Context, v any) ([]string, error) {
+			return ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["stages"] = arg6
 	return args, nil
 }
 
@@ -73317,6 +73955,176 @@ func (ec *executionContext) _AdminSession_isCurrent(ctx context.Context, field g
 }
 func (ec *executionContext) fieldContext_AdminSession_isCurrent(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AdminSession", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _AdminSsoLink_id(ctx context.Context, field graphql.CollectedField, obj *model.AdminSsoLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminSsoLink_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminSsoLink_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminSsoLink", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _AdminSsoLink_issuer(ctx context.Context, field graphql.CollectedField, obj *model.AdminSsoLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminSsoLink_issuer(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Issuer, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminSsoLink_issuer(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminSsoLink", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminSsoLink_email(ctx context.Context, field graphql.CollectedField, obj *model.AdminSsoLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminSsoLink_email(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Email, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminSsoLink_email(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminSsoLink", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminSsoLink_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.AdminSsoLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminSsoLink_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminSsoLink_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminSsoLink", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _AdminSsoLink_lastUsedAt(ctx context.Context, field graphql.CollectedField, obj *model.AdminSsoLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminSsoLink_lastUsedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastUsedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminSsoLink_lastUsedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminSsoLink", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _AdminSsoResult_session(ctx context.Context, field graphql.CollectedField, obj *model.AdminSsoResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminSsoResult_session(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Session, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminAuthPayload) graphql.Marshaler {
+			return ec.marshalOAdminAuthPayload2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminAuthPayload(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminSsoResult_session(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AdminSsoResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminAuthPayload(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AdminSsoResult_totpTicket(ctx context.Context, field graphql.CollectedField, obj *model.AdminSsoResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminSsoResult_totpTicket(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TotpTicket, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminSsoResult_totpTicket(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminSsoResult", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _AdminTotpSetup_secret(ctx context.Context, field graphql.CollectedField, obj *model.AdminTotpSetup) (ret graphql.Marshaler) {
@@ -91757,6 +92565,29 @@ func (ec *executionContext) fieldContext_Country_businessIdFields(_ context.Cont
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _Country_invoiceNote(ctx context.Context, field graphql.CollectedField, obj *model.Country) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Country_invoiceNote(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.InvoiceNote, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Country_invoiceNote(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Country", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _Country_regions(ctx context.Context, field graphql.CollectedField, obj *model.Country) (ret graphql.Marshaler) {
@@ -129776,6 +130607,50 @@ func (ec *executionContext) fieldContext_Mutation_releaseOrder(ctx context.Conte
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_setOrderStage(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setOrderStage(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetOrderStage(ctx, fc.Args["id"].(string), fc.Args["stage"].(*string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Order) graphql.Marshaler {
+			return ec.marshalNOrder2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrder(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setOrderStage(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Order(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setOrderStage_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_fulfillOrder(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -134496,6 +135371,270 @@ func (ec *executionContext) fieldContext_Mutation_synapseSetSegmentLifecycleWind
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_adminSsoStart(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_adminSsoStart(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AdminSsoStart(ctx, fc.Args["redirectUri"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SsoStart) graphql.Marshaler {
+			return ec.marshalNSsoStart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSsoStart(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_adminSsoStart(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SsoStart(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_adminSsoStart_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_adminSsoComplete(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_adminSsoComplete(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AdminSsoComplete(ctx, fc.Args["state"].(string), fc.Args["code"].(string), fc.Args["binding"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminSsoResult) graphql.Marshaler {
+			return ec.marshalNAdminSsoResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminSsoResult(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_adminSsoComplete(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminSsoResult(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_adminSsoComplete_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_adminSsoTotp(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_adminSsoTotp(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AdminSsoTotp(ctx, fc.Args["ticket"].(string), fc.Args["code"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminAuthPayload) graphql.Marshaler {
+			return ec.marshalNAdminAuthPayload2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminAuthPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_adminSsoTotp(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminAuthPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_adminSsoTotp_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_adminSsoLinkStart(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_adminSsoLinkStart(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AdminSsoLinkStart(ctx, fc.Args["redirectUri"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SsoStart) graphql.Marshaler {
+			return ec.marshalNSsoStart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSsoStart(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_adminSsoLinkStart(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SsoStart(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_adminSsoLinkStart_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_adminSsoLinkComplete(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_adminSsoLinkComplete(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AdminSsoLinkComplete(ctx, fc.Args["state"].(string), fc.Args["code"].(string), fc.Args["binding"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminSsoLink) graphql.Marshaler {
+			return ec.marshalNAdminSsoLink2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminSsoLink(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_adminSsoLinkComplete(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminSsoLink(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_adminSsoLinkComplete_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_adminSsoUnlink(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_adminSsoUnlink(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AdminSsoUnlink(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_adminSsoUnlink(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_adminSsoUnlink_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_cancelSubscription(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -136483,6 +137622,38 @@ func (ec *executionContext) fieldContext_Order_status(_ context.Context, field g
 	return graphql.NewScalarFieldContext("Order", field, false, false, errors.New("field of type OrderStatus does not have child fields"))
 }
 
+func (ec *executionContext) _Order_stage(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Order_stage(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Stage, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.OrderStage) graphql.Marshaler {
+			return ec.marshalOOrderStage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderStage(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Order_stage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Order",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OrderStage(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Order_paymentStatus(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -136781,6 +137952,70 @@ func (ec *executionContext) fieldContext_Order_businessIds(_ context.Context, fi
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_OrderBusinessId(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Order_checkoutFields(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Order_checkoutFields(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CheckoutFields, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.OrderCheckoutField) graphql.Marshaler {
+			return ec.marshalNOrderCheckoutField2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderCheckoutFieldᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Order_checkoutFields(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Order",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OrderCheckoutField(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Order_metadata(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Order_metadata(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Metadata, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.MetadataItem) graphql.Marshaler {
+			return ec.marshalNMetadataItem2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMetadataItemᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Order_metadata(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Order",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MetadataItem(ctx, field)
 		},
 	}
 	return fc, nil
@@ -137730,6 +138965,98 @@ func (ec *executionContext) _OrderBusinessId_value(ctx context.Context, field gr
 }
 func (ec *executionContext) fieldContext_OrderBusinessId_value(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("OrderBusinessId", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OrderCheckoutField_key(ctx context.Context, field graphql.CollectedField, obj *model.OrderCheckoutField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderCheckoutField_key(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Key, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderCheckoutField_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderCheckoutField", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OrderCheckoutField_label(ctx context.Context, field graphql.CollectedField, obj *model.OrderCheckoutField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderCheckoutField_label(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Label, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderCheckoutField_label(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderCheckoutField", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OrderCheckoutField_value(ctx context.Context, field graphql.CollectedField, obj *model.OrderCheckoutField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderCheckoutField_value(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Value, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderCheckoutField_value(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderCheckoutField", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OrderCheckoutField_type(ctx context.Context, field graphql.CollectedField, obj *model.OrderCheckoutField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderCheckoutField_type(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Type, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.OrderCheckoutFieldType) graphql.Marshaler {
+			return ec.marshalNOrderCheckoutFieldType2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderCheckoutFieldType(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderCheckoutField_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderCheckoutField", field, false, false, errors.New("field of type OrderCheckoutFieldType does not have child fields"))
 }
 
 func (ec *executionContext) _OrderEvent_id(ctx context.Context, field graphql.CollectedField, obj *model.OrderEvent) (ret graphql.Marshaler) {
@@ -139293,6 +140620,98 @@ func (ec *executionContext) _OrderShipment_lines(ctx context.Context, field grap
 }
 func (ec *executionContext) fieldContext_OrderShipment_lines(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("OrderShipment", field, false, false, errors.New("field of type JSON does not have child fields"))
+}
+
+func (ec *executionContext) _OrderStage_key(ctx context.Context, field graphql.CollectedField, obj *model.OrderStage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderStage_key(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Key, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderStage_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderStage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OrderStage_label(ctx context.Context, field graphql.CollectedField, obj *model.OrderStage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderStage_label(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Label, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderStage_label(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderStage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OrderStage_within(ctx context.Context, field graphql.CollectedField, obj *model.OrderStage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderStage_within(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Within, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []model.OrderStatus) graphql.Marshaler {
+			return ec.marshalNOrderStatus2ᚕgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderStatusᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderStage_within(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderStage", field, false, false, errors.New("field of type OrderStatus does not have child fields"))
+}
+
+func (ec *executionContext) _OrderStage_plugin(ctx context.Context, field graphql.CollectedField, obj *model.OrderStage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderStage_plugin(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Plugin, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderStage_plugin(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderStage", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _OrderTaxLine_id(ctx context.Context, field graphql.CollectedField, obj *model.OrderTaxLine) (ret graphql.Marshaler) {
@@ -154923,7 +156342,7 @@ func (ec *executionContext) _Query_ordersPaged(ctx context.Context, field graphq
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().OrdersPaged(ctx, fc.Args["channelId"].(*string), fc.Args["search"].(*string), fc.Args["statuses"].([]string), fc.Args["paymentStatuses"].([]string), fc.Args["limit"].(*int32), fc.Args["offset"].(*int32))
+			return ec.Resolvers.Query().OrdersPaged(ctx, fc.Args["channelId"].(*string), fc.Args["search"].(*string), fc.Args["statuses"].([]string), fc.Args["paymentStatuses"].([]string), fc.Args["limit"].(*int32), fc.Args["offset"].(*int32), fc.Args["stages"].([]string))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.OrderPage) graphql.Marshaler {
@@ -154951,6 +156370,50 @@ func (ec *executionContext) fieldContext_Query_ordersPaged(ctx context.Context, 
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_ordersPaged_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_orderStages(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_orderStages(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().OrderStages(ctx, fc.Args["channelId"].(*string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.OrderStage) graphql.Marshaler {
+			return ec.marshalNOrderStage2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderStageᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_orderStages(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OrderStage(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_orderStages_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -158553,6 +160016,70 @@ func (ec *executionContext) fieldContext_Query_customerAudiences(ctx context.Con
 	if fc.Args, err = ec.field_Query_customerAudiences_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_adminSsoOption(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_adminSsoOption(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().AdminSsoOption(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SsoOption) graphql.Marshaler {
+			return ec.marshalOSsoOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSsoOption(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_adminSsoOption(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SsoOption(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_adminSsoLinks(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_adminSsoLinks(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().AdminSsoLinks(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.AdminSsoLink) graphql.Marshaler {
+			return ec.marshalNAdminSsoLink2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminSsoLinkᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_adminSsoLinks(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminSsoLink(ctx, field)
+		},
 	}
 	return fc, nil
 }
@@ -169982,6 +171509,98 @@ func (ec *executionContext) _SiteCrawl_finishedAt(ctx context.Context, field gra
 }
 func (ec *executionContext) fieldContext_SiteCrawl_finishedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("SiteCrawl", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _SsoOption_label(ctx context.Context, field graphql.CollectedField, obj *model.SsoOption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SsoOption_label(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Label, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SsoOption_label(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SsoOption", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SsoStart_authorizeUrl(ctx context.Context, field graphql.CollectedField, obj *model.SsoStart) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SsoStart_authorizeUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AuthorizeURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SsoStart_authorizeUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SsoStart", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SsoStart_state(ctx context.Context, field graphql.CollectedField, obj *model.SsoStart) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SsoStart_state(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.State, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SsoStart_state(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SsoStart", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SsoStart_binding(ctx context.Context, field graphql.CollectedField, obj *model.SsoStart) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SsoStart_binding(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Binding, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SsoStart_binding(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SsoStart", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _StoreCreditEntry_id(ctx context.Context, field graphql.CollectedField, obj *model.StoreCreditEntry) (ret graphql.Marshaler) {
@@ -182426,7 +184045,7 @@ func (ec *executionContext) unmarshalInputCreateCountryInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"code", "name", "nativeName", "emojiFlag", "phoneCode", "defaultCurrencyCode", "isActive", "sortOrder", "metadata", "businessIdFields"}
+	fieldsInOrder := [...]string{"code", "name", "nativeName", "emojiFlag", "phoneCode", "defaultCurrencyCode", "isActive", "sortOrder", "metadata", "businessIdFields", "invoiceNote"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -182503,6 +184122,13 @@ func (ec *executionContext) unmarshalInputCreateCountryInput(ctx context.Context
 				return it, err
 			}
 			it.BusinessIDFields = data
+		case "invoiceNote":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("invoiceNote"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.InvoiceNote = data
 		}
 	}
 	return it, nil
@@ -190457,7 +192083,7 @@ func (ec *executionContext) unmarshalInputUpdateCountryInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"code", "name", "nativeName", "emojiFlag", "phoneCode", "defaultCurrencyCode", "isActive", "sortOrder", "metadata", "businessIdFields"}
+	fieldsInOrder := [...]string{"code", "name", "nativeName", "emojiFlag", "phoneCode", "defaultCurrencyCode", "isActive", "sortOrder", "metadata", "businessIdFields", "invoiceNote"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -190534,6 +192160,13 @@ func (ec *executionContext) unmarshalInputUpdateCountryInput(ctx context.Context
 				return it, err
 			}
 			it.BusinessIDFields = data
+		case "invoiceNote":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("invoiceNote"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.InvoiceNote = data
 		}
 	}
 	return it, nil
@@ -196221,6 +197854,107 @@ func (ec *executionContext) _AdminSession(ctx context.Context, sel ast.Selection
 		case "isCurrent":
 			out.Values[i] = ec._AdminSession_isCurrent(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var adminSsoLinkImplementors = []string{"AdminSsoLink"}
+
+func (ec *executionContext) _AdminSsoLink(ctx context.Context, sel ast.SelectionSet, obj *model.AdminSsoLink) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminSsoLinkImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminSsoLink")
+		case "id":
+			out.Values[i] = ec._AdminSsoLink_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "issuer":
+			out.Values[i] = ec._AdminSsoLink_issuer(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "email":
+			out.Values[i] = ec._AdminSsoLink_email(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._AdminSsoLink_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastUsedAt":
+			out.Values[i] = ec._AdminSsoLink_lastUsedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var adminSsoResultImplementors = []string{"AdminSsoResult"}
+
+func (ec *executionContext) _AdminSsoResult(ctx context.Context, sel ast.SelectionSet, obj *model.AdminSsoResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminSsoResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminSsoResult")
+		case "session":
+			out.Values[i] = ec._AdminSsoResult_session(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "totpTicket":
+			out.Values[i] = ec._AdminSsoResult_totpTicket(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:
@@ -204181,6 +205915,11 @@ func (ec *executionContext) _Country(ctx context.Context, sel ast.SelectionSet, 
 			}
 		case "businessIdFields":
 			out.Values[i] = ec._Country_businessIdFields(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "invoiceNote":
+			out.Values[i] = ec._Country_invoiceNote(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
@@ -215729,6 +217468,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "setOrderStage":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setOrderStage(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "fulfillOrder":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_fulfillOrder(ctx, field)
@@ -216478,6 +218224,48 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "adminSsoStart":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_adminSsoStart(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "adminSsoComplete":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_adminSsoComplete(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "adminSsoTotp":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_adminSsoTotp(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "adminSsoLinkStart":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_adminSsoLinkStart(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "adminSsoLinkComplete":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_adminSsoLinkComplete(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "adminSsoUnlink":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_adminSsoUnlink(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "cancelSubscription":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_cancelSubscription(ctx, field)
@@ -217084,6 +218872,11 @@ func (ec *executionContext) _Order(ctx context.Context, sel ast.SelectionSet, ob
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "stage":
+			out.Values[i] = ec._Order_stage(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "paymentStatus":
 			out.Values[i] = ec._Order_paymentStatus(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -217141,6 +218934,16 @@ func (ec *executionContext) _Order(ctx context.Context, sel ast.SelectionSet, ob
 			}
 		case "businessIds":
 			out.Values[i] = ec._Order_businessIds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "checkoutFields":
+			out.Values[i] = ec._Order_checkoutFields(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "metadata":
+			out.Values[i] = ec._Order_metadata(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
@@ -217628,6 +219431,59 @@ func (ec *executionContext) _OrderBusinessId(ctx context.Context, sel ast.Select
 			}
 		case "value":
 			out.Values[i] = ec._OrderBusinessId_value(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var orderCheckoutFieldImplementors = []string{"OrderCheckoutField"}
+
+func (ec *executionContext) _OrderCheckoutField(ctx context.Context, sel ast.SelectionSet, obj *model.OrderCheckoutField) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, orderCheckoutFieldImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OrderCheckoutField")
+		case "key":
+			out.Values[i] = ec._OrderCheckoutField_key(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "label":
+			out.Values[i] = ec._OrderCheckoutField_label(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "value":
+			out.Values[i] = ec._OrderCheckoutField_value(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "type":
+			out.Values[i] = ec._OrderCheckoutField_type(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -218255,6 +220111,59 @@ func (ec *executionContext) _OrderShipment(ctx context.Context, sel ast.Selectio
 			}
 		case "lines":
 			out.Values[i] = ec._OrderShipment_lines(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var orderStageImplementors = []string{"OrderStage"}
+
+func (ec *executionContext) _OrderStage(ctx context.Context, sel ast.SelectionSet, obj *model.OrderStage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, orderStageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OrderStage")
+		case "key":
+			out.Values[i] = ec._OrderStage_key(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "label":
+			out.Values[i] = ec._OrderStage_label(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "within":
+			out.Values[i] = ec._OrderStage_within(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "plugin":
+			out.Values[i] = ec._OrderStage_plugin(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -225825,6 +227734,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "orderStages":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_orderStages(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "order":
 			field := field
 
@@ -227661,6 +229592,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_customerAudiences(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "adminSsoOption":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_adminSsoOption(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "adminSsoLinks":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_adminSsoLinks(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -232994,6 +234969,92 @@ func (ec *executionContext) _SiteCrawl(ctx context.Context, sel ast.SelectionSet
 	return out
 }
 
+var ssoOptionImplementors = []string{"SsoOption"}
+
+func (ec *executionContext) _SsoOption(ctx context.Context, sel ast.SelectionSet, obj *model.SsoOption) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, ssoOptionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SsoOption")
+		case "label":
+			out.Values[i] = ec._SsoOption_label(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var ssoStartImplementors = []string{"SsoStart"}
+
+func (ec *executionContext) _SsoStart(ctx context.Context, sel ast.SelectionSet, obj *model.SsoStart) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, ssoStartImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SsoStart")
+		case "authorizeUrl":
+			out.Values[i] = ec._SsoStart_authorizeUrl(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "state":
+			out.Values[i] = ec._SsoStart_state(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "binding":
+			out.Values[i] = ec._SsoStart_binding(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var storeCreditEntryImplementors = []string{"StoreCreditEntry"}
 
 func (ec *executionContext) _StoreCreditEntry(ctx context.Context, sel ast.SelectionSet, obj *model.StoreCreditEntry) graphql.Marshaler {
@@ -237602,6 +239663,50 @@ func (ec *executionContext) marshalNAdminSession2ᚖgithubᚗcomᚋskeletgᚋske
 		return graphql.Null
 	}
 	return ec._AdminSession(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAdminSsoLink2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminSsoLink(ctx context.Context, sel ast.SelectionSet, v model.AdminSsoLink) graphql.Marshaler {
+	return ec._AdminSsoLink(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNAdminSsoLink2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminSsoLinkᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AdminSsoLink) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAdminSsoLink2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminSsoLink(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAdminSsoLink2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminSsoLink(ctx context.Context, sel ast.SelectionSet, v *model.AdminSsoLink) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AdminSsoLink(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAdminSsoResult2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminSsoResult(ctx context.Context, sel ast.SelectionSet, v model.AdminSsoResult) graphql.Marshaler {
+	return ec._AdminSsoResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNAdminSsoResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminSsoResult(ctx context.Context, sel ast.SelectionSet, v *model.AdminSsoResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AdminSsoResult(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNAdminTotpSetup2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminTotpSetup(ctx context.Context, sel ast.SelectionSet, v model.AdminTotpSetup) graphql.Marshaler {
@@ -244369,6 +246474,42 @@ func (ec *executionContext) marshalNOrderBusinessId2ᚖgithubᚗcomᚋskeletgᚋ
 	return ec._OrderBusinessId(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNOrderCheckoutField2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderCheckoutFieldᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OrderCheckoutField) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNOrderCheckoutField2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderCheckoutField(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNOrderCheckoutField2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderCheckoutField(ctx context.Context, sel ast.SelectionSet, v *model.OrderCheckoutField) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OrderCheckoutField(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNOrderCheckoutFieldType2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderCheckoutFieldType(ctx context.Context, v any) (model.OrderCheckoutFieldType, error) {
+	var res model.OrderCheckoutFieldType
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNOrderCheckoutFieldType2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderCheckoutFieldType(ctx context.Context, sel ast.SelectionSet, v model.OrderCheckoutFieldType) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) unmarshalNOrderDocumentKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderDocumentKind(ctx context.Context, v any) (model.OrderDocumentKind, error) {
 	var res model.OrderDocumentKind
 	err := res.UnmarshalGQL(v)
@@ -244615,6 +246756,32 @@ func (ec *executionContext) marshalNOrderShipment2ᚖgithubᚗcomᚋskeletgᚋsk
 	return ec._OrderShipment(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNOrderStage2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderStageᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OrderStage) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNOrderStage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderStage(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNOrderStage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderStage(ctx context.Context, sel ast.SelectionSet, v *model.OrderStage) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OrderStage(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNOrderStatus2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderStatus(ctx context.Context, v any) (model.OrderStatus, error) {
 	var res model.OrderStatus
 	err := res.UnmarshalGQL(v)
@@ -244623,6 +246790,36 @@ func (ec *executionContext) unmarshalNOrderStatus2githubᚗcomᚋskeletgᚋskele
 
 func (ec *executionContext) marshalNOrderStatus2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderStatus(ctx context.Context, sel ast.SelectionSet, v model.OrderStatus) graphql.Marshaler {
 	return v
+}
+
+func (ec *executionContext) unmarshalNOrderStatus2ᚕgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderStatusᚄ(ctx context.Context, v any) ([]model.OrderStatus, error) {
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]model.OrderStatus, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNOrderStatus2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderStatus(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNOrderStatus2ᚕgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderStatusᚄ(ctx context.Context, sel ast.SelectionSet, v []model.OrderStatus) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNOrderStatus2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderStatus(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) marshalNOrderTaxLine2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderTaxLineᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OrderTaxLine) graphql.Marshaler {
@@ -248121,6 +250318,20 @@ func (ec *executionContext) marshalNSiteCrawlStatus2githubᚗcomᚋskeletgᚋske
 	return v
 }
 
+func (ec *executionContext) marshalNSsoStart2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSsoStart(ctx context.Context, sel ast.SelectionSet, v model.SsoStart) graphql.Marshaler {
+	return ec._SsoStart(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNSsoStart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSsoStart(ctx context.Context, sel ast.SelectionSet, v *model.SsoStart) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SsoStart(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNStartDataExportInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐStartDataExportInput(ctx context.Context, v any) (model.StartDataExportInput, error) {
 	res, err := ec.unmarshalInputStartDataExportInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -250004,6 +252215,13 @@ func (ec *executionContext) unmarshalOAddressInput2ᚖgithubᚗcomᚋskeletgᚋs
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) marshalOAdminAuthPayload2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminAuthPayload(ctx context.Context, sel ast.SelectionSet, v *model.AdminAuthPayload) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._AdminAuthPayload(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalOAdminCartAddress2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartAddress(ctx context.Context, sel ast.SelectionSet, v *model.AdminCartAddress) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -251186,6 +253404,13 @@ func (ec *executionContext) marshalOOrderAddress2ᚖgithubᚗcomᚋskeletgᚋske
 	return ec._OrderAddress(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalOOrderStage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderStage(ctx context.Context, sel ast.SelectionSet, v *model.OrderStage) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._OrderStage(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalOProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐProduct(ctx context.Context, sel ast.SelectionSet, v *model.Product) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -251740,6 +253965,13 @@ func (ec *executionContext) marshalOSignupForm2ᚖgithubᚗcomᚋskeletgᚋskele
 		return graphql.Null
 	}
 	return ec._SignupForm(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOSsoOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSsoOption(ctx context.Context, sel ast.SelectionSet, v *model.SsoOption) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._SsoOption(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {

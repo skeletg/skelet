@@ -130,6 +130,25 @@ func (s *Service) TotpDisable(ctx context.Context, adminID uuid.UUID, code strin
 var errNoPendingTotp = errors.New("no pending two-factor setup - run setup first")
 
 // Every non-empty code spends one claimed attempt, and a TOTP code is good for one login only
+// A missing code is the typed ErrTotpRequired so the UI can prompt and resubmit, a wrong one a generic failure
+func (s *Service) secondFactor(ctx context.Context, user *AdminUser, code, ip, ua string) error {
+	if strings.TrimSpace(code) == "" {
+		return ErrTotpRequired
+	}
+	ok, err := s.verifySecondFactor(ctx, user, code)
+	if errors.Is(err, ErrTotpLocked) {
+		s.publishLoginFailed(ctx, user.Email, ip, ua, "totp_locked")
+	}
+	if err != nil {
+		return err
+	}
+	if !ok {
+		s.publishLoginFailed(ctx, user.Email, ip, ua, "invalid_totp")
+		return fmt.Errorf("invalid credentials")
+	}
+	return nil
+}
+
 func (s *Service) verifySecondFactor(ctx context.Context, user *AdminUser, code string) (bool, error) {
 	code = strings.TrimSpace(code)
 	if code == "" {

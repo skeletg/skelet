@@ -92,7 +92,12 @@
       "offerExpired": "This offer has expired.",
       "offerRevoked": "This offer is no longer available.",
       "orderNotFound": "We couldn't find an order with those details. Check the order number, email and postcode on your confirmation email.",
-      "trackOrderFailed": "Could not look up your order. Please try again."
+      "trackOrderFailed": "Could not look up your order. Please try again.",
+      "fieldTick": "Tick this to continue.",
+      "fieldInvalid": "Check this answer.",
+      "checkoutFieldRequired": "Answer the questions marked as required.",
+      "checkoutFieldInvalid": "One of your answers needs another look - go back to your details to change it.",
+      "checkoutFieldsChanged": "The store asks something more since this page opened - check the questions below and continue."
     },
     "fields": {
       "email": "Email",
@@ -159,7 +164,11 @@
       "submitting": "Signing in…",
       "forgot": "Forgot your password?",
       "newHere": "New here?",
-      "createAccount": "Create an account"
+      "createAccount": "Create an account",
+      "or": "or",
+      "ssoFailed": "That sign-in didn't go through. Try again, or sign in with your email and password.",
+      "ssoCancelled": "The sign-in was cancelled.",
+      "ssoUnverified": "Your account there hasn't confirmed this email address, so it can't sign you in here."
     },
     "register": {
       "title": "Create account",
@@ -1047,7 +1056,9 @@
       "billingForPayer": "Someone else is collecting, so we need the payer's billing address.",
       "continueToPayment": "Continue to payment",
       "optional": "{label} (optional)",
-      "billingNoAddress": "Nothing is delivered to your address, so we need one for the invoice."
+      "billingNoAddress": "Nothing is delivered to your address, so we need one for the invoice.",
+      "moreDetails": "A few more details",
+      "choose": "Choose…"
     }
   },
   "verifyEmail": {

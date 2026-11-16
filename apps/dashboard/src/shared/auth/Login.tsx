@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { useMutation } from '@apollo/client/react'
+import { useMutation, useQuery } from '@apollo/client/react'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,7 +8,8 @@ import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { useAuth } from '@/shared/auth/auth'
 import { AuthHeader } from './AuthShell'
-import { AdminLoginDocument } from './Login.gql'
+import { AdminLoginDocument, AdminSsoOptionDocument, AdminSsoStartDocument } from './Login.gql'
+import { goToProvider, ssoReturnUrl } from './sso'
 import { markFirstLogin } from '@/features/onboarding/first-login'
 
 export function Login() {
@@ -25,6 +26,14 @@ export function Login() {
   const [totpNeeded, setTotpNeeded] = useState(false)
   const [totpCode, setTotpCode] = useState('')
   const [login, { loading, error }] = useMutation(AdminLoginDocument)
+  const sso = useQuery(AdminSsoOptionDocument).data?.adminSsoOption
+  const [startSso, ssoStart] = useMutation(AdminSsoStartDocument)
+  const [badProvider, setBadProvider] = useState(false)
+
+  async function onSso() {
+    const { data } = await startSso({ variables: { redirectUri: ssoReturnUrl() } }).catch(() => ({ data: undefined }))
+    if (data) setBadProvider(!goToProvider(data.adminSsoStart, redirectTo, 'signin'))
+  }
 
   if (auth) return <Navigate to={redirectTo} replace />
 
@@ -114,6 +123,29 @@ export function Login() {
         >
           {loading ? t`Signing in…` : t`Sign in`}
         </Button>
+        {sso && (
+          <>
+            <div className="flex items-center gap-3 text-xs text-neutral-400">
+              <span className="h-px flex-1 bg-neutral-200" />
+              <Trans>or</Trans>
+              <span className="h-px flex-1 bg-neutral-200" />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={ssoStart.loading}
+              onClick={() => void onSso()}
+              className="h-11 border-neutral-300 bg-white text-neutral-900 hover:bg-neutral-50"
+            >
+              {sso.label}
+            </Button>
+            {(ssoStart.error || badProvider) && (
+              <Alert variant="destructive">
+                <AlertDescription>{ssoStart.error?.message ?? t`The provider's sign-in address isn't a safe one to open - ask an administrator to check the provider settings.`}</AlertDescription>
+              </Alert>
+            )}
+          </>
+        )}
         <p className="text-sm text-neutral-500">
           <Link
             to="/forgot-password"

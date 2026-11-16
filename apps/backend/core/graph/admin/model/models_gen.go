@@ -488,6 +488,19 @@ type AdminSession struct {
 	IsCurrent    bool      `json:"isCurrent"`
 }
 
+type AdminSsoLink struct {
+	ID         string    `json:"id"`
+	Issuer     string    `json:"issuer"`
+	Email      string    `json:"email"`
+	CreatedAt  time.Time `json:"createdAt"`
+	LastUsedAt time.Time `json:"lastUsedAt"`
+}
+
+type AdminSsoResult struct {
+	Session    *AdminAuthPayload `json:"session,omitempty"`
+	TotpTicket *string           `json:"totpTicket,omitempty"`
+}
+
 type AdminTotpSetup struct {
 	Secret     string `json:"secret"`
 	OtpauthURL string `json:"otpauthUrl"`
@@ -1747,6 +1760,7 @@ type Country struct {
 	SortOrder           int32              `json:"sortOrder"`
 	Metadata            []*MetadataItem    `json:"metadata"`
 	BusinessIDFields    []*BusinessIDField `json:"businessIdFields"`
+	InvoiceNote         string             `json:"invoiceNote"`
 	Regions             []*Region          `json:"regions"`
 	CreatedAt           time.Time          `json:"createdAt"`
 	UpdatedAt           time.Time          `json:"updatedAt"`
@@ -2017,6 +2031,7 @@ type CreateCountryInput struct {
 	SortOrder           *int32                  `json:"sortOrder,omitempty"`
 	Metadata            []*MetadataInput        `json:"metadata,omitempty"`
 	BusinessIDFields    []*BusinessIDFieldInput `json:"businessIdFields,omitempty"`
+	InvoiceNote         *string                 `json:"invoiceNote,omitempty"`
 }
 
 type CreateCurrencyInput struct {
@@ -3748,6 +3763,7 @@ type Order struct {
 	ChannelID           string                `json:"channelId"`
 	Number              string                `json:"number"`
 	Status              OrderStatus           `json:"status"`
+	Stage               *OrderStage           `json:"stage,omitempty"`
 	PaymentStatus       PaymentStatus         `json:"paymentStatus"`
 	PaymentClientSecret *string               `json:"paymentClientSecret,omitempty"`
 	PaymentActionKind   *string               `json:"paymentActionKind,omitempty"`
@@ -3760,6 +3776,8 @@ type Order struct {
 	ShippingAddress     *OrderAddress         `json:"shippingAddress"`
 	PoNumber            *string               `json:"poNumber,omitempty"`
 	BusinessIds         []*OrderBusinessID    `json:"businessIds"`
+	CheckoutFields      []*OrderCheckoutField `json:"checkoutFields"`
+	Metadata            []*MetadataItem       `json:"metadata"`
 	Lines               []*OrderLine          `json:"lines"`
 	Events              []*OrderEvent         `json:"events"`
 	Subtotal            int32                 `json:"subtotal"`
@@ -3804,6 +3822,13 @@ type OrderBusinessID struct {
 	Key   string `json:"key"`
 	Label string `json:"label"`
 	Value string `json:"value"`
+}
+
+type OrderCheckoutField struct {
+	Key   string                 `json:"key"`
+	Label string                 `json:"label"`
+	Value string                 `json:"value"`
+	Type  OrderCheckoutFieldType `json:"type"`
 }
 
 type OrderEvent struct {
@@ -3897,6 +3922,13 @@ type OrderShipment struct {
 	ShipTo             *OrderAddress `json:"shipTo,omitempty"`
 	Point              any           `json:"point,omitempty"`
 	Lines              any           `json:"lines"`
+}
+
+type OrderStage struct {
+	Key    string        `json:"key"`
+	Label  string        `json:"label"`
+	Within []OrderStatus `json:"within"`
+	Plugin string        `json:"plugin"`
 }
 
 type OrderTaxLine struct {
@@ -5461,6 +5493,16 @@ type SiteCrawl struct {
 	FinishedAt    *time.Time      `json:"finishedAt,omitempty"`
 }
 
+type SsoOption struct {
+	Label string `json:"label"`
+}
+
+type SsoStart struct {
+	AuthorizeURL string `json:"authorizeUrl"`
+	State        string `json:"state"`
+	Binding      string `json:"binding"`
+}
+
 type StartDataExportInput struct {
 	Resource  string             `json:"resource"`
 	Format    string             `json:"format"`
@@ -6060,6 +6102,7 @@ type UpdateCountryInput struct {
 	SortOrder           *int32                  `json:"sortOrder,omitempty"`
 	Metadata            []*MetadataInput        `json:"metadata,omitempty"`
 	BusinessIDFields    []*BusinessIDFieldInput `json:"businessIdFields,omitempty"`
+	InvoiceNote         *string                 `json:"invoiceNote,omitempty"`
 }
 
 type UpdateCurrencyInput struct {
@@ -9183,6 +9226,67 @@ func (e *MenuItemTargetType) UnmarshalJSON(b []byte) error {
 }
 
 func (e MenuItemTargetType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type OrderCheckoutFieldType string
+
+const (
+	OrderCheckoutFieldTypeText     OrderCheckoutFieldType = "TEXT"
+	OrderCheckoutFieldTypeTextarea OrderCheckoutFieldType = "TEXTAREA"
+	OrderCheckoutFieldTypeCheckbox OrderCheckoutFieldType = "CHECKBOX"
+	OrderCheckoutFieldTypeSelect   OrderCheckoutFieldType = "SELECT"
+	OrderCheckoutFieldTypeDate     OrderCheckoutFieldType = "DATE"
+)
+
+var AllOrderCheckoutFieldType = []OrderCheckoutFieldType{
+	OrderCheckoutFieldTypeText,
+	OrderCheckoutFieldTypeTextarea,
+	OrderCheckoutFieldTypeCheckbox,
+	OrderCheckoutFieldTypeSelect,
+	OrderCheckoutFieldTypeDate,
+}
+
+func (e OrderCheckoutFieldType) IsValid() bool {
+	switch e {
+	case OrderCheckoutFieldTypeText, OrderCheckoutFieldTypeTextarea, OrderCheckoutFieldTypeCheckbox, OrderCheckoutFieldTypeSelect, OrderCheckoutFieldTypeDate:
+		return true
+	}
+	return false
+}
+
+func (e OrderCheckoutFieldType) String() string {
+	return string(e)
+}
+
+func (e *OrderCheckoutFieldType) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = OrderCheckoutFieldType(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid OrderCheckoutFieldType", str)
+	}
+	return nil
+}
+
+func (e OrderCheckoutFieldType) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *OrderCheckoutFieldType) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e OrderCheckoutFieldType) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

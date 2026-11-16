@@ -228,7 +228,7 @@ func (r *Resolver) checkoutComplete(ctx context.Context, v *checkoutView) error 
 			return apperr.New("CHECKOUT_BUSINESS_ID_REQUIRED", apperr.ClassValidation, "enter the company's identification numbers")
 		}
 	}
-	return nil
+	return r.recheckFields(ctx, v.c)
 }
 
 var errTermsNotAccepted = apperr.New("TERMS_NOT_ACCEPTED", apperr.ClassValidation, "accept the terms and conditions to place the order")

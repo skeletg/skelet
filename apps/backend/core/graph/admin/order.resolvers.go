@@ -14,7 +14,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
-	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
 func (r *mutationResolver) CreateDraftOrder(ctx context.Context, input model.CreateDraftOrderInput) (*model.Order, error) {
@@ -114,6 +113,28 @@ func (r *mutationResolver) ReleaseOrder(ctx context.Context, id string) (*model.
 		return nil, err
 	}
 	updated, err := r.OrderSvc.ReleaseOrder(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+	return toOrderModel(updated), nil
+}
+
+func (r *mutationResolver) SetOrderStage(ctx context.Context, id string, stage *string) (*model.Order, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "orders.update"); err != nil {
+		return nil, err
+	}
+	orderID, err := parseID(id, "order")
+	if err != nil {
+		return nil, err
+	}
+	o, err := r.OrderSvc.GetByID(ctx, orderID)
+	if err != nil {
+		return nil, errNotFound("order")
+	}
+	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "orders.update", o.ChannelID, nil); err != nil {
+		return nil, err
+	}
+	updated, err := r.OrderSvc.SetStage(ctx, orderID, ptr.Deref(stage), "")
 	if err != nil {
 		return nil, err
 	}
@@ -805,7 +826,7 @@ func (r *queryResolver) Orders(ctx context.Context, channelID *string) ([]*model
 	return result, nil
 }
 
-func (r *queryResolver) OrdersPaged(ctx context.Context, channelID *string, search *string, statuses []string, paymentStatuses []string, limit *int32, offset *int32) (*model.OrderPage, error) {
+func (r *queryResolver) OrdersPaged(ctx context.Context, channelID *string, search *string, statuses []string, paymentStatuses []string, limit *int32, offset *int32, stages []string) (*model.OrderPage, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "orders.view"); err != nil {
 		return nil, err
 	}
@@ -820,6 +841,7 @@ func (r *queryResolver) OrdersPaged(ctx context.Context, channelID *string, sear
 		ChannelIDs:      channels,
 		Statuses:        lowerAll(statuses),
 		PaymentStatuses: lowerAll(paymentStatuses),
+		Stages:          stages,
 		Limit:           intDeref(limit, 50),
 		Offset:          intDeref(offset, 0),
 	}
@@ -835,6 +857,17 @@ func (r *queryResolver) OrdersPaged(ctx context.Context, channelID *string, sear
 		items = append(items, toOrderModel(o))
 	}
 	return &model.OrderPage{TotalCount: int32(total), Items: items}, nil
+}
+
+func (r *queryResolver) OrderStages(ctx context.Context, channelID *string) ([]*model.OrderStage, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "orders.view"); err != nil {
+		return nil, err
+	}
+	channels, none, err := r.orderChannelScope(ctx, channelID)
+	if err != nil || none {
+		return []*model.OrderStage{}, err
+	}
+	return r.orderStageModels(ctx, channels), nil
 }
 
 // A scoped admin asking by ID for a channel they can't reach gets FORBIDDEN, not the row
@@ -897,19 +930,7 @@ func (r *queryResolver) OrderDocumentPDF(ctx context.Context, orderID string, ki
 		memo = &loaded
 	}
 
-	in := documents.Input{Kind: docKind, Order: o, Memo: memo, Store: documents.StoreInfo{Name: "Store"}, Decimals: money.ISODecimals(o.CurrencyCode)}
-	if ch, cerr := r.ChannelSvc.GetByID(ctx, o.ChannelID); cerr == nil { // letterhead comes from the order's channel
-		in.Store.Name = ch.Name
-		if ch.PublicURL != "" {
-			in.Store.Lines = append(in.Store.Lines, ch.PublicURL)
-		}
-	}
-	in.TaxInclusive = o.TaxInclusive // the order's own mode - the channel may have changed since
-	if cur, cerr := r.CurrencySvc.GetByCode(ctx, o.CurrencyCode); cerr == nil {
-		in.Decimals = int(cur.Decimals)
-	}
-
-	pdf, err := documents.Render(in)
+	pdf, err := r.DocumentSvc.Document(ctx, docKind, o, memo)
 	if err != nil {
 		return "", err
 	}

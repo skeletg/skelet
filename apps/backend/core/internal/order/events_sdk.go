@@ -3,7 +3,9 @@ package order
 import (
 	"database/sql"
 	"fmt"
+	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 )
@@ -89,3 +91,47 @@ func (o *OrderFulfilling) SetFulfillingTrackingNumber(number string) error {
 	o.TrackingNumber = number
 	return nil
 }
+
+func (e *CheckoutValidating) CheckoutFieldValue(key string) (string, bool) {
+	return answer(e.Answers, key)
+}
+func (o *OrderPlacing) CheckoutFieldValue(key string) (string, bool) { return answer(o.Answers, key) }
+
+func answer(answers map[string]string, key string) (string, bool) {
+	v, ok := answers[key]
+	return v, ok && v != ""
+}
+
+func answers(fields []CheckoutFieldAnswer) map[string]string {
+	out := make(map[string]string, len(fields))
+	for _, f := range fields {
+		out[f.Key] = f.Value
+	}
+	return out
+}
+
+var metadataKey = regexp.MustCompile(`^[a-z][a-z0-9_.:-]{0,63}$`) // ":" for the <plugin>:<key> SetOrderMetadata writes
+
+const maxMetadataValue = 2000
+
+// The key is the plugin's to namespace, and "tracking" is core's own snapshot of the shopper
+func (o *OrderPlacing) SetPlacingMetadata(key, value string) error {
+	switch {
+	case key == "tracking" || !metadataKey.MatchString(key):
+		return fmt.Errorf("order metadata key %q: lowercase, up to 64 characters, and not \"tracking\"", key)
+	case utf8.RuneCountInString(value) > maxMetadataValue:
+		return fmt.Errorf("order metadata %q: at most %d characters", key, maxMetadataValue)
+	}
+	if o.Metadata == nil {
+		o.Metadata = map[string]string{}
+	}
+	o.Metadata[key] = value
+	return nil
+}
+
+func (o *OrderTransitioning) TransitioningOrderID() uuid.UUID   { return o.OrderID }
+func (o *OrderTransitioning) TransitioningChannelID() uuid.UUID { return o.ChannelID }
+func (o *OrderTransitioning) TransitioningFromStatus() string   { return o.FromStatus }
+func (o *OrderTransitioning) TransitioningToStatus() string     { return o.ToStatus }
+func (o *OrderTransitioning) TransitioningFromStage() string    { return o.FromStage }
+func (o *OrderTransitioning) TransitioningToStage() string      { return o.ToStage }

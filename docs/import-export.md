@@ -144,6 +144,13 @@ mirroring `config.RegisterSource`. The dashboard needs no change - it renders wh
 choices the backend hands it. A `Source` naming nothing fails the boot rather than silently
 rendering an empty dropdown.
 
+**A plugin's resource** comes through `RegisterDataResource` instead, and lands in the hub
+as `<plugin>.<slug>` under Plugins. It declares its columns and gives an `Import` per row
+and an `Export` that streams records; core still owns the file. Every typed column is parsed
+before the plugin's `Import` sees the row, so a bad number fails the row on a dry run too,
+and `run.DryRun` is the plugin's cue to check and write nothing. A switched-off plugin's
+runs refuse to start. See [plugins.md](plugins.md).
+
 **Adding a format** is one `Codec` implementation plus a `registerCodec` call. Nothing in
 the resources or the driver changes - see `codec_jsonl.go`, which is the whole proof.
 

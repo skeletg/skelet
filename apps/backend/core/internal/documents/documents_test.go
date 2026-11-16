@@ -3,6 +3,8 @@ package documents
 import (
 	"bytes"
 	"compress/zlib"
+	"image"
+	pngenc "image/png"
 	"io"
 	"strings"
 	"testing"
@@ -425,7 +427,7 @@ func TestRenderHandlesAnEmptyOrder(t *testing.T) {
 
 func mustRender(t *testing.T, kind Kind, o order.Order, store StoreInfo, memo *order.CreditMemo) []byte {
 	t.Helper()
-	got, err := Render(Input{Kind: kind, Order: o, Store: store, Memo: memo, Decimals: 2})
+	got, err := Render(Input{Kind: kind, Order: o, Store: store, Memo: memo, Decimals: 2, Footer: defaultFooters[kind]})
 	if err != nil {
 		t.Fatalf("Render(%s): %v", kind, err)
 	}
@@ -511,5 +513,41 @@ func TestALongNameIsCutToItsColumn(t *testing.T) {
 	}
 	if !strings.Contains(text, "USD 200.00") {
 		t.Error("the line's price went missing next to a long name")
+	}
+}
+
+func TestTheChannelsTextAndTheBuyersCountryNote(t *testing.T) {
+	o := testOrder()
+	o.BusinessIDs = []order.BusinessID{{Key: "vat", Label: "VAT number", Value: "GB987654321"}}
+	o.PONumber = "PO-77"
+	in := Input{Kind: KindInvoice, Order: o, Store: testStore(), Decimals: 2,
+		Footer: "Payable within 14 days.\nIBAN DE89 3704 0044 0532 0130 00", Note: "Reverse charge: the buyer accounts for the VAT."}
+	invoice := pdfText(t, mustRenderInput(t, in))
+	for _, want := range []string{"VAT number: GB987654321", "PO number: PO-77", "Payable within 14 days.", "IBAN DE89", "Reverse charge"} {
+		if !strings.Contains(invoice, want) {
+			t.Errorf("the invoice does not mention %q", want)
+		}
+	}
+	in.Kind, in.Footer = KindPackingSlip, "Packed with care."
+	slip := pdfText(t, mustRenderInput(t, in))
+	if !strings.Contains(slip, "Packed with care.") || strings.Contains(slip, "Reverse charge") || strings.Contains(slip, "GB987654321") {
+		t.Errorf("the slip should carry its own footer and none of the invoice's tax text:\n%s", slip)
+	}
+}
+
+func TestALogoPrintsAndAnSVGIsLeftOff(t *testing.T) {
+	img := image.NewRGBA(image.Rect(0, 0, 1600, 400))
+	var png bytes.Buffer
+	if err := pngenc.Encode(&png, img); err != nil {
+		t.Fatal(err)
+	}
+	store := testStore()
+	store.Logo = png.Bytes()
+	if raw := mustRender(t, KindInvoice, testOrder(), store, nil); !bytes.Contains(raw, []byte("/Subtype /Image")) {
+		t.Error("the logo isn't in the invoice")
+	}
+	store.Logo = []byte(`<svg xmlns="http://www.w3.org/2000/svg"/>`)
+	if raw := mustRender(t, KindInvoice, testOrder(), store, nil); bytes.Contains(raw, []byte("/Subtype /Image")) {
+		t.Error("an SVG logo was embedded")
 	}
 }

@@ -217,6 +217,23 @@ function CountryFormPage({ mode, country }: { mode: 'create' | 'edit'; country?:
         </form.Field>
       </DetailPageSection>
 
+      <DetailPageSection
+        title="On invoices"
+        description="Printed on the invoices and credit memos of business purchases billed to this country, above the channel's own footer - a reverse-charge or export note, say."
+      >
+        <form.AppField name="invoiceNote">
+          {(f) => (
+            <f.TextareaField
+              id="country-invoice-note"
+              label="Invoice note"
+              rows={3}
+              placeholder="Reverse charge - the buyer accounts for the VAT."
+              note={clash('invoiceNote')}
+            />
+          )}
+        </form.AppField>
+      </DetailPageSection>
+
       <DetailPageSection title="Display & state">
         <div className="grid gap-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -237,7 +254,7 @@ function CountryFormPage({ mode, country }: { mode: 'create' | 'edit'; country?:
       {country && <IsoReference country={country} />}
 
       <DetailPageSection title="Metadata">
-        <form.AppField name="metadata">{(f) => <f.MetadataField note={clash('metadata')} />}</form.AppField>
+        <form.AppField name="metadata">{(f) => <f.MetadataField target="country" note={clash('metadata')} />}</form.AppField>
       </DetailPageSection>
     </RecordFormPage>
   )

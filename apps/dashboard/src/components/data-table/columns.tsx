@@ -111,11 +111,16 @@ function renderAction<TData extends RowData>(action: RowAction<TData>, row: TDat
   )
 }
 
+// The id a list's own trailing menu column goes by - DataTable keeps plugin columns ahead of it
+export const ACTIONS_COLUMN_ID = 'actions'
+// Where plugin row actions go on a list that has a menu of its own
+export const PLUGIN_ACTIONS_COLUMN_ID = 'plugin-actions'
+
 // The trailing per-row menu - `label` names the row so the trigger gets a distinguishable aria-label
 export function rowActionsColumn<TData extends RowData>({
   actions,
   label,
-  id = 'actions',
+  id = ACTIONS_COLUMN_ID,
 }: {
   actions: RowAction<TData>[]
   label?: (row: TData) => string
@@ -293,6 +298,22 @@ export function linkColumn<TData extends RowData>({
           {sub && <span className="line-clamp-1 text-xs text-muted-foreground">{sub}</span>}
         </div>
       )
+    },
+  }
+}
+
+type WithMetadata = { metadata?: readonly { key: string; value: string }[] | null }
+
+// A column showing one metadata key of the row, for registerListColumn on a list whose rows carry metadata - products, customers
+export function metadataColumn<TData extends WithMetadata>(key: string, header: string, format: (value: string) => ReactNode = (v) => v): ColumnDef<TData, unknown> {
+  return {
+    id: `metadata:${key}`,
+    header,
+    enableSorting: false,
+    accessorFn: (row) => row.metadata?.find((m) => m.key === key)?.value ?? '',
+    cell: ({ getValue }) => {
+      const v = getValue() as string
+      return v === '' ? <span className="text-muted-foreground">-</span> : format(v)
     },
   }
 }

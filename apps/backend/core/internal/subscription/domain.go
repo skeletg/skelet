@@ -104,6 +104,7 @@ type Repository interface {
 	List(ctx context.Context, status string, limit, offset int32) ([]Subscription, error)
 	ListDue(ctx context.Context, now time.Time, limit int32) ([]Subscription, error)
 	AdvancePeriod(ctx context.Context, id uuid.UUID, start, end, next, anchor time.Time) (Subscription, error)
+	DeferRenewal(ctx context.Context, id uuid.UUID, now time.Time) error
 	SetStatus(ctx context.Context, id uuid.UUID, status string, canceledAt *time.Time) (Subscription, error)
 
 	CreateInvoice(ctx context.Context, subID uuid.UUID, periodStart, periodEnd time.Time, amount int64, currency string, sequence int32) (bool, error)

@@ -2,6 +2,7 @@ package wiring
 
 import (
 	"context"
+	"github.com/skeletg/skelet/apps/backend/core/internal/sso"
 	"log"
 
 	"github.com/google/uuid"
@@ -94,6 +95,7 @@ type subscriberDeps struct {
 	Referral     *referral.Service
 	Download     *download.Service
 	Subscription *subscription.Service
+	SSO          *sso.Service
 }
 
 func RegisterDomainSubscribers(d subscriberDeps) {
@@ -169,6 +171,7 @@ func subscribeOrderReactors(d subscriberDeps) {
 	d.Giftcard.SubscribeToOrderEvents(bus)    // mints one redeemable card per gift-card line
 	d.StoreCredit.SubscribeToOrderEvents(bus) // credits redeemed amounts back when an order is cancelled
 	d.Loyalty.SubscribeToOrderEvents(bus)     // earned on placement, revoked on cancel or refund
+	d.SSO.SubscribeToCustomerEvents(bus)      // a deleted or erased customer's outside identities go with them
 	d.Referral.SubscribeToOrderEvents(bus)    // give-get payout on the referee's first order
 	d.Download.SubscribeToOrderEvents(bus)    // grants the buyer access to a purchased product's downloads
 	d.Download.SubscribeToCustomerEvents(bus) // a file shared with an account goes when the account does

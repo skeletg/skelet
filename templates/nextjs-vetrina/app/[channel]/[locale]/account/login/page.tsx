@@ -5,11 +5,14 @@ import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 
 import {
   AuthCard,
+  FormError,
   FormSuccess,
 } from "@/app/components/account/AccountUI";
 import { getCustomerOrNull } from "@skelet/storefront-next/customer/read";
 import { safeReturnTo } from "@skelet/storefront-core/auth/return-to";
 import { LoginForm } from "@/app/components/auth/LoginForm";
+import { SsoSignIn } from "@/app/components/auth/SsoSignIn";
+import { ssoLabel } from "@skelet/storefront-next/auth/sso";
 
 export async function generateMetadata({
   params,
@@ -32,8 +35,10 @@ export default async function LoginPage({
   const verify = Array.isArray(sp.verify) ? sp.verify[0] : sp.verify;
   const needsVerify = verify === "required";
   const verifySent = verify === "sent";
+  const ssoOutcome = Array.isArray(sp.sso) ? sp.sso[0] : sp.sso;
+  const ssoProblem = ssoOutcome === "unverified" ? "ssoUnverified" : ssoOutcome === "cancelled" ? "ssoCancelled" : ssoOutcome ? "ssoFailed" : null;
 
-  const customer = await getCustomerOrNull();
+  const [customer, sso] = await Promise.all([getCustomerOrNull(), ssoLabel()]);
   if (customer) redirect(await withLocalePrefix(returnTo ?? "/account", locale));
 
   return (
@@ -41,7 +46,9 @@ export default async function LoginPage({
       title={t("title")}
       description={t("description")}
       banner={
-        needsVerify ? (
+        ssoProblem ? (
+          <FormError>{t(ssoProblem)}</FormError>
+        ) : needsVerify ? (
           <FormSuccess>{t("verifyBanner")}</FormSuccess>
         ) : verifySent ? (
           <FormSuccess>{t("verifySentBanner")}</FormSuccess>
@@ -51,6 +58,7 @@ export default async function LoginPage({
       }
     >
       <LoginForm returnTo={returnTo} />
+      {sso && <SsoSignIn label={sso} returnTo={returnTo} />}
     </AuthCard>
   );
 }

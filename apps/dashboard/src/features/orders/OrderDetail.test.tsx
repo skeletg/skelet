@@ -1,8 +1,9 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import type { MockLink } from '@apollo/client/testing'
+import type { OrderCheckoutFieldType } from '@/graphql/schema.types'
 import { describe, expect, it } from 'vitest'
 import { SLOW, meMock, renderPage } from '@/test/page-harness'
-import { CancelOrderDocument, OrderDocument } from './Orders.gql'
+import { CancelOrderDocument, OrderDocument, OrderStagesDocument, SetOrderStageDocument } from './Orders.gql'
 import { OrderDetail } from './OrderDetail'
 
 // What this pins: cancelling an order goes through the shared ConfirmDialog - a refused cancel keeps
@@ -29,6 +30,7 @@ const order = {
   channelId: 'c1',
   number: '1001',
   status: 'PENDING' as const,
+  stage: null,
   paymentStatus: 'UNPAID' as const,
   paymentProvider: 'manual',
   paymentReference: '',
@@ -47,6 +49,7 @@ const order = {
   customerNote: null,
   poNumber: null,
   businessIds: [],
+  checkoutFields: [] as { __typename: 'OrderCheckoutField'; key: string; label: string; value: string; type: OrderCheckoutFieldType }[],
   carrier: '',
   trackingNumber: '',
   trackingUrl: '',
@@ -62,12 +65,14 @@ const order = {
   returns: [],
 }
 
+const stagesMock = { request: { query: OrderStagesDocument, variables: { channelId: 'c1' } }, result: { data: { orderStages: [] } }, maxUsageCount: 3 }
+
 describe('OrderDetail cancel', () => {
   async function confirmCancel(mock: MockLink.MockedResponse) {
     renderPage({
       path: '/orders/o1',
       routes: { '/orders/:id': <OrderDetail /> },
-      mocks: [meMock(), { request: { query: OrderDocument, variables: { id: 'o1' } }, result: { data: { order } }, maxUsageCount: 3 }, mock],
+      mocks: [meMock(), { request: { query: OrderDocument, variables: { id: 'o1' } }, result: { data: { order } }, maxUsageCount: 3 }, stagesMock, mock],
       adminId: 'admin-1',
     })
     fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }, SLOW))
@@ -89,5 +94,52 @@ describe('OrderDetail cancel', () => {
     })
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull(), SLOW)
     expect(await screen.findByText('The order was cancelled, so nothing more will ship.', {}, SLOW)).toBeDefined()
+  })
+})
+
+describe('OrderDetail checkout answers', () => {
+  it("shows what the store's plugins asked at checkout, each the way its field reads", async () => {
+    const answered = {
+      ...order,
+      checkoutFields: [
+        { __typename: 'OrderCheckoutField' as const, key: 'acme:gift_message', label: 'Gift message', value: 'Happy birthday', type: 'TEXTAREA' as const },
+        { __typename: 'OrderCheckoutField' as const, key: 'acme:wrap', label: 'Gift wrap', value: 'true', type: 'CHECKBOX' as const },
+        { __typename: 'OrderCheckoutField' as const, key: 'acme:motto', label: 'Motto', value: 'true', type: 'TEXT' as const },
+      ],
+    }
+    renderPage({
+      path: '/orders/o1',
+      routes: { '/orders/:id': <OrderDetail /> },
+      mocks: [meMock(), { request: { query: OrderDocument, variables: { id: 'o1' } }, result: { data: { order: answered } }, maxUsageCount: 3 }, stagesMock],
+      adminId: 'admin-1',
+    })
+    expect(await screen.findByText('At checkout', {}, SLOW)).toBeDefined()
+    expect(screen.getByText('Happy birthday')).toBeDefined()
+    expect(screen.getByText('Gift wrap').nextElementSibling?.textContent).toBe('Yes')
+    expect(screen.getByText('Motto').nextElementSibling?.textContent).toBe('true')
+  })
+})
+
+describe('OrderDetail stage', () => {
+  it('moves the order into a stage its status holds, and offers none that it does not', async () => {
+    const processing = { ...order, status: 'PROCESSING' as const }
+    const moved = { request: { query: SetOrderStageDocument, variables: { id: 'o1', stage: 'awaiting_stock' } }, result: { data: { setOrderStage: {
+      __typename: 'Order', id: 'o1', status: 'PROCESSING', stage: { __typename: 'OrderStage', key: 'awaiting_stock', label: 'Awaiting stock' },
+    } } } }
+    const stages = { ...stagesMock, result: { data: { orderStages: [
+      { __typename: 'OrderStage', key: 'awaiting_stock', label: 'Awaiting stock', within: ['CONFIRMED', 'PROCESSING'] },
+      { __typename: 'OrderStage', key: 'delivered', label: 'Delivered', within: ['FULFILLED'] },
+    ] } } }
+    renderPage({
+      path: '/orders/o1',
+      routes: { '/orders/:id': <OrderDetail /> },
+      mocks: [meMock(), { request: { query: OrderDocument, variables: { id: 'o1' } }, result: { data: { order: processing } }, maxUsageCount: 3 }, stages, moved],
+      adminId: 'admin-1',
+    })
+    fireEvent.pointerDown(await screen.findByRole('button', { name: 'Stage' }, SLOW), { button: 0, ctrlKey: false, pointerType: 'mouse' })
+    const awaiting = await screen.findByRole('menuitem', { name: /Awaiting stock/ })
+    expect(screen.queryByRole('menuitem', { name: /Delivered/ })).toBeNull()
+    fireEvent.click(awaiting)
+    expect(await screen.findByText('Awaiting stock', { selector: '[data-slot="badge"]' }, SLOW)).toBeDefined()
   })
 })

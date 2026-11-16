@@ -29,6 +29,15 @@ describe('country schema', () => {
     expect(issues).toEqual(['code', 'name'])
   })
 
+  it('saves the invoice note trimmed and shows it in the save dialog', () => {
+    const before = toCountryValues(stored)
+    const after = { ...before, invoiceNote: '  Reverse charge - the buyer accounts for the VAT. ' }
+    expect(toCountryInput(after).invoiceNote).toBe('Reverse charge - the buyer accounts for the VAT.')
+    expect(countryDiff(before, after)).toEqual([
+      { kind: 'change', label: 'Invoice note', before: '', after: 'Reverse charge - the buyer accounts for the VAT.' },
+    ])
+  })
+
   it('diffs metadata alongside the fields', () => {
     const before = toCountryValues(stored)
     const after = { ...before, nativeName: 'BRD', metadata: [{ key: 'vat', value: 'DE999' }] }

@@ -5,6 +5,7 @@ query CustomersPaged(
   $isActive: Boolean
   $limit: Int
   $offset: Int
+  $withMetadata: Boolean! = false
 ) {
   customersPaged(
     channelId: $channelId
@@ -24,6 +25,10 @@ query CustomersPaged(
       isActive
       isEmailVerified
       createdAt
+      metadata @include(if: $withMetadata) {
+        key
+        value
+      }
       group {
         id
         slug

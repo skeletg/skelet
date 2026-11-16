@@ -147,6 +147,14 @@ search results. Split orders show their groups and combined selected delivery pr
 A free-above threshold may leave product-specific charges; the quoted option price is
 the delivery cost.
 
+## Questions from plugins
+
+A plugin can ask the shopper something more at checkout - a gift message, a delivery date.
+The details step shows each one under **A few more details**, a required one has to be
+answered before the order can be placed, and the answers appear on the order page under
+**At checkout**. Turning the plugin off for a channel stops its questions there. How a
+plugin declares one: [plugins.md](plugins.md#checkout-fields).
+
 ## Payment setup
 
 The Payment tab owns per-channel availability, country rules, checkout labels and display

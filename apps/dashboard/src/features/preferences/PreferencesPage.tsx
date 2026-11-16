@@ -14,6 +14,7 @@ import { ChangePasswordDialog } from '@/features/admins/ChangePasswordDialog'
 import { useWelcome } from '@/features/onboarding/welcome-context'
 import { ActiveSessionsCard } from '@/shared/auth/ActiveSessionsCard'
 import { TwoFactorCard } from '@/shared/auth/TwoFactorCard'
+import { SsoLinksCard } from '@/shared/auth/SsoLinksCard'
 import { AppearanceSection } from './AppearanceSection'
 import { DashboardResetsSection } from './DashboardResetsSection'
 import { LanguageSection } from './LanguageSection'
@@ -103,6 +104,8 @@ export function PreferencesPage() {
             <DetailPageSection title={<Trans>Two-factor authentication</Trans>}>
               <TwoFactorCard />
             </DetailPageSection>
+
+            <SsoLinksCard />
 
             <DetailPageSection title={<Trans>Active sessions</Trans>}>
               <ActiveSessionsCard />

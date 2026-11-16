@@ -26,6 +26,7 @@ export type ExistingCountry = {
   sortOrder: number
   metadata: MetadataEntry[]
   businessIdFields?: BusinessIdFieldValues[]
+  invoiceNote?: string
   regions: { code: string; name: string; isActive: boolean; sortOrder: number }[]
 }
 
@@ -68,6 +69,7 @@ export const countrySchema = z
     sortOrder: wholeNumber().describe('Order in country lists - lower first'),
     metadata: metadataSchema,
     businessIdFields: z.array(businessIdFieldSchema).describe('Company identifiers a business purchase asks for'),
+    invoiceNote: z.string().describe('Printed on invoices and credit memos billed to this country - empty for none'),
   })
   .describe('A country')
 
@@ -84,6 +86,7 @@ export const COUNTRY_LABELS: Record<keyof CountryValues, string> = {
   sortOrder: 'Sort order',
   metadata: 'Metadata',
   businessIdFields: 'Company ID fields',
+  invoiceNote: 'Invoice note',
 }
 
 export function toCountryValues(country?: ExistingCountry): CountryValues {
@@ -104,6 +107,7 @@ export function toCountryValues(country?: ExistingCountry): CountryValues {
       pattern: f.pattern,
       hint: f.hint,
     })),
+    invoiceNote: country?.invoiceNote ?? '',
   }
 }
 
@@ -128,6 +132,7 @@ export function toCountryInput(v: CountryValues) {
       pattern: f.pattern.trim(),
       hint: f.hint.trim(),
     })),
+    invoiceNote: v.invoiceNote.trim(),
   }
 }
 
@@ -143,7 +148,7 @@ function describeFields(fields: BusinessIdFieldValues[]): string {
 }
 
 // Code is immutable after create, and the phone code follows it, so neither appears
-const DIFFED = ['name', 'nativeName', 'emojiFlag', 'defaultCurrencyCode', 'isActive', 'sortOrder'] as const
+const DIFFED = ['name', 'nativeName', 'emojiFlag', 'defaultCurrencyCode', 'isActive', 'sortOrder', 'invoiceNote'] as const
 
 export function countryDiff(original: CountryValues, draft: CountryValues): SectionDiffEntry[] {
   return [
@@ -155,6 +160,6 @@ export function countryDiff(original: CountryValues, draft: CountryValues): Sect
     ...fieldDiff(original, draft, [
       { label: COUNTRY_LABELS.businessIdFields, value: (o: CountryValues) => describeFields(o.businessIdFields) },
     ]),
-    ...metadataDiff(original.metadata, draft.metadata),
+    ...metadataDiff(original.metadata, draft.metadata, 'Metadata', 'country'),
   ]
 }

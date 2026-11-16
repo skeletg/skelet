@@ -12,6 +12,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/core/internal/loyalty"
 	"github.com/skeletg/skelet/apps/backend/core/internal/menu"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
@@ -55,6 +56,12 @@ func init() {
 		Kind:        KindAsync,
 		Name:        "Order Status Changed",
 		Description: "Fires after a non-placement order status transition commits. Payload includes orderId, fromStatus, and toStatus. Response is ignored (async).",
+	})
+	RegisterEvent(EventDefinition{
+		Type:        order.EventStageChanged,
+		Kind:        KindAsync,
+		Name:        "Order Stage Changed",
+		Description: "Fires after an order moves into or out of a plugin's stage, including when a status change clears one the new status doesn't hold. Payload: OrderID, ChannelID, Status, FromStage, ToStage (empty for none).",
 	})
 	RegisterEvent(EventDefinition{
 		Type:        order.EventCancelled,
@@ -674,6 +681,14 @@ func init() {
 			"Use to gate on refund success or to append a note onto the order_event audit row.",
 	})
 	RegisterEvent(EventDefinition{
+		Type: order.EventTransitioning,
+		Kind: KindSync,
+		Name: "Order Transitioning (sync)",
+		Description: "Fires before a status or stage change someone asked for commits - an admin's transition, a customer's cancel, a shipment, a hold or release, a stage move - never placement's own. Payload: OrderID, ChannelID, FromStatus, ToStatus, FromStage, ToStage; a stage-only move keeps the status. " +
+			`Response schema: {"reject": bool, "reason": string}. ` +
+			"Use to hold an order back while your own process says it isn't ready, like refusing a shipment while it sits in an awaiting-stock stage.",
+	})
+	RegisterEvent(EventDefinition{
 		Type: order.EventFulfilling,
 		Kind: KindSync,
 		Name: "Order Fulfilling (sync)",
@@ -710,6 +725,22 @@ func init() {
 		Name: "CMS Page Publishing (sync)",
 		Description: "Fires before a CMS page transitions to is_published=true - admin click, bulk publish or scheduler promotion. A scheduled page that is rejected stays scheduled and is asked again on the next run. " +
 			`Response schema: {"reject": bool, "reason": string}.`,
+	})
+	RegisterEvent(EventDefinition{
+		Type: loyalty.EventEarning,
+		Kind: KindSync,
+		Name: "Loyalty Earning (sync)",
+		Description: "Fires before a paid-for order's loyalty points are written, with the channel's rate already applied. Payload: OrderID, ChannelID, CustomerID, CurrencyCode, UnitCents, PointsPerUnit, MerchandiseCents, Lines (SKU, Quantity, TotalCents), Points. " +
+			`Response schema: {"reject": bool, "reason": string, "points": int, "note": string}. ` +
+			"points replaces the amount, and the note joins the order number in the points history; reject earns nothing rather than failing the earn. It can arrive more than once for one order, so answer the same each time.",
+	})
+	RegisterEvent(EventDefinition{
+		Type: subscription.EventRenewing,
+		Kind: KindSync,
+		Name: "Subscription Renewing (sync)",
+		Description: "Fires before a subscription's next period is invoiced, ahead of the billing lock, and can arrive more than once for the same period, so answer it the same way each time. Payload: SubscriptionID, ChannelID, CustomerID, ProductID, SKU, Quantity, Sequence, PeriodStart, PeriodEnd, CurrencyCode, AmountCents. " +
+			`Response schema: {"reject": bool, "reason": string, "amountCents": int, "skip": bool, "delayUntil": RFC 3339 time}. ` +
+			"amountCents replaces what the period costs (0 bills nothing), skip lets the period pass unbilled, and delayUntil moves the renewal later, later periods counting from it. A reject leaves the period for a later run - a minute on, then twice as long each time, up to six hours.",
 	})
 	RegisterEvent(EventDefinition{
 		Type: customer.EventDeleting,

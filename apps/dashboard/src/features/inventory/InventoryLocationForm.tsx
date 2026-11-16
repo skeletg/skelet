@@ -420,7 +420,7 @@ function InventoryLocationFormPage({
         title="Free-form metadata"
         description="Anything that doesn't fit the structured fields above (carrier accounts, custom flags, …). Backed by a JSONB column."
       >
-        <form.AppField name="metadata">{(f) => <f.MetadataField note={clash('metadata')} />}</form.AppField>
+        <form.AppField name="metadata">{(f) => <f.MetadataField target="location" note={clash('metadata')} />}</form.AppField>
       </DetailPageSection>
     </RecordFormPage>
   )

@@ -178,6 +178,93 @@ all out of tree. This is what the SDK gives it.
   and turning agreed lines into a draft order for review. The pair a quote-shaped feature needs.
 - **`sdk.CustomerID` / `sdk.AdminID` / `sdk.RequestChannelID`** - who is asking, for scoping a
   storefront answer and for audit attribution. `AdminID` is attribution only, never a check.
+- **`RegisterCheckoutField`** - one more thing the checkout asks, on every channel your plugin is
+  on: a gift message, a delivery date, a consent of your own. See below.
+- **`RegisterOrderNumberer`** - names the orders of every channel your plugin is on, when the
+  store's own format (`sales/orders/number_format`, with a count per store or per channel and an
+  optional yearly restart) isn't enough. `req.Next(ctx, scope, period)` draws from core's count, kept
+  apart from the store's under your slug; return letters, digits and `- _ . / #`, at most 64,
+  which core upper-cases. An error, anything else, or a number already given out, and the store's
+  format names the order instead, so placement never fails on a number. With two numberers on one channel, the one registered first wins, and boot logs which one never runs.
+- **`RegisterOrderStage`** - a step of your own inside core's statuses, like "awaiting stock"
+  inside confirmed and processing. The status still drives payment and stock; the stage says
+  where the work stands, and the dashboard shows it, filters by it and lets an admin set it.
+  `p.SetOrderStage(ctx, orderID, key)` moves an order into one of your stages, or out with `""`,
+  and leaves another plugin's alone. The order keeps the key as `p.Key(key)` - `<slug>:<key>`, so
+  two plugins can both have an "awaiting_stock" - and that's what `order.transitioning` and
+  `order.stage_changed` carry. Moving the order to a status the stage doesn't list clears it,
+  with a line on the order's timeline, and `order.stage_changed` fires either way. Switching
+  your plugin off on a channel stops orders entering your stages there; ones already in a stage
+  keep it, and it stays yours.
+- **`order.transitioning`** - a sync event before every status or stage move someone asks for:
+  an admin's transition, a customer's cancel, a shipment, a hold or release, a stage move.
+  Placement's own moves don't fire it. Type-assert to `sdk.OrderTransitioning` and return an
+  error to refuse, say a shipment while the order still sits in your awaiting-stock stage. Don't
+  move the same order from inside the answer: that move is refused, and a stage that changes
+  while a move is being decided refuses the move too (`ORDER_STAGE_RACED`).
+- **`loyalty.earning`** - a sync event before a paid-for order's points are written, with the
+  channel's rate already applied. Type-assert to `sdk.LoyaltyEarning`, read the lines - each
+  one's SKU, quantity and total, and through `EarningLineProduct`, `EarningLineUnitCents` and
+  `EarningLineGift` its product, categories, unit price and whether it's a free gift - and set
+  the points for a rule of your own: double points on a category, none on free gifts. A note
+  you add shows in the customer's points history beside the order number. It can arrive more
+  than once for an order, so compute rather than act. To refuse, set the points to 0 or return
+  an `sdk.UserError` - the order earns nothing, as a webhook's `reject` does. Any other error is
+  a fault: the points stay unearned and the earn is tried again.
+- **`RegisterDocumentRenderer`** - makes the invoices, packing slips or credit memos of every
+  channel your plugin is on, for a format core's doesn't cover. The request carries the order as
+  the document prints it, the seller's details, footer and country note from the channel's
+  settings as they read when the order was placed, and `Default()`, core's own PDF, for a renderer
+  that only stamps or wraps it. Return a PDF; an error or a panic reaches the admin who asked,
+  since quietly swapping in core's would hand out the wrong paperwork. Two renderers of one kind
+  on a channel: the first registered wins, and boot logs the other.
+- **`subscription.renewing`** - a sync event as each subscription period is invoiced. Type-assert
+  to `sdk.SubscriptionRenewing` and set what the period costs (0 bills nothing), skip it, or delay
+  it to a later date, after which later periods count from that date. It runs before the
+  subscription is locked for billing, and if the subscription changed meanwhile - paused, billed
+  by another run - nothing is minted and the next run asks again, so decide from the event alone. An
+  error leaves the period for later too: a minute, then twice as long each time up to six hours,
+  while the store's other subscriptions bill as usual. One period costs at most
+  10,000,000,000 in minor units.
+- **`RegisterDataResource`** - your own data in the dashboard's import and export hub. Declare
+  the columns, a view permission and an import permission you registered, and give an `Import`
+  per row and an `Export` that streams records. Core handles the CSV or JSON Lines file, the
+  column reference and template, dry runs, per-row errors and progress; honour `run.DryRun` by
+  writing nothing. A run with no channel needs the permission unscoped, like core's own, and a
+  resource marked `Global` - rows the whole installation shares - always does. Left
+  channel-scoped, a resource has to keep to `run.ChannelID` itself: core checks the admin's grant
+  on that channel, not what your code reads or writes. `row.JSON` reads a JSON column and
+  `row.Require` insists on values - a `Required` field is yours to enforce when a row creates a
+  record. A `json` field's exported value is marshalled for you, and read-only columns are
+  ignored on import, however a spreadsheet reformatted them. See [import-export.md](import-export.md).
+
+### Checkout fields
+
+```go
+p.RegisterCheckoutField(sdk.CheckoutField{
+    Key: "gift_message", Label: "Gift message", Type: sdk.CheckoutFieldTextarea, MaxLength: 200,
+})
+```
+
+A field is `text` (the default), `textarea`, `checkbox`, `select` with `Options` - each an
+`sdk.CheckoutFieldOption{Value, Label}`, the value kept on the order and the label shown - or `date`,
+optionally `Required`, with a `Hint` and a `MaxLength` that defaults to 500 and stops at 5000. Core renders
+nothing: the storefront reads the declared fields off `CartCheckout.fields` and sends the
+answers with the details step, both templates draw them, and core holds each answer to its
+type. Add a `Validate` func for a rule of your own - it gets an `sdk.CheckoutFieldCheck` with the
+channel and the answer, and an `sdk.UserError` from it reaches the shopper. A required field
+without an answer keeps `ready` false, and `placeOrder` refuses. `placeOrder` runs every saved
+answer through the field's rules again, `Validate` included, since either may have changed
+since the shopper saved it.
+
+The answers ride the placement onto the order with the label the shopper saw, so the dashboard
+shows them under **At checkout** even after the field changes. Carts and orders key an answer
+`<slug>:<key>`, so two plugins can ask a "gift_message" each. On `checkout.validating` and
+`order.placing`, type-assert the event to `sdk.CheckoutFieldAnswers` and read yours with
+`p.CheckoutAnswer(answers, "gift_message")`, or another plugin's by its full key. On
+`order.placing`, `p.SetOrderMetadata(meta, "delivery_slot", v)` records a value of your own in
+the order's metadata under `<slug>:delivery_slot`, so no other plugin overwrites it; the admin API
+returns it as `Order.metadata`. Both go with a customer's data when they're erased.
 
 ## The frontend halves
 
@@ -191,6 +278,20 @@ each half hooks into, so a plugin's UI never edits a core page.
 **Dashboard.** `apps/dashboard/src/plugins/<slug>/` with a `plugin.tsx` in it. The app's
 `src/plugins/loader.ts` glob imports every one eagerly, and the import-time
 `extendGroup` / `registerNavNode` / `registerDetailRoute` calls are the whole wiring.
+
+Inside core's own pages a plugin reaches in through registries keyed by a target name:
+
+- **`registerDetailField`** puts a field on a record's page - `product`, `customer`,
+  `collection`, `country`, `currency`, `location` or `locale` - stored under a metadata key of
+  that record. It edits the page's own metadata, so the page's Save, its before-and-after dialog
+  and the unsaved-work guard cover it, and the dialog names it by your label. Text, textarea,
+  number, checkbox, select or date; the key leaves the free-form metadata rows so nothing edits it
+  twice.
+- **`registerDetailSection`** adds a whole section, with `useSaveSection` to join the page's Save.
+- **`registerListColumn`**, `registerListFilter`, `registerListRowAction` and
+  `registerListMassAction` extend a list - `catalog.products`, `customers`, `orders`.
+  `metadataColumn(key, header)` shows one of your metadata fields as a column on the products
+  and customers lists, whose rows carry metadata.
 
 **Storefront.** `app/plugins/<slug>/` plus one line in `app/plugins/loaded.ts`. Routes need
 no registration - Next's filesystem router is already the glob, so a page copied to its real

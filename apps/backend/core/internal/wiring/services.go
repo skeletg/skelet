@@ -145,8 +145,10 @@ func newDownloadService(q *db.Queries, txMgr *txrunner.Manager) *download.Servic
 	return download.NewService(download.NewRepository(q), txMgr)
 }
 
-func newSubscriptionService(q *db.Queries, txMgr *txrunner.Manager) *subscription.Service {
-	return subscription.NewService(subscription.NewRepository(q), txMgr)
+func newSubscriptionService(q *db.Queries, txMgr *txrunner.Manager, cfg *config.Service) *subscription.Service {
+	svc := subscription.NewService(subscription.NewRepository(q), txMgr)
+	svc.SetSettings(cfg) // the channel's retry schedule for failed renewals
+	return svc
 }
 
 func newAddressService(cfg *config.Service) *address.Service { return address.NewService(cfg) } // builtin format validator by default, remote validator when a channel opts in

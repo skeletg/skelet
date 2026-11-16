@@ -179,10 +179,19 @@ than the cheapest one, and an unticked terms box with
 email win.
 
 **Orders**: prices in **cents** (BIGINT). Address denormalized on
-`orders` (snapshot at placement, never changes). `order_events`
-immutable audit log. Number format `ORD-001000`. `PlaceOrder` wraps
+`orders` (snapshot at placement, never changes). Invoices, packing slips and credit
+memos are PDFs from `internal/documents`, dressed by the channel's `sales/documents/*`
+settings and, on a business purchase, the billing country's invoice note - all but the logo as they read at
+placement, kept in `orders.seller` - or made by a plugin's renderer. `order_events`
+immutable audit log. Numbers follow the channel's `sales/orders/number_format` (`ORD-{seq:6}` by default,
+so `ORD-001000`), from a count kept in `order_number_counters` and taken outside the placement transaction,
+or a plugin's numberer. They're upper case, the way shoppers retype them to track an order, and a number already
+given out (a format or count changed back, a plugin repeating itself) is skipped. `PlaceOrder` wraps
 create+lines+event+convert-cart in one tx. Status:
-`pending → confirmed → processing → fulfilled → cancelled`.
+`pending → confirmed → processing → fulfilled → cancelled`. A plugin's
+stage (`orders.stage`, `RegisterOrderStage`) sits inside the statuses it
+lists and clears when the order moves to one it doesn't; `order.transitioning`
+can refuse any status or stage move but placement's own.
 
 **Config**: paths always `section/group/field`. Scope is `default` or
 `channel`; all global values at `default/0`. Resolution:

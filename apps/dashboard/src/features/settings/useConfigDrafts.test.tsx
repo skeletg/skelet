@@ -231,3 +231,15 @@ describe('resetting a field to what it inherits', () => {
     expect(result.current.drafts).toEqual({ 'general/store/name': 'Globex' })
   })
 })
+
+describe('saving an address and its secret together', () => {
+  it('writes the secret last, since changing the address clears the secret kept for the old one', async () => {
+    const secret = field({ path: 'general/sign_in/secret', field: 'secret', label: 'Secret', type: 'SECRET', value: '', public: false })
+    const issuer = field({ path: 'general/sign_in/issuer', field: 'issuer', label: 'Issuer', value: 'https://old.example' })
+    const { result } = mount([secret, issuer])
+    act(() => result.current.onFieldChange(secret.path, 'new-secret'))
+    act(() => result.current.onFieldChange(issuer.path, 'https://new.example'))
+    await act(() => save())
+    expect(setCalls().map((c) => (c.variables as { path: string }).path)).toEqual([issuer.path, secret.path])
+  })
+})

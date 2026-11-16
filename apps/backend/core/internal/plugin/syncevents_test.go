@@ -11,27 +11,32 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/core/internal/loyalty"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
+	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // A plugin subscribes by the SDK's names, so each must be the string core publishes under
 func TestSDKEventNamesAreCores(t *testing.T) {
 	for sdkName, coreName := range map[string]string{
-		sdk.EventCartLineAdding:      cart.EventLineAdding,
-		sdk.EventCartLineUpdating:    cart.EventLineUpdating,
-		sdk.EventCheckoutValidating:  order.EventCheckoutValidating,
-		sdk.EventOrderPlacing:        order.EventPlacing,
-		sdk.EventCustomerRegistering: customer.EventRegistering,
-		sdk.EventOrderTendering:      order.EventTendering,
-		sdk.EventCartBundleAdding:    cart.EventBundleAdding,
-		sdk.EventCartLineRemoving:    cart.EventLineRemoving,
-		sdk.EventOrderCancelling:     order.EventCancelling,
-		sdk.EventOrderFulfilling:     order.EventFulfilling,
-		sdk.EventInventoryAllocating: inventory.EventAllocating,
-		sdk.EventReviewSubmitting:    review.EventSubmitting,
-		sdk.EventCustomerDeleting:    customer.EventDeleting,
+		sdk.EventCartLineAdding:       cart.EventLineAdding,
+		sdk.EventCartLineUpdating:     cart.EventLineUpdating,
+		sdk.EventCheckoutValidating:   order.EventCheckoutValidating,
+		sdk.EventOrderPlacing:         order.EventPlacing,
+		sdk.EventCustomerRegistering:  customer.EventRegistering,
+		sdk.EventOrderTendering:       order.EventTendering,
+		sdk.EventCartBundleAdding:     cart.EventBundleAdding,
+		sdk.EventCartLineRemoving:     cart.EventLineRemoving,
+		sdk.EventOrderCancelling:      order.EventCancelling,
+		sdk.EventOrderFulfilling:      order.EventFulfilling,
+		sdk.EventOrderTransitioning:   order.EventTransitioning,
+		sdk.EventInventoryAllocating:  inventory.EventAllocating,
+		sdk.EventReviewSubmitting:     review.EventSubmitting,
+		sdk.EventCustomerDeleting:     customer.EventDeleting,
+		sdk.EventLoyaltyEarning:       loyalty.EventEarning,
+		sdk.EventSubscriptionRenewing: subscription.EventRenewing,
 	} {
 		if sdkName != coreName {
 			t.Errorf("sdk says %q, core publishes %q - a plugin subscribing by the sdk name would never fire", sdkName, coreName)
@@ -52,24 +57,30 @@ func TestEachEventMatchesOnlyItsOwnInterface(t *testing.T) {
 		"order.OrderTendering":         &order.OrderTendering{},
 		"order.OrderCancelling":        &order.OrderCancelling{},
 		"order.OrderFulfilling":        &order.OrderFulfilling{},
+		"order.OrderTransitioning":     &order.OrderTransitioning{},
 		"inventory.Allocating":         &inventory.Allocating{},
 		"review.Submitting":            &review.Submitting{},
 		"customer.CustomerRegistering": &customer.CustomerRegistering{},
 		"customer.CustomerDeleting":    &customer.CustomerDeleting{},
+		"loyalty.Earning":              &loyalty.Earning{},
+		"subscription.Renewing":        &subscription.Renewing{},
 	}
 	matches := map[string]func(any) bool{
-		"CartLineAdding":      func(e any) bool { _, ok := e.(sdk.CartLineAdding); return ok },
-		"CartLineUpdating":    func(e any) bool { _, ok := e.(sdk.CartLineUpdating); return ok },
-		"CartLineRemoving":    func(e any) bool { _, ok := e.(sdk.CartLineRemoving); return ok },
-		"CheckoutValidating":  func(e any) bool { _, ok := e.(sdk.CheckoutValidating); return ok },
-		"OrderPlacing":        func(e any) bool { _, ok := e.(sdk.OrderPlacing); return ok },
-		"Tendering":           func(e any) bool { _, ok := e.(sdk.Tendering); return ok },
-		"OrderCancelling":     func(e any) bool { _, ok := e.(sdk.OrderCancelling); return ok },
-		"OrderFulfilling":     func(e any) bool { _, ok := e.(sdk.OrderFulfilling); return ok },
-		"InventoryAllocating": func(e any) bool { _, ok := e.(sdk.InventoryAllocating); return ok },
-		"ReviewSubmitting":    func(e any) bool { _, ok := e.(sdk.ReviewSubmitting); return ok },
-		"CustomerRegistering": func(e any) bool { _, ok := e.(sdk.CustomerRegistering); return ok },
-		"CustomerDeleting":    func(e any) bool { _, ok := e.(sdk.CustomerDeleting); return ok },
+		"CartLineAdding":       func(e any) bool { _, ok := e.(sdk.CartLineAdding); return ok },
+		"CartLineUpdating":     func(e any) bool { _, ok := e.(sdk.CartLineUpdating); return ok },
+		"CartLineRemoving":     func(e any) bool { _, ok := e.(sdk.CartLineRemoving); return ok },
+		"CheckoutValidating":   func(e any) bool { _, ok := e.(sdk.CheckoutValidating); return ok },
+		"OrderPlacing":         func(e any) bool { _, ok := e.(sdk.OrderPlacing); return ok },
+		"Tendering":            func(e any) bool { _, ok := e.(sdk.Tendering); return ok },
+		"OrderCancelling":      func(e any) bool { _, ok := e.(sdk.OrderCancelling); return ok },
+		"OrderFulfilling":      func(e any) bool { _, ok := e.(sdk.OrderFulfilling); return ok },
+		"OrderTransitioning":   func(e any) bool { _, ok := e.(sdk.OrderTransitioning); return ok },
+		"InventoryAllocating":  func(e any) bool { _, ok := e.(sdk.InventoryAllocating); return ok },
+		"ReviewSubmitting":     func(e any) bool { _, ok := e.(sdk.ReviewSubmitting); return ok },
+		"CustomerRegistering":  func(e any) bool { _, ok := e.(sdk.CustomerRegistering); return ok },
+		"CustomerDeleting":     func(e any) bool { _, ok := e.(sdk.CustomerDeleting); return ok },
+		"LoyaltyEarning":       func(e any) bool { _, ok := e.(sdk.LoyaltyEarning); return ok },
+		"SubscriptionRenewing": func(e any) bool { _, ok := e.(sdk.SubscriptionRenewing); return ok },
 	}
 	want := map[string]string{
 		"cart.LineAdding": "CartLineAdding", "cart.BundleAdding": "CartLineAdding",
@@ -78,7 +89,7 @@ func TestEachEventMatchesOnlyItsOwnInterface(t *testing.T) {
 		"order.OrderTendering": "Tendering", "order.OrderCancelling": "OrderCancelling",
 		"order.OrderFulfilling": "OrderFulfilling", "inventory.Allocating": "InventoryAllocating",
 		"review.Submitting": "ReviewSubmitting", "customer.CustomerRegistering": "CustomerRegistering",
-		"customer.CustomerDeleting": "CustomerDeleting",
+		"customer.CustomerDeleting": "CustomerDeleting", "order.OrderTransitioning": "OrderTransitioning", "loyalty.Earning": "LoyaltyEarning", "subscription.Renewing": "SubscriptionRenewing",
 	}
 	for evName, ev := range evs {
 		for iface, match := range matches {

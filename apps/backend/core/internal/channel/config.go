@@ -6,7 +6,11 @@ import "github.com/skeletg/skelet/apps/backend/core/lib/config"
 // Nested under general/<group>/<field>, with new groups registering lazily - Empty string is the default
 
 // The customer-facing store name account and order mail sign with
-const ConfigStoreName = "general/branding/store_name"
+const (
+	ConfigStoreName = "general/branding/store_name"
+	ConfigLogoURL   = "general/branding/logo_url"
+	ConfigTimezone  = "general/store_information/timezone"
+)
 
 func init() {
 	config.RegisterGroup(config.Group{Section: "general", Slug: "branding", Label: "Branding", SortOrder: 5, Scoping: config.ScopingChannel})
@@ -16,7 +20,7 @@ func init() {
 	// The store's local calendar: the admin sidebar clock, and the day checkout counts delivery estimates from. Scheduled
 	// jobs carry their own per-job timezone and every stored timestamp, retention sweep and email is UTC
 	config.Register(config.Definition{
-		Path: "general/store_information/timezone", Type: config.TypeSelect, Options: timezoneOptions(),
+		Path: ConfigTimezone, Type: config.TypeSelect, Options: timezoneOptions(),
 		Default: "UTC", Label: "Store timezone", Description: "Sets the clock shown in the admin sidebar, and the day checkout counts delivery estimates from - an order placed late on Friday here counts from Friday. Report boundaries, scheduled jobs and stored timestamps are unaffected - those are UTC, or carry their own timezone.", Public: false,
 	})
 
@@ -27,7 +31,7 @@ func init() {
 		Default: "", Label: "Store name (customer-facing)", Description: "The name transactional emails sign off with. Empty falls back to the channel's own name, which is the operator-facing label. Also served to storefronts, though the bundled one shows the channel name.", Public: true,
 	})
 	config.Register(config.Definition{
-		Path: "general/branding/logo_url", Type: config.TypeImage,
+		Path: ConfigLogoURL, Type: config.TypeImage,
 		Default: "", Label: "Logo", Description: "Shown at the top of every outbound email, and used in place of the store name wherever a storefront has a brand slot.", Public: true,
 	})
 	config.Register(config.Definition{

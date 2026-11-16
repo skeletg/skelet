@@ -628,6 +628,7 @@ type Cart struct {
 	AssistedBy             string                `json:"assisted_by"`
 	AssistedAt             sql.NullTime          `json:"assisted_at"`
 	AssistTrace            string                `json:"assist_trace"`
+	CheckoutFields         json.RawMessage       `json:"checkout_fields"`
 }
 
 type CartAppliedCode struct {
@@ -1323,6 +1324,7 @@ type Country struct {
 	Iso3Code            string          `json:"iso3_code"`
 	NumericCode         string          `json:"numeric_code"`
 	BusinessIDFields    json.RawMessage `json:"business_id_fields"`
+	InvoiceNote         string          `json:"invoice_note"`
 }
 
 type CreditMemo struct {
@@ -1594,6 +1596,18 @@ type GiftCardTransaction struct {
 	CreatedAt  time.Time     `json:"created_at"`
 }
 
+type IdentityLink struct {
+	ID         uuid.UUID     `json:"id"`
+	Issuer     string        `json:"issuer"`
+	Subject    string        `json:"subject"`
+	Kind       string        `json:"kind"`
+	ChannelID  uuid.NullUUID `json:"channel_id"`
+	UserID     uuid.UUID     `json:"user_id"`
+	Email      string        `json:"email"`
+	CreatedAt  time.Time     `json:"created_at"`
+	LastUsedAt time.Time     `json:"last_used_at"`
+}
+
 type Integration struct {
 	ID          uuid.UUID     `json:"id"`
 	Name        string        `json:"name"`
@@ -1784,61 +1798,64 @@ type NotificationRead struct {
 }
 
 type Order struct {
-	ID                  uuid.UUID       `json:"id"`
-	Number              string          `json:"number"`
-	CustomerID          uuid.NullUUID   `json:"customer_id"`
-	Status              string          `json:"status"`
-	PaymentStatus       string          `json:"payment_status"`
-	BillingFirstName    string          `json:"billing_first_name"`
-	BillingLastName     string          `json:"billing_last_name"`
-	BillingCompany      sql.NullString  `json:"billing_company"`
-	BillingStreet1      string          `json:"billing_street_1"`
-	BillingStreet2      sql.NullString  `json:"billing_street_2"`
-	BillingCity         string          `json:"billing_city"`
-	BillingState        sql.NullString  `json:"billing_state"`
-	BillingPostalCode   string          `json:"billing_postal_code"`
-	BillingCountry      string          `json:"billing_country"`
-	BillingPhone        sql.NullString  `json:"billing_phone"`
-	ShippingFirstName   string          `json:"shipping_first_name"`
-	ShippingLastName    string          `json:"shipping_last_name"`
-	ShippingCompany     sql.NullString  `json:"shipping_company"`
-	ShippingStreet1     string          `json:"shipping_street_1"`
-	ShippingStreet2     sql.NullString  `json:"shipping_street_2"`
-	ShippingCity        string          `json:"shipping_city"`
-	ShippingState       sql.NullString  `json:"shipping_state"`
-	ShippingPostalCode  string          `json:"shipping_postal_code"`
-	ShippingCountry     string          `json:"shipping_country"`
-	ShippingPhone       sql.NullString  `json:"shipping_phone"`
-	SubtotalAmount      int64           `json:"subtotal_amount"`
-	ShippingAmount      int64           `json:"shipping_amount"`
-	DiscountAmount      int64           `json:"discount_amount"`
-	TaxAmount           int64           `json:"tax_amount"`
-	TotalAmount         int64           `json:"total_amount"`
-	CurrencyCode        string          `json:"currency_code"`
-	CustomerNote        sql.NullString  `json:"customer_note"`
-	Metadata            json.RawMessage `json:"metadata"`
-	CreatedAt           time.Time       `json:"created_at"`
-	UpdatedAt           time.Time       `json:"updated_at"`
-	ChannelID           uuid.UUID       `json:"channel_id"`
-	Email               string          `json:"email"`
-	Carrier             string          `json:"carrier"`
-	TrackingNumber      string          `json:"tracking_number"`
-	PaymentProvider     string          `json:"payment_provider"`
-	GiftCardAmount      int64           `json:"gift_card_amount"`
-	PaymentReference    string          `json:"payment_reference"`
-	ShippingMethodID    uuid.NullUUID   `json:"shipping_method_id"`
-	ShippingCarrierSlug sql.NullString  `json:"shipping_carrier_slug"`
-	ShippingMethodCode  sql.NullString  `json:"shipping_method_code"`
-	StoreCreditAmount   int64           `json:"store_credit_amount"`
-	PoNumber            sql.NullString  `json:"po_number"`
-	HeldFromStatus      string          `json:"held_from_status"`
-	ShippingTaxAmount   int64           `json:"shipping_tax_amount"`
-	AnonID              string          `json:"anon_id"`
-	BusinessIds         json.RawMessage `json:"business_ids"`
-	FulfillmentNeed     string          `json:"fulfillment_need"`
-	AssistedBy          string          `json:"assisted_by"`
-	Locale              string          `json:"locale"`
-	TaxInclusive        bool            `json:"tax_inclusive"`
+	ID                  uuid.UUID             `json:"id"`
+	Number              string                `json:"number"`
+	CustomerID          uuid.NullUUID         `json:"customer_id"`
+	Status              string                `json:"status"`
+	PaymentStatus       string                `json:"payment_status"`
+	BillingFirstName    string                `json:"billing_first_name"`
+	BillingLastName     string                `json:"billing_last_name"`
+	BillingCompany      sql.NullString        `json:"billing_company"`
+	BillingStreet1      string                `json:"billing_street_1"`
+	BillingStreet2      sql.NullString        `json:"billing_street_2"`
+	BillingCity         string                `json:"billing_city"`
+	BillingState        sql.NullString        `json:"billing_state"`
+	BillingPostalCode   string                `json:"billing_postal_code"`
+	BillingCountry      string                `json:"billing_country"`
+	BillingPhone        sql.NullString        `json:"billing_phone"`
+	ShippingFirstName   string                `json:"shipping_first_name"`
+	ShippingLastName    string                `json:"shipping_last_name"`
+	ShippingCompany     sql.NullString        `json:"shipping_company"`
+	ShippingStreet1     string                `json:"shipping_street_1"`
+	ShippingStreet2     sql.NullString        `json:"shipping_street_2"`
+	ShippingCity        string                `json:"shipping_city"`
+	ShippingState       sql.NullString        `json:"shipping_state"`
+	ShippingPostalCode  string                `json:"shipping_postal_code"`
+	ShippingCountry     string                `json:"shipping_country"`
+	ShippingPhone       sql.NullString        `json:"shipping_phone"`
+	SubtotalAmount      int64                 `json:"subtotal_amount"`
+	ShippingAmount      int64                 `json:"shipping_amount"`
+	DiscountAmount      int64                 `json:"discount_amount"`
+	TaxAmount           int64                 `json:"tax_amount"`
+	TotalAmount         int64                 `json:"total_amount"`
+	CurrencyCode        string                `json:"currency_code"`
+	CustomerNote        sql.NullString        `json:"customer_note"`
+	Metadata            json.RawMessage       `json:"metadata"`
+	CreatedAt           time.Time             `json:"created_at"`
+	UpdatedAt           time.Time             `json:"updated_at"`
+	ChannelID           uuid.UUID             `json:"channel_id"`
+	Email               string                `json:"email"`
+	Carrier             string                `json:"carrier"`
+	TrackingNumber      string                `json:"tracking_number"`
+	PaymentProvider     string                `json:"payment_provider"`
+	GiftCardAmount      int64                 `json:"gift_card_amount"`
+	PaymentReference    string                `json:"payment_reference"`
+	ShippingMethodID    uuid.NullUUID         `json:"shipping_method_id"`
+	ShippingCarrierSlug sql.NullString        `json:"shipping_carrier_slug"`
+	ShippingMethodCode  sql.NullString        `json:"shipping_method_code"`
+	StoreCreditAmount   int64                 `json:"store_credit_amount"`
+	PoNumber            sql.NullString        `json:"po_number"`
+	HeldFromStatus      string                `json:"held_from_status"`
+	ShippingTaxAmount   int64                 `json:"shipping_tax_amount"`
+	AnonID              string                `json:"anon_id"`
+	BusinessIds         json.RawMessage       `json:"business_ids"`
+	FulfillmentNeed     string                `json:"fulfillment_need"`
+	AssistedBy          string                `json:"assisted_by"`
+	Locale              string                `json:"locale"`
+	TaxInclusive        bool                  `json:"tax_inclusive"`
+	CheckoutFields      json.RawMessage       `json:"checkout_fields"`
+	Stage               string                `json:"stage"`
+	Seller              pqtype.NullRawMessage `json:"seller"`
 }
 
 type OrderEmailLog struct {
@@ -1936,6 +1953,12 @@ type OrderLineStockPart struct {
 	SortOrder   int32     `json:"sort_order"`
 	CreatedAt   time.Time `json:"created_at"`
 	Source      string    `json:"source"`
+}
+
+type OrderNumberCounter struct {
+	Scope     string `json:"scope"`
+	Period    string `json:"period"`
+	NextValue int64  `json:"next_value"`
 }
 
 type OrderPaymentTransaction struct {
@@ -2737,6 +2760,8 @@ type Subscription struct {
 	ChannelID          uuid.NullUUID `json:"channel_id"`
 	PaymentMethodID    uuid.NullUUID `json:"payment_method_id"`
 	BillingAnchor      time.Time     `json:"billing_anchor"`
+	RenewalFailures    int32         `json:"renewal_failures"`
+	RenewalRetryAt     sql.NullTime  `json:"renewal_retry_at"`
 }
 
 type SubscriptionInvoice struct {

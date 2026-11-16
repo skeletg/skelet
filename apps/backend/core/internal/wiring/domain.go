@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/skeletg/skelet/apps/backend/core/internal/admin"
+	"github.com/skeletg/skelet/apps/backend/core/internal/sso"
 	"log/slog"
 	"net/http"
 	"os"
@@ -17,8 +19,11 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cms"
 	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
+	"github.com/skeletg/skelet/apps/backend/core/internal/country"
+	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/documents"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
 	"github.com/skeletg/skelet/apps/backend/core/internal/linkgraph"
@@ -29,6 +34,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/ordermail"
 	"github.com/skeletg/skelet/apps/backend/core/internal/outbox"
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
+	pluginhost "github.com/skeletg/skelet/apps/backend/core/internal/plugin"
 	"github.com/skeletg/skelet/apps/backend/core/internal/recommend"
 	"github.com/skeletg/skelet/apps/backend/core/internal/revalidate"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
@@ -85,8 +91,18 @@ var Domain = fx.Module("domain",
 
 		newSiteCrawlService,
 		newLinkGraphService,
+		newDocumentsService,
+		newSSOService,
 	),
 )
+
+func newDocumentsService(cfg *config.Service, media objstore.Storage, ch *channel.Service, cur *currency.Service, co *country.Service) *documents.Service {
+	return documents.NewService(cfg, media, documents.Lookups{Channels: ch, Currencies: cur, Countries: co}, pluginhost.DocumentRender)
+}
+
+func newSSOService(cfg *config.Service, tokens authpkg.TokenBackend, q *db.Queries, adm *admin.Service, cust *customer.Service, wcfg Config) *sso.Service {
+	return sso.NewService(cfg, tokens, q, adm, cust, AllowedOrigins(wcfg))
+}
 
 func newSiteCrawlService(q *db.Queries) *sitecrawl.Service {
 	return sitecrawl.NewService(q, slog.Default())

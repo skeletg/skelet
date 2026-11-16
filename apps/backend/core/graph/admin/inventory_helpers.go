@@ -76,7 +76,7 @@ func toInventoryLocationModel(l inventory.Location) *model.InventoryLocation {
 		Phone:              l.Phone,
 		ContactName:        l.ContactName,
 		ExternalReference:  l.ExternalReference,
-		Metadata:           invMetadataItems(l.Metadata),
+		Metadata:           metadataItems(l.Metadata),
 		CreatedAt:          l.CreatedAt,
 		UpdatedAt:          l.UpdatedAt,
 	}
@@ -146,7 +146,7 @@ func (r *Resolver) loadInventoryItemModel(ctx context.Context, item inventory.It
 	}, nil
 }
 
-func invMetadataItems(m inventory.Metadata) []*model.MetadataItem {
+func metadataItems(m map[string]string) []*model.MetadataItem {
 	if len(m) == 0 {
 		return []*model.MetadataItem{}
 	}

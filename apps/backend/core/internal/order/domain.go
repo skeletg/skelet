@@ -4,6 +4,7 @@ package order
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,6 +23,8 @@ type Order struct {
 	ChannelID       uuid.UUID
 	Number          string
 	Status          string
+	Stage           string // a plugin's stage key inside the status, empty for none
+	HeldFrom        string // the status an on-hold order returns to
 	PaymentStatus   string
 	PaymentProvider string
 	// The gateway's handle (a Stripe PaymentIntent id, say), set at authorize and used to capture, refund, void and correlate webhooks - empty until authorized
@@ -52,6 +55,10 @@ type Order struct {
 	CustomerNote      string
 	PONumber          string
 	BusinessIDs       []BusinessID // the buyer's company identifiers, empty on personal purchases
+	CheckoutFields    []CheckoutFieldAnswer
+	Seller            *Seller // the letterhead as it read at placement, nil on orders placed before it was kept
+	// What plugins recorded at placement, by their own keys - core's tracking snapshot lives beside it, not in it
+	Metadata map[string]string
 	// Stamped at fulfillment, from admin args or an OrderFulfilling subscriber, and empty otherwise
 	Carrier        string
 	TrackingNumber string
@@ -90,6 +97,14 @@ type BusinessID struct {
 	Key   string `json:"key"`
 	Label string `json:"label"`
 	Value string `json:"value"`
+}
+
+// CheckoutFieldAnswer is a plugin's checkout field as the shopper answered it, with the label and type they saw
+type CheckoutFieldAnswer struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+	Value string `json:"value"`
+	Type  string `json:"type,omitempty"` // empty on orders placed before it was kept, which read as text
 }
 
 type OrderAmounts struct {
@@ -189,6 +204,7 @@ type ListPageFilter struct {
 	Search          string
 	Statuses        []string
 	PaymentStatuses []string
+	Stages          []string
 	Limit           int32
 	Offset          int32
 	SkipCount       bool // the total is left 0, for callers that never show it
@@ -196,6 +212,10 @@ type ListPageFilter struct {
 
 type Repository interface {
 	CreateOrder(ctx context.Context, o Order) (Order, error)
+	// Takes the scope's count for the period on its own - never inside the placement transaction
+	NextOrderNumber(ctx context.Context, scope, period string) (int64, error)
+	OrderNumberTaken(ctx context.Context, number string) (bool, error)
+	DefaultOrderNumber(ctx context.Context) (string, error)
 	AddOrderLine(ctx context.Context, line OrderLine) (OrderLine, error)
 	AddOrderLineComponent(ctx context.Context, component OrderLineComponent) (OrderLineComponent, error)
 	AddOrderLineStockParts(ctx context.Context, orderLineID uuid.UUID, parts []OrderLineStockPart) error
@@ -287,6 +307,8 @@ type Repository interface {
 
 	// Lossless hold round-trip - releasing restores the status held from instead of always confirming
 	HoldOrderFrom(ctx context.Context, orderID uuid.UUID, fromStatus string) (Order, error)
+	SetOrderStage(ctx context.Context, orderID uuid.UUID, stage string) error
+	SetOrderStageFrom(ctx context.Context, orderID uuid.UUID, fromStatus, fromStage, stage string) error
 	ReleaseOrderToHeldFrom(ctx context.Context, orderID uuid.UUID) (Order, error)
 
 	WithTx(tx *sql.Tx) Repository
@@ -419,4 +441,16 @@ type OrderReturnLine struct {
 	RefundUnitCents int64
 	// Set when the line returns one component of a bundle line - Quantity then counts that component's units
 	ComponentID *uuid.UUID
+}
+
+// ErrOrderNumberTaken is an insert whose number another order took first
+var ErrOrderNumberTaken = errors.New("order number already taken")
+
+// Seller is what an order's documents say as of its placement: who sold it, each document kind's closing text, and the
+// note set on the buyer's country for a business purchase
+type Seller struct {
+	Name    string            `json:"name"`
+	Lines   []string          `json:"lines"`
+	Footers map[string]string `json:"footers,omitempty"`
+	Note    string            `json:"note,omitempty"`
 }

@@ -8,7 +8,11 @@ import (
 	"embed"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/skeletg/skelet/apps/backend/sdk"
 )
@@ -21,6 +25,9 @@ const (
 	CarrierSlug         = "example-carrier"
 	EventSettled        = "example.settled"
 	EventSettling       = "example.settling" // sync - fired pre-commit, handlers may mutate or veto
+	StageAwaitingStock  = "awaiting_stock"
+	DoublePointsPrefix  = "EX-DOUBLE-"
+	HalfPricePrefix     = "EX-HALF-"
 )
 
 //go:embed migrations/*.sql
@@ -41,7 +48,7 @@ func init() {
 		Version:  "0.1.0",
 		SDKRange: "^0.1.0",
 		Emits:    []string{EventSettled, EventSettling},
-		Consumes: []string{EventSettled, EventSettling},
+		Consumes: []string{EventSettled, EventSettling, sdk.EventOrderPlacing, sdk.EventOrderTransitioning, sdk.EventLoyaltyEarning, sdk.EventSubscriptionRenewing},
 		Capabilities: []string{
 			"db.write",
 			"events.publish:" + EventSettled,
@@ -77,6 +84,68 @@ func init() {
 			ev.MarkSettling()
 		}
 		return nil
+	})
+
+	// Kept on the order with its label - order.placing records the answer's length in the order's metadata
+	p.RegisterCheckoutField(sdk.CheckoutField{Key: "gift_note", Label: "Gift note", Type: sdk.CheckoutFieldTextarea, MaxLength: 200})
+	p.SubscribeSync(sdk.EventOrderPlacing, 100, func(_ context.Context, e any) error {
+		answers, ok := e.(sdk.CheckoutFieldAnswers)
+		meta, ok2 := e.(sdk.OrderPlacingMetadata)
+		if !ok || !ok2 {
+			return nil
+		}
+		if note, given := p.CheckoutAnswer(answers, "gift_note"); given {
+			return p.SetOrderMetadata(meta, "gift_note_length", strconv.Itoa(utf8.RuneCountInString(note)))
+		}
+		return nil
+	})
+
+	p.SubscribeSync(sdk.EventSubscriptionRenewing, 100, func(_ context.Context, e any) error {
+		if renewal, ok := e.(sdk.SubscriptionRenewing); ok && strings.HasPrefix(renewal.RenewalSKU(), HalfPricePrefix) {
+			return renewal.SetRenewalAmount(renewal.RenewalAmountCents() / 2)
+		}
+		return nil
+	})
+
+	p.RegisterOrderStage(sdk.OrderStage{Key: StageAwaitingStock, Label: "Awaiting stock", Within: []string{sdk.OrderStatusConfirmed, sdk.OrderStatusProcessing}})
+	p.SubscribeSync(sdk.EventOrderTransitioning, 100, func(_ context.Context, e any) error {
+		move, ok := e.(sdk.OrderTransitioning)
+		if ok && move.TransitioningFromStage() == p.Key(StageAwaitingStock) &&
+			(move.TransitioningToStatus() == sdk.OrderStatusPartiallyFulfilled || move.TransitioningToStatus() == sdk.OrderStatusFulfilled) {
+			return sdk.UserErrorWithCode(sdk.ErrorConflict, "EXAMPLE_AWAITING_STOCK", "the order is still awaiting stock")
+		}
+		return nil
+	})
+
+	// Names the orders of every channel the plugin is on, from a yearly count of its own
+	p.RegisterOrderNumberer(func(ctx context.Context, req sdk.OrderNumberRequest) (string, error) {
+		n, err := req.Next(ctx, "orders", strconv.Itoa(req.PlacedAt.Year()))
+		return fmt.Sprintf("EX-%d-%05d", req.PlacedAt.Year(), n), err
+	})
+
+	p.SubscribeSync(sdk.EventLoyaltyEarning, 100, func(_ context.Context, e any) error {
+		earning, ok := e.(sdk.LoyaltyEarning)
+		if !ok {
+			return nil
+		}
+		extra := int64(0)
+		for i := range earning.EarningLineCount() {
+			if sku, _, cents := earning.EarningLine(i); strings.HasPrefix(sku, DoublePointsPrefix) {
+				extra += cents / earning.EarningUnitCents() * earning.EarningPointsPerUnit()
+			}
+		}
+		if extra == 0 {
+			return nil
+		}
+		earning.AddEarningNote("double points on featured items")
+		return earning.SetEarningPoints(earning.EarningPoints() + extra)
+	})
+
+	p.RegisterDocumentRenderer(sdk.DocumentPackingSlip, func(_ context.Context, req sdk.DocumentRequest) ([]byte, error) {
+		if len(req.Order.Lines) == 0 {
+			return nil, sdk.Invalid("there is nothing to pack on order %s", req.Order.Number)
+		}
+		return req.Default()
 	})
 
 	p.RegisterPromotionCondition(minSubtotalCondition{})
@@ -156,6 +225,7 @@ func init() {
 	})
 
 	p.RegisterPermission("payments", "example.manage", "Manage the example gateway")
+	p.RegisterDataResource(recordsResource)
 
 	p.RegisterMigrations(sdk.MigrationsRegistration{Namespace: Slug, FS: migrationsFS})
 }

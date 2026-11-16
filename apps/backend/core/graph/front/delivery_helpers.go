@@ -353,7 +353,7 @@ func (r *Resolver) storeToday(ctx context.Context, channelID uuid.UUID) time.Tim
 	if r.ConfigSvc == nil {
 		return now.UTC()
 	}
-	tz, err := r.ConfigSvc.GetString(ctx, "general/store_information/timezone", config.Scope{Kind: config.ScopeChannel, ChannelID: &channelID})
+	tz, err := r.ConfigSvc.GetString(ctx, channel.ConfigTimezone, config.Scope{Kind: config.ScopeChannel, ChannelID: &channelID})
 	if err != nil || tz == "" {
 		return now.UTC()
 	}

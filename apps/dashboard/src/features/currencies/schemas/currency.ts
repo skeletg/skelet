@@ -102,6 +102,6 @@ export function currencyDiff(original: CurrencyValues, draft: CurrencyValues): S
       draft,
       DIFFED.map((k) => ({ label: CURRENCY_LABELS[k], value: (o: CurrencyValues) => o[k] })),
     ),
-    ...metadataDiff(original.metadata, draft.metadata),
+    ...metadataDiff(original.metadata, draft.metadata, 'Metadata', 'currency'),
   ]
 }

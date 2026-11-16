@@ -55,6 +55,7 @@ query Country($code: String!) {
       pattern
       hint
     }
+    invoiceNote
     regions {
       code
       name

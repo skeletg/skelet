@@ -32,6 +32,7 @@ A new doc gets a row here rather than a link buried in a section, or nobody find
 | [channels.md](channels.md) | What's global vs per-channel, the scope ladder, how locale and currency resolve |
 | [deploying.md](deploying.md) | The two deployment shapes, putting an edge in front, health, backups, logs |
 | [permissions.md](permissions.md) | Configuring roles, plus the generated slug reference |
+| [sign-in.md](sign-in.md) | Signing admins and shoppers in through an outside OpenID Connect provider: setup, how accounts are matched, what keeps it safe |
 | [import-export.md](import-export.md) | Bulk data in and out: the resource registry, the job model, and how to add a resource or a format |
 | [settings.md](settings.md) | Every configurable knob, its scope and default |
 | [tracking-plan.md](tracking-plan.md) | The browser events Signals accepts, their properties, and what ingest strips |

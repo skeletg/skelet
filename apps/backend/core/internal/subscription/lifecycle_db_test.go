@@ -36,7 +36,7 @@ func TestARenewalBillsTheSubscribedQuantity(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 	id := insert(StatusActive, 3, now.Add(-time.Minute))
-	if err := svc.billOne(ctx, id, now); err != nil {
+	if _, err := svc.billOne(ctx, id, now); err != nil {
 		t.Fatal(err)
 	}
 	invs, err := svc.Invoices(ctx, id)
@@ -50,17 +50,20 @@ func TestCatchUpIsCappedPerRun(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 	id := insert(StatusActive, 1, now.AddDate(-40, 0, 0))
-	if err := svc.billOne(ctx, id, now); err != nil {
+	if _, err := svc.billOne(ctx, id, now); err != nil {
 		t.Fatal(err)
 	}
 	if invs, _ := svc.Invoices(ctx, id); len(invs) != maxCatchUpPeriods {
 		t.Fatalf("first run minted %d invoices, want the cap of %d", len(invs), maxCatchUpPeriods)
 	}
-	if err := svc.billOne(ctx, id, now); err != nil {
-		t.Fatal(err)
+	want := 40*12 + 1
+	for run := 2; run <= (want+maxCatchUpPeriods-1)/maxCatchUpPeriods; run++ {
+		if _, err := svc.billOne(ctx, id, now); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if invs, _ := svc.Invoices(ctx, id); len(invs) != 40*12+1 {
-		t.Fatalf("after the second run %d invoices, want all %d periods", len(invs), 40*12+1)
+	if invs, _ := svc.Invoices(ctx, id); len(invs) != want {
+		t.Fatalf("after the runs it takes %d invoices, want all %d periods", len(invs), want)
 	}
 }
 
@@ -96,7 +99,7 @@ func TestResumingDoesNotBillThePausedMonths(t *testing.T) {
 	if _, err := svc.Resume(ctx, id); err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.billOne(ctx, id, svc.now().Add(time.Second)); err != nil {
+	if _, err := svc.billOne(ctx, id, svc.now().Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
 	if invs, _ := svc.Invoices(ctx, id); len(invs) != 1 {

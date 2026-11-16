@@ -10,7 +10,7 @@ INSERT INTO orders (
     subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount,
     currency_code, customer_note, payment_provider, shipping_method_id,
     shipping_carrier_slug, shipping_method_code, po_number, shipping_tax_amount, anon_id, business_ids, assisted_by, metadata,
-    locale, tax_inclusive
+    locale, tax_inclusive, checkout_fields, number, seller
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
@@ -18,8 +18,24 @@ INSERT INTO orders (
     $27, $28, $29, $30, $31,
     $32, $33, $34, $35,
     $36, $37, $38, $39, $40, $41, $42, $43,
-    $44, $45
-) RETURNING *;
+    $44, $45, $46, $47, $48
+)
+-- A number taken since it was checked inserts nothing rather than aborting the transaction, so the caller can name
+-- the order again
+ON CONFLICT (number) DO NOTHING
+RETURNING *;
+
+-- name: NextOrderNumber :one
+-- One statement, outside the placement transaction, so a busy store never queues on the row
+INSERT INTO order_number_counters (scope, period, next_value) VALUES ($1, $2, 2)
+ON CONFLICT (scope, period) DO UPDATE SET next_value = order_number_counters.next_value + 1
+RETURNING (next_value - 1)::bigint AS number;
+
+-- name: OrderNumberTaken :one
+SELECT EXISTS (SELECT 1 FROM orders WHERE number = $1) AS taken;
+
+-- name: DefaultOrderNumber :one
+SELECT next_order_number()::text AS number;
 
 -- name: GetOrderByID :one
 SELECT * FROM orders WHERE id = $1 LIMIT 1;
@@ -36,6 +52,7 @@ WHERE  TRUE
         o.billing_last_name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%')
   AND  (sqlc.arg(all_statuses)::boolean OR o.status = ANY(sqlc.arg(statuses)::text[]))
   AND  (sqlc.arg(all_payment)::boolean OR o.payment_status = ANY(sqlc.arg(payment_statuses)::text[]))
+  AND  (sqlc.arg(all_stages)::boolean OR o.stage = ANY(sqlc.arg(stages)::text[]))
 ORDER  BY o.created_at DESC
 LIMIT  sqlc.arg(lim) OFFSET sqlc.arg(off);
 
@@ -48,7 +65,8 @@ WHERE  TRUE
         o.shipping_last_name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%' OR
         o.billing_last_name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%')
   AND  (sqlc.arg(all_statuses)::boolean OR o.status = ANY(sqlc.arg(statuses)::text[]))
-  AND  (sqlc.arg(all_payment)::boolean OR o.payment_status = ANY(sqlc.arg(payment_statuses)::text[]));
+  AND  (sqlc.arg(all_payment)::boolean OR o.payment_status = ANY(sqlc.arg(payment_statuses)::text[]))
+  AND  (sqlc.arg(all_stages)::boolean OR o.stage = ANY(sqlc.arg(stages)::text[]));
 
 -- name: ListOrdersPagedInChannels :many
 -- Scoped in SQL, so LIMIT runs after the permission filter
@@ -61,6 +79,7 @@ WHERE  o.channel_id = ANY(sqlc.arg(channel_ids)::uuid[])
         o.billing_last_name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%')
   AND  (sqlc.arg(all_statuses)::boolean OR o.status = ANY(sqlc.arg(statuses)::text[]))
   AND  (sqlc.arg(all_payment)::boolean OR o.payment_status = ANY(sqlc.arg(payment_statuses)::text[]))
+  AND  (sqlc.arg(all_stages)::boolean OR o.stage = ANY(sqlc.arg(stages)::text[]))
 ORDER  BY o.created_at DESC
 LIMIT  sqlc.arg(lim) OFFSET sqlc.arg(off);
 
@@ -73,7 +92,8 @@ WHERE  o.channel_id = ANY(sqlc.arg(channel_ids)::uuid[])
         o.shipping_last_name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%' OR
         o.billing_last_name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%')
   AND  (sqlc.arg(all_statuses)::boolean OR o.status = ANY(sqlc.arg(statuses)::text[]))
-  AND  (sqlc.arg(all_payment)::boolean OR o.payment_status = ANY(sqlc.arg(payment_statuses)::text[]));
+  AND  (sqlc.arg(all_payment)::boolean OR o.payment_status = ANY(sqlc.arg(payment_statuses)::text[]))
+  AND  (sqlc.arg(all_stages)::boolean OR o.stage = ANY(sqlc.arg(stages)::text[]));
 
 -- name: ListOrdersAwaitingPaymentSync :many
 -- The reconciliation sweep's worklist: gateway orders parked unpaid with a provider reference to ask
@@ -119,6 +139,15 @@ UPDATE orders
 SET    status = sqlc.arg(new_status), updated_at = NOW()
 WHERE  id = sqlc.arg(id) AND status = sqlc.arg(from_status)
 RETURNING *;
+
+-- name: SetOrderStage :exec
+UPDATE orders SET stage = sqlc.arg(stage), updated_at = NOW() WHERE id = sqlc.arg(id);
+
+-- name: SetOrderStageFrom :execrows
+-- Guarded on the status and stage read, so two moves racing on one order can't both land
+UPDATE orders
+SET    stage = sqlc.arg(stage), updated_at = NOW()
+WHERE  id = sqlc.arg(id) AND status = sqlc.arg(from_status) AND stage = sqlc.arg(from_stage);
 
 -- name: HoldOrderFrom :one
 -- Move an order to on_hold while remembering where it came from, so releasing restores that status instead of promoting a pending order to confirmed Guarded on the read status for the same reason as UpdateOrderStatusFrom: a racing second hold would otherwise stamp held_from_status = 'on_hold' and wedge the release

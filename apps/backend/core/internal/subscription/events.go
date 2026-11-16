@@ -112,7 +112,7 @@ func (s *Service) publishInvoiced(ctx context.Context, sub Subscription, p plann
 		CustomerID:     sub.CustomerID,
 		ChannelID:      chanOrNil(sub.ChannelID),
 		Sequence:       p.Sequence,
-		AmountCents:    cycleAmount(sub),
+		AmountCents:    p.Amount,
 		Currency:       sub.CurrencyCode,
 	})
 }

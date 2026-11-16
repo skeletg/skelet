@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MockedProvider } from '@apollo/client/testing/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { __resetDetailFieldsForTests, registerDetailField } from '@/plugins/field-registry'
 import { CurrenciesPickerDocument } from '@/features/currencies/Currencies.gql'
 import { CountryCreatePage, CountryEditPage } from './CountryForm'
 import {
@@ -90,6 +91,46 @@ describe('CountryEditPage', () => {
     expect(onWrite).toHaveBeenCalledWith(
       expect.objectContaining({ code: 'DE', name: 'Germany', metadata: [{ key: 'vat', value: 'DE999' }] }),
     )
+  })
+})
+
+describe('plugin fields on the country page', () => {
+  afterEach(() => __resetDetailFieldsForTests())
+
+  it('edit their metadata keys through the page Save, under their own labels', async () => {
+    registerDetailField({ id: 'acme:vat', target: 'country', key: 'vat', label: 'VAT prefix', hint: 'Two letters' })
+    registerDetailField({ id: 'acme:eu', target: 'country', key: 'eu_member', label: 'EU member', type: 'checkbox' })
+    const onWrite = renderAt('/countries/DE')
+    const vat = (await screen.findByLabelText('VAT prefix')) as HTMLInputElement
+    expect(vat.value).toBe('DE123')
+    expect(document.getElementById(vat.getAttribute('aria-describedby') ?? '')?.textContent).toBe('Two letters')
+    expect(screen.queryByLabelText('Metadata 1 value')).toBeNull() // its key left the free-form rows
+
+    fireEvent.change(vat, { target: { value: 'DE999' } })
+    fireEvent.click(screen.getByLabelText('EU member'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    const dialog = await screen.findByRole('alertdialog')
+    expect(within(dialog).getByText('VAT prefix')).toBeDefined()
+    expect(within(dialog).getByText('EU member')).toBeDefined()
+    fireEvent.click(within(dialog).getByRole('button', { name: /Apply 2 changes/ }))
+
+    await screen.findByText('countries list', {}, SLOW)
+    expect(onWrite).toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: [{ key: 'vat', value: 'DE999' }, { key: 'eu_member', value: 'true' }] }),
+    )
+  })
+
+  it('keeps a free row typed into a plugin field’s key, flagged rather than gone', async () => {
+    registerDetailField({ id: 'acme:vat', target: 'country', key: 'vat', label: 'VAT prefix' })
+    renderAt('/countries/DE')
+    const vat = (await screen.findByLabelText('VAT prefix')) as HTMLInputElement
+    fireEvent.click(screen.getByRole('button', { name: /Add row/ }))
+    const key = screen.getByLabelText('Metadata 1 key') as HTMLInputElement
+    fireEvent.change(key, { target: { value: 'vat' } })
+    expect((screen.getByLabelText('Metadata 1 key') as HTMLInputElement).value).toBe('vat')
+    expect(screen.getByText(/VAT prefix has its own field above/)).toBeDefined()
+    expect(vat.value).toBe('DE123')
   })
 })
 

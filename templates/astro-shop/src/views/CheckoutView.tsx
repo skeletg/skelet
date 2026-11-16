@@ -24,6 +24,8 @@ export type CheckoutValues = {
   state: string;
   phone: string;
   acceptTerms: boolean;
+  // The plugins' fields by key - a ticked box is "true" saved, "on" posted
+  fields: Record<string, string>;
 };
 
 type Props = {
@@ -68,7 +70,7 @@ export function CheckoutView({ error, cart, channel, countries, dest, groups, pi
               <input type="hidden" name="countryCode" value={dest.countryCode} />
               <input type="hidden" name="postalCode" value={dest.postalCode} />
               <DeliverySection dest={dest} countries={countries} groups={groups} picks={picks} channel={channel} />
-              <ContactSection values={values} />
+              <ContactSection values={values} asked={cart.checkout.fields} />
               <PaymentSection payments={payments} pickedPayment={pickedPayment} />
               <div className="grid gap-4">
                 <label className="flex items-center gap-3 text-sm">
@@ -149,7 +151,9 @@ function DeliverySection({ dest, countries, groups, picks, channel }: Pick<Props
   );
 }
 
-function ContactSection({ values: v }: Pick<Props, "values">) {
+type Asked = Cart["checkout"]["fields"];
+
+function ContactSection({ values: v, asked }: Pick<Props, "values"> & { asked: Asked }) {
   return (
     <section>
       <StepTitle n={2}>Contact and address</StepTitle>
@@ -178,8 +182,54 @@ function ContactSection({ values: v }: Pick<Props, "values">) {
         <Field label="Phone" optional wide>
           <input type="tel" name="phone" autoComplete="tel" defaultValue={v.phone} />
         </Field>
+        {asked.map((f) => (
+          <PluginField key={f.key} f={f} value={v.fields[f.key] ?? ""} />
+        ))}
       </div>
     </section>
+  );
+}
+
+// The hint sits outside the label and is linked to the control, so it isn't read as part of the field's name
+function PluginField({ f, value }: { f: Asked[number]; value: string }) {
+  const name = `field:${f.key}`;
+  const hintId = f.hint ? `${name.replace(/[^a-zA-Z0-9_-]/g, "-")}-hint` : undefined;
+  const hint = f.hint && (
+    <span id={hintId} className="text-xs text-muted-foreground">
+      {f.hint}
+    </span>
+  );
+  if (f.type === "CHECKBOX") {
+    return (
+      <div className="grid gap-1 sm:col-span-2">
+        <label className="flex items-center gap-3 text-sm">
+          <input type="checkbox" name={name} required={f.required} defaultChecked={value === "true" || value === "on"} aria-describedby={hintId} className="size-5 min-h-0 w-auto accent-primary" />
+          {f.label}
+        </label>
+        {hint}
+      </div>
+    );
+  }
+  return (
+    <div className="grid gap-1 sm:col-span-2">
+      <Field label={f.label} optional={!f.required}>
+        {f.type === "SELECT" ? (
+          <select name={name} required={f.required} defaultValue={value} aria-describedby={hintId}>
+            <option value="">Choose…</option>
+            {f.options.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        ) : f.type === "TEXTAREA" ? (
+          <textarea name={name} required={f.required} maxLength={f.maxLength} rows={3} defaultValue={value} aria-describedby={hintId} />
+        ) : (
+          <input type={f.type === "DATE" ? "date" : "text"} name={name} required={f.required} maxLength={f.type === "TEXT" ? f.maxLength : undefined} defaultValue={value} aria-describedby={hintId} />
+        )}
+      </Field>
+      {hint}
+    </div>
   );
 }
 

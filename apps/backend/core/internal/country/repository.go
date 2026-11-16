@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
@@ -31,6 +32,7 @@ func (r *postgresRepository) Create(ctx context.Context, input CreateCountryInpu
 		SortOrder:        input.SortOrder,
 		Metadata:         mapToJSON(input.Metadata),
 		BusinessIDFields: fieldsToJSON(input.BusinessIDFields),
+		InvoiceNote:      strings.TrimSpace(input.InvoiceNote),
 	})
 	if err != nil {
 		if pgdb.IsUniqueViolation(err) {
@@ -98,6 +100,7 @@ func (r *postgresRepository) Update(ctx context.Context, input UpdateCountryInpu
 		SortOrder:        current.SortOrder,
 		Metadata:         current.Metadata,
 		BusinessIDFields: current.BusinessIDFields,
+		InvoiceNote:      current.InvoiceNote,
 	}
 	if input.Name != nil {
 		params.Name = *input.Name
@@ -125,6 +128,9 @@ func (r *postgresRepository) Update(ctx context.Context, input UpdateCountryInpu
 	}
 	if input.BusinessIDFields != nil {
 		params.BusinessIDFields = fieldsToJSON(*input.BusinessIDFields)
+	}
+	if input.InvoiceNote != nil {
+		params.InvoiceNote = strings.TrimSpace(*input.InvoiceNote)
 	}
 	row, err := r.queries.UpdateCountry(ctx, params)
 	if err != nil {
@@ -182,6 +188,7 @@ func toCountry(row db.Country) Country {
 		SortOrder:        row.SortOrder,
 		Metadata:         jsonToMap(row.Metadata),
 		BusinessIDFields: jsonToFields(row.BusinessIDFields),
+		InvoiceNote:      row.InvoiceNote,
 		CreatedAt:        row.CreatedAt,
 		UpdatedAt:        row.UpdatedAt,
 	}

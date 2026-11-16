@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
@@ -503,6 +504,24 @@ func (r *postgresRepository) HoldOrderFrom(ctx context.Context, orderID uuid.UUI
 	return r.GetOrderByID(ctx, row.ID)
 }
 
+func (r *postgresRepository) SetOrderStage(ctx context.Context, orderID uuid.UUID, stage string) error {
+	if err := r.queries.SetOrderStage(ctx, db.SetOrderStageParams{ID: orderID, Stage: stage}); err != nil {
+		return fmt.Errorf("set order stage: %w", err)
+	}
+	return nil
+}
+
+func (r *postgresRepository) SetOrderStageFrom(ctx context.Context, orderID uuid.UUID, fromStatus, fromStage, stage string) error {
+	n, err := r.queries.SetOrderStageFrom(ctx, db.SetOrderStageFromParams{ID: orderID, FromStatus: fromStatus, FromStage: fromStage, Stage: stage})
+	if err != nil {
+		return fmt.Errorf("set order stage: %w", err)
+	}
+	if n == 0 {
+		return apperr.New("ORDER_STAGE_RACED", apperr.ClassConflict, "the order moved while its stage was being set - reload and try again")
+	}
+	return nil
+}
+
 func (r *postgresRepository) ReleaseOrderToHeldFrom(ctx context.Context, orderID uuid.UUID) (Order, error) {
 	row, err := r.queries.ReleaseOrderToHeldFrom(ctx, orderID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -745,7 +764,22 @@ func (r *postgresRepository) ReturnedByComponent(ctx context.Context, orderID uu
 	return out, nil
 }
 
+func (r *postgresRepository) NextOrderNumber(ctx context.Context, scope, period string) (int64, error) {
+	return r.queries.NextOrderNumber(ctx, db.NextOrderNumberParams{Scope: scope, Period: period})
+}
+
+func (r *postgresRepository) OrderNumberTaken(ctx context.Context, number string) (bool, error) {
+	return r.queries.OrderNumberTaken(ctx, number)
+}
+
 func (r *postgresRepository) CreateOrder(ctx context.Context, o Order) (Order, error) {
+	if o.Number == "" {
+		n, err := r.queries.DefaultOrderNumber(ctx)
+		if err != nil {
+			return Order{}, fmt.Errorf("next order number: %w", err)
+		}
+		o.Number = n
+	}
 	id := o.ID
 	if id == (uuid.UUID{}) {
 		v, err := uuid.NewV7()
@@ -795,20 +829,34 @@ func (r *postgresRepository) CreateOrder(ctx context.Context, o Order) (Order, e
 		CustomerNote:        sqlnull.StringValueNonEmpty(o.CustomerNote),
 		PoNumber:            sqlnull.StringValueNonEmpty(o.PONumber),
 		BusinessIds:         businessIDsJSON(o.BusinessIDs),
+		CheckoutFields:      checkoutFieldsJSON(o.CheckoutFields),
+		Seller:              sellerJSON(o.Seller),
 		PaymentProvider:     o.PaymentProvider,
 		ShippingMethodID:    sqlnull.UUID(o.ShippingMethodID),
 		ShippingCarrierSlug: sqlnull.String(o.ShippingCarrierSlug),
 		ShippingMethodCode:  sqlnull.String(o.ShippingMethodCode),
 		AnonID:              o.AnonID,
 		AssistedBy:          o.AssistedBy,
-		Metadata:            orderMetadataJSON(o.Shopper),
+		Metadata:            orderMetadataJSON(o.Shopper, o.Metadata),
 		Locale:              o.Locale,
 		TaxInclusive:        o.TaxInclusive,
+		Number:              o.Number,
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return Order{}, ErrOrderNumberTaken
+	}
 	if err != nil {
 		return Order{}, fmt.Errorf("create order: %w", err)
 	}
 	return toOrder(row), nil
+}
+
+func (r *postgresRepository) DefaultOrderNumber(ctx context.Context) (string, error) {
+	n, err := r.queries.DefaultOrderNumber(ctx)
+	if err != nil {
+		return "", fmt.Errorf("next order number: %w", err)
+	}
+	return n, nil
 }
 
 func (r *postgresRepository) UpdateOrderLineQuantity(ctx context.Context, lineID uuid.UUID, quantity float64, totalPrice int64) (OrderLine, error) {
@@ -1044,7 +1092,7 @@ func (r *postgresRepository) ListOrderEventsByOrder(ctx context.Context, orderID
 }
 
 func (r *postgresRepository) ListOrdersPage(ctx context.Context, f ListPageFilter) ([]Order, int64, error) {
-	allStatuses, allPayment := len(f.Statuses) == 0, len(f.PaymentStatuses) == 0
+	allStatuses, allPayment, allStages := len(f.Statuses) == 0, len(f.PaymentStatuses) == 0, len(f.Stages) == 0
 	var (
 		rows  []db.Order
 		total int64
@@ -1053,23 +1101,23 @@ func (r *postgresRepository) ListOrdersPage(ctx context.Context, f ListPageFilte
 	if len(f.ChannelIDs) == 0 {
 		rows, err = r.queries.ListOrdersPaged(ctx, db.ListOrdersPagedParams{
 			Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
-			AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses, Lim: f.Limit, Off: f.Offset,
+			AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses, AllStages: allStages, Stages: f.Stages, Lim: f.Limit, Off: f.Offset,
 		})
 		if err == nil && !f.SkipCount {
 			total, err = r.queries.CountOrdersPaged(ctx, db.CountOrdersPagedParams{
 				Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
-				AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses,
+				AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses, AllStages: allStages, Stages: f.Stages,
 			})
 		}
 	} else {
 		rows, err = r.queries.ListOrdersPagedInChannels(ctx, db.ListOrdersPagedInChannelsParams{
 			ChannelIds: f.ChannelIDs, Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
-			AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses, Lim: f.Limit, Off: f.Offset,
+			AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses, AllStages: allStages, Stages: f.Stages, Lim: f.Limit, Off: f.Offset,
 		})
 		if err == nil && !f.SkipCount {
 			total, err = r.queries.CountOrdersPagedInChannels(ctx, db.CountOrdersPagedInChannelsParams{
 				ChannelIds: f.ChannelIDs, Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
-				AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses,
+				AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses, AllStages: allStages, Stages: f.Stages,
 			})
 		}
 	}
@@ -1233,6 +1281,7 @@ func (r *postgresRepository) UpdateOrderStatusFrom(ctx context.Context, id uuid.
 // --- mappers ---
 
 func toOrder(row db.Order) Order {
+	shopper, metadata := decodeMetadata(row.Metadata)
 	var customerID *uuid.UUID
 	if row.CustomerID.Valid {
 		c := row.CustomerID.UUID
@@ -1245,6 +1294,8 @@ func toOrder(row db.Order) Order {
 		ChannelID:        row.ChannelID,
 		Number:           row.Number,
 		Status:           row.Status,
+		Stage:            row.Stage,
+		HeldFrom:         row.HeldFromStatus,
 		PaymentStatus:    row.PaymentStatus,
 		PaymentProvider:  row.PaymentProvider,
 		PaymentReference: row.PaymentReference,
@@ -1289,7 +1340,10 @@ func toOrder(row db.Order) Order {
 		PONumber:          row.PoNumber.String,
 		FulfillmentNeed:   row.FulfillmentNeed,
 		BusinessIDs:       decodeBusinessIDs(row.BusinessIds),
-		Shopper:           decodeShopper(row.Metadata),
+		CheckoutFields:    decodeCheckoutFields(row.CheckoutFields),
+		Seller:            decodeSeller(row.Seller),
+		Shopper:           shopper,
+		Metadata:          metadata,
 		Carrier:           row.Carrier,
 		TrackingNumber:    row.TrackingNumber,
 		CreatedAt:         row.CreatedAt,
@@ -1448,26 +1502,78 @@ func businessIDsJSON(ids []BusinessID) json.RawMessage {
 	return b
 }
 
-func orderMetadataJSON(t *auth.Shopper) json.RawMessage {
-	if t == nil {
-		return json.RawMessage(`{}`)
+func orderMetadataJSON(t *auth.Shopper, plugins map[string]string) json.RawMessage {
+	m := map[string]any{}
+	for k, v := range plugins {
+		m[k] = v
 	}
-	b, _ := json.Marshal(map[string]*auth.Shopper{"tracking": t}) // strings and bools - can't fail
+	if t != nil {
+		m["tracking"] = t
+	}
+	b, _ := json.Marshal(m) // strings and bools - can't fail
 	return b
 }
 
-// An undecodable snapshot reads as none - the order's events then go out as if no shop had placed it
-func decodeShopper(raw json.RawMessage) *auth.Shopper {
-	var m struct {
-		Tracking *auth.Shopper `json:"tracking"`
-	}
+// The plugins' string values - the tracking snapshot is an object, so it never reads as one
+// decodeMetadata reads the column once for both of its halves: the shopper's tracking, and the string keys plugins set
+func decodeMetadata(raw json.RawMessage) (*auth.Shopper, map[string]string) {
+	var m map[string]json.RawMessage
 	if json.Unmarshal(raw, &m) != nil {
-		return nil
+		return nil, nil
 	}
-	return m.Tracking
+	var shopper *auth.Shopper
+	out := map[string]string{}
+	for k, v := range m {
+		if k == "tracking" {
+			_ = json.Unmarshal(v, &shopper)
+			continue
+		}
+		var s string
+		if json.Unmarshal(v, &s) == nil {
+			out[k] = s
+		}
+	}
+	if len(out) == 0 {
+		out = nil
+	}
+	return shopper, out
 }
 
+// An undecodable snapshot reads as none - the order's events then go out as if no shop had placed it
+
 // Only placement writes the column, so an undecodable one reads as none rather than failing the order
+func sellerJSON(s *Seller) pqtype.NullRawMessage {
+	if s == nil {
+		return pqtype.NullRawMessage{}
+	}
+	b, _ := json.Marshal(s) // plain strings - can't fail
+	return pqtype.NullRawMessage{RawMessage: b, Valid: true}
+}
+
+func decodeSeller(raw pqtype.NullRawMessage) *Seller {
+	var s Seller
+	if !raw.Valid || json.Unmarshal(raw.RawMessage, &s) != nil {
+		return nil
+	}
+	return &s
+}
+
+func checkoutFieldsJSON(fields []CheckoutFieldAnswer) json.RawMessage {
+	if fields == nil {
+		fields = []CheckoutFieldAnswer{}
+	}
+	b, _ := json.Marshal(fields) // plain strings - can't fail
+	return b
+}
+
+func decodeCheckoutFields(raw json.RawMessage) []CheckoutFieldAnswer {
+	var fields []CheckoutFieldAnswer
+	if json.Unmarshal(raw, &fields) != nil {
+		return nil
+	}
+	return fields
+}
+
 func decodeBusinessIDs(raw json.RawMessage) []BusinessID {
 	var ids []BusinessID
 	if json.Unmarshal(raw, &ids) != nil {

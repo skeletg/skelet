@@ -298,6 +298,19 @@ query CheckoutState($id: ID!) {
         value
       }
       poNumber
+      fields {
+        key
+        label
+        hint
+        type
+        options {
+          value
+          label
+        }
+        required
+        maxLength
+        value
+      }
       shippingAddress {
         ...CheckoutAddressFields
       }

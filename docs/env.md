@@ -942,7 +942,8 @@ independent of all of the above:
   *slowed*, past 3x refused. Meant to be flipped on mid-attack with no
   deploy, which is why `RATE_LIMIT_ENABLED` doesn't gate it. 0 = off.
 - **Per-plugin hook budget** - `plugin/<slug>/rate_limit_per_min` in
-  Settings, 0 = unlimited.
+  Settings, 0 = unlimited. A plugin's checks on checkout answers and its data imports and
+  exports don't count against it, so one shopper's flood can't refuse everyone else's order.
 
 ## Feature switches
 

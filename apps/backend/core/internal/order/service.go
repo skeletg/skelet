@@ -1,11 +1,13 @@
 package order
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
 	"log"
+	"maps"
 	"reflect"
 	"slices"
 	"sort"
@@ -45,6 +47,7 @@ var ErrReturnNotFound = errors.New("return not found")
 var ErrFulfillmentNotFound = errors.New("fulfillment not found")
 
 func init() {
+	apperr.RegisterSentinel(ErrOrderNumberTaken, "ORDER_NUMBER_TAKEN", apperr.ClassConflict)
 	apperr.RegisterSentinel(ErrOrderNotFound, "ORDER_NOT_FOUND", apperr.ClassNotFound)
 	apperr.RegisterSentinel(ErrReturnNotFound, "RETURN_NOT_FOUND", apperr.ClassNotFound)
 	apperr.RegisterSentinel(ErrFulfillmentNotFound, "FULFILLMENT_NOT_FOUND", apperr.ClassNotFound)
@@ -60,6 +63,8 @@ type Service struct {
 	customerSvc *customer.Service
 	tx          *txrunner.Manager
 	bus         *events.Bus
+	stages      func(ctx context.Context, channelID uuid.UUID) []Stage
+	allStages   func() []Stage
 	// Baseline calculators - each runs only when the matching OrderPlacing pointer is still nil after the sync chain, i.e. no plugin took the seam - Nil means no baseline
 	tax        *tax.Service
 	shipping   *shippingpkg.Service
@@ -93,6 +98,8 @@ type Service struct {
 	// Gates promotion free gifts on salable stock - nil grants them unconditionally
 	giftStock GiftStockChecker
 	kits      KitComponentLookup
+	numbering *Numbering
+	seller    SellerSource
 }
 
 // A kit SKU's per-unit components, nil for anything that isn't a kit
@@ -252,6 +259,49 @@ type AddressChecker interface {
 
 func (s *Service) SetAddressChecker(c AddressChecker) { s.addresses = c }
 
+func (s *Service) SetNumbering(settings NumberSettings, plugin func(ctx context.Context, req NumberRequest) (string, bool, error)) {
+	s.numbering = NewNumbering(settings, s.repo.NextOrderNumber, s.repo.OrderNumberTaken, plugin)
+}
+
+// SellerSource reads what an order's documents keep from its placement, for the buyer's billing country and whether
+// they bought as a business
+type SellerSource func(ctx context.Context, ch channel.Channel, billingCountry string, business bool) (Seller, error)
+
+// SetSeller is where placement reads what its documents keep - nil keeps none, and they read today's
+func (s *Service) SetSeller(f SellerSource) { s.seller = f }
+
+func (s *Service) sellerFor(ctx context.Context, ch channel.Channel, billingCountry string, business bool) (*Seller, error) {
+	if s.seller == nil {
+		return nil, nil
+	}
+	sel, err := s.seller(ctx, ch, billingCountry, business)
+	if err != nil {
+		return nil, fmt.Errorf("read the seller's details: %w", err)
+	}
+	return &sel, nil
+}
+
+// createOrder inserts the order, naming it again in the store's own format when a plugin's number was taken between
+// its check and the insert - placement never fails on a number
+func (s *Service) createOrder(ctx context.Context, r Repository, ch *channel.Channel, o Order) (Order, error) {
+	created, err := r.CreateOrder(ctx, o)
+	if !errors.Is(err, ErrOrderNumberTaken) || s.numbering == nil {
+		return created, err
+	}
+	if o.Number, err = s.numbering.StoreNumber(ctx, *ch, time.Now()); err != nil {
+		return Order{}, err
+	}
+	return r.CreateOrder(ctx, o)
+}
+
+// newNumber is drawn before the placement transaction, so no placement waits on the counter row
+func (s *Service) newNumber(ctx context.Context, ch *channel.Channel) (string, error) {
+	if s.numbering == nil {
+		return s.repo.DefaultOrderNumber(ctx)
+	}
+	return s.numbering.Number(ctx, *ch, time.Now())
+}
+
 // nil taxes shipping at the default class
 func (s *Service) SetShippingTax(f func(ctx context.Context, channelID uuid.UUID) (class string, taxable bool)) {
 	s.shippingTax = f
@@ -269,7 +319,7 @@ func (s *Service) HoldOrder(ctx context.Context, orderID uuid.UUID, reason strin
 	if !validTransition(o.Status, OrderStatusOnHold) {
 		return Order{}, errInvalidTransition(o.Status, OrderStatusOnHold)
 	}
-	updated, err := s.repo.HoldOrderFrom(ctx, orderID, o.Status) // stamps where it came from, so releasing doesn't confirm a pending order behind the operator's back
+	updated, err := s.moveStatus(ctx, o, OrderStatusOnHold, func(r Repository) (Order, error) { return r.HoldOrderFrom(ctx, orderID, o.Status) }) // stamps where it came from, so releasing doesn't confirm a pending order behind the operator's back
 	if err != nil {
 		return Order{}, err
 	}
@@ -291,7 +341,7 @@ func (s *Service) ReleaseOrder(ctx context.Context, orderID uuid.UUID) (Order, e
 	if o.Status != OrderStatusOnHold {
 		return Order{}, errInvalidTransition(o.Status, "released")
 	}
-	updated, err := s.repo.ReleaseOrderToHeldFrom(ctx, orderID)
+	updated, err := s.moveStatus(ctx, o, cmp.Or(o.HeldFrom, OrderStatusConfirmed), func(r Repository) (Order, error) { return r.ReleaseOrderToHeldFrom(ctx, orderID) })
 	if err != nil {
 		return Order{}, err
 	}
@@ -323,6 +373,8 @@ type PlaceOrderInput struct {
 	PONumber string
 	// The company identifiers on a business purchase, with the labels the shopper saw - printed on the invoice
 	BusinessIDs []BusinessID
+	// The answers to the checkout fields still asked, with their labels
+	CheckoutFields []CheckoutFieldAnswer
 	// The chosen carrier and method - both empty falls back to the cheapest quote, and the price is always re-derived server-side
 	ShippingCarrierSlug *string
 	ShippingMethodCode  *string
@@ -445,6 +497,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		PaymentProvider: paymentProvider,
 		BillingAddress:  billing,
 		ShippingAddress: shipping,
+		Answers:         answers(in.CheckoutFields),
 	}
 	if ranEngine {
 		validating.EngineDiscountCents = evalResult.Ledger.SubtotalDiscountCents()
@@ -492,11 +545,20 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		DiscountCents: validating.DiscountCents,
 		RiskScore:     validating.RiskScore,
 		Tags:          validating.Tags,
+		Answers:       validating.Answers,
 	}
 	if ranEngine {
 		placing.DiscountCents += evalResult.Ledger.SubtotalDiscountCents()
 	}
 	shopper, visitor := placedBy(ctx)
+	number, err := s.newNumber(ctx, store)
+	if err != nil {
+		return Order{}, err
+	}
+	seller, err := s.sellerFor(ctx, *store, billing.CountryCode, len(in.BusinessIDs) > 0)
+	if err != nil {
+		return Order{}, err
+	}
 	var orderID uuid.UUID
 	var placedEvent *OrderPlaced
 	err = s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
@@ -569,8 +631,10 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		orderR := s.repo.WithTx(sqlTx)
 		cartR := s.cartRepo.WithTx(sqlTx)
 
-		order, err := orderR.CreateOrder(ctx, Order{
+		order, err := s.createOrder(ctx, orderR, store, Order{
 			ID:                  preallocatedOrderID,
+			Number:              number,
+			Seller:              seller,
 			CustomerID:          in.CustomerID,
 			Email:               in.Email,
 			ChannelID:           store.ID,
@@ -589,6 +653,8 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			CustomerNote:        in.CustomerNote,
 			PONumber:            in.PONumber,
 			BusinessIDs:         in.BusinessIDs,
+			CheckoutFields:      in.CheckoutFields,
+			Metadata:            placing.Metadata,
 			ShippingMethodID:    shipSel.MethodID,
 			ShippingCarrierSlug: ptr.NonZero(shipSel.CarrierSlug),
 			ShippingMethodCode:  ptr.NonZero(shipSel.MethodCode),
@@ -858,6 +924,9 @@ func (s *Service) UpdateStatusWithTracking(ctx context.Context, orderID uuid.UUI
 // prior is the caller's own read - re-reading it here hydrated the whole order a second time for nothing
 func (s *Service) updateStatusWithEvent(ctx context.Context, prior Order, status, eventType, message, carrier, trackingNumber string) (Order, error) {
 	orderID := prior.ID
+	if err := s.transitioning(ctx, prior, status, s.stageAfter(prior, status)); err != nil {
+		return Order{}, err
+	}
 	// Sync pre-commit hooks for the gate-able transitions - refund-on-cancel, dispatch-on-fulfill - which can reject or enrich the audit message
 	if s.bus != nil {
 		switch status {
@@ -893,9 +962,14 @@ func (s *Service) updateStatusWithEvent(ctx context.Context, prior Order, status
 		}
 	}
 	refundable := 1.0
+	var staged *OrderStageChanged
 	err := s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
 		r := s.repo.WithTx(sqlTx)
-		if _, err := r.UpdateOrderStatusFrom(ctx, orderID, prior.Status, status); err != nil {
+		moved, err := r.UpdateOrderStatusFrom(ctx, orderID, prior.Status, status)
+		if err != nil {
+			return err
+		}
+		if staged, err = s.settleStage(ctx, r, sqlTx, moved, prior.Stage); err != nil {
 			return err
 		}
 		// Read the shipped split with the order row held - read before, a shipment landing on a partially fulfilled order (whose status doesn't change) slipped in and the reversals refunded tenders for goods that had just left
@@ -943,6 +1017,7 @@ func (s *Service) updateStatusWithEvent(ctx context.Context, prior Order, status
 	if err != nil {
 		return Order{}, err
 	}
+	s.publishStageChange(ctx, staged)
 	if s.bus != nil {
 		// Fire-and-forget fallback without the outbox - with one, publishing here would double-deliver
 		if s.outbox == nil {
@@ -1079,6 +1154,9 @@ var orderStatusTransitions = map[string][]string{
 	OrderStatusFulfilled:          {},
 	OrderStatusCancelled:          {},
 }
+
+// Statuses is every order status, sorted
+func Statuses() []string { return slices.Sorted(maps.Keys(orderStatusTransitions)) }
 
 func IsStatus(s string) bool {
 	_, ok := orderStatusTransitions[s]

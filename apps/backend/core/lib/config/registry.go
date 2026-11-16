@@ -72,6 +72,9 @@ type Definition struct {
 	Store Store
 	// Refuses a value the type alone can't judge, in words shown to the admin - kept out of JSON, which is how an Entry is cached
 	Check func(value string) error `json:"-"`
+	// Written by superusers only - a value that decides who can sign in reaches every account, whatever grants the writer holds
+	SuperuserOnly bool
+	Clears        []string // paths in the same scope emptied when this value changes, so a secret never follows a new address
 }
 
 type Store string
@@ -197,6 +200,11 @@ func Validate() error {
 		// pairing would serve a decrypted credential to anonymous callers. Refusing to boot beats discovering it in a public response
 		if d.Public && d.Type == TypeSecret {
 			problems = append(problems, fmt.Sprintf("path %q is both public and secret, which would expose its decrypted value to unauthenticated callers", d.Path))
+		}
+		for _, c := range d.Clears {
+			if !slices.ContainsFunc(registry, func(o Definition) bool { return o.Path == c }) {
+				problems = append(problems, fmt.Sprintf("path %q clears unknown path %q", d.Path, c))
+			}
 		}
 		if d.Check != nil && d.Default != "" {
 			if err := d.Check(d.Default); err != nil {

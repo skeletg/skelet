@@ -2,6 +2,7 @@ package wiring
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 
 	graphadmin "github.com/skeletg/skelet/apps/backend/core/graph/admin"
@@ -26,6 +27,9 @@ import (
 // All in-memory, so it runs before a pool is opened - a bad manifest fails the deploy with no network round trip
 func bootstrapRegistries() error {
 	pluginhost.Install() // replays the Register* calls blank-imported plugins queued, so the validators below see them
+	for _, shadowed := range pluginhost.ShadowedHooks() {
+		slog.Warn("plugin: " + shadowed)
+	}
 
 	if err := pluginhost.ValidateManifests(); err != nil { // first, so a plugin demanding a future SDK errors clearly rather than as a confusing config failure
 		return fmt.Errorf("plugin manifests: %w", err)

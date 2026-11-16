@@ -130,11 +130,11 @@ export function useConfigDrafts({
         throw new Error(`${field.label} isn't valid JSON - fix it and save again.`)
       }
     }
-    await Promise.all(
-      pending.map(({ field, after }) =>
-        setConfigValue({ variables: { path: field.path, value: after, scope: scopeInput } }),
-      ),
-    )
+    const write = (batch: typeof pending) =>
+      Promise.all(batch.map(({ field, after }) => setConfigValue({ variables: { path: field.path, value: after, scope: scopeInput } })))
+    // Secrets go last: changing an address clears the secret kept for the old one, and must not clear the new one
+    await write(pending.filter(({ field }) => field.type !== 'SECRET'))
+    await write(pending.filter(({ field }) => field.type === 'SECRET'))
     setDrafts({})
   }, [pending, scopeInput, setConfigValue])
 

@@ -257,5 +257,5 @@ export function locationDiff(original: LocationValues, values: LocationValues): 
     const entry = changed(`Hours · ${label}`, dayText(original.hours[key]), dayText(draft.hours[key]))
     if (entry) out.push(entry)
   }
-  return [...out, ...metadataDiff(original.metadata, draft.metadata)]
+  return [...out, ...metadataDiff(original.metadata, draft.metadata, 'Metadata', 'location')]
 }

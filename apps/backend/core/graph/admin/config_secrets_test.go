@@ -4,6 +4,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
 
@@ -13,10 +17,10 @@ func TestRequireSecretWritePermissionFiresOnlyForSecrets(t *testing.T) {
 	// tracks reality instead of a fixture
 	var secretPath, plainPath string
 	for _, d := range config.AllDefinitions() {
-		if d.Type == config.TypeSecret && secretPath == "" {
+		if d.Type == config.TypeSecret && !d.SuperuserOnly && secretPath == "" {
 			secretPath = d.Path
 		}
-		if d.Type == config.TypeString && plainPath == "" {
+		if d.Type == config.TypeString && !d.SuperuserOnly && plainPath == "" {
 			plainPath = d.Path
 		}
 	}
@@ -34,5 +38,18 @@ func TestRequireSecretWritePermissionFiresOnlyForSecrets(t *testing.T) {
 	}
 	if err := requireSecretWritePermission(context.TODO(), nil, "no/such/path", config.Scope{}); err != nil {
 		t.Errorf("unknown path demanded the secrets grant: %v", err)
+	}
+	for _, path := range []string{"general/admin_sign_in/oidc_issuer", "general/customer_sign_in/oidc_client_secret"} {
+		if err := requireSecretWritePermission(context.TODO(), nil, path, config.Scope{}); err == nil {
+			t.Errorf("%s was writable signed out", path)
+		}
+		admin := auth.WithAdmin(context.TODO(), &auth.Claims{AdminID: uuid.New()})
+		if err := requireSecretWritePermission(admin, nil, path, config.Scope{}); apperr.CodeOf(err) != "CONFIG_SUPERUSER_ONLY" {
+			t.Errorf("%s was writable by an admin who isn't a superuser: %v", path, err)
+		}
+		superuser := auth.WithAdmin(context.TODO(), &auth.Claims{AdminID: uuid.New(), IsSuperuser: true})
+		if err := requireSecretWritePermission(superuser, nil, path, config.Scope{}); err != nil {
+			t.Errorf("%s refused a superuser: %v", path, err)
+		}
 	}
 }

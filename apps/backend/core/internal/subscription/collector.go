@@ -15,12 +15,15 @@ type RenewalCharger interface {
 // Optional - without it invoices mint as 'due' and wait
 func (s *Service) SetRenewalCharger(c RenewalCharger) { s.charger = c }
 
-// The retry ladder - the Nth failure schedules the next attempt this far out, and exhausting it cancels the subscription
-var dunningBackoff = []time.Duration{
-	24 * time.Hour,
-	3 * 24 * time.Hour,
-	7 * 24 * time.Hour,
-}
+// The retry ladder when a channel's setting can't be read - the Nth failure schedules the next attempt this far out, and
+// exhausting it cancels the subscription. The setting's own default, so the two can't drift
+var dunningBackoff = func() []time.Duration {
+	ladder, err := parseRetryDays(defaultRetries)
+	if err != nil {
+		panic("subscription: the default retry schedule doesn't parse: " + err.Error())
+	}
+	return ladder
+}()
 
 // Charges every due invoice whose dunning clock has arrived - one failure never aborts the sweep - Returns how many were collected
 func (s *Service) CollectDue(ctx context.Context, now time.Time) (int, error) {
@@ -56,7 +59,12 @@ func (s *Service) collectOne(ctx context.Context, inv Invoice, now time.Time) (b
 		return false, err
 	}
 
-	reference, chargeErr := s.charger.ChargeInvoice(ctx, sub, inv)
+	// A period a renewal rule made free has nothing to charge, and a gateway would refuse a zero amount
+	var reference string
+	var chargeErr error
+	if inv.Amount > 0 {
+		reference, chargeErr = s.charger.ChargeInvoice(ctx, sub, inv)
+	}
 	if chargeErr == nil {
 		if err := s.repo.MarkInvoicePaid(ctx, inv.ID, reference); err != nil {
 			return false, err
@@ -71,7 +79,8 @@ func (s *Service) collectOne(ctx context.Context, inv Invoice, now time.Time) (b
 
 	// Failed - schedule the next dunning step, or cancel when the ladder is exhausted
 	attempt := int(inv.AttemptCount) // attempts BEFORE this one
-	if attempt >= len(dunningBackoff) {
+	ladder := s.retryLadder(ctx, sub)
+	if attempt >= len(ladder) {
 		if _, err := s.repo.RecordInvoiceAttempt(ctx, inv.ID, nil, chargeErr.Error()); err != nil {
 			return false, err
 		}
@@ -84,7 +93,7 @@ func (s *Service) collectOne(ctx context.Context, inv Invoice, now time.Time) (b
 		log.Printf("[subscription] %s canceled after %d failed charges", sub.ID, attempt+1)
 		return false, nil
 	}
-	next := now.Add(dunningBackoff[attempt])
+	next := now.Add(ladder[attempt])
 	if _, err := s.repo.RecordInvoiceAttempt(ctx, inv.ID, &next, chargeErr.Error()); err != nil {
 		return false, err
 	}

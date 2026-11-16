@@ -30,6 +30,16 @@ var ErrPluginDisabled = errors.New("plugin: disabled")
 var ErrPluginPanicked = errors.New("plugin: panicked")
 var ErrPluginTimeout = errors.New("plugin: hook timed out")
 
+// Unavailable rather than internal: the caller can try again, and a storefront still sees only a generic message
+func init() {
+	apperr.RegisterSentinel(ErrPluginDisabled, "PLUGIN_DISABLED", apperr.ClassUnavailable)
+	apperr.RegisterSentinel(ErrPluginRateLimited, "PLUGIN_RATE_LIMITED", apperr.ClassUnavailable)
+	apperr.RegisterSentinel(ErrPluginTimeout, "PLUGIN_TIMEOUT", apperr.ClassUnavailable)
+	apperr.RegisterSentinel(ErrPluginPanicked, "PLUGIN_PANICKED", apperr.ClassInternal)
+	apperr.RegisterSentinel(ErrConfigUnavailable, "PLUGIN_CONFIG_UNAVAILABLE", apperr.ClassInternal)
+	apperr.RegisterSentinel(ErrNoGraphResolver, "PLUGIN_NO_RESOLVER", apperr.ClassInternal)
+}
+
 // isGateError - the kill switch or per-minute allowance refused the hook before it ran - the promotion
 // adapters translate these to a neutral outcome instead of failing checkout, everything else propagates
 func isGateError(err error) bool {
@@ -100,6 +110,17 @@ var hookInstruments = stdsync.OnceValue(func() *instruments {
 	return &instruments{calls: calls, errs: errs, durs: durs}
 })
 
+type instrumentOpts struct{ unmetered, untimed bool }
+
+type InstrumentOption func(*instrumentOpts)
+
+// Unmetered leaves the per-minute allowance alone - for a hook every shopper's checkout runs, where one shopper's
+// flood must not refuse everyone else's order
+func Unmetered() InstrumentOption { return func(o *instrumentOpts) { o.unmetered = true } }
+
+// Untimed sets no deadline - for a run as long as the data it moves, like an export
+func Untimed() InstrumentOption { return func(o *instrumentOpts) { o.untimed = true } }
+
 type instruments struct {
 	calls metric.Int64Counter
 	errs  metric.Int64Counter
@@ -107,18 +128,24 @@ type instruments struct {
 }
 
 // Wraps every plugin hook - returns the enriched ctx with timeout, tagged logger and span, a finish closure to defer, and a non-nil gate error the adapter must check and short-circuit on Two things close the gate - the kill switch (plugin/<slug>/enabled) and the per-minute allowance (plugin/<slug>/rate_limit_per_min, 0 = unlimited) - channelID is the request's channel, uuid.Nil when unscoped, and slug/hook become bounded metric labels The timeout is cooperative - it cancels ctx, so a hook ignoring ctx still runs to completion
-func Instrument(ctx context.Context, slug, hook string, channelID uuid.UUID) (context.Context, finishFunc, error) {
+func Instrument(ctx context.Context, slug, hook string, channelID uuid.UUID, opts ...InstrumentOption) (context.Context, finishFunc, error) {
 	start := time.Now()
+	var o instrumentOpts
+	for _, opt := range opts {
+		opt(&o)
+	}
 
 	// kill switch first so a disabled plugin never enters the span/timeout, and never burns a rate-limit slot
 	enabled := isEnabledFromContext(ctx, slug, channelID)
 	var limitErr error
-	if enabled {
+	if enabled && !o.unmetered {
 		limitErr = checkRateLimitFn(ctx, slug)
 	}
 
-	timeout := hookTimeoutFromContext(ctx, slug)
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	cancel := context.CancelFunc(func() {})
+	if !o.untimed {
+		ctx, cancel = context.WithTimeout(ctx, hookTimeoutFromContext(ctx, slug))
+	}
 
 	// tag the logger so log lines inside the hook carry slug+hook
 	tagged := applog.From(ctx).With(
@@ -220,7 +247,7 @@ func Instrument(ctx context.Context, slug, hook string, channelID uuid.UUID) (co
 				err = fmt.Errorf("%w: %w", ErrPluginTimeout, err)
 			}
 			wrapped := &PluginError{Slug: slug, Hook: hook, Err: err}
-			if errPtr != nil && !isUserFacing(err) { // a user error is already the sentence the caller reads - don't prefix "plugin X: hook Y:" onto it
+			if errPtr != nil && (!isUserFacing(err) || errors.Is(err, ErrPluginTimeout)) { // a user error is already the sentence the caller reads - don't prefix "plugin X: hook Y:" onto it
 				*errPtr = wrapped
 			}
 			span.RecordError(wrapped)

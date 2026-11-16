@@ -137,20 +137,9 @@ func (s *Service) Authenticate(ctx context.Context, email, password, totpCode st
 		s.publishLoginFailed(ctx, email, ip, ua, "account_disabled")
 		return AdminUser{}, fmt.Errorf("account is disabled")
 	}
-	if user.TotpEnabled { // a valid password alone never yields a session - missing code gives typed ErrTotpRequired so the UI can prompt and resubmit, wrong code gives a generic failure
-		if strings.TrimSpace(totpCode) == "" {
-			return AdminUser{}, ErrTotpRequired
-		}
-		ok, verr := s.verifySecondFactor(ctx, &user, totpCode)
-		if errors.Is(verr, ErrTotpLocked) {
-			s.publishLoginFailed(ctx, email, ip, ua, "totp_locked")
-		}
-		if verr != nil {
-			return AdminUser{}, verr
-		}
-		if !ok {
-			s.publishLoginFailed(ctx, email, ip, ua, "invalid_totp")
-			return AdminUser{}, fmt.Errorf("invalid credentials")
+	if user.TotpEnabled { // a valid password alone never yields a session
+		if err := s.secondFactor(ctx, &user, totpCode, ip, ua); err != nil {
+			return AdminUser{}, err
 		}
 	}
 	user.Roles, err = s.repo.GetRoles(ctx, user.ID)

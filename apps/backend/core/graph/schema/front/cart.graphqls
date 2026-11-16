@@ -86,6 +86,8 @@ type CartCheckout {
   # The company identifiers given, by the country's field key.
   businessIds: [BusinessIdValue!]!
   poNumber: String!
+  # What the store's plugins ask beyond the fields above, each with the shopper's answer so far - render them in the details step and send the answers with it. placeOrder refuses while a required one is empty.
+  fields: [CheckoutField!]!
   shippingAddress: CartAddress
   billingSameAsShipping: Boolean!
   # The billing address placement will use - the shipping address when billingSameAsShipping.
@@ -227,6 +229,38 @@ type BusinessIdValue {
   value: String!
 }
 
+# A select's choice - send value back as the answer, show label.
+type CheckoutFieldOption {
+  value: String!
+  label: String!
+}
+
+type CheckoutField {
+  key:       String!
+  label:     String!
+  hint:      String!
+  type:      CheckoutFieldType!
+  options:   [CheckoutFieldOption!]!
+  required:  Boolean!
+  maxLength: Int!
+  value:     String!
+}
+
+enum CheckoutFieldType {
+  TEXT
+  TEXTAREA
+  # "true" when ticked - a required one must be.
+  CHECKBOX
+  SELECT
+  # YYYY-MM-DD.
+  DATE
+}
+
+input CheckoutFieldValueInput {
+  key:   String!
+  value: String!
+}
+
 input BusinessIdValueInput {
   key:   String!
   value: String!
@@ -260,6 +294,8 @@ input CheckoutDetailsInput {
   # The company identifiers for the company's country - its billing country, else the destination. Keys it doesn't ask for are dropped.
   businessIds:           [BusinessIdValueInput!]
   poNumber:              String
+  # The answers to the checkout's fields - keys it doesn't ask are dropped. Left out, the answers saved before stay.
+  fields:                [CheckoutFieldValueInput!]
   shippingAddressId:     ID
   shippingAddress:       AddressInput
   pickupContact:         PickupContactInput

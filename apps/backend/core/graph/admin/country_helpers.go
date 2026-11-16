@@ -22,6 +22,7 @@ func (r *Resolver) toCountryModel(ctx context.Context, c country.Country) *model
 		SortOrder:           int32(c.SortOrder),
 		Metadata:            toStringMapItems(c.Metadata),
 		BusinessIDFields:    toBusinessIDFieldModels(c.BusinessIDFields),
+		InvoiceNote:         c.InvoiceNote,
 		CreatedAt:           c.CreatedAt,
 		UpdatedAt:           c.UpdatedAt,
 	}

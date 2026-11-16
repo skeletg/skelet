@@ -218,7 +218,7 @@ function CurrencyFormPage({ mode, currency }: { mode: 'create' | 'edit'; currenc
       </DetailPageSection>
 
       <DetailPageSection title="Metadata" description="Free-form key/value pairs for integration-specific data.">
-        <form.AppField name="metadata">{(f) => <f.MetadataField note={clash('metadata')} />}</form.AppField>
+        <form.AppField name="metadata">{(f) => <f.MetadataField target="currency" note={clash('metadata')} />}</form.AppField>
       </DetailPageSection>
     </RecordFormPage>
   )

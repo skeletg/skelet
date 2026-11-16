@@ -114,6 +114,11 @@ export function formatDateTime(v: unknown): string {
   return toDate(v)?.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) ?? '-'
 }
 
+// A stored checkbox answer, "true" when ticked
+export function formatYesNo(raw: string): string {
+  return raw === 'true' ? 'Yes' : 'No'
+}
+
 // "Mar 4, 2026"
 export function formatDate(v: unknown): string {
   return toDate(v)?.toLocaleDateString(undefined, { dateStyle: 'medium' }) ?? '-'

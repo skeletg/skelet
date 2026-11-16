@@ -536,6 +536,7 @@ export type CartCheckout = {
   destination?: Maybe<CheckoutDestination>;
   digitalLineIds: Array<Scalars['ID']['output']>;
   email: Scalars['String']['output'];
+  fields: Array<CheckoutField>;
   fulfillment: FulfillmentNeed;
   giftCards: Array<CartGiftCard>;
   isPickup: Scalars['Boolean']['output'];
@@ -709,12 +710,43 @@ export type CheckoutDetailsInput = {
   businessIds?: InputMaybe<Array<BusinessIdValueInput>>;
   company?: InputMaybe<Scalars['String']['input']>;
   email?: InputMaybe<Scalars['String']['input']>;
+  fields?: InputMaybe<Array<CheckoutFieldValueInput>>;
   phone?: InputMaybe<Scalars['String']['input']>;
   pickupContact?: InputMaybe<PickupContactInput>;
   poNumber?: InputMaybe<Scalars['String']['input']>;
   purchaseType?: PurchaseType;
   shippingAddress?: InputMaybe<AddressInput>;
   shippingAddressId?: InputMaybe<Scalars['ID']['input']>;
+};
+
+export type CheckoutField = {
+  __typename?: 'CheckoutField';
+  hint: Scalars['String']['output'];
+  key: Scalars['String']['output'];
+  label: Scalars['String']['output'];
+  maxLength: Scalars['Int']['output'];
+  options: Array<CheckoutFieldOption>;
+  required: Scalars['Boolean']['output'];
+  type: CheckoutFieldType;
+  value: Scalars['String']['output'];
+};
+
+export type CheckoutFieldOption = {
+  __typename?: 'CheckoutFieldOption';
+  label: Scalars['String']['output'];
+  value: Scalars['String']['output'];
+};
+
+export type CheckoutFieldType =
+  | 'CHECKBOX'
+  | 'DATE'
+  | 'SELECT'
+  | 'TEXT'
+  | 'TEXTAREA';
+
+export type CheckoutFieldValueInput = {
+  key: Scalars['String']['input'];
+  value: Scalars['String']['input'];
 };
 
 export type CheckoutRequirement = {
@@ -1174,6 +1206,8 @@ export type Mutation = {
   customerLogout: Scalars['Boolean']['output'];
   customerRefreshToken: CustomerAuthPayload;
   customerRegister: CustomerAuthPayload;
+  customerSsoComplete: CustomerAuthPayload;
+  customerSsoStart: SsoStart;
   deleteAddress: Scalars['Boolean']['output'];
   deleteMyPaymentMethod: Scalars['Boolean']['output'];
   finalizeOrderPayment: Scalars['Boolean']['output'];
@@ -1307,6 +1341,18 @@ export type MutationCustomerRefreshTokenArgs = {
 
 export type MutationCustomerRegisterArgs = {
   input: CustomerRegisterInput;
+};
+
+
+export type MutationCustomerSsoCompleteArgs = {
+  binding: Scalars['String']['input'];
+  code: Scalars['String']['input'];
+  state: Scalars['String']['input'];
+};
+
+
+export type MutationCustomerSsoStartArgs = {
+  redirectUri: Scalars['String']['input'];
 };
 
 
@@ -2171,6 +2217,7 @@ export type Query = {
   currencies: Array<Currency>;
   currency: Currency;
   currentChannel?: Maybe<Channel>;
+  customerSsoOption?: Maybe<SsoOption>;
   deliveryPoints: Array<DeliveryPoint>;
   features: StoreFeatures;
   freeShippingThreshold: Scalars['Int']['output'];
@@ -2755,6 +2802,18 @@ export type SitemapEntry = {
   __typename?: 'SitemapEntry';
   path: Scalars['String']['output'];
   updatedAt: Scalars['Time']['output'];
+};
+
+export type SsoOption = {
+  __typename?: 'SsoOption';
+  label: Scalars['String']['output'];
+};
+
+export type SsoStart = {
+  __typename?: 'SsoStart';
+  authorizeUrl: Scalars['String']['output'];
+  binding: Scalars['String']['output'];
+  state: Scalars['String']['output'];
 };
 
 export type StoreFeatures = {

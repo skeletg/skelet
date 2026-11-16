@@ -10,9 +10,9 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/admin"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
+	"github.com/skeletg/skelet/apps/backend/core/internal/sso"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
-	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
 
 func (r *mutationResolver) AdminLogin(ctx context.Context, input model.AdminLoginInput) (*model.AdminAuthPayload, error) {
@@ -35,42 +35,7 @@ func (r *mutationResolver) AdminLogin(ctx context.Context, input model.AdminLogi
 		return nil, err
 	}
 	r.LoginThrottle.Clear(ctx, "admin", email)
-
-	if enabled, _ := r.ConfigSvc.GetBool(ctx, "general/security/admin_single_session", config.DefaultScope); enabled {
-		if err := r.RefreshStore.RevokeAll(ctx, user.ID); err != nil {
-			// Not fatal to the login, but not swallowed either - a failed revoke leaves the admin believing old sessions are dead when they aren't
-			slog.Error("admin single-session: revoke existing sessions failed", "admin_id", user.ID, "err", err)
-		}
-	}
-
-	ip, ua := clientMeta(ctx)
-	refreshToken, sessionID, err := r.RefreshStore.Create(ctx, user.ID, ip, ua)
-	if err != nil {
-		return nil, fmt.Errorf("generate refresh token: %w", err)
-	}
-
-	accessToken, err := auth.GenerateToken(user.ID, sessionID, user.Email, user.IsSuperuser, r.AdminKeys, r.JWTTTL)
-	if err != nil {
-		return nil, fmt.Errorf("generate access token: %w", err)
-	}
-
-	// Stamped after the credentials pass, and read for its PREVIOUS value: nil means nobody has ever signed into this account, which is what
-	// the dashboard's first-run introduction keys off Fail-open on purpose - a bookkeeping write must never be what stops someone signing in
-	firstLogin := false
-	adminModel := toAdminUserModel(user)
-	if prev, stamped, err := r.AdminSvc.RecordLogin(ctx, user.ID); err != nil {
-		slog.Error("record admin login failed", "admin_id", user.ID, "err", err)
-	} else {
-		firstLogin = prev == nil
-		adminModel.LastLoginAt = &stamped // the user row was read before the stamp, so carry it over
-	}
-
-	return &model.AdminAuthPayload{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		Admin:        adminModel,
-		FirstLogin:   firstLogin,
-	}, nil
+	return r.adminSession(ctx, user)
 }
 
 // Always true, whether or not the address maps to an admin - anything else is an enumeration oracle, and the service only sends when it does
@@ -292,6 +257,9 @@ func (r *mutationResolver) DeleteAdmin(ctx context.Context, id string) (bool, er
 	}
 	if err := r.AdminSvc.Delete(ctx, adminID); err != nil {
 		return false, err
+	}
+	if err := r.SsoSvc.Forget(ctx, sso.Admins, adminID); err != nil {
+		slog.ErrorContext(ctx, "forget a deleted admin's outside identities", "admin_id", adminID, "err", err)
 	}
 	return true, nil
 }

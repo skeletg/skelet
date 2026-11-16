@@ -1,0 +1,44 @@
+# Signing in through an outside OpenID Connect provider, set up under Admin sign-in. Start, send the browser to authorizeUrl, and complete with the code and state the provider hands back plus the binding start returned, which only the starting browser holds.
+type SsoStart {
+  authorizeUrl: String!
+  state:        String!
+  binding:      String!
+}
+
+type SsoOption {
+  label: String!
+}
+
+# A provider account an admin connected to their own account, which then signs them in.
+type AdminSsoLink {
+  id:         ID!
+  issuer:     String!
+  email:      String!
+  createdAt:  Time!
+  lastUsedAt: Time!
+}
+
+extend type Query {
+  # Null while no provider is set up. Unauthenticated, for the sign-in page.
+  adminSsoOption: SsoOption
+  # The signed-in admin's own connected provider accounts.
+  adminSsoLinks: [AdminSsoLink!]!
+}
+
+# A finished sign-in carries session. An admin with two-factor on whose provider didn't prove a second factor gets totpTicket instead, and finishes with adminSsoTotp.
+type AdminSsoResult {
+  session:    AdminAuthPayload
+  totpTicket: String
+}
+
+extend type Mutation {
+  # redirectUri is the dashboard page the provider returns to - it has to be on one of the dashboard's origins and registered at the provider.
+  adminSsoStart(redirectUri: String!): SsoStart!
+  adminSsoComplete(state: String!, code: String!, binding: String!): AdminSsoResult!
+  # The ticket lasts five minutes. A wrong code can be tried again until the account's two-factor lockout; code takes a recovery code too.
+  adminSsoTotp(ticket: String!, code: String!): AdminAuthPayload!
+  # Connecting a provider account to the signed-in admin: start, send the browser to authorizeUrl, and complete on the same return page.
+  adminSsoLinkStart(redirectUri: String!): SsoStart!
+  adminSsoLinkComplete(state: String!, code: String!, binding: String!): AdminSsoLink!
+  adminSsoUnlink(id: ID!): Boolean!
+}

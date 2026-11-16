@@ -1,10 +1,14 @@
-query OrdersPaged($search: String, $statuses: [String!], $paymentStatuses: [String!], $limit: Int, $offset: Int, $channelId: ID) {
-  ordersPaged(search: $search, statuses: $statuses, paymentStatuses: $paymentStatuses, limit: $limit, offset: $offset, channelId: $channelId) {
+query OrdersPaged($search: String, $statuses: [String!], $paymentStatuses: [String!], $stages: [String!], $limit: Int, $offset: Int, $channelId: ID) {
+  ordersPaged(search: $search, statuses: $statuses, paymentStatuses: $paymentStatuses, stages: $stages, limit: $limit, offset: $offset, channelId: $channelId) {
     totalCount
     items {
       id
       number
       status
+      stage {
+        key
+        label
+      }
       paymentStatus
       total
       currencyCode
@@ -23,6 +27,10 @@ query Order($id: ID!) {
     channelId
     number
     status
+    stage {
+      key
+      label
+    }
     paymentStatus
     paymentProvider
     paymentReference
@@ -44,6 +52,12 @@ query Order($id: ID!) {
       key
       label
       value
+    }
+    checkoutFields {
+      key
+      label
+      value
+      type
     }
     carrier
     trackingNumber
@@ -205,6 +219,25 @@ mutation HoldOrder($id: ID!, $reason: String) {
   holdOrder(id: $id, reason: $reason) {
     id
     status
+  }
+}
+
+query OrderStages($channelId: ID) {
+  orderStages(channelId: $channelId) {
+    key
+    label
+    within
+  }
+}
+
+mutation SetOrderStage($id: ID!, $stage: String) {
+  setOrderStage(id: $id, stage: $stage) {
+    id
+    status
+    stage {
+      key
+      label
+    }
   }
 }
 

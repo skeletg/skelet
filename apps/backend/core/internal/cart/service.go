@@ -261,6 +261,7 @@ func (s *Service) updateCheckoutOnce(ctx context.Context, cartID uuid.UUID, auth
 	next := cart
 	next.Checkout.GiftCardCodes = slices.Clone(cart.Checkout.GiftCardCodes)
 	next.Checkout.BusinessIDs = maps.Clone(cart.Checkout.BusinessIDs)
+	next.Checkout.Fields = maps.Clone(cart.Checkout.Fields)
 	next.Checkout.Deliveries = maps.Clone(cart.Checkout.Deliveries) // a step writes the map in place, and the lock diff needs the before
 	if err := apply(&next); err != nil {
 		return Cart{}, Cart{}, err

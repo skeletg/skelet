@@ -3,6 +3,8 @@ package subscription
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 	"log"
 	"math"
 	"time"
@@ -16,8 +18,8 @@ import (
 // Caps how many due subscriptions one ProcessDue pass handles, so a large backlog can't hold a tick open indefinitely - the next tick picks up the rest
 const dueBatchSize = 200
 
-// The most periods one billing run mints for a subscription - a daily plan after a long outage, or a row with a zero billing date, would otherwise mint thousands in one transaction. The rest are minted by the following runs
-const maxCatchUpPeriods = 366
+// The most periods one billing run mints for a subscription - each asks the renewing hooks in turn, and a daily plan after a long outage would otherwise ask hundreds of times in one run. The rest are minted by the following runs
+const maxCatchUpPeriods = 31
 
 // cycleAmount is what one period costs - the snapshotted unit price times the subscribed quantity, rounded to cents
 func cycleAmount(sub Subscription) int64 {
@@ -36,7 +38,8 @@ type Service struct {
 	// Publishes lifecycle events for the Synapse activity tracker - nil means none
 	bus *events.Bus
 	// Collects due invoices for renewal and dunning - nil leaves invoices at 'due'
-	charger RenewalCharger
+	charger  RenewalCharger
+	settings Settings
 }
 
 func NewService(repo Repository, txMgr *txrunner.Manager) *Service {
@@ -97,39 +100,54 @@ func (s *Service) ProcessDue(ctx context.Context, now time.Time) (int, error) {
 	}
 	billed := 0
 	for _, d := range due {
-		if err := s.billOne(ctx, d.ID, now); err != nil {
+		advanced, err := s.billOne(ctx, d.ID, now)
+		if err != nil {
 			log.Printf("[subscription] bill %s: %v", d.ID, err)
-			continue
 		}
-		billed++
+		if advanced {
+			billed++
+		}
 	}
 	return billed, nil
 }
 
-func (s *Service) billOne(ctx context.Context, id uuid.UUID, now time.Time) error {
-	var billedSub Subscription
+// A renewal's hooks are asked before the billing lock, on a snapshot, so a slow plugin or webhook never holds the row -
+// the lock then bills only if nothing moved in between, and the next run asks again if something did. A hook failing
+// moves the renewal's next try later, so the rows behind it in the batch are billed meanwhile
+func (s *Service) billOne(ctx context.Context, id uuid.UUID, now time.Time) (advanced bool, err error) {
+	snap, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return false, err
+	}
+	if snap.Status != StatusActive || snap.NextBillingAt.After(now) {
+		return false, nil
+	}
+	count, err := s.repo.CountInvoices(ctx, snap.ID)
+	if err != nil {
+		return false, err
+	}
+	plan, err := s.planRenewal(ctx, snap, count, now)
+	if err != nil {
+		if derr := s.repo.DeferRenewal(ctx, id, now); derr != nil {
+			return false, errors.Join(err, fmt.Errorf("defer the renewal: %w", derr))
+		}
+		return false, err
+	}
 	var minted []plannedPeriod
-	err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
+	err = s.tx.InTransaction(ctx, func(t *sql.Tx) error {
+		advanced = false
 		minted = nil // reset so a tx retry doesn't double-publish invoices
 		r := s.repo.WithTx(t)
 		sub, err := r.GetForUpdate(ctx, id)
 		if err != nil {
 			return err
 		}
-		// Re-check under the lock - a concurrent run may already have billed and advanced it, or it may have been canceled or paused since the snapshot
-		if sub.Status != StatusActive || sub.NextBillingAt.After(now) {
-			return nil
-		}
-		count, err := r.CountInvoices(ctx, sub.ID)
-		if err != nil {
+		n, err := r.CountInvoices(ctx, sub.ID)
+		if err != nil || n != count || !samePlan(sub, snap) {
 			return err
 		}
-		periods, start, end, next := planBilling(sub, now, count)
-		if len(periods) == maxCatchUpPeriods {
-			log.Printf("[subscription] %s is more than %d periods behind - billing the rest on the next runs", sub.ID, maxCatchUpPeriods)
-		}
-		for _, p := range periods {
-			created, err := r.CreateInvoice(ctx, sub.ID, p.PeriodStart, p.PeriodEnd, cycleAmount(sub), sub.CurrencyCode, p.Sequence)
+		for _, p := range plan.invoices {
+			created, err := r.CreateInvoice(ctx, sub.ID, p.PeriodStart, p.PeriodEnd, p.Amount, sub.CurrencyCode, p.Sequence)
 			if err != nil {
 				return err
 			}
@@ -137,25 +155,83 @@ func (s *Service) billOne(ctx context.Context, id uuid.UUID, now time.Time) erro
 				minted = append(minted, p)
 			}
 		}
-		if _, err := r.AdvancePeriod(ctx, sub.ID, start, end, next, sub.BillingAnchor); err != nil {
+		if _, err = r.AdvancePeriod(ctx, sub.ID, plan.start, plan.end, plan.next, plan.anchor); err != nil {
 			return err
 		}
-		billedSub = sub
+		advanced = true
 		return nil
 	})
 	if err != nil {
-		return err
+		return false, err
 	}
 	for _, p := range minted {
-		s.publishInvoiced(ctx, billedSub, p)
+		s.publishInvoiced(ctx, snap, p)
 	}
-	return nil
+	return advanced, nil
+}
+
+type renewalPlan struct {
+	invoices                 []plannedPeriod
+	start, end, next, anchor time.Time
+}
+
+// planRenewal is what billing the due periods mints and where the subscription stands after, with every renewing
+// hook's say - a skipped period mints nothing, and a delay stops the run there
+func (s *Service) planRenewal(ctx context.Context, sub Subscription, count int64, now time.Time) (renewalPlan, error) {
+	periods, start, end, next := planBilling(sub, now, count)
+	if len(periods) == maxCatchUpPeriods {
+		log.Printf("[subscription] %s is more than %d periods behind - billing the rest on the next runs", sub.ID, maxCatchUpPeriods)
+	}
+	plan := renewalPlan{start: start, end: end, next: next, anchor: sub.BillingAnchor}
+	seq := int32(count)
+	for i, p := range periods {
+		ev, err := s.renewing(ctx, sub, p, seq+1, now)
+		if err != nil {
+			return renewalPlan{}, err
+		}
+		if ev.DelayUntil != nil {
+			plan.start, plan.end, plan.next, plan.anchor = sub.CurrentPeriodStart, *ev.DelayUntil, *ev.DelayUntil, *ev.DelayUntil
+			if i > 0 {
+				plan.start = periods[i-1].PeriodStart
+			}
+			break
+		}
+		if ev.Skip {
+			continue
+		}
+		// Numbered as they're minted, so a skipped period leaves no gap for a later run to collide with
+		seq++
+		p.Sequence, p.Amount = seq, ev.AmountCents
+		plan.invoices = append(plan.invoices, p)
+	}
+	return plan, nil
+}
+
+// samePlan is whether the subscription under the lock still bills the way its snapshot was planned
+func samePlan(a, b Subscription) bool {
+	return a.Status == b.Status && a.NextBillingAt.Equal(b.NextBillingAt) && a.CurrentPeriodStart.Equal(b.CurrentPeriodStart) &&
+		a.CurrentPeriodEnd.Equal(b.CurrentPeriodEnd) && a.BillingAnchor.Equal(b.BillingAnchor) && cycleAmount(a) == cycleAmount(b)
 }
 
 type plannedPeriod struct {
 	PeriodStart time.Time
 	PeriodEnd   time.Time
 	Sequence    int32
+	Amount      int64
+}
+
+func (s *Service) renewing(ctx context.Context, sub Subscription, p plannedPeriod, seq int32, now time.Time) (*Renewing, error) {
+	ev := &Renewing{
+		SubscriptionID: sub.ID, ChannelID: chanOrNil(sub.ChannelID), CustomerID: sub.CustomerID, ProductID: sub.ProductID,
+		SKU: sub.SKU, Quantity: sub.Quantity, Sequence: seq, PeriodStart: p.PeriodStart, PeriodEnd: p.PeriodEnd,
+		CurrencyCode: sub.CurrencyCode, AmountCents: cycleAmount(sub), now: now,
+	}
+	if s.bus != nil {
+		if err := s.bus.PublishSync(ctx, ev); err != nil {
+			return nil, fmt.Errorf("subscription.renewing: %w", err)
+		}
+	}
+	return ev, nil
 }
 
 // Computes the invoices to mint and the resulting current period, numbering after existingInvoices - bill-in-advance, so each elapsed boundary mints one invoice and catches up across periods missed to downtime - Pure, so testable

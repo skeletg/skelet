@@ -20,9 +20,11 @@ SET current_period_start = $2,
     current_period_end   = $3,
     next_billing_at      = $4,
     billing_anchor       = $5,
+    renewal_failures     = 0,
+    renewal_retry_at     = NULL,
     updated_at           = NOW()
 WHERE id = $1
-RETURNING id, customer_id, product_id, order_id, status, interval_unit, interval_count, price, currency_code, quantity, sku, title, current_period_start, current_period_end, next_billing_at, canceled_at, created_at, updated_at, channel_id, payment_method_id, billing_anchor
+RETURNING id, customer_id, product_id, order_id, status, interval_unit, interval_count, price, currency_code, quantity, sku, title, current_period_start, current_period_end, next_billing_at, canceled_at, created_at, updated_at, channel_id, payment_method_id, billing_anchor, renewal_failures, renewal_retry_at
 `
 
 type AdvanceSubscriptionPeriodParams struct {
@@ -64,6 +66,8 @@ func (q *Queries) AdvanceSubscriptionPeriod(ctx context.Context, arg AdvanceSubs
 		&i.ChannelID,
 		&i.PaymentMethodID,
 		&i.BillingAnchor,
+		&i.RenewalFailures,
+		&i.RenewalRetryAt,
 	)
 	return i, err
 }
@@ -106,7 +110,7 @@ INSERT INTO subscriptions (
     current_period_start, current_period_end, next_billing_at, channel_id, billing_anchor
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-RETURNING id, customer_id, product_id, order_id, status, interval_unit, interval_count, price, currency_code, quantity, sku, title, current_period_start, current_period_end, next_billing_at, canceled_at, created_at, updated_at, channel_id, payment_method_id, billing_anchor
+RETURNING id, customer_id, product_id, order_id, status, interval_unit, interval_count, price, currency_code, quantity, sku, title, current_period_start, current_period_end, next_billing_at, canceled_at, created_at, updated_at, channel_id, payment_method_id, billing_anchor, renewal_failures, renewal_retry_at
 `
 
 type CreateSubscriptionParams struct {
@@ -169,6 +173,8 @@ func (q *Queries) CreateSubscription(ctx context.Context, arg CreateSubscription
 		&i.ChannelID,
 		&i.PaymentMethodID,
 		&i.BillingAnchor,
+		&i.RenewalFailures,
+		&i.RenewalRetryAt,
 	)
 	return i, err
 }
@@ -240,6 +246,24 @@ func (q *Queries) CreateSubscriptionInvoice(ctx context.Context, arg CreateSubsc
 	return items, nil
 }
 
+const deferSubscriptionRenewal = `-- name: DeferSubscriptionRenewal :exec
+UPDATE subscriptions
+SET renewal_failures = renewal_failures + 1,
+    renewal_retry_at = $1::timestamptz + make_interval(mins => least(power(2, renewal_failures), 360)::int)
+WHERE id = $2
+`
+
+type DeferSubscriptionRenewalParams struct {
+	Now time.Time `json:"now"`
+	ID  uuid.UUID `json:"id"`
+}
+
+// A minute after the first failure, twice as long after each next one, six hours at most
+func (q *Queries) DeferSubscriptionRenewal(ctx context.Context, arg DeferSubscriptionRenewalParams) error {
+	_, err := q.db.ExecContext(ctx, deferSubscriptionRenewal, arg.Now, arg.ID)
+	return err
+}
+
 const deleteSubscriptionTerms = `-- name: DeleteSubscriptionTerms :exec
 DELETE FROM catalog_subscription_terms WHERE product_id = $1
 `
@@ -250,7 +274,7 @@ func (q *Queries) DeleteSubscriptionTerms(ctx context.Context, productID uuid.UU
 }
 
 const getSubscriptionByID = `-- name: GetSubscriptionByID :one
-SELECT id, customer_id, product_id, order_id, status, interval_unit, interval_count, price, currency_code, quantity, sku, title, current_period_start, current_period_end, next_billing_at, canceled_at, created_at, updated_at, channel_id, payment_method_id, billing_anchor FROM subscriptions WHERE id = $1
+SELECT id, customer_id, product_id, order_id, status, interval_unit, interval_count, price, currency_code, quantity, sku, title, current_period_start, current_period_end, next_billing_at, canceled_at, created_at, updated_at, channel_id, payment_method_id, billing_anchor, renewal_failures, renewal_retry_at FROM subscriptions WHERE id = $1
 `
 
 func (q *Queries) GetSubscriptionByID(ctx context.Context, id uuid.UUID) (Subscription, error) {
@@ -278,12 +302,14 @@ func (q *Queries) GetSubscriptionByID(ctx context.Context, id uuid.UUID) (Subscr
 		&i.ChannelID,
 		&i.PaymentMethodID,
 		&i.BillingAnchor,
+		&i.RenewalFailures,
+		&i.RenewalRetryAt,
 	)
 	return i, err
 }
 
 const getSubscriptionForUpdate = `-- name: GetSubscriptionForUpdate :one
-SELECT id, customer_id, product_id, order_id, status, interval_unit, interval_count, price, currency_code, quantity, sku, title, current_period_start, current_period_end, next_billing_at, canceled_at, created_at, updated_at, channel_id, payment_method_id, billing_anchor FROM subscriptions WHERE id = $1 FOR UPDATE
+SELECT id, customer_id, product_id, order_id, status, interval_unit, interval_count, price, currency_code, quantity, sku, title, current_period_start, current_period_end, next_billing_at, canceled_at, created_at, updated_at, channel_id, payment_method_id, billing_anchor, renewal_failures, renewal_retry_at FROM subscriptions WHERE id = $1 FOR UPDATE
 `
 
 // Row-locked read used when billing/cancelling so period advancement is
@@ -313,6 +339,8 @@ func (q *Queries) GetSubscriptionForUpdate(ctx context.Context, id uuid.UUID) (S
 		&i.ChannelID,
 		&i.PaymentMethodID,
 		&i.BillingAnchor,
+		&i.RenewalFailures,
+		&i.RenewalRetryAt,
 	)
 	return i, err
 }
@@ -389,8 +417,8 @@ func (q *Queries) ListChargeableInvoices(ctx context.Context, arg ListChargeable
 }
 
 const listDueSubscriptions = `-- name: ListDueSubscriptions :many
-SELECT id, customer_id, product_id, order_id, status, interval_unit, interval_count, price, currency_code, quantity, sku, title, current_period_start, current_period_end, next_billing_at, canceled_at, created_at, updated_at, channel_id, payment_method_id, billing_anchor FROM subscriptions
-WHERE status = 'active' AND next_billing_at <= $1
+SELECT id, customer_id, product_id, order_id, status, interval_unit, interval_count, price, currency_code, quantity, sku, title, current_period_start, current_period_end, next_billing_at, canceled_at, created_at, updated_at, channel_id, payment_method_id, billing_anchor, renewal_failures, renewal_retry_at FROM subscriptions
+WHERE status = 'active' AND next_billing_at <= $1 AND (renewal_retry_at IS NULL OR renewal_retry_at <= $1)
 ORDER BY next_billing_at
 LIMIT $2
 `
@@ -432,6 +460,8 @@ func (q *Queries) ListDueSubscriptions(ctx context.Context, arg ListDueSubscript
 			&i.ChannelID,
 			&i.PaymentMethodID,
 			&i.BillingAnchor,
+			&i.RenewalFailures,
+			&i.RenewalRetryAt,
 		); err != nil {
 			return nil, err
 		}
@@ -491,7 +521,7 @@ func (q *Queries) ListSubscriptionInvoices(ctx context.Context, subscriptionID u
 }
 
 const listSubscriptions = `-- name: ListSubscriptions :many
-SELECT id, customer_id, product_id, order_id, status, interval_unit, interval_count, price, currency_code, quantity, sku, title, current_period_start, current_period_end, next_billing_at, canceled_at, created_at, updated_at, channel_id, payment_method_id, billing_anchor FROM subscriptions
+SELECT id, customer_id, product_id, order_id, status, interval_unit, interval_count, price, currency_code, quantity, sku, title, current_period_start, current_period_end, next_billing_at, canceled_at, created_at, updated_at, channel_id, payment_method_id, billing_anchor, renewal_failures, renewal_retry_at FROM subscriptions
 WHERE ($3::text IS NULL OR status = $3::text)
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2
@@ -534,6 +564,8 @@ func (q *Queries) ListSubscriptions(ctx context.Context, arg ListSubscriptionsPa
 			&i.ChannelID,
 			&i.PaymentMethodID,
 			&i.BillingAnchor,
+			&i.RenewalFailures,
+			&i.RenewalRetryAt,
 		); err != nil {
 			return nil, err
 		}
@@ -549,7 +581,7 @@ func (q *Queries) ListSubscriptions(ctx context.Context, arg ListSubscriptionsPa
 }
 
 const listSubscriptionsByCustomer = `-- name: ListSubscriptionsByCustomer :many
-SELECT id, customer_id, product_id, order_id, status, interval_unit, interval_count, price, currency_code, quantity, sku, title, current_period_start, current_period_end, next_billing_at, canceled_at, created_at, updated_at, channel_id, payment_method_id, billing_anchor FROM subscriptions
+SELECT id, customer_id, product_id, order_id, status, interval_unit, interval_count, price, currency_code, quantity, sku, title, current_period_start, current_period_end, next_billing_at, canceled_at, created_at, updated_at, channel_id, payment_method_id, billing_anchor, renewal_failures, renewal_retry_at FROM subscriptions
 WHERE customer_id = $1
 ORDER BY created_at DESC
 `
@@ -585,6 +617,8 @@ func (q *Queries) ListSubscriptionsByCustomer(ctx context.Context, customerID uu
 			&i.ChannelID,
 			&i.PaymentMethodID,
 			&i.BillingAnchor,
+			&i.RenewalFailures,
+			&i.RenewalRetryAt,
 		); err != nil {
 			return nil, err
 		}
@@ -600,7 +634,7 @@ func (q *Queries) ListSubscriptionsByCustomer(ctx context.Context, customerID uu
 }
 
 const listSubscriptionsByOrder = `-- name: ListSubscriptionsByOrder :many
-SELECT id, customer_id, product_id, order_id, status, interval_unit, interval_count, price, currency_code, quantity, sku, title, current_period_start, current_period_end, next_billing_at, canceled_at, created_at, updated_at, channel_id, payment_method_id, billing_anchor FROM subscriptions WHERE order_id = $1 ORDER BY created_at
+SELECT id, customer_id, product_id, order_id, status, interval_unit, interval_count, price, currency_code, quantity, sku, title, current_period_start, current_period_end, next_billing_at, canceled_at, created_at, updated_at, channel_id, payment_method_id, billing_anchor, renewal_failures, renewal_retry_at FROM subscriptions WHERE order_id = $1 ORDER BY created_at
 `
 
 func (q *Queries) ListSubscriptionsByOrder(ctx context.Context, orderID uuid.NullUUID) ([]Subscription, error) {
@@ -634,6 +668,8 @@ func (q *Queries) ListSubscriptionsByOrder(ctx context.Context, orderID uuid.Nul
 			&i.ChannelID,
 			&i.PaymentMethodID,
 			&i.BillingAnchor,
+			&i.RenewalFailures,
+			&i.RenewalRetryAt,
 		); err != nil {
 			return nil, err
 		}
@@ -649,7 +685,7 @@ func (q *Queries) ListSubscriptionsByOrder(ctx context.Context, orderID uuid.Nul
 }
 
 const listSubscriptionsForChannels = `-- name: ListSubscriptionsForChannels :many
-SELECT id, customer_id, product_id, order_id, status, interval_unit, interval_count, price, currency_code, quantity, sku, title, current_period_start, current_period_end, next_billing_at, canceled_at, created_at, updated_at, channel_id, payment_method_id, billing_anchor FROM subscriptions
+SELECT id, customer_id, product_id, order_id, status, interval_unit, interval_count, price, currency_code, quantity, sku, title, current_period_start, current_period_end, next_billing_at, canceled_at, created_at, updated_at, channel_id, payment_method_id, billing_anchor, renewal_failures, renewal_retry_at FROM subscriptions
 WHERE ($1::text IS NULL OR status = $1::text)
   AND channel_id = ANY($2::uuid[])
 ORDER BY created_at DESC
@@ -699,6 +735,8 @@ func (q *Queries) ListSubscriptionsForChannels(ctx context.Context, arg ListSubs
 			&i.ChannelID,
 			&i.PaymentMethodID,
 			&i.BillingAnchor,
+			&i.RenewalFailures,
+			&i.RenewalRetryAt,
 		); err != nil {
 			return nil, err
 		}
@@ -772,7 +810,7 @@ const setSubscriptionPaymentMethod = `-- name: SetSubscriptionPaymentMethod :one
 UPDATE subscriptions
 SET    payment_method_id = $2, updated_at = now()
 WHERE  id = $1
-RETURNING id, customer_id, product_id, order_id, status, interval_unit, interval_count, price, currency_code, quantity, sku, title, current_period_start, current_period_end, next_billing_at, canceled_at, created_at, updated_at, channel_id, payment_method_id, billing_anchor
+RETURNING id, customer_id, product_id, order_id, status, interval_unit, interval_count, price, currency_code, quantity, sku, title, current_period_start, current_period_end, next_billing_at, canceled_at, created_at, updated_at, channel_id, payment_method_id, billing_anchor, renewal_failures, renewal_retry_at
 `
 
 type SetSubscriptionPaymentMethodParams struct {
@@ -805,6 +843,8 @@ func (q *Queries) SetSubscriptionPaymentMethod(ctx context.Context, arg SetSubsc
 		&i.ChannelID,
 		&i.PaymentMethodID,
 		&i.BillingAnchor,
+		&i.RenewalFailures,
+		&i.RenewalRetryAt,
 	)
 	return i, err
 }
@@ -815,7 +855,7 @@ SET status      = $2,
     canceled_at = $3,
     updated_at  = NOW()
 WHERE id = $1
-RETURNING id, customer_id, product_id, order_id, status, interval_unit, interval_count, price, currency_code, quantity, sku, title, current_period_start, current_period_end, next_billing_at, canceled_at, created_at, updated_at, channel_id, payment_method_id, billing_anchor
+RETURNING id, customer_id, product_id, order_id, status, interval_unit, interval_count, price, currency_code, quantity, sku, title, current_period_start, current_period_end, next_billing_at, canceled_at, created_at, updated_at, channel_id, payment_method_id, billing_anchor, renewal_failures, renewal_retry_at
 `
 
 type SetSubscriptionStatusParams struct {
@@ -849,6 +889,8 @@ func (q *Queries) SetSubscriptionStatus(ctx context.Context, arg SetSubscription
 		&i.ChannelID,
 		&i.PaymentMethodID,
 		&i.BillingAnchor,
+		&i.RenewalFailures,
+		&i.RenewalRetryAt,
 	)
 	return i, err
 }

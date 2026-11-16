@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -17,18 +18,21 @@ import (
 // Accessors carry the event's own prefix because a Go method can't share a field's name, and core's events keep
 // their fields
 const (
-	EventCartLineAdding      = "cart.line.adding"
-	EventCartBundleAdding    = "cart.bundle.adding"
-	EventCartLineUpdating    = "cart.line.updating"
-	EventCartLineRemoving    = "cart.line.removing"
-	EventCheckoutValidating  = "checkout.validating"
-	EventOrderPlacing        = "order.placing"
-	EventOrderCancelling     = "order.cancelling"
-	EventOrderFulfilling     = "order.fulfilling"
-	EventInventoryAllocating = "inventory.allocating"
-	EventReviewSubmitting    = "review.submitting"
-	EventCustomerRegistering = "customer.registering"
-	EventCustomerDeleting    = "customer.deleting"
+	EventCartLineAdding       = "cart.line.adding"
+	EventCartBundleAdding     = "cart.bundle.adding"
+	EventCartLineUpdating     = "cart.line.updating"
+	EventCartLineRemoving     = "cart.line.removing"
+	EventCheckoutValidating   = "checkout.validating"
+	EventOrderPlacing         = "order.placing"
+	EventOrderCancelling      = "order.cancelling"
+	EventOrderFulfilling      = "order.fulfilling"
+	EventOrderTransitioning   = "order.transitioning"
+	EventInventoryAllocating  = "inventory.allocating"
+	EventReviewSubmitting     = "review.submitting"
+	EventCustomerRegistering  = "customer.registering"
+	EventCustomerDeleting     = "customer.deleting"
+	EventLoyaltyEarning       = "loyalty.earning"
+	EventSubscriptionRenewing = "subscription.renewing"
 )
 
 // A line about to be added to a cart - what arrives is what will be written, so a price or quantity set here is the
@@ -105,6 +109,17 @@ type CheckoutReview interface {
 	AddCheckoutTags(tags ...string)
 }
 
+// On checkout.validating and order.placing - false for a field left empty or no longer asked
+type CheckoutFieldAnswers interface {
+	CheckoutFieldValue(key string) (string, bool)
+}
+
+// On order.placing, into the order's metadata - Plugin.SetOrderMetadata keeps a key under your slug, and "tracking" is
+// core's
+type OrderPlacingMetadata interface {
+	SetPlacingMetadata(key, value string) error
+}
+
 // Before the placement transaction opens - the place for gates that call out, since a slow one delays the shopper
 // without holding a transaction. What it adds seeds the order.placing that follows
 type CheckoutValidating interface {
@@ -173,6 +188,17 @@ type OrderFulfilling interface {
 	SetFulfillingTrackingNumber(number string) error
 }
 
+// An order about to change status or stage - refuse-only. It fires for the moves someone asks for (an admin's, a
+// customer's cancel, a shipment, a hold, a plugin's stage), not the ones placement makes itself
+type OrderTransitioning interface {
+	TransitioningOrderID() uuid.UUID
+	TransitioningChannelID() uuid.UUID
+	TransitioningFromStatus() string
+	TransitioningToStatus() string // the same as the from status when only the stage moves
+	TransitioningFromStage() string
+	TransitioningToStage() string // empty when the order is left without one
+}
+
 // Stock about to be reserved for an order, line by line - a plugin routes a line to one stock location, and core
 // reserves it only there. A location outside the order's channel fails the placement, so route to the channel's own
 type InventoryAllocating interface {
@@ -219,4 +245,45 @@ type CustomerDeleting interface {
 	DeletingCustomerID() uuid.UUID
 	DeletingChannelID() uuid.UUID
 	DeletingEmail() string
+}
+
+// Points about to be earned on a paid-for order, the channel's rate already applied - change them for a rule of your
+// own, like double points on a category or none on free gifts. It can arrive more than once for an order, so compute
+// the points from the event alone rather than counting what you've seen
+type LoyaltyEarning interface {
+	EarningOrderID() uuid.UUID
+	EarningChannelID() uuid.UUID
+	EarningCustomerID() uuid.UUID
+	EarningCurrencyCode() string
+	EarningUnitCents() int64 // cents in one whole currency unit, what the rate earns per
+	EarningPointsPerUnit() int64
+	EarningMerchandiseCents() int64 // the subtotal less discounts, what core's points came from
+	EarningLineCount() int
+	EarningLine(i int) (sku string, quantity float64, totalCents int64)
+	EarningLineProduct(i int) (productID uuid.UUID, categoryIDs []uuid.UUID) // uuid.Nil for a line with no catalog product
+	EarningLineUnitCents(i int) int64                                        // what one unit sold for
+	EarningLineGift(i int) bool                                              // a promotion's free gift
+	EarningPoints() int64
+	SetEarningPoints(points int64) error // refuses a negative number, or one past 100,000,000 - 0 earns nothing
+	AddEarningNote(note string)          // shown in the points history beside the order number - five at most, 200 characters each
+}
+
+// A subscription's next period about to be invoiced - change what it costs, skip it, or move it later. It runs before
+// the subscription is locked for billing and can arrive more than once for a period, so decide from the event alone;
+// an error leaves the period for a later run, a minute on and longer each time
+type SubscriptionRenewing interface {
+	RenewalSubscriptionID() uuid.UUID
+	RenewalChannelID() uuid.UUID
+	RenewalCustomerID() *uuid.UUID // nil for a guest's
+	RenewalProductID() uuid.UUID
+	RenewalSKU() string
+	RenewalQuantity() float64
+	RenewalSequence() int // which invoice this would be, 1 for the first renewal
+	RenewalPeriodStart() time.Time
+	RenewalPeriodEnd() time.Time
+	RenewalCurrencyCode() string
+	RenewalAmountCents() int64
+	SetRenewalAmount(cents int64) error // refuses a negative amount, or one past 10,000,000,000 - 0 bills nothing
+	SkipRenewal()                       // the period passes unbilled, and the next comes as usual
+	DelayRenewal(until time.Time) error // refuses a time not ahead of now - later periods count from it, and it wins over a skip
 }
