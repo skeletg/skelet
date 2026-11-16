@@ -31,3 +31,30 @@ func TestLineNetTakesEachLinesShareOfTheDiscount(t *testing.T) {
 		t.Fatalf("tax-inclusive net = shirt %d mug %d, want 3000 and 750 - the tax share taken out", net[shirt], net[mug])
 	}
 }
+
+// The mug removed and a cap added, the €5 coupon held: the shirts' share of it grows, so they lose net sales too
+func TestLineAdjustmentsAreWhatTheEditMovedOnEachLine(t *testing.T) {
+	shirt, mug, cap := uuid.New(), uuid.New(), uuid.New()
+	before := []EditedLine{{LineID: shirt, ProductSku: "SHIRT", Quantity: 2, NetCents: 3600}, {LineID: mug, ProductSku: "MUG", Quantity: 1, NetCents: 900}}
+	after := Order{
+		Lines:          []OrderLine{{ID: shirt, ProductSku: "SHIRT", UnitPrice: 2000, Quantity: 2}, {ID: cap, ProductSku: "CAP", UnitPrice: 1000, Quantity: 1}},
+		SubtotalAmount: 5000, DiscountAmount: 500, // no tax, so net is the subtotal less the coupon share
+	}
+	got := LineAdjustments(before, after)
+	if len(got) != 2 {
+		t.Fatalf("adjustments = %+v, want the mug and the cap - the shirts' share didn't move", got)
+	}
+	if m := got[0]; m.LineID != mug || !m.Removed || m.Quantity != -1 || m.NetCents != -900 {
+		t.Errorf("mug = %+v, want removed, -1, -900", m)
+	}
+	if c := got[1]; c.LineID != cap || !c.Added || c.Quantity != 1 || c.NetCents != 900 {
+		t.Errorf("cap = %+v, want added, 1, 900", c)
+	}
+
+	after.Lines = after.Lines[:1] // the cap dropped too: the shirts carry the whole coupon now
+	after.SubtotalAmount = 4000
+	got = LineAdjustments(before, after)
+	if len(got) != 2 || got[0].LineID != shirt || got[0].NetCents != -100 || got[0].Quantity != 0 || got[0].Removed || got[0].Added {
+		t.Errorf("adjustments = %+v, want the shirts down 100 with the quantity unchanged, then the mug", got)
+	}
+}
