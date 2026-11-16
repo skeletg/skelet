@@ -10,7 +10,7 @@ INSERT INTO orders (
     subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount,
     currency_code, customer_note, payment_provider, shipping_method_id,
     shipping_carrier_slug, shipping_method_code, po_number, shipping_tax_amount, anon_id, business_ids, assisted_by, metadata,
-    locale, tax_inclusive, checkout_fields, number, seller
+    locale, tax_inclusive, checkout_fields, number, seller, fees
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
@@ -18,7 +18,7 @@ INSERT INTO orders (
     $27, $28, $29, $30, $31,
     $32, $33, $34, $35,
     $36, $37, $38, $39, $40, $41, $42, $43,
-    $44, $45, $46, $47, $48
+    $44, $45, $46, $47, $48, $49
 )
 -- A number taken since it was checked inserts nothing rather than aborting the transaction, so the caller can name
 -- the order again
@@ -243,7 +243,7 @@ RETURNING *;
 -- the edit records payment drift separately rather than silently re-settling
 UPDATE orders
 SET    subtotal_amount = $2, shipping_amount = $3, discount_amount = $4,
-       tax_amount = $5, total_amount = $6, shipping_tax_amount = $7, updated_at = NOW()
+       tax_amount = $5, total_amount = $6, shipping_tax_amount = $7, fees = $8, updated_at = NOW()
 WHERE  id = $1
 RETURNING *;
 

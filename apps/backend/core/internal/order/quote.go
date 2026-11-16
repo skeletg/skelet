@@ -12,11 +12,12 @@ type CheckoutQuote struct {
 	SubtotalCents int64
 	DiscountCents int64
 	ShippingCents int64
+	Fees          []Fee
 	TaxCents      int64
 	TotalCents    int64
 }
 
-// QuoteCheckout prices a checkout the way PlaceOrder will - the same resolution, promotion evaluation, shipping selection, tax and total - without the transaction, the plugin chains or the fraud screen
+// QuoteCheckout prices a checkout the way PlaceOrder will - the same resolution, promotion evaluation, shipping selection, fees, tax and total - without the transaction, the plugin chains or the fraud screen
 // A plugin that claims the shipping, tax or total seam at placement can still move the final figure; core pricing can't
 func (s *Service) QuoteCheckout(ctx context.Context, in PlaceOrderInput) (CheckoutQuote, error) {
 	cc, err := s.resolveCheckout(ctx, in, true)
@@ -50,19 +51,24 @@ func (s *Service) QuoteCheckout(ctx context.Context, in PlaceOrderInput) (Checko
 		discount = eval.Ledger.SubtotalDiscountCents()
 	}
 
-	var shippingCents int64
+	var ship shippingSelection
 	if len(in.Shipments) > 0 || in.FulfillmentNeed == FulfillmentNone {
 		sel, _, err := s.selectShipments(ctx, in, cc, discount, ranEngine, eval)
 		if err != nil {
 			return CheckoutQuote{}, err
 		}
-		shippingCents = sel.Cents
+		ship = sel
 	} else if s.shipping != nil {
 		sel, err := s.resolveShippingCents(ctx, in, cc, discount, ranEngine, eval)
 		if err != nil {
 			return CheckoutQuote{}, err
 		}
-		shippingCents = sel.Cents
+		ship = sel
+	}
+	shippingCents := ship.Cents
+	// Fees are quoted the way placement charges them, so the shopper pays what they were shown
+	if err := s.priceFees(ctx, cc, in, discount, ship, shippingCents); err != nil {
+		return CheckoutQuote{}, err
 	}
 
 	var taxCents int64
@@ -84,7 +90,8 @@ func (s *Service) QuoteCheckout(ctx context.Context, in PlaceOrderInput) (Checko
 		SubtotalCents: cc.subtotal,
 		DiscountCents: discount,
 		ShippingCents: shippingCents,
+		Fees:          cc.fees,
 		TaxCents:      taxCents,
-		TotalCents:    computeOrderTotal(cc.subtotal, discount, taxCents, shippingCents, cc.store.TaxInclusivePricing, nil),
+		TotalCents:    computeOrderTotal(cc.subtotal, discount, taxCents, shippingCents, feeTotal(cc.fees), cc.store.TaxInclusivePricing, nil),
 	}, nil
 }

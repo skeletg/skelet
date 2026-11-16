@@ -241,18 +241,19 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 			}
 		}
 
-		tax, shippingTax := o.TaxAmount, o.ShippingTaxAmount
+		// A fee stays what the shopper agreed to - only its tax follows the new lines, the way shipping's does
+		tax, shippingTax, fees := o.TaxAmount, o.ShippingTaxAmount, o.Fees
 		var taxLines []TaxLine
 		if s.tax != nil {
-			cc := &checkoutContext{customer: cust, shipping: o.ShippingAddress, store: &store, cart: synthetic, subtotal: subtotal}
+			cc := &checkoutContext{customer: cust, shipping: o.ShippingAddress, store: &store, cart: synthetic, subtotal: subtotal, fees: o.Fees}
 			tax, err = s.computeLineTax(ctx, cc, discount, shipping)
 			if err != nil {
 				return err
 			}
-			taxLines, shippingTax = cc.taxLines, cc.shippingTax
+			taxLines, shippingTax, fees = cc.taxLines, cc.shippingTax, cc.fees
 		}
 
-		total := computeOrderTotal(subtotal, discount, tax, shipping, store.TaxInclusivePricing, nil)
+		total := computeOrderTotal(subtotal, discount, tax, shipping, feeTotal(fees), store.TaxInclusivePricing, nil)
 		// An edit that shrinks the order below what the non-gateway tenders already covered would leave AmountDue() negative - the resolver floors it at 0, so the overpayment was invisible on every surface. Record the drift on the timeline; the operator refunds the difference, since a gift card or store credit can't be un-spent silently.
 		if tendered := o.GiftCardAmount + o.StoreCreditAmount; tendered > total {
 			if _, err := r.AddOrderEvent(ctx, OrderEvent{
@@ -263,7 +264,7 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 				return fmt.Errorf("add over-tender event: %w", err)
 			}
 		}
-		updated, err = r.UpdateOrderAmounts(ctx, o.ID, OrderAmounts{Subtotal: subtotal, Shipping: shipping, Discount: discount, Tax: tax, ShippingTax: shippingTax, Total: total})
+		updated, err = r.UpdateOrderAmounts(ctx, o.ID, OrderAmounts{Subtotal: subtotal, Shipping: shipping, Discount: discount, Tax: tax, ShippingTax: shippingTax, Fees: fees, Total: total})
 		if err != nil {
 			return err
 		}
@@ -450,17 +451,17 @@ func (s *Service) EditOrderAddress(ctx context.Context, in EditOrderAddressInput
 					return err
 				}
 			}
-			tax, shippingTax := o.TaxAmount, o.ShippingTaxAmount
+			tax, shippingTax, fees := o.TaxAmount, o.ShippingTaxAmount, o.Fees
 			var taxLines []TaxLine
 			if s.tax != nil {
-				cc := &checkoutContext{customer: cust, shipping: shipping, store: &store, cart: synthetic, subtotal: subtotal}
+				cc := &checkoutContext{customer: cust, shipping: shipping, store: &store, cart: synthetic, subtotal: subtotal, fees: o.Fees}
 				if tax, err = s.computeLineTax(ctx, cc, discount, shipAmount); err != nil {
 					return err
 				}
-				taxLines, shippingTax = cc.taxLines, cc.shippingTax
+				taxLines, shippingTax, fees = cc.taxLines, cc.shippingTax, cc.fees
 			}
-			total := computeOrderTotal(subtotal, discount, tax, shipAmount, store.TaxInclusivePricing, nil)
-			if updated, err = r.UpdateOrderAmounts(ctx, o.ID, OrderAmounts{Subtotal: subtotal, Shipping: shipAmount, Discount: discount, Tax: tax, ShippingTax: shippingTax, Total: total}); err != nil {
+			total := computeOrderTotal(subtotal, discount, tax, shipAmount, feeTotal(fees), store.TaxInclusivePricing, nil)
+			if updated, err = r.UpdateOrderAmounts(ctx, o.ID, OrderAmounts{Subtotal: subtotal, Shipping: shipAmount, Discount: discount, Tax: tax, ShippingTax: shippingTax, Fees: fees, Total: total}); err != nil {
 				return err
 			}
 			if err := replaceTaxLines(ctx, r, o.ID, taxLines); err != nil {

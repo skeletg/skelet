@@ -318,6 +318,9 @@ func (d doc) orderTotals() {
 		d.totalRow("Discount", -o.DiscountAmount, false)
 	}
 	d.totalRow("Shipping", o.ShippingAmount, false)
+	for _, f := range o.Fees {
+		d.totalRow(f.Label, f.AmountCents, false)
+	}
 	if !d.in.TaxInclusive {
 		d.totalRow("Tax", o.TaxAmount, false)
 	}

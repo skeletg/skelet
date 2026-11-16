@@ -764,6 +764,7 @@ export type CheckoutTotals = {
   __typename?: 'CheckoutTotals';
   amountDueCents: Scalars['Int']['output'];
   discountCents: Scalars['Int']['output'];
+  fees: Array<OrderFee>;
   giftCardCents: Scalars['Int']['output'];
   shippingCents: Scalars['Int']['output'];
   storeCreditCents: Scalars['Int']['output'];
@@ -1657,6 +1658,7 @@ export type Order = {
   customerNote?: Maybe<Scalars['String']['output']>;
   discountAmount: Scalars['Int']['output'];
   events: Array<OrderEvent>;
+  fees: Array<OrderFee>;
   giftCardAmount: Scalars['Int']['output'];
   id: Scalars['ID']['output'];
   lines: Array<OrderLine>;
@@ -1701,6 +1703,13 @@ export type OrderEvent = {
   id: Scalars['ID']['output'];
   message: Scalars['String']['output'];
   type: Scalars['String']['output'];
+};
+
+export type OrderFee = {
+  __typename?: 'OrderFee';
+  amount: Scalars['Int']['output'];
+  key: Scalars['String']['output'];
+  label: Scalars['String']['output'];
 };
 
 export type OrderLine = {

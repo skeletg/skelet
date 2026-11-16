@@ -7786,6 +7786,7 @@ export type Order = {
   discountAmount: Scalars['Int']['output'];
   email: Scalars['String']['output'];
   events: Array<OrderEvent>;
+  fees: Array<OrderFee>;
   fulfillmentNeed: Scalars['String']['output'];
   fulfillments: Array<Fulfillment>;
   giftCardAmount: Scalars['Int']['output'];
@@ -7873,6 +7874,14 @@ export type OrderEvent = {
   id: Scalars['ID']['output'];
   message: Scalars['String']['output'];
   type: Scalars['String']['output'];
+};
+
+export type OrderFee = {
+  __typename?: 'OrderFee';
+  amount: Scalars['Int']['output'];
+  key: Scalars['String']['output'];
+  label: Scalars['String']['output'];
+  taxAmount: Scalars['Int']['output'];
 };
 
 export type OrderLine = {

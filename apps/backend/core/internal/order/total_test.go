@@ -26,7 +26,7 @@ func TestOrderTotal(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := computeOrderTotal(c.subtotal, c.discount, c.tax, c.shipping, c.taxInclusive, c.override)
+			got := computeOrderTotal(c.subtotal, c.discount, c.tax, c.shipping, 0, c.taxInclusive, c.override)
 			if got != c.want {
 				t.Errorf("orderTotal = %d, want %d", got, c.want)
 			}

@@ -9,24 +9,28 @@ import (
 // Inclusive prices ALREADY contain the tax - adding it again overcharges on every edit and placement
 func TestComputeOrderTotal(t *testing.T) {
 	cases := []struct {
-		name                              string
-		subtotal, discount, tax, shipping int64
-		taxInclusive                      bool
-		want                              int64
+		name                                    string
+		subtotal, discount, tax, shipping, fees int64
+		taxInclusive                            bool
+		want                                    int64
 	}{
-		{"exclusive adds tax on top", 10_000, 0, 800, 500, false, 11_300},
-		{"inclusive leaves tax inside the lines", 10_000, 0, 800, 500, true, 10_500},
-		{"discount comes off the subtotal", 10_000, 1_500, 0, 500, false, 9_000},
-		{"discount and tax together", 10_000, 1_000, 720, 500, false, 10_220},
-		{"zero everything", 0, 0, 0, 0, false, 0},
+		{"exclusive adds tax on top", 10_000, 0, 800, 500, 0, false, 11_300},
+		{"inclusive leaves tax inside the lines", 10_000, 0, 800, 500, 0, true, 10_500},
+		{"discount comes off the subtotal", 10_000, 1_500, 0, 500, 0, false, 9_000},
+		{"discount and tax together", 10_000, 1_000, 720, 500, 0, false, 10_220},
+		{"zero everything", 0, 0, 0, 0, 0, false, 0},
+
+		// A fee is charged like shipping - on top of the goods, with its tax already in TaxAmount
+		{"exclusive fee on top", 10_000, 0, 900, 500, 1_000, false, 12_400},
+		{"inclusive fee holds its tax", 10_000, 0, 900, 500, 1_000, true, 11_500},
 
 		// A discount above the goods must never charge a negative amount
-		{"discount above subtotal floors at zero", 1_000, 5_000, 0, 0, false, 0},
-		{"discount above subtotal with shipping floors at zero", 1_000, 5_000, 0, 300, false, 0},
+		{"discount above subtotal floors at zero", 1_000, 5_000, 0, 0, 0, false, 0},
+		{"discount above subtotal with shipping floors at zero", 1_000, 5_000, 0, 300, 0, false, 0},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := computeOrderTotal(c.subtotal, c.discount, c.tax, c.shipping, c.taxInclusive, nil)
+			got := computeOrderTotal(c.subtotal, c.discount, c.tax, c.shipping, c.fees, c.taxInclusive, nil)
 			if got != c.want {
 				t.Errorf("computeOrderTotal(sub=%d, disc=%d, tax=%d, ship=%d, inclusive=%v) = %d, want %d",
 					c.subtotal, c.discount, c.tax, c.shipping, c.taxInclusive, got, c.want)
@@ -38,11 +42,11 @@ func TestComputeOrderTotal(t *testing.T) {
 // A draft's operator-set total replaces the arithmetic entirely, but still can't go negative
 func TestComputeOrderTotal_Override(t *testing.T) {
 	override := int64(4_200)
-	if got := computeOrderTotal(10_000, 0, 800, 500, false, &override); got != 4_200 {
+	if got := computeOrderTotal(10_000, 0, 800, 500, 0, false, &override); got != 4_200 {
 		t.Errorf("total = %d, want the override 4200", got)
 	}
 	negative := int64(-100)
-	if got := computeOrderTotal(10_000, 0, 0, 0, false, &negative); got != 0 {
+	if got := computeOrderTotal(10_000, 0, 0, 0, 0, false, &negative); got != 0 {
 		t.Errorf("total = %d, want 0 - an override must not make the order owe the customer", got)
 	}
 }

@@ -152,6 +152,10 @@ export function OrderSummaryPanel({ order, isDraft }: { order: OrderData; isDraf
             <Row label="Discount" value={`-${money(order.discountAmount)}`} />
           ))}
         <Row label="Shipping" value={money(order.shippingAmount)} />
+        {/* What plugins charged on top - a credit memo refunds one through its adjustment refund */}
+        {(order.fees ?? []).map((f) => (
+          <Row key={f.key} label={f.label} value={money(f.amount)} />
+        ))}
         {/* Tax inside the prices is part of them, not one more amount - it's said under the total instead */}
         {order.taxIncluded ? null : order.taxLines.length > 0 ? (
           <ExpandableRow label="Tax" value={money(order.taxAmount)}>

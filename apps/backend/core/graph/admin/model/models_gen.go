@@ -3787,6 +3787,7 @@ type Order struct {
 	TaxIncluded         bool                  `json:"taxIncluded"`
 	ShippingTaxAmount   int32                 `json:"shippingTaxAmount"`
 	ShippingRefundable  int32                 `json:"shippingRefundable"`
+	Fees                []*OrderFee           `json:"fees"`
 	Total               int32                 `json:"total"`
 	GiftCardAmount      int32                 `json:"giftCardAmount"`
 	StoreCreditAmount   int32                 `json:"storeCreditAmount"`
@@ -3837,6 +3838,13 @@ type OrderEvent struct {
 	Message    string    `json:"message"`
 	ActorEmail *string   `json:"actorEmail,omitempty"`
 	CreatedAt  time.Time `json:"createdAt"`
+}
+
+type OrderFee struct {
+	Key       string `json:"key"`
+	Label     string `json:"label"`
+	Amount    int32  `json:"amount"`
+	TaxAmount int32  `json:"taxAmount"`
 }
 
 type OrderLine struct {

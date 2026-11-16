@@ -84,7 +84,6 @@ func TestRefundUnitByLine(t *testing.T) {
 		}
 	})
 
-	// total == subtotal - discount + tax + shipping marks the store tax-exclusive
 	t.Run("tax-exclusive order adds tax to the basis", func(t *testing.T) {
 		if got := refundUnitByLine(mk(0, 400, 0, 4_400))[lineA]; got != 1_100 {
 			t.Errorf("line A per-unit = %d, want 1100 - tax-exclusive refunds return the tax", got)
@@ -92,7 +91,9 @@ func TestRefundUnitByLine(t *testing.T) {
 	})
 
 	t.Run("tax-inclusive order does not add tax twice", func(t *testing.T) {
-		if got := refundUnitByLine(mk(0, 400, 0, 4_000))[lineA]; got != 1_000 {
+		o := mk(0, 400, 0, 4_000)
+		o.TaxInclusive = true
+		if got := refundUnitByLine(o)[lineA]; got != 1_000 {
 			t.Errorf("line A per-unit = %d, want 1000 - inclusive prices already contain the tax", got)
 		}
 	})

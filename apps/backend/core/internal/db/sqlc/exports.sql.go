@@ -95,6 +95,7 @@ SELECT o.id AS order_id, ol.id AS line_id, o.number, o.created_at, o.status, o.p
        COALESCE(o.payment_provider, '')::text AS payment_provider,
        o.email, o.currency_code,
        o.subtotal_amount, o.discount_amount, o.shipping_amount,
+       (SELECT COALESCE(SUM((f->>'amountCents')::bigint), 0) FROM jsonb_array_elements(o.fees) f)::bigint AS fee_amount,
        o.tax_amount, o.total_amount, o.gift_card_amount,
        ol.product_sku, ol.product_name, ol.quantity, ol.unit_price,
        ol.total_price, ol.cost_cents,
@@ -145,6 +146,7 @@ type ExportOrderRowsRow struct {
 	SubtotalAmount  int64         `json:"subtotal_amount"`
 	DiscountAmount  int64         `json:"discount_amount"`
 	ShippingAmount  int64         `json:"shipping_amount"`
+	FeeAmount       int64         `json:"fee_amount"`
 	TaxAmount       int64         `json:"tax_amount"`
 	TotalAmount     int64         `json:"total_amount"`
 	GiftCardAmount  int64         `json:"gift_card_amount"`
@@ -191,6 +193,7 @@ func (q *Queries) ExportOrderRows(ctx context.Context, arg ExportOrderRowsParams
 			&i.SubtotalAmount,
 			&i.DiscountAmount,
 			&i.ShippingAmount,
+			&i.FeeAmount,
 			&i.TaxAmount,
 			&i.TotalAmount,
 			&i.GiftCardAmount,

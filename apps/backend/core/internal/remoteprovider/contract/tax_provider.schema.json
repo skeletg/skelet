@@ -30,6 +30,33 @@
       "title": "order.remoteTaxAddress",
       "type": "object"
     },
+    "order.remoteTaxReqFee": {
+      "properties": {
+        "amountCents": {
+          "type": "integer"
+        },
+        "key": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "taxClass": {
+          "type": "string"
+        },
+        "taxable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "amountCents",
+        "key",
+        "label",
+        "taxable"
+      ],
+      "title": "order.remoteTaxReqFee",
+      "type": "object"
+    },
     "order.remoteTaxReqLine": {
       "properties": {
         "quantity": {
@@ -70,6 +97,12 @@
         },
         "discountCents": {
           "type": "integer"
+        },
+        "fees": {
+          "items": {
+            "$ref": "#/$defs/order.remoteTaxReqFee"
+          },
+          "type": "array"
         },
         "lines": {
           "items": {

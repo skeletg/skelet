@@ -162,7 +162,7 @@ func (s *Service) CreateDraftOrder(ctx context.Context, in CreateDraftOrderInput
 		}
 	}
 
-	total := computeOrderTotal(subtotal, discount, taxCents, shipSel.Cents, store.TaxInclusivePricing, nil)
+	total := computeOrderTotal(subtotal, discount, taxCents, shipSel.Cents, 0, store.TaxInclusivePricing, nil) // a draft is priced by whoever builds it, so plugins charge it no fees
 
 	orderID, err := uuid.NewV7()
 	if err != nil {

@@ -186,6 +186,11 @@ export function OrderDetailView({
           <Row label={t("shipping")}>
             {formatPrice(order.shippingAmount, order.currencyCode)}
           </Row>
+          {(order.fees ?? []).map((fee) => (
+            <Row key={fee.key} label={fee.label}>
+              {formatPrice(fee.amount, order.currencyCode)}
+            </Row>
+          ))}
           {/* Tax already inside the prices isn't one more amount to add, so it's said under the total instead */}
           {order.taxIncluded ? null : (
             <Row label={t("tax")}>

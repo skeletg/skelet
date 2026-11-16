@@ -28,7 +28,7 @@ func validReturnTransition(from, to string) bool {
 }
 
 // Re-derives each line's discounted per-unit basis, via the placement-tax allocator so the rounding matches what was charged
-// Tax belongs in it only when the store priced EXCLUSIVE - inclusive prices already contain it, and orders carry no tax_inclusive column so it's derived from the total
+// Tax belongs in it only when the store priced EXCLUSIVE - inclusive prices already contain it
 func refundUnitByLine(o Order) map[uuid.UUID]int64 {
 	return unitBasisByLine(o, true)
 }
@@ -48,7 +48,7 @@ func unitBasisByLine(o Order, withTax bool) map[uuid.UUID]int64 {
 	discounts := allocateLineDiscount(lineSubs, subtotal, o.DiscountAmount)
 	var taxes []int64
 	if withTax && taxAddedOnTop(o) {
-		taxes = allocateLineDiscount(lineSubs, subtotal, max(o.TaxAmount-o.ShippingTaxAmount, 0))
+		taxes = allocateLineDiscount(lineSubs, subtotal, max(o.TaxAmount-o.ShippingTaxAmount-o.FeeTaxAmount(), 0))
 	}
 	out := make(map[uuid.UUID]int64, len(o.Lines))
 	for i, l := range o.Lines {
@@ -61,8 +61,9 @@ func unitBasisByLine(o Order, withTax bool) map[uuid.UUID]int64 {
 	return out
 }
 
+// Read off the mode the order was priced in - working it out from the total stops holding once a total has more parts
 func taxAddedOnTop(o Order) bool {
-	return o.TaxAmount > 0 && o.TotalAmount == o.SubtotalAmount-o.DiscountAmount+o.TaxAmount+o.ShippingAmount
+	return o.TaxAmount > 0 && !o.TaxInclusive
 }
 
 // Shipping's tax rides along only where tax was added on top
@@ -89,12 +90,12 @@ func refundedMerchandiseFraction(ctx context.Context, repo Repository, o Order) 
 		refunded += money.LineTotal(unit[lineID], qty)
 	}
 
-	// A line-less memo refunded money without naming goods - attribute its non-shipping part in the order's own proportion, else a full flat refund revokes nothing
+	// A line-less memo refunded money without naming goods - attribute its non-shipping part in the order's own proportion, else a full flat refund revokes nothing. Fees are no more goods than shipping is
 	memos, err := repo.ListCreditMemos(ctx, o.ID)
 	if err != nil {
 		return 0, err
 	}
-	if nonShipping := o.TotalAmount - o.ShippingRefundable(); nonShipping > 0 {
+	if nonShipping := o.TotalAmount - o.ShippingRefundable() - o.FeesRefundable(); nonShipping > 0 {
 		for _, m := range memos {
 			if len(m.Lines) > 0 {
 				continue // exact, already counted through CreditedByOrderLine

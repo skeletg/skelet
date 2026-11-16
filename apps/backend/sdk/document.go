@@ -50,9 +50,15 @@ type DocumentOrder struct {
 	BusinessIDs  []DocumentField
 	PONumber     string
 	Lines        []DocumentLine
+	Fees         []DocumentFee // what plugins charged on top, in TotalCents
 
 	SubtotalCents, DiscountCents, ShippingCents, TaxCents, TotalCents int64
 	GiftCardCents, StoreCreditCents                                   int64
+}
+
+type DocumentFee struct {
+	Label string
+	Cents int64
 }
 
 type DocumentMemo struct {

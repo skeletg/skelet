@@ -174,6 +174,12 @@ function Totals({
             <span className="text-muted-foreground">{labels.afterPostcode}</span>
           )}
         </Row>
+        {/* A plugin's charge on top - cash-on-delivery handling, an eco fee - under its own label */}
+        {(totals.fees ?? []).map((fee) => (
+          <Row key={fee.key} label={fee.label}>
+            {formatPrice(fee.amount, currency)}
+          </Row>
+        ))}
         {/* Tax already inside the prices isn't one more amount to add, so it's said under the total instead */}
         {taxIncluded ? null : (
           <Row label={labels.tax}>

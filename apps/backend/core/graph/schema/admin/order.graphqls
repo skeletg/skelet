@@ -22,6 +22,16 @@ enum PaymentStatus {
   VOIDED
 }
 
+# A charge a plugin added at placement. A credit memo refunds it through its adjustment refund.
+type OrderFee {
+  # "<plugin>:<key>", stable across label changes
+  key:       String!
+  label:     String!
+  amount:    Int!
+  # The part of taxAmount charged on it. Zero when a remote tax provider or plugin priced the tax.
+  taxAmount: Int!
+}
+
 type Order {
   id:              ID!
   # Owning channel - orders are placed on exactly one channel. The
@@ -70,6 +80,8 @@ type Order {
   shippingTaxAmount: Int!
   # The most a credit memo can refund for shipping - its tax included where tax was added on top.
   shippingRefundable: Int!
+  # What plugins charged on top of the goods and shipping, with the labels the shopper saw. Included in total.
+  fees: [OrderFee!]!
   total:           Int!
   # Cents of `total` covered by gift-card tenders (not a discount - total
   # is unchanged). Amount owed to the payment provider is total minus this.

@@ -226,6 +226,8 @@ all out of tree. This is what the SDK gives it.
   error leaves the period for later too: a minute, then twice as long each time up to six hours,
   while the store's other subscriptions bill as usual. One period costs at most
   10,000,000,000 in minor units.
+- **`RegisterFee`** - a charge of your own on the order: cash-on-delivery handling, a payment
+  surcharge, an eco fee, a deposit. See below.
 - **`RegisterDataResource`** - your own data in the dashboard's import and export hub. Declare
   the columns, a view permission and an import permission you registered, and give an `Import`
   per row and an `Export` that streams records. Core handles the CSV or JSON Lines file, the
@@ -265,6 +267,40 @@ shows them under **At checkout** even after the field changes. Carts and orders 
 `order.placing`, `p.SetOrderMetadata(meta, "delivery_slot", v)` records a value of your own in
 the order's metadata under `<slug>:delivery_slot`, so no other plugin overwrites it; the admin API
 returns it as `Order.metadata`. Both go with a customer's data when they're erased.
+
+### Fees
+
+```go
+p.RegisterFee(sdk.Fee{
+    Key: "cod_handling", Label: "Cash on delivery",
+    Charge: func(ctx context.Context, req sdk.FeeRequest) (int64, error) {
+        if req.PaymentMethod != "cod" {
+            return 0, nil
+        }
+        return 250, nil
+    },
+})
+```
+
+A fee goes on after shipping and before tax. `Charge` gets the checkout as it stands - the lines,
+subtotal, discount, the shipping picked and what it costs, the payment method, the shopper's country,
+group and checkout-field answers (`p.FeeAnswer(req, key)` reads yours) - and returns what the fee comes
+to in minor units, holding its tax when `req.TaxInclusive`. Return 0 and the order carries no line for
+it. Core taxes it under `TaxClass`, empty being the class of a product that has none, unless you mark
+it `Untaxed`; a remote tax provider gets the fees in its request and taxes them its own way.
+
+The checkout quote runs it the same way placement does, so the shopper's summary shows the fee before
+they pay, and both storefront templates draw it as a row of its own under its label. It runs whenever
+the checkout is priced, often several times per checkout, so compute rather than act, and keep it quick:
+it's on every checkout of every channel your plugin is on. An `sdk.UserError` stops the order with your
+message ("cash on delivery takes orders up to 100.00"); so does any other error, since charging less
+than the store asked is worse than not selling. A fee is zero or more and at most `sdk.MaxFeeCents` -
+a discount of your own is a promotion action or `CheckoutReview.AddCheckoutDiscount`.
+
+The order keeps each fee as it was charged, `<slug>:<key>` with its label, amount and tax, so an edit
+re-taxes it with the order but never asks your plugin again, and the invoice, the order emails, the
+dashboard and both APIs (`Order.fees`, `CheckoutTotals.fees`) show the same rows. A credit memo
+refunds a fee through its adjustment refund. Drafts an admin builds carry no fees - they're priced by hand.
 
 ## The frontend halves
 

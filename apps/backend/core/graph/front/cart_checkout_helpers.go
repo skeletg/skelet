@@ -437,7 +437,7 @@ func (r *Resolver) checkoutTotals(ctx context.Context, v *checkoutView, paymentO
 		if err == nil {
 			return &frontmodel.CheckoutTotals{
 				SubtotalCents: int32(q.SubtotalCents), DiscountCents: int32(q.DiscountCents),
-				ShippingCents: int32(q.ShippingCents), TaxCents: int32(q.TaxCents), TotalCents: int32(q.TotalCents),
+				ShippingCents: int32(q.ShippingCents), Fees: toOrderFees(q.Fees), TaxCents: int32(q.TaxCents), TotalCents: int32(q.TotalCents),
 			}
 		}
 		log.Printf("[checkout] quote for cart %s failed, showing the subtotal only: %v", c.ID, err)
@@ -448,6 +448,7 @@ func (r *Resolver) checkoutTotals(ctx context.Context, v *checkoutView, paymentO
 	return &frontmodel.CheckoutTotals{
 		SubtotalCents: m.Subtotal,
 		DiscountCents: m.TotalDiscount,
+		Fees:          []*model.OrderFee{},
 		TotalCents:    max(m.Subtotal-m.TotalDiscount, 0),
 	}
 }

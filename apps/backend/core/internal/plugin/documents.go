@@ -56,6 +56,9 @@ func documentRequest(in documents.Input, core func() ([]byte, error)) sdk.Docume
 	for _, id := range o.BusinessIDs {
 		req.Order.BusinessIDs = append(req.Order.BusinessIDs, sdk.DocumentField{Label: id.Label, Value: id.Value})
 	}
+	for _, f := range o.Fees {
+		req.Order.Fees = append(req.Order.Fees, sdk.DocumentFee{Label: f.Label, Cents: f.AmountCents})
+	}
 	if m := in.Memo; m != nil {
 		req.Memo = &sdk.DocumentMemo{
 			ID: m.ID, Number: m.Number, CreatedAt: m.CreatedAt, ShippingCents: m.ShippingRefundCents,

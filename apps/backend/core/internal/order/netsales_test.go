@@ -26,6 +26,7 @@ func TestLineNetTakesEachLinesShareOfTheDiscount(t *testing.T) {
 	inclusive := exclusive
 	inclusive.TaxAmount = 750
 	inclusive.TotalAmount = 5000 - 500 + 490
+	inclusive.TaxInclusive = true
 	net = LineNet(inclusive)
 	if net[shirt]+net[mug] != 4500-750 || net[shirt] != 3000 {
 		t.Fatalf("tax-inclusive net = shirt %d mug %d, want 3000 and 750 - the tax share taken out", net[shirt], net[mug])

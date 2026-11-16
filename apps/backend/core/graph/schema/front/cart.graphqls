@@ -332,6 +332,8 @@ type CheckoutTotals {
   subtotalCents:    Int!
   discountCents:    Int!
   shippingCents:    Int!
+  # What plugins charge on top, priced as placeOrder will. Included in totalCents; their tax is in taxCents.
+  fees:             [OrderFee!]!
   # Included in total unless the store prices tax-inclusive.
   taxCents:         Int!
   totalCents:       Int!

@@ -187,7 +187,7 @@ func memoNet(o order.Order, m order.CreditMemo) int64 {
 		for _, l := range m.Lines {
 			net += order.LineNetFor(o, l.OrderLineID, l.Quantity)
 		}
-	} else if nonShipping := o.TotalAmount - o.ShippingRefundable(); nonShipping > 0 && m.TotalCents > m.ShippingRefundCents {
+	} else if nonShipping := o.TotalAmount - o.ShippingRefundable() - o.FeesRefundable(); nonShipping > 0 && m.TotalCents > m.ShippingRefundCents {
 		net = (m.TotalCents - m.ShippingRefundCents) * purchaseNet(o) / nonShipping
 	}
 	return min(net, purchaseNet(o))

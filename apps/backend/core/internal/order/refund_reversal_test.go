@@ -205,6 +205,7 @@ func TestMerchandiseUnitByLine_ExcludesTax(t *testing.T) {
 		SubtotalAmount: 2_000,
 		TaxAmount:      400,
 		TotalAmount:    2_000,
+		TaxInclusive:   true,
 	}
 	if got, want := merchandiseUnitByLine(inclusive)[lineA], refundUnitByLine(inclusive)[lineA]; got != want {
 		t.Errorf("inclusive pricing: merchandise %d vs refund %d, want them equal", got, want)

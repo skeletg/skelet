@@ -290,6 +290,14 @@ function OrderSummary({ cart, delivering, currency, taxIncluded }: { cart: Cart;
             <dd>{t.shippingCents === 0 ? "Free" : <Price amount={t.shippingCents} currency={currency} />}</dd>
           </div>
         )}
+        {(t.fees ?? []).map((fee) => (
+          <div key={fee.key} className="flex justify-between">
+            <dt className="text-muted-foreground">{fee.label}</dt>
+            <dd>
+              <Price amount={fee.amount} currency={currency} />
+            </dd>
+          </div>
+        ))}
         {t.taxCents > 0 && !taxIncluded && (
           <div className="flex justify-between">
             <dt className="text-muted-foreground">Tax</dt>

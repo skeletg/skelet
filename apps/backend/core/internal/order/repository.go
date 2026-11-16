@@ -831,6 +831,7 @@ func (r *postgresRepository) CreateOrder(ctx context.Context, o Order) (Order, e
 		BusinessIds:         businessIDsJSON(o.BusinessIDs),
 		CheckoutFields:      checkoutFieldsJSON(o.CheckoutFields),
 		Seller:              sellerJSON(o.Seller),
+		Fees:                feesJSON(o.Fees),
 		PaymentProvider:     o.PaymentProvider,
 		ShippingMethodID:    sqlnull.UUID(o.ShippingMethodID),
 		ShippingCarrierSlug: sqlnull.String(o.ShippingCarrierSlug),
@@ -888,6 +889,7 @@ func (r *postgresRepository) UpdateOrderAmounts(ctx context.Context, id uuid.UUI
 		TaxAmount:         a.Tax,
 		ShippingTaxAmount: a.ShippingTax,
 		TotalAmount:       a.Total,
+		Fees:              feesJSON(a.Fees),
 	})
 	if err != nil {
 		return Order{}, fmt.Errorf("update order amounts: %w", err)
@@ -1342,6 +1344,7 @@ func toOrder(row db.Order) Order {
 		BusinessIDs:       decodeBusinessIDs(row.BusinessIds),
 		CheckoutFields:    decodeCheckoutFields(row.CheckoutFields),
 		Seller:            decodeSeller(row.Seller),
+		Fees:              decodeFees(row.Fees),
 		Shopper:           shopper,
 		Metadata:          metadata,
 		Carrier:           row.Carrier,

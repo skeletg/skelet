@@ -3333,6 +3333,7 @@ type ComplexityRoot struct {
 		DiscountAmount      func(childComplexity int) int
 		Email               func(childComplexity int) int
 		Events              func(childComplexity int) int
+		Fees                func(childComplexity int) int
 		FulfillmentNeed     func(childComplexity int) int
 		Fulfillments        func(childComplexity int) int
 		GiftCardAmount      func(childComplexity int) int
@@ -3398,6 +3399,13 @@ type ComplexityRoot struct {
 		ID         func(childComplexity int) int
 		Message    func(childComplexity int) int
 		Type       func(childComplexity int) int
+	}
+
+	OrderFee struct {
+		Amount    func(childComplexity int) int
+		Key       func(childComplexity int) int
+		Label     func(childComplexity int) int
+		TaxAmount func(childComplexity int) int
 	}
 
 	OrderLine struct {
@@ -23732,6 +23740,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Order.Events(childComplexity), true
+	case "Order.fees":
+		if e.ComplexityRoot.Order.Fees == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Order.Fees(childComplexity), true
 	case "Order.fulfillmentNeed":
 		if e.ComplexityRoot.Order.FulfillmentNeed == nil {
 			break
@@ -24054,6 +24068,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OrderEvent.Type(childComplexity), true
+
+	case "OrderFee.amount":
+		if e.ComplexityRoot.OrderFee.Amount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderFee.Amount(childComplexity), true
+	case "OrderFee.key":
+		if e.ComplexityRoot.OrderFee.Key == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderFee.Key(childComplexity), true
+	case "OrderFee.label":
+		if e.ComplexityRoot.OrderFee.Label == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderFee.Label(childComplexity), true
+	case "OrderFee.taxAmount":
+		if e.ComplexityRoot.OrderFee.TaxAmount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderFee.TaxAmount(childComplexity), true
 
 	case "OrderLine.components":
 		if e.ComplexityRoot.OrderLine.Components == nil {
@@ -40836,6 +40875,16 @@ enum PaymentStatus {
   VOIDED
 }
 
+# A charge a plugin added at placement. A credit memo refunds it through its adjustment refund.
+type OrderFee {
+  # "<plugin>:<key>", stable across label changes
+  key:       String!
+  label:     String!
+  amount:    Int!
+  # The part of taxAmount charged on it. Zero when a remote tax provider or plugin priced the tax.
+  taxAmount: Int!
+}
+
 type Order {
   id:              ID!
   # Owning channel - orders are placed on exactly one channel. The
@@ -40884,6 +40933,8 @@ type Order {
   shippingTaxAmount: Int!
   # The most a credit memo can refund for shipping - its tax included where tax was added on top.
   shippingRefundable: Int!
+  # What plugins charged on top of the goods and shipping, with the labels the shopper saw. Included in total.
+  fees: [OrderFee!]!
   total:           Int!
   # Cents of ` + "`" + `total` + "`" + ` covered by gift-card tenders (not a discount - total
   # is unchanged). Amount owed to the payment provider is total minus this.
@@ -50273,6 +50324,8 @@ func (ec *executionContext) childFields_Order(ctx context.Context, field graphql
 		return ec.fieldContext_Order_shippingTaxAmount(ctx, field)
 	case "shippingRefundable":
 		return ec.fieldContext_Order_shippingRefundable(ctx, field)
+	case "fees":
+		return ec.fieldContext_Order_fees(ctx, field)
 	case "total":
 		return ec.fieldContext_Order_total(ctx, field)
 	case "giftCardAmount":
@@ -50375,6 +50428,20 @@ func (ec *executionContext) childFields_OrderEvent(ctx context.Context, field gr
 		return ec.fieldContext_OrderEvent_createdAt(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type OrderEvent", field.Name)
+}
+
+func (ec *executionContext) childFields_OrderFee(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "key":
+		return ec.fieldContext_OrderFee_key(ctx, field)
+	case "label":
+		return ec.fieldContext_OrderFee_label(ctx, field)
+	case "amount":
+		return ec.fieldContext_OrderFee_amount(ctx, field)
+	case "taxAmount":
+		return ec.fieldContext_OrderFee_taxAmount(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type OrderFee", field.Name)
 }
 
 func (ec *executionContext) childFields_OrderLine(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -138246,6 +138313,38 @@ func (ec *executionContext) fieldContext_Order_shippingRefundable(_ context.Cont
 	return graphql.NewScalarFieldContext("Order", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _Order_fees(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Order_fees(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Fees, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.OrderFee) graphql.Marshaler {
+			return ec.marshalNOrderFee2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderFeeᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Order_fees(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Order",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OrderFee(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Order_total(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -139172,6 +139271,98 @@ func (ec *executionContext) _OrderEvent_createdAt(ctx context.Context, field gra
 }
 func (ec *executionContext) fieldContext_OrderEvent_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("OrderEvent", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _OrderFee_key(ctx context.Context, field graphql.CollectedField, obj *model.OrderFee) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderFee_key(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Key, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderFee_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderFee", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OrderFee_label(ctx context.Context, field graphql.CollectedField, obj *model.OrderFee) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderFee_label(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Label, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderFee_label(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderFee", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OrderFee_amount(ctx context.Context, field graphql.CollectedField, obj *model.OrderFee) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderFee_amount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Amount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderFee_amount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderFee", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _OrderFee_taxAmount(ctx context.Context, field graphql.CollectedField, obj *model.OrderFee) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderFee_taxAmount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TaxAmount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderFee_taxAmount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderFee", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _OrderLine_id(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
@@ -218992,6 +219183,11 @@ func (ec *executionContext) _Order(ctx context.Context, sel ast.SelectionSet, ob
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "fees":
+			out.Values[i] = ec._Order_fees(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "total":
 			out.Values[i] = ec._Order_total(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -219542,6 +219738,59 @@ func (ec *executionContext) _OrderEvent(ctx context.Context, sel ast.SelectionSe
 			}
 		case "createdAt":
 			out.Values[i] = ec._OrderEvent_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var orderFeeImplementors = []string{"OrderFee"}
+
+func (ec *executionContext) _OrderFee(ctx context.Context, sel ast.SelectionSet, obj *model.OrderFee) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, orderFeeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OrderFee")
+		case "key":
+			out.Values[i] = ec._OrderFee_key(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "label":
+			out.Values[i] = ec._OrderFee_label(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "amount":
+			out.Values[i] = ec._OrderFee_amount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "taxAmount":
+			out.Values[i] = ec._OrderFee_taxAmount(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -246554,6 +246803,32 @@ func (ec *executionContext) marshalNOrderEvent2ᚖgithubᚗcomᚋskeletgᚋskele
 		return graphql.Null
 	}
 	return ec._OrderEvent(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNOrderFee2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderFeeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OrderFee) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNOrderFee2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderFee(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNOrderFee2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderFee(ctx context.Context, sel ast.SelectionSet, v *model.OrderFee) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OrderFee(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNOrderLine2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderLineᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OrderLine) graphql.Marshaler {

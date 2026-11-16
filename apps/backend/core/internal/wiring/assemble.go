@@ -141,6 +141,7 @@ func wireOrderPlacement(d orderPlacementDeps) {
 	d.Order.SetProductPricer(NewOrderProductPricer(NewCartCatalogAdapter(d.Catalog, d.Customer, d.Channel)))
 	d.Order.SetRiskHoldThreshold(NewRiskHoldThreshold(d.Config))
 	d.Order.SetNumbering(d.Config, pluginhost.OrderNumber)
+	d.Order.SetFees(pluginhost.Fees)
 	d.Order.SetSeller(d.Documents.Seller)
 	d.Order.SetShippingTax(NewShippingTax(d.Config))
 	d.Order.SetAddressChecker(d.Address)
