@@ -30,7 +30,7 @@ func TestChangedProductFieldsCoversEveryInputField(t *testing.T) {
 	typ := reflect.TypeFor[UpdateProductInput]()
 	for i := range typ.NumField() {
 		f := typ.Field(i)
-		if f.Name == "ID" {
+		if f.Name == "ID" || f.Name == "Extensions" { // the record's identity, and the plugins' part - neither a field of the product
 			continue
 		}
 		in := UpdateProductInput{}

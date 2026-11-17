@@ -6,6 +6,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
 	"github.com/skeletg/skelet/apps/backend/core/internal/loyalty"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
+	"github.com/skeletg/skelet/apps/backend/core/internal/recordsave"
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/sdk"
@@ -31,6 +32,7 @@ var (
 	_ sdk.CustomerDeleting     = (*customer.CustomerDeleting)(nil)
 	_ sdk.LoyaltyEarning       = (*loyalty.Earning)(nil)
 	_ sdk.SubscriptionRenewing = (*subscription.Renewing)(nil)
+	_ sdk.RecordSaving         = (*recordsave.Saving)(nil)
 
 	_ sdk.CheckoutFieldAnswers = (*order.CheckoutValidating)(nil)
 	_ sdk.CheckoutFieldAnswers = (*order.OrderPlacing)(nil)

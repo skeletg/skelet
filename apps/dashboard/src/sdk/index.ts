@@ -43,6 +43,7 @@ export { registerLexicalBlock, type LexicalBlockDefinition } from '@/features/ca
 export { DetailPageLayout, DetailPageHeader, DetailPageBody, DetailPageSection } from '@/components/layout/detail-page'
 export { DataTable } from '@/components/data-table'
 export { useSaveSection, type SectionRegistration, type SectionDiffEntry } from '@/shared/saving/saveRegistry'
+export { useExtensionSection } from '@/shared/saving/extensions'
 export { usePermissions } from '@/shared/auth/usePermissions'
 export { cn } from '@/lib/utils'
 export { formatCents, formatDate, formatDateTime, formatNumber, timeAgo } from '@/lib/format'

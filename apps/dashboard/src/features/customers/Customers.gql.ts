@@ -22,6 +22,7 @@ export type AdminCreateCustomerInput = {
   channelId: string | number;
   customerGroupSlug?: string | null | undefined;
   email: string;
+  extensions?: unknown;
   firstName: string;
   isActive?: boolean | null | undefined;
   isEmailVerified?: boolean | null | undefined;
@@ -35,6 +36,7 @@ export type AdminUpdateCustomerInput = {
   defaultBillingAddressId?: string | number | null | undefined;
   defaultShippingAddressId?: string | number | null | undefined;
   email?: string | null | undefined;
+  extensions?: unknown;
   firstName?: string | null | undefined;
   isActive?: boolean | null | undefined;
   isEmailVerified?: boolean | null | undefined;

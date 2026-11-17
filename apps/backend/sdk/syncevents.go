@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -33,6 +34,8 @@ const (
 	EventCustomerDeleting     = "customer.deleting"
 	EventLoyaltyEarning       = "loyalty.earning"
 	EventSubscriptionRenewing = "subscription.renewing"
+	EventProductSaving        = "product.saving"
+	EventCustomerSaving       = "customer.saving"
 )
 
 // A line about to be added to a cart - what arrives is what will be written, so a price or quantity set here is the
@@ -286,4 +289,42 @@ type SubscriptionRenewing interface {
 	SetRenewalAmount(cents int64) error // refuses a negative amount, or one past 10,000,000,000 - 0 bills nothing
 	SkipRenewal()                       // the period passes unbilled, and the next comes as usual
 	DelayRenewal(until time.Time) error // refuses a time not ahead of now - later periods count from it, and it wins over a skip
+}
+
+// A product or customer being saved from the dashboard or the admin API, after its row is written and before the
+// transaction commits - with what the save's input carried for plugins under `extensions`, each under its owner's
+// slug. Write your rows through SavingTx so they commit with the record's; return an error to refuse the whole save, an
+// sdk.UserError when the admin should read why. Read your part with pl.Extension
+//
+//	p.SubscribeSync(sdk.EventProductSaving, 100, func(ctx context.Context, e any) error {
+//	    save, ok := e.(sdk.RecordSaving)
+//	    var warranty struct{ Months int `json:"months"` }
+//	    if !ok {
+//	        return nil
+//	    }
+//	    if given, err := p.Extension(save, &warranty); !given || err != nil {
+//	        return err
+//	    }
+//	    _, err := save.SavingTx().ExecContext(ctx, `INSERT INTO acme_warranties ...`, save.SavingRecordID(), warranty.Months)
+//	    return err
+//	})
+type RecordSaving interface {
+	SavingRecord() string // "product" or "customer"
+	SavingRecordID() uuid.UUID
+	SavingCreated() bool
+	SavingExtension(key string) (json.RawMessage, bool)
+	SavingTx() *sql.Tx
+}
+
+// Extension decodes this plugin's part of a save's extensions into v - false when the save carried none for it. A
+// part that doesn't decode is the admin's mistake, so it comes back as a UserError they read
+func (pl *Plugin) Extension(save RecordSaving, v any) (bool, error) {
+	raw, ok := save.SavingExtension(pl.slug)
+	if !ok {
+		return false, nil
+	}
+	if err := json.Unmarshal(raw, v); err != nil {
+		return true, Invalid("%s's part of the save doesn't read: %v", pl.slug, err)
+	}
+	return true, nil
 }

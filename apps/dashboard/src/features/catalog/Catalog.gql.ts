@@ -184,6 +184,7 @@ export type CreateProductInput = {
   defaultCurrencyCode?: string | null | undefined;
   defaultPrice?: number | null | undefined;
   descriptionRichText?: unknown;
+  extensions?: unknown;
   kind: ProductKind;
   locale: string;
   metaDescription?: string | null | undefined;
@@ -475,6 +476,7 @@ export type UpdateProductInput = {
   costCents?: number | null | undefined;
   defaultCurrencyCode?: string | null | undefined;
   defaultPrice?: number | null | undefined;
+  extensions?: unknown;
   heightMm?: number | null | undefined;
   id: string | number;
   kitItemsReturnable?: boolean | null | undefined;

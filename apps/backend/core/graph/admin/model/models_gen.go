@@ -391,6 +391,7 @@ type AdminCreateCartOfferInput struct {
 }
 
 type AdminCreateCustomerInput struct {
+	Extensions        any     `json:"extensions,omitempty"`
 	ChannelID         string  `json:"channelId"`
 	Email             string  `json:"email"`
 	Password          string  `json:"password"`
@@ -519,6 +520,7 @@ type AdminUpdateCartOfferInput struct {
 }
 
 type AdminUpdateCustomerInput struct {
+	Extensions               any              `json:"extensions,omitempty"`
 	Email                    *string          `json:"email,omitempty"`
 	FirstName                *string          `json:"firstName,omitempty"`
 	LastName                 *string          `json:"lastName,omitempty"`
@@ -2157,6 +2159,7 @@ type CreateMenuItemInput struct {
 
 type CreateProductInput struct {
 	ProductTypeID           string           `json:"productTypeId"`
+	Extensions              any              `json:"extensions,omitempty"`
 	Kind                    ProductKind      `json:"kind"`
 	DefaultPrice            *int32           `json:"defaultPrice,omitempty"`
 	DefaultCurrencyCode     *string          `json:"defaultCurrencyCode,omitempty"`
@@ -6244,6 +6247,7 @@ type UpdateProductDownloadInput struct {
 
 type UpdateProductInput struct {
 	ID                           string           `json:"id"`
+	Extensions                   any              `json:"extensions,omitempty"`
 	DefaultPrice                 *int32           `json:"defaultPrice,omitempty"`
 	DefaultCurrencyCode          *string          `json:"defaultCurrencyCode,omitempty"`
 	CompareAtPrice               *int32           `json:"compareAtPrice,omitempty"`

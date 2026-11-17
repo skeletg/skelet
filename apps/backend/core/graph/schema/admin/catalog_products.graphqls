@@ -217,6 +217,9 @@ input SetSubscriptionTermsInput {
 # productTypeId is immutable on update.
 input CreateProductInput {
   productTypeId:        ID!
+  # What this save carries for plugins, an object under each plugin's slug - {"acme": {"months": 24}}. Each plugin reads
+  # its own part inside the save's transaction, and any of them can refuse the whole save.
+  extensions: JSON
   # Structural kind. Required at create, immutable afterwards. All four
   # kinds (SIMPLE, CONFIGURABLE, BUNDLE, GROUPED) are supported.
   kind:                 ProductKind!
@@ -252,6 +255,9 @@ input CreateProductInput {
 # Only non-translatable fields. Use upsertProductContent to update name/description/SEO copy.
 input UpdateProductInput {
   id:                   ID!
+  # What this save carries for plugins, an object under each plugin's slug - {"acme": {"months": 24}}. Each plugin reads
+  # its own part inside the save's transaction, and any of them can refuse the whole save.
+  extensions: JSON
   defaultPrice:         Int
   defaultCurrencyCode:  String
   # null = no change; clearCompareAtPrice reverts to none.

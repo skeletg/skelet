@@ -251,10 +251,15 @@ func (s *core) invalidateCategoryTreeCache(ctx context.Context) {
 
 // Runs fn on a tx-bound repo, so a check and the write it guards commit together - without a tx manager (unit fakes) it runs on the plain repo
 func (s *core) inTx(ctx context.Context, fn func(r Repository) error) error {
+	return s.inTxSQL(ctx, func(_ *sql.Tx, r Repository) error { return fn(r) })
+}
+
+// inTx with the transaction itself too, for a sync event its subscribers write in - nil in unit fakes
+func (s *core) inTxSQL(ctx context.Context, fn func(t *sql.Tx, r Repository) error) error {
 	if s.tx == nil {
-		return fn(s.repo)
+		return fn(nil, s.repo)
 	}
-	return s.tx.InTransaction(ctx, func(t *sql.Tx) error { return fn(s.repo.WithTx(t)) })
+	return s.tx.InTransaction(ctx, func(t *sql.Tx) error { return fn(t, s.repo.WithTx(t)) })
 }
 
 // resolveDefaultLocale returns the configured global default locale code, or "" when no provider is wired or the lookup fails - Reads use this to fall back; writes use it to enforce the default-row-must-exist invariant

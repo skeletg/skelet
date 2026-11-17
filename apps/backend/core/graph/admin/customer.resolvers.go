@@ -179,7 +179,12 @@ func (r *mutationResolver) AdminCreateCustomer(ctx context.Context, input model.
 	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "customers.manage", storeID, nil); err != nil {
 		return nil, err
 	}
+	ext, err := extensionsInput(input.Extensions)
+	if err != nil {
+		return nil, err
+	}
 	domainInput := customer.AdminCreateCustomerInput{
+		Extensions:      ext,
 		ChannelID:       storeID,
 		Email:           input.Email,
 		Password:        input.Password,
@@ -208,7 +213,12 @@ func (r *mutationResolver) AdminUpdateCustomer(ctx context.Context, id string, i
 	if err != nil {
 		return nil, err
 	}
+	ext, err := extensionsInput(input.Extensions)
+	if err != nil {
+		return nil, err
+	}
 	c, err := r.CustomerSvc.AdminUpdateCustomer(ctx, customerID, customer.AdminUpdateCustomerInput{
+		Extensions:               ext,
 		Email:                    input.Email,
 		FirstName:                input.FirstName,
 		LastName:                 input.LastName,

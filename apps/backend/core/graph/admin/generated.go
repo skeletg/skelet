@@ -37422,6 +37422,9 @@ input SetSubscriptionTermsInput {
 # productTypeId is immutable on update.
 input CreateProductInput {
   productTypeId:        ID!
+  # What this save carries for plugins, an object under each plugin's slug - {"acme": {"months": 24}}. Each plugin reads
+  # its own part inside the save's transaction, and any of them can refuse the whole save.
+  extensions: JSON
   # Structural kind. Required at create, immutable afterwards. All four
   # kinds (SIMPLE, CONFIGURABLE, BUNDLE, GROUPED) are supported.
   kind:                 ProductKind!
@@ -37457,6 +37460,9 @@ input CreateProductInput {
 # Only non-translatable fields. Use upsertProductContent to update name/description/SEO copy.
 input UpdateProductInput {
   id:                   ID!
+  # What this save carries for plugins, an object under each plugin's slug - {"acme": {"months": 24}}. Each plugin reads
+  # its own part inside the save's transaction, and any of them can refuse the whole save.
+  extensions: JSON
   defaultPrice:         Int
   defaultCurrencyCode:  String
   # null = no change; clearCompareAtPrice reverts to none.
@@ -39014,6 +39020,9 @@ input UpdateCustomerGroupInput {
 }
 
 input AdminCreateCustomerInput {
+  # What this save carries for plugins, an object under each plugin's slug - {"acme": {"months": 24}}. Each plugin reads
+  # its own part inside the save's transaction, and any of them can refuse the whole save.
+  extensions: JSON
   # Required: which subsidiary the customer registers on. Customers are not shared across stores; the same email may exist on multiple stores as separate accounts.
   channelId:       ID!
   email:             String!
@@ -39028,6 +39037,9 @@ input AdminCreateCustomerInput {
 }
 
 input AdminUpdateCustomerInput {
+  # What this save carries for plugins, an object under each plugin's slug - {"acme": {"months": 24}}. Each plugin reads
+  # its own part inside the save's transaction, and any of them can refuse the whole save.
+  extensions: JSON
   email:             String
   firstName:         String
   lastName:          String
@@ -181381,13 +181393,20 @@ func (ec *executionContext) unmarshalInputAdminCreateCustomerInput(ctx context.C
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"channelId", "email", "password", "firstName", "lastName", "phone", "isActive", "isEmailVerified", "customerGroupSlug"}
+	fieldsInOrder := [...]string{"extensions", "channelId", "email", "password", "firstName", "lastName", "phone", "isActive", "isEmailVerified", "customerGroupSlug"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
+		case "extensions":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("extensions"))
+			data, err := ec.unmarshalOJSON2interface(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Extensions = data
 		case "channelId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("channelId"))
 			data, err := ec.unmarshalNID2string(ctx, v)
@@ -181648,13 +181667,20 @@ func (ec *executionContext) unmarshalInputAdminUpdateCustomerInput(ctx context.C
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"email", "firstName", "lastName", "phone", "isActive", "isEmailVerified", "note", "customerGroupSlug", "metadata", "defaultBillingAddressId", "defaultShippingAddressId"}
+	fieldsInOrder := [...]string{"extensions", "email", "firstName", "lastName", "phone", "isActive", "isEmailVerified", "note", "customerGroupSlug", "metadata", "defaultBillingAddressId", "defaultShippingAddressId"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
+		case "extensions":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("extensions"))
+			data, err := ec.unmarshalOJSON2interface(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Extensions = data
 		case "email":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("email"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
@@ -185172,7 +185198,7 @@ func (ec *executionContext) unmarshalInputCreateProductInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"productTypeId", "kind", "defaultPrice", "defaultCurrencyCode", "sku", "seoNoindex", "canonicalUrl", "url", "urlAuto", "urlTemplateOverride", "tracksInventoryOverride", "quantityDecimals", "quantityStep", "metadata", "privateMetadata", "locale", "name", "shortDescription", "descriptionRichText", "metaTitle", "metaDescription", "metaKeywords"}
+	fieldsInOrder := [...]string{"productTypeId", "extensions", "kind", "defaultPrice", "defaultCurrencyCode", "sku", "seoNoindex", "canonicalUrl", "url", "urlAuto", "urlTemplateOverride", "tracksInventoryOverride", "quantityDecimals", "quantityStep", "metadata", "privateMetadata", "locale", "name", "shortDescription", "descriptionRichText", "metaTitle", "metaDescription", "metaKeywords"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -185186,6 +185212,13 @@ func (ec *executionContext) unmarshalInputCreateProductInput(ctx context.Context
 				return it, err
 			}
 			it.ProductTypeID = data
+		case "extensions":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("extensions"))
+			data, err := ec.unmarshalOJSON2interface(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Extensions = data
 		case "kind":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("kind"))
 			data, err := ec.unmarshalNProductKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐProductKind(ctx, v)
@@ -193305,7 +193338,7 @@ func (ec *executionContext) unmarshalInputUpdateProductInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "defaultPrice", "defaultCurrencyCode", "compareAtPrice", "clearCompareAtPrice", "specialPrice", "specialFrom", "specialTo", "clearSpecialPrice", "weightGrams", "lengthMm", "widthMm", "heightMm", "minOrderQty", "maxOrderQty", "costCents", "clearCostCents", "kitItemsReturnable", "sku", "seoNoindex", "canonicalUrl", "url", "urlAuto", "urlTemplateOverride", "tracksInventoryOverride", "clearTracksInventoryOverride", "quantityDecimals", "quantityStep", "metadata", "privateMetadata"}
+	fieldsInOrder := [...]string{"id", "extensions", "defaultPrice", "defaultCurrencyCode", "compareAtPrice", "clearCompareAtPrice", "specialPrice", "specialFrom", "specialTo", "clearSpecialPrice", "weightGrams", "lengthMm", "widthMm", "heightMm", "minOrderQty", "maxOrderQty", "costCents", "clearCostCents", "kitItemsReturnable", "sku", "seoNoindex", "canonicalUrl", "url", "urlAuto", "urlTemplateOverride", "tracksInventoryOverride", "clearTracksInventoryOverride", "quantityDecimals", "quantityStep", "metadata", "privateMetadata"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -193319,6 +193352,13 @@ func (ec *executionContext) unmarshalInputUpdateProductInput(ctx context.Context
 				return it, err
 			}
 			it.ID = data
+		case "extensions":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("extensions"))
+			data, err := ec.unmarshalOJSON2interface(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Extensions = data
 		case "defaultPrice":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("defaultPrice"))
 			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)

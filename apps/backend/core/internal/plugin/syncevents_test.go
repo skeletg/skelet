@@ -13,6 +13,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
 	"github.com/skeletg/skelet/apps/backend/core/internal/loyalty"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
+	"github.com/skeletg/skelet/apps/backend/core/internal/recordsave"
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/sdk"
@@ -37,6 +38,8 @@ func TestSDKEventNamesAreCores(t *testing.T) {
 		sdk.EventCustomerDeleting:     customer.EventDeleting,
 		sdk.EventLoyaltyEarning:       loyalty.EventEarning,
 		sdk.EventSubscriptionRenewing: subscription.EventRenewing,
+		sdk.EventProductSaving:        recordsave.EventProductSaving,
+		sdk.EventCustomerSaving:       recordsave.EventCustomerSaving,
 	} {
 		if sdkName != coreName {
 			t.Errorf("sdk says %q, core publishes %q - a plugin subscribing by the sdk name would never fire", sdkName, coreName)
@@ -64,6 +67,7 @@ func TestEachEventMatchesOnlyItsOwnInterface(t *testing.T) {
 		"customer.CustomerDeleting":    &customer.CustomerDeleting{},
 		"loyalty.Earning":              &loyalty.Earning{},
 		"subscription.Renewing":        &subscription.Renewing{},
+		"recordsave.Saving":            &recordsave.Saving{},
 	}
 	matches := map[string]func(any) bool{
 		"CartLineAdding":       func(e any) bool { _, ok := e.(sdk.CartLineAdding); return ok },
@@ -81,6 +85,7 @@ func TestEachEventMatchesOnlyItsOwnInterface(t *testing.T) {
 		"CustomerDeleting":     func(e any) bool { _, ok := e.(sdk.CustomerDeleting); return ok },
 		"LoyaltyEarning":       func(e any) bool { _, ok := e.(sdk.LoyaltyEarning); return ok },
 		"SubscriptionRenewing": func(e any) bool { _, ok := e.(sdk.SubscriptionRenewing); return ok },
+		"RecordSaving":         func(e any) bool { _, ok := e.(sdk.RecordSaving); return ok },
 	}
 	want := map[string]string{
 		"cart.LineAdding": "CartLineAdding", "cart.BundleAdding": "CartLineAdding",
@@ -90,6 +95,7 @@ func TestEachEventMatchesOnlyItsOwnInterface(t *testing.T) {
 		"order.OrderFulfilling": "OrderFulfilling", "inventory.Allocating": "InventoryAllocating",
 		"review.Submitting": "ReviewSubmitting", "customer.CustomerRegistering": "CustomerRegistering",
 		"customer.CustomerDeleting": "CustomerDeleting", "order.OrderTransitioning": "OrderTransitioning", "loyalty.Earning": "LoyaltyEarning", "subscription.Renewing": "SubscriptionRenewing",
+		"recordsave.Saving": "RecordSaving",
 	}
 	for evName, ev := range evs {
 		for iface, match := range matches {

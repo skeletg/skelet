@@ -236,7 +236,7 @@ all out of tree. This is what the SDK gives it.
   while the store's other subscriptions bill as usual. One period costs at most
   10,000,000,000 in minor units.
 - **Your data on core's records** - a warranty on a product, an ERP status on an order, as fields
-  on core's own GraphQL types. See below.
+  on core's own GraphQL types, saved with the record in its own transaction. See below.
 - **`RegisterCustomerData`** - what you keep about a customer leaves with their data export and goes
   with an erasure. See below.
 - **`RegisterFee`** - a charge of your own on the order: cash-on-delivery handling, a payment
@@ -326,6 +326,49 @@ The storefront caches product, category and collection pages, and your field wit
 data on a record changes, call `sdk.InvalidateStorefront(ctx, sdk.StorefrontProduct, id)`: the
 record's pages are purged the way core's own change to it purges them, following the store's cache
 settings. Core sends no event about your table, so nothing else will.
+
+### Saving your data with the record
+
+`createProduct`, `updateProduct`, `adminCreateCustomer` and `adminUpdateCustomer` take `extensions`, an
+object with each plugin's part under its slug - `{"acme": {"months": 24}}`. Core hands them to
+`product.saving` or `customer.saving`, a sync event inside the save's own transaction, after the
+record's row is written:
+
+```go
+p.SubscribeSync(sdk.EventProductSaving, 100, func(ctx context.Context, e any) error {
+    save, ok := e.(sdk.RecordSaving)
+    var warranty struct{ Months int `json:"months"` }
+    if !ok {
+        return nil
+    }
+    if given, err := p.Extension(save, &warranty); !given || err != nil {
+        return err
+    }
+    _, err := save.SavingTx().ExecContext(ctx,
+        `INSERT INTO acme_warranties (product_id, months) VALUES ($1, $2)
+         ON CONFLICT (product_id) DO UPDATE SET months = $2`, save.SavingRecordID(), warranty.Months)
+    return err
+})
+```
+
+Your rows commit with the record's, and an error refuses the whole save - an `sdk.UserError` reads
+to the admin. A sync webhook on the same events can refuse too. A save carries at most 64 KB of
+extensions, each keyed by a slug.
+
+In the dashboard, a section on the product or customer page stages its part with
+`useExtensionSection` from `@skelet/dashboard-sdk`, and it goes out with the page's own Save - in the
+record's mutation when the record changed too, alone through the same mutation when it didn't. The
+confirm dialog lists it under your title. Refetch your data in `onSaved`, so your section stops
+reporting a change once it's saved:
+
+```tsx
+useExtensionSection('acme', {
+  title: 'Warranty',
+  diff: months === saved ? [] : [{ label: 'Months', before: String(saved), after: String(months) }],
+  value: { months },
+  onSaved: refetch,
+})
+```
 
 ### Customer data
 

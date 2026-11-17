@@ -21,7 +21,12 @@ func (r *mutationResolver) CreateProduct(ctx context.Context, input model.Create
 	if err != nil {
 		return nil, err
 	}
+	ext, err := extensionsInput(input.Extensions)
+	if err != nil {
+		return nil, err
+	}
 	p, err := r.CatalogSvc.CreateProduct(ctx, catalog.CreateProductInput{
+		Extensions:              ext,
 		ProductTypeID:           productTypeID,
 		Kind:                    catalog.ProductKind(strings.ToLower(string(input.Kind))),
 		DefaultPrice:            int64(int32Or(input.DefaultPrice, 0)),
@@ -59,7 +64,12 @@ func (r *mutationResolver) UpdateProduct(ctx context.Context, input model.Update
 	if err != nil {
 		return nil, err
 	}
+	ext, err := extensionsInput(input.Extensions)
+	if err != nil {
+		return nil, err
+	}
 	domainInput := catalog.UpdateProductInput{
+		Extensions:                   ext,
 		ID:                           id,
 		DefaultCurrencyCode:          input.DefaultCurrencyCode,
 		SKU:                          input.Sku,

@@ -60,6 +60,7 @@ import { ChannelUrlOverridesEditor } from './product-detail/ChannelUrlOverridesE
 import { ConfigurableVariantsCard } from './product-detail/ConfigurableVariantsCard'
 import { ProductMetadataEditor } from './product-detail/MetadataEditor'
 import { PluginSections } from '@/plugins/detail-sections'
+import { RecordExtensionsContext, useRecordExtensions } from '@/shared/saving/extensions'
 import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 export function ProductDetail() {
@@ -102,6 +103,8 @@ export function ProductDetail() {
   const [updateProductMetadata] = useMutation(UpdateProductDocument, {
     refetchQueries: productRefetch,
   })
+  // A plugin section's part of the save rides the product's own mutation - see shared/saving/extensions
+  const extensions = useRecordExtensions((parts) => updateProductMetadata({ variables: { input: { id, extensions: parts } } }))
 
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [attributesOpen, setAttributesOpen] = useState(false)
@@ -180,6 +183,7 @@ export function ProductDetail() {
 
   return (
     <ProductSaveContext.Provider value={saveContextValue}>
+    <RecordExtensionsContext.Provider value={extensions}>
     <DetailPageLayout rightSidebar={<ProductSidebar product={product} />}>
       <DetailPageHeader
         backTo="/products"
@@ -578,6 +582,7 @@ export function ProductDetail() {
         onCancel={() => { setConfirmingSave(false); setSaveError(null) }}
         onConfirm={onConfirmSave}
       />
+    </RecordExtensionsContext.Provider>
     </ProductSaveContext.Provider>
   )
 }

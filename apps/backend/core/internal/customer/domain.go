@@ -1,6 +1,7 @@
 package customer
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -171,7 +172,9 @@ type UpdateCustomerGroupInput struct {
 
 // IsActive and IsEmailVerified default to true when unset, since the admin vouches - an empty CustomerGroupSlug routes to the default group
 type AdminCreateCustomerInput struct {
-	ChannelID         uuid.UUID
+	ChannelID uuid.UUID
+	// What the save carries for plugins, each under its slug - handed to customer.saving inside the save's transaction
+	Extensions        map[string]json.RawMessage
 	Email             string
 	Password          string
 	FirstName         string
@@ -185,6 +188,7 @@ type AdminCreateCustomerInput struct {
 // Every field is a pointer and nil means no change
 // CustomerGroupSlug non-nil empty resets to the default group, Metadata non-nil even when empty replaces all entries, and the default address ids must belong to this customer
 type AdminUpdateCustomerInput struct {
+	Extensions               map[string]json.RawMessage // as on AdminCreateCustomerInput
 	Email                    *string
 	FirstName                *string
 	LastName                 *string

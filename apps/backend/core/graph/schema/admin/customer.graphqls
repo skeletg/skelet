@@ -85,6 +85,9 @@ input UpdateCustomerGroupInput {
 }
 
 input AdminCreateCustomerInput {
+  # What this save carries for plugins, an object under each plugin's slug - {"acme": {"months": 24}}. Each plugin reads
+  # its own part inside the save's transaction, and any of them can refuse the whole save.
+  extensions: JSON
   # Required: which subsidiary the customer registers on. Customers are not shared across stores; the same email may exist on multiple stores as separate accounts.
   channelId:       ID!
   email:             String!
@@ -99,6 +102,9 @@ input AdminCreateCustomerInput {
 }
 
 input AdminUpdateCustomerInput {
+  # What this save carries for plugins, an object under each plugin's slug - {"acme": {"months": 24}}. Each plugin reads
+  # its own part inside the save's transaction, and any of them can refuse the whole save.
+  extensions: JSON
   email:             String
   firstName:         String
   lastName:          String

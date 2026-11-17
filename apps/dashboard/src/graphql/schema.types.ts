@@ -425,6 +425,7 @@ export type AdminCreateCustomerInput = {
   channelId: Scalars['ID']['input'];
   customerGroupSlug?: InputMaybe<Scalars['String']['input']>;
   email: Scalars['String']['input'];
+  extensions?: InputMaybe<Scalars['JSON']['input']>;
   firstName: Scalars['String']['input'];
   isActive?: InputMaybe<Scalars['Boolean']['input']>;
   isEmailVerified?: InputMaybe<Scalars['Boolean']['input']>;
@@ -566,6 +567,7 @@ export type AdminUpdateCustomerInput = {
   defaultBillingAddressId?: InputMaybe<Scalars['ID']['input']>;
   defaultShippingAddressId?: InputMaybe<Scalars['ID']['input']>;
   email?: InputMaybe<Scalars['String']['input']>;
+  extensions?: InputMaybe<Scalars['JSON']['input']>;
   firstName?: InputMaybe<Scalars['String']['input']>;
   isActive?: InputMaybe<Scalars['Boolean']['input']>;
   isEmailVerified?: InputMaybe<Scalars['Boolean']['input']>;
@@ -2540,6 +2542,7 @@ export type CreateProductInput = {
   defaultCurrencyCode?: InputMaybe<Scalars['String']['input']>;
   defaultPrice?: InputMaybe<Scalars['Int']['input']>;
   descriptionRichText?: InputMaybe<Scalars['JSON']['input']>;
+  extensions?: InputMaybe<Scalars['JSON']['input']>;
   kind: ProductKind;
   locale: Scalars['String']['input'];
   metaDescription?: InputMaybe<Scalars['String']['input']>;
@@ -12308,6 +12311,7 @@ export type UpdateProductInput = {
   costCents?: InputMaybe<Scalars['Int']['input']>;
   defaultCurrencyCode?: InputMaybe<Scalars['String']['input']>;
   defaultPrice?: InputMaybe<Scalars['Int']['input']>;
+  extensions?: InputMaybe<Scalars['JSON']['input']>;
   heightMm?: InputMaybe<Scalars['Int']['input']>;
   id: Scalars['ID']['input'];
   kitItemsReturnable?: InputMaybe<Scalars['Boolean']['input']>;
