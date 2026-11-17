@@ -302,8 +302,30 @@ one `WHERE product_id = ANY($1)` serves it. The method is named after the type a
 warranty on products and one on orders never clash. Where your plugin is off on a channel the field
 answers null without calling you. On the admin API you gate it like a root field, with an
 `sdk.Require*` the authz tests follow into your method. Prefix the field with your slug, as for root
-fields, so it never collides with a field core adds later. Storefront product queries are cached for
-up to a minute, and your field with them.
+fields, so it never collides with a field core adds later.
+
+When the field is just your rows for the record, `sdk.Link` and `sdk.LoadOne` / `sdk.LoadMany` write
+that query for you - the resolver becomes a line:
+
+```go
+var warranties = sdk.Link{Table: "acme_warranties", Key: "product_id"}
+
+func (adminResolver) ProductAcmeWarranty(ctx context.Context, objs []*model.Product) ([]*model.AcmeWarranty, error) {
+    if err := sdk.RequirePermission(ctx, "catalog.view"); err != nil {
+        return nil, err
+    }
+    return sdk.LoadOne[model.AcmeWarranty](ctx, warranties, sdk.IDs(objs, func(p *model.Product) string { return p.ID }))
+}
+```
+
+The columns are your model's fields - each field with a JSON tag reads its column in snake case
+(`monthsLeft` reads `months_left`) - and `LoadMany` returns every row per record, ordered by
+`Link.Order`. Write your own query when the answer needs more than that.
+
+The storefront caches product, category and collection pages, and your field with them, so when your
+data on a record changes, call `sdk.InvalidateStorefront(ctx, sdk.StorefrontProduct, id)`: the
+record's pages are purged the way core's own change to it purges them, following the store's cache
+settings. Core sends no event about your table, so nothing else will.
 
 ### Customer data
 

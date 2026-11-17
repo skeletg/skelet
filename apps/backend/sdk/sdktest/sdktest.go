@@ -104,6 +104,7 @@ type Host struct {
 	PriceResolvers      []PriceResolver
 	DraftOrders         []DraftOrder
 	StageMoves          []StageMove
+	StorefrontPurges    []StorefrontPurge
 	Carts               map[uuid.UUID]sdk.Cart
 	// Per-permission channel scope - an absent slug bypasses, matching a global grant
 	ChannelScope map[string][]uuid.UUID
@@ -589,6 +590,19 @@ func (h *Host) SetOrderStage(_ context.Context, pluginSlug string, orderID uuid.
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.StageMoves = append(h.StageMoves, StageMove{Plugin: pluginSlug, OrderID: orderID, Stage: key})
+	return nil
+}
+
+// A record whose storefront pages a plugin asked to purge
+type StorefrontPurge struct {
+	Kind string
+	ID   uuid.UUID
+}
+
+func (h *Host) InvalidateStorefront(_ context.Context, kind string, id uuid.UUID) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.StorefrontPurges = append(h.StorefrontPurges, StorefrontPurge{Kind: kind, ID: id})
 	return nil
 }
 

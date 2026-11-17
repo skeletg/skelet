@@ -140,7 +140,8 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 	d.Catalog.RegisterSubscribers(bus)
 	subscribeOrderReactors(d)
 	ordercapture.Register(bus, d.Order, d.Payment)
-	purges := cacheinvalidate.Register(bus, d.RevalidateCli, d.RevalidateQueue, d.URLRewrite, d.Config)
+	purges, invalidate := cacheinvalidate.Register(bus, d.RevalidateCli, d.RevalidateQueue, d.URLRewrite, d.Config)
+	pluginhost.SetStorefrontInvalidator(invalidate.Invalidate)                                             // a plugin's data on a record changed - core sends no event about it
 	d.Lifecycle.Append(fx.Hook{OnStop: func(ctx context.Context) error { purges.Flush(ctx); return nil }}) // a purge gathered in the last second still goes out
 	d.Flows.Subscribe(bus)
 	// Owns the order-lifecycle mail: asks the flow engine first, sends directly when no flow took it.

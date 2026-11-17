@@ -23,6 +23,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // One boot per binary, since plugin.Install panics on a second call and exposes no reset - the conn is process-scoped for the same reason, because SetConfigService is single-shot and a per-test conn would leave the host holding a service over a closed handle
@@ -326,6 +327,21 @@ func TestMigrationsApply(t *testing.T) {
 	if _, err := conn.Exec(`INSERT INTO example_plugin_customer_notes (customer_id, note) VALUES ($1, 'prefers mornings'), ($1, 'gift wrap')`, customer); err != nil {
 		t.Fatal(err)
 	}
+	// The same rows as a field on Customer would read them - every note per customer, in one query
+	type note struct {
+		Note string `json:"note"`
+	}
+	notes := sdk.Link{Table: "example_plugin_customer_notes", Key: "customer_id", Order: "id"}
+	stranger := uuid.NewString()
+	many, err := sdk.LoadMany[note](ctx, notes, []string{customer.String(), stranger})
+	if err != nil || len(many) != 2 || len(many[0]) != 2 || many[0][1].Note != "gift wrap" || len(many[1]) != 0 {
+		t.Errorf("linked notes %v, %v", many, err)
+	}
+	one, err := sdk.LoadOne[note](ctx, notes, []string{stranger, customer.String()})
+	if err != nil || one[0] != nil || one[1] == nil || one[1].Note != "prefers mornings" {
+		t.Errorf("first note per customer %v, %v", one, err)
+	}
+
 	export, err := pluginhost.CustomerDataExport(ctx, customer, channelID, "")
 	if notes, _ := export[Slug+":notes"].([]string); err != nil || len(notes) != 2 || notes[0] != "prefers mornings" {
 		t.Errorf("export %v, %v - want both notes under %s:notes", export, err, Slug)

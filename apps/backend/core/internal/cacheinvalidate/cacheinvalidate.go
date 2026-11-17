@@ -4,6 +4,7 @@ package cacheinvalidate
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 
 	"github.com/google/uuid"
@@ -59,8 +60,9 @@ type reactor struct {
 	cfg   ConfigReader
 }
 
-// Subscribes every reaction and returns the batcher their purges gather in, which the caller flushes on shutdown
-func Register(bus *events.Bus, purger Purger, queue Rebuilder, paths PathResolver, cfg ConfigReader) *Batcher {
+// Subscribes every reaction and returns the batcher their purges gather in, which the caller flushes on shutdown, and
+// the invalidator a plugin asks through when its own data on a record changes
+func Register(bus *events.Bus, purger Purger, queue Rebuilder, paths PathResolver, cfg ConfigReader) (*Batcher, Invalidator) {
 	r := reactor{batch: NewBatcher(purger, batchWindow), purge: purger, queue: queue, paths: paths, cfg: cfg}
 
 	// Tags alone only reach the storefront's Data Cache - the rendered HTML is keyed by PATH, so a purge without one leaves the page served from the route cache until its timer runs out - every entity reaction below sends its canonical URLs for that reason
@@ -171,7 +173,7 @@ func Register(bus *events.Bus, purger Purger, queue Rebuilder, paths PathResolve
 			r.batch.Purge(settingsSurface, []string{tagPublicSettings}, nil, "setting changed: "+def.Path)
 		}
 	})
-	return r.batch
+	return r.batch, Invalidator{r: r}
 }
 
 // Subscribes fn to one event type, skipping anything that isn't a T instead of panicking on it
@@ -210,6 +212,29 @@ func (r reactor) cmsPage(ctx context.Context, pageID uuid.UUID, reason string, e
 
 func (r reactor) grids(reason string) {
 	r.batch.Purge(catalog.CacheSurfaceCatalog, []string{tagBrowse}, nil, reason)
+}
+
+// Invalidator purges one record's storefront pages and data the way core's own change to it does - for a plugin whose
+// data shows on the record, which core sends no event about
+type Invalidator struct{ r reactor }
+
+// Kinds are product, category, collection and cms-page; anything else is an error
+func (inv Invalidator) Invalidate(ctx context.Context, kind string, id uuid.UUID) error {
+	const reason = "plugin data changed"
+	r := inv.r
+	switch kind {
+	case "product":
+		return r.product(ctx, id, catalog.CacheProductOnUpdate, reason)
+	case "category":
+		r.batch.Purge(catalog.CacheSurfaceCatalog, []string{categoryTag(id), tagBrowse}, r.paths.CanonicalPaths(ctx, urlrewrite.EntityTypeCategory, id), reason)
+	case "collection":
+		r.batch.Purge(catalog.CacheSurfaceCatalog, []string{collectionTag(id), tagCollections}, r.paths.CanonicalPaths(ctx, urlrewrite.EntityTypeCollection, id), reason)
+	case "cms-page":
+		r.cmsPage(ctx, id, reason)
+	default:
+		return fmt.Errorf("cacheinvalidate: no storefront pages of kind %q", kind)
+	}
+	return nil
 }
 
 // Config-gated at Settings → Cache → Products: cache/product/mode = off | invalidate | rebuild, plus a toggle per trigger
