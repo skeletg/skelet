@@ -20,14 +20,15 @@ import (
 // Don't declare new scalars: an unbound scalar silently degrades to Go `string` in gqlgen, taking your
 // marshalling with it. Reuse JSON, Int64 and Time, which the host already binds
 //
-// A field on a list type (Product, Order) resolves once PER ROW - use RegisterDataLoader for anything
-// that touches the database, or a listing page pays one query per item
+// To attach your data to core's records, extend one of core's types - `extend type Product { acmeWarranty: AcmeWarranty
+// @goField(forceResolver: true, batch: true) }`. The field must be nullable and batched: your resolver's method is named
+// after the type and field, ProductAcmeWarranty(ctx, objs []*model.Product) ([]*model.AcmeWarranty, error), called once
+// per LIST of parents and answering one value per parent in their order, so a listing costs one query rather than one
+// per row. Where your plugin is off on a channel the field answers null without calling you. Admin fields on core types
+// gate like root ones - the authz tests follow the delegation into your method and demand an sdk.Require*
 //
-// Core side, per field: gqlgen stubs the resolver once and copies your body through on every later run,
-// so the delegation into this plugin is written by hand ONE time, with no codegen pass rewriting
-// those stubs. Put the interface and slug const in graph/<surface>/plugin_resolvers.go,
-// NOT beside the stub: gqlgen relocates non-resolver declarations out of a .resolvers.go into a
-// commented-out block on the next run, so they'd survive right up until someone regenerated
+// Core side: skelet gen writes the delegation into core's resolver files and the interface it asserts your impl
+// against, both read back from what gqlgen generated - you write SDL and your resolver, never core Go
 
 // Which graph a resolver belongs to - a plugin can extend either or both, registering one impl per surface
 type GraphSurface string

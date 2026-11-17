@@ -14,7 +14,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
-// Replaces a codegen pass that rewrote gqlgen's stub bodies in place - gqlgen already copies hand-written resolver bodies through, so delegation is written once and Do is the one chokepoint giving plugin GraphQL the gating every other surface has - see sdk/graphql.go for the plugin-author contract
+// cmd/plugingraph writes each plugin field's delegation, and Do - DoBatch for a field on a core type - is the one chokepoint giving plugin GraphQL the gating every other surface has - see sdk/graphql.go for the plugin-author contract
 
 var ErrNoGraphResolver = errors.New("plugin: no graph resolver registered")
 
@@ -90,6 +90,23 @@ func userErrorClass(k sdk.ErrorKind) apperr.Class {
 	default:
 		return apperr.ClassValidation
 	}
+}
+
+// DoBatch serves a plugin's field on a core type for a whole list of parents in one call, the answers in the parents'
+// order. The field is on every channel's schema and the plugin isn't on every channel, so where it's off each parent
+// answers null rather than the core query failing
+func DoBatch[I any, E any](ctx context.Context, surface sdk.GraphSurface, slug, field string, parents int, call func(context.Context, I) ([]E, error)) ([]E, error) {
+	if !isEnabledFromContext(ctx, slug, graphChannelID(ctx)) {
+		return make([]E, parents), nil
+	}
+	out, err := Do(ctx, surface, slug, field, call)
+	if err != nil {
+		return nil, err
+	}
+	if len(out) != parents {
+		return nil, fmt.Errorf("plugin %s: %s answered %d values for %d parents", slug, field, len(out), parents)
+	}
+	return out, nil
 }
 
 // Boot-time proof that a plugin still serves the fields its SDL declares, so drift fails the deploy

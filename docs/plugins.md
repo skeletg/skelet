@@ -96,7 +96,8 @@ failure parks the plugin (`plugins/_<slug>`) so the tree keeps compiling while y
 Either way, installing compiles the code into core with full privileges - read it before
 you install it. The manifest's capabilities are a disclosure, not a sandbox.
 
-One thing to know about graph-extending plugins: their resolvers reference types in core's
+A plugin's SDL can extend `Query`, `Mutation`, and core's own object types - see "Your data on
+core's records" below. One thing to know about graph-extending plugins: their resolvers reference types in core's
 *generated* `graph/*/model` package, which core produces from that plugin's own SDL. So the
 order is always fetch, then codegen, then compile - and such a plugin never builds
 standalone in its own repo. A plugin with no GraphQL does.
@@ -226,6 +227,10 @@ all out of tree. This is what the SDK gives it.
   error leaves the period for later too: a minute, then twice as long each time up to six hours,
   while the store's other subscriptions bill as usual. One period costs at most
   10,000,000,000 in minor units.
+- **Your data on core's records** - a warranty on a product, an ERP status on an order, as fields
+  on core's own GraphQL types. See below.
+- **`RegisterCustomerData`** - what you keep about a customer leaves with their data export and goes
+  with an erasure. See below.
 - **`RegisterFee`** - a charge of your own on the order: cash-on-delivery handling, a payment
   surcharge, an eco fee, a deposit. See below.
 - **`RegisterDataResource`** - your own data in the dashboard's import and export hub. Declare
@@ -267,6 +272,50 @@ shows them under **At checkout** even after the field changes. Carts and orders 
 `order.placing`, `p.SetOrderMetadata(meta, "delivery_slot", v)` records a value of your own in
 the order's metadata under `<slug>:delivery_slot`, so no other plugin overwrites it; the admin API
 returns it as `Order.metadata`. Both go with a customer's data when they're erased.
+
+### Your data on core's records
+
+Keep your data in your own tables, with a foreign key to the core table it belongs to - core's
+migrations run before any plugin's, so `customers`, `catalog_products`, `orders` and the rest are
+there to point at. Give the key `ON DELETE CASCADE` and your rows go when the record does.
+
+Then put them on core's type, in your SDL:
+
+```graphql
+extend type Product {
+  acmeWarranty: AcmeWarranty @goField(forceResolver: true, batch: true)
+}
+```
+
+The field is nullable and batched, or codegen refuses it. Your resolver gets one call per list of
+parents, `ProductAcmeWarranty(ctx, objs []*model.Product) ([]*model.AcmeWarranty, error)`, and answers
+one value per parent in their order, nil for none - so a listing of 48 products asks you once, and
+one `WHERE product_id = ANY($1)` serves it. The method is named after the type and the field, so a
+warranty on products and one on orders never clash. Where your plugin is off on a channel the field
+answers null without calling you. On the admin API you gate it like a root field, with an
+`sdk.Require*` the authz tests follow into your method. Prefix the field with your slug, as for root
+fields, so it never collides with a field core adds later. Storefront product queries are cached for
+up to a minute, and your field with them.
+
+### Customer data
+
+A customer's data export and their erasure reach what core keeps; `RegisterCustomerData` makes them
+reach what you keep too:
+
+```go
+p.RegisterCustomerData(sdk.CustomerData{
+    Key:    "warranties",
+    Export: func(ctx context.Context, who sdk.CustomerDataSubject) (any, error) { ... },
+    Erase:  func(ctx context.Context, who sdk.CustomerDataSubject) error { ... },
+})
+```
+
+`Export` returns anything that marshals to JSON, and the export carries it under `<slug>:<key>`; nil
+leaves nothing. An error fails the export, since one quietly missing a section answers the request
+wrongly. `Erase` runs after the customer is erased - core blanks the account rather than deleting
+it, so a cascading key never fires - and again until it returns nil, so make it safe to repeat. Both
+run whether or not your plugin is on, since what you kept outlives that. A customer's deletion is
+your foreign key's to handle.
 
 ### Fees
 

@@ -24,19 +24,30 @@ var surfaces = []struct{ name, sdkConst, pkg string }{
 	{"front", "sdk.GraphFront", "front"},
 }
 
-// Field a plugin's SDL adds to Query or Mutation
+// Field a plugin's SDL adds to Query or Mutation, or to one of core's own object types
 type sdlField struct {
 	slug    string
+	typ     string // the core type it extends, empty for Query and Mutation
 	field   string
 	enabled bool
+}
+
+// The key a field is owned under - case folded, since a field named acmeUrl comes back from gqlgen as AcmeURL
+func ownedKey(typ, field string) string {
+	if typ == "" {
+		return strings.ToLower(field)
+	}
+	return typ + "." + strings.ToLower(field)
 }
 
 // A resolver method gqlgen generated, with its signature kept verbatim so nothing here has to reimplement
 // gqlgen's SDL-to-Go type mapping - it reads back what gqlgen already decided
 type method struct {
-	recv    string // queryResolver or mutationResolver
+	recv    string // queryResolver, mutationResolver, or a core type's resolver like productResolver
 	name    string // KlarnaCreateSession
-	field   string // klarnaCreateSession
+	field   string // klarnaCreateSession, or Product.acmeWarranty on a core type
+	impl    string // the plugin's method - the name itself on Query and Mutation, prefixed with the type on a core type (ProductAcmeWarranty), so two types' fields never clash
+	parents string // a core type's field is batched: the parameter holding its parents
 	params  string // ctx context.Context, amountCents int, ...
 	args    string // ctx, amountCents, ...
 	results string // (*model.KlarnaSession, error)
@@ -73,7 +84,7 @@ func GenerateGraph(root string) error {
 	return nil
 }
 
-// Which Query/Mutation fields each enabled plugin claims on this surface
+// Which Query/Mutation fields, and which fields on core's own types, each enabled plugin claims on this surface
 func sdlFields(root string, set *Set, surface string) (map[string]sdlField, error) {
 	owned := map[string]sdlField{}
 	for _, slug := range set.EnabledSlugs() {
@@ -85,6 +96,8 @@ func sdlFields(root string, set *Set, surface string) (map[string]sdlField, erro
 		if err != nil {
 			return nil, err
 		}
+		var docs []*gqlast.SchemaDocument
+		own := map[string]bool{} // types the plugin defines itself - extending those adds nothing to core's
 		for _, f := range files {
 			src, err := os.ReadFile(f)
 			if err != nil {
@@ -94,20 +107,59 @@ func sdlFields(root string, set *Set, surface string) (map[string]sdlField, erro
 			if err != nil {
 				return nil, fmt.Errorf("parse %s: %w", f, err)
 			}
+			docs = append(docs, doc)
+			for _, def := range doc.Definitions {
+				own[def.Name] = true
+			}
+		}
+		for _, doc := range docs {
 			for _, ext := range doc.Extensions {
-				if ext.Name != "Query" && ext.Name != "Mutation" {
+				typ := ext.Name
+				switch {
+				case typ == "Query" || typ == "Mutation":
+					typ = ""
+				case own[typ]:
 					continue
+				case ext.Kind != gqlast.Object:
+					return nil, fmt.Errorf("%s extends %s %s - a plugin adds fields to core's object types only", slug, strings.ToLower(string(ext.Kind)), typ)
 				}
 				for _, fd := range ext.Fields {
-					if prev, dup := owned[fd.Name]; dup {
-						return nil, fmt.Errorf("%s field %q claimed by both %s and %s", surface, fd.Name, prev.slug, slug)
+					if typ != "" {
+						if err := coreTypeField(slug, typ, fd); err != nil {
+							return nil, err
+						}
 					}
-					owned[fd.Name] = sdlField{slug: slug, field: fd.Name, enabled: set.Enabled(slug)}
+					key := ownedKey(typ, fd.Name)
+					if prev, dup := owned[key]; dup {
+						return nil, fmt.Errorf("%s field %q claimed by both %s and %s", surface, strings.TrimPrefix(typ+"."+fd.Name, "."), prev.slug, slug)
+					}
+					owned[key] = sdlField{slug: slug, typ: typ, field: fd.Name, enabled: set.Enabled(slug)}
 				}
 			}
 		}
 	}
 	return owned, nil
+}
+
+// A field on a core type answers for a whole list of parents in one call, and is nullable, since the type is on every
+// channel's schema and the plugin isn't on every channel - those answer null
+func coreTypeField(slug, typ string, fd *gqlast.FieldDefinition) error {
+	where := fmt.Sprintf("%s's field %s.%s", slug, typ, fd.Name)
+	if fd.Type.NonNull {
+		return fmt.Errorf("%s is non-null - make it nullable, so a channel the plugin is off on can answer null", where)
+	}
+	dir := fd.Directives.ForName("goField")
+	on := func(arg string) bool {
+		if dir == nil {
+			return false
+		}
+		a := dir.Arguments.ForName(arg)
+		return a != nil && a.Value != nil && a.Value.Raw == "true"
+	}
+	if !on("forceResolver") || !on("batch") {
+		return fmt.Errorf("%s needs @goField(forceResolver: true, batch: true), so the plugin answers once per list of %ss rather than once per row", where, typ)
+	}
+	return nil
 }
 
 // Rewrites each resolver file whose every method is plugin-owned - a file mixing core and plugin fields is an
@@ -131,7 +183,7 @@ func rewriteResolverFiles(root, surface, sdkConst, pkg string, owned map[string]
 		if err != nil {
 			return nil, err
 		}
-		delegates := bytes.Contains(raw, []byte("pluginhost.Do("))
+		delegates := bytes.Contains(raw, []byte("pluginhost.Do(")) || bytes.Contains(raw, []byte("pluginhost.DoBatch("))
 
 		var mine, foreign, disabled int
 		var ms []method
@@ -141,11 +193,11 @@ func rewriteResolverFiles(root, surface, sdkConst, pkg string, owned map[string]
 				continue
 			}
 			recv := recvType(fn.Recv.List[0].Type)
-			if recv != "queryResolver" && recv != "mutationResolver" {
+			typ, ok := resolverType(recv)
+			if !ok {
 				continue
 			}
-			field := fieldName(fn)
-			o, ok := owned[field]
+			o, ok := owned[ownedKey(typ, fieldName(fn))]
 			if !ok {
 				foreign++
 				continue
@@ -155,7 +207,7 @@ func rewriteResolverFiles(root, surface, sdkConst, pkg string, owned map[string]
 				continue
 			}
 			mine++
-			m, err := describe(fset, fn, recv, field, o.slug, imports)
+			m, err := describe(fset, fn, recv, o, imports)
 			if err != nil {
 				return nil, err
 			}
@@ -191,6 +243,23 @@ func rewriteResolverFiles(root, surface, sdkConst, pkg string, owned map[string]
 	return all, nil
 }
 
+// The schema type a resolver receiver serves - empty for Query and Mutation, false for anything that isn't a field resolver
+func resolverType(recv string) (string, bool) {
+	switch recv {
+	case "queryResolver", "mutationResolver":
+		return "", true
+	case "subscriptionResolver":
+		return "", false
+	}
+	base, ok := strings.CutSuffix(recv, "Resolver")
+	if !ok || base == "" {
+		return "", false
+	}
+	r := []rune(base)
+	r[0] = unicode.ToUpper(r[0])
+	return string(r), true
+}
+
 func recvType(e ast.Expr) string {
 	if star, ok := e.(*ast.StarExpr); ok {
 		e = star.X
@@ -216,7 +285,7 @@ func fieldName(fn *ast.FuncDecl) string {
 	return string(r)
 }
 
-func describe(fset *token.FileSet, fn *ast.FuncDecl, recv, field, slug string, avail map[string]string) (method, error) {
+func describe(fset *token.FileSet, fn *ast.FuncDecl, recv string, o sdlField, avail map[string]string) (method, error) {
 	params, args, err := paramList(fset, fn.Type.Params)
 	if err != nil {
 		return method{}, err
@@ -224,6 +293,19 @@ func describe(fset *token.FileSet, fn *ast.FuncDecl, recv, field, slug string, a
 	results, err := exprList(fset, fn.Type.Results)
 	if err != nil {
 		return method{}, err
+	}
+	field, impl, parents := o.field, fn.Name.Name, ""
+	if o.typ != "" {
+		field, impl = o.typ+"."+o.field, o.typ+fn.Name.Name
+		// gqlgen's batch shape: (ctx, objs []*model.T, args...) ([]R, error)
+		ps := fn.Type.Params.List
+		if len(ps) < 2 || len(ps[1].Names) != 1 || !strings.HasPrefix(results, "([]") {
+			return method{}, fmt.Errorf("%s is not a batch resolver - is @goField(batch: true) on %s?", fn.Name.Name, field)
+		}
+		if _, isSlice := ps[1].Type.(*ast.ArrayType); !isSlice {
+			return method{}, fmt.Errorf("%s is not a batch resolver - is @goField(batch: true) on %s?", fn.Name.Name, field)
+		}
+		parents = ps[1].Names[0].Name
 	}
 	imports := map[string]string{}
 	for _, p := range pkgRefs(params + " " + results) {
@@ -234,7 +316,7 @@ func describe(fset *token.FileSet, fn *ast.FuncDecl, recv, field, slug string, a
 		imports[p] = path
 	}
 	return method{
-		recv: recv, name: fn.Name.Name, field: field, slug: slug,
+		recv: recv, name: fn.Name.Name, field: field, impl: impl, parents: parents, slug: o.slug,
 		params: params, args: args, results: results, imports: imports,
 	}, nil
 }

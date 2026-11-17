@@ -30,6 +30,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/ordermail"
 	"github.com/skeletg/skelet/apps/backend/core/internal/outbox"
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
+	pluginhost "github.com/skeletg/skelet/apps/backend/core/internal/plugin"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/core/internal/qna"
 	"github.com/skeletg/skelet/apps/backend/core/internal/referral"
@@ -175,6 +176,13 @@ func subscribeOrderReactors(d subscriberDeps) {
 	d.Referral.SubscribeToOrderEvents(bus)    // give-get payout on the referee's first order
 	d.Download.SubscribeToOrderEvents(bus)    // grants the buyer access to a purchased product's downloads
 	d.Download.SubscribeToCustomerEvents(bus) // a file shared with an account goes when the account does
+	// What plugins keep about a customer is scrubbed with them - an error leaves the event to be delivered again
+	bus.Subscribe(customer.EventErased, func(ctx context.Context, e events.Event) error {
+		if ev, ok := e.(*customer.CustomerErased); ok {
+			return pluginhost.EraseCustomerData(ctx, ev.CustomerID, ev.ChannelID, ev.Email)
+		}
+		return nil
+	})
 	d.Subscription.SubscribeToOrderEvents(bus)
 }
 

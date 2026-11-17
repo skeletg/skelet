@@ -80,9 +80,13 @@ func renderResolvers(pkg, sdkConst string, ms []method) ([]byte, error) {
 		iface := ifaceName(m.slug, pkg)
 		fmt.Fprintf(&b, "\n// %s is the resolver for the %s field.\n", m.name, m.field)
 		fmt.Fprintf(&b, "func (r *%s) %s(%s) %s {\n", m.recv, m.name, m.params, m.results)
-		fmt.Fprintf(&b, "\treturn pluginhost.Do(ctx, %s, %q, %q,\n", sdkConst, m.slug, m.field)
+		if m.parents != "" {
+			fmt.Fprintf(&b, "\treturn pluginhost.DoBatch(ctx, %s, %q, %q, len(%s),\n", sdkConst, m.slug, m.field, m.parents)
+		} else {
+			fmt.Fprintf(&b, "\treturn pluginhost.Do(ctx, %s, %q, %q,\n", sdkConst, m.slug, m.field)
+		}
 		fmt.Fprintf(&b, "\t\tfunc(ctx context.Context, impl %s) %s {\n", iface, m.results)
-		fmt.Fprintf(&b, "\t\t\treturn impl.%s(%s)\n", m.name, m.args)
+		fmt.Fprintf(&b, "\t\t\treturn impl.%s(%s)\n", m.impl, m.args)
 		fmt.Fprintf(&b, "\t\t})\n")
 		fmt.Fprintf(&b, "}\n")
 	}
@@ -139,7 +143,7 @@ func writePluginResolvers(root, surface, sdkConst, pkg string, ms []method) erro
 		iface := ifaceName(slug, surface)
 		fmt.Fprintf(&b, "\ntype %s interface {\n", iface)
 		for _, m := range bySlug[slug] {
-			fmt.Fprintf(&b, "\t%s(%s) %s\n", m.name, m.params, m.results)
+			fmt.Fprintf(&b, "\t%s(%s) %s\n", m.impl, m.params, m.results)
 		}
 		fmt.Fprintf(&b, "}\n")
 	}

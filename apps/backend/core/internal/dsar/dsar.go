@@ -49,7 +49,14 @@ type Builder struct {
 	credit    StoreCredit
 	wishlist  Wishlist
 	q         *db.Queries
+	plugins   PluginData
 }
+
+// What the plugins keep about a customer, by "<plugin>:<key>"
+type PluginData func(ctx context.Context, customerID, channelID uuid.UUID, email string) (map[string]any, error)
+
+// Optional - nil exports no plugin sections
+func (b *Builder) SetPluginData(f PluginData) { b.plugins = f }
 
 func New(customers Customers, orders Orders, consents Consents, channels Channels, credit StoreCredit, wishlist Wishlist, q *db.Queries) *Builder {
 	return &Builder{customers: customers, orders: orders, consents: consents, channels: channels, credit: credit, wishlist: wishlist, q: q}
@@ -115,6 +122,15 @@ func (b *Builder) build(ctx context.Context, customerID uuid.UUID, vouched bool)
 	}
 	if err := b.sections(ctx, c.ID, c.ChannelID, addr, extra); err != nil {
 		return customer.DataExport{}, err
+	}
+	if b.plugins != nil {
+		kept, err := b.plugins(ctx, c.ID, c.ChannelID, addr)
+		if err != nil {
+			return customer.DataExport{}, fmt.Errorf("export plugin data: %w", err)
+		}
+		if len(kept) > 0 {
+			extra["plugins"] = kept
+		}
 	}
 	bundle.Extra = extra
 	return bundle, nil

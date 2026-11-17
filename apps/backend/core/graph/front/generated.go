@@ -12352,6 +12352,10 @@ scalar Int64
 
 type Query
 type Mutation
+
+# How gqlgen binds a field - a plugin's field on one of core's types carries @goField(forceResolver: true, batch: true),
+# so the plugin answers once per list of parents. Read at generation time only; nothing runs it per request
+directive @goField(forceResolver: Boolean, name: String, omittable: Boolean, batch: Boolean) on INPUT_FIELD_DEFINITION | FIELD_DEFINITION
 `, BuiltIn: false},
 	{Name: "../schema/front/search_overview.graphqls", Input: `# A few sentences above a search's results, written from the products listed - only for a search the store's search page answers by meaning, while the store has its AI overview and its shopping assistant on
 type SearchOverview {

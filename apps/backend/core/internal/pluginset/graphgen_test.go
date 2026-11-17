@@ -42,13 +42,15 @@ func TestSDLFieldsReadsEveryLayout(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, f := range []string{"acmeTabbed", "acmeDeep", "acmeOneLine"} {
-		if o, ok := owned[f]; !ok || o.slug != "acme" || !o.enabled {
+		if o, ok := owned[ownedKey("", f)]; !ok || o.slug != "acme" || !o.enabled || o.field != f {
 			t.Errorf("%s not owned by acme: %+v", f, o)
 		}
 	}
 	for _, f := range []string{"notAField", "alsoNot"} {
-		if _, ok := owned[f]; ok {
-			t.Errorf("%s is not a Query or Mutation field but was claimed", f)
+		for key := range owned {
+			if strings.HasSuffix(key, strings.ToLower(f)) {
+				t.Errorf("%s is the plugin's own type's field but was claimed as %s", f, key)
+			}
 		}
 	}
 }
@@ -86,7 +88,7 @@ func (r *mutationResolver) AcmeUpload(ctx context.Context, file graphql.Upload) 
 }
 `,
 	})
-	owned := map[string]sdlField{"acmeUpload": {slug: "acme", field: "acmeUpload", enabled: true}}
+	owned := map[string]sdlField{ownedKey("", "acmeUpload"): {slug: "acme", field: "acmeUpload", enabled: true}}
 	ms, err := rewriteResolverFiles(root, "admin", "sdk.GraphAdmin", "admin", owned)
 	if err != nil {
 		t.Fatal(err)
@@ -167,5 +169,133 @@ func TestAtomicWriteCleansUpOnFailure(t *testing.T) {
 	}
 	if len(entries) != 1 {
 		t.Errorf("a failed write left %d entries behind, want only the original", len(entries))
+	}
+}
+
+// A field on a core type is claimed under its type, and refused unless it's batched and nullable
+func TestSDLFieldsClaimsFieldsOnCoreTypes(t *testing.T) {
+	ok := `extend type Product { acmeWarranty: AcmeWarranty @goField(forceResolver: true, batch: true) }
+type AcmeWarranty { months: Int }
+extend type AcmeWarranty { provider: String }
+`
+	root := writeTree(t, map[string]string{
+		StateFile:                               `{"plugins": {"acme": {"enabled": true}}}`,
+		"plugins/acme/graphql/admin/a.graphqls": ok,
+	})
+	set, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owned, err := sdlFields(root, set, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if o, found := owned[ownedKey("Product", "acmeWarranty")]; !found || o.typ != "Product" || o.field != "acmeWarranty" || len(owned) != 1 {
+		t.Errorf("owned %+v - want Product.acmeWarranty alone, the plugin's own type left out", owned)
+	}
+
+	for name, tc := range map[string]struct{ sdl, want string }{
+		"unbatched": {`extend type Product { acmeNote: String @goField(forceResolver: true) }`, "batch: true"},
+		"bare":      {`extend type Product { acmeNote: String }`, "batch: true"},
+		"non-null":  {`extend type Product { acmeNote: String! @goField(forceResolver: true, batch: true) }`, "nullable"},
+		"input":     {`extend input ProductInput { acmeNote: String }`, "object types only"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := writeTree(t, map[string]string{
+				StateFile:                               `{"plugins": {"acme": {"enabled": true}}}`,
+				"plugins/acme/graphql/admin/a.graphqls": tc.sdl,
+			})
+			set, err := Load(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := sdlFields(root, set, "admin"); err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("got %v, want an error about %q", err, tc.want)
+			}
+		})
+	}
+}
+
+// gqlgen's batch stub on a core type becomes a DoBatch delegation to a type-prefixed plugin method, beside the core
+// resolvers on the same type, which stay where they are
+func TestCoreTypeFieldsDelegateInABatch(t *testing.T) {
+	root := writeTree(t, map[string]string{
+		"graph/admin/acme.resolvers.go": `package admin
+
+import (
+	"context"
+
+	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+)
+
+func (r *productResolver) AcmeURL(ctx context.Context, objs []*model.Product) ([]*string, error) {
+	panic("not implemented")
+}
+
+func (r *queryResolver) AcmeStatus(ctx context.Context) (*string, error) {
+	panic("not implemented")
+}
+`,
+		"graph/admin/catalog.resolvers.go": `package admin
+
+import "context"
+
+func (r *productResolver) Options(ctx context.Context, obj *Product) ([]string, error) { return nil, nil }
+`,
+	})
+	owned := map[string]sdlField{
+		ownedKey("Product", "acmeUrl"): {slug: "acme", typ: "Product", field: "acmeUrl", enabled: true},
+		ownedKey("", "acmeStatus"):     {slug: "acme", field: "acmeStatus", enabled: true},
+	}
+	ms, err := rewriteResolverFiles(root, "admin", "sdk.GraphAdmin", "admin", owned)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writePluginResolvers(root, "admin", "sdk.GraphAdmin", "admin", ms); err != nil {
+		t.Fatal(err)
+	}
+	read := func(name string) string {
+		b, err := os.ReadFile(filepath.Join(root, "graph", "admin", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	got := read("acme.resolvers.go")
+	for _, want := range []string{
+		`pluginhost.DoBatch(ctx, sdk.GraphAdmin, "acme", "Product.acmeUrl", len(objs),`,
+		`return impl.ProductAcmeURL(ctx, objs)`,
+		`pluginhost.Do(ctx, sdk.GraphAdmin, "acme", "acmeStatus",`,
+		`return impl.AcmeStatus(ctx)`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("delegation lacks %q:\n%s", want, got)
+		}
+	}
+	if iface := read("plugin_resolvers.go"); !strings.Contains(iface, "ProductAcmeURL(ctx context.Context, objs []*model.Product) ([]*string, error)") {
+		t.Errorf("interface lacks the type-prefixed method:\n%s", iface)
+	}
+	if !strings.Contains(read("catalog.resolvers.go"), "func (r *productResolver) Options") {
+		t.Error("a core resolver on the same type was touched")
+	}
+}
+
+// A departed plugin's batched delegations go with it, or gqlgen type-checks a file whose interface and model types left
+// the schema with the plugin
+func TestADepartedPluginsTypeFieldsArePruned(t *testing.T) {
+	root := writeTree(t, map[string]string{
+		"graph/admin/gone.resolvers.go": `package admin
+
+func (r *productResolver) GoneWarranty(ctx context.Context, objs []*model.Product) ([]*model.GoneWarranty, error) {
+	return pluginhost.DoBatch(ctx, sdk.GraphAdmin, "gone", "Product.goneWarranty", len(objs),
+		func(ctx context.Context, impl goneAdmin) ([]*model.GoneWarranty, error) { return impl.ProductGoneWarranty(ctx, objs) })
+}
+`,
+	})
+	if _, err := rewriteResolverFiles(root, "admin", "sdk.GraphAdmin", "admin", map[string]sdlField{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "graph", "admin", "gone.resolvers.go")); !os.IsNotExist(err) {
+		t.Errorf("the departed plugin's delegation file is still there: %v", err)
 	}
 }

@@ -42647,6 +42647,10 @@ extend type Mutation {
 type Query
 type Mutation
 
+# How gqlgen binds a field - a plugin's field on one of core's types carries @goField(forceResolver: true, batch: true),
+# so the plugin answers once per list of parents. Read at generation time only; nothing runs it per request
+directive @goField(forceResolver: Boolean, name: String, omittable: Boolean, batch: Boolean) on INPUT_FIELD_DEFINITION | FIELD_DEFINITION
+
 # Shared metadata key/value pair used across the admin schema
 # (catalog, cms, blog, channels, inventory, ...).
 type MetadataItem {

@@ -239,6 +239,7 @@ func init() {
 
 	p.RegisterPermission("payments", "example.manage", "Manage the example gateway")
 	p.RegisterDataResource(recordsResource)
+	p.RegisterCustomerData(customerNotes)
 
 	p.RegisterMigrations(sdk.MigrationsRegistration{Namespace: Slug, FS: migrationsFS})
 }

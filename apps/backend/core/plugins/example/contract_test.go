@@ -33,6 +33,7 @@ func TestMain(m *testing.M) {
 	if conn, _ := testdb.Open("DATABASE_URL"); conn != nil {
 		testDB = conn
 		pluginhost.SetConfigService(config.NewService(configstore.New(dbsqlc.New(conn))))
+		pluginhost.SetDatabase(conn) // what sdk.Database hands the plugin's own queries
 	}
 	code := m.Run()
 	if testDB != nil {
@@ -284,12 +285,12 @@ func TestMigrationsApply(t *testing.T) {
 	conn := withDB(t)
 	ctx := context.Background()
 
-	t.Cleanup(func() {
-		_, _ = conn.Exec(`DROP TABLE IF EXISTS example_plugin_records`)
+	drop := func() {
+		_, _ = conn.Exec(`DROP TABLE IF EXISTS example_plugin_records, example_plugin_customer_notes`)
 		_, _ = conn.Exec(`DELETE FROM plugin_migrations WHERE namespace = $1`, Slug)
-	})
-	_, _ = conn.Exec(`DROP TABLE IF EXISTS example_plugin_records`)
-	_, _ = conn.Exec(`DELETE FROM plugin_migrations WHERE namespace = $1`, Slug)
+	}
+	t.Cleanup(drop)
+	drop()
 
 	runner := pluginmigrate.New(conn)
 	if err := runner.UpInOrder(ctx, pluginhost.OrderedManifestSlugs()); err != nil {
@@ -306,5 +307,43 @@ func TestMigrationsApply(t *testing.T) {
 	}
 	if err := runner.UpInOrder(ctx, pluginhost.OrderedManifestSlugs()); err != nil {
 		t.Fatalf("re-run should be a no-op: %v", err)
+	}
+
+	// The notes linked to a customer come out with their export, go with an erasure, and go with the customer too
+	var group, customer uuid.UUID
+	if err := conn.QueryRow(`SELECT id FROM customer_groups ORDER BY created_at LIMIT 1`).Scan(&group); err != nil {
+		t.Fatalf("a customer group: %v", err)
+	}
+	var channelID uuid.UUID
+	if err := conn.QueryRow(`INSERT INTO channels (slug, name, currency_code) VALUES ($1, 'Notes', 'EUR') RETURNING id`,
+		"notes-"+uuid.NewString()[:8]).Scan(&channelID); err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.QueryRow(`INSERT INTO customers (email, password_hash, customer_group_id, channel_id) VALUES ($1, '', $2, $3) RETURNING id`,
+		uuid.NewString()[:8]+"@notes.test", group, channelID).Scan(&customer); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.Exec(`INSERT INTO example_plugin_customer_notes (customer_id, note) VALUES ($1, 'prefers mornings'), ($1, 'gift wrap')`, customer); err != nil {
+		t.Fatal(err)
+	}
+	export, err := pluginhost.CustomerDataExport(ctx, customer, channelID, "")
+	if notes, _ := export[Slug+":notes"].([]string); err != nil || len(notes) != 2 || notes[0] != "prefers mornings" {
+		t.Errorf("export %v, %v - want both notes under %s:notes", export, err, Slug)
+	}
+	if err := pluginhost.EraseCustomerData(ctx, customer, channelID, ""); err != nil {
+		t.Fatal(err)
+	}
+	if export, err := pluginhost.CustomerDataExport(ctx, customer, channelID, ""); err != nil || len(export) != 0 {
+		t.Errorf("after the erasure: %v, %v - want nothing left", export, err)
+	}
+	if _, err := conn.Exec(`INSERT INTO example_plugin_customer_notes (customer_id, note) VALUES ($1, 'again')`, customer); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.Exec(`DELETE FROM customers WHERE id = $1`, customer); err != nil {
+		t.Fatalf("deleting the customer: %v - the link must not hold it back", err)
+	}
+	var left int
+	if err := conn.QueryRow(`SELECT count(*) FROM example_plugin_customer_notes`).Scan(&left); err != nil || left != 0 {
+		t.Errorf("%d notes outlived their customer (%v)", left, err)
 	}
 }

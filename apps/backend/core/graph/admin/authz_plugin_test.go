@@ -23,7 +23,7 @@ var pluginAuthGates = map[string]bool{
 	"PermittedChannels":        true,
 }
 
-// Reads the slug out of a generated delegation: pluginhost.Do(ctx, sdk.GraphAdmin, "<slug>", "<field>", ...)
+// Reads the slug out of a generated delegation: pluginhost.Do or DoBatch(ctx, sdk.GraphAdmin, "<slug>", "<field>", ...)
 func delegatedPluginSlug(body *ast.BlockStmt) string {
 	slug := ""
 	ast.Inspect(body, func(n ast.Node) bool {
@@ -32,7 +32,7 @@ func delegatedPluginSlug(body *ast.BlockStmt) string {
 			return true
 		}
 		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok || sel.Sel.Name != "Do" {
+		if !ok || (sel.Sel.Name != "Do" && sel.Sel.Name != "DoBatch") {
 			return true
 		}
 		if pkg, ok := sel.X.(*ast.Ident); !ok || pkg.Name != "pluginhost" {

@@ -97,6 +97,7 @@ func newLoginThrottle(client *redis.Client) *authpkg.LoginThrottle { // nil disa
 
 func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, healthReg *health.Registry, tools *agenttools.Service) GQL {
 	dsarBuilder := dsar.New(s.Customer, s.Order, s.Consent, s.Channel, s.StoreCredit, s.Wishlist, infra.Queries)
+	dsarBuilder.SetPluginData(plugin.CustomerDataExport)
 	storefrontSearch := search.NewHybrid(s.SearchTier.Engine, storefrontMeaning{s.Meaning}, s.Config)
 	adminResolver := &graphadmin.Resolver{
 		DevMode:           infra.Config.IsDev(),
