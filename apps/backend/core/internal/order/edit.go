@@ -67,6 +67,9 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 		return Order{}, err
 	}
 	before := editedLines(o) // each line's net sales as the order stood, for what the edit changed
+	if o.feesUnreadable {
+		return Order{}, errFeesUnreadable
+	}
 	if !editableStatuses[o.Status] {
 		return Order{}, apperr.New("ORDER_NOT_EDITABLE", apperr.ClassConflict,
 			fmt.Sprintf("an order in status %q cannot be edited", o.Status))
@@ -371,6 +374,9 @@ func (s *Service) EditOrderAddress(ctx context.Context, in EditOrderAddressInput
 	o, err := s.repo.GetOrderByID(ctx, in.OrderID)
 	if err != nil {
 		return Order{}, err
+	}
+	if o.feesUnreadable {
+		return Order{}, errFeesUnreadable
 	}
 	if !editableStatuses[o.Status] {
 		return Order{}, apperr.New("ORDER_NOT_EDITABLE", apperr.ClassConflict,

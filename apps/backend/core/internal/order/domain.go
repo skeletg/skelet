@@ -39,6 +39,7 @@ type Order struct {
 	TaxAmount         int64
 	ShippingTaxAmount int64 // the part of TaxAmount charged on shipping
 	Fees              []Fee // what plugins charged on top, each with its part of TaxAmount
+	feesUnreadable    bool  // the stored fees didn't decode - see decodeFees
 	TotalAmount       int64
 	AnonID            string // the visitor id it was placed under - a guest order's later events reach the profile its placement did
 	Locale            string // the storefront language it was placed in, so its emails can go out in it - empty when not known

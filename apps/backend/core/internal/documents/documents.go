@@ -346,6 +346,9 @@ func (d doc) memoTotals() {
 	if m.ShippingRefundCents > 0 {
 		d.totalRow("Shipping", m.ShippingRefundCents, false)
 	}
+	if m.FeesRefundCents > 0 {
+		d.totalRow("Fees", m.FeesRefundCents, false)
+	}
 	if m.AdjustmentRefundCents > 0 {
 		d.totalRow("Adjustment", m.AdjustmentRefundCents, false)
 	}

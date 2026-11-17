@@ -207,6 +207,12 @@ function Totals({
           {formatPrice(tenders > 0 ? totals.amountDueCents : totals.totalCents, currency)}
         </span>
       </p>
+      {/* The figures above stop short of the order's real total - a plugin's fee turned this checkout down, or pricing failed */}
+      {totals.problem ? (
+        <p role="alert" className="mt-3 rounded-lg border border-destructive/40 p-3 text-sm text-destructive">
+          {totals.problem}
+        </p>
+      ) : null}
       {taxIncluded && priced && totals.taxCents > 0 ? (
         <p className="mt-1 flex justify-between text-xs text-muted-foreground">
           <span>{labels.taxIncluded}</span>

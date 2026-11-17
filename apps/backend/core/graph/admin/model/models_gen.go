@@ -2367,6 +2367,7 @@ type CreditMemo struct {
 	ReturnID         *string           `json:"returnId,omitempty"`
 	ItemsTotal       int32             `json:"itemsTotal"`
 	ShippingRefund   int32             `json:"shippingRefund"`
+	FeesRefund       int32             `json:"feesRefund"`
 	AdjustmentRefund int32             `json:"adjustmentRefund"`
 	AdjustmentFee    int32             `json:"adjustmentFee"`
 	Total            int32             `json:"total"`
@@ -3263,6 +3264,7 @@ type IssueCreditMemoInput struct {
 	OrderID          string                 `json:"orderId"`
 	Lines            []*CreditMemoLineInput `json:"lines,omitempty"`
 	ShippingRefund   *int32                 `json:"shippingRefund,omitempty"`
+	FeesRefund       *int32                 `json:"feesRefund,omitempty"`
 	AdjustmentRefund *int32                 `json:"adjustmentRefund,omitempty"`
 	AdjustmentFee    *int32                 `json:"adjustmentFee,omitempty"`
 	RefundTarget     *string                `json:"refundTarget,omitempty"`
@@ -3790,6 +3792,7 @@ type Order struct {
 	TaxIncluded         bool                  `json:"taxIncluded"`
 	ShippingTaxAmount   int32                 `json:"shippingTaxAmount"`
 	ShippingRefundable  int32                 `json:"shippingRefundable"`
+	FeesRefundable      int32                 `json:"feesRefundable"`
 	Fees                []*OrderFee           `json:"fees"`
 	Total               int32                 `json:"total"`
 	GiftCardAmount      int32                 `json:"giftCardAmount"`

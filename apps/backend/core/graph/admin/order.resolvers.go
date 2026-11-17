@@ -652,6 +652,7 @@ func (r *mutationResolver) IssueCreditMemo(ctx context.Context, input model.Issu
 	in := order.IssueCreditMemoInput{
 		OrderID:               orderID,
 		ShippingRefundCents:   int64(int32Deref(input.ShippingRefund)),
+		FeesRefundCents:       int64(int32Deref(input.FeesRefund)),
 		AdjustmentRefundCents: int64(int32Deref(input.AdjustmentRefund)),
 		AdjustmentFeeCents:    int64(int32Deref(input.AdjustmentFee)),
 		RefundTarget:          ptr.Deref(input.RefundTarget),

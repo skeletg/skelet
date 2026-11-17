@@ -90,7 +90,7 @@ func refundedMerchandiseFraction(ctx context.Context, repo Repository, o Order) 
 		refunded += money.LineTotal(unit[lineID], qty)
 	}
 
-	// A line-less memo refunded money without naming goods - attribute its non-shipping part in the order's own proportion, else a full flat refund revokes nothing. Fees are no more goods than shipping is
+	// A line-less memo refunded money without naming goods - attribute what it didn't put to shipping or to fees in the order's own proportion, else a full flat refund revokes nothing. Fees are no more goods than shipping is
 	memos, err := repo.ListCreditMemos(ctx, o.ID)
 	if err != nil {
 		return 0, err
@@ -100,9 +100,9 @@ func refundedMerchandiseFraction(ctx context.Context, repo Repository, o Order) 
 			if len(m.Lines) > 0 {
 				continue // exact, already counted through CreditedByOrderLine
 			}
-			attributable := m.TotalCents - m.ShippingRefundCents
+			attributable := m.TotalCents - m.ShippingRefundCents - m.FeesRefundCents
 			if attributable <= 0 {
-				continue // shipping-only, no goods implied
+				continue // shipping or fees only, no goods implied
 			}
 			refunded += attributable * orderMerch / nonShipping
 		}

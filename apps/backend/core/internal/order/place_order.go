@@ -236,6 +236,17 @@ func (s *Service) resolveCheckoutCart(ctx context.Context, in PlaceOrderInput, s
 
 // Runs the core per-line tax when no plugin claimed the seam - resolves each line's tax class by SKU, distributes the discount across lines, and asks the tax service for the total. totalDiscount floors at zero Also records the per-rule breakdown on cc.taxLines - the engine resolves it anyway, and dropping it left orders with a tax_amount nothing could explain
 func (s *Service) computeLineTax(ctx context.Context, cc *checkoutContext, totalDiscount, shippingCents int64) (int64, error) {
+	return s.computeTax(ctx, cc, totalDiscount, shippingCents, false)
+}
+
+// The tax on the fees alone, under core's rules. A plugin that claims the order's tax does it before the fees are
+// priced, so its figure covers the goods and shipping and never the fees - they'd be charged untaxed, and the quote,
+// which runs core's tax, would have shown them taxed
+func (s *Service) computeFeeTax(ctx context.Context, cc *checkoutContext) (int64, error) {
+	return s.computeTax(ctx, cc, 0, 0, true)
+}
+
+func (s *Service) computeTax(ctx context.Context, cc *checkoutContext, totalDiscount, shippingCents int64, feesOnly bool) (int64, error) {
 	cc.taxLines, cc.shippingTax = nil, 0
 	cc.fees = withoutFeeTax(cc.fees)
 	// Tax-exempt customers pay zero core tax on every recompute path - a TaxCents plugin is still authoritative, this only gates core
@@ -271,8 +282,11 @@ func (s *Service) computeLineTax(ctx context.Context, cc *checkoutContext, total
 	}
 
 	lines := allocateLineTaxInputs(cc.cart.Lines, cc.subtotal, totalDiscount, classByLine)
+	if feesOnly {
+		lines = nil
+	}
 	shippingLine := -1
-	if shippingCents > 0 {
+	if shippingCents > 0 && !feesOnly {
 		class, taxable := "", true
 		if s.shippingTax != nil {
 			class, taxable = s.shippingTax(ctx, cc.store.ID)
@@ -288,6 +302,9 @@ func (s *Service) computeLineTax(ctx context.Context, cc *checkoutContext, total
 			feeLines[len(lines)] = i
 			lines = append(lines, tax.LineTaxInput{ProductTaxClass: f.TaxClass, TaxableCents: f.AmountCents})
 		}
+	}
+	if len(lines) == 0 {
+		return 0, nil
 	}
 	res, err := s.tax.ComputeOrder(ctx, tax.ComputeOrderInput{
 		ChannelID:         cc.store.ID,

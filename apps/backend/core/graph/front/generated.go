@@ -583,6 +583,7 @@ type ComplexityRoot struct {
 		DiscountCents    func(childComplexity int) int
 		Fees             func(childComplexity int) int
 		GiftCardCents    func(childComplexity int) int
+		Problem          func(childComplexity int) int
 		ShippingCents    func(childComplexity int) int
 		StoreCreditCents func(childComplexity int) int
 		SubtotalCents    func(childComplexity int) int
@@ -4235,6 +4236,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CheckoutTotals.GiftCardCents(childComplexity), true
+	case "CheckoutTotals.problem":
+		if e.ComplexityRoot.CheckoutTotals.Problem == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CheckoutTotals.Problem(childComplexity), true
 	case "CheckoutTotals.shippingCents":
 		if e.ComplexityRoot.CheckoutTotals.ShippingCents == nil {
 			break
@@ -10421,6 +10428,10 @@ type CheckoutTotals {
   storeCreditCents: Int!
   # What the payment method is charged: total less gift cards and store credit.
   amountDueCents:   Int!
+  # Set when an address is saved and the checkout still couldn't be priced, so the figures above stop at the discounted
+  # subtotal and aren't what the order would come to. A refusal reads in its own words ("pay a total this large with
+  # another method"), a fault as a plain line. Show it with the totals; placeOrder refuses the same way.
+  problem:          String
 }
 
 type AppliedPromotionCode {
@@ -13700,6 +13711,8 @@ func (ec *executionContext) childFields_CheckoutTotals(ctx context.Context, fiel
 		return ec.fieldContext_CheckoutTotals_storeCreditCents(ctx, field)
 	case "amountDueCents":
 		return ec.fieldContext_CheckoutTotals_amountDueCents(ctx, field)
+	case "problem":
+		return ec.fieldContext_CheckoutTotals_problem(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type CheckoutTotals", field.Name)
 }
@@ -27371,6 +27384,29 @@ func (ec *executionContext) _CheckoutTotals_amountDueCents(ctx context.Context, 
 }
 func (ec *executionContext) fieldContext_CheckoutTotals_amountDueCents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CheckoutTotals", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _CheckoutTotals_problem(ctx context.Context, field graphql.CollectedField, obj *model1.CheckoutTotals) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CheckoutTotals_problem(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Problem, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_CheckoutTotals_problem(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CheckoutTotals", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _Collection_id(ctx context.Context, field graphql.CollectedField, obj *model.Collection) (ret graphql.Marshaler) {
@@ -55751,6 +55787,11 @@ func (ec *executionContext) _CheckoutTotals(ctx context.Context, sel ast.Selecti
 		case "amountDueCents":
 			out.Values[i] = ec._CheckoutTotals_amountDueCents(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "problem":
+			out.Values[i] = ec._CheckoutTotals_problem(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:

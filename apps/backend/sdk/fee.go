@@ -2,12 +2,20 @@ package sdk
 
 import (
 	"context"
+	"math"
+	"strconv"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 )
 
-// MaxFeeCents is the most one fee may charge, in minor units
-const MaxFeeCents = 10_000_000_000
+// MaxFeeCents is the most one fee may charge, in minor units - what an amount on the API holds, so a fee that's stored
+// is a fee that reads back
+const MaxFeeCents = math.MaxInt32
+
+// MaxFeeLabel is the longest label a fee may carry, in characters - it has a line of a checkout summary, an email and
+// an invoice to fit beside its amount
+const MaxFeeLabel = 60
 
 // A charge of the plugin's own on an order - handling, a payment-method surcharge, an eco fee. Core prices it after
 // shipping and before tax, taxes it under TaxClass, and keeps it on the order beside the label the shopper saw
@@ -72,6 +80,8 @@ func (pl *Plugin) RegisterFee(f Fee) {
 		panic("sdk.RegisterFee: key " + f.Key + hookKeyRule)
 	case f.Label == "":
 		panic("sdk.RegisterFee: " + f.Key + " needs a label")
+	case utf8.RuneCountInString(f.Label) > MaxFeeLabel:
+		panic("sdk.RegisterFee: " + f.Key + "'s label is over " + strconv.Itoa(MaxFeeLabel) + " characters")
 	case f.Charge == nil:
 		panic("sdk.RegisterFee: " + f.Key + " needs a Charge func")
 	}

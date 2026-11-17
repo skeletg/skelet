@@ -322,6 +322,8 @@ function OrderSummary({ cart, delivering, currency, taxIncluded }: { cart: Cart;
           </div>
         )}
       </dl>
+      {/* The figures stop short of the order's real total - a fee turned this checkout down, or pricing failed */}
+      {t.problem && <Notice>{t.problem}</Notice>}
       {delivering && (
         // Without scripts a delivery pick reprices through this; with them, each pick submits through it on its own
         <button

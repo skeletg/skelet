@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/sdk"
@@ -138,3 +139,107 @@ func (h *harness) countOrdersOn(t *testing.T, channelID uuid.UUID) int {
 	}
 	return n
 }
+
+// Scenario: on a tax-inclusive channel a fee is a gross amount like every price there - the total adds it once, its
+// tax is carved out of it, and the quote and the order agree
+func TestPluginFeesOnATaxInclusiveChannel(t *testing.T) {
+	h := newHarness(t)
+	registerE2EFees()
+	f := h.NewStore(t, 20, 2000)
+	feeChannels.Store(f.Channel.ID, true)
+	h.newTaxRule(t, f.Channel.ID, 1000)
+	on := true
+	ch, err := h.D.Channel.Update(h.Ctx, channel.UpdateChannelInput{ID: f.Channel.ID, TaxInclusivePricing: &on})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cartID := h.NewGuestCart(t, f, 1)
+	cod := "cod"
+	quote, err := h.D.Order.QuoteCheckout(channel.WithChannel(h.Ctx, &ch), order.PlaceOrderInput{
+		CartID: &cartID, BillingAddress: e2eAddress(), ShippingAddress: e2eAddress(), PaymentProviderSlug: &cod,
+	})
+	if err != nil {
+		t.Fatalf("quote: %v", err)
+	}
+	placed, err := h.TryPlace(t, ch, cartID)
+	if err != nil {
+		t.Fatalf("place: %v", err)
+	}
+	// 2000 of goods, a 500 handling fee and a 100 eco fee, all gross
+	if placed.TotalAmount != 2600 || quote.TotalCents != 2600 || quote.TaxCents != placed.TaxAmount || !slices.Equal(quote.Fees, placed.Fees) {
+		t.Errorf("quoted %d (tax %d), charged %d (tax %d) - want 2600 both times, the same tax and fees", quote.TotalCents, quote.TaxCents, placed.TotalAmount, placed.TaxAmount)
+	}
+	if len(placed.Fees) != 2 || placed.Fees[0].TaxCents != 45 || placed.Fees[1].TaxCents != 0 {
+		t.Errorf("fees %+v - want 45 carved out of the 500 handling fee and none out of the untaxed eco fee", placed.Fees)
+	}
+	if got := placed.FeesRefundable(); got != 600 {
+		t.Errorf("fees refundable %d, want 600 - nothing rides on top of a gross fee", got)
+	}
+	h.Settle(t)
+}
+
+// Scenario: a credit memo refunds a fee as a fee - up to what was charged, in the memo's total, and never counted as
+// goods handed back
+func TestACreditMemoRefundsAFeeApartFromTheGoods(t *testing.T) {
+	h := newHarness(t)
+	registerE2EFees()
+	f := h.NewStore(t, 20, 2000)
+	feeChannels.Store(f.Channel.ID, true)
+	h.newTaxRule(t, f.Channel.ID, 1000)
+	o := h.PlaceGuestCOD(t, f, 1)
+	h.Settle(t)
+	if _, err := h.D.Order.RecordOfflinePayment(h.Ctx, order.RecordOfflinePaymentInput{OrderID: o.ID, Method: "cod", Reference: "e2e-cash"}); err != nil {
+		t.Fatalf("collect in full: %v", err)
+	}
+	if _, err := h.D.Order.RecordCreditMemoIntent(h.Ctx, order.IssueCreditMemoInput{OrderID: o.ID, FeesRefundCents: 651}); apperr.CodeOf(err) != "CREDIT_MEMO_FEES_EXCEEDED" {
+		t.Errorf("a fees refund over 600 + 50 tax: %v, want CREDIT_MEMO_FEES_EXCEEDED", err)
+	}
+	intent, err := h.D.Order.RecordCreditMemoIntent(h.Ctx, order.IssueCreditMemoInput{OrderID: o.ID, FeesRefundCents: 550})
+	if err != nil {
+		t.Fatalf("memo intent: %v", err)
+	}
+	if intent.AmountCents != 550 || intent.Memo.FeesRefundCents != 550 || intent.Memo.LinesTotalCents != 0 {
+		t.Errorf("memo %+v refunding %d - want the 550 handling fee and its tax, and no goods", intent.Memo, intent.AmountCents)
+	}
+	memos, err := h.D.Order.ListCreditMemos(h.Ctx, o.ID)
+	if err != nil || len(memos) != 1 || memos[0].FeesRefundCents != 550 {
+		t.Errorf("stored memos %+v, %v", memos, err)
+	}
+	h.Settle(t)
+}
+
+// Scenario: a plugin that works out the order's tax does it before the fees are priced, so core taxes the fees on top
+// of its figure - untaxed, they'd be charged less than the checkout quoted
+func TestFeesAreTaxedOnTopOfAPluginsTax(t *testing.T) {
+	h := newHarness(t)
+	registerE2EFees()
+	f := h.NewStore(t, 20, 2000)
+	feeChannels.Store(f.Channel.ID, true)
+	h.newTaxRule(t, f.Channel.ID, 1000)
+	pluginTaxOnce.Do(func() {
+		h.D.Bus.SubscribeSync(order.EventPlacing, 0, func(_ context.Context, e events.Event) error {
+			p, ok := e.(*order.OrderPlacing)
+			if _, mine := pluginTaxChannels.Load(p.ChannelID); !ok || !mine {
+				return nil
+			}
+			return p.SetPlacingTaxCents(300)
+		})
+	})
+	pluginTaxChannels.Store(f.Channel.ID, true)
+
+	placed, err := h.TryPlace(t, f.Channel, h.NewGuestCart(t, f, 1))
+	if err != nil {
+		t.Fatalf("place: %v", err)
+	}
+	// The plugin's 300 on the goods, core's 50 on the 500 handling fee, nothing on the untaxed eco fee
+	if placed.TaxAmount != 350 || placed.TotalAmount != 2000+600+350 || placed.Fees[0].TaxCents != 50 {
+		t.Errorf("tax %d total %d fees %+v - want 350, 2950 and 50 on the handling fee", placed.TaxAmount, placed.TotalAmount, placed.Fees)
+	}
+	h.Settle(t)
+}
+
+var (
+	pluginTaxOnce     sync.Once
+	pluginTaxChannels sync.Map
+)

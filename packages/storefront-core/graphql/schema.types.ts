@@ -766,6 +766,7 @@ export type CheckoutTotals = {
   discountCents: Scalars['Int']['output'];
   fees: Array<OrderFee>;
   giftCardCents: Scalars['Int']['output'];
+  problem?: Maybe<Scalars['String']['output']>;
   shippingCents: Scalars['Int']['output'];
   storeCreditCents: Scalars['Int']['output'];
   subtotalCents: Scalars['Int']['output'];

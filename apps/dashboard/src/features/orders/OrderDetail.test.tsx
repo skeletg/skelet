@@ -42,6 +42,7 @@ const order = {
   taxAmount: 0,
   taxIncluded: false,
   shippingRefundable: 0,
+  feesRefundable: 0,
   fees: [],
   total: 1000,
   giftCardAmount: 0,

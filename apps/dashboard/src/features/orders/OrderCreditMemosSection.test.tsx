@@ -19,8 +19,8 @@ const order = {
   lines: [{ id: 'l1', name: 'Fabric', sku: 'FAB-1', quantity: 3 }],
 } as never
 
-function renderMemos(onInput: (v: Record<string, unknown>) => void) {
-  renderDialog(<OrderCreditMemosSection order={order} />, [
+function renderMemos(onInput: (v: Record<string, unknown>) => void, of: never = order) {
+  renderDialog(<OrderCreditMemosSection order={of} />, [
     meMock(),
     { request: { query: CreditMemosDocument, variables: { orderId: 'o1' } }, result: { data: { creditMemos: [] } }, maxUsageCount: 3 },
     {
@@ -73,6 +73,23 @@ describe('OrderCreditMemosSection', () => {
     submit()
     expect(await screen.findByText(/Amounts must be positive/)).toBeTruthy()
     expect(calls).toHaveLength(0)
+  })
+
+  it('refunds an order fee as a fee, with no line picked', async () => {
+    const calls: Record<string, unknown>[] = []
+    renderMemos((v) => calls.push(v), { ...(order as object), feesRefundable: 650 } as never)
+    fireEvent.click(await screen.findByRole('button', { name: 'Issue credit memo' }, SLOW))
+    const fees = (await screen.findByLabelText('Order fees refund', {}, SLOW)) as HTMLInputElement
+    expect(fees.placeholder).toContain('6.50')
+    fireEvent.change(fees, { target: { value: '5.50' } })
+    submit()
+    await vi.waitFor(() => expect(calls[0]).toMatchObject({ lines: [], feesRefund: 550, shippingRefund: 0 }), SLOW)
+  })
+
+  it('leaves the fees refund out for an order that was charged none', async () => {
+    renderMemos(() => {})
+    await openMemo()
+    expect(screen.queryByLabelText('Order fees refund')).toBeNull()
   })
 
   it('refuses more than is left to credit', async () => {

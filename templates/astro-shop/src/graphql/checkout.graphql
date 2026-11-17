@@ -86,6 +86,7 @@ query Checkout($id: ID!) {
         }
         taxCents
         totalCents
+        problem
       }
     }
   }

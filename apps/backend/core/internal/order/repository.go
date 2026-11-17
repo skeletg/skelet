@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -344,6 +345,7 @@ func toCreditMemo(row db.CreditMemo) CreditMemo {
 		Number:                row.Number,
 		LinesTotalCents:       row.LinesTotalCents,
 		ShippingRefundCents:   row.ShippingRefundCents,
+		FeesRefundCents:       row.FeesRefundCents,
 		AdjustmentRefundCents: row.AdjustmentRefundCents,
 		AdjustmentFeeCents:    row.AdjustmentFeeCents,
 		TotalCents:            row.TotalCents,
@@ -386,6 +388,7 @@ func (r *postgresRepository) CreateCreditMemo(ctx context.Context, m CreditMemo)
 		ReturnID:              returnID,
 		LinesTotalCents:       m.LinesTotalCents,
 		ShippingRefundCents:   m.ShippingRefundCents,
+		FeesRefundCents:       m.FeesRefundCents,
 		AdjustmentRefundCents: m.AdjustmentRefundCents,
 		AdjustmentFeeCents:    m.AdjustmentFeeCents,
 		TotalCents:            m.TotalCents,
@@ -1292,6 +1295,10 @@ func (r *postgresRepository) UpdateOrderStatusFrom(ctx context.Context, id uuid.
 
 func toOrder(row db.Order) Order {
 	shopper, metadata := decodeMetadata(row.Metadata)
+	fees, feesOK := decodeFees(row.Fees)
+	if !feesOK {
+		slog.Error("order: stored fees don't decode, loading the order without them", "order", row.ID)
+	}
 	var customerID *uuid.UUID
 	if row.CustomerID.Valid {
 		c := row.CustomerID.UUID
@@ -1352,7 +1359,8 @@ func toOrder(row db.Order) Order {
 		BusinessIDs:       decodeBusinessIDs(row.BusinessIds),
 		CheckoutFields:    decodeCheckoutFields(row.CheckoutFields),
 		Seller:            decodeSeller(row.Seller),
-		Fees:              decodeFees(row.Fees),
+		Fees:              fees,
+		feesUnreadable:    !feesOK,
 		Shopper:           shopper,
 		Metadata:          metadata,
 		Carrier:           row.Carrier,

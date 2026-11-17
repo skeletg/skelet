@@ -42,6 +42,7 @@ query Order($id: ID!) {
     taxAmount
     taxIncluded
     shippingRefundable
+    feesRefundable
     fees {
       key
       label
@@ -423,6 +424,7 @@ query CreditMemos($orderId: ID!) {
     returnId
     itemsTotal
     shippingRefund
+    feesRefund
     adjustmentRefund
     adjustmentFee
     total

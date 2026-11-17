@@ -1343,6 +1343,7 @@ type CreditMemo struct {
 	AdminID               uuid.NullUUID `json:"admin_id"`
 	CreatedAt             time.Time     `json:"created_at"`
 	Status                string        `json:"status"`
+	FeesRefundCents       int64         `json:"fees_refund_cents"`
 }
 
 type CreditMemoLine struct {

@@ -51,9 +51,9 @@ const createCreditMemo = `-- name: CreateCreditMemo :one
 INSERT INTO credit_memos (
     order_id, return_id, lines_total_cents, shipping_refund_cents,
     adjustment_refund_cents, adjustment_fee_cents, total_cents,
-    refund_target, offline, reason, admin_id
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-RETURNING id, order_id, number, return_id, lines_total_cents, shipping_refund_cents, adjustment_refund_cents, adjustment_fee_cents, total_cents, refund_target, offline, reason, admin_id, created_at, status
+    refund_target, offline, reason, admin_id, fees_refund_cents
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+RETURNING id, order_id, number, return_id, lines_total_cents, shipping_refund_cents, adjustment_refund_cents, adjustment_fee_cents, total_cents, refund_target, offline, reason, admin_id, created_at, status, fees_refund_cents
 `
 
 type CreateCreditMemoParams struct {
@@ -68,6 +68,7 @@ type CreateCreditMemoParams struct {
 	Offline               bool          `json:"offline"`
 	Reason                string        `json:"reason"`
 	AdminID               uuid.NullUUID `json:"admin_id"`
+	FeesRefundCents       int64         `json:"fees_refund_cents"`
 }
 
 // The number is sequence-assigned by the column default
@@ -84,6 +85,7 @@ func (q *Queries) CreateCreditMemo(ctx context.Context, arg CreateCreditMemoPara
 		arg.Offline,
 		arg.Reason,
 		arg.AdminID,
+		arg.FeesRefundCents,
 	)
 	var i CreditMemo
 	err := row.Scan(
@@ -102,12 +104,13 @@ func (q *Queries) CreateCreditMemo(ctx context.Context, arg CreateCreditMemoPara
 		&i.AdminID,
 		&i.CreatedAt,
 		&i.Status,
+		&i.FeesRefundCents,
 	)
 	return i, err
 }
 
 const getCreditMemo = `-- name: GetCreditMemo :one
-SELECT id, order_id, number, return_id, lines_total_cents, shipping_refund_cents, adjustment_refund_cents, adjustment_fee_cents, total_cents, refund_target, offline, reason, admin_id, created_at, status FROM credit_memos WHERE id = $1
+SELECT id, order_id, number, return_id, lines_total_cents, shipping_refund_cents, adjustment_refund_cents, adjustment_fee_cents, total_cents, refund_target, offline, reason, admin_id, created_at, status, fees_refund_cents FROM credit_memos WHERE id = $1
 `
 
 func (q *Queries) GetCreditMemo(ctx context.Context, id uuid.UUID) (CreditMemo, error) {
@@ -129,12 +132,13 @@ func (q *Queries) GetCreditMemo(ctx context.Context, id uuid.UUID) (CreditMemo, 
 		&i.AdminID,
 		&i.CreatedAt,
 		&i.Status,
+		&i.FeesRefundCents,
 	)
 	return i, err
 }
 
 const getCreditMemoByReturn = `-- name: GetCreditMemoByReturn :one
-SELECT id, order_id, number, return_id, lines_total_cents, shipping_refund_cents, adjustment_refund_cents, adjustment_fee_cents, total_cents, refund_target, offline, reason, admin_id, created_at, status FROM credit_memos WHERE return_id = $1
+SELECT id, order_id, number, return_id, lines_total_cents, shipping_refund_cents, adjustment_refund_cents, adjustment_fee_cents, total_cents, refund_target, offline, reason, admin_id, created_at, status, fees_refund_cents FROM credit_memos WHERE return_id = $1
 `
 
 // Returns issue exactly one memo - used to make a replayed return refund a no-op
@@ -157,6 +161,7 @@ func (q *Queries) GetCreditMemoByReturn(ctx context.Context, returnID uuid.NullU
 		&i.AdminID,
 		&i.CreatedAt,
 		&i.Status,
+		&i.FeesRefundCents,
 	)
 	return i, err
 }
@@ -236,7 +241,7 @@ func (q *Queries) ListCreditMemoLinesByMemoIDs(ctx context.Context, memoIds []uu
 }
 
 const listCreditMemosByOrder = `-- name: ListCreditMemosByOrder :many
-SELECT id, order_id, number, return_id, lines_total_cents, shipping_refund_cents, adjustment_refund_cents, adjustment_fee_cents, total_cents, refund_target, offline, reason, admin_id, created_at, status FROM credit_memos WHERE order_id = $1 AND status = 'issued' ORDER BY created_at, number
+SELECT id, order_id, number, return_id, lines_total_cents, shipping_refund_cents, adjustment_refund_cents, adjustment_fee_cents, total_cents, refund_target, offline, reason, admin_id, created_at, status, fees_refund_cents FROM credit_memos WHERE order_id = $1 AND status = 'issued' ORDER BY created_at, number
 `
 
 // A failed memo stays for the audit trail but is not a credit the order carries
@@ -265,6 +270,7 @@ func (q *Queries) ListCreditMemosByOrder(ctx context.Context, orderID uuid.UUID)
 			&i.AdminID,
 			&i.CreatedAt,
 			&i.Status,
+			&i.FeesRefundCents,
 		); err != nil {
 			return nil, err
 		}

@@ -61,7 +61,7 @@ func documentRequest(in documents.Input, core func() ([]byte, error)) sdk.Docume
 	}
 	if m := in.Memo; m != nil {
 		req.Memo = &sdk.DocumentMemo{
-			ID: m.ID, Number: m.Number, CreatedAt: m.CreatedAt, ShippingCents: m.ShippingRefundCents,
+			ID: m.ID, Number: m.Number, CreatedAt: m.CreatedAt, ShippingCents: m.ShippingRefundCents, FeesCents: m.FeesRefundCents,
 			AdjustmentCents: m.AdjustmentRefundCents, FeeCents: m.AdjustmentFeeCents, TotalCents: m.TotalCents, Reason: m.Reason,
 		}
 		for _, ml := range m.Lines {

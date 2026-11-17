@@ -3,6 +3,7 @@ package order
 import (
 	"context"
 	"encoding/json"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/lib/money"
@@ -149,10 +150,17 @@ func feesJSON(fees []Fee) json.RawMessage {
 	return b
 }
 
-func decodeFees(raw json.RawMessage) []Fee {
-	var fees []Fee
-	if json.Unmarshal(raw, &fees) != nil {
-		return nil
+// ok is false for a column that doesn't decode. The order still loads, without its fees, so it can be read and fixed -
+// but an edit would recompute the total without them and write the empty list back, so edits refuse it
+func decodeFees(raw json.RawMessage) (fees []Fee, ok bool) {
+	if len(raw) == 0 {
+		return nil, true
 	}
-	return fees
+	if err := json.Unmarshal(raw, &fees); err != nil {
+		return nil, false
+	}
+	return fees, true
 }
+
+var errFeesUnreadable = apperr.New("ORDER_FEES_UNREADABLE", apperr.ClassConflict,
+	"this order's fees can't be read, so it can't be edited without losing them - the stored fees need fixing first")

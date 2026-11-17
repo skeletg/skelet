@@ -27,10 +27,11 @@ func TestRegisterFee(t *testing.T) {
 		f     Fee
 		panic string
 	}{
-		"taken key": {Fee{Key: "handling", Label: "x", Charge: charge}, "already charges"},
-		"bad key":   {Fee{Key: "Handling Fee", Label: "x", Charge: charge}, "lowercase"},
-		"no label":  {Fee{Key: "wrap", Charge: charge}, "needs a label"},
-		"no charge": {Fee{Key: "wrap", Label: "Wrapping"}, "Charge func"},
+		"taken key":  {Fee{Key: "handling", Label: "x", Charge: charge}, "already charges"},
+		"bad key":    {Fee{Key: "Handling Fee", Label: "x", Charge: charge}, "lowercase"},
+		"no label":   {Fee{Key: "wrap", Charge: charge}, "needs a label"},
+		"long label": {Fee{Key: "wrap", Label: strings.Repeat("x", MaxFeeLabel+1), Charge: charge}, "characters"},
+		"no charge":  {Fee{Key: "wrap", Label: "Wrapping"}, "Charge func"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			defer func() {

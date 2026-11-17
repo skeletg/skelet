@@ -377,6 +377,7 @@ type CheckoutTotals struct {
 	GiftCardCents    int32             `json:"giftCardCents"`
 	StoreCreditCents int32             `json:"storeCreditCents"`
 	AmountDueCents   int32             `json:"amountDueCents"`
+	Problem          *string           `json:"problem,omitempty"`
 }
 
 type CountrySettings struct {

@@ -599,6 +599,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		if placing.ShippingCents != nil {
 			shippingCents = *placing.ShippingCents
 		}
+		pluginTaxed := placing.TaxCents != nil
 
 		// Plugins' fees go on after shipping, which some follow, and before tax, which is charged on them too
 		if err := s.priceFees(ctx, cc, in, placing.DiscountCents, shipSel, shippingCents); err != nil {
@@ -625,6 +626,15 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			}
 			placing.TaxCents = &t
 			shippingTax = cc.shippingTax
+		}
+		// A plugin's tax was worked out before the fees existed - core taxes those on top, as the quote showed
+		if pluginTaxed && s.tax != nil && len(cc.fees) > 0 {
+			feeTax, err := s.computeFeeTax(ctx, cc)
+			if err != nil {
+				return err
+			}
+			withFees := *placing.TaxCents + feeTax
+			placing.TaxCents = &withFees
 		}
 
 		var taxCents int64

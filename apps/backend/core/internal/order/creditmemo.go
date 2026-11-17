@@ -20,9 +20,10 @@ type CreditMemo struct {
 	Number   string
 	ReturnID *uuid.UUID
 
-	// total = lines + shipping + adjustmentRefund - adjustmentFee
+	// total = lines + shipping + fees + adjustmentRefund - adjustmentFee
 	LinesTotalCents       int64
 	ShippingRefundCents   int64
+	FeesRefundCents       int64 // of what plugins charged on top - kept apart from the goods, which a fee is not
 	AdjustmentRefundCents int64
 	AdjustmentFeeCents    int64
 	TotalCents            int64
@@ -55,6 +56,7 @@ type IssueCreditMemoInput struct {
 	OrderID               uuid.UUID
 	Lines                 []CreditMemoLineInput
 	ShippingRefundCents   int64
+	FeesRefundCents       int64
 	AdjustmentRefundCents int64
 	AdjustmentFeeCents    int64
 	RefundTarget          string // "original" | "gift_card"; empty → original
@@ -120,13 +122,17 @@ func (s *Service) RecordCreditMemoIntent(ctx context.Context, in IssueCreditMemo
 		return CreditMemoIntent{}, apperr.New("CREDIT_MEMO_INVALID_TARGET", apperr.ClassValidation,
 			"refund target must be 'original' or 'gift_card'")
 	}
-	if in.ShippingRefundCents < 0 || in.AdjustmentRefundCents < 0 || in.AdjustmentFeeCents < 0 {
+	if in.ShippingRefundCents < 0 || in.FeesRefundCents < 0 || in.AdjustmentRefundCents < 0 || in.AdjustmentFeeCents < 0 {
 		return CreditMemoIntent{}, apperr.New("CREDIT_MEMO_NEGATIVE_ADJUSTMENT", apperr.ClassValidation,
-			"shipping refund, adjustment refund and adjustment fee must all be zero or positive")
+			"shipping refund, fees refund, adjustment refund and adjustment fee must all be zero or positive")
 	}
 	if in.ShippingRefundCents > o.ShippingRefundable() {
 		return CreditMemoIntent{}, apperr.New("CREDIT_MEMO_SHIPPING_EXCEEDED", apperr.ClassValidation,
 			"shipping refund exceeds what was charged for shipping")
+	}
+	if in.FeesRefundCents > o.FeesRefundable() {
+		return CreditMemoIntent{}, apperr.New("CREDIT_MEMO_FEES_EXCEEDED", apperr.ClassValidation,
+			"fees refund exceeds what the order was charged in fees")
 	}
 
 	refundUnit := refundUnitByLine(o)
@@ -176,6 +182,7 @@ func (s *Service) RecordCreditMemoIntent(ctx context.Context, in IssueCreditMemo
 		memo := CreditMemo{
 			OrderID:               o.ID,
 			ShippingRefundCents:   in.ShippingRefundCents,
+			FeesRefundCents:       in.FeesRefundCents,
 			AdjustmentRefundCents: in.AdjustmentRefundCents,
 			AdjustmentFeeCents:    in.AdjustmentFeeCents,
 			RefundTarget:          target,
@@ -198,7 +205,7 @@ func (s *Service) RecordCreditMemoIntent(ctx context.Context, in IssueCreditMemo
 			})
 		}
 
-		gross := memo.LinesTotalCents + memo.ShippingRefundCents + memo.AdjustmentRefundCents - memo.AdjustmentFeeCents
+		gross := memo.LinesTotalCents + memo.ShippingRefundCents + memo.FeesRefundCents + memo.AdjustmentRefundCents - memo.AdjustmentFeeCents
 		if gross <= 0 {
 			return apperr.New("CREDIT_MEMO_EMPTY", apperr.ClassValidation,
 				"a credit memo must refund a positive amount")

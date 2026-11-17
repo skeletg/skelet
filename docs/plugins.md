@@ -466,20 +466,27 @@ subtotal, discount, the shipping picked and what it costs, the payment method, t
 group and checkout-field answers (`p.FeeAnswer(req, key)` reads yours) - and returns what the fee comes
 to in minor units, holding its tax when `req.TaxInclusive`. Return 0 and the order carries no line for
 it. Core taxes it under `TaxClass`, empty being the class of a product that has none, unless you mark
-it `Untaxed`; a remote tax provider gets the fees in its request and taxes them its own way.
+it `Untaxed`; a remote tax provider gets the fees in its request and taxes them its own way. A plugin
+that sets the order's tax through `SetPlacingTaxCents` does it before the fees are priced, so its figure
+covers the goods and shipping and core taxes the fees on top.
 
 The checkout quote runs it the same way placement does, so the shopper's summary shows the fee before
 they pay, and both storefront templates draw it as a row of its own under its label. It runs whenever
 the checkout is priced, often several times per checkout, so compute rather than act, and keep it quick:
 it's on every checkout of every channel your plugin is on. An `sdk.UserError` stops the order with your
 message ("cash on delivery takes orders up to 100.00"); so does any other error, since charging less
-than the store asked is worse than not selling. A fee is zero or more and at most `sdk.MaxFeeCents` -
-a discount of your own is a promotion action or `CheckoutReview.AddCheckoutDiscount`.
+than the store asked is worse than not selling. At the quote the same refusal can't stop anything, so
+it reads as `CheckoutTotals.problem` beside totals that stop at the subtotal, and both templates show
+it. A fee is zero or more and at most `sdk.MaxFeeCents`, its label at most `sdk.MaxFeeLabel`
+characters, in one language - a discount of your own is a promotion action or
+`CheckoutReview.AddCheckoutDiscount`.
 
 The order keeps each fee as it was charged, `<slug>:<key>` with its label, amount and tax, so an edit
 re-taxes it with the order but never asks your plugin again, and the invoice, the order emails, the
 dashboard and both APIs (`Order.fees`, `CheckoutTotals.fees`) show the same rows. A credit memo
-refunds a fee through its adjustment refund. Drafts an admin builds carry no fees - they're priced by hand.
+refunds a fee through its fees refund, up to `Order.feesRefundable`, apart from the goods - so a
+refunded handling fee takes back no loyalty points and reports no returned merchandise. Drafts an
+admin builds carry no fees - they're priced by hand.
 
 ## The frontend halves
 

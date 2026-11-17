@@ -180,15 +180,17 @@ func purchaseNet(o order.Order) int64 {
 }
 
 // memoNet is what a credit memo takes back of the purchase's value: its lines' net sales, or for a memo naming no
-// lines its non-shipping part in the order's own proportion
+// lines what it didn't put to shipping or to fees, in the order's own proportion
 func memoNet(o order.Order, m order.CreditMemo) int64 {
 	var net int64
 	if len(m.Lines) > 0 {
 		for _, l := range m.Lines {
 			net += order.LineNetFor(o, l.OrderLineID, l.Quantity)
 		}
-	} else if nonShipping := o.TotalAmount - o.ShippingRefundable() - o.FeesRefundable(); nonShipping > 0 && m.TotalCents > m.ShippingRefundCents {
-		net = (m.TotalCents - m.ShippingRefundCents) * purchaseNet(o) / nonShipping
+	} else if goods := m.TotalCents - m.ShippingRefundCents - m.FeesRefundCents; goods > 0 {
+		if nonShipping := o.TotalAmount - o.ShippingRefundable() - o.FeesRefundable(); nonShipping > 0 {
+			net = goods * purchaseNet(o) / nonShipping
+		}
 	}
 	return min(net, purchaseNet(o))
 }

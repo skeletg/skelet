@@ -432,6 +432,7 @@ func (r *Resolver) checkoutTotals(ctx context.Context, v *checkoutView, paymentO
 		b, _ := c.Checkout.EffectiveBilling()
 		priceable = b != nil
 	}
+	var problem *string
 	if priceable && r.OrderSvc != nil && len(c.Lines) > 0 {
 		q, err := r.OrderSvc.QuoteCheckout(ctx, r.placeOrderInput(ctx, v, paymentOK))
 		if err == nil {
@@ -440,9 +441,10 @@ func (r *Resolver) checkoutTotals(ctx context.Context, v *checkoutView, paymentO
 				ShippingCents: int32(q.ShippingCents), Fees: toOrderFees(q.Fees), TaxCents: int32(q.TaxCents), TotalCents: int32(q.TotalCents),
 			}
 		}
-		log.Printf("[checkout] quote for cart %s failed, showing the subtotal only: %v", c.ID, err)
+		problem = quoteProblem(c.ID, err)
 	}
-	// No destination yet, so no shipping or tax - the discounted subtotal, the same figure the cart page shows
+	// No destination yet, so no shipping or tax - the discounted subtotal, the same figure the cart page shows. The
+	// same figure when pricing failed, with the reason beside it, since on its own it reads as the total
 	m := toCartModel(c)
 	r.HydrateCartPromotions(ctx, m, c, c.Checkout.ShippingCountry())
 	return &frontmodel.CheckoutTotals{
@@ -450,7 +452,24 @@ func (r *Resolver) checkoutTotals(ctx context.Context, v *checkoutView, paymentO
 		DiscountCents: m.TotalDiscount,
 		Fees:          []*model.OrderFee{},
 		TotalCents:    max(m.Subtotal-m.TotalDiscount, 0),
+		Problem:       problem,
 	}
+}
+
+// Why a checkout couldn't be priced, as the shopper may read it: a refusal - a plugin's fee turning the payment method
+// down, a rule on the cart - in its own words, and a fault as a plain line with the cause in the log
+func quoteProblem(cartID uuid.UUID, err error) *string {
+	msg := "This order can't be priced right now - try again in a moment."
+	switch apperr.ClassOf(err) {
+	case apperr.ClassUnknown, apperr.ClassInternal, apperr.ClassUnavailable:
+		log.Printf("[checkout] quote for cart %s failed, showing the subtotal only: %v", cartID, err)
+	default:
+		msg = err.Error()
+		if ae, ok := apperr.AsAppError(err); ok && ae.Message != "" {
+			msg = ae.Message
+		}
+	}
+	return &msg
 }
 
 // toShippingQuoteModel - today is the store's, from storeToday

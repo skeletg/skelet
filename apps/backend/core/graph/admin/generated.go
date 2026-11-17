@@ -1572,6 +1572,7 @@ type ComplexityRoot struct {
 		AdjustmentFee    func(childComplexity int) int
 		AdjustmentRefund func(childComplexity int) int
 		CreatedAt        func(childComplexity int) int
+		FeesRefund       func(childComplexity int) int
 		ID               func(childComplexity int) int
 		ItemsTotal       func(childComplexity int) int
 		Lines            func(childComplexity int) int
@@ -3334,6 +3335,7 @@ type ComplexityRoot struct {
 		Email               func(childComplexity int) int
 		Events              func(childComplexity int) int
 		Fees                func(childComplexity int) int
+		FeesRefundable      func(childComplexity int) int
 		FulfillmentNeed     func(childComplexity int) int
 		Fulfillments        func(childComplexity int) int
 		GiftCardAmount      func(childComplexity int) int
@@ -12711,6 +12713,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CreditMemo.CreatedAt(childComplexity), true
+	case "CreditMemo.feesRefund":
+		if e.ComplexityRoot.CreditMemo.FeesRefund == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CreditMemo.FeesRefund(childComplexity), true
 	case "CreditMemo.id":
 		if e.ComplexityRoot.CreditMemo.ID == nil {
 			break
@@ -23760,6 +23768,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Order.Fees(childComplexity), true
+	case "Order.feesRefundable":
+		if e.ComplexityRoot.Order.FeesRefundable == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Order.FeesRefundable(childComplexity), true
 	case "Order.fulfillmentNeed":
 		if e.ComplexityRoot.Order.FulfillmentNeed == nil {
 			break
@@ -40952,7 +40966,7 @@ enum PaymentStatus {
   VOIDED
 }
 
-# A charge a plugin added at placement. A credit memo refunds it through its adjustment refund.
+# A charge a plugin added at placement. A credit memo refunds it through its fees refund.
 type OrderFee {
   # "<plugin>:<key>", stable across label changes
   key:       String!
@@ -41010,6 +41024,8 @@ type Order {
   shippingTaxAmount: Int!
   # The most a credit memo can refund for shipping - its tax included where tax was added on top.
   shippingRefundable: Int!
+  # The most a credit memo's feesRefund may be: the fees, with their tax where tax was added on top.
+  feesRefundable:     Int!
   # What plugins charged on top of the goods and shipping, with the labels the shopper saw. Included in total.
   fees: [OrderFee!]!
   total:           Int!
@@ -41392,7 +41408,7 @@ extend type Query {
   orderDocumentPdf(orderId: ID!, kind: OrderDocumentKind!, creditMemoId: ID): String!
 }
 
-# A credit memo is one refund event, recorded with the lines it covered. Memos come from settling an RMA, or are issued directly against an order when there is no return to make - a goodwill refund, a pricing correction, a shipping credit. total = items + shipping + adjustment - fee.
+# A credit memo is one refund event, recorded with the lines it covered. Memos come from settling an RMA, or are issued directly against an order when there is no return to make - a goodwill refund, a pricing correction, a shipping credit. total = items + shipping + fees + adjustment - fee.
 type CreditMemo {
   id:                    ID!
   number:                String!
@@ -41401,6 +41417,8 @@ type CreditMemo {
   returnId:              ID
   itemsTotal:            Int!
   shippingRefund:        Int!
+  # Of the fees plugins charged on the order - not the restocking fee below, which is taken off.
+  feesRefund:            Int!
   adjustmentRefund:      Int!
   adjustmentFee:         Int!
   total:                 Int!
@@ -41432,6 +41450,9 @@ input IssueCreditMemoInput {
   # Optional - omit for an adjustment-only or shipping-only memo.
   lines:            [CreditMemoLineInput!]
   shippingRefund:   Int
+  # Of the fees plugins charged, up to the order's feesRefundable. Kept apart from the goods: a refunded handling fee
+  # takes back no loyalty points and reports no returned merchandise.
+  feesRefund:       Int
   # Goodwill on top of the lines.
   adjustmentRefund: Int
   # A restocking fee, subtracted.
@@ -47969,6 +47990,8 @@ func (ec *executionContext) childFields_CreditMemo(ctx context.Context, field gr
 		return ec.fieldContext_CreditMemo_itemsTotal(ctx, field)
 	case "shippingRefund":
 		return ec.fieldContext_CreditMemo_shippingRefund(ctx, field)
+	case "feesRefund":
+		return ec.fieldContext_CreditMemo_feesRefund(ctx, field)
 	case "adjustmentRefund":
 		return ec.fieldContext_CreditMemo_adjustmentRefund(ctx, field)
 	case "adjustmentFee":
@@ -50437,6 +50460,8 @@ func (ec *executionContext) childFields_Order(ctx context.Context, field graphql
 		return ec.fieldContext_Order_shippingTaxAmount(ctx, field)
 	case "shippingRefundable":
 		return ec.fieldContext_Order_shippingRefundable(ctx, field)
+	case "feesRefundable":
+		return ec.fieldContext_Order_feesRefundable(ctx, field)
 	case "fees":
 		return ec.fieldContext_Order_fees(ctx, field)
 	case "total":
@@ -94340,6 +94365,29 @@ func (ec *executionContext) _CreditMemo_shippingRefund(ctx context.Context, fiel
 	)
 }
 func (ec *executionContext) fieldContext_CreditMemo_shippingRefund(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CreditMemo", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _CreditMemo_feesRefund(ctx context.Context, field graphql.CollectedField, obj *model.CreditMemo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CreditMemo_feesRefund(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FeesRefund, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CreditMemo_feesRefund(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CreditMemo", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
@@ -138485,6 +138533,29 @@ func (ec *executionContext) _Order_shippingRefundable(ctx context.Context, field
 	)
 }
 func (ec *executionContext) fieldContext_Order_shippingRefundable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Order", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _Order_feesRefundable(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Order_feesRefundable(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FeesRefundable, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Order_feesRefundable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Order", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
@@ -187830,7 +187901,7 @@ func (ec *executionContext) unmarshalInputIssueCreditMemoInput(ctx context.Conte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"orderId", "lines", "shippingRefund", "adjustmentRefund", "adjustmentFee", "refundTarget", "reason"}
+	fieldsInOrder := [...]string{"orderId", "lines", "shippingRefund", "feesRefund", "adjustmentRefund", "adjustmentFee", "refundTarget", "reason"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -187858,6 +187929,13 @@ func (ec *executionContext) unmarshalInputIssueCreditMemoInput(ctx context.Conte
 				return it, err
 			}
 			it.ShippingRefund = data
+		case "feesRefund":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("feesRefund"))
+			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.FeesRefund = data
 		case "adjustmentRefund":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("adjustmentRefund"))
 			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
@@ -207213,6 +207291,11 @@ func (ec *executionContext) _CreditMemo(ctx context.Context, sel ast.SelectionSe
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "feesRefund":
+			out.Values[i] = ec._CreditMemo_feesRefund(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "adjustmentRefund":
 			out.Values[i] = ec._CreditMemo_adjustmentRefund(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -219611,6 +219694,11 @@ func (ec *executionContext) _Order(ctx context.Context, sel ast.SelectionSet, ob
 			}
 		case "shippingRefundable":
 			out.Values[i] = ec._Order_shippingRefundable(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "feesRefundable":
+			out.Values[i] = ec._Order_feesRefundable(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}

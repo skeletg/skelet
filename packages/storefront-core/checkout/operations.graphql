@@ -367,6 +367,7 @@ query CheckoutState($id: ID!) {
         giftCardCents
         storeCreditCents
         amountDueCents
+        problem
       }
     }
   }

@@ -2747,6 +2747,7 @@ export type CreditMemo = {
   adjustmentFee: Scalars['Int']['output'];
   adjustmentRefund: Scalars['Int']['output'];
   createdAt: Scalars['Time']['output'];
+  feesRefund: Scalars['Int']['output'];
   id: Scalars['ID']['output'];
   itemsTotal: Scalars['Int']['output'];
   lines: Array<CreditMemoLine>;
@@ -3746,6 +3747,7 @@ export type InventoryReservation = {
 export type IssueCreditMemoInput = {
   adjustmentFee?: InputMaybe<Scalars['Int']['input']>;
   adjustmentRefund?: InputMaybe<Scalars['Int']['input']>;
+  feesRefund?: InputMaybe<Scalars['Int']['input']>;
   lines?: InputMaybe<Array<CreditMemoLineInput>>;
   orderId: Scalars['ID']['input'];
   reason?: InputMaybe<Scalars['String']['input']>;
@@ -7790,6 +7792,7 @@ export type Order = {
   email: Scalars['String']['output'];
   events: Array<OrderEvent>;
   fees: Array<OrderFee>;
+  feesRefundable: Scalars['Int']['output'];
   fulfillmentNeed: Scalars['String']['output'];
   fulfillments: Array<Fulfillment>;
   giftCardAmount: Scalars['Int']['output'];
