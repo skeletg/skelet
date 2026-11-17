@@ -28,8 +28,10 @@ var SlugPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{1,39}$`)
 
 // Entry mirrors pluginset.Entry - Module set means the plugin ships as a Go module, not a directory here
 type Entry struct {
-	Enabled bool   `json:"enabled"`
-	Module  string `json:"module,omitempty"`
+	Enabled    bool   `json:"enabled"`
+	Module     string `json:"module,omitempty"`
+	Dashboard  string `json:"dashboard,omitempty"`  // the npm package of its dashboard half
+	Storefront string `json:"storefront,omitempty"` // and of its storefront half
 }
 
 // Accepts the old bare 0 or 1 as well as the object, like pluginset does - and like it, always writes the object

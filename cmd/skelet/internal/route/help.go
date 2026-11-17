@@ -36,6 +36,10 @@ Scaffold
   add        ` + subs["add"] + `
   rm         ` + subs["rm"] + `
 
+Plugins and builds
+  plugin     add a plugin's Go module and UI packages   [skelet plugin add github.com/acme/fraud@v1.2.0]
+  build      core's image and the frontends, plugins in   [skelet build core dashboard]
+
 Rarely
   ps, stop, restart, search, release, fixperms, hooks, provider, version
 

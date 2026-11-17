@@ -47,7 +47,7 @@ repo after the slug is what makes the install need no flags. A deployment that t
 payment installs the gateway it needs:
 
 ```
-skelet cli plugin add github.com/acme/payment-gateway@<version>
+skelet plugin add github.com/acme/payment-gateway@<version>
 ```
 
 A fresh build therefore ships with NO gateway compiled in - offline payment
@@ -63,8 +63,8 @@ to reach for.
 **`plugin add` - a Go module dependency.** Nothing is copied into this repo:
 
 ```
-skelet cli plugin add github.com/acme/skelet-plugin-fraud@v1.2.0
-skelet cli plugin add github.com/acme/skelet-plugin-fraud        # latest
+skelet plugin add github.com/acme/skelet-plugin-fraud@v1.2.0
+skelet plugin add github.com/acme/skelet-plugin-fraud        # latest
 ```
 
 `go get` fetches it, `plugins/plugins.json` records the module path, and
@@ -84,8 +84,8 @@ module cache or in-tree, never behind a `replace` pointing at a checkout elsewhe
 no `go.mod`, or no repo you can fetch from.
 
 ```
-skelet cli plugin install https://github.com/acme/skelet-plugin-fraud@v1.2.0
-skelet cli plugin install ../my-plugin --slug my-plugin
+skelet plugin install https://github.com/acme/skelet-plugin-fraud@v1.2.0
+skelet plugin install ../my-plugin --slug my-plugin
 ```
 
 The source is copied to `plugins/<slug>/` with its `.git`, `go.mod`, `go.sum` and
@@ -101,6 +101,14 @@ core's records" below. One thing to know about graph-extending plugins: their re
 *generated* `graph/*/model` package, which core produces from that plugin's own SDL. So the
 order is always fetch, then codegen, then compile - and such a plugin never builds
 standalone in its own repo. A plugin with no GraphQL does.
+
+### Building with your plugins
+
+`skelet build` makes what a deployment runs, with the plugins `plugins.json` enables. It regenerates
+first, so a plugin just added or switched off is in or out, then builds core's image as
+`skelet-core:prod` - the name its compose service runs when `CORE_IMAGE` is unset - and the
+dashboard's static files. Name what you want instead: `skelet build core signals dashboard shop
+--tag v1.2`. `skelet release` pushes the backends' images to your registry.
 
 ## Remote providers - HTTP, out of process
 
@@ -353,16 +361,35 @@ refunds a fee through its adjustment refund. Drafts an admin builds carry no fee
 
 ## The frontend halves
 
-A plugin's Go arrives through `go get`. Its UI does not, and shipping TypeScript through a
-Go module buys nothing - so dashboard and storefront code lives in its own repository,
-destined for npm once there are SDK packages for the two apps to depend on.
+A plugin's Go arrives through `go get`, its UI through npm. A `skelet-plugin.json` at the plugin's
+root names the packages holding its dashboard and storefront halves:
 
-Until then it is copied into place by hand. What core provides either way is the registry
-each half hooks into, so a plugin's UI never edits a core page.
+```json
+{ "dashboard": "@acme/fraud-dashboard@^1.2.0", "storefront": "@acme/fraud-storefront@^1.2.0" }
+```
 
-**Dashboard.** `apps/dashboard/src/plugins/<slug>/` with a `plugin.tsx` in it. The app's
-`src/plugins/loader.ts` glob imports every one eagerly, and the import-time
-`extendGroup` / `registerNavNode` / `registerDetailRoute` calls are the whole wiring.
+`skelet plugin add github.com/acme/fraud@v1.2.0` then brings both halves. The ops CLI fetches the
+module and records the packages in `plugins.json`, pnpm adds them to the dashboard and to every
+storefront that loads plugins, and `skelet gen` writes each app's import list from `plugins.json` -
+`apps/dashboard/src/plugins/packages.ts`, and `app/plugins/packages.ts` in each storefront - so
+switching the plugin off unloads its UI too. `skelet plugin install` does the same for a plugin
+vendored from source. A package published less than a day ago won't install yet (pnpm's
+`minimumReleaseAge`).
+
+A dashboard package imports what it needs from `@skelet/dashboard-sdk` - the registries below, the
+detail-page layout, `useSaveSection` and the UI kit. The dashboard's build points that name at its
+own source, so the plugin registers into the same registries and draws with the same components;
+the npm package of that name holds the types alone. Ship your source
+(`"exports": { ".": "./src/plugin.tsx" }`), take `react` and `@apollo/client` as peers, and query
+through the dashboard's Apollo client with `@apollo/client/react`'s hooks. A storefront package
+imports from `@skelet/storefront-react/plugins/registry`.
+
+A plugin's UI can still live in the tree instead - `apps/dashboard/src/plugins/<slug>/`, which the
+dashboard's loader globs, or a storefront's `app/plugins/<slug>/`, imported by hand in its
+`loaded.ts`. Either way it reaches core's pages only through the registries, never by editing one.
+
+**Dashboard.** The import-time `extendGroup` / `registerNavNode` / `registerDetailRoute` calls are
+the whole wiring of a plugin's own pages.
 
 Inside core's own pages a plugin reaches in through registries keyed by a target name:
 
@@ -402,9 +429,8 @@ Inside core's own pages a plugin reaches in through registries keyed by a target
   finds it in the library, like core's own. `defaultHidden` leaves it in the library until they
   switch it on.
 
-**Storefront.** `app/plugins/<slug>/` plus one line in `app/plugins/loaded.ts`. Routes need
-no registration - Next's filesystem router is already the glob, so a page copied to its real
-path simply exists. The registry lives in `@skelet/storefront-react/plugins/registry` and covers
+**Storefront.** Routes need no registration - Next's filesystem router is already the glob, so a
+page copied to its real path simply exists. The registry lives in `@skelet/storefront-react/plugins/registry` and covers
 the places a plugin appears INSIDE a core page: `registerAccountNavItem` for the account sidebar,
 and `registerSlot` for a zone. The template reaches it through `app/plugins/registry.ts` and
 `app/plugins/Slots.tsx`, which load `loaded.ts` first - a slot renders in the browser too, and the
@@ -459,9 +485,9 @@ Everything in the storefront registry is client-safe on purpose. A slot renders 
 component; a plugin needing server data calls its own `"use server"` action from it, which is how
 a plugin shows its own data at checkout without core fetching it on the plugin's behalf.
 
-`loaded.ts` is a hand-maintained import list rather than a glob, for the same reason
-`plugins/firstparty` is generated from `plugins.json`: the enabled set decides what loads,
-not whatever is sitting in a directory.
+`packages.ts` is generated from `plugins.json` and `loaded.ts` kept by hand, rather than a glob, for
+the same reason `plugins/firstparty` is generated: the enabled set decides what loads, not whatever
+is sitting in a directory.
 
 Note that a storefront is a template you fork, not an app every install shares. Treat a
 plugin's storefront half as reference markup to restyle rather than a drop-in.

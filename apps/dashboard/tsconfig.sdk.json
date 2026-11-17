@@ -1,0 +1,15 @@
+{
+  // The published @skelet/dashboard-sdk's types - declarations of src/sdk/index.ts and what it reaches, nothing else
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "./sdk/dist",
+    "rootDir": "./src",
+    "incremental": false,
+    "tsBuildInfoFile": null
+  },
+  "include": [],
+  "files": ["./src/sdk/index.ts", "./src/vite-env.d.ts"]
+}

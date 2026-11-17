@@ -519,8 +519,12 @@ func (t pluginTemplate) pluginGo() string {
 		Description: "API key for the %s provider.",
 	})
 `, t.Slug, t.Name, "payment/"+t.Slug+"/api_key", t.Name)
-	} else {
-		regBlock = "	_ = p\n\n" // without a provider nothing uses the handle yet and the generated file wouldn't compile
+	}
+	if t.WithMigrations {
+		regBlock += "	registerMigrations(p)\n\n" // in migrations.go, which needs the handle this init() holds
+	}
+	if regBlock == "" {
+		regBlock = "	_ = p\n\n" // nothing uses the handle yet and the generated file wouldn't compile
 	}
 	return fmt.Sprintf(`// Package %s is the %s plugin
 //
@@ -619,7 +623,7 @@ import (
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
-func init() {
+func registerMigrations(p *sdk.Plugin) {
 	p.RegisterMigrations(sdk.MigrationsRegistration{
 		Namespace: %q,
 		FS:        migrationsFS,
@@ -665,14 +669,15 @@ plugins/firstparty.
 %s%s
 ## Wiring
 
-After scaffolding the plugin, add the blank-import line to:
+plugin new enabled it in plugins/plugins.json, which generates its
+blank-import in plugins/firstparty. Then run:
 
-    plugins/firstparty/firstparty.go
-
-Then run:
-
+    skelet gen                         # after adding graphql/ SDL
     skelet cli plugin migrate up %s    # if you have migrations
-    skelet up         # restart server to load the plugin
+    skelet restart app                 # load the plugin
+
+Its dashboard and storefront halves are npm packages - name them in a
+skelet-plugin.json beside this file, and skelet plugin add installs them.
 `,
 		t.Name,
 		conditional(t.PaymentProvider, "- provider.go - PaymentProvider implementation (Authorize/Capture/Refund/Void/HandleWebhook).\n"),

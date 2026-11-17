@@ -13,6 +13,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"golang.org/x/tools/go/ast/astutil"
+
+	"github.com/skeletg/skelet/apps/backend/core/internal/pluginset"
 )
 
 var pluginInstallCmd = &cobra.Command{
@@ -112,6 +114,10 @@ func runPluginInstall(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	ui, err := pluginset.ReadUI(staged)
+	if err != nil {
+		return err
+	}
 	srcModule := sourceModulePath(staged)
 	if err := copyPluginTree(staged, dest); err != nil {
 		return err
@@ -130,6 +136,16 @@ func runPluginInstall(cmd *cobra.Command, args []string) error {
 
 	if err := setPluginState(slug, true); err != nil {
 		return err
+	}
+	if ui != (pluginset.UI{}) {
+		set, err := pluginset.Load(".")
+		if err != nil {
+			return err
+		}
+		set.SetUI(slug, ui)
+		if err := set.Save("."); err != nil {
+			return err
+		}
 	}
 	if out, err := exec.Command("go", "mod", "tidy").CombinedOutput(); err != nil {
 		return fmt.Errorf("go mod tidy after install: %w\n%s", err, out)
@@ -174,6 +190,7 @@ func runPluginInstall(cmd *cobra.Command, args []string) error {
 	if _, err := os.Stat(filepath.Join(dest, "migrations")); err == nil {
 		printStep(fmt.Sprintf("skelet cli plugin migrate up %s - it ships migrations", slug))
 	}
+	uiSteps(printStep, ui)
 	printStep("Rebuild")
 	return nil
 }

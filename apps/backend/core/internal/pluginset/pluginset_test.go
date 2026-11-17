@@ -92,3 +92,29 @@ func TestWritePluginResolversEmptySetGeneratesStub(t *testing.T) {
 		t.Errorf("empty-set write with no prior file: %v", err)
 	}
 }
+
+// A plugin's UI manifest is read when present, refused when malformed, and its packages survive the module's re-add
+func TestUIManifest(t *testing.T) {
+	none := t.TempDir()
+	if ui, err := ReadUI(none); err != nil || ui != (UI{}) {
+		t.Fatalf("no manifest: %+v, %v", ui, err)
+	}
+	dir := writeTree(t, map[string]string{UIManifest: `{"dashboard": "@acme/fraud-dashboard@^1.2.0", "storefront": "acme-fraud-shop"}`})
+	ui, err := ReadUI(dir)
+	if err != nil || ui.Dashboard != "@acme/fraud-dashboard@^1.2.0" || ui.Storefront != "acme-fraud-shop" {
+		t.Fatalf("manifest: %+v, %v", ui, err)
+	}
+	bad := writeTree(t, map[string]string{UIManifest: `{"dashboard": "rm -rf /"}`})
+	if _, err := ReadUI(bad); err == nil {
+		t.Error("a package spec with a space in it was taken")
+	}
+
+	set := &Set{}
+	set.SetModule("fraud", "github.com/acme/fraud")
+	set.SetUI("fraud", ui)
+	set.SetModule("fraud", "github.com/acme/fraud")
+	set.Set("fraud", false)
+	if e := set.Plugins["fraud"]; e.Dashboard != ui.Dashboard || e.Storefront != ui.Storefront || e.Enabled {
+		t.Errorf("entry %+v - the UI packages went missing on a later write", e)
+	}
+}

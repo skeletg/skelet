@@ -14,6 +14,7 @@ export default defineConfig({
       { find: '@lingui/react/macro', replacement: path.resolve(__dirname, './src/test-lingui-stub.tsx') },
       { find: '@lingui/core/macro', replacement: path.resolve(__dirname, './src/test-lingui-stub.tsx') },
       { find: '@lingui/react', replacement: path.resolve(__dirname, './src/test-lingui-stub.tsx') },
+      { find: '@skelet/dashboard-sdk', replacement: path.resolve(__dirname, './src/sdk/index.ts') },
       { find: '@', replacement: path.resolve(__dirname, './src') },
     ],
   },

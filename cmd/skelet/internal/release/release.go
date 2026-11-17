@@ -2,6 +2,7 @@
 package release
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 	"os/exec"
@@ -120,19 +121,53 @@ func (r run) build(im image) int {
 		names = append(names, string(m[1]))
 	}
 	slices.Sort(names)
-	args := []string{"build", "--platform", r.platform}
+	args := []string{"build"}
+	if r.platform != "" {
+		args = append(args, "--platform", r.platform)
+	}
 	for _, name := range slices.Compact(names) {
 		if v := r.setting(name); v != "" {
 			args = append(args, "--build-arg", name+"="+v)
 		}
 	}
 	ref := r.ref(im.name)
-	fmt.Printf("==> build %s  (%s)\n", ref, r.platform)
+	if r.registry == "" { // skelet build - for this machine, under the name compose runs
+		ref = "skelet-" + im.name + ":" + r.tag
+	}
+	fmt.Printf("==> build %s  (%s)\n", ref, cmp.Or(r.platform, "this machine's platform"))
 	if code := r.docker(append(args, "-f", df, "-t", ref, im.ctx)...); code != 0 {
 		return code
 	}
+	if r.registry == "" {
+		return 0
+	}
 	fmt.Printf("==> push  %s\n", ref)
 	return r.docker("push", ref)
+}
+
+// Image builds one backend's image for this machine, tagged skelet-<name>:<tag> and pushed nowhere - the name its
+// compose service runs when CORE_IMAGE or SIGNALS_IMAGE is unset, with tag prod
+func Image(root, name, tag string) int {
+	i := slices.IndexFunc(images, func(im image) bool { return im.name == name })
+	if i < 0 {
+		fmt.Fprintf(os.Stderr, "skelet build: no image called %s\n", name)
+		return 2
+	}
+	dotenv, err := envfile.Pairs(filepath.Join(root, ".env"))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "skelet build:", err)
+		return 1
+	}
+	return run{root: root, tag: tag, platform: os.Getenv("PLATFORM"), dotenv: dotenv}.build(images[i])
+}
+
+// Images is the names Image takes
+func Images() []string {
+	out := make([]string, len(images))
+	for i, im := range images {
+		out[i] = im.name
+	}
+	return out
 }
 
 // setting is a build argument's value: your shell's when set, else the root .env's last line for it

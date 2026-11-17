@@ -21,8 +21,8 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
-const About = `Regenerates everything: the Signals gRPC contract (buf), the plugin set, sqlc, both gqlgen schemas, the
-plugin GraphQL bridge, the remote-provider contract, the docs reference tables and the edge security
+const About = `Regenerates everything: the Signals gRPC contract (buf), the plugin set and its UI packages, sqlc, both
+gqlgen schemas, the plugin GraphQL bridge, the remote-provider contract, the docs reference tables and the edge security
 headers - then the dashboard's and every storefront's typed queries, which need the backend up.
 
   --check        fail if anything was stale, listing what regeneration changed
@@ -117,6 +117,8 @@ func backend(root string) int {
 		}},
 		// Before gqlgen: plugins.json decides which plugins compile in
 		{"plugin set", func() error { return goRun(root, "plugingen") }},
+		// The dashboard's and storefronts' imports of the enabled plugins' UI packages, from the same decision file
+		{"plugin UI packages", func() error { return pluginUI(root) }},
 		{"sqlc generate", func() error { return sqlc(root) }},
 		// Before gqlgen: a removed or disabled plugin leaves delegation files referencing model types its SDL took
 		// with it, and gqlgen type-checks the graph package first. plugingraph only parses, so it runs on the stale tree

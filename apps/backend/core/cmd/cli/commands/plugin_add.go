@@ -101,7 +101,12 @@ func runPluginAdd(cmd *cobra.Command, args []string) error {
 	if existing, ok := set.Plugins[slug]; ok && existing.Module != "" && existing.Module != module {
 		return fmt.Errorf("%q is already installed from %s - remove it first, or pass --slug", slug, existing.Module)
 	}
+	ui, err := pluginset.ReadUI(modDir)
+	if err != nil {
+		return err
+	}
 	set.SetModule(slug, module)
+	set.SetUI(slug, ui)
 	if err := set.Save("."); err != nil {
 		return err
 	}
@@ -163,17 +168,24 @@ func runPluginAdd(cmd *cobra.Command, args []string) error {
 	if _, err := os.Stat(filepath.Join(modDir, "migrations")); err == nil {
 		printStep(fmt.Sprintf("skelet cli plugin migrate up %s - it ships migrations", slug))
 	}
-	for _, half := range []struct{ dir, dest string }{
-		{"_dashboard", "apps/dashboard/src/plugins/" + slug + "/"},
-		{"_storefront", "apps/channels/<yours>/app/plugins/" + slug + "/"},
-	} {
-		if _, err := os.Stat(filepath.Join(modDir, half.dir)); err == nil {
-			printStep(fmt.Sprintf("cp -r %s/%s %s", modDir, half.dir, half.dest),
-				"the frontend half is TypeScript, so go get brings it down but cannot place it")
-		}
-	}
+	uiSteps(printStep, ui)
 	printStep("Rebuild")
 	return nil
+}
+
+// A plugin's UI packages come from npm, which the host's pnpm installs - skelet plugin add does it, run from the host
+func uiSteps(printStep func(...string), ui pluginset.UI) {
+	if ui.Dashboard == "" && ui.Storefront == "" {
+		return
+	}
+	var lines []string
+	if ui.Dashboard != "" {
+		lines = append(lines, "skelet pnpm dashboard add "+ui.Dashboard)
+	}
+	if ui.Storefront != "" {
+		lines = append(lines, "skelet pnpm <storefront> add "+ui.Storefront)
+	}
+	printStep(append([]string{"Its UI packages, recorded in plugins.json - skelet plugin add installs them, or by hand:"}, lines...)...)
 }
 
 // "mod@v1.2.3" -> ("mod", "v1.2.3"). The @ has to come after the last slash, so an scp-style URL survives
