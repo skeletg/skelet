@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
@@ -297,8 +298,36 @@ func TestBatchFieldAnswersAListInOneCall(t *testing.T) {
 		t.Errorf("plugin off on the channel: %v, %v after %d calls - want three nulls and no call", got, err, impl.calls)
 	}
 
+	// A failure is reported against the first parent alone, where a plain error would be repeated for every row
 	impl.short = true
-	if _, err := callBatch(context.Background(), objs); err == nil || !strings.Contains(err.Error(), "2 values for 3 parents") {
-		t.Errorf("an answer short of the parents: %v", err)
+	got, err = callBatch(context.Background(), objs)
+	var perParent graphql.BatchErrors
+	if !errors.As(err, &perParent) || len(got) != 3 || len(perParent.Errors()) != 3 {
+		t.Fatalf("an answer short of the parents: %v, %v", got, err)
+	}
+	if errs := perParent.Errors(); errs[0] == nil || !strings.Contains(errs[0].Error(), "2 values for 3 parents") || errs[1] != nil || errs[2] != nil {
+		t.Errorf("per-parent errors %v - want the one, on the first", errs)
+	}
+}
+
+// The field rides core's own listings, so it never spends the plugin's per-minute allowance - a spent one would turn
+// every product page into errors
+func TestBatchFieldIsUnmetered(t *testing.T) {
+	h := resetGraph(t)
+	both := &struct {
+		demoImpl
+		demoBatchImpl
+	}{}
+	if err := h.RegisterGraphResolver("demo", sdk.GraphAdmin, both); err != nil {
+		t.Fatal(err)
+	}
+	orig := checkRateLimitFn
+	t.Cleanup(func() { checkRateLimitFn = orig })
+	checkRateLimitFn = func(context.Context, string) error { return ErrPluginRateLimited }
+	if got, err := callBatch(context.Background(), []*demoProduct{{ID: "a"}}); err != nil || got[0] == nil {
+		t.Errorf("a spent allowance reached the field: %v, %v", got, err)
+	}
+	if _, err := callDemo(context.Background()); !errors.Is(err, ErrPluginRateLimited) {
+		t.Errorf("a plugin's own query is still metered: %v", err)
 	}
 }

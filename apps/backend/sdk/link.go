@@ -37,10 +37,14 @@ type Link struct {
 // Postgres identifiers as a plugin names its own tables and columns - they go into SQL unquoted
 var linkIdent = regexp.MustCompile(`^[a-z_][a-z0-9_]{0,62}$`)
 
-// IDs is each record's id, in the records' order - what LoadOne and LoadMany take
+// IDs is each record's id, in the records' order - what LoadOne and LoadMany take. A nil record, which a list with
+// holes in it hands a batch resolver, has the empty id, which loads nothing
 func IDs[T any](objs []T, id func(T) string) []string {
 	out := make([]string, len(objs))
 	for i, o := range objs {
+		if v := reflect.ValueOf(o); v.Kind() == reflect.Pointer && v.IsNil() {
+			continue
+		}
 		out[i] = id(o)
 	}
 	return out

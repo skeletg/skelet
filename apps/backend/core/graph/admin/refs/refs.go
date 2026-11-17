@@ -14,77 +14,126 @@ package refs
 import (
 	"context"
 	"errors"
+	"strings"
+	"sync/atomic"
+
+	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 )
+
+// Loader is one of the graph's by-id queries, with the most ids it takes in a call - its own cap, so an id past it is
+// asked again rather than dropped
+type Loader[T any] struct {
+	Load  func(ctx context.Context, ids []string) ([]*T, error)
+	Batch int
+}
 
 // The admin graph's by-id queries, which it installs at boot
 type Loaders struct {
-	Products    func(ctx context.Context, ids []string) ([]*model.Product, error)
-	Customers   func(ctx context.Context, ids []string) ([]*model.Customer, error)
-	Orders      func(ctx context.Context, ids []string) ([]*model.Order, error)
-	Categories  func(ctx context.Context, ids []string) ([]*model.Category, error)
-	Collections func(ctx context.Context, ids []string) ([]*model.Collection, error)
+	Products    Loader[model.Product]
+	Customers   Loader[model.Customer]
+	Orders      Loader[model.Order]
+	Categories  Loader[model.Category]
+	Collections Loader[model.Collection]
 }
 
-var loaders Loaders
+var loaders atomic.Pointer[Loaders]
 
-var ErrNotInstalled = errors.New("refs: the admin graph hasn't installed its loaders")
+var ErrNotInstalled = errors.New("refs: the graph hasn't installed its loaders")
 
-func Install(l Loaders) { loaders = l }
+// Install is the admin graph's to call, once, at boot
+func Install(l Loaders) { loaders.Store(&l) }
+
+func installed() Loaders {
+	if l := loaders.Load(); l != nil {
+		return *l
+	}
+	return Loaders{}
+}
 
 func Products(ctx context.Context, ids []string) ([]*model.Product, error) {
-	return Align(ctx, ids, loaders.Products, func(p *model.Product) string { return p.ID })
+	return Align(ctx, ids, installed().Products, func(p *model.Product) string { return p.ID })
 }
 
 func Customers(ctx context.Context, ids []string) ([]*model.Customer, error) {
-	return Align(ctx, ids, loaders.Customers, func(c *model.Customer) string { return c.ID })
+	return Align(ctx, ids, installed().Customers, func(c *model.Customer) string { return c.ID })
 }
 
 func Orders(ctx context.Context, ids []string) ([]*model.Order, error) {
-	return Align(ctx, ids, loaders.Orders, func(o *model.Order) string { return o.ID })
+	return Align(ctx, ids, installed().Orders, func(o *model.Order) string { return o.ID })
 }
 
 func Categories(ctx context.Context, ids []string) ([]*model.Category, error) {
-	return Align(ctx, ids, loaders.Categories, func(c *model.Category) string { return c.ID })
+	return Align(ctx, ids, installed().Categories, func(c *model.Category) string { return c.ID })
 }
 
 func Collections(ctx context.Context, ids []string) ([]*model.Collection, error) {
-	return Align(ctx, ids, loaders.Collections, func(c *model.Collection) string { return c.ID })
+	return Align(ctx, ids, installed().Collections, func(c *model.Collection) string { return c.ID })
 }
 
-// The most ids one loader call takes - core's by-id queries cap there
-const chunk = 100
-
-// Align asks load for each distinct id once, a hundred at a time, and answers in the ids' order with nil where nothing
-// came back - shared by the storefront's refs
-func Align[T any](ctx context.Context, ids []string, load func(context.Context, []string) ([]*T, error), id func(*T) string) ([]*T, error) {
-	if load == nil {
+// Align asks the loader for each distinct id once, its batch at a time, and answers in the ids' order with nil where
+// nothing came back - shared by the storefront's refs. An id that isn't a uuid names nothing, so it's never asked
+func Align[T any](ctx context.Context, ids []string, l Loader[T], id func(*T) string) ([]*T, error) {
+	if l.Load == nil {
 		return nil, ErrNotInstalled
 	}
+	batch := max(l.Batch, 1)
+	canonical := make([]string, len(ids))
 	seen := map[string]bool{}
 	var distinct []string
-	for _, v := range ids {
-		if v != "" && !seen[v] {
-			seen[v] = true
-			distinct = append(distinct, v)
+	for i, v := range ids {
+		u, err := uuid.Parse(v)
+		if err != nil {
+			continue
+		}
+		canonical[i] = u.String()
+		if !seen[canonical[i]] {
+			seen[canonical[i]] = true
+			distinct = append(distinct, canonical[i])
 		}
 	}
 	found := make(map[string]*T, len(distinct))
-	for start := 0; start < len(distinct); start += chunk {
-		got, err := load(ctx, distinct[start:min(start+chunk, len(distinct))])
+	for start := 0; start < len(distinct); start += batch {
+		got, err := l.Load(ctx, distinct[start:min(start+batch, len(distinct))])
 		if err != nil {
 			return nil, err
 		}
 		for _, v := range got {
 			if v != nil {
-				found[id(v)] = v
+				found[strings.ToLower(id(v))] = v
 			}
 		}
 	}
 	out := make([]*T, len(ids))
-	for i, v := range ids {
-		out[i] = found[v]
+	for i, c := range canonical {
+		if c != "" {
+			out[i] = found[c]
+		}
 	}
 	return out, nil
+}
+
+// Each wraps a query that answers one record, for a record with no by-ids query. One that's gone, or that the caller
+// may not see, is left out; anything else - the database, a deadline - fails the call, since a failure answered as
+// "nothing there" would be cached as the truth
+func Each[T any](one func(ctx context.Context, id string) (*T, error)) func(context.Context, []string) ([]*T, error) {
+	return func(ctx context.Context, ids []string) ([]*T, error) {
+		out := make([]*T, 0, len(ids))
+		for _, id := range ids {
+			v, err := one(ctx, id)
+			switch apperr.ClassOf(err) {
+			case apperr.ClassNotFound, apperr.ClassForbidden:
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+			if v != nil {
+				out = append(out, v)
+			}
+		}
+		return out, nil
+	}
 }

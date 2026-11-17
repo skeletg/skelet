@@ -921,8 +921,8 @@ func (r *queryResolver) ProductsByIds(ctx context.Context, ids []string) ([]*mod
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.view"); err != nil {
 		return nil, err
 	}
-	if len(ids) > 100 {
-		ids = ids[:100]
+	if len(ids) > byIDsMax {
+		ids = ids[:byIDsMax]
 	}
 	parsed := make([]uuid.UUID, 0, len(ids))
 	for _, raw := range ids {
