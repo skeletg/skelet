@@ -6,12 +6,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"regexp"
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/apps/backend/core/internal/syncveto"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 const (
@@ -19,11 +18,19 @@ const (
 	EventCustomerSaving = "customer.saving"
 )
 
+// What Saving.Record holds
+const (
+	RecordProduct  = "product"
+	RecordCustomer = "customer"
+)
+
 // The most a save's extensions may hold all told, as JSON
 const MaxExtensions = 64 << 10
 
-// Saving is a record being created or updated, after its row is written and before the transaction commits. Every
-// subscriber sees every extension, each under the key its owner chose - a plugin reads its own slug's
+// Saving is a record being created or updated, after its row is written and before the transaction commits. It's for
+// the plugins compiled in, which write their rows through Tx - not a webhook event: an endpoint called from in here
+// would hold the record's lock for its round trip, read every plugin's part, and never learn whether the save it
+// answered for went on to commit. The updating events are a webhook's say, before the transaction opens
 type Saving struct {
 	Event      string                     `json:"-"`
 	Record     string                     `json:"record"` // product, customer
@@ -40,25 +47,18 @@ func (e *Saving) SavingRecord() string      { return e.Record }
 func (e *Saving) SavingRecordID() uuid.UUID { return e.RecordID }
 func (e *Saving) SavingCreated() bool       { return e.Created }
 func (e *Saving) SavingTx() *sql.Tx         { return e.Tx }
-func (e *Saving) SavingExtensionKeys() int  { return len(e.Extensions) }
 func (e *Saving) SavingExtension(key string) (json.RawMessage, bool) {
 	v, ok := e.Extensions[key]
 	return v, ok
 }
 
-// A sync webhook may refuse the save, which rolls the record back with it
-func (e *Saving) ApplyWebhookResponse(body []byte) (bool, string, error) {
-	return syncveto.Decode(body)
-}
-
-// What keys an extension - a plugin's slug, or an app's name of the same shape
-var extensionKey = regexp.MustCompile(`^[a-z][a-z0-9-]{1,39}$`)
-
-// Check refuses extensions a save shouldn't carry: a malformed key, or more than MaxExtensions of JSON
+// Check refuses extensions a save shouldn't carry: a key that isn't a plugin's slug, or more than MaxExtensions of
+// JSON. Whether a plugin takes the part, and whether the admin may send it, is the API's to ask - see
+// plugin.RecordExtensionPermissions
 func Check(ext map[string]json.RawMessage) error {
 	size := 0
 	for k, v := range ext {
-		if !extensionKey.MatchString(k) {
+		if !sdk.ValidSlug(k) {
 			return apperr.New("EXTENSION_KEY_INVALID", apperr.ClassValidation, fmt.Sprintf("extension %q needs a plugin's slug as its key", k))
 		}
 		size += len(k) + len(v)

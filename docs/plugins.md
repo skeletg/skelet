@@ -385,7 +385,19 @@ p.SubscribeSync(sdk.EventProductSaving, 100, func(ctx context.Context, e any) er
 ```
 
 Your rows commit with the record's, and an error refuses the whole save - an `sdk.UserError` reads
-to the admin. A sync webhook on the same events can refuse too. A save carries at most 64 KB of
+to the admin. Declare the part first, or core refuses a save that carries it:
+
+```go
+p.RegisterRecordExtension(sdk.RecordExtension{Record: sdk.RecordProduct, Permission: "acme.manage"})
+```
+
+`Permission` is what an admin needs to send your part on top of the record's own; leave it empty and
+anyone who may save the record may set it. A part under a slug that declared none, or whose plugin
+is off, is refused before anything is written. The events are for compiled-in plugins, not
+webhooks - `product.updating` and `customer.updating` are a webhook's say, before the transaction
+opens. `product.saving` fires wherever core saves a product, the import included; `customer.saving`
+on the admin API's saves, so follow `customer.created` for every new customer. Keep the handler to
+your own writes, since the record's row is locked until it returns. A save carries at most 64 KB of
 extensions, each keyed by a slug.
 
 In the dashboard, a section on the product or customer page stages its part with

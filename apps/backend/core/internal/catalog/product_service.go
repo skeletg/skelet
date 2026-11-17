@@ -693,6 +693,10 @@ func (s *productService) UpdateProduct(ctx context.Context, input UpdateProductI
 	if err := validateUpdatePrices(input); err != nil {
 		return Product{}, err
 	}
+	// Before product.updating goes out - a webhook told the update is happening shouldn't hear it for one refused here
+	if err := recordsave.Check(input.Extensions); err != nil {
+		return Product{}, err
+	}
 	if input.DefaultCurrencyCode != nil {
 		if len(*input.DefaultCurrencyCode) != 3 {
 			return Product{}, ErrInvalidCurrency
@@ -746,9 +750,6 @@ func (s *productService) UpdateProduct(ctx context.Context, input UpdateProductI
 	}
 	if autoAfter && input.URL != nil {
 		return Product{}, ErrManualPathWhileAuto
-	}
-	if err := recordsave.Check(input.Extensions); err != nil {
-		return Product{}, err
 	}
 	oldPath := current.URL
 	var updated Product
@@ -2051,6 +2052,6 @@ func (s *productService) saving(ctx context.Context, t *sql.Tx, id uuid.UUID, cr
 		ext = map[string]json.RawMessage{}
 	}
 	return s.bus.PublishSync(ctx, &recordsave.Saving{
-		Event: recordsave.EventProductSaving, Record: "product", RecordID: id, Created: created, Extensions: ext, Tx: t,
+		Event: recordsave.EventProductSaving, Record: recordsave.RecordProduct, RecordID: id, Created: created, Extensions: ext, Tx: t,
 	})
 }

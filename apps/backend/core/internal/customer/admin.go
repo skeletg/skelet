@@ -353,6 +353,6 @@ func (s *Service) saving(ctx context.Context, t *sql.Tx, c Customer, created boo
 		ext = map[string]json.RawMessage{}
 	}
 	return s.bus.PublishSync(ctx, &recordsave.Saving{
-		Event: recordsave.EventCustomerSaving, Record: "customer", RecordID: c.ID, ChannelID: c.ChannelID, Created: created, Extensions: ext, Tx: t,
+		Event: recordsave.EventCustomerSaving, Record: recordsave.RecordCustomer, RecordID: c.ID, ChannelID: c.ChannelID, Created: created, Extensions: ext, Tx: t,
 	})
 }

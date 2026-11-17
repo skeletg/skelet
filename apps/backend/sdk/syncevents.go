@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"time"
@@ -291,10 +292,12 @@ type SubscriptionRenewing interface {
 	DelayRenewal(until time.Time) error // refuses a time not ahead of now - later periods count from it, and it wins over a skip
 }
 
-// A product or customer being saved from the dashboard or the admin API, after its row is written and before the
-// transaction commits - with what the save's input carried for plugins under `extensions`, each under its owner's
-// slug. Write your rows through SavingTx so they commit with the record's; return an error to refuse the whole save, an
-// sdk.UserError when the admin should read why. Read your part with pl.Extension
+// A product or customer being saved, after its row is written and before the transaction commits - with what the
+// save's input carried for plugins under `extensions`, each under its owner's slug. Write your rows through SavingTx
+// so they commit with the record's; return an error to refuse the whole save, an sdk.UserError when the admin should
+// read why. Read your part with pl.Extension - it only arrives once you've declared it with RegisterRecordExtension,
+// which is also where you name the permission sending it takes. Keep the handler to your own writes: the record's row
+// is locked until it returns
 //
 //	p.SubscribeSync(sdk.EventProductSaving, 100, func(ctx context.Context, e any) error {
 //	    save, ok := e.(sdk.RecordSaving)
@@ -316,11 +319,11 @@ type RecordSaving interface {
 	SavingTx() *sql.Tx
 }
 
-// Extension decodes this plugin's part of a save's extensions into v - false when the save carried none for it. A
-// part that doesn't decode is the admin's mistake, so it comes back as a UserError they read
+// Extension decodes this plugin's part of a save's extensions into v - false when the save carried none for it, null
+// included. A part that doesn't decode is the admin's mistake, so it comes back as a UserError they read
 func (pl *Plugin) Extension(save RecordSaving, v any) (bool, error) {
 	raw, ok := save.SavingExtension(pl.slug)
-	if !ok {
+	if !ok || string(bytes.TrimSpace(raw)) == "null" {
 		return false, nil
 	}
 	if err := json.Unmarshal(raw, v); err != nil {

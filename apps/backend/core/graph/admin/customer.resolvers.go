@@ -179,7 +179,7 @@ func (r *mutationResolver) AdminCreateCustomer(ctx context.Context, input model.
 	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "customers.manage", storeID, nil); err != nil {
 		return nil, err
 	}
-	ext, err := extensionsInput(input.Extensions)
+	ext, err := r.extensionsInput(ctx, customerSave, input.Extensions)
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +213,7 @@ func (r *mutationResolver) AdminUpdateCustomer(ctx context.Context, id string, i
 	if err != nil {
 		return nil, err
 	}
-	ext, err := extensionsInput(input.Extensions)
+	ext, err := r.extensionsInput(ctx, customerSave, input.Extensions)
 	if err != nil {
 		return nil, err
 	}

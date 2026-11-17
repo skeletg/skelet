@@ -572,10 +572,12 @@ func (q *Queries) GetProductByID(ctx context.Context, id uuid.UUID) (Product, er
 }
 
 const getProductByIDForUpdate = `-- name: GetProductByIDForUpdate :one
-SELECT id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents, configurator_layout, kit_items_returnable FROM catalog_products WHERE id = $1 FOR UPDATE
+SELECT id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents, configurator_layout, kit_items_returnable FROM catalog_products WHERE id = $1 FOR NO KEY UPDATE
 `
 
-// UpdateProduct merges the input over this row in Go, so the lock keeps a concurrent edit from being overwritten
+// UpdateProduct merges the input over this row in Go, so the lock keeps a concurrent edit from being overwritten.
+// NO KEY UPDATE, since nothing here changes the id: a plain FOR UPDATE also holds up every insert that points at the
+// product - a review, a wishlist row - for as long as the save's transaction runs, plugins' part of it included
 func (q *Queries) GetProductByIDForUpdate(ctx context.Context, id uuid.UUID) (Product, error) {
 	row := q.db.QueryRowContext(ctx, getProductByIDForUpdate, id)
 	var i Product

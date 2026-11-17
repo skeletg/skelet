@@ -21,7 +21,7 @@ func (r *mutationResolver) CreateProduct(ctx context.Context, input model.Create
 	if err != nil {
 		return nil, err
 	}
-	ext, err := extensionsInput(input.Extensions)
+	ext, err := r.extensionsInput(ctx, productSave, input.Extensions)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (r *mutationResolver) UpdateProduct(ctx context.Context, input model.Update
 	if err != nil {
 		return nil, err
 	}
-	ext, err := extensionsInput(input.Extensions)
+	ext, err := r.extensionsInput(ctx, productSave, input.Extensions)
 	if err != nil {
 		return nil, err
 	}

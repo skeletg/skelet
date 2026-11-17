@@ -17,7 +17,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
 	"github.com/skeletg/skelet/apps/backend/core/internal/qna"
-	"github.com/skeletg/skelet/apps/backend/core/internal/recordsave"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
 	"github.com/skeletg/skelet/apps/backend/core/internal/webform"
@@ -712,22 +711,6 @@ func init() {
 		Description: "Fires before a product update commits. Payload includes changedFields. " +
 			`Response schema: {"reject": bool, "reason": string, "tags": [string]}. ` +
 			"Returned tags are merged into metadata.webhook_tags.",
-	})
-	RegisterEvent(EventDefinition{
-		Type: recordsave.EventProductSaving,
-		Kind: KindSync,
-		Name: "Product Saving (sync)",
-		Description: "Fires inside the transaction that creates or updates a product from the admin API, after its row is written. " +
-			"Payload: {record, recordId, created, extensions}, where extensions is what the save carried for plugins and apps, each under its key. " +
-			`Response schema: {"reject": bool, "reason": string}. A rejection rolls the whole save back.`,
-	})
-	RegisterEvent(EventDefinition{
-		Type: recordsave.EventCustomerSaving,
-		Kind: KindSync,
-		Name: "Customer Saving (sync)",
-		Description: "Fires inside the transaction that creates or updates a customer from the admin API, after its row is written. " +
-			"Payload: {record, recordId, channelId, created, extensions}. " +
-			`Response schema: {"reject": bool, "reason": string}. A rejection rolls the whole save back.`,
 	})
 	RegisterEvent(EventDefinition{
 		Type: blog.EventPostPublishing,
