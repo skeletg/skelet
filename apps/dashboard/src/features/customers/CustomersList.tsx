@@ -50,7 +50,7 @@ import {
   SetCustomerActiveDocument,
 } from './Customers.gql'
 import { CustomerGroupsDocument } from './CustomerGroups.gql'
-import { pluginFilterVariable, usePluginListFilters } from '@/plugins/list-filters'
+import { usePluginListFilters } from '@/plugins/list-filters'
 import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type CustomerRow = ExistingCustomer & { createdAt: string }
@@ -89,7 +89,7 @@ export function CustomersList() {
   const statusValues = columnFilters.find((f) => f.id === 'status')?.value as string[] | undefined
   const groupValues = columnFilters.find((f) => f.id === 'group')?.value as string[] | undefined
   const pluginFilters = usePluginListFilters<CustomerRow>('CUSTOMERS')
-  const pickedPluginFilters = useMemo(() => pluginFilterVariable(columnFilters), [columnFilters])
+  const pickedPluginFilters = useMemo(() => pluginFilters.picked(columnFilters), [pluginFilters, columnFilters])
 
   const variables = useMemo(
     () => ({

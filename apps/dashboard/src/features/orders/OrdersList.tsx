@@ -24,7 +24,7 @@ import { OrderStageBadge } from './OrderStageBadge'
 import { PaymentStatusBadge } from './PaymentStatusBadge'
 import { OrderStagesDocument, OrdersPagedDocument } from './Orders.gql'
 import { usePermissions } from '@/shared/auth/usePermissions'
-import { pluginFilterVariable, usePluginListFilters } from '@/plugins/list-filters'
+import { usePluginListFilters } from '@/plugins/list-filters'
 
 type OrderRow = {
   id: string
@@ -82,7 +82,7 @@ export function OrdersList({ defaultStatus }: { defaultStatus?: OrderStatus[] } 
       stages: stageValues?.length ? stageValues : null,
       limit: pagination.pageSize,
       offset: pagination.pageIndex * pagination.pageSize,
-      pluginFilters: pluginFilterVariable(columnFilters),
+      pluginFilters: pluginFilters.picked(columnFilters),
     },
   })
   const rows = (data?.ordersPaged.items ?? []) as OrderRow[]

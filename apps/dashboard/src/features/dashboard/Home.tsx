@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@apollo/client/react'
 import { ArrowDownIcon, ArrowUpIcon, EyeIcon, EyeOffIcon, SlidersHorizontalIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -17,6 +17,7 @@ import {
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { useFeatures } from '@/shared/features/useFeatures'
 import { useShellReady } from '@/lib/shell-ready'
+import { PluginBoundary } from '@/plugins/PluginBoundary'
 import { MeDocument } from '@/shared/auth/Me.gql'
 import {
   HOME_LAYOUT_PREF_KEY,
@@ -83,9 +84,9 @@ export function Home() {
           const hidden = isHiddenInLayout(layout, w.id, w.defaultHidden)
           if (!customizing) {
             return hidden ? null : (
-              <Fragment key={w.id}>
+              <PluginBoundary key={w.id} id={w.id}>
                 <w.Component />
-              </Fragment>
+              </PluginBoundary>
             )
           }
           return (
@@ -127,7 +128,11 @@ export function Home() {
               </div>
               {/* a hidden section stays unmounted while browsing the library too, so opening
                   Customize doesn't fire every query it contains */}
-              {!hidden && <w.Component />}
+              {!hidden && (
+                <PluginBoundary id={w.id}>
+                  <w.Component />
+                </PluginBoundary>
+              )}
             </div>
           )
         })}

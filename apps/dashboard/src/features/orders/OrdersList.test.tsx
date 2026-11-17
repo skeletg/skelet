@@ -104,4 +104,26 @@ describe('OrdersList', () => {
     fireEvent.click(await screen.findByRole('option', { name: /Failed/ }))
     expect(await screen.findByText('1009')).toBeDefined()
   })
+
+  // A link saved while a plugin was on, opened after it was switched off - the server refuses a filter it doesn't
+  // offer, so the pick is left out and the list still loads
+  it('leaves out a plugin filter the list no longer offers', async () => {
+    // Answers only a request without the stale pick, which is what the server itself would do
+    const withoutIt = {
+      request: { query: OrdersPagedDocument, variables: (v: Record<string, unknown>) => v.pluginFilters == null },
+      result: { data: { ordersPaged: { __typename: 'OrderPage', totalCount: 1, items: [{
+        __typename: 'Order', id: 'o10', number: '1010', status: 'PROCESSING', paymentStatus: 'PAID', total: 1000, currencyCode: 'EUR',
+        createdAt: '2026-01-01T00:00:00Z', stage: null, shippingAddress: { __typename: 'OrderAddress', firstName: 'Ada', lastName: 'Buyer' },
+      }] } } },
+      maxUsageCount: 5,
+    }
+    const stale = encodeURIComponent(JSON.stringify([{ id: 'plugin:acme:sync', value: ['failed'] }]))
+    renderPage({
+      path: `/orders?f=${stale}`,
+      routes: { '/orders': <OrdersList /> },
+      mocks: [meMock({ superuser: false, permissions: ['orders.view'] }), withoutIt, stagesMock([]), pluginFiltersMock([])],
+      adminId: 'admin-1',
+    })
+    expect(await screen.findByText('1010')).toBeDefined()
+  })
 })

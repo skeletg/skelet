@@ -50,7 +50,7 @@ import {
   ScopeIndicator,
 } from './product-detail/shared'
 import { GeneralProductSection } from './product-detail/GeneralProductSection'
-import { ProductSidebar } from './product-detail/ProductSidebar'
+import { ProductSidebar, useProductPanelCollapsed } from './product-detail/ProductSidebar'
 import { AdvancedInventoryPricingSection } from './product-detail/AdvancedInventoryPricingSection'
 import { TierPricingSection } from './product-detail/TierPricingSection'
 import { RecommendationsSection } from './product-detail/RecommendationsSection'
@@ -105,6 +105,7 @@ export function ProductDetail() {
   })
   // A plugin section's part of the save rides the product's own mutation - see shared/saving/extensions
   const extensions = useRecordExtensions((parts) => updateProductMetadata({ variables: { input: { id, extensions: parts } } }))
+  const [panelCollapsed, togglePanel] = useProductPanelCollapsed()
 
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [attributesOpen, setAttributesOpen] = useState(false)
@@ -184,7 +185,7 @@ export function ProductDetail() {
   return (
     <ProductSaveContext.Provider value={saveContextValue}>
     <RecordExtensionsContext.Provider value={extensions}>
-    <DetailPageLayout rightSidebar={<ProductSidebar product={product} />}>
+    <DetailPageLayout rightSidebar={<ProductSidebar product={product} collapsed={panelCollapsed} toggle={togglePanel} />}>
       <DetailPageHeader
         backTo="/products"
         backLabel="Back to products"
@@ -558,7 +559,7 @@ export function ProductDetail() {
             <span>·</span>
             <span>Updated {new Date(product.updatedAt).toLocaleDateString()}</span>
           </div>
-        <PluginSections target="product" entity={product} mode="edit" />
+        <PluginSections target="product" entity={product} mode="edit" sideInBody={panelCollapsed} />
       </DetailPageBody>
     </DetailPageLayout>
 

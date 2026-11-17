@@ -135,8 +135,8 @@ export function DataTable<TData extends RowData>({
   rowActions?: RowAction<TData>[]
   rowActionLabel?: (row: TData) => string
   enableDensityToggle?: boolean
-  // stable identity for per-admin layout persistence - defaults to `target`, so plugin-extended
-  // tables roam for free; leave both unset for ephemeral embedded tables
+  // stable identity for per-admin layout persistence and, on a URL-backed list, its saved views - a list opts in by
+  // naming one. `target` is only where plugins reach the list: giving a list one changes nothing else about it
   prefsKey?: string
   // opts the saved-views dropdown in explicitly - manual/server-paged pages that keep their list
   // state in the URL themselves (OrdersList) pass this since they never hand DataTable a urlState
@@ -204,7 +204,7 @@ export function DataTable<TData extends RowData>({
     dense,
     setDense,
     resetLayout,
-  } = useTablePrefs(prefsKey ?? target, initialColumnVisibility)
+  } = useTablePrefs(prefsKey, initialColumnVisibility)
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [expanded, setExpanded] = useState({})
   const [localGlobalFilter, setLocalGlobalFilter] = useState('')
@@ -365,7 +365,7 @@ export function DataTable<TData extends RowData>({
         filters={allFilters}
         toolbarSlot={toolbarSlot?.(table)}
         viewsSlot={(() => {
-          const key = viewsKey ?? (urlState ? (prefsKey ?? target) : undefined)
+          const key = viewsKey ?? (urlState ? prefsKey : undefined)
           return key ? <SavedViews viewsKey={key} paramKey={urlState?.paramKey ?? ''} /> : null
         })()}
         rightSlot={

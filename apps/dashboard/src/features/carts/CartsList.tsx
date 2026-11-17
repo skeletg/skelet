@@ -187,7 +187,7 @@ function CartListPage({ kind }: { kind: CartKind }) {
   return (
     <>
       <DataTable
-        target="carts"
+        target={isOffer ? 'offers' : 'carts'}
         urlState={isOffer ? urlState : undefined}
         manual={
           isOffer

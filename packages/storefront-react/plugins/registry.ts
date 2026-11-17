@@ -70,11 +70,23 @@ const navItems: AccountNavItem[] = [];
 const slots: Slot[] = [];
 const paymentUIs = new Map<string, PaymentUI>();
 
-export function registerAccountNavItem(item: AccountNavItem) {
-  if (navItems.some((i) => i.id === item.id)) {
-    throw new Error(`plugins: duplicate account nav item "${item.id}"`);
+// Editing a plugin's file under a dev server runs its registrations again while this module stays loaded, so there a
+// repeat replaces what's registered. Anywhere else it's two plugins claiming one id, and an error
+const replacing = process.env.NODE_ENV === "development";
+
+function put<T>(into: T[], entry: T, same: (existing: T) => boolean, what: string) {
+  const at = into.findIndex(same);
+  if (at < 0) {
+    into.push(entry);
+  } else if (replacing) {
+    into[at] = entry;
+  } else {
+    throw new Error(`plugins: duplicate ${what}`);
   }
-  navItems.push(item);
+}
+
+export function registerAccountNavItem(item: AccountNavItem) {
+  put(navItems, item, (i) => i.id === item.id, `account nav item "${item.id}"`);
 }
 
 export function getAccountNavItems(): AccountNavItem[] {
@@ -82,10 +94,7 @@ export function getAccountNavItems(): AccountNavItem[] {
 }
 
 export function registerSlot<TCtx = unknown>(slot: Slot<TCtx>) {
-  if (slots.some((s) => s.id === slot.id && s.zone === slot.zone)) {
-    throw new Error(`plugins: duplicate slot "${slot.id}" in zone "${slot.zone}"`);
-  }
-  slots.push(slot as Slot);
+  put(slots, slot as Slot, (s) => s.id === slot.id && s.zone === slot.zone, `slot "${slot.id}" in zone "${slot.zone}"`);
 }
 
 export function getSlots<TCtx = unknown>(zone: string): Slot<TCtx>[] {
@@ -95,7 +104,7 @@ export function getSlots<TCtx = unknown>(zone: string): Slot<TCtx>[] {
 }
 
 export function registerPaymentUI(ui: PaymentUI) {
-  if (paymentUIs.has(ui.provider)) {
+  if (paymentUIs.has(ui.provider) && !replacing) {
     throw new Error(`plugins: duplicate payment UI for "${ui.provider}"`);
   }
   paymentUIs.set(ui.provider, ui);

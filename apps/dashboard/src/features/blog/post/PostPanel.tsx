@@ -207,8 +207,8 @@ export function PostPanel({
         </PanelSection>
         {/* The writing desk has no body sections - a plugin's blog-post sections all join the panel */}
         <div className="grid gap-4 p-4 empty:hidden">
-          <PluginSections target="blog-post" entity={post} mode="edit" placement="before" />
-          <PluginSections target="blog-post" entity={post} mode="edit" sideInBody />
+          <PluginSections target="blog-post" entity={post} mode="edit" placement="before" inPanel />
+          <PluginSections target="blog-post" entity={post} mode="edit" sideInBody inPanel />
         </div>
       </div>
     </aside>

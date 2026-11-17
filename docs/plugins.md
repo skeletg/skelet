@@ -390,9 +390,11 @@ extensions, each keyed by a slug.
 
 In the dashboard, a section on the product or customer page stages its part with
 `useExtensionSection` from `@skelet/dashboard-sdk`, and it goes out with the page's own Save - in the
-record's mutation when the record changed too, alone through the same mutation when it didn't. The
-confirm dialog lists it under your title. Refetch your data in `onSaved`, so your section stops
-reporting a change once it's saved:
+mutation of the page's main section when that changed too (General, on a product), alone through
+the same mutation when it didn't. Another section of the page that saves in a call of its own, a
+product's pricing or SEO, commits apart from your part. The confirm dialog lists it under your
+title. Two sections of one plugin each stage an object, and your subscriber reads them joined.
+Refetch your data in `onSaved`, so your section stops reporting a change once it's saved:
 
 ```tsx
 useExtensionSection('acme', {
@@ -537,7 +539,9 @@ Inside core's own pages a plugin reaches in through registries keyed by a target
   join the page's Save. `placement` puts it at the top of the page's body (`before`), at the end of
   it (`after`, the default) or in the side panel (`side`), where a body section is a
   `<DetailPageSection>` and a side one a small block of its own. The side panel shows on wide
-  screens; below that a side section renders at the end of the body, so it's never lost. Every
+  screens; below that, or with the panel folded away, a side section renders at the end of the
+  body instead, so it's never lost and never mounted twice. A section that throws is replaced by a
+  line naming it, and the page around it carries on. Every
   record page takes sections: `product`, `order`, `customer`, `customer-group`, `category`,
   `collection`, `attribute`, `product-type`, `option-template`, `cart`, `promotion`, `review`,
   `review-question`, `segment`, `campaign`, `experiment`, `cms-page`, `cms-page-type`,
@@ -554,7 +558,7 @@ Inside core's own pages a plugin reaches in through registries keyed by a target
 - **`registerListColumn`**, `registerListFilter`, `registerListRowAction` and
   `registerListMassAction` extend a list. Every top-level list has a target: `catalog.products`,
   `catalog.collections`, `catalog.attributes`, `catalog.product-types`, `catalog.option-templates`,
-  `catalog.url-rewrites`, `orders`, `carts`, `customers`, `customer-groups`, `segments`,
+  `catalog.url-rewrites`, `orders`, `carts`, `offers`, `customers`, `customer-groups`, `segments`,
   `subscriptions`, `gift-cards`, `reviews`, `questions`, `conversations`, `promotions`, `campaigns`,
   `flows`, `signup-forms`, `web-forms`, `experiments`, `blog.posts`, `cms.pages`, `menus`,
   `inventory.locations`, `inventory.low-stock`, `shipping.zones`, `tax-rules`, `countries`,
@@ -563,7 +567,7 @@ Inside core's own pages a plugin reaches in through registries keyed by a target
   fields as a column on the products and customers lists, whose rows carry metadata.
 - **`registerSlot`** renders into a zone: `list-header:<target>`, `list-toolbar:<target>` and
   `list-footer:<target>` on every list above, each handed `{table}`, and `home:widgets` at the
-  end of Home.
+  end of Home. A target is only where you reach a list - it changes nothing else about it.
 - **`registerHomeWidget`** adds a section of your own to Home, with an id like
   `<slug>:sales`, and an optional permission and feature switch. An admin arranges it, hides it or
   finds it in the library, like core's own. `defaultHidden` leaves it in the library until they
@@ -573,9 +577,10 @@ Inside core's own pages a plugin reaches in through registries keyed by a target
 page copied to its real path simply exists. The registry lives in `@skelet/storefront-react/plugins/registry` and covers
 the places a plugin appears INSIDE a core page: `registerAccountNavItem` for the account sidebar,
 and `registerSlot` for a zone. The template reaches it through `app/plugins/registry.ts` and
-`app/plugins/Slots.tsx`, which load `loaded.ts` first - a slot renders in the browser too, and the
+`app/plugins/Slots.tsx`, which load `loaded.ts` too - a slot renders in the browser as well, and the
 browser keeps its own copy of the registry, so the plugins register there as well as on the
-server. Vetrina draws these zones, each with the ctx it hands over:
+server. A slot that throws is left out and logged, so one can't take the checkout, or a page's
+header, down with it. Vetrina draws these zones, each with the ctx it hands over:
 
 | Zone | Where | ctx |
 |---|---|---|

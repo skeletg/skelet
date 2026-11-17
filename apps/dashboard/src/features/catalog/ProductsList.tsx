@@ -32,7 +32,7 @@ import {
   productFilterVariables,
   useProductFilterOptions,
 } from './product-filters'
-import { pluginFilterVariable, usePluginListFilters } from '@/plugins/list-filters'
+import { usePluginListFilters } from '@/plugins/list-filters'
 
 type ProductListing = {
   isPublished: boolean
@@ -126,7 +126,7 @@ export function ProductsList() {
       published:
         publishedFilter.length === 1 ? publishedFilter[0] === 'published' : null,
       ...productFilterVariables(columnFilters),
-      pluginFilters: pluginFilterVariable(columnFilters),
+      pluginFilters: pluginFilters.picked(columnFilters),
       sortKey: sorting[0]?.id ?? 'updatedAt',
       sortDesc: sorting[0]?.desc ?? true,
       withMetadata: hasListColumns(LIST_TARGET),
@@ -337,6 +337,7 @@ export function ProductsList() {
         searchPlaceholder="Search name, slug, or SKU…"
         initialColumnVisibility={hiddenColumnVisibility}
         target={LIST_TARGET}
+        prefsKey={LIST_TARGET}
         enableDensityToggle
         enableColumnControls
         manual={{

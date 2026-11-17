@@ -1,5 +1,5 @@
-import { Fragment } from 'react'
 import { getSlots } from './slot-registry'
+import { PluginRender } from './PluginBoundary'
 
 // Only the component lives here - the registry is in slot-registry so fast refresh works on both
 
@@ -9,7 +9,7 @@ export function Slot<TCtx = unknown>({ zone, ctx }: { zone: string | undefined; 
   return (
     <>
       {entries.map((s) => (
-        <Fragment key={s.id}>{s.render(ctx as TCtx)}</Fragment>
+        <PluginRender key={s.id} id={s.id} render={() => s.render(ctx as TCtx)} />
       ))}
     </>
   )
