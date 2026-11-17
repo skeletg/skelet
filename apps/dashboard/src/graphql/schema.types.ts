@@ -8069,6 +8069,30 @@ export type PermissionGroup = {
   slug: Scalars['String']['output'];
 };
 
+export type PluginList =
+  | 'CUSTOMERS'
+  | 'ORDERS'
+  | 'PRODUCTS';
+
+export type PluginListFilter = {
+  __typename?: 'PluginListFilter';
+  key: Scalars['String']['output'];
+  label: Scalars['String']['output'];
+  options: Array<PluginListFilterOption>;
+  plugin: Scalars['String']['output'];
+};
+
+export type PluginListFilterInput = {
+  key: Scalars['String']['input'];
+  values: Array<Scalars['String']['input']>;
+};
+
+export type PluginListFilterOption = {
+  __typename?: 'PluginListFilterOption';
+  label: Scalars['String']['output'];
+  value: Scalars['String']['output'];
+};
+
 export type Product = ProductOptionOwner & {
   __typename?: 'Product';
   attributeValues: Array<ProductAttributeValue>;
@@ -8888,6 +8912,7 @@ export type Query = {
   paymentMethods: Array<PaymentMethodAdmin>;
   paymentProviders: Array<PaymentProviderAdmin>;
   permissionGroups: Array<PermissionGroup>;
+  pluginListFilters: Array<PluginListFilter>;
   previewSchedule: SchedulePreview;
   product: Product;
   productAttributeLocaleValues: Array<ProductAttributeLocaleValue>;
@@ -9404,6 +9429,7 @@ export type QueryCustomersPagedArgs = {
   isActive?: InputMaybe<Scalars['Boolean']['input']>;
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
+  pluginFilters?: InputMaybe<Array<PluginListFilterInput>>;
   search?: InputMaybe<Scalars['String']['input']>;
 };
 
@@ -9761,6 +9787,7 @@ export type QueryOrdersPagedArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   paymentStatuses?: InputMaybe<Array<Scalars['String']['input']>>;
+  pluginFilters?: InputMaybe<Array<PluginListFilterInput>>;
   search?: InputMaybe<Scalars['String']['input']>;
   stages?: InputMaybe<Array<Scalars['String']['input']>>;
   statuses?: InputMaybe<Array<Scalars['String']['input']>>;
@@ -9774,6 +9801,11 @@ export type QueryPaymentMethodsArgs = {
 
 export type QueryPaymentProvidersArgs = {
   channelId?: InputMaybe<Scalars['ID']['input']>;
+};
+
+
+export type QueryPluginListFiltersArgs = {
+  list: PluginList;
 };
 
 
@@ -9853,6 +9885,7 @@ export type QueryProductsPagedArgs = {
   kinds?: InputMaybe<Array<ProductKind>>;
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
+  pluginFilters?: InputMaybe<Array<PluginListFilterInput>>;
   priceMax?: InputMaybe<Scalars['String']['input']>;
   priceMin?: InputMaybe<Scalars['String']['input']>;
   productTypeSlugs?: InputMaybe<Array<Scalars['String']['input']>>;

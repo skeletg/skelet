@@ -187,6 +187,7 @@ WHERE  (sqlc.arg(all_channels)::boolean OR c.channel_id = ANY(sqlc.arg(channel_i
         c.last_name ILIKE '%' || sqlc.arg(search)::text || '%')
   AND  (sqlc.arg(group_slug)::text = '' OR g.slug = sqlc.arg(group_slug)::text)
   AND  (NOT sqlc.arg(filter_active)::boolean OR c.is_active = sqlc.arg(is_active)::boolean)
+  AND  (NOT sqlc.arg(restrict_ids)::boolean OR c.id = ANY(sqlc.arg(only_ids)::uuid[]))
 ORDER  BY c.created_at DESC
 LIMIT  sqlc.arg(lim) OFFSET sqlc.arg(off);
 

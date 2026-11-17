@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -340,6 +341,12 @@ func TestMigrationsApply(t *testing.T) {
 	one, err := sdk.LoadOne[note](ctx, notes, []string{stranger, customer.String()})
 	if err != nil || one[0] != nil || one[1] == nil || one[1].Note != "prefers mornings" {
 		t.Errorf("first note per customer %v, %v", one, err)
+	}
+
+	// The customers list narrowed to those with a note holds this one
+	withNotes := []pluginhost.ListFilterPick{{Key: Slug + ":notes", Values: []string{"any"}}}
+	if ids, restrict, err := pluginhost.ListFilterIDs(ctx, sdk.ListCustomers, withNotes); err != nil || !restrict || !slices.Contains(ids, customer) {
+		t.Errorf("customers with notes %v (restrict %v), %v - want %s among them", ids, restrict, err, customer)
 	}
 
 	export, err := pluginhost.CustomerDataExport(ctx, customer, channelID, "")

@@ -117,6 +117,7 @@ func ResetForTest() {
 	dataResources.reset()
 	fees.reset()
 	customerData.reset()
+	listFilters.reset()
 }
 
 func withHost(op func(Host) error) {

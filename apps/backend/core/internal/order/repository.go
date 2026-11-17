@@ -1095,6 +1095,10 @@ func (r *postgresRepository) ListOrderEventsByOrder(ctx context.Context, orderID
 
 func (r *postgresRepository) ListOrdersPage(ctx context.Context, f ListPageFilter) ([]Order, int64, error) {
 	allStatuses, allPayment, allStages := len(f.Statuses) == 0, len(f.PaymentStatuses) == 0, len(f.Stages) == 0
+	ids := f.OnlyIDs
+	if ids == nil {
+		ids = []uuid.UUID{}
+	}
 	var (
 		rows  []db.Order
 		total int64
@@ -1104,22 +1108,26 @@ func (r *postgresRepository) ListOrdersPage(ctx context.Context, f ListPageFilte
 		rows, err = r.queries.ListOrdersPaged(ctx, db.ListOrdersPagedParams{
 			Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
 			AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses, AllStages: allStages, Stages: f.Stages, Lim: f.Limit, Off: f.Offset,
+			RestrictIds: f.RestrictIDs, OnlyIds: ids,
 		})
 		if err == nil && !f.SkipCount {
 			total, err = r.queries.CountOrdersPaged(ctx, db.CountOrdersPagedParams{
 				Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
 				AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses, AllStages: allStages, Stages: f.Stages,
+				RestrictIds: f.RestrictIDs, OnlyIds: ids,
 			})
 		}
 	} else {
 		rows, err = r.queries.ListOrdersPagedInChannels(ctx, db.ListOrdersPagedInChannelsParams{
 			ChannelIds: f.ChannelIDs, Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
 			AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses, AllStages: allStages, Stages: f.Stages, Lim: f.Limit, Off: f.Offset,
+			RestrictIds: f.RestrictIDs, OnlyIds: ids,
 		})
 		if err == nil && !f.SkipCount {
 			total, err = r.queries.CountOrdersPagedInChannels(ctx, db.CountOrdersPagedInChannelsParams{
 				ChannelIds: f.ChannelIDs, Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
 				AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses, AllStages: allStages, Stages: f.Stages,
+				RestrictIds: f.RestrictIDs, OnlyIds: ids,
 			})
 		}
 	}

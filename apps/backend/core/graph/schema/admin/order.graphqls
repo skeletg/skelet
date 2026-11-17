@@ -315,7 +315,7 @@ extend type Query {
   orders(channelId: ID): [Order!]!
   # Server-side page for the orders grid - statuses/paymentStatuses take the
   # SCREAMING enum spellings, search matches number, email and last names
-  ordersPaged(channelId: ID, search: String, statuses: [String!], paymentStatuses: [String!], limit: Int, offset: Int, stages: [String!]): OrderPage!
+  ordersPaged(channelId: ID, search: String, statuses: [String!], paymentStatuses: [String!], limit: Int, offset: Int, stages: [String!], pluginFilters: [PluginListFilterInput!]): OrderPage!
   # The stages the plugins enabled on a channel offer, or every compiled-in plugin's without channelId
   orderStages(channelId: ID): [OrderStage!]!
   order(id: ID!):          Order!

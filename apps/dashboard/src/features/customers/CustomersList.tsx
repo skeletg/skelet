@@ -50,6 +50,7 @@ import {
   SetCustomerActiveDocument,
 } from './Customers.gql'
 import { CustomerGroupsDocument } from './CustomerGroups.gql'
+import { pluginFilterVariable, usePluginListFilters } from '@/plugins/list-filters'
 import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type CustomerRow = ExistingCustomer & { createdAt: string }
@@ -87,6 +88,8 @@ export function CustomersList() {
 
   const statusValues = columnFilters.find((f) => f.id === 'status')?.value as string[] | undefined
   const groupValues = columnFilters.find((f) => f.id === 'group')?.value as string[] | undefined
+  const pluginFilters = usePluginListFilters<CustomerRow>('CUSTOMERS')
+  const pickedPluginFilters = useMemo(() => pluginFilterVariable(columnFilters), [columnFilters])
 
   const variables = useMemo(
     () => ({
@@ -95,9 +98,10 @@ export function CustomersList() {
       isActive: activeFilter(statusValues),
       limit: pagination.pageSize,
       offset: pagination.pageIndex * pagination.pageSize,
+      pluginFilters: pickedPluginFilters,
       withMetadata: hasListColumns(LIST_TARGET),
     }),
-    [debouncedSearch, groupValues, statusValues, pagination.pageIndex, pagination.pageSize],
+    [debouncedSearch, groupValues, statusValues, pickedPluginFilters, pagination.pageIndex, pagination.pageSize],
   )
 
   const { data, loading, error } = useQuery(CustomersPagedDocument, {
@@ -302,8 +306,9 @@ export function CustomersList() {
             } satisfies ColumnDef<CustomerRow>,
           ]
         : []),
+      ...pluginFilters.columns,
     ],
-    [canManage, setActive],
+    [canManage, setActive, pluginFilters],
   )
 
   return (
@@ -315,6 +320,7 @@ export function CustomersList() {
         enableColumnControls
         enableDensityToggle
         columns={columns}
+        initialColumnVisibility={pluginFilters.hidden}
         data={rows}
         loading={loading && rows.length === 0}
         error={error ? { message: error.message } : null}
@@ -351,6 +357,7 @@ export function CustomersList() {
           ...(groupOptions.length > 0
             ? [{ column: 'group', title: 'Group', options: groupOptions }]
             : []),
+          ...pluginFilters.filters,
         ]}
         bulkActions={bulkActions}
         toolbarRightSlot={

@@ -1998,49 +1998,51 @@ filtered AS (
            OR p.url ILIKE '%' || escape_like($9::text) || '%'
            OR co.name ILIKE '%' || escape_like($9::text) || '%')
       AND (cardinality($10::text[]) = 0 OR p.kind::text = ANY($10::text[]))
-      AND (cardinality($11::text[]) = 0 OR pt.slug = ANY($11::text[]))
+      -- A plugin's list filter answered with the ids that match it
+      AND (NOT $11::boolean OR p.id = ANY($12::uuid[]))
+      AND (cardinality($13::text[]) = 0 OR pt.slug = ANY($13::text[]))
       -- Published means "has a published listing in scope" - in global mode any
       -- channel counts, which matches what the unpaginated list showed
-      AND (NOT $12::boolean
-           OR $13::boolean = EXISTS (
+      AND (NOT $14::boolean
+           OR $15::boolean = EXISTS (
                 SELECT 1 FROM catalog_product_channel_listings l2
                 WHERE l2.product_id = p.id
                   AND l2.is_published
                   AND ($7::boolean OR l2.channel_id = $8)))
       -- Same AND-across-attributes / OR-within-one shape the facet count uses: a value id belongs to exactly one
       -- attribute, so counting distinct matched attributes and requiring all of them needs no SQL built per request
-      AND (cardinality($14::uuid[]) = 0 OR p.id IN (
+      AND (cardinality($16::uuid[]) = 0 OR p.id IN (
               SELECT av.product_id
               FROM catalog_product_attribute_values av
-              WHERE av.attribute_value_id = ANY($14::uuid[])
+              WHERE av.attribute_value_id = ANY($16::uuid[])
               GROUP BY av.product_id
               -- How many distinct attributes the selection spans, derived here so no caller has to know: two values of the SAME attribute
               -- must count once, or picking two colours becomes an unsatisfiable AND instead of an OR
               HAVING count(DISTINCT av.attribute_id) = (
                   SELECT count(DISTINCT v2.attribute_id)
                   FROM catalog_attribute_values v2
-                  WHERE v2.id = ANY($14::uuid[]))))
+                  WHERE v2.id = ANY($16::uuid[]))))
       -- A category reaches its subcategories, the way browsing it in the storefront does
       AND (cardinality($5::uuid[]) = 0 OR p.id IN (
               SELECT pc.product_id
               FROM catalog_product_categories pc
               WHERE pc.category_id IN (SELECT id FROM category_tree)))
-      AND (cardinality($15::uuid[]) = 0 OR EXISTS (
+      AND (cardinality($17::uuid[]) = 0 OR EXISTS (
               SELECT 1 FROM catalog_collection_products cp
-              WHERE cp.product_id = p.id AND cp.collection_id = ANY($15::uuid[])))
+              WHERE cp.product_id = p.id AND cp.collection_id = ANY($17::uuid[])))
       -- Bounds arrive as typed ('12.50') and scale by each product's own currency, so they mean 12.50 dollars and 12 yen alike
-      AND (NULLIF($16::text, '') IS NULL
-           OR p.default_price >= NULLIF($16::text, '')::numeric * power(10, coalesce(cur.decimals, 2)))
-      AND (NULLIF($17::text, '') IS NULL
-           OR p.default_price <= NULLIF($17::text, '')::numeric * power(10, coalesce(cur.decimals, 2)))
+      AND (NULLIF($18::text, '') IS NULL
+           OR p.default_price >= NULLIF($18::text, '')::numeric * power(10, coalesce(cur.decimals, 2)))
+      AND (NULLIF($19::text, '') IS NULL
+           OR p.default_price <= NULLIF($19::text, '')::numeric * power(10, coalesce(cur.decimals, 2)))
       -- inventory's Salable in SQL: no item is always in stock, flat mode reads the item's own quantity, otherwise the levels at
       -- the scope's locations (every location globally) less reservations for tracked items - a remote stock provider isn't seen here
-      AND ($18::text = '' OR ($18::text = 'in') = (
+      AND ($20::text = '' OR ($20::text = 'in') = (
               NOT EXISTS (SELECT 1 FROM inventory_items i0 WHERE i0.product_id = p.id)
               OR EXISTS (
                   SELECT 1 FROM inventory_items ii
                   WHERE ii.product_id = p.id
-                    AND CASE WHEN $19::boolean THEN NOT ii.tracked OR ii.quantity > 0
+                    AND CASE WHEN $21::boolean THEN NOT ii.tracked OR ii.quantity > 0
                              ELSE (SELECT coalesce(sum(CASE WHEN ii.tracked THEN lv.quantity - greatest(lv.reserved_quantity, 0) ELSE lv.quantity END), 0)
                                    FROM inventory_levels lv
                                    WHERE lv.inventory_item_id = ii.id
@@ -2103,6 +2105,8 @@ type ListProductsPagedAdminParams struct {
 	ChannelID       uuid.UUID   `json:"channel_id"`
 	Search          string      `json:"search"`
 	Kinds           []string    `json:"kinds"`
+	RestrictIds     bool        `json:"restrict_ids"`
+	OnlyIds         []uuid.UUID `json:"only_ids"`
 	TypeSlugs       []string    `json:"type_slugs"`
 	FilterPublished bool        `json:"filter_published"`
 	IsPublished     bool        `json:"is_published"`
@@ -2135,6 +2139,8 @@ func (q *Queries) ListProductsPagedAdmin(ctx context.Context, arg ListProductsPa
 		arg.ChannelID,
 		arg.Search,
 		pq.Array(arg.Kinds),
+		arg.RestrictIds,
+		pq.Array(arg.OnlyIds),
 		pq.Array(arg.TypeSlugs),
 		arg.FilterPublished,
 		arg.IsPublished,

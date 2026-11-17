@@ -424,6 +424,7 @@ extend type Query {
     sortDesc:          Boolean
     limit:             Int = 25
     offset:            Int = 0
+    pluginFilters:     [PluginListFilterInput!]
   ): ProductPage!
   product(id: ID!): Product!
   # Batched label/detail resolution for pickers holding bare ids - capped at 100

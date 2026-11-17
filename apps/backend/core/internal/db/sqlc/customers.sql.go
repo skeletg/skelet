@@ -816,8 +816,9 @@ WHERE  ($1::boolean OR c.channel_id = ANY($2::uuid[]))
         c.last_name ILIKE '%' || $3::text || '%')
   AND  ($4::text = '' OR g.slug = $4::text)
   AND  (NOT $5::boolean OR c.is_active = $6::boolean)
+  AND  (NOT $7::boolean OR c.id = ANY($8::uuid[]))
 ORDER  BY c.created_at DESC
-LIMIT  $8 OFFSET $7
+LIMIT  $10 OFFSET $9
 `
 
 type ListCustomersPagedParams struct {
@@ -827,6 +828,8 @@ type ListCustomersPagedParams struct {
 	GroupSlug    string      `json:"group_slug"`
 	FilterActive bool        `json:"filter_active"`
 	IsActive     bool        `json:"is_active"`
+	RestrictIds  bool        `json:"restrict_ids"`
+	OnlyIds      []uuid.UUID `json:"only_ids"`
 	Off          int32       `json:"off"`
 	Lim          int32       `json:"lim"`
 }
@@ -847,6 +850,8 @@ func (q *Queries) ListCustomersPaged(ctx context.Context, arg ListCustomersPaged
 		arg.GroupSlug,
 		arg.FilterActive,
 		arg.IsActive,
+		arg.RestrictIds,
+		pq.Array(arg.OnlyIds),
 		arg.Off,
 		arg.Lim,
 	)

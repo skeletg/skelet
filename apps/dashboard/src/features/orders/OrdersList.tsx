@@ -24,6 +24,7 @@ import { OrderStageBadge } from './OrderStageBadge'
 import { PaymentStatusBadge } from './PaymentStatusBadge'
 import { OrderStagesDocument, OrdersPagedDocument } from './Orders.gql'
 import { usePermissions } from '@/shared/auth/usePermissions'
+import { pluginFilterVariable, usePluginListFilters } from '@/plugins/list-filters'
 
 type OrderRow = {
   id: string
@@ -71,6 +72,7 @@ export function OrdersList({ defaultStatus }: { defaultStatus?: OrderStatus[] } 
   // Network-only like the rest: which stages apply follows the header's channel, which the cache key doesn't carry
   const stages = useQuery(OrderStagesDocument).data?.orderStages ?? []
   const hasStages = stages.length > 0
+  const pluginFilters = usePluginListFilters<OrderRow>('ORDERS')
 
   const { data, loading, error } = useQuery(OrdersPagedDocument, {
     variables: {
@@ -80,6 +82,7 @@ export function OrdersList({ defaultStatus }: { defaultStatus?: OrderStatus[] } 
       stages: stageValues?.length ? stageValues : null,
       limit: pagination.pageSize,
       offset: pagination.pageIndex * pagination.pageSize,
+      pluginFilters: pluginFilterVariable(columnFilters),
     },
   })
   const rows = (data?.ordersPaged.items ?? []) as OrderRow[]
@@ -163,8 +166,9 @@ export function OrdersList({ defaultStatus }: { defaultStatus?: OrderStatus[] } 
           </span>
         ),
       },
+      ...pluginFilters.columns,
     ],
-    [hasStages],
+    [hasStages, pluginFilters],
   )
 
   return (
@@ -176,6 +180,7 @@ export function OrdersList({ defaultStatus }: { defaultStatus?: OrderStatus[] } 
       enableColumnControls
       enableDensityToggle
       columns={columns}
+      initialColumnVisibility={pluginFilters.hidden}
       data={rows}
       loading={loading && rows.length === 0}
       error={error ? { message: error.message } : null}
@@ -236,6 +241,7 @@ export function OrdersList({ defaultStatus }: { defaultStatus?: OrderStatus[] } 
         ...(hasStages
           ? [{ column: 'stage', title: 'Stage', options: stages.map((st) => ({ label: st.label, value: st.key, icon: SignpostIcon })) }]
           : []),
+        ...pluginFilters.filters,
       ]}
     />
   )

@@ -181,7 +181,7 @@ extend type Query {
   # Names for a known set of ids, channel-filtered like the list above - lets a service holding ids but not details, such as Lens recordings, label them without copying names into its own database
   customersByIds(ids: [ID!]!): [Customer!]!
   # Paged + filtered on the server. search matches email/first/last name.
-  customersPaged(channelId: ID, search: String, groupSlug: String, isActive: Boolean, limit: Int, offset: Int): CustomerPage!
+  customersPaged(channelId: ID, search: String, groupSlug: String, isActive: Boolean, limit: Int, offset: Int, pluginFilters: [PluginListFilterInput!]): CustomerPage!
   customer(id: ID!):           Customer!
   customerGroups:              [CustomerGroup!]!
   customerGroup(id: ID!):      CustomerGroup!

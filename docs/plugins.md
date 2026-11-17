@@ -237,6 +237,8 @@ all out of tree. This is what the SDK gives it.
   10,000,000,000 in minor units.
 - **Your data on core's records** - a warranty on a product, an ERP status on an order, as fields
   on core's own GraphQL types, saved with the record in its own transaction. See below.
+- **`RegisterListFilter`** - a filter on the products, customers or orders list by your own data,
+  in the list's toolbar beside core's. See below.
 - **`RegisterCustomerData`** - what you keep about a customer leaves with their data export and goes
   with an erasure. See below.
 - **`RegisterFee`** - a charge of your own on the order: cash-on-delivery handling, a payment
@@ -395,6 +397,30 @@ useExtensionSection('acme', {
   onSaved: refetch,
 })
 ```
+
+### Filtering core's lists by your data
+
+`RegisterListFilter` puts a filter on the products, customers or orders list, beside core's own -
+"has a warranty", "ERP sync failed". The dashboard shows it in the list's toolbar with your options,
+with no dashboard code from you, and core narrows the list to the records `Match` answers:
+
+```go
+p.RegisterListFilter(sdk.ListFilter{
+    List:    sdk.ListProducts,
+    Key:     "warranty",
+    Label:   "Warranty",
+    Options: []sdk.ListFilterOption{{Value: "any", Label: "Has a warranty"}},
+    Match: func(ctx context.Context, values []string) ([]uuid.UUID, error) {
+        // the ids of the products holding a row in acme_warranties
+    },
+})
+```
+
+`Match` gets the values the admin ticked and answers with the ids matching any of them. Core has
+already checked the list's own permission, and several filters narrow the list together. Paging asks
+again on every page, so keep the query cheap - an index on the id column is usually all it takes. The
+admin API lists the filters as `pluginListFilters(list:)`, and each paged list takes them as
+`pluginFilters`.
 
 ### Customer data
 

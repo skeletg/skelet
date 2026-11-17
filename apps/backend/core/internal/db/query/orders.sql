@@ -53,6 +53,7 @@ WHERE  TRUE
   AND  (sqlc.arg(all_statuses)::boolean OR o.status = ANY(sqlc.arg(statuses)::text[]))
   AND  (sqlc.arg(all_payment)::boolean OR o.payment_status = ANY(sqlc.arg(payment_statuses)::text[]))
   AND  (sqlc.arg(all_stages)::boolean OR o.stage = ANY(sqlc.arg(stages)::text[]))
+  AND  (NOT sqlc.arg(restrict_ids)::boolean OR o.id = ANY(sqlc.arg(only_ids)::uuid[]))
 ORDER  BY o.created_at DESC
 LIMIT  sqlc.arg(lim) OFFSET sqlc.arg(off);
 
@@ -66,7 +67,8 @@ WHERE  TRUE
         o.billing_last_name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%')
   AND  (sqlc.arg(all_statuses)::boolean OR o.status = ANY(sqlc.arg(statuses)::text[]))
   AND  (sqlc.arg(all_payment)::boolean OR o.payment_status = ANY(sqlc.arg(payment_statuses)::text[]))
-  AND  (sqlc.arg(all_stages)::boolean OR o.stage = ANY(sqlc.arg(stages)::text[]));
+  AND  (sqlc.arg(all_stages)::boolean OR o.stage = ANY(sqlc.arg(stages)::text[]))
+  AND  (NOT sqlc.arg(restrict_ids)::boolean OR o.id = ANY(sqlc.arg(only_ids)::uuid[]));
 
 -- name: ListOrdersPagedInChannels :many
 -- Scoped in SQL, so LIMIT runs after the permission filter
@@ -80,6 +82,7 @@ WHERE  o.channel_id = ANY(sqlc.arg(channel_ids)::uuid[])
   AND  (sqlc.arg(all_statuses)::boolean OR o.status = ANY(sqlc.arg(statuses)::text[]))
   AND  (sqlc.arg(all_payment)::boolean OR o.payment_status = ANY(sqlc.arg(payment_statuses)::text[]))
   AND  (sqlc.arg(all_stages)::boolean OR o.stage = ANY(sqlc.arg(stages)::text[]))
+  AND  (NOT sqlc.arg(restrict_ids)::boolean OR o.id = ANY(sqlc.arg(only_ids)::uuid[]))
 ORDER  BY o.created_at DESC
 LIMIT  sqlc.arg(lim) OFFSET sqlc.arg(off);
 
@@ -93,7 +96,8 @@ WHERE  o.channel_id = ANY(sqlc.arg(channel_ids)::uuid[])
         o.billing_last_name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%')
   AND  (sqlc.arg(all_statuses)::boolean OR o.status = ANY(sqlc.arg(statuses)::text[]))
   AND  (sqlc.arg(all_payment)::boolean OR o.payment_status = ANY(sqlc.arg(payment_statuses)::text[]))
-  AND  (sqlc.arg(all_stages)::boolean OR o.stage = ANY(sqlc.arg(stages)::text[]));
+  AND  (sqlc.arg(all_stages)::boolean OR o.stage = ANY(sqlc.arg(stages)::text[]))
+  AND  (NOT sqlc.arg(restrict_ids)::boolean OR o.id = ANY(sqlc.arg(only_ids)::uuid[]));
 
 -- name: ListOrdersAwaitingPaymentSync :many
 -- The reconciliation sweep's worklist: gateway orders parked unpaid with a provider reference to ask

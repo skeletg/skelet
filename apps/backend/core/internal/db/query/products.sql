@@ -547,6 +547,8 @@ filtered AS (
            OR p.url ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
            OR co.name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%')
       AND (cardinality(sqlc.arg(kinds)::text[]) = 0 OR p.kind::text = ANY(sqlc.arg(kinds)::text[]))
+      -- A plugin's list filter answered with the ids that match it
+      AND (NOT sqlc.arg(restrict_ids)::boolean OR p.id = ANY(sqlc.arg(only_ids)::uuid[]))
       AND (cardinality(sqlc.arg(type_slugs)::text[]) = 0 OR pt.slug = ANY(sqlc.arg(type_slugs)::text[]))
       -- Published means "has a published listing in scope" - in global mode any
       -- channel counts, which matches what the unpaginated list showed

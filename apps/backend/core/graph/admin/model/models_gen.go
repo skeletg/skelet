@@ -3998,6 +3998,23 @@ type PermissionGroup struct {
 	Permissions []*Permission `json:"permissions"`
 }
 
+type PluginListFilter struct {
+	Key     string                    `json:"key"`
+	Plugin  string                    `json:"plugin"`
+	Label   string                    `json:"label"`
+	Options []*PluginListFilterOption `json:"options"`
+}
+
+type PluginListFilterInput struct {
+	Key    string   `json:"key"`
+	Values []string `json:"values"`
+}
+
+type PluginListFilterOption struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+}
+
 type Product struct {
 	ID                      string                   `json:"id"`
 	ProductType             *ProductType             `json:"productType"`
@@ -9547,6 +9564,63 @@ func (e *PaymentStatus) UnmarshalJSON(b []byte) error {
 }
 
 func (e PaymentStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type PluginList string
+
+const (
+	PluginListProducts  PluginList = "PRODUCTS"
+	PluginListCustomers PluginList = "CUSTOMERS"
+	PluginListOrders    PluginList = "ORDERS"
+)
+
+var AllPluginList = []PluginList{
+	PluginListProducts,
+	PluginListCustomers,
+	PluginListOrders,
+}
+
+func (e PluginList) IsValid() bool {
+	switch e {
+	case PluginListProducts, PluginListCustomers, PluginListOrders:
+		return true
+	}
+	return false
+}
+
+func (e PluginList) String() string {
+	return string(e)
+}
+
+func (e *PluginList) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = PluginList(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid PluginList", str)
+	}
+	return nil
+}
+
+func (e PluginList) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *PluginList) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e PluginList) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

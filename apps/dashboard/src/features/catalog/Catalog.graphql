@@ -587,6 +587,7 @@ query ProductsPaged(
   $sortDesc: Boolean
   $limit: Int
   $offset: Int
+  $pluginFilters: [PluginListFilterInput!]
   $withMetadata: Boolean! = false
 ) {
   productsPaged(
@@ -605,6 +606,7 @@ query ProductsPaged(
     sortDesc: $sortDesc
     limit: $limit
     offset: $offset
+    pluginFilters: $pluginFilters
   ) {
     totalCount
     items {

@@ -473,7 +473,7 @@ func (r *queryResolver) CustomersByIds(ctx context.Context, ids []string) ([]*mo
 	return out, nil
 }
 
-func (r *queryResolver) CustomersPaged(ctx context.Context, channelID *string, search *string, groupSlug *string, isActive *bool, limit *int32, offset *int32) (*model.CustomerPage, error) {
+func (r *queryResolver) CustomersPaged(ctx context.Context, channelID *string, search *string, groupSlug *string, isActive *bool, limit *int32, offset *int32, pluginFilters []*model.PluginListFilterInput) (*model.CustomerPage, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "customers.view"); err != nil {
 		return nil, err
 	}
@@ -510,6 +510,9 @@ func (r *queryResolver) CustomersPaged(ctx context.Context, channelID *string, s
 	}
 	if groupSlug != nil {
 		f.GroupSlug = *groupSlug
+	}
+	if f.OnlyIDs, f.RestrictIDs, err = pluginFilterIDs(ctx, model.PluginListCustomers, pluginFilters); err != nil {
+		return nil, err
 	}
 	rows, total, err := r.CustomerSvc.ListPage(ctx, f)
 	if err != nil {

@@ -63,16 +63,19 @@ WHERE  TRUE
   AND  ($2::boolean OR o.status = ANY($3::text[]))
   AND  ($4::boolean OR o.payment_status = ANY($5::text[]))
   AND  ($6::boolean OR o.stage = ANY($7::text[]))
+  AND  (NOT $8::boolean OR o.id = ANY($9::uuid[]))
 `
 
 type CountOrdersPagedParams struct {
-	Search          string   `json:"search"`
-	AllStatuses     bool     `json:"all_statuses"`
-	Statuses        []string `json:"statuses"`
-	AllPayment      bool     `json:"all_payment"`
-	PaymentStatuses []string `json:"payment_statuses"`
-	AllStages       bool     `json:"all_stages"`
-	Stages          []string `json:"stages"`
+	Search          string      `json:"search"`
+	AllStatuses     bool        `json:"all_statuses"`
+	Statuses        []string    `json:"statuses"`
+	AllPayment      bool        `json:"all_payment"`
+	PaymentStatuses []string    `json:"payment_statuses"`
+	AllStages       bool        `json:"all_stages"`
+	Stages          []string    `json:"stages"`
+	RestrictIds     bool        `json:"restrict_ids"`
+	OnlyIds         []uuid.UUID `json:"only_ids"`
 }
 
 func (q *Queries) CountOrdersPaged(ctx context.Context, arg CountOrdersPagedParams) (int64, error) {
@@ -84,6 +87,8 @@ func (q *Queries) CountOrdersPaged(ctx context.Context, arg CountOrdersPagedPara
 		pq.Array(arg.PaymentStatuses),
 		arg.AllStages,
 		pq.Array(arg.Stages),
+		arg.RestrictIds,
+		pq.Array(arg.OnlyIds),
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -101,6 +106,7 @@ WHERE  o.channel_id = ANY($1::uuid[])
   AND  ($3::boolean OR o.status = ANY($4::text[]))
   AND  ($5::boolean OR o.payment_status = ANY($6::text[]))
   AND  ($7::boolean OR o.stage = ANY($8::text[]))
+  AND  (NOT $9::boolean OR o.id = ANY($10::uuid[]))
 `
 
 type CountOrdersPagedInChannelsParams struct {
@@ -112,6 +118,8 @@ type CountOrdersPagedInChannelsParams struct {
 	PaymentStatuses []string    `json:"payment_statuses"`
 	AllStages       bool        `json:"all_stages"`
 	Stages          []string    `json:"stages"`
+	RestrictIds     bool        `json:"restrict_ids"`
+	OnlyIds         []uuid.UUID `json:"only_ids"`
 }
 
 func (q *Queries) CountOrdersPagedInChannels(ctx context.Context, arg CountOrdersPagedInChannelsParams) (int64, error) {
@@ -124,6 +132,8 @@ func (q *Queries) CountOrdersPagedInChannels(ctx context.Context, arg CountOrder
 		pq.Array(arg.PaymentStatuses),
 		arg.AllStages,
 		pq.Array(arg.Stages),
+		arg.RestrictIds,
+		pq.Array(arg.OnlyIds),
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -1053,20 +1063,23 @@ WHERE  TRUE
   AND  ($2::boolean OR o.status = ANY($3::text[]))
   AND  ($4::boolean OR o.payment_status = ANY($5::text[]))
   AND  ($6::boolean OR o.stage = ANY($7::text[]))
+  AND  (NOT $8::boolean OR o.id = ANY($9::uuid[]))
 ORDER  BY o.created_at DESC
-LIMIT  $9 OFFSET $8
+LIMIT  $11 OFFSET $10
 `
 
 type ListOrdersPagedParams struct {
-	Search          string   `json:"search"`
-	AllStatuses     bool     `json:"all_statuses"`
-	Statuses        []string `json:"statuses"`
-	AllPayment      bool     `json:"all_payment"`
-	PaymentStatuses []string `json:"payment_statuses"`
-	AllStages       bool     `json:"all_stages"`
-	Stages          []string `json:"stages"`
-	Off             int32    `json:"off"`
-	Lim             int32    `json:"lim"`
+	Search          string      `json:"search"`
+	AllStatuses     bool        `json:"all_statuses"`
+	Statuses        []string    `json:"statuses"`
+	AllPayment      bool        `json:"all_payment"`
+	PaymentStatuses []string    `json:"payment_statuses"`
+	AllStages       bool        `json:"all_stages"`
+	Stages          []string    `json:"stages"`
+	RestrictIds     bool        `json:"restrict_ids"`
+	OnlyIds         []uuid.UUID `json:"only_ids"`
+	Off             int32       `json:"off"`
+	Lim             int32       `json:"lim"`
 }
 
 // Every channel's page - the scoped caller has its own statement, so neither shares a plan that reads the whole created_at index
@@ -1080,6 +1093,8 @@ func (q *Queries) ListOrdersPaged(ctx context.Context, arg ListOrdersPagedParams
 		pq.Array(arg.PaymentStatuses),
 		arg.AllStages,
 		pq.Array(arg.Stages),
+		arg.RestrictIds,
+		pq.Array(arg.OnlyIds),
 		arg.Off,
 		arg.Lim,
 	)
@@ -1175,8 +1190,9 @@ WHERE  o.channel_id = ANY($1::uuid[])
   AND  ($3::boolean OR o.status = ANY($4::text[]))
   AND  ($5::boolean OR o.payment_status = ANY($6::text[]))
   AND  ($7::boolean OR o.stage = ANY($8::text[]))
+  AND  (NOT $9::boolean OR o.id = ANY($10::uuid[]))
 ORDER  BY o.created_at DESC
-LIMIT  $10 OFFSET $9
+LIMIT  $12 OFFSET $11
 `
 
 type ListOrdersPagedInChannelsParams struct {
@@ -1188,6 +1204,8 @@ type ListOrdersPagedInChannelsParams struct {
 	PaymentStatuses []string    `json:"payment_statuses"`
 	AllStages       bool        `json:"all_stages"`
 	Stages          []string    `json:"stages"`
+	RestrictIds     bool        `json:"restrict_ids"`
+	OnlyIds         []uuid.UUID `json:"only_ids"`
 	Off             int32       `json:"off"`
 	Lim             int32       `json:"lim"`
 }
@@ -1203,6 +1221,8 @@ func (q *Queries) ListOrdersPagedInChannels(ctx context.Context, arg ListOrdersP
 		pq.Array(arg.PaymentStatuses),
 		arg.AllStages,
 		pq.Array(arg.Stages),
+		arg.RestrictIds,
+		pq.Array(arg.OnlyIds),
 		arg.Off,
 		arg.Lim,
 	)

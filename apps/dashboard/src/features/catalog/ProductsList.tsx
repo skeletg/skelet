@@ -32,6 +32,7 @@ import {
   productFilterVariables,
   useProductFilterOptions,
 } from './product-filters'
+import { pluginFilterVariable, usePluginListFilters } from '@/plugins/list-filters'
 
 type ProductListing = {
   isPublished: boolean
@@ -112,6 +113,7 @@ export function ProductsList() {
 
   const publishedFilter = filterValues('publishedStatus')
   const filterOptions = useProductFilterOptions()
+  const pluginFilters = usePluginListFilters<ProductRow>('PRODUCTS')
 
   const { data, previousData, loading, error } = useQuery(ProductsPagedDocument, {
     variables: {
@@ -124,6 +126,7 @@ export function ProductsList() {
       published:
         publishedFilter.length === 1 ? publishedFilter[0] === 'published' : null,
       ...productFilterVariables(columnFilters),
+      pluginFilters: pluginFilterVariable(columnFilters),
       sortKey: sorting[0]?.id ?? 'updatedAt',
       sortDesc: sorting[0]?.desc ?? true,
       withMetadata: hasListColumns(LIST_TARGET),
@@ -285,6 +288,7 @@ export function ProductsList() {
         cell: () => null,
       },
       ...productFilterColumns<ProductRow>(filterOptions),
+      ...pluginFilters.columns,
       {
         accessorKey: 'createdAt',
         header: ({ column }) => <DataTableColumnHeader column={column} title="Created" />,
@@ -312,13 +316,13 @@ export function ProductsList() {
         ],
       }),
     ],
-    [filterOptions, canManage],
+    [filterOptions, pluginFilters, canManage],
   )
 
   const hiddenColumnVisibility = useMemo(
     () =>
-      ({ publishedStatus: false, ...productFilterHiddenColumns(filterOptions) }),
-    [filterOptions],
+      ({ publishedStatus: false, ...productFilterHiddenColumns(filterOptions), ...pluginFilters.hidden }),
+    [filterOptions, pluginFilters],
   )
 
   return (
@@ -377,6 +381,7 @@ export function ProductsList() {
             ],
           },
           ...productFilterDefs(filterOptions),
+          ...pluginFilters.filters,
         ]}
         toolbarRightSlot={
           canManage && (

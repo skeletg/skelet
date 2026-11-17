@@ -1,0 +1,11 @@
+query PluginListFilters($list: PluginList!) {
+  pluginListFilters(list: $list) {
+    key
+    plugin
+    label
+    options {
+      value
+      label
+    }
+  }
+}

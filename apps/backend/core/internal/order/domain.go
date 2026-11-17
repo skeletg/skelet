@@ -210,6 +210,9 @@ type ListPageFilter struct {
 	Limit           int32
 	Offset          int32
 	SkipCount       bool // the total is left 0, for callers that never show it
+	// Set by a plugin's list filter - RestrictIDs narrows to OnlyIDs, which may be empty when nothing matched
+	OnlyIDs     []uuid.UUID
+	RestrictIDs bool
 }
 
 type Repository interface {

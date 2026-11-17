@@ -802,7 +802,7 @@ func (r *queryResolver) Products(ctx context.Context, channelID *string) ([]*mod
 	return r.renderProductRows(ctx, products, channelID)
 }
 
-func (r *queryResolver) ProductsPaged(ctx context.Context, channelID *string, search *string, kinds []model.ProductKind, productTypeSlugs []string, published *bool, attributeValueIds []string, categoryIds []string, collectionIds []string, priceMin *string, priceMax *string, inStock *bool, sortKey *string, sortDesc *bool, limit *int32, offset *int32) (*model.ProductPage, error) {
+func (r *queryResolver) ProductsPaged(ctx context.Context, channelID *string, search *string, kinds []model.ProductKind, productTypeSlugs []string, published *bool, attributeValueIds []string, categoryIds []string, collectionIds []string, priceMin *string, priceMax *string, inStock *bool, sortKey *string, sortDesc *bool, limit *int32, offset *int32, pluginFilters []*model.PluginListFilterInput) (*model.ProductPage, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.view"); err != nil {
 		return nil, err
 	}
@@ -872,6 +872,9 @@ func (r *queryResolver) ProductsPaged(ctx context.Context, channelID *string, se
 	}
 	if f.Offset < 0 {
 		f.Offset = 0
+	}
+	if f.OnlyIDs, f.RestrictIDs, err = pluginFilterIDs(ctx, model.PluginListProducts, pluginFilters); err != nil {
+		return nil, err
 	}
 	products, total, err := r.CatalogSvc.ListPageWithGraph(ctx, f)
 	if err != nil {

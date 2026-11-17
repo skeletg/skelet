@@ -393,6 +393,9 @@ type ProductPageFilter struct {
 	SortDesc bool
 	Limit    int32
 	Offset   int32
+	// Set by a plugin's list filter - RestrictIDs narrows to OnlyIDs, which may be empty when nothing matched
+	OnlyIDs     []uuid.UUID
+	RestrictIDs bool
 }
 
 // The list sorts on a fixed set of columns, so the sort key is whitelisted rather than interpolated - it reaches SQL as
@@ -445,6 +448,10 @@ func (r *postgresRepository) ListProductIDsPaged(ctx context.Context, f ProductP
 	}
 	if params.CollectionIds == nil {
 		params.CollectionIds = []uuid.UUID{}
+	}
+	params.RestrictIds, params.OnlyIds = f.RestrictIDs, f.OnlyIDs
+	if params.OnlyIds == nil {
+		params.OnlyIds = []uuid.UUID{}
 	}
 	if f.InStock != nil {
 		params.Stock = "out"
