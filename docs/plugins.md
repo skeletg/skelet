@@ -423,11 +423,13 @@ p.RegisterListFilter(sdk.ListFilter{
 })
 ```
 
-`Match` gets the values the admin ticked and answers with the ids matching any of them. Core has
-already checked the list's own permission, and several filters narrow the list together. Paging asks
-again on every page, so keep the query cheap - an index on the id column is usually all it takes. The
-admin API lists the filters as `pluginListFilters(list:)`, and each paged list takes them as
-`pluginFilters`.
+`Match` gets the values the admin ticked - each one of your options, checked before you're asked -
+and answers with the ids matching any of them, at most `sdk.MaxListFilterMatches`: past that the
+list is refused with your filter named, since core carries the ids into its query. Core has already
+checked the list's own permission and keeps to the channels the admin may see whatever you answer,
+and several filters narrow the list together. Paging asks again on every page, so keep it to one
+indexed query. The admin API lists the filters as `pluginListFilters(list:)`, and each paged list
+takes them as `pluginFilters`.
 
 ### Customer data
 

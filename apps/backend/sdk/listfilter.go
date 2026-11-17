@@ -20,6 +20,10 @@ type ListFilterOption struct {
 	Value, Label string
 }
 
+// MaxListFilterMatches is the most records a filter's Match may answer with. Core carries the ids into the list's
+// query on every page, so past this the list is refused with the filter named rather than slowed for everyone
+const MaxListFilterMatches = 100_000
+
 // A filter on one of core's admin lists by the plugin's own data - "has a warranty", "ERP sync failed". The dashboard
 // offers it in the list's toolbar with its options, and core narrows the list to the records Match answers
 type ListFilter struct {
@@ -27,8 +31,10 @@ type ListFilter struct {
 	Key     string // lowercase, stable - the list asks for it as pl.Key of it ("<plugin>:has_warranty")
 	Label   string
 	Options []ListFilterOption // what an admin picks from, at least one
-	// The ids of the list's records matching any of the picked values. Core already gated the list on its own
-	// permission, and intersects your answer with its other filters
+	// The ids of the list's records matching any of the picked values - each one of Options' values, checked before
+	// you're asked - at most MaxListFilterMatches of them. Core already gated the list on its own permission, keeps to
+	// the channels the admin may see whatever you answer, and intersects your answer with its other filters. It runs
+	// again for every page, so keep it to one indexed query
 	Match func(ctx context.Context, values []string) ([]uuid.UUID, error)
 }
 

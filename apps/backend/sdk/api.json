@@ -66,6 +66,7 @@
       "const MaxCheckoutAnswer untyped int = 5000",
       "const MaxFeeCents untyped int = 2147483647",
       "const MaxFeeLabel untyped int = 60",
+      "const MaxListFilterMatches untyped int = 100000",
       "const OrderStatusCancelled untyped string = \"cancelled\"",
       "const OrderStatusConfirmed untyped string = \"confirmed\"",
       "const OrderStatusFulfilled untyped string = \"fulfilled\"",

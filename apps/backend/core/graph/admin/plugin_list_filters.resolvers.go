@@ -9,7 +9,10 @@ import (
 )
 
 func (r *queryResolver) PluginListFilters(ctx context.Context, list model.PluginList) ([]*model.PluginListFilter, error) {
-	kind, perm := pluginListKind(list)
+	kind, perm, err := pluginListKind(list)
+	if err != nil {
+		return nil, err
+	}
 	if err := auth.RequirePermission(ctx, r.AdminSvc, perm); err != nil {
 		return nil, err
 	}

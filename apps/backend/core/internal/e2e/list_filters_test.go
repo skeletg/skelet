@@ -15,6 +15,9 @@ import (
 	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
+// The one tag this scenario flags records with - a filter is only ever asked about the options it offers
+const flagged = "flagged"
+
 var (
 	filtersOnce   sync.Once
 	filtersPlugin = sdk.NewPluginForTest("e2e-filters")
@@ -33,7 +36,7 @@ func registerE2EListFilters() {
 			}
 			return out, nil
 		}
-		opts := []sdk.ListFilterOption{{Value: "flagged", Label: "Flagged"}}
+		opts := []sdk.ListFilterOption{{Value: flagged, Label: "Flagged"}, {Value: "nobody", Label: "Nobody"}}
 		for _, list := range []sdk.ListKind{sdk.ListProducts, sdk.ListCustomers, sdk.ListOrders} {
 			filtersPlugin.RegisterListFilter(sdk.ListFilter{List: list, Key: "tag", Label: "Tag", Options: opts, Match: match})
 		}
@@ -56,7 +59,7 @@ func TestAPluginsListFilterNarrowsCoreLists(t *testing.T) {
 	registerE2EListFilters()
 	f := h.NewStore(t, 20, 2000)
 	ch := f.Channel.ID
-	flag := "flagged-" + uuid.NewString()[:8]
+	flag := flagged
 
 	extra := h.AddProduct(t, f, 1500, true, 5)
 	taggedRecords.Store(flag, []uuid.UUID{extra.ID})
@@ -78,7 +81,7 @@ func TestAPluginsListFilterNarrowsCoreLists(t *testing.T) {
 	if got := products(only, restrict); !slices.Equal(got, []uuid.UUID{extra.ID}) {
 		t.Errorf("filtered products %v, want only %s", got, extra.ID)
 	}
-	if none, restrict := pickTag(t, h, sdk.ListProducts, "nobody-"+flag); !restrict || len(products(none, restrict)) != 0 {
+	if none, restrict := pickTag(t, h, sdk.ListProducts, "nobody"); !restrict || len(products(none, restrict)) != 0 {
 		t.Error("a filter matching nothing left products in the list")
 	}
 
@@ -92,7 +95,15 @@ func TestAPluginsListFilterNarrowsCoreLists(t *testing.T) {
 		}
 		custs = append(custs, c.ID)
 	}
-	taggedRecords.Store(flag, []uuid.UUID{custs[1]})
+	// A plugin answering with another channel's customer widens nothing - the list's own channel scope still holds
+	elsewhere := h.NewStore(t, 1, 1000)
+	stranger, err := h.D.Customer.AdminCreateCustomer(h.Ctx, customer.AdminCreateCustomerInput{
+		ChannelID: elsewhere.Channel.ID, Email: "filter-" + uuid.NewString()[:8] + "@e2e.test", Password: "correct horse battery", FirstName: "Bo", LastName: "Elsewhere",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	taggedRecords.Store(flag, []uuid.UUID{custs[1], stranger.ID})
 	only, restrict = pickTag(t, h, sdk.ListCustomers, flag)
 	rows, total, err := h.D.Customer.ListPage(h.Ctx, customer.ListPageFilter{ChannelIDs: []uuid.UUID{ch}, Limit: 50, OnlyIDs: only, RestrictIDs: restrict})
 	if err != nil || total != 1 || len(rows) != 1 || rows[0].ID != custs[1] {
