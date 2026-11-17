@@ -16,9 +16,11 @@ function pluginPackages(): string[] {
     const set = JSON.parse(readFileSync(path.resolve(__dirname, '../backend/core/plugins/plugins.json'), 'utf8')) as {
       plugins?: Record<string, { enabled?: boolean; dashboard?: string }>
     }
+    // The recorded spec carries its version ("@acme/fraud-dashboard@^1.2.0") and an import never does
     return Object.values(set.plugins ?? {})
       .filter((p) => p.enabled && p.dashboard)
       .map((p) => p.dashboard as string)
+      .map((spec) => (spec.lastIndexOf('@') > 0 ? spec.slice(0, spec.lastIndexOf('@')) : spec))
   } catch {
     return []
   }
@@ -69,8 +71,9 @@ export default defineConfig({
       '@skelet/dashboard-sdk': path.resolve(__dirname, './src/sdk/index.ts'),
       '@': path.resolve(__dirname, './src'),
     },
-    // A plugin package's own copy of these would be a second React, a second Apollo cache
-    dedupe: ['react', 'react-dom', '@apollo/client'],
+    // A plugin package's own copy of these would be a second React, a second Apollo cache, a router and a toast
+    // store the dashboard's own never hear from
+    dedupe: ['react', 'react-dom', '@apollo/client', 'react-router-dom', '@lingui/core', '@lingui/react', 'sonner'],
   },
   optimizeDeps: {
     // rrweb (the Replayer) is dynamic-imported only on the session-replay route. Pre-bundle it deterministically so the

@@ -2,7 +2,9 @@ package gen
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -20,54 +22,106 @@ const (
 	storefrontPackages = "app/plugins/packages.ts"
 )
 
-// pluginUI writes the import lists of the enabled plugins' dashboard and storefront packages
-func pluginUI(root string) error {
-	set, _, err := plugins.Load(root)
-	if err != nil {
-		return err
+// UIApp is a frontend that loads plugins' packages: the dashboard, or a storefront with the plugin loader. One
+// without it, like the Astro template, draws no plugin UI
+type UIApp struct {
+	Name string // what skelet pnpm calls it
+	Dir  string // from the repo root, slashed
+
+	storefront bool
+}
+
+// UIApps is the frontends of this checkout that load plugins' packages, the dashboard first
+func UIApps(root string) []UIApp {
+	var out []UIApp
+	if _, err := os.Stat(filepath.Join(root, "apps", "dashboard", "package.json")); err == nil {
+		out = append(out, UIApp{Name: "dashboard", Dir: "apps/dashboard"})
 	}
+	for _, sf := range storefronts.List(root) {
+		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(sf.Dir), storefrontLoader)); err == nil {
+			out = append(out, UIApp{Name: sf.Name, Dir: sf.Dir, storefront: true})
+		}
+	}
+	return out
+}
+
+// UIPackage is the package one enabled plugin wants in an app
+type UIPackage struct{ Slug, Spec string }
+
+// Wanted is what the enabled plugins want in the app, in slug order
+func (a UIApp) Wanted(set *plugins.Set) []UIPackage {
 	slugs := make([]string, 0, len(set.Plugins))
 	for slug := range set.Plugins {
 		slugs = append(slugs, slug)
 	}
 	sort.Strings(slugs)
-	var dashboard, storefront []string
+	var out []UIPackage
 	for _, slug := range slugs {
 		e := set.Plugins[slug]
-		if !e.Enabled {
-			continue
+		spec := e.Dashboard
+		if a.storefront {
+			spec = e.Storefront
 		}
-		if e.Dashboard != "" {
-			dashboard = append(dashboard, PackageName(e.Dashboard))
-		}
-		if e.Storefront != "" {
-			storefront = append(storefront, PackageName(e.Storefront))
+		if e.Enabled && spec != "" {
+			out = append(out, UIPackage{Slug: slug, Spec: spec})
 		}
 	}
-	if _, err := os.Stat(filepath.Join(root, "apps", "dashboard")); err == nil {
-		if err := writeIfChanged(filepath.Join(root, dashboardPackages), importList(dashboard, "'", "")); err != nil {
-			return err
-		}
-	}
-	// A storefront without the plugin loader, like the Astro template, draws no plugin UI to load
-	for _, sf := range storefronts.List(root) {
-		dir := filepath.Join(root, filepath.FromSlash(sf.Dir))
-		if _, err := os.Stat(filepath.Join(dir, storefrontLoader)); err != nil {
-			continue
-		}
-		if err := writeIfChanged(filepath.Join(dir, storefrontPackages), importList(storefront, `"`, ";")); err != nil {
-			return err
-		}
-	}
-	return nil
+	return out
 }
 
-// PackageName is a package spec without its version - "@acme/fraud-dashboard@^1.2.0" is "@acme/fraud-dashboard"
-func PackageName(spec string) string {
-	if i := strings.LastIndex(spec, "@"); i > 0 {
-		return spec[:i]
+// Declared is the packages the app's package.json depends on, by name, with the range it gives each
+func (a UIApp) Declared(root string) (map[string]string, error) {
+	raw, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(a.Dir), "package.json"))
+	if err != nil {
+		return nil, err
 	}
-	return spec
+	var manifest struct {
+		Dependencies, DevDependencies, OptionalDependencies, PeerDependencies map[string]string
+	}
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		return nil, fmt.Errorf("%s/package.json: %w", a.Dir, err)
+	}
+	out := map[string]string{}
+	for _, deps := range []map[string]string{manifest.PeerDependencies, manifest.OptionalDependencies, manifest.DevDependencies, manifest.Dependencies} {
+		maps.Copy(out, deps)
+	}
+	return out, nil
+}
+
+// pluginUI writes the import lists of the enabled plugins' dashboard and storefront packages. A package the app
+// doesn't depend on yet stops it, since the import would fail the app's build with nothing saying why
+func pluginUI(root string) error {
+	set, _, err := plugins.Load(root)
+	if err != nil {
+		return err
+	}
+	var missing []string
+	for _, app := range UIApps(root) {
+		declared, err := app.Declared(root)
+		if err != nil {
+			return err
+		}
+		var names []string
+		for _, w := range app.Wanted(set) {
+			name := plugins.PackageName(w.Spec)
+			if _, ok := declared[name]; !ok {
+				missing = append(missing, fmt.Sprintf("  %s, for plugin %s: skelet pnpm %s add %s", name, w.Slug, app.Name, w.Spec))
+				continue
+			}
+			names = append(names, name)
+		}
+		target, quote, semi := dashboardPackages, "'", ""
+		if app.storefront {
+			target, quote, semi = app.Dir+"/"+storefrontPackages, `"`, ";"
+		}
+		if err := writeIfChanged(filepath.Join(root, filepath.FromSlash(target)), importList(names, quote, semi)); err != nil {
+			return err
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("enabled plugins' UI packages are not installed:\n%s", strings.Join(missing, "\n"))
+	}
+	return nil
 }
 
 // In each app's own quoting, so the file reads like its neighbours

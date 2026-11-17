@@ -104,7 +104,7 @@ var subs = map[string]string{
 	"changelog": "(preview) | check | release <version> [date]",
 	"release":   "core|signals... [--tag T]",
 	"build":     "[core] [signals] [dashboard] [<storefront>...] [--tag T]",
-	"plugin":    "add <module>[@version] [--slug s] | install <git-url|dir>[@ref] [--slug s]",
+	"plugin":    "add <module>[@version] [--slug s] [--yes] | install <git-url|dir>[@ref] [--slug s] [--yes]",
 }
 
 // Routes is the table, for the tests that hold it together

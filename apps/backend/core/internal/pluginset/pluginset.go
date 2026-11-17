@@ -144,6 +144,11 @@ func Load(root string) (*Set, error) {
 				return nil, fmt.Errorf("%s: plugin %s: %w", StateFile, slug, err)
 			}
 		}
+		for _, spec := range []string{e.Dashboard, e.Storefront} {
+			if spec != "" && !ValidPackageSpec(spec) {
+				return nil, fmt.Errorf("%s: plugin %s names %q, which is not an npm package with an optional @version", StateFile, slug, spec)
+			}
+		}
 	}
 	return &s, nil
 }

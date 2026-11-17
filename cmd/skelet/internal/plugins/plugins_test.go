@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -90,5 +92,59 @@ func TestCommittedFileRoundTrips(t *testing.T) {
 	data, _ := set.Marshal()
 	if string(data) != string(raw) {
 		t.Errorf("re-encoded:\n%s\ncommitted:\n%s", data, raw)
+	}
+}
+
+// Core's pluginset reads and writes the same file - held to its fixture, so neither side drops what the other wrote
+func TestPluginsFileRoundTripsLikePluginsets(t *testing.T) {
+	want, err := os.ReadFile(filepath.Join(repoRoot, "apps/backend/core/internal/pluginset/testdata/plugins.roundtrip.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, Dir), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, File), want, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	set, _, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := set.Marshal(); err != nil || string(got) != string(want) {
+		t.Errorf("a load and marshal rewrote the file (%v):\n%s", err, got)
+	}
+}
+
+// What may go to pnpm add is one rule in two modules that can't import each other
+func TestPackageSpecIsPluginsets(t *testing.T) {
+	src, err := os.ReadFile(filepath.Join(repoRoot, "apps/backend/core/internal/pluginset/ui.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(src), "regexp.MustCompile(`"+PackageSpec.String()+"`)") {
+		t.Errorf("pluginset's packageSpec is no longer %s", PackageSpec)
+	}
+	for spec, name := range map[string]string{"@acme/x@^1.2.0": "@acme/x", "@acme/x": "@acme/x", "x@latest": "x", "x": "x"} {
+		if got := PackageName(spec); got != name || !PackageSpec.MatchString(spec) {
+			t.Errorf("PackageName(%q) = %q, valid %v", spec, got, PackageSpec.MatchString(spec))
+		}
+	}
+	if PackageVersion("@acme/x@^1.2.0") != "^1.2.0" || PackageVersion("@acme/x") != "" {
+		t.Error("PackageVersion misreads a scope's @ as the version's")
+	}
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, Dir), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, spec := range []string{"zod@npm:evil-pkg", "x@https://example.test/x.tgz", "x';alert(1)//", "--registry=x"} {
+		raw := `{"plugins": {"fraud": {"enabled": true, "dashboard": ` + strconv.Quote(spec) + `}}}`
+		if err := os.WriteFile(filepath.Join(root, File), []byte(raw), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := Load(root); err == nil {
+			t.Errorf("plugins.json naming %q was loaded", spec)
+		}
 	}
 }

@@ -676,8 +676,11 @@ blank-import in plugins/firstparty. Then run:
     skelet cli plugin migrate up %s    # if you have migrations
     skelet restart app                 # load the plugin
 
-Its dashboard and storefront halves are npm packages - name them in a
-skelet-plugin.json beside this file, and skelet plugin add installs them.
+Its dashboard and storefront halves are npm packages. While the plugin lives
+here, name them under its entry in plugins/plugins.json ("dashboard",
+"storefront") and add them with skelet pnpm <app> add - skelet gen imports
+them. Once it's published, a skelet-plugin.json beside this file names them
+and skelet plugin add installs them.
 `,
 		t.Name,
 		conditional(t.PaymentProvider, "- provider.go - PaymentProvider implementation (Authorize/Capture/Refund/Void/HandleWebhook).\n"),

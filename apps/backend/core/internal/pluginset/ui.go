@@ -1,6 +1,7 @@
 package pluginset
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,8 +20,13 @@ type UI struct {
 	Storefront string `json:"storefront,omitempty"`
 }
 
-// An npm package name, scoped or not, with an optional version or range after it - the shape pnpm add takes
-var packageSpec = regexp.MustCompile(`^(@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*(@[^\s@]+)?$`)
+// An npm package name, scoped or not, and optionally a registry version, range or tag. Nothing with a colon or a slash
+// after the @ - no npm: alias, URL, git or file source - since the spec comes from a plugin's own manifest and goes to
+// pnpm add. cmd/skelet/internal/plugins holds the same pattern, and its tests hold the two together
+var packageSpec = regexp.MustCompile(`^(@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*(@[\^~]?[A-Za-z0-9][A-Za-z0-9.*+_-]*)?$`)
+
+// ValidPackageSpec reports whether spec is one a plugin's manifest or plugins.json may name
+func ValidPackageSpec(spec string) bool { return packageSpec.MatchString(spec) }
 
 // ReadUI reads a plugin's UI manifest - the zero UI when it has none, an error when it's there and malformed
 func ReadUI(dir string) (UI, error) {
@@ -31,8 +37,11 @@ func ReadUI(dir string) (UI, error) {
 	if err != nil {
 		return UI{}, err
 	}
+	// A misspelt key would otherwise read as a plugin with no UI
 	var ui UI
-	if err := json.Unmarshal(raw, &ui); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&ui); err != nil {
 		return UI{}, fmt.Errorf("%s: %w", UIManifest, err)
 	}
 	for _, spec := range []string{ui.Dashboard, ui.Storefront} {

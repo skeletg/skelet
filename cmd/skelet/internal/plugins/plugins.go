@@ -26,6 +26,27 @@ const (
 // SlugPattern is pluginset's: a slug becomes a directory, a Go identifier and a config path prefix
 var SlugPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{1,39}$`)
 
+// PackageSpec is pluginset's: an npm package name, scoped or not, and optionally a registry version, range or tag.
+// Nothing with a colon or a slash after the @ - no npm: alias, URL, git or file source - since the spec comes from a
+// plugin's own manifest and goes to pnpm add
+var PackageSpec = regexp.MustCompile(`^(@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*(@[\^~]?[A-Za-z0-9][A-Za-z0-9.*+_-]*)?$`)
+
+// PackageName is a spec without its version - "@acme/fraud-dashboard@^1.2.0" is "@acme/fraud-dashboard"
+func PackageName(spec string) string {
+	if i := strings.LastIndex(spec, "@"); i > 0 {
+		return spec[:i]
+	}
+	return spec
+}
+
+// PackageVersion is the version, range or tag a spec asks for, empty when it names none
+func PackageVersion(spec string) string {
+	if i := strings.LastIndex(spec, "@"); i > 0 {
+		return spec[i+1:]
+	}
+	return ""
+}
+
 // Entry mirrors pluginset.Entry - Module set means the plugin ships as a Go module, not a directory here
 type Entry struct {
 	Enabled    bool   `json:"enabled"`
@@ -69,6 +90,14 @@ func Load(root string) (*Set, []byte, error) {
 	}
 	if s.Plugins == nil {
 		s.Plugins = map[string]Entry{}
+	}
+	// A hand-edited spec reaches pnpm add and a generated import line, the same as one from a manifest
+	for slug, e := range s.Plugins {
+		for _, spec := range []string{e.Dashboard, e.Storefront} {
+			if spec != "" && !PackageSpec.MatchString(spec) {
+				return nil, nil, fmt.Errorf("%s: plugin %s names %q, which is not an npm package with an optional @version", File, slug, spec)
+			}
+		}
 	}
 	return &s, raw, nil
 }

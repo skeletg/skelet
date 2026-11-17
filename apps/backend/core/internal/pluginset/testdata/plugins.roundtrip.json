@@ -1,0 +1,13 @@
+{
+  "plugins": {
+    "fraud": {
+      "enabled": true,
+      "module": "github.com/acme/fraud",
+      "dashboard": "@acme/fraud-dashboard@^1.2.0",
+      "storefront": "acme-fraud-shop"
+    },
+    "parked": {
+      "enabled": false
+    }
+  }
+}

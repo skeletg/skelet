@@ -94,7 +94,12 @@ pulled in by `go mod tidy` and any self-imports rewritten onto the vendored path
 failure parks the plugin (`plugins/_<slug>`) so the tree keeps compiling while you fix it.
 
 Either way, installing compiles the code into core with full privileges - read it before
-you install it. The manifest's capabilities are a disclosure, not a sandbox.
+you install it. The manifest's capabilities are a disclosure, not a sandbox. Both commands
+stop once the source is fetched, say which npm packages they're about to add and that
+`skelet gen` comes next - the first time the plugin's code runs on your machine - and ask.
+`--yes` skips the question; without a terminal to ask on they stop there. The npm packages
+are published apart from the Go module, so `go.sum` says nothing about them: they run in
+the admin's session and on checkout pages, and want the same reading.
 
 A plugin's SDL can extend `Query`, `Mutation`, and core's own object types - see "Your data on
 core's records" below. One thing to know about graph-extending plugins: their resolvers reference types in core's
@@ -493,13 +498,24 @@ switching the plugin off unloads its UI too. `skelet plugin install` does the sa
 vendored from source. A package published less than a day ago won't install yet (pnpm's
 `minimumReleaseAge`).
 
+A spec is a package name with an optional registry version, range or tag - no `npm:` alias, URL, git
+or file source. The command only adds what an app is missing, for every enabled plugin, so running it
+again finishes an install that stopped halfway, and it never moves a package an app already has: a
+manifest naming `next` changes nothing, and where the versions differ it says so and prints the
+`skelet pnpm <app> add` that would move it. A plugin enabled later with `skelet cli plugin enable`, or
+a storefront forked since, is missing the package until you add it - `skelet gen` stops and names the
+command. Leave `"sideEffects": false` out of a UI package's `package.json`: its registrations are
+side effects, and a production build would drop them.
+
 A dashboard package imports what it needs from `@skelet/dashboard-sdk` - the registries below, the
 detail-page layout, `useSaveSection` and the UI kit. The dashboard's build points that name at its
 own source, so the plugin registers into the same registries and draws with the same components;
 the npm package of that name holds the types alone. Ship your source
-(`"exports": { ".": "./src/plugin.tsx" }`), take `react` and `@apollo/client` as peers, and query
-through the dashboard's Apollo client with `@apollo/client/react`'s hooks. A storefront package
-imports from `@skelet/storefront-react/plugins/registry`.
+(`"exports": { ".": "./src/plugin.tsx" }`), take `react`, `@apollo/client`, `react-router-dom`,
+`@lingui/react` and `sonner` as peers where you use them, and query through the dashboard's Apollo
+client with `@apollo/client/react`'s hooks. A storefront package imports from
+`@skelet/storefront-react/plugins/registry` and takes `@skelet/storefront-react` as a peer too - a
+copy of its own would be a registry no page reads.
 
 A plugin's UI can still live in the tree instead - `apps/dashboard/src/plugins/<slug>/`, which the
 dashboard's loader globs, or a storefront's `app/plugins/<slug>/`, imported by hand in its
