@@ -45,7 +45,7 @@ import { OfferActions } from './offer/OfferActions'
 import { OfferEditor } from './offer/OfferEditor'
 import { OfferStateBadge } from './offer/OfferStateBadge'
 import { CartStatusBadges } from './CartStatusBadges'
-import { PluginSections } from '@/plugins/detail-sections'
+import { PluginAside, PluginSections } from '@/plugins/detail-sections'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
 import { SaveRegistryContext, useSaveRegistry } from '@/shared/saving/saveRegistry'
@@ -103,7 +103,7 @@ export function CartDetail() {
 
   return (
     <SaveRegistryContext.Provider value={registry.contextValue}>
-      <DetailPageLayout>
+      <DetailPageLayout rightSidebar={<PluginAside target="cart" entity={cart ?? null} mode="edit" />}>
         <DetailPageHeader
           backTo={offer ? '/offers' : '/carts'}
           backLabel={offer ? 'Back to offers' : 'Back to carts'}
@@ -182,6 +182,7 @@ export function CartDetail() {
           }
         />
         <DetailPageBody>
+          <PluginSections target="cart" entity={cart ?? null} mode="edit" placement="before" />
           {actionError && (
             <div className="px-6 pt-6">
               <Alert variant="destructive">

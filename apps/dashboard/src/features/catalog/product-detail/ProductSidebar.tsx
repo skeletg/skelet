@@ -17,6 +17,7 @@ import { useConfigScope } from '@/lib/config-scope'
 import { useFeatures } from '@/shared/features/useFeatures'
 import { formatCents } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { PluginSections } from '@/plugins/detail-sections'
 import { ProductSidebarStatsDocument, ProductTrafficDocument } from '../Catalog.gql'
 
 const COLLAPSE_KEY = 'skelet-dash:product-sidebar-collapsed'
@@ -296,6 +297,9 @@ export function ProductSidebar({ product }: { product: SidebarProduct }) {
           )}
         </Section>
       )}
+      <div className="flex flex-col gap-4 border-t p-4 empty:hidden">
+        <PluginSections target="product" entity={product} mode="edit" placement="side" />
+      </div>
     </aside>
   )
 }

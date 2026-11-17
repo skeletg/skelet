@@ -242,6 +242,7 @@ export function RemoteProvidersList() {
           )}
 
           <DataTable
+            target="remote-providers"
             urlState={urlState}
             columns={columns}
             data={rows}

@@ -209,6 +209,7 @@ export function CampaignsList() {
         ) : (
           <DetailPageSection>
             <DataTable
+              target="campaigns"
               urlState={urlState}
               columns={columns}
               data={campaigns}

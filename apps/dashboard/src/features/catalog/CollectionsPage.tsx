@@ -100,6 +100,7 @@ export function CollectionsPage() {
 
   return (
     <DataTable
+      target="catalog.collections"
       urlState={urlState}
       columns={columns}
       data={collections}

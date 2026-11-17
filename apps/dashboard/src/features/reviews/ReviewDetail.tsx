@@ -44,7 +44,7 @@ import {
 } from './Reviews.gql'
 
 import { ReviewModerationBadge, ReviewStatusBadge } from './ReviewsList'
-import { PluginSections } from '@/plugins/detail-sections'
+import { PluginAside, PluginSections } from '@/plugins/detail-sections'
 import { useUnsavedChangesGuard } from '@/lib/unsaved-changes'
 
 // Per-review moderation page - Uses the shared DetailPage template: sticky header with title + status badges +
@@ -190,7 +190,7 @@ export function ReviewDetail() {
   const title = review.title || '(no title)'
 
   return (
-    <DetailPageLayout>
+    <DetailPageLayout rightSidebar={<PluginAside target="review" entity={review ?? null} mode="edit" />}>
       <DetailPageHeader
         backTo="/reviews/pending"
         backLabel="Back to moderation queue"
@@ -263,6 +263,7 @@ export function ReviewDetail() {
       />
 
       <DetailPageBody>
+        <PluginSections target="review" entity={review ?? null} mode="edit" placement="before" />
         <DetailPageSection title="Review">
           <p className="whitespace-pre-wrap text-sm">
             {review.body || <em className="text-muted-foreground">(no body)</em>}

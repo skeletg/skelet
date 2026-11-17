@@ -23,7 +23,6 @@ import {
   UpdateIntegrationDocument,
   type IntegrationsQuery,
 } from './Integrations.gql'
-import { PluginSections } from '@/plugins/detail-sections'
 import {
   INTEGRATION_DETAIL_LABELS,
   integrationDetailDiff,
@@ -119,6 +118,7 @@ function IntegrationForm({ integration }: { integration: Integration }) {
 
   return (
     <RecordFormPage
+      plugins={{ target: 'integration', entity: integration, mode: 'edit' }}
       record={record}
       backTo="/integrations"
       backLabel="Back to integrations"
@@ -183,7 +183,6 @@ function IntegrationForm({ integration }: { integration: Integration }) {
               </Button>
             </div>
           </DetailPageSection>
-          <PluginSections target="integration" entity={integration} mode="edit" />
         </>
       }
     >

@@ -20,7 +20,7 @@ import { useShellReady } from '@/lib/shell-ready'
 import { MeDocument } from '@/shared/auth/Me.gql'
 import {
   HOME_LAYOUT_PREF_KEY,
-  HOME_WIDGETS,
+  homeWidgets,
   visibleWidgets,
 } from '@/features/dashboard/widgets/registry'
 
@@ -36,7 +36,7 @@ export function Home() {
   const ready = useShellReady()
 
   // the same gating rules the sidebar uses - hidden while grants load rather than flashing in
-  const available = visibleWidgets(HOME_WIDGETS, {
+  const available = visibleWidgets(homeWidgets(), {
     has,
     featureEnabled,
     permsLoading,

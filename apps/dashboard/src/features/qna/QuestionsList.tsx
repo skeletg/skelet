@@ -186,7 +186,8 @@ export function QuestionsList() {
       />
       <DetailPageBody>
         <DetailPageSection>
-          <DataTable columns={columns} data={rows} loading={loading} error={loadError} />
+          <DataTable
+        target="questions" columns={columns} data={rows} loading={loading} error={loadError} />
         </DetailPageSection>
       </DetailPageBody>
 

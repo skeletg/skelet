@@ -200,6 +200,7 @@ export function CountriesList() {
   return (
     <>
       <DataTable
+        target="countries"
         urlState={urlState}
         columns={columns}
         data={rows}

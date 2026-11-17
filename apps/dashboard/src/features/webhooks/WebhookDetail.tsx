@@ -44,7 +44,7 @@ import {
   WebhookDocument,
   WebhooksDocument,
 } from './Webhooks.gql'
-import { PluginSections } from '@/plugins/detail-sections'
+import { PluginAside, PluginSections } from '@/plugins/detail-sections'
 
 // WebhookDetail is a standalone PDP-style page reached from /webhooks/:id The table list at /webhooks links each row
 // here; the header carries a "Back to webhooks" affordance via DetailPageHeader's backTo
@@ -141,7 +141,7 @@ export function WebhookDetail() {
   }
 
   return (
-    <DetailPageLayout>
+    <DetailPageLayout rightSidebar={<PluginAside target="webhook" entity={webhook} mode="edit" />}>
       <DetailPageHeader
         backTo="/webhooks"
         backLabel="Back to webhooks"
@@ -194,6 +194,7 @@ export function WebhookDetail() {
       />
 
       <DetailPageBody>
+        <PluginSections target="webhook" entity={webhook} mode="edit" placement="before" />
         {opError && (
           <div className="px-6 py-4">
             <Alert variant="destructive">

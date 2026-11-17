@@ -117,6 +117,7 @@ export function FormsList() {
         ) : (
           <DetailPageSection>
             <DataTable
+              target="signup-forms"
               urlState={urlState}
               columns={columns}
               data={forms}

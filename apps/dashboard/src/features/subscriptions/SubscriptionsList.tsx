@@ -232,6 +232,7 @@ export function SubscriptionsList() {
             </Alert>
           ) : (
             <DataTable
+              target="subscriptions"
               columns={columns}
               data={rows}
               loading={loading && rows.length === 0}

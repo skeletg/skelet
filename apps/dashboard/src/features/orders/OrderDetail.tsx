@@ -287,6 +287,9 @@ export function OrderDetail() {
           <div className="p-4">
             <OrderTimeline events={order.events} />
           </div>
+          <div className="flex flex-col gap-4 border-t p-4 empty:hidden">
+            <PluginSections target="order" entity={order} mode="edit" placement="side" />
+          </div>
         </aside>
       }
     >
@@ -382,6 +385,7 @@ export function OrderDetail() {
       />
 
       <DetailPageBody>
+        <PluginSections target="order" entity={order} mode="edit" placement="before" />
         {actionError && (
           <div className="px-6 pt-6">
             <Alert variant="destructive">

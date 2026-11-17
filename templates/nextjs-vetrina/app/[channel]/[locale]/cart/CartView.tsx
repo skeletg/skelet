@@ -238,7 +238,7 @@ export function CartView({
             >
               {t("proceed")}
             </OwnCartLink>
-            <Slots zone="cart:actions" />
+            <Slots zone="cart:actions" ctx={{ subtotal: netSubtotal, currency }} />
           </div>
 
           <CartEstimator currency={currency} />

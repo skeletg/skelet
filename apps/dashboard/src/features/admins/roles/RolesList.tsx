@@ -109,6 +109,7 @@ export function RolesList() {
 
   return (
     <DataTable
+      target="roles"
       urlState={urlState}
       columns={columns}
       data={rows}

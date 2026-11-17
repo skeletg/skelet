@@ -37,6 +37,7 @@ import { LensTrack } from "./LensTrack";
 import { AnalyticsEvent } from "./AnalyticsEvent";
 import { ItemListEvents } from "./ItemListEvents";
 import { ga4Item } from "@skelet/storefront-core/track/items";
+import { Slots } from "@/app/plugins/Slots";
 
 type RawSearchParams = Record<string, string | string[] | undefined>;
 
@@ -306,6 +307,8 @@ export async function ProductListShell({
           {query && data.byMeaningOnly && data.items.length > 0 && (
             <p className="mt-3 text-sm text-muted-foreground">{t("byMeaningOnly", { query: query.trim() })}</p>
           )}
+          {/* Over the results of every category, collection, catalog and search listing */}
+          <Slots zone="listing:top" ctx={{ path: basePath, total: data.totalCount, query: query ?? "" }} />
           {data.items.length === 0 ? (
             <p className="mt-3 text-sm text-muted-foreground">{emptyText ?? t("empty")}</p>
           ) : (

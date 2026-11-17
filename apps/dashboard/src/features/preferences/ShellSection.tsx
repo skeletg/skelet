@@ -15,7 +15,7 @@ import {
   TILES_PREF_KEY,
   TILE_DEFS,
 } from '@/features/dashboard/home-items'
-import { HOME_LAYOUT_PREF_KEY, HOME_WIDGETS } from '@/features/dashboard/widgets/registry'
+import { HOME_LAYOUT_PREF_KEY, homeWidgets } from '@/features/dashboard/widgets/registry'
 import { useFeatures } from '@/shared/features/useFeatures'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { ArrangeList } from './ArrangeList'
@@ -127,7 +127,7 @@ export function ShellSection() {
       >
         <ArrangeList
           prefKey={HOME_LAYOUT_PREF_KEY}
-          items={HOME_WIDGETS.filter(
+          items={homeWidgets().filter(
             (w) => allowed(w.permission) && (!w.feature || featureEnabled(w.feature)),
           ).map((w) => ({ id: w.id, label: w.title, defaultHidden: w.defaultHidden }))}
         />

@@ -522,6 +522,7 @@ export function UrlRewritesListPage() {
   return (
     <>
       <DataTable
+        target="catalog.url-rewrites"
         columns={columns}
         data={rows}
         loading={loading && rows.length === 0}

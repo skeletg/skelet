@@ -202,6 +202,7 @@ export function ShippingZonesList() {
       <DetailPageBody>
         <DetailPageSection>
           <DataTable
+            target="shipping.zones"
             urlState={urlState}
             columns={columns}
             data={zones}

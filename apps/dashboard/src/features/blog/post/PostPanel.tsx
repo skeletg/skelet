@@ -14,6 +14,7 @@ import type { FlatCategory } from './categories'
 import { PostStores } from './PostStores'
 import { statusLabel, statusVariant } from './status'
 import type { Post, PostFormApi } from './types'
+import { PluginSections } from '@/plugins/detail-sections'
 
 // Everything about a post but its words, docked beside the page. All but publishing and the stores' switches waits for Save
 export function PostPanel({
@@ -204,6 +205,11 @@ export function PostPanel({
         <PanelSection title="Stores">
           <PostStores postId={post.id} listings={post.channelListings} canManage={canManage} refetchVariables={variables} noindexEdits={noindexEdits} onNoindex={onNoindex} />
         </PanelSection>
+        {/* The writing desk has no body sections - a plugin's blog-post sections all join the panel */}
+        <div className="grid gap-4 p-4 empty:hidden">
+          <PluginSections target="blog-post" entity={post} mode="edit" placement="before" />
+          <PluginSections target="blog-post" entity={post} mode="edit" sideInBody />
+        </div>
       </div>
     </aside>
   )

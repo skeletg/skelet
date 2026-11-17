@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { ApproxPrice } from "@/app/components/ApproxPrice";
 import { CartLineOptionsList } from "@/app/components/CartLineOptionsList";
 import { ChargeCurrencyNote } from "@/app/components/ChargeCurrencyNote";
+import { Slots } from "@/app/plugins/Slots";
 import { OwnCartLink } from "@/app/components/offer/LeaveOfferCheckout";
 import { formatPrice } from "@skelet/storefront-next/cart/read";
 import { getChannel } from "@skelet/storefront-next/channel/read";
@@ -120,6 +121,8 @@ export async function OrderSummary({
           amountDue: t("amountDue"),
         }}
       />
+      {/* Under the total, a plugin's financing offer or delivery promise */}
+      <Slots zone="checkout:summary" ctx={{ cartId: cart.id, totalCents: checkout.totals.totalCents, currency }} />
 
       <OwnCartLink href={cart.offer ? `/cart/offer?cartId=${encodeURIComponent(cart.id)}` : "/cart"} className="mt-6 inline-block text-xs text-muted-foreground underline">
         {t("editCart")}

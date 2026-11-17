@@ -191,6 +191,7 @@ export function LocalesList() {
   return (
     <>
       <DataTable
+        target="locales"
         urlState={urlState}
         columns={columns}
         data={rows}

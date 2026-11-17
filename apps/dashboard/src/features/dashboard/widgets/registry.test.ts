@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest'
-import { HOME_WIDGETS, visibleWidgets } from './registry'
+import { afterEach, describe, expect, it } from 'vitest'
+import { __resetHomeWidgetsForTests, registerHomeWidget } from '@/plugins/home-widget-registry'
+import { HOME_WIDGETS, homeWidgets, visibleWidgets } from './registry'
+
+afterEach(() => __resetHomeWidgetsForTests())
 
 const gates = (held: string[], features: string[] = []) => ({
   has: (slug: string) => held.includes(slug),
@@ -55,5 +58,19 @@ describe('visibleWidgets', () => {
       visibleWidgets(HOME_WIDGETS, { ...gates(['lens.view'], ['signals']), featuresLoading: true }),
     )
     expect(out).not.toContain('traffic')
+  })
+})
+
+describe('plugin sections', () => {
+  it('join the page before the plugin slot, gated like a core section', () => {
+    const Empty = () => null
+    registerHomeWidget({ id: 'acme:erp', title: 'ERP sync', permission: 'acme.view', Component: Empty })
+    const all = ids(homeWidgets())
+    expect(all.indexOf('acme:erp')).toBe(all.indexOf('plugins') - 1)
+    expect(ids(visibleWidgets(homeWidgets(), gates([])))).not.toContain('acme:erp')
+    expect(ids(visibleWidgets(homeWidgets(), gates(['acme.view'])))).toContain('acme:erp')
+
+    expect(() => registerHomeWidget({ id: 'revenue', title: 'Mine', Component: Empty })).toThrow(/prefix/)
+    expect(() => registerHomeWidget({ id: 'acme:erp', title: 'Again', Component: Empty })).toThrow(/duplicate/)
   })
 })

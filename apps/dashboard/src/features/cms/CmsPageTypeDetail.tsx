@@ -174,6 +174,7 @@ function PageTypeForm({ type, locale }: { type: CmsPageTypeRowFragment; locale: 
 
   return (
     <RecordFormPage
+      plugins={{ target: 'cms-page-type', entity: type, mode: 'edit' }}
       record={record}
       backTo="/cms/page-types"
       backLabel="Back to page types"

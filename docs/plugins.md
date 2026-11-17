@@ -366,23 +366,71 @@ each half hooks into, so a plugin's UI never edits a core page.
 
 Inside core's own pages a plugin reaches in through registries keyed by a target name:
 
+- **`registerDetailSection`** adds a whole section to a record's page, with `useSaveSection` to
+  join the page's Save. `placement` puts it at the top of the page's body (`before`), at the end of
+  it (`after`, the default) or in the side panel (`side`), where a body section is a
+  `<DetailPageSection>` and a side one a small block of its own. The side panel shows on wide
+  screens; below that a side section renders at the end of the body, so it's never lost. Every
+  record page takes sections: `product`, `order`, `customer`, `customer-group`, `category`,
+  `collection`, `attribute`, `product-type`, `option-template`, `cart`, `promotion`, `review`,
+  `review-question`, `segment`, `campaign`, `experiment`, `cms-page`, `cms-page-type`,
+  `cms-block-type`, `cms-attribute`, `blog-post`, `blog-author`, `blog-term`, `menu`, `web-form`,
+  `webhook`, `integration`, `channel`, `country`, `currency`, `locale`, `location`,
+  `shipping-zone`, `tax-rule`, `admin` and `role`. On a page whose side is something else - the
+  category tree, a live preview, the post's own panel - side sections stay in the body.
 - **`registerDetailField`** puts a field on a record's page - `product`, `customer`,
   `collection`, `country`, `currency`, `location` or `locale` - stored under a metadata key of
   that record. It edits the page's own metadata, so the page's Save, its before-and-after dialog
   and the unsaved-work guard cover it, and the dialog names it by your label. Text, textarea,
   number, checkbox, select or date; the key leaves the free-form metadata rows so nothing edits it
   twice.
-- **`registerDetailSection`** adds a whole section, with `useSaveSection` to join the page's Save.
 - **`registerListColumn`**, `registerListFilter`, `registerListRowAction` and
-  `registerListMassAction` extend a list - `catalog.products`, `customers`, `orders`.
-  `metadataColumn(key, header)` shows one of your metadata fields as a column on the products
-  and customers lists, whose rows carry metadata.
+  `registerListMassAction` extend a list. Every top-level list has a target: `catalog.products`,
+  `catalog.collections`, `catalog.attributes`, `catalog.product-types`, `catalog.option-templates`,
+  `catalog.url-rewrites`, `orders`, `carts`, `customers`, `customer-groups`, `segments`,
+  `subscriptions`, `gift-cards`, `reviews`, `questions`, `conversations`, `promotions`, `campaigns`,
+  `flows`, `signup-forms`, `web-forms`, `experiments`, `blog.posts`, `cms.pages`, `menus`,
+  `inventory.locations`, `inventory.low-stock`, `shipping.zones`, `tax-rules`, `countries`,
+  `currencies`, `locales`, `channels`, `admins`, `roles`, `integrations`, `remote-providers`,
+  `webhooks` and `scheduled-jobs`. `metadataColumn(key, header)` shows one of your metadata
+  fields as a column on the products and customers lists, whose rows carry metadata.
+- **`registerSlot`** renders into a zone: `list-header:<target>`, `list-toolbar:<target>` and
+  `list-footer:<target>` on every list above, each handed `{table}`, and `home:widgets` at the
+  end of Home.
+- **`registerHomeWidget`** adds a section of your own to Home, with an id like
+  `<slug>:sales`, and an optional permission and feature switch. An admin arranges it, hides it or
+  finds it in the library, like core's own. `defaultHidden` leaves it in the library until they
+  switch it on.
 
 **Storefront.** `app/plugins/<slug>/` plus one line in `app/plugins/loaded.ts`. Routes need
 no registration - Next's filesystem router is already the glob, so a page copied to its real
-path simply exists. What `app/plugins/registry.ts` covers is the places a plugin appears
-INSIDE a core page: `registerAccountNavItem` for the account sidebar, and `registerSlot` for
-a zone like `cart:summary` or `cart:actions`.
+path simply exists. The registry lives in `@skelet/storefront-react/plugins/registry` and covers
+the places a plugin appears INSIDE a core page: `registerAccountNavItem` for the account sidebar,
+and `registerSlot` for a zone. The template reaches it through `app/plugins/registry.ts` and
+`app/plugins/Slots.tsx`, which load `loaded.ts` first - a slot renders in the browser too, and the
+browser keeps its own copy of the registry, so the plugins register there as well as on the
+server. Vetrina draws these zones, each with the ctx it hands over:
+
+| Zone | Where | ctx |
+|---|---|---|
+| `header:actions` | the header's icon row | - |
+| `footer:end` | above the footer's last line | - |
+| `listing:top` | over every category, collection, catalog and search listing's results | `{path, total, query}` |
+| `product-card` | beside each product card's price | `{productId, sku}` |
+| `product:buy-box` | under the product page's buy box | `{productId, sku, name}` |
+| `product:details` | under the product, above its reviews | `{productId, sku, name}` |
+| `mini-cart:footer` | under the mini cart's buttons | `{subtotal, currency}` |
+| `cart:summary` | under the cart's totals | `{subtotal, currency}` |
+| `cart:actions` | beside Proceed to checkout | `{subtotal, currency}` |
+| `checkout:summary` | under checkout's order summary | `{cartId, totalCents, currency}` |
+| `checkout:payment` | above Pay, inside the payment form - give a button `type="button"` | `{provider, amountDueCents, currency}` |
+| `order` | on every order the shopper reads | `{orderId, number, status, total, currencyCode}` |
+| `order:placed` | once, as the order is placed | `{orderId, number, total, currencyCode}` |
+| `account:overview` | under the account overview's cards | `{customerId}` |
+
+ctx crosses from server to client components, so it's plain data - a slot that needs more calls
+its own server action. The Astro template draws no slots: it renders on the server with no
+client components to mount one in.
 
 **A gateway's card fields.** `registerPaymentUI({ provider, Fields })` puts a payment
 plugin's fields into the Next storefront's checkout while its method is picked and no saved
@@ -407,10 +455,9 @@ rather than on a thank-you.
 The gateway's hosts also have to be in the storefront's CSP - see `PAYMENT_ORIGINS` in
 [env.md](env.md).
 
-Everything in the storefront registry is client-safe on purpose. The host components are all
-`"use client"`, so a server-rendered slot could not mount in them; a plugin needing server
-data calls its own `"use server"` action from the slot, which is how a plugin shows its own
-data at checkout without core fetching it on the plugin's behalf.
+Everything in the storefront registry is client-safe on purpose. A slot renders in a client
+component; a plugin needing server data calls its own `"use server"` action from it, which is how
+a plugin shows its own data at checkout without core fetching it on the plugin's behalf.
 
 `loaded.ts` is a hand-maintained import list rather than a glob, for the same reason
 `plugins/firstparty` is generated from `plugins.json`: the enabled set decides what loads,

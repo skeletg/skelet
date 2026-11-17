@@ -183,6 +183,7 @@ export function CurrenciesList() {
   return (
     <>
       <DataTable
+        target="currencies"
         urlState={urlState}
         columns={columns}
         data={rows}

@@ -186,6 +186,7 @@ export function SegmentsListPage() {
       <DetailPageBody>
         <DetailPageSection>
           <DataTable
+            target="segments"
             urlState={urlState}
             columns={columns}
             data={rows}

@@ -14,6 +14,7 @@ import { productImageTransitionName } from "@/app/lib/view-transition";
 import { AddToCartForm } from "./AddToCartForm";
 import { RatingStars } from "./RatingStars";
 import { WishlistButton } from "./WishlistButton";
+import { Slots } from "@/app/plugins/Slots";
 
 // Shared product card for every product grid - variant="compact" drops the framing for rails whose container already
 // provides it No qty stepper: quantity is picked on the PDP or in the cart, the card sells the click
@@ -166,6 +167,9 @@ export function ProductCard({
     </p>
   );
 
+  // Beside the price, a plugin's badge or trade price - plain data across, so the card stays a server component
+  const cardSlot = <Slots zone="product-card" ctx={{ productId: product.id, sku: product.sku }} />;
+
   const cta = isSimple ? (
     <AddToCartForm product={product} size="sm" hideQty />
   ) : (
@@ -197,6 +201,7 @@ export function ProductCard({
         </Link>
         <div className="mt-auto grid gap-2 px-0.5">
           {priceRow}
+          {cardSlot}
           {cta}
         </div>
       </div>
@@ -218,6 +223,7 @@ export function ProductCard({
           {rating && <RatingStars value={rating.value} count={rating.count} />}
           <div className="mt-auto grid gap-2 pt-2">
             {priceRow}
+            {cardSlot}
             <p className="flex items-center gap-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.06em]">
               {product.inStock ? (
                 <>

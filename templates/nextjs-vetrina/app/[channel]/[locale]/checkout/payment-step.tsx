@@ -15,6 +15,7 @@ import {
   setStoreCreditAction,
 } from "@skelet/storefront-next/checkout/actions";
 import { getPaymentUI, type PaymentHandle } from "@/app/plugins/registry";
+import { Slots } from "@/app/plugins/Slots";
 import type { PendingPayment } from "@skelet/storefront-core/checkout/actions";
 import type { CheckoutState, PaymentMethodOption } from "@skelet/storefront-next/checkout/read";
 import { giftCardSchema, paymentStepSchema } from "@skelet/storefront-core/checkout/schemas";
@@ -215,6 +216,11 @@ function PlaceOrderForm({
         </label>
       ) : null}
       <Consent consent={consent} field={fields.tos} />
+      {/* Above Pay, inside the payment form - a plugin's own button takes type="button", or it places the order */}
+      <Slots
+        zone="checkout:payment"
+        ctx={{ provider: covered ? "" : picked, amountDueCents: checkout.totals.amountDueCents, currency }}
+      />
       <button
         type="submit"
         disabled={busy}

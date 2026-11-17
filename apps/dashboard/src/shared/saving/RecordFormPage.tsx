@@ -7,6 +7,8 @@ import {
 } from '@/components/layout/detail-page'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { hasDetailSections } from '@/plugins/detail-section-registry'
+import { PluginAside, PluginSections } from '@/plugins/detail-sections'
 import { SaveConfirmDialog } from './SaveConfirmDialog'
 import { SaveRegistryContext, type SaveRegistryValue, type SectionRegistration } from './saveRegistry'
 import { RestoredDraftBanner } from './RestoredDraftBanner'
@@ -38,6 +40,7 @@ export function RecordFormPage({
   labels,
   children,
   after,
+  plugins,
   readOnly = false,
   hideSave = false,
 }: {
@@ -55,8 +58,10 @@ export function RecordFormPage({
   /** Field name -> label, for the restored-draft clash list */
   labels?: Record<string, string>
   children: ReactNode
-  /** Below the form body and outside it - plugin sections, whose own buttons mustn't touch the form */
+  /** Below the form body and outside it - sections whose own buttons mustn't touch the form */
   after?: ReactNode
+  /** The record plugins' sections render for - above the body, after `after`, and in a side panel */
+  plugins?: { target: string; entity: unknown; mode: 'edit' | 'create' }
   /** No write permission - every field disabled and the Save button left out */
   readOnly?: boolean
   /** The page renders its own submit buttons in `actions` - a create with two ways to save, say */
@@ -64,10 +69,13 @@ export function RecordFormPage({
 }) {
   const { form, draft, registry, confirm, submitError, save, isEdit, label } = record
   const submitting = useStore(form.store, (s) => s.isSubmitting)
+  // Side sections render at the end of the body too, where the panel is hidden on a narrow screen
+  const pluginsAfter =
+    !!plugins && (hasDetailSections(plugins.target, plugins.mode, 'after') || hasDetailSections(plugins.target, plugins.mode, 'side'))
 
   return (
     <SaveRegistryContext.Provider value={registry.contextValue}>
-      <DetailPageLayout>
+      <DetailPageLayout rightSidebar={plugins && <PluginAside {...plugins} />}>
         <DetailPageHeader
           backTo={backTo}
           backLabel={backLabel}
@@ -91,6 +99,12 @@ export function RecordFormPage({
           }
         />
 
+        {plugins && hasDetailSections(plugins.target, plugins.mode, 'before') && (
+          <DetailPageBody className="border-b pb-0">
+            <PluginSections {...plugins} placement="before" />
+          </DetailPageBody>
+        )}
+
         <DetailPageBody>
           {draft.offer !== null && (
             <div className="px-6 py-4">
@@ -111,7 +125,12 @@ export function RecordFormPage({
           </fieldset>
         </DetailPageBody>
 
-        {after && <DetailPageBody className="border-t-0">{after}</DetailPageBody>}
+        {(after || pluginsAfter) && (
+          <DetailPageBody className="border-t-0">
+            {after}
+            {plugins && <PluginSections {...plugins} />}
+          </DetailPageBody>
+        )}
 
         <SaveConfirmDialog {...confirm.dialogProps} scopeLabel={label} sections={registry.dirtySections} />
       </DetailPageLayout>

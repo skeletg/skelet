@@ -8,6 +8,7 @@ import type { MenuItem } from "@skelet/storefront-next/menus/read";
 import { getChannel, getStoreName } from "@skelet/storefront-next/channel/read";
 import { getBranding } from "@skelet/storefront-next/config/read";
 import { getConsentMode } from "@skelet/storefront-core/consent/mode";
+import { Slots } from "@/app/plugins/Slots";
 
 // Driven by the "footer" menu - columns when any top-level item has children, a single row when none do. Copyright +
 // support row always renders, so a store with no menu still gets a usable footer
@@ -78,6 +79,7 @@ export async function Footer() {
           )
         )}
 
+        <Slots zone="footer:end" />
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-6 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
           <span>
             © {new Date().getFullYear()} {brand}. Demo storefront.

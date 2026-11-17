@@ -374,6 +374,7 @@ export function PromotionsHome() {
 
         <DetailPageSection title="All promotions">
           <DataTable
+            target="promotions"
             urlState={urlState}
             columns={columns}
             data={rows}

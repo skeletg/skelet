@@ -155,6 +155,7 @@ export function FlowsList() {
         ) : (
           <DetailPageSection>
             <DataTable
+              target="flows"
               urlState={urlState}
               columns={columns}
               data={flows}

@@ -187,6 +187,7 @@ export function GiftCardsList() {
       <DetailPageBody>
         <DetailPageSection>
           <DataTable
+            target="gift-cards"
             manual={{
               rowCount: data?.giftCardsPaged.totalCount ?? 0,
               pagination,

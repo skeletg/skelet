@@ -106,6 +106,7 @@ function CmsAttributeForm({ attribute: a }: { attribute: CmsAttributeRowFragment
 
   return (
     <RecordFormPage
+      plugins={{ target: 'cms-attribute', entity: a, mode: 'edit' }}
       record={record}
       backTo="/cms/attributes"
       backLabel="Back to attributes"

@@ -45,7 +45,6 @@ import { useRecordForm } from '@/shared/saving/useRecordForm'
 import { useSaveSection, type SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { AttributeInputTypeBadge } from './AttributeInputTypeBadge'
 import { INPUT_TYPES_WITH_VALUES } from './attributeInputTypes'
-import { PluginSections } from '@/plugins/detail-sections'
 import type { AttributeInputType } from '@/graphql/schema.types'
 import {
   ATTRIBUTE_SETTINGS_LABELS,
@@ -130,6 +129,7 @@ function AttributeForm({ attribute }: { attribute: Attribute }) {
 
   return (
     <RecordFormPage
+      plugins={{ target: 'attribute', entity: attribute, mode: 'edit' }}
       record={record}
       backTo="/catalog/attributes"
       backLabel="Back to attributes"
@@ -202,7 +202,6 @@ function AttributeForm({ attribute }: { attribute: Attribute }) {
         </DetailPageSection>
       )}
 
-      <PluginSections target="attribute" entity={attribute} mode="edit" />
 
       <ConfirmDialog
         open={confirmingDelete}

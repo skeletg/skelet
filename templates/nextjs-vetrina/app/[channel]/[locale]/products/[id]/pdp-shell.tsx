@@ -14,6 +14,7 @@ import { RatingStars } from "@/app/components/RatingStars";
 import { WishlistButton } from "@/app/components/WishlistButton";
 import type { QtyBounds } from "@/app/components/qty";
 import { ProductGallery, ProductReassurance } from "./parts";
+import { Slots } from "@/app/plugins/Slots";
 
 type GalleryProps = ComponentProps<typeof ProductGallery>;
 
@@ -65,7 +66,11 @@ export function PdpShell({
         />
       </div>
 
-      <div className="md:col-start-2 md:row-start-2">{children}</div>
+      <div className="md:col-start-2 md:row-start-2">
+        {children}
+        {/* Under the buy box - a plugin's delivery estimate, a trade price, a size guide */}
+        <Slots zone="product:buy-box" ctx={{ productId: product.id, sku: product.sku, name: heading }} />
+      </div>
     </div>
   );
 }

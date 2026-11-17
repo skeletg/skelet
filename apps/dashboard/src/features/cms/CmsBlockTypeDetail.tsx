@@ -15,7 +15,6 @@ import { LoadError } from '@/shared/errors/LoadError'
 import { ClashNote } from '@/shared/saving/RestoredDraftBanner'
 import { RecordFormPage } from '@/shared/saving/RecordFormPage'
 import { useRecordForm } from '@/shared/saving/useRecordForm'
-import { PluginSections } from '@/plugins/detail-sections'
 import { CmsBlockTypeDocument, CreateCmsBlockTypeDocument, UpdateCmsBlockTypeDocument } from './Cms.gql'
 import { CUSTOM_FIELD_KINDS } from './page-blocks'
 import {
@@ -99,7 +98,7 @@ function BlockTypeForm({ mode, blockType }: { mode: 'create' | 'edit'; blockType
         </Button>
       }
       labels={BLOCK_TYPE_LABELS}
-      after={<PluginSections target="cms-block-type" entity={blockType ?? null} mode={isEdit ? 'edit' : 'create'} />}
+      plugins={{ target: 'cms-block-type', entity: blockType ?? null, mode: isEdit ? 'edit' : 'create' }}
     >
       <DetailPageSection title="Type">
         <div className="grid items-start gap-4 sm:grid-cols-3">

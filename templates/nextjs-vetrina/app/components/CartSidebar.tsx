@@ -18,6 +18,7 @@ import { Drawer } from "./Drawer";
 import { useChannel } from "./ChannelProvider";
 import { ApproxPrice } from "./ApproxPrice";
 import { FreeShippingBar } from "./FreeShippingBar";
+import { Slots } from "@/app/plugins/Slots";
 import { CartLineNotice } from "./CartLineNotice";
 import { CartLineOptionsList } from "./CartLineOptionsList";
 import { mediaThumb } from "@skelet/storefront-core/media-thumb";
@@ -250,6 +251,7 @@ export function CartSidebar({
                 {tc("checkout")}
               </Link>
             </div>
+            <Slots zone="mini-cart:footer" ctx={{ subtotal: cart.subtotal, currency }} />
           </footer>
         )}
       </Drawer>

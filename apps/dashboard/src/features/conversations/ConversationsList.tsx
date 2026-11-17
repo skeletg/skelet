@@ -200,6 +200,7 @@ export function ConversationsList() {
             description="Kept while the store's Keep the shopping assistant's conversations setting is on, for shoppers signed in or who accepted analytics. Open one to see each answer and how the model got there."
           >
             <DataTable
+              target="conversations"
               columns={columns}
               data={rows}
               loading={loading && !result}

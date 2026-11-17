@@ -286,6 +286,7 @@ export function ScheduledJobsList() {
           )}
 
           <DataTable
+            target="scheduled-jobs"
             urlState={urlState}
             columns={columns}
             data={jobs}

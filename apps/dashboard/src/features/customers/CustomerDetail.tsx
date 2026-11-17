@@ -39,7 +39,6 @@ import {
 } from './Customers.gql'
 import { CustomerGroupsDocument } from './CustomerGroups.gql'
 import { useCustomerAccess } from './useCustomerAccess'
-import { PluginSections } from '@/plugins/detail-sections'
 import {
   CUSTOMER_LABELS,
   customerChanges,
@@ -170,6 +169,7 @@ function CustomerForm({ customer }: { customer: Customer }) {
 
   return (
     <RecordFormPage
+      plugins={{ target: 'customer', entity: customer, mode: 'edit' }}
       record={record}
       backTo="/customers"
       backLabel="Back to customers"
@@ -263,7 +263,6 @@ function CustomerForm({ customer }: { customer: Customer }) {
               </Button>
             </div>
           </DetailPageSection>
-          <PluginSections target="customer" entity={customer} mode="edit" />
         </>
       }
     >

@@ -38,6 +38,7 @@ import {
 import { gqlFetch } from "@skelet/storefront-next/graphql";
 import { MyOrdersDocument } from "@skelet/storefront-core/checkout/operations.gql";
 import { formatPrice } from "@skelet/storefront-core/format";
+import { Slots } from "@/app/plugins/Slots";
 
 export async function generateMetadata({
   params,
@@ -292,6 +293,8 @@ export default async function AccountPage({
           )}
         </AccountCard>
       )}
+      {/* Under the overview's own cards - a plugin's account summary, like a company's credit line */}
+      <Slots zone="account:overview" ctx={{ customerId: customer.id }} />
     </>
   );
 }

@@ -141,6 +141,7 @@ function ShippingZoneFormPage({
 
   return (
     <RecordFormPage
+      plugins={{ target: 'shipping-zone', entity: zone ?? null, mode: isEdit ? 'edit' : 'create' }}
       record={record}
       backTo="/shipping"
       backLabel="Back to shipping"

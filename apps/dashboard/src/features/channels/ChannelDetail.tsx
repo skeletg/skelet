@@ -7,7 +7,7 @@ import {
   DetailPageHeader,
   DetailPageLayout,
 } from '@/components/layout/detail-page'
-import { PluginSections } from '@/plugins/detail-sections'
+import { PluginAside, PluginSections } from '@/plugins/detail-sections'
 import { LoadError } from '@/shared/errors/LoadError'
 import { ChannelDocument } from '@/features/channels/Channels.gql'
 import { ChannelOverview } from '@/features/channels/ChannelOverview'
@@ -45,7 +45,7 @@ export function ChannelDetail() {
   const channel = data.channel
 
   return (
-    <DetailPageLayout>
+    <DetailPageLayout rightSidebar={<PluginAside target="channel" entity={channel} mode="edit" />}>
       <DetailPageHeader
         backTo="/channels"
         backLabel="Back to channels"
@@ -75,6 +75,7 @@ export function ChannelDetail() {
       />
 
       <DetailPageBody>
+        <PluginSections target="channel" entity={channel} mode="edit" placement="before" />
         <ChannelOverview channelId={channel.id} />
         <PluginSections target="channel" entity={channel} mode="edit" />
       </DetailPageBody>

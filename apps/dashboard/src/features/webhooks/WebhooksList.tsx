@@ -188,6 +188,7 @@ export function WebhooksList() {
   return (
     <>
       <DataTable
+        target="webhooks"
         urlState={urlState}
         columns={columns}
         data={rows}

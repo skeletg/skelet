@@ -200,6 +200,7 @@ export function TaxRulesTable() {
   return (
     <>
       <DataTable
+        target="tax-rules"
         urlState={urlState}
         columns={columns}
         data={rows}

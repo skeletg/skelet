@@ -261,6 +261,7 @@ export function ProductDetail() {
       />
 
       <DetailPageBody>
+        <PluginSections target="product" entity={product} mode="edit" placement="before" />
           <GeneralProductSection
             key={`${product.id}:${translationLocale || 'no-locale'}:general`}
             product={product}

@@ -180,6 +180,7 @@ export function PrismList() {
         ) : (
           <DetailPageSection>
             <DataTable
+              target="experiments"
               urlState={urlState}
               columns={columns}
               data={rows}

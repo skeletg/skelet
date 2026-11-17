@@ -298,6 +298,7 @@ function CmsPageEditor({
         />
 
         <DetailPageBody>
+          <PluginSections target="cms-page" entity={p} mode="edit" placement="before" />
           {!canEditTranslations && (
             <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/40 px-6 py-3 text-sm">
               <span className="text-muted-foreground">
@@ -421,7 +422,7 @@ function CmsPageEditor({
               />
             </DetailPageSection>
           )}
-          <PluginSections target="cms-page" entity={p} mode="edit" />
+          <PluginSections target="cms-page" entity={p} mode="edit" sideInBody />
         </DetailPageBody>
 
         <Dialog open={panel === 'history'} onOpenChange={(o) => !o && setPanel(null)}>

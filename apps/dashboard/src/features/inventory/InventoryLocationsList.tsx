@@ -214,6 +214,7 @@ export function InventoryLocationsList() {
   return (
     <>
       <DataTable
+        target="inventory.locations"
         columns={columns}
         data={rows}
         loading={loading && rows.length === 0}

@@ -173,6 +173,7 @@ export function CustomerGroupsList() {
         </Alert>
       )}
       <DataTable
+        target="customer-groups"
         urlState={urlState}
         prefsKey="customers.groups"
         enableColumnControls

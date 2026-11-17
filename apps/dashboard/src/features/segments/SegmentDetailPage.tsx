@@ -32,7 +32,6 @@ import { AssignCustomersToSegmentDocument, ClearSegmentMembershipDocument, Refre
 import { useCustomerNames } from '@/shared/signals/useCustomerNames'
 import { RulesBuilder } from './RulesBuilder'
 import type { Rules } from './rules'
-import { PluginSections } from '@/plugins/detail-sections'
 import {
   SEGMENT_LABELS,
   generalChanged,
@@ -113,6 +112,7 @@ function SegmentForm({ segment, refetch }: { segment: Segment; refetch: () => vo
 
   return (
     <RecordFormPage
+      plugins={{ target: 'segment', entity: segment, mode: 'edit' }}
       record={record}
       backTo="/segments"
       backLabel="Back to segments"
@@ -133,7 +133,6 @@ function SegmentForm({ segment, refetch }: { segment: Segment; refetch: () => vo
       after={
         <>
           <MembersSection segment={segment} refetch={refetch} />
-          <PluginSections target="segment" entity={segment} mode="edit" />
         </>
       }
     >
