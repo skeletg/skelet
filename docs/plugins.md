@@ -401,7 +401,7 @@ your own writes, since the record's row is locked until it returns. A save carri
 extensions, each keyed by a slug.
 
 In the dashboard, a section on the product or customer page stages its part with
-`useExtensionSection` from `@skelet/dashboard-sdk`, and it goes out with the page's own Save - in the
+`useExtensionSection` from `@skelet/dashboard/sdk`, and it goes out with the page's own Save - in the
 mutation of the page's main section when that changed too (General, on a product), alone through
 the same mutation when it didn't. Another section of the page that saves in a call of its own, a
 product's pricing or SEO, commits apart from your part. The confirm dialog lists it under your
@@ -533,15 +533,24 @@ a storefront forked since, is missing the package until you add it - `skelet gen
 command. Leave `"sideEffects": false` out of a UI package's `package.json`: its registrations are
 side effects, and a production build would drop them.
 
-A dashboard package imports what it needs from `@skelet/dashboard-sdk` - the registries below, the
-detail-page layout, `useSaveSection` and the UI kit. The dashboard's build points that name at its
-own source, so the plugin registers into the same registries and draws with the same components;
-the npm package of that name holds the types alone. Ship your source
-(`"exports": { ".": "./src/plugin.tsx" }`), take `react`, `@apollo/client`, `react-router-dom`,
-`@lingui/react` and `sonner` as peers where you use them, and query through the dashboard's Apollo
-client with `@apollo/client/react`'s hooks. A storefront package imports from
+A dashboard package imports what it needs from `@skelet/dashboard/sdk` - the registries below, the
+detail-page layout, `useSaveSection` and the UI kit - so it registers into the same registries and
+draws with the same components the dashboard's own pages do. Ship your source
+(`"exports": { ".": "./src/plugin.tsx" }`), take `@skelet/dashboard`, `react`, `@apollo/client`,
+`react-router-dom`, `@lingui/react` and `sonner` as peers where you use them, and query through the
+dashboard's Apollo client with `@apollo/client/react`'s hooks. A storefront package imports from
 `@skelet/storefront-react/plugins/registry` and takes `@skelet/storefront-react` as a peer too - a
 copy of its own would be a registry no page reads.
+
+**The dashboard as a package.** `@skelet/dashboard` is the dashboard compiled - its macros and the
+React compiler already applied, every package it uses left as a dependency - so a project builds it
+rather than carrying its source. The package's `template/` is such a project: `src/config.ts` hands
+the dashboard the API's URL and the storefront's origin from `.env` through `configure()`,
+`src/plugins.ts` imports the plugins' packages, `src/index.css` compiles the dashboard's
+`styles.css` with Tailwind over its code and each plugin package (an `@source` line per package), and
+`vite.config.ts` is `skeletDashboard()` from `@skelet/dashboard/vite`. `vite build` makes static files
+with `_headers` and `_redirects` beside them. This repo's own dashboard stays its source and
+builds as before; the package is what a project without a clone of it uses.
 
 A plugin's UI can still live in the tree instead - `apps/dashboard/src/plugins/<slug>/`, which the
 dashboard's loader globs, or a storefront's `app/plugins/<slug>/`, imported by hand in its

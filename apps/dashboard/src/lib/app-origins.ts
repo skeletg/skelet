@@ -1,3 +1,5 @@
+import { runtimeConfig } from './runtime-config'
+
 // Sibling app origins, decided ONCE - the storefront's was read in four modules, two of them under
 // a second name (VITE_STOREFRONT_URL), so setting one left the others pointing at localhost
 //
@@ -6,6 +8,4 @@
 //
 // Trailing slash stripped - SeoPanel did this and the two preview panels did not, so an origin
 // ending in "/" built `//cms/preview/...` in the iframe src
-export const STOREFRONT_ORIGIN = (
-  (import.meta.env.VITE_STOREFRONT_ORIGIN as string | undefined) ?? 'http://localhost:3000'
-).replace(/\/$/, '')
+export const STOREFRONT_ORIGIN = runtimeConfig.storefrontOrigin.replace(/\/$/, '')

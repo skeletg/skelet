@@ -68,7 +68,7 @@ export default defineConfig({
   resolve: {
     alias: {
       // What a plugin imports - see src/sdk/index.ts
-      '@skelet/dashboard-sdk': path.resolve(__dirname, './src/sdk/index.ts'),
+      '@skelet/dashboard/sdk': path.resolve(__dirname, './src/sdk/index.ts'),
       '@': path.resolve(__dirname, './src'),
     },
     // A plugin package's own copy of these would be a second React, a second Apollo cache, a router and a toast

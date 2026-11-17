@@ -1,9 +1,9 @@
-// What a dashboard plugin may import, as `@skelet/dashboard-sdk`. The dashboard's build points that name here, so a
-// plugin from npm registers into the same registries and draws with the same components the dashboard's own pages do;
-// the package published under it holds the types alone. Anything not exported here is the dashboard's own to change
+// What a dashboard plugin may import, as `@skelet/dashboard/sdk` - the published dashboard's entry of that name, and
+// in this repo's own build an alias for this file. Either way a plugin registers into the same registries and draws
+// with the same components the dashboard's own pages do. Anything not exported here is the dashboard's own to change
 //
-// A plugin also takes react and @apollo/client as peers, and queries through the dashboard's Apollo client from inside
-// its components with @apollo/client/react's hooks
+// A plugin also takes @skelet/dashboard, react and @apollo/client as peers, and queries through the dashboard's Apollo
+// client from inside its components with @apollo/client/react's hooks
 
 // Extension points
 export {

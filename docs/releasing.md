@@ -172,14 +172,13 @@ From then on a release tag publishes all four. A rerun skips versions already on
 npm, and a prerelease tag like `v0.5.0-rc.1` goes out under npm's `next` tag so
 `latest` keeps pointing at the last real release.
 
-`@skelet/dashboard-sdk`, the types a plugin's dashboard package builds against,
-publishes from `apps/dashboard/sdk` in a job of its own. Its first version goes up
-by hand the same way, then gets the same trusted publisher:
+`@skelet/dashboard`, the dashboard compiled for projects to build with their plugins,
+publishes from `apps/dashboard` in a job of its own. Its first version goes up by
+hand the same way, then gets the same trusted publisher:
 
 ```
-skelet pnpm dashboard run build:sdk
-cd apps/dashboard/sdk && npm version 0.5.0 --no-git-tag-version && npm publish --access public --otp <code>
-git checkout package.json
+skelet pnpm dashboard exec node package/build.mjs 0.5.0
+cd apps/dashboard/package/out && npm publish --access public --otp <code>
 ```
 
 ## What the first tag switches on

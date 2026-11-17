@@ -1,6 +1,6 @@
 # A pushed release tag publishes its GitHub release: the changelog as the notes, and the skelet CLI for macOS and
 # Linux beside install.sh, which is what the README's one-line install fetches from the latest release. Then the
-# storefront packages and the dashboard SDK's types go to npm at the same version
+# storefront packages and the compiled dashboard go to npm at the same version
 name: Release
 
 on:
@@ -111,10 +111,10 @@ jobs:
             npm publish "./npm-dist/skelet-$name-$version.tgz" --access public "${channel[@]}"
           done
 
-  # The dashboard SDK's types at the tag's version - what a plugin's dashboard package builds against. Trusted
-  # publishing again, set on the package at npmjs.com once its first version is up
-  dashboard-sdk:
-    name: Publish the dashboard SDK types to npm
+  # The dashboard at the tag's version, compiled - what a project builds with its plugins, and what a plugin's dashboard
+  # package imports from. Trusted publishing again, set on the package at npmjs.com once its first version is up
+  dashboard:
+    name: Publish the dashboard to npm
     if: github.repository == 'skeletg/skelet'
     needs: cli
     runs-on: ubuntu-latest
@@ -137,18 +137,19 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build
         working-directory: apps/dashboard
-        run: pnpm run build:sdk
+        env:
+          TAG: ${{ github.ref_name }}
+        run: node package/build.mjs "${TAG#v}"
       - name: Publish
-        working-directory: apps/dashboard/sdk
+        working-directory: apps/dashboard/package/out
         env:
           TAG: ${{ github.ref_name }}
         run: |
           version=${TAG#v}
-          if npm view "@skelet/dashboard-sdk@$version" version >/dev/null 2>&1; then
-            echo "@skelet/dashboard-sdk@$version is already on npm"
+          if npm view "@skelet/dashboard@$version" version >/dev/null 2>&1; then
+            echo "@skelet/dashboard@$version is already on npm"
             exit 0
           fi
           channel=()
           case "$version" in *-*) channel=(--tag next) ;; esac
-          npm version "$version" --no-git-tag-version
           npm publish --access public "${channel[@]}"
