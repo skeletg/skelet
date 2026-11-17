@@ -112,33 +112,70 @@ func sdlFields(root string, set *Set, surface string) (map[string]sdlField, erro
 				own[def.Name] = true
 			}
 		}
+		claim := func(typ string, fd *gqlast.FieldDefinition) error {
+			if typ != "" {
+				if err := coreTypeField(slug, typ, fd); err != nil {
+					return err
+				}
+			}
+			key := ownedKey(typ, fd.Name)
+			if prev, dup := owned[key]; dup {
+				return fmt.Errorf("%s field %q claimed by both %s and %s", surface, strings.TrimPrefix(typ+"."+fd.Name, "."), prev.slug, slug)
+			}
+			owned[key] = sdlField{slug: slug, typ: typ, field: fd.Name, enabled: set.Enabled(slug)}
+			return nil
+		}
+		// The plugin's own types are its models - only a field it asks a resolver for is delegated, a product pointing
+		// back at core's record, say. The rest are plain fields of the model
+		ownResolved := func(def *gqlast.Definition) error {
+			for _, fd := range def.Fields {
+				if forcedResolver(fd) {
+					if err := claim(def.Name, fd); err != nil {
+						return err
+					}
+				}
+			}
+			return nil
+		}
 		for _, doc := range docs {
+			for _, def := range doc.Definitions {
+				if def.Kind == gqlast.Object {
+					if err := ownResolved(def); err != nil {
+						return nil, err
+					}
+				}
+			}
 			for _, ext := range doc.Extensions {
 				typ := ext.Name
 				switch {
 				case typ == "Query" || typ == "Mutation":
 					typ = ""
 				case own[typ]:
+					if err := ownResolved(ext); err != nil {
+						return nil, err
+					}
 					continue
 				case ext.Kind != gqlast.Object:
 					return nil, fmt.Errorf("%s extends %s %s - a plugin adds fields to core's object types only", slug, strings.ToLower(string(ext.Kind)), typ)
 				}
 				for _, fd := range ext.Fields {
-					if typ != "" {
-						if err := coreTypeField(slug, typ, fd); err != nil {
-							return nil, err
-						}
+					if err := claim(typ, fd); err != nil {
+						return nil, err
 					}
-					key := ownedKey(typ, fd.Name)
-					if prev, dup := owned[key]; dup {
-						return nil, fmt.Errorf("%s field %q claimed by both %s and %s", surface, strings.TrimPrefix(typ+"."+fd.Name, "."), prev.slug, slug)
-					}
-					owned[key] = sdlField{slug: slug, typ: typ, field: fd.Name, enabled: set.Enabled(slug)}
 				}
 			}
 		}
 	}
 	return owned, nil
+}
+
+func forcedResolver(fd *gqlast.FieldDefinition) bool {
+	dir := fd.Directives.ForName("goField")
+	if dir == nil {
+		return false
+	}
+	a := dir.Arguments.ForName("forceResolver")
+	return a != nil && a.Value != nil && a.Value.Raw == "true"
 }
 
 // A field on a core type answers for a whole list of parents in one call, and is nullable, since the type is on every
@@ -187,7 +224,12 @@ func rewriteResolverFiles(root, surface, sdkConst, pkg string, owned map[string]
 
 		var mine, foreign, disabled int
 		var ms []method
+		var keep []string // the resolver plumbing gqlgen writes beside a plugin type's own field resolvers
 		for _, decl := range file.Decls {
+			if src, ok := plumbing(fset, decl); ok {
+				keep = append(keep, src)
+				continue
+			}
 			fn, ok := decl.(*ast.FuncDecl)
 			if !ok || fn.Recv == nil || len(fn.Recv.List) != 1 {
 				continue
@@ -225,7 +267,7 @@ func rewriteResolverFiles(root, surface, sdkConst, pkg string, owned map[string]
 		if foreign > 0 {
 			return nil, fmt.Errorf("%s mixes %d plugin-owned and %d core resolvers - rename the plugin's schema file so gqlgen gives it its own", path, mine, foreign)
 		}
-		src, err := renderResolvers(pkg, sdkConst, ms)
+		src, err := renderResolvers(pkg, sdkConst, ms, keep)
 		if err != nil {
 			return nil, fmt.Errorf("render %s: %w", path, err)
 		}
@@ -258,6 +300,29 @@ func resolverType(recv string) (string, bool) {
 	r := []rune(base)
 	r[0] = unicode.ToUpper(r[0])
 	return string(r), true
+}
+
+// gqlgen's accessor and struct for a type with field resolvers - func (r *Resolver) AcmeWarranty() AcmeWarrantyResolver
+// and type acmeWarrantyResolver struct{ *Resolver } - which land in the file defining the type, the plugin's own for its
+// own types, and have to survive the rewrite
+func plumbing(fset *token.FileSet, decl ast.Decl) (string, bool) {
+	switch d := decl.(type) {
+	case *ast.FuncDecl:
+		if d.Recv == nil || len(d.Recv.List) != 1 || recvType(d.Recv.List[0].Type) != "Resolver" {
+			return "", false
+		}
+	case *ast.GenDecl:
+		if d.Tok != token.TYPE || len(d.Specs) != 1 {
+			return "", false
+		}
+		if ts, ok := d.Specs[0].(*ast.TypeSpec); !ok || !strings.HasSuffix(ts.Name.Name, "Resolver") {
+			return "", false
+		}
+	default:
+		return "", false
+	}
+	src, err := node(fset, decl)
+	return src, err == nil
 }
 
 func recvType(e ast.Expr) string {

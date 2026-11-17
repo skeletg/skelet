@@ -299,3 +299,61 @@ func (r *productResolver) GoneWarranty(ctx context.Context, objs []*model.Produc
 		t.Errorf("the departed plugin's delegation file is still there: %v", err)
 	}
 }
+
+// A plugin's own type gets a delegated field only where it asks for a resolver - a reference back to core's record -
+// and the plumbing gqlgen writes for that type survives the rewrite
+func TestOwnTypeFieldsPointingAtCoreDelegate(t *testing.T) {
+	root := writeTree(t, map[string]string{
+		StateFile: `{"plugins": {"acme": {"enabled": true}}}`,
+		"plugins/acme/graphql/admin/a.graphqls": `type AcmeWarranty {
+  months: Int!
+  productId: ID!
+  product: Product @goField(forceResolver: true, batch: true)
+}
+`,
+		"graph/admin/a.resolvers.go": `package admin
+
+import (
+	"context"
+
+	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+)
+
+func (r *acmeWarrantyResolver) Product(ctx context.Context, objs []*model.AcmeWarranty) ([]*model.Product, error) {
+	panic("not implemented")
+}
+
+func (r *Resolver) AcmeWarranty() AcmeWarrantyResolver { return &acmeWarrantyResolver{r} }
+
+type acmeWarrantyResolver struct{ *Resolver }
+`,
+	})
+	set, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owned, err := sdlFields(root, set, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(owned) != 1 || owned[ownedKey("AcmeWarranty", "product")].typ != "AcmeWarranty" {
+		t.Fatalf("owned %+v - want AcmeWarranty.product alone, its plain fields left to the model", owned)
+	}
+	if _, err := rewriteResolverFiles(root, "admin", "sdk.GraphAdmin", "admin", owned); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(root, "graph", "admin", "a.resolvers.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`pluginhost.DoBatch(ctx, sdk.GraphAdmin, "acme", "AcmeWarranty.product", len(objs),`,
+		`return impl.AcmeWarrantyProduct(ctx, objs)`,
+		`func (r *Resolver) AcmeWarranty() AcmeWarrantyResolver`,
+		`type acmeWarrantyResolver struct{ *Resolver }`,
+	} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("rewritten file lacks %q:\n%s", want, b)
+		}
+	}
+}

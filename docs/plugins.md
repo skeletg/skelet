@@ -322,6 +322,32 @@ The columns are your model's fields - each field with a JSON tag reads its colum
 (`monthsLeft` reads `months_left`) - and `LoadMany` returns every row per record, ordered by
 `Link.Order`. Write your own query when the answer needs more than that.
 
+Your own types can point back at core's records the same way - a warranty's product, a note's
+customer. Ask for a resolver on the field, batched and nullable as before, and answer it from
+`graph/admin/refs` or `graph/front/refs`, which load core's own models through core's own queries -
+the admin's permission checks, the storefront's visibility on the channel:
+
+```graphql
+type AcmeWarranty {
+  months: Int!
+  productId: ID!
+  product: Product @goField(forceResolver: true, batch: true)
+}
+```
+
+```go
+func (adminResolver) AcmeWarrantyProduct(ctx context.Context, objs []*model.AcmeWarranty) ([]*model.Product, error) {
+    if err := sdk.RequirePermission(ctx, "catalog.view"); err != nil {
+        return nil, err
+    }
+    return refs.Products(ctx, sdk.IDs(objs, func(w *model.AcmeWarranty) string { return w.ProductID }))
+}
+```
+
+Each answers one record per id in their order, nil for one the caller can't see. The admin's cover
+products, customers, orders, categories and collections; the storefront's products, categories and
+collections, since a shopper sees no one else's customer or order.
+
 The storefront caches product, category and collection pages, and your field with them, so when your
 data on a record changes, call `sdk.InvalidateStorefront(ctx, sdk.StorefrontProduct, id)`: the
 record's pages are purged the way core's own change to it purges them, following the store's cache

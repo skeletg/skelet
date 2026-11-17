@@ -177,6 +177,7 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 		Scheduler:         s.Scheduler,
 	}
 
+	graphadmin.ExposeRefs(adminResolver) // plugins' types that point back at core's records load them through these
 	adminSrv := handler.New(graphadmin.NewExecutableSchema(graphadmin.Config{Resolvers: adminResolver}))
 	// Audit interceptor: one row per admin MUTATION (queries are reads and would swamp the table), plus the handful of QUERIES that are really bulk PII egress - a whole-table customer CSV or a DSAR bundle is the most sensitive thing an admin can pull, and auditing only mutations made the trail look complete while missing exactly that - records operation name, redacted variables, admin identity, client IP, success + duration - best-effort insert after the response completes
 	auditedExports := map[string]bool{
@@ -339,6 +340,7 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 	s.Cart.SetOfferLinks(cart.NewOfferLinks(s.Cart.Repo()))
 	adminResolver.OfferCheckout = frontResolver
 	adminResolver.OfferMail = NewOfferMail(s.Flows, s.TransactionalSender, s.Config, s.Customer)
+	graphfront.ExposeRefs(frontResolver)
 	frontSrv := handler.New(graphfront.NewExecutableSchema(graphfront.Config{Resolvers: frontResolver}))
 	frontSrv.AddTransport(transport.Options{})
 	frontSrv.AddTransport(transport.GET{})
