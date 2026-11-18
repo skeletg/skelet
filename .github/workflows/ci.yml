@@ -181,6 +181,12 @@ jobs:
         run: pnpm test
       - name: Build
         run: pnpm run build
+      # The published package, and a project built on its tarball with a plugin - a release is the wrong place to learn
+      # that it doesn't install, type-check or build outside this repo
+      - name: Build the package
+        run: pnpm run build:package
+      - name: Build a project on the package
+        run: node package/smoke.mjs "$RUNNER_TEMP/smoke"
 
   # The dashboard's workspace shell is pointer gestures and cross-device state, which no unit test reaches
   e2e:

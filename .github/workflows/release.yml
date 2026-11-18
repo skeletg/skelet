@@ -112,15 +112,17 @@ jobs:
           done
 
   # The dashboard at the tag's version, compiled - what a project builds with its plugins, and what a plugin's dashboard
-  # package imports from. Trusted publishing again, set on the package at npmjs.com once its first version is up
-  dashboard:
-    name: Publish the dashboard to npm
+  # package imports from. Built here with no credential in reach: installing and compiling runs every build dependency's
+  # code, and the job that can publish runs none of it
+  dashboard-build:
+    name: Build the dashboard package
     if: github.repository == 'skeletg/skelet'
-    needs: cli
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
+    defaults:
+      run:
+        working-directory: apps/dashboard
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v6
@@ -129,19 +131,40 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-          registry-url: https://registry.npmjs.org
-          cache: pnpm
-          cache-dependency-path: apps/dashboard/pnpm-lock.yaml
       - name: Install
-        working-directory: apps/dashboard
         run: pnpm install --frozen-lockfile
       - name: Build
-        working-directory: apps/dashboard
         env:
           TAG: ${{ github.ref_name }}
         run: node package/build.mjs "${TAG#v}"
+      - name: Build a project on it
+        run: node package/smoke.mjs "$RUNNER_TEMP/smoke"
+      - name: Pack
+        run: npm pack ./package/out --pack-destination "$RUNNER_TEMP/dashboard"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-package
+          path: ${{ runner.temp }}/dashboard/*.tgz
+          if-no-files-found: error
+
+  # Trusted publishing again, set on the package at npmjs.com once its first version is up
+  dashboard:
+    name: Publish the dashboard to npm
+    if: github.repository == 'skeletg/skelet'
+    needs: [cli, dashboard-build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@v4
+        with:
+          name: dashboard-package
       - name: Publish
-        working-directory: apps/dashboard/package/out
         env:
           TAG: ${{ github.ref_name }}
         run: |
@@ -152,4 +175,4 @@ jobs:
           fi
           channel=()
           case "$version" in *-*) channel=(--tag next) ;; esac
-          npm publish --access public "${channel[@]}"
+          npm publish "./skelet-dashboard-$version.tgz" --access public "${channel[@]}"

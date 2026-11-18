@@ -1,4 +1,4 @@
 @import "@skelet/dashboard/styles.css";
 
-/* Tailwind styles what it finds class names in - the dashboard's compiled code, and each plugin package you add */
-@source "../node_modules/@skelet/dashboard/dist";
+/* Tailwind styles what it finds class names in. The dashboard's own code is already covered - add a line for each
+   plugin package, like: @source "../node_modules/@acme/fraud-dashboard/src"; */

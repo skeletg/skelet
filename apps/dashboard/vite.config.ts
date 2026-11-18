@@ -1,9 +1,11 @@
 import path from 'node:path'
 import { readFileSync } from 'node:fs'
-import { defineConfig, loadEnv, type Plugin } from 'vite'
+import { defineConfig } from 'vite'
 import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 import babel from '@rolldown/plugin-babel'
 import tailwindcss from '@tailwindcss/vite'
+import { securityHeaders } from './package/headers.js'
+import { shared, unbundled, workerCommonJS } from './package/shared.js'
 
 const pkg = JSON.parse(readFileSync(path.resolve(__dirname, 'package.json'), 'utf8')) as {
   version: string
@@ -26,24 +28,6 @@ function pluginPackages(): string[] {
   }
 }
 
-function securityHeaders(): Plugin {
-  let connect = ''
-  return {
-    name: 'skelet-security-headers',
-    apply: 'build',
-    configResolved(config) {
-      const env = loadEnv(config.mode, config.envDir || __dirname, '')
-      const api = /^https?:\/\//.test(env.VITE_GRAPHQL_URL ?? '') ? new URL(env.VITE_GRAPHQL_URL).origin : ''
-      connect = [api, ...(env.UPLOAD_ORIGINS ?? '').split(/[\s,]+/)].filter(Boolean).join(' ')
-    },
-    generateBundle() {
-      const template = readFileSync(path.resolve(__dirname, 'headers.template'), 'utf8')
-      this.emitFile({ type: 'asset', fileName: '_headers', source: template.replace(' {CONNECT_ORIGINS}', connect ? ` ${connect}` : '') })
-      this.emitFile({ type: 'asset', fileName: '_redirects', source: '/* /index.html 200\n' })
-    },
-  }
-}
-
 export default defineConfig({
   plugins: [
     react(),
@@ -59,7 +43,7 @@ export default defineConfig({
       presets: [reactCompilerPreset()],
     }),
     tailwindcss(),
-    securityHeaders(),
+    securityHeaders({ template: path.resolve(__dirname, 'headers.template') }),
   ],
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
@@ -73,20 +57,13 @@ export default defineConfig({
     },
     // A plugin package's own copy of these would be a second React, a second Apollo cache, a router and a toast
     // store the dashboard's own never hear from
-    dedupe: ['react', 'react-dom', '@apollo/client', 'react-router-dom', '@lingui/core', '@lingui/react', 'sonner'],
+    dedupe: shared,
   },
   optimizeDeps: {
     // rrweb (the Replayer) is dynamic-imported only on the session-replay route. Pre-bundle it deterministically so the
-    // first visit doesn't hit a lazy on-demand optimize + reload
-    // The two CommonJS packages inside the playground's GraphQL worker - served raw, `import x from` finds no default
-    // export, the worker dies at load and Monaco runs the language service on the main thread, freezing the page
-    include: [
-      'rrweb',
-      'graphiql > @graphiql/react > monaco-graphql > graphql-language-service > nullthrows',
-      'graphiql > @graphiql/react > monaco-graphql > picomatch-browser',
-    ],
-    // The playground's Monaco worker registration is a bare `?worker` chain the dep optimizer can't pre-bundle - optimizing it serves a 504 and the whole route fails to load
-    exclude: ['graphiql/setup-workers/vite', '@graphiql/react/setup-workers/vite', ...pluginPackages()],
+    // first visit doesn't hit a lazy on-demand optimize + reload. The playground's worker lists are package/shared.js's
+    include: ['rrweb', ...workerCommonJS],
+    exclude: [...unbundled, ...pluginPackages()],
   },
   server: {
     // host:true binds to 0.0.0.0 so the dev server is reachable from outside the container. Harmless on host runs

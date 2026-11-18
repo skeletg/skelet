@@ -2,29 +2,43 @@
 // the plugins' own components, Tailwind over the dashboard and the plugins, the dashboard's public files, the API
 // proxy for dev, and the _headers and _redirects a static host serves the build with
 import path from 'node:path'
-import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { securityHeaders } from './headers.js'
+import { imports } from './optimize.js'
+import { shared, unbundled, workerCommonJS } from './shared.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 
-/** @param {{ plugins?: string[] }} [options] the npm packages of the plugins' dashboard halves */
+/**
+ * @param {{ plugins?: string[], connect?: string[], frame?: string[] }} [options] plugins are the npm packages of the
+ * plugins' dashboard halves; connect and frame are origins they reach or frame, added to the CSP beside the ones the
+ * project's .env already names (the API, the storefront, error monitoring, the upload hosts)
+ */
 export function skeletDashboard(options = {}) {
   const plugins = options.plugins ?? []
   return {
-    plugins: [react(), tailwindcss(), securityHeaders()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      securityHeaders({ template: path.join(here, 'headers.template'), connect: options.connect, frame: options.frame }),
+    ],
     publicDir: path.join(here, 'public'),
     resolve: {
-      // A plugin package's own copy of these would be a second React, a second Apollo cache, a second set of
-      // registries, a router and a toast store the dashboard's own never hear from
-      dedupe: ['react', 'react-dom', '@apollo/client', '@skelet/dashboard', 'react-router-dom', '@lingui/core', '@lingui/react', 'sonner'],
+      // One copy of each, whoever asks - see shared.js
+      dedupe: [...shared, '@skelet/dashboard'],
     },
     optimizeDeps: {
-      // The plugins are compiled as source, so React refresh reaches them - and the playground's Monaco worker setup
-      // is a ?worker chain the dep optimizer can't pre-bundle
-      exclude: ['graphiql/setup-workers/vite', '@graphiql/react/setup-workers/vite', ...plugins],
+      // Dev serves the dashboard and the plugins as the modules they are, the way this repo's own dev serves its
+      // source: one copy of each registry between them, React refresh in the plugins, and the playground's worker
+      // setup left to Vite. Pre-bundled, the dashboard's chunk for the playground fails to load and takes the page
+      exclude: ['@skelet/dashboard', ...unbundled, ...plugins],
+      // What the dashboard imports is pre-bundled up front instead - found one request at a time, each is a reload
+      include: [
+        ...imports.filter((spec) => !unbundled.includes(spec)).map((spec) => (shared.includes(packageOf(spec)) ? spec : `@skelet/dashboard > ${spec}`)),
+        ...workerCommonJS.map((chain) => `@skelet/dashboard > ${chain}`),
+      ],
     },
     server: {
       proxy: { '/api': { target: process.env.API_PROXY ?? 'http://localhost:8080', ws: true } },
@@ -32,22 +46,4 @@ export function skeletDashboard(options = {}) {
   }
 }
 
-// The CSP the dashboard is served with, from the template skelet gen writes - the API's origin and the upload hosts
-// filled in from the project's .env
-function securityHeaders() {
-  let connect = ''
-  return {
-    name: 'skelet-security-headers',
-    apply: 'build',
-    configResolved(config) {
-      const env = loadEnv(config.mode, config.envDir || config.root, '')
-      const api = /^https?:\/\//.test(env.VITE_GRAPHQL_URL ?? '') ? new URL(env.VITE_GRAPHQL_URL).origin : ''
-      connect = [api, ...(env.UPLOAD_ORIGINS ?? '').split(/[\s,]+/)].filter(Boolean).join(' ')
-    },
-    generateBundle() {
-      const template = readFileSync(path.join(here, 'headers.template'), 'utf8')
-      this.emitFile({ type: 'asset', fileName: '_headers', source: template.replace(' {CONNECT_ORIGINS}', connect ? ` ${connect}` : '') })
-      this.emitFile({ type: 'asset', fileName: '_redirects', source: '/* /index.html 200\n' })
-    },
-  }
-}
+const packageOf = (spec) => (spec.startsWith('@') ? spec.split('/').slice(0, 2).join('/') : spec.split('/')[0])

@@ -1,4 +1,4 @@
 import './index.css'
 import { mount } from '@/lib/package/mount'
 
-mount(document.getElementById('root')!)
+void mount(document.getElementById('root')!)

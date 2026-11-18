@@ -5,10 +5,23 @@ import { AppErrorBoundary } from '@/shared/errors/AppErrorBoundary'
 import { bootLocale } from '@/lib/i18n'
 import { runtimeConfig } from '@/lib/runtime-config'
 
-// @skelet/dashboard's entry, and this repo's own - starts the dashboard in el. A plugin registers by being imported
-// before this runs, and the styles are the page's to load: a project compiles @skelet/dashboard/styles.css with its
-// plugins' sources, so their class names get styled too
-export function mount(el: HTMLElement) {
+export type MountOptions = {
+  // Loads the project's plugins, by importing them: () => import('./plugins'). They load here, after the dashboard's
+  // own menu and registries exist - a plugin adding a page under a core menu group needs the group to be there - and
+  // before the first render
+  plugins?: () => Promise<unknown>
+}
+
+// @skelet/dashboard's entry, and this repo's own - starts the dashboard in el. The styles are the page's to load: a
+// project compiles @skelet/dashboard/styles.css with its plugins' sources, so their class names get styled too
+export async function mount(el: HTMLElement, options: MountOptions = {}) {
+  // A plugin that fails as it loads costs its own pages, not the dashboard - without the catch nothing ever renders
+  try {
+    await options.plugins?.()
+  } catch (err) {
+    console.error('@skelet/dashboard: a plugin failed to load, and the dashboard is starting without what it had left to register', err)
+  }
+
   // Before the first render, so the shell doesn't flash English for admins who work in another
   // language - the catalog fetch is async, but the activate lands before most routes finish loading
   bootLocale()

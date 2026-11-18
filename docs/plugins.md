@@ -536,21 +536,33 @@ side effects, and a production build would drop them.
 A dashboard package imports what it needs from `@skelet/dashboard/sdk` - the registries below, the
 detail-page layout, `useSaveSection` and the UI kit - so it registers into the same registries and
 draws with the same components the dashboard's own pages do. Ship your source
-(`"exports": { ".": "./src/plugin.tsx" }`), take `@skelet/dashboard`, `react`, `@apollo/client`,
-`react-router-dom`, `@lingui/react` and `sonner` as peers where you use them, and query through the
-dashboard's Apollo client with `@apollo/client/react`'s hooks. A storefront package imports from
+(`"exports": { ".": "./src/plugin.tsx" }`), take `@skelet/dashboard` as a peer and, where you use
+them, the packages it shares with you rather than owns - `react`, `react-dom`, `react-router-dom`,
+`@apollo/client`, `@lingui/core`, `@lingui/react` and `sonner` - and query through the dashboard's
+Apollo client with `@apollo/client/react`'s hooks. A storefront package imports from
 `@skelet/storefront-react/plugins/registry` and takes `@skelet/storefront-react` as a peer too - a
 copy of its own would be a registry no page reads.
 
 **The dashboard as a package.** `@skelet/dashboard` is the dashboard compiled - its macros and the
-React compiler already applied, every package it uses left as a dependency - so a project builds it
-rather than carrying its source. The package's `template/` is such a project: `src/config.ts` hands
-the dashboard the API's URL and the storefront's origin from `.env` through `configure()`,
-`src/plugins.ts` imports the plugins' packages, `src/index.css` compiles the dashboard's
-`styles.css` with Tailwind over its code and each plugin package (an `@source` line per package), and
-`vite.config.ts` is `skeletDashboard()` from `@skelet/dashboard/vite`. `vite build` makes static files
-with `_headers` and `_redirects` beside them. This repo's own dashboard stays its source and
-builds as before; the package is what a project without a clone of it uses.
+React compiler already applied, every package it uses left as a dependency at the version it was
+tested with - so a project builds it rather than carrying its source. The package's `template/` is
+such a project: `src/config.ts` hands the dashboard the API's URL and the storefront's origin from
+`.env` through `configure()`, `src/plugins.ts` imports the plugins' packages, `src/index.css`
+compiles the dashboard's `styles.css` with Tailwind over its code and each plugin package (an
+`@source` line per package), and `vite.config.ts` is `skeletDashboard()` from
+`@skelet/dashboard/vite`. `vite build` makes static files with `_headers` and `_redirects` beside
+them, the CSP in `_headers` naming the API, the storefront it previews and the upload hosts from
+`.env`; `skeletDashboard({ connect, frame })` adds the origins your plugins reach or frame. This
+repo's own dashboard stays its source and builds as before; the package is what a project without a
+clone of it uses.
+
+Two things about how such a project starts. The dashboard refuses to run unconfigured - there's no
+endpoint it could safely guess - so `main.ts` imports `./config` first and the dashboard dynamically
+after it. And `mount(el, { plugins: () => import('./plugins') })` loads the plugins itself, once the
+dashboard's own menu and registries are there: a plugin adds its page under a core menu group as
+it's imported, and needs the group to exist. A plugin that fails to load is logged, and the
+dashboard starts without what it had left to register. Each plugin goes in three places:
+`src/plugins.ts`, the `plugins` list in `vite.config.ts`, and an `@source` line in `src/index.css`.
 
 A plugin's UI can still live in the tree instead - `apps/dashboard/src/plugins/<slug>/`, which the
 dashboard's loader globs, or a storefront's `app/plugins/<slug>/`, imported by hand in its
