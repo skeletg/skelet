@@ -351,6 +351,14 @@ func TestAPluginInvalidatesARecordLikeCoreDoes(t *testing.T) {
 		t.Error("an order has no storefront pages, and was taken")
 	}
 
+	// A plugin's field on a product card sits in the listings, so they go stale with it as they do for core's edit
+	alone := newRig("invalidate", map[string]bool{catalog.CacheProductOnUpdate: true})
+	_ = alone.inv.Invalidate(ctx, "product", id)
+	alone.batch.Flush(ctx)
+	if got := alone.purger.on(catalog.CacheSurfaceCatalog); len(got) != 1 || !slices.Contains(got[0].tags, tagBrowse) {
+		t.Errorf("a product's purge left the grids that list it: %+v", got)
+	}
+
 	off := newRig("off", nil)
 	_ = off.inv.Invalidate(ctx, "product", id)
 	off.batch.Flush(ctx)

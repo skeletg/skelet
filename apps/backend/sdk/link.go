@@ -27,15 +27,28 @@ import (
 //	}
 //
 // The columns are the model's fields: each exported field with a json tag reads the column of that name in snake case
-// (monthsLeft reads months_left). Fields of other kinds - a nested object, a list - are left for resolvers of their own
+// (monthsLeft reads months_left). Fields of other kinds - a nested object, a list - are left for resolvers of their
+// own, and so is a scalar tagged `link:"-"`, which SDL sets with @goTag(key: "link", value: "-")
 type Link struct {
 	Table string // the plugin's table, prefixed with its slug
 	Key   string // its column holding the core record's id, a uuid
 	Order string // for LoadMany, the column a record's rows are ordered by - empty leaves the database's order
 }
 
-// Postgres identifiers as a plugin names its own tables and columns - they go into SQL unquoted
+// Postgres identifiers as a plugin names its own tables and columns. They go into SQL quoted, so a column called
+// order or from is a column, and one called current_user isn't the session's role
 var linkIdent = regexp.MustCompile(`^[a-z_][a-z0-9_]{0,62}$`)
+
+func quoted(ident string) string { return `"` + ident + `"` }
+
+// The form rows come back keyed under - an id is the same record upper-cased or in braces, and "" names none
+func canonicalID(id string) string {
+	u, err := uuid.Parse(id)
+	if err != nil {
+		return ""
+	}
+	return u.String()
+}
 
 // IDs is each record's id, in the records' order - what LoadOne and LoadMany take. A nil record, which a list with
 // holes in it hands a batch resolver, has the empty id, which loads nothing
@@ -58,7 +71,7 @@ func LoadOne[T any](ctx context.Context, l Link, ids []string) ([]*T, error) {
 	}
 	out := make([]*T, len(ids))
 	for i, id := range ids {
-		if found := rows[strings.ToLower(id)]; len(found) > 0 {
+		if found := rows[canonicalID(id)]; len(found) > 0 {
 			out[i] = found[0]
 		}
 	}
@@ -73,7 +86,7 @@ func LoadMany[T any](ctx context.Context, l Link, ids []string) ([][]*T, error) 
 	}
 	out := make([][]*T, len(ids))
 	for i, id := range ids {
-		out[i] = rows[strings.ToLower(id)]
+		out[i] = rows[canonicalID(id)]
 		if out[i] == nil {
 			out[i] = []*T{}
 		}
@@ -97,8 +110,8 @@ func loadLinked[T any](ctx context.Context, l Link, ids []string) (map[string][]
 	// Only well-formed ids reach the array literal - a malformed one matches nothing anyway
 	var wanted []string
 	for _, id := range ids {
-		if u, err := uuid.Parse(id); err == nil {
-			wanted = append(wanted, u.String())
+		if c := canonicalID(id); c != "" {
+			wanted = append(wanted, c)
 		}
 	}
 	out := map[string][]*T{}
@@ -109,9 +122,9 @@ func loadLinked[T any](ctx context.Context, l Link, ids []string) (map[string][]
 	if err != nil {
 		return nil, err
 	}
-	query := fmt.Sprintf(`SELECT %s::text, %s FROM %s WHERE %s = ANY($1::uuid[])`, l.Key, strings.Join(cols, ", "), l.Table, l.Key)
+	query := fmt.Sprintf(`SELECT %s::text, %s FROM %s WHERE %s = ANY($1::uuid[])`, quoted(l.Key), strings.Join(cols, ", "), quoted(l.Table), quoted(l.Key))
 	if l.Order != "" {
-		query += " ORDER BY " + l.Order
+		query += " ORDER BY " + quoted(l.Order)
 	}
 	rows, err := db.QueryContext(ctx, query, "{"+strings.Join(wanted, ",")+"}")
 	if err != nil {
@@ -144,10 +157,14 @@ func linkColumns(t reflect.Type) ([]string, [][]int, error) {
 	var fields [][]int
 	for f := range t.Fields() {
 		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
-		if !f.IsExported() || name == "" || name == "-" || !scannable(f.Type) {
+		if !f.IsExported() || name == "" || name == "-" || f.Tag.Get("link") == "-" || !scannable(f.Type) {
 			continue
 		}
-		cols = append(cols, snake(name))
+		col := snake(name)
+		if !linkIdent.MatchString(col) {
+			return nil, nil, fmt.Errorf("sdk.Link: %s.%s reads the column %q, which is not a lowercase column name", t, f.Name, col)
+		}
+		cols = append(cols, quoted(col))
 		fields = append(fields, f.Index)
 	}
 	if len(cols) == 0 {

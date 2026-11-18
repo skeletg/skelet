@@ -3,6 +3,7 @@ package example
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"go/parser"
 	"go/token"
@@ -21,6 +22,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
 	pluginhost "github.com/skeletg/skelet/apps/backend/core/internal/plugin"
 	"github.com/skeletg/skelet/apps/backend/core/internal/pluginmigrate"
+	"github.com/skeletg/skelet/apps/backend/core/internal/recordsave"
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
@@ -359,6 +361,39 @@ func TestMigrationsApply(t *testing.T) {
 	if export, err := pluginhost.CustomerDataExport(ctx, customer, channelID, ""); err != nil || len(export) != 0 {
 		t.Errorf("after the erasure: %v, %v - want nothing left", export, err)
 	}
+	// A note sent with the customer's save is written in the save's transaction: there when it commits, and gone
+	// with it when the plugin refuses the part
+	perms, err := pluginhost.RecordExtensionPermissions(ctx, sdk.RecordCustomer, []string{Slug})
+	if err != nil || !slices.Equal(perms, []string{"example.manage"}) {
+		t.Errorf("sending the note takes %v (%v), want example.manage", perms, err)
+	}
+	saveNote := func(note string) error {
+		tx, err := conn.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = tx.Rollback() }()
+		part, _ := json.Marshal(map[string]string{"note": note})
+		saving := &recordsave.Saving{
+			Event: recordsave.EventCustomerSaving, Record: recordsave.RecordCustomer, RecordID: customer, ChannelID: channelID,
+			Extensions: map[string]json.RawMessage{Slug: part}, Tx: tx,
+		}
+		if err := sharedBus().PublishSync(ctx, saving); err != nil {
+			return err
+		}
+		return tx.Commit()
+	}
+	if err := saveNote("from the save"); err != nil {
+		t.Fatalf("a note with the save: %v", err)
+	}
+	if err := saveNote("  "); err == nil {
+		t.Error("an empty note was taken")
+	}
+	var saved string
+	if err := conn.QueryRow(`SELECT string_agg(note, ',') FROM example_plugin_customer_notes WHERE customer_id = $1`, customer).Scan(&saved); err != nil || saved != "from the save" {
+		t.Errorf("notes after the two saves: %q, %v - want the one that committed", saved, err)
+	}
+
 	if _, err := conn.Exec(`INSERT INTO example_plugin_customer_notes (customer_id, note) VALUES ($1, 'again')`, customer); err != nil {
 		t.Fatal(err)
 	}

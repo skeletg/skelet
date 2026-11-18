@@ -2068,6 +2068,19 @@ type PermissionGroup struct {
 	SortOrder int32     `json:"sort_order"`
 }
 
+type PluginCustomerErasure struct {
+	ID            uuid.UUID `json:"id"`
+	CustomerID    uuid.UUID `json:"customer_id"`
+	ChannelID     uuid.UUID `json:"channel_id"`
+	Email         string    `json:"email"`
+	PluginSlug    string    `json:"plugin_slug"`
+	DataKey       string    `json:"data_key"`
+	Attempts      int32     `json:"attempts"`
+	LastError     string    `json:"last_error"`
+	NextAttemptAt time.Time `json:"next_attempt_at"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
 type PluginEventDedup struct {
 	PluginSlug  string    `json:"plugin_slug"`
 	EventType   string    `json:"event_type"`

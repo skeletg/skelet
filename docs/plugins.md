@@ -459,9 +459,12 @@ p.RegisterCustomerData(sdk.CustomerData{
 `Export` returns anything that marshals to JSON, and the export carries it under `<slug>:<key>`; nil
 leaves nothing. An error fails the export, since one quietly missing a section answers the request
 wrongly. `Erase` runs after the customer is erased - core blanks the account rather than deleting
-it, so a cascading key never fires - and again until it returns nil, so make it safe to repeat. Both
-run whether or not your plugin is on, since what you kept outlives that. A customer's deletion is
-your foreign key's to handle.
+it, so a cascading key never fires - and after one is deleted, for the rows a key can't reach: the
+ones you keep by email, or in a system of your own. Core keeps each erasure owed until yours returns
+nil, asking again on a widening schedule for as long as that takes, and the `plugin-erasures` job
+fails, and alerts, while any is - so make it safe to repeat. Both run whether or not your plugin is
+on, since what you kept outlives that. `who.Email` is empty when the address wasn't confirmed as the
+customer's: never match your rows on an empty one.
 
 ### Fees
 

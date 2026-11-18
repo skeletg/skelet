@@ -2,6 +2,7 @@ package example
 
 import (
 	"context"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -70,4 +71,28 @@ var customersWithNotes = sdk.ListFilter{
 		}
 		return ids, rows.Err()
 	},
+}
+
+// A note sent with the customer's own save - extensions: {"example": {"note": "prefers mornings"}} - lands in the same
+// transaction, so it's there exactly when the save is. plugin.go declares the part, and that sending it takes
+// example.manage on top of the permission to save the customer
+func saveNoteWithCustomer(p *sdk.Plugin) func(ctx context.Context, e any) error {
+	return func(ctx context.Context, e any) error {
+		save, ok := e.(sdk.RecordSaving)
+		if !ok {
+			return nil
+		}
+		var part struct {
+			Note string `json:"note"`
+		}
+		if given, err := p.Extension(save, &part); !given || err != nil {
+			return err
+		}
+		if strings.TrimSpace(part.Note) == "" {
+			return sdk.Invalid("a note needs some text")
+		}
+		_, err := save.SavingTx().ExecContext(ctx,
+			`INSERT INTO example_plugin_customer_notes (customer_id, note) VALUES ($1, $2)`, save.SavingRecordID(), part.Note)
+		return err
+	}
 }

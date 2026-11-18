@@ -50,7 +50,7 @@ func init() {
 		Version:  "0.1.0",
 		SDKRange: "^0.1.0",
 		Emits:    []string{EventSettled, EventSettling},
-		Consumes: []string{EventSettled, EventSettling, sdk.EventOrderPlacing, sdk.EventOrderTransitioning, sdk.EventLoyaltyEarning, sdk.EventSubscriptionRenewing},
+		Consumes: []string{EventSettled, EventSettling, sdk.EventOrderPlacing, sdk.EventOrderTransitioning, sdk.EventLoyaltyEarning, sdk.EventSubscriptionRenewing, sdk.EventCustomerSaving},
 		Capabilities: []string{
 			"db.write",
 			"events.publish:" + EventSettled,
@@ -241,6 +241,8 @@ func init() {
 	p.RegisterDataResource(recordsResource)
 	p.RegisterCustomerData(customerNotes)
 	p.RegisterListFilter(customersWithNotes)
+	p.RegisterRecordExtension(sdk.RecordExtension{Record: sdk.RecordCustomer, Permission: "example.manage"})
+	p.SubscribeSync(sdk.EventCustomerSaving, 100, saveNoteWithCustomer(p))
 
 	p.RegisterMigrations(sdk.MigrationsRegistration{Namespace: Slug, FS: migrationsFS})
 }

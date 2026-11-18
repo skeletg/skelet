@@ -2,8 +2,11 @@ package plugin
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
+	"runtime/debug"
 	"time"
 
 	"github.com/google/uuid"
@@ -31,27 +34,61 @@ func CustomerDataExport(ctx context.Context, customerID, channelID uuid.UUID, em
 		if err != nil {
 			return nil, fmt.Errorf("plugin %s: export %s: %w", r.PluginSlug, r.Data.Key, err)
 		}
-		if v != nil {
+		// Marshalled here to find a section that won't go into the bundle while its plugin can still be named, and to
+		// leave out one that comes to null - a nil slice in an `any` isn't nil
+		raw, err := json.Marshal(v)
+		if err != nil {
+			return nil, fmt.Errorf("plugin %s: export %s doesn't read as JSON: %w", r.PluginSlug, r.Data.Key, err)
+		}
+		if string(raw) != "null" {
 			out[r.Key()] = v
 		}
 	}
 	return out, nil
 }
 
-// EraseCustomerData asks every compiled-in plugin to scrub what it keeps about an erased customer. Each is asked even
-// when another failed, and the failures come back together so the erasure is tried again
+// EraseCustomerData asks every compiled-in plugin to scrub what it keeps about a customer who's gone. Each is asked
+// even when another failed, and the failures come back together
 func EraseCustomerData(ctx context.Context, customerID, channelID uuid.UUID, email string) error {
-	who := sdk.CustomerDataSubject{CustomerID: customerID, ChannelID: channelID, Email: email}
 	var errs []error
-	for _, r := range sdk.CustomerDataSets() {
-		if r.Data.Erase == nil {
-			continue
-		}
-		if err := customerDataCall(ctx, func(ctx context.Context) error { return r.Data.Erase(ctx, who) }); err != nil {
-			errs = append(errs, fmt.Errorf("plugin %s: erase %s: %w", r.PluginSlug, r.Data.Key, err))
+	for _, ref := range CustomerDataErasers() {
+		if err := EraseCustomerDataSet(ctx, ref, customerID, channelID, email); err != nil {
+			errs = append(errs, err)
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// One data set of one plugin - what an erasure is owed by
+type CustomerDataRef struct{ Plugin, Key string }
+
+// CustomerDataErasers is the data sets that have something to scrub when a customer goes
+func CustomerDataErasers() []CustomerDataRef {
+	var out []CustomerDataRef
+	for _, r := range sdk.CustomerDataSets() {
+		if r.Data.Erase != nil {
+			out = append(out, CustomerDataRef{Plugin: r.PluginSlug, Key: r.Data.Key})
+		}
+	}
+	return out
+}
+
+// ErrNoCustomerData is a data set no compiled-in plugin registers any more
+var ErrNoCustomerData = errors.New("plugin: no such customer data set compiled in")
+
+// EraseCustomerDataSet asks one plugin to scrub one of its data sets for a customer
+func EraseCustomerDataSet(ctx context.Context, ref CustomerDataRef, customerID, channelID uuid.UUID, email string) error {
+	who := sdk.CustomerDataSubject{CustomerID: customerID, ChannelID: channelID, Email: email}
+	for _, r := range sdk.CustomerDataSets() {
+		if r.PluginSlug != ref.Plugin || r.Data.Key != ref.Key || r.Data.Erase == nil {
+			continue
+		}
+		if err := customerDataCall(ctx, func(ctx context.Context) error { return r.Data.Erase(ctx, who) }); err != nil {
+			return fmt.Errorf("plugin %s: erase %s: %w", ref.Plugin, ref.Key, err)
+		}
+		return nil
+	}
+	return fmt.Errorf("%w: %s:%s", ErrNoCustomerData, ref.Plugin, ref.Key)
 }
 
 // Not Instrument - its kill switch would skip a plugin that's off, and the law doesn't
@@ -61,6 +98,7 @@ func customerDataCall(ctx context.Context, fn func(context.Context) error) (err 
 	defer func() {
 		if rec := recover(); rec != nil {
 			err = errFromPanic(rec)
+			slog.ErrorContext(ctx, "plugin customer data hook panicked", "err", err, "stack", string(debug.Stack()))
 		}
 	}()
 	return fn(ctx)

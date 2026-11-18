@@ -14,8 +14,10 @@ type CustomerData struct {
 	// What the export carries, marshalled to JSON - nil for nothing. An error fails the whole export, since one missing
 	// a section answers the request wrongly while looking complete
 	Export func(ctx context.Context, who CustomerDataSubject) (any, error)
-	// Removes or blanks what the plugin keeps. It runs after the customer is erased and again until it returns nil, so
-	// it must be safe to repeat; it runs whether or not the plugin is on, since the data outlives that
+	// Removes or blanks what the plugin keeps. It runs after the customer is erased or deleted and again, on a widening
+	// schedule, until it returns nil - core keeps the erasure owed for as long as that takes - so it must be safe to
+	// repeat; it runs whether or not the plugin is on, since the data outlives that. A subject's Email is empty when
+	// the account's address wasn't confirmed as theirs: never match your rows on an empty one
 	Erase func(ctx context.Context, who CustomerDataSubject) error
 }
 

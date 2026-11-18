@@ -224,6 +224,8 @@ func (inv Invalidator) Invalidate(ctx context.Context, kind string, id uuid.UUID
 	r := inv.r
 	switch kind {
 	case "product":
+		// The grids too, as a product edit of core's own does - a plugin's field on a product card sits in listings
+		r.grids(reason)
 		return r.product(ctx, id, catalog.CacheProductOnUpdate, reason)
 	case "category":
 		r.batch.Purge(catalog.CacheSurfaceCatalog, []string{categoryTag(id), tagBrowse}, r.paths.CanonicalPaths(ctx, urlrewrite.EntityTypeCategory, id), reason)
