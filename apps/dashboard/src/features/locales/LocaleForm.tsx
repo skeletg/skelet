@@ -11,7 +11,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { PluginSections } from '@/plugins/detail-sections'
 import { LoadError } from '@/shared/errors/LoadError'
 import { ClashNote } from '@/shared/saving/RestoredDraftBanner'
 import { RecordFormPage } from '@/shared/saving/RecordFormPage'
@@ -114,7 +113,7 @@ function LocaleFormPage({ mode, locale }: { mode: 'create' | 'edit'; locale?: Ex
       createLabel="Create language"
       labels={LOCALE_LABELS}
       // Plugin sections render OUTSIDE the core form so their own state/buttons can't trip the locale save
-      after={<PluginSections target="locale" entity={locale ?? null} mode={isEdit ? 'edit' : 'create'} />}
+      plugins={{ target: 'locale', entity: locale ?? null, mode: isEdit ? 'edit' : 'create' }}
     >
       <DetailPageSection
         title="Identity"

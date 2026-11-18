@@ -265,6 +265,7 @@ export function BlogPostsList({ startCreating = false }: { startCreating?: boole
       </div>
 
       <DataTable
+        target="blog.posts"
         urlState={urlState}
         columns={columns}
         data={rows}

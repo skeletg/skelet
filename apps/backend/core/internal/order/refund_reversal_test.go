@@ -205,6 +205,7 @@ func TestMerchandiseUnitByLine_ExcludesTax(t *testing.T) {
 		SubtotalAmount: 2_000,
 		TaxAmount:      400,
 		TotalAmount:    2_000,
+		TaxInclusive:   true,
 	}
 	if got, want := merchandiseUnitByLine(inclusive)[lineA], refundUnitByLine(inclusive)[lineA]; got != want {
 		t.Errorf("inclusive pricing: merchandise %d vs refund %d, want them equal", got, want)
@@ -237,5 +238,37 @@ func TestRefundBasisKeepsShippingTaxOffTheLines(t *testing.T) {
 	}
 	if !o.TaxIncluded() {
 		t.Error("tax inside the prices reads as added on top")
+	}
+}
+
+// A refunded handling fee is not returned goods: it takes back no loyalty points and no referral credit
+func TestRefundedMerchandiseFraction_AFeesRefundIsNotGoods(t *testing.T) {
+	// 2000 merchandise, 600 fees with 50 tax on them, 200 tax on the goods, tax added on top: 2850 total
+	o := Order{
+		ID:             uuid.New(),
+		Lines:          []OrderLine{{ID: uuid.New(), UnitPrice: 2_000, Quantity: 1}},
+		SubtotalAmount: 2_000,
+		TaxAmount:      250,
+		Fees:           []Fee{{Key: "acme:cod", AmountCents: 500, TaxCents: 50, Taxable: true}, {Key: "acme:eco", AmountCents: 100}},
+		TotalAmount:    2_850,
+	}
+	if o.FeesRefundable() != 650 {
+		t.Fatalf("fees refundable %d, want 650", o.FeesRefundable())
+	}
+	for name, tc := range map[string]struct {
+		memo CreditMemo
+		want float64
+	}{
+		"the fee alone":             {CreditMemo{TotalCents: 550, FeesRefundCents: 550}, 0},
+		"every fee":                 {CreditMemo{TotalCents: 650, FeesRefundCents: 650}, 0},
+		"the fee and half the rest": {CreditMemo{TotalCents: 650 + 1_100, FeesRefundCents: 650}, 0.5},
+		"the whole order":           {CreditMemo{TotalCents: 2_850, FeesRefundCents: 650}, 1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got, err := refundedMerchandiseFraction(t.Context(), &creditedRepo{memos: []CreditMemo{tc.memo}}, o)
+			if err != nil || got != tc.want {
+				t.Errorf("fraction = %v, %v - want %v", got, err, tc.want)
+			}
+		})
 	}
 }

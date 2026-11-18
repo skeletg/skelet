@@ -35,6 +35,7 @@ import { ConfigurablePDP } from "./ConfigurablePDP";
 import { CustomOptionsPDP } from "./CustomOptionsPDP";
 import { GroupedPDP } from "./GroupedPDP";
 import { SimplePDP } from "./SimplePDP";
+import { Slots } from "@/app/plugins/Slots";
 
 export async function generateMetadata(
   props: {
@@ -215,6 +216,7 @@ export default async function ProductPage(
       )}
 
       {product.kind === "KIT" && <KitContents productId={product.id} />}
+      <Slots zone="product:details" ctx={{ productId: product.id, sku: product.sku, name: heading }} />
 
       <ReviewStateProvider productId={id}>
         <ReviewsSection

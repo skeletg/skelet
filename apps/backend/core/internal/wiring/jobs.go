@@ -30,6 +30,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	paymentpkg "github.com/skeletg/skelet/apps/backend/core/internal/payment"
 	pluginhost "github.com/skeletg/skelet/apps/backend/core/internal/plugin"
+	"github.com/skeletg/skelet/apps/backend/core/internal/pluginerase"
 	"github.com/skeletg/skelet/apps/backend/core/internal/recommend"
 	"github.com/skeletg/skelet/apps/backend/core/internal/revalidate"
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
@@ -124,6 +125,10 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 			_, err := jobScheduler.PruneRuns(ctx, time.Now().AddDate(0, 0, -schedCfg.HistoryRetentionDays(ctx)))
 			return err
 		})
+	// Fails for as long as a plugin still holds data about a customer who's gone, so the failure alert is the
+	// operator's notice that an erasure hasn't finished
+	jobScheduler.Register("plugin-erasures", "@every 10m", "Ask plugins again to erase what they still hold about erased or deleted customers.",
+		func(ctx context.Context) error { return pluginerase.Drain(ctx, d.Queries, time.Now()) })
 	// The other append-forever operational logs, same shape: config-driven window, <= 0 keeps forever
 	jobScheduler.Register("audit-log-prune", "@every 24h", "Delete admin audit-log entries past the retention window.",
 		func(ctx context.Context) error {

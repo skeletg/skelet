@@ -38,6 +38,8 @@ type Order struct {
 	DiscountAmount    int64
 	TaxAmount         int64
 	ShippingTaxAmount int64 // the part of TaxAmount charged on shipping
+	Fees              []Fee // what plugins charged on top, each with its part of TaxAmount
+	feesUnreadable    bool  // the stored fees didn't decode - see decodeFees
 	TotalAmount       int64
 	AnonID            string // the visitor id it was placed under - a guest order's later events reach the profile its placement did
 	Locale            string // the storefront language it was placed in, so its emails can go out in it - empty when not known
@@ -109,6 +111,7 @@ type CheckoutFieldAnswer struct {
 
 type OrderAmounts struct {
 	Subtotal, Shipping, Discount, Tax, ShippingTax, Total int64
+	Fees                                                  []Fee
 }
 
 // One line item, prices in cents - a bundle line carries the bundle total with picks in Components, and simple lines leave it empty
@@ -208,6 +211,9 @@ type ListPageFilter struct {
 	Limit           int32
 	Offset          int32
 	SkipCount       bool // the total is left 0, for callers that never show it
+	// Set by a plugin's list filter - RestrictIDs narrows to OnlyIDs, which may be empty when nothing matched
+	OnlyIDs     []uuid.UUID
+	RestrictIDs bool
 }
 
 type Repository interface {

@@ -141,6 +141,9 @@ var blockHTML = map[string]func(Block, renderCtx) string{
 			totalsRow(&b, labelHTML(blk, "discount"), "-"+v["order.discount"], false)
 		}
 		totalsRow(&b, labelHTML(blk, "shipping"), v["order.shipping"], false)
+		for _, f := range rc.Fees {
+			totalsRow(&b, html.EscapeString(f.Label), money(f.Amount, rc.Currency), false)
+		}
 		if !included {
 			totalsRow(&b, labelHTML(blk, "tax"), v["order.tax"], false)
 		}
@@ -293,6 +296,9 @@ var blockText = map[string]func(Block, renderCtx) string{
 			fmt.Fprintf(&b, "%s: -%s\n", labelOf(blk, "discount"), v["order.discount"])
 		}
 		fmt.Fprintf(&b, "%s: %s\n", labelOf(blk, "shipping"), v["order.shipping"])
+		for _, f := range rc.Fees {
+			fmt.Fprintf(&b, "%s: %s\n", f.Label, money(f.Amount, rc.Currency))
+		}
 		included := v["order.taxIncluded"] == "true"
 		if !included {
 			fmt.Fprintf(&b, "%s: %s\n", labelOf(blk, "tax"), v["order.tax"])

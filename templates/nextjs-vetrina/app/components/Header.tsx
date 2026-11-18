@@ -16,6 +16,7 @@ import { HeaderMenu } from "./HeaderMenu";
 import { HeaderShell } from "./HeaderShell";
 import { SearchModal } from "./SearchModal";
 import { AssistantTrigger } from "./assistant/AssistantTrigger";
+import { Slots } from "@/app/plugins/Slots";
 
 export async function Header() {
   // getChannel is cached at the request level so this doesn't
@@ -127,6 +128,7 @@ export async function Header() {
             <StoresLink />
             <SearchModal />
             <AssistantTrigger />
+            <Slots zone="header:actions" />
             {/* The currency switcher (approx-price presentment) is deliberately not rendered - the
                 provider, cookie plumbing and backend rates all still work, so restoring it is just
                 mounting components/CurrencySwitcher here again */}

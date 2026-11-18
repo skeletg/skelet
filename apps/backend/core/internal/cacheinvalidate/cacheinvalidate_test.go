@@ -96,12 +96,13 @@ type rig struct {
 	queue  *fakeQueue
 	cfg    *fakeConfig
 	batch  *Batcher
+	inv    Invalidator
 }
 
 func newRig(mode string, toggles map[string]bool) rig {
 	r := rig{bus: events.NewBus(), purger: &fakePurger{}, queue: &fakeQueue{},
 		cfg: &fakeConfig{strings: map[string]string{catalog.CacheProductMode: mode}, bools: toggles}}
-	r.batch = Register(r.bus, r.purger, r.queue, fakePaths{}, r.cfg)
+	r.batch, r.inv = Register(r.bus, r.purger, r.queue, fakePaths{}, r.cfg)
 	return r
 }
 
@@ -325,5 +326,43 @@ func TestAttributeChangesPurgeTheProductsCarryingThem(t *testing.T) {
 	_ = r.fire(t, &catalog.AttributeDeleted{ProductIDs: []uuid.UUID{id}})
 	if !productTagged(r.purger.on(catalog.CacheSurfaceProduct), id) {
 		t.Error("a deleted attribute left the PDP cached")
+	}
+}
+
+// A plugin's change to its own data on a record purges what core's change to the record would - and the product's
+// follows the same mode and toggle
+func TestAPluginInvalidatesARecordLikeCoreDoes(t *testing.T) {
+	ctx := context.Background()
+	r := newRig("invalidate", map[string]bool{catalog.CacheProductOnUpdate: true})
+	id := uuid.New()
+	for _, kind := range []string{"product", "category", "collection", "cms-page"} {
+		if err := r.inv.Invalidate(ctx, kind, id); err != nil {
+			t.Fatalf("%s: %v", kind, err)
+		}
+	}
+	r.batch.Flush(ctx)
+	if got := r.purger.on(catalog.CacheSurfaceProduct); len(got) != 1 || !slices.Contains(got[0].tags, "product:"+id.String()) {
+		t.Errorf("product purges %+v", got)
+	}
+	if got := r.purger.on(catalog.CacheSurfaceCatalog); len(got) != 1 || !slices.Contains(got[0].tags, "category:"+id.String()) || !slices.Contains(got[0].tags, "collection:"+id.String()) {
+		t.Errorf("catalog purges %+v", got)
+	}
+	if err := r.inv.Invalidate(ctx, "order", id); err == nil {
+		t.Error("an order has no storefront pages, and was taken")
+	}
+
+	// A plugin's field on a product card sits in the listings, so they go stale with it as they do for core's edit
+	alone := newRig("invalidate", map[string]bool{catalog.CacheProductOnUpdate: true})
+	_ = alone.inv.Invalidate(ctx, "product", id)
+	alone.batch.Flush(ctx)
+	if got := alone.purger.on(catalog.CacheSurfaceCatalog); len(got) != 1 || !slices.Contains(got[0].tags, tagBrowse) {
+		t.Errorf("a product's purge left the grids that list it: %+v", got)
+	}
+
+	off := newRig("off", nil)
+	_ = off.inv.Invalidate(ctx, "product", id)
+	off.batch.Flush(ctx)
+	if got := off.purger.on(catalog.CacheSurfaceProduct); len(got) != 0 {
+		t.Errorf("product caching off, and still purged: %+v", got)
 	}
 }

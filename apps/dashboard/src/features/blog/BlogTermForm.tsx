@@ -90,6 +90,7 @@ export function BlogTermForm({ kind, term, writes }: { kind: TermKind; term?: Ex
   return (
     <>
       <RecordFormPage
+        plugins={{ target: 'blog-term', entity: term ?? null, mode: term ? 'edit' : 'create' }}
         record={record}
         readOnly={!canManage}
         backTo={kind.backTo}

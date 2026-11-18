@@ -114,12 +114,16 @@ func TestEveryCustomerScopedFrontFieldIsAccountedFor(t *testing.T) {
 	fields := parseFrontFieldResolvers(t)
 
 	seen := 0
-	for key := range fields {
+	for key, plugin := range fields {
 		parent, _, _ := strings.Cut(key, ".")
 		if !customerScopedParents[parent] {
 			continue
 		}
 		seen++
+		// A plugin's field is handed the parents the caller could already see, and reads its own rows by their ids
+		if plugin != "" {
+			continue
+		}
 		reason, ok := customerScopedFields[key]
 		if !ok {
 			t.Errorf("front field resolver %s hangs off a customer-scoped parent but is not accounted for - "+
@@ -151,7 +155,8 @@ func TestCustomerScopedFieldListIsCurrent(t *testing.T) {
 }
 
 // Field resolvers keyed as Type.Field - the by-name map would merge same-named methods on different parents
-func parseFrontFieldResolvers(t *testing.T) map[string]bool {
+// Field resolver keys, each with the plugin it delegates to - empty for core's own
+func parseFrontFieldResolvers(t *testing.T) map[string]string {
 	t.Helper()
 	entries, err := os.ReadDir(".")
 	if err != nil {
@@ -159,7 +164,7 @@ func parseFrontFieldResolvers(t *testing.T) map[string]bool {
 	}
 
 	fset := token.NewFileSet()
-	out := map[string]bool{}
+	out := map[string]string{}
 	for _, entry := range entries {
 		name := entry.Name()
 		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
@@ -175,7 +180,7 @@ func parseFrontFieldResolvers(t *testing.T) map[string]bool {
 				continue
 			}
 			if key := frontFieldResolverKey(fn); key != "" {
-				out[key] = true
+				out[key] = delegatedPluginSlug(fn.Body)
 			}
 		}
 	}

@@ -145,6 +145,7 @@ export function LowStockList() {
       </div>
 
       <DataTable
+        target="inventory.low-stock"
         urlState={urlState}
         columns={columns}
         data={rows}

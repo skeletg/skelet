@@ -75,7 +75,7 @@ import {
 import type { AttributeInputType } from '@/graphql/schema.types'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { LoadError } from '@/shared/errors/LoadError'
-import { PluginSections } from '@/plugins/detail-sections'
+import { PluginAside, PluginSections } from '@/plugins/detail-sections'
 import {
   AssignAttributeDocument,
   AttributesDocument,
@@ -329,7 +329,7 @@ export function ProductTypeDetail({ productTypeId }: { productTypeId?: string } 
 
   return (
     <SaveRegistryContext.Provider value={saveContextValue}>
-    <DetailPageLayout>
+    <DetailPageLayout rightSidebar={<PluginAside target="product-type" entity={productType} mode="edit" />}>
       <DetailPageHeader
         backTo="/catalog/product-types"
         backLabel="Back to product types"
@@ -378,6 +378,7 @@ export function ProductTypeDetail({ productTypeId }: { productTypeId?: string } 
       />
 
       <DetailPageBody>
+        <PluginSections target="product-type" entity={productType} mode="edit" placement="before" />
       {actionError && (
         <div className="px-6 py-4">
           <Alert variant="destructive">

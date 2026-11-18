@@ -9,7 +9,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/remoteprovider"
 )
 
-// Order tax computed by a merchant HTTP endpoint (remoteprovider kind=tax_provider) instead of the core zone engine - the escape hatch for AvaTax or TaxJar without a Go plugin With one on a channel, placement writes its result through the OrderPlacing.TaxCents seam, and core's per-line calc only runs when no provider claims the order fail_open falls back to core and fail_closed aborts - Wire contract: request {channelId, currency, taxInclusive, subtotalCents, discountCents, shippingCents, customerGroup, taxExempt, address, lines}, response {taxCents}
+// Order tax computed by a merchant HTTP endpoint (remoteprovider kind=tax_provider) instead of the core zone engine - the escape hatch for AvaTax or TaxJar without a Go plugin With one on a channel, placement writes its result through the OrderPlacing.TaxCents seam, and core's per-line calc only runs when no provider claims the order fail_open falls back to core and fail_closed aborts - Wire contract: request {channelId, currency, taxInclusive, subtotalCents, discountCents, shippingCents, customerGroup, taxExempt, address, lines, fees}, response {taxCents}
 
 type RemoteTaxSource interface {
 	// The order's total tax - ok=false means no provider or fail_open, so use core, while a non-nil error means a fail_closed provider failed and placement aborts
@@ -27,6 +27,7 @@ type RemoteTaxInput struct {
 	TaxExempt     bool
 	Address       OrderAddress
 	Lines         []RemoteTaxLine
+	Fees          []Fee
 }
 
 type RemoteTaxLine struct {
@@ -57,6 +58,7 @@ func remoteTaxInputFromCheckout(cc *checkoutContext, discountCents, shippingCent
 		TaxExempt:     cc.customer.TaxExempt,
 		Address:       cc.shipping,
 		Lines:         lines,
+		Fees:          cc.fees,
 	}
 }
 
@@ -71,6 +73,16 @@ type remoteTaxRequest struct {
 	TaxExempt     bool               `json:"taxExempt"`
 	Address       remoteTaxAddress   `json:"address"`
 	Lines         []remoteTaxReqLine `json:"lines"`
+	// Charges plugins added on top, in the same minor units - each the provider's to tax as it would the lines
+	Fees []remoteTaxReqFee `json:"fees,omitempty"`
+}
+
+type remoteTaxReqFee struct {
+	Key         string `json:"key"`
+	Label       string `json:"label"`
+	AmountCents int64  `json:"amountCents"`
+	TaxClass    string `json:"taxClass,omitempty"`
+	Taxable     bool   `json:"taxable"`
 }
 
 type remoteTaxAddress struct {
@@ -141,7 +153,12 @@ func remoteTaxRequestFrom(in RemoteTaxInput) remoteTaxRequest {
 	for i, l := range in.Lines {
 		lines[i] = remoteTaxReqLine(l) // same fields, differ only in JSON tags
 	}
+	var fees []remoteTaxReqFee
+	for _, f := range in.Fees {
+		fees = append(fees, remoteTaxReqFee{Key: f.Key, Label: f.Label, AmountCents: f.AmountCents, TaxClass: f.TaxClass, Taxable: f.Taxable})
+	}
 	return remoteTaxRequest{
+		Fees:          fees,
 		ChannelID:     in.ChannelID.String(),
 		Currency:      in.Currency,
 		TaxInclusive:  in.TaxInclusive,

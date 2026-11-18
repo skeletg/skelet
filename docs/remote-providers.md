@@ -206,7 +206,7 @@ structs by `skelet gen`, so they cannot drift from what core actually sends.
 | `shipping_carrier` | Rate a basket to a destination; the options the shopper picks from |
 | `delivery_points` | Search and resolve PO boxes and lockers for a PO box delivery option; see [checkout.md](checkout.md) |
 | `shipping_tracking` | Carrier tracking status for a shipment |
-| `tax_provider` | Tax owed on an order |
+| `tax_provider` | Tax owed on an order, plugin fees included (`fees`, each with its `taxClass` and whether it's `taxable`) |
 | `address_validator` | Whether an address is valid, plus a normalized form |
 | `promotion_condition` | Whether a promotion rule matches the cart |
 | `promotion_action` | The discount a matched rule applies |

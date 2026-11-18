@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { ApproxPrice } from "@/app/components/ApproxPrice";
 import { CartLineOptionsList } from "@/app/components/CartLineOptionsList";
 import { ChargeCurrencyNote } from "@/app/components/ChargeCurrencyNote";
+import { Slots } from "@/app/plugins/Slots";
 import { OwnCartLink } from "@/app/components/offer/LeaveOfferCheckout";
 import { formatPrice } from "@skelet/storefront-next/cart/read";
 import { getChannel } from "@skelet/storefront-next/channel/read";
@@ -120,6 +121,8 @@ export async function OrderSummary({
           amountDue: t("amountDue"),
         }}
       />
+      {/* Under the total, a plugin's financing offer or delivery promise */}
+      <Slots zone="checkout:summary" ctx={{ cartId: cart.id, totalCents: checkout.totals.totalCents, currency }} />
 
       <OwnCartLink href={cart.offer ? `/cart/offer?cartId=${encodeURIComponent(cart.id)}` : "/cart"} className="mt-6 inline-block text-xs text-muted-foreground underline">
         {t("editCart")}
@@ -174,6 +177,12 @@ function Totals({
             <span className="text-muted-foreground">{labels.afterPostcode}</span>
           )}
         </Row>
+        {/* A plugin's charge on top - cash-on-delivery handling, an eco fee - under its own label */}
+        {(totals.fees ?? []).map((fee) => (
+          <Row key={fee.key} label={fee.label}>
+            {formatPrice(fee.amount, currency)}
+          </Row>
+        ))}
         {/* Tax already inside the prices isn't one more amount to add, so it's said under the total instead */}
         {taxIncluded ? null : (
           <Row label={labels.tax}>
@@ -198,6 +207,12 @@ function Totals({
           {formatPrice(tenders > 0 ? totals.amountDueCents : totals.totalCents, currency)}
         </span>
       </p>
+      {/* The figures above stop short of the order's real total - a plugin's fee turned this checkout down, or pricing failed */}
+      {totals.problem ? (
+        <p role="alert" className="mt-3 rounded-lg border border-destructive/40 p-3 text-sm text-destructive">
+          {totals.problem}
+        </p>
+      ) : null}
       {taxIncluded && priced && totals.taxCents > 0 ? (
         <p className="mt-1 flex justify-between text-xs text-muted-foreground">
           <span>{labels.taxIncluded}</span>

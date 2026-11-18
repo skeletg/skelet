@@ -73,6 +73,7 @@ type Service struct {
 	costs      ProductCostLookup
 	// Computes order tax via an external endpoint before core (remote_tax.go)
 	remoteTax RemoteTaxSource
+	fees      FeeSource
 	// Screens at the pre-tx gate, nil skips (remote_fraud.go)
 	remoteFraud RemoteFraudSource
 	// Gates return requests through an external policy (remote_returns.go)
@@ -598,6 +599,12 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		if placing.ShippingCents != nil {
 			shippingCents = *placing.ShippingCents
 		}
+		pluginTaxed := placing.TaxCents != nil
+
+		// Plugins' fees go on after shipping, which some follow, and before tax, which is charged on them too
+		if err := s.priceFees(ctx, cc, in, placing.DiscountCents, shipSel, shippingCents); err != nil {
+			return fmt.Errorf("order rejected: %w", err)
+		}
 
 		// The remote tax provider claims the TaxCents seam ahead of core when no plugin took it - fail_open falls through to core, fail_closed aborts
 		if placing.TaxCents == nil && s.remoteTax != nil {
@@ -620,13 +627,22 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			placing.TaxCents = &t
 			shippingTax = cc.shippingTax
 		}
+		// A plugin's tax was worked out before the fees existed - core taxes those on top, as the quote showed
+		if pluginTaxed && s.tax != nil && len(cc.fees) > 0 {
+			feeTax, err := s.computeFeeTax(ctx, cc)
+			if err != nil {
+				return err
+			}
+			withFees := *placing.TaxCents + feeTax
+			placing.TaxCents = &withFees
+		}
 
 		var taxCents int64
 		if placing.TaxCents != nil {
 			taxCents = *placing.TaxCents
 		}
 		// Tax-inclusive stores don't add tax on top - taxCents is recorded for the receipt breakdown but is informational
-		total := computeOrderTotal(subtotal, placing.DiscountCents, taxCents, shippingCents, store.TaxInclusivePricing, placing.TotalCents)
+		total := computeOrderTotal(subtotal, placing.DiscountCents, taxCents, shippingCents, feeTotal(cc.fees), store.TaxInclusivePricing, placing.TotalCents)
 
 		orderR := s.repo.WithTx(sqlTx)
 		cartR := s.cartRepo.WithTx(sqlTx)
@@ -648,6 +664,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			TaxAmount:           taxCents,
 			ShippingTaxAmount:   shippingTax,
 			ShippingAmount:      shippingCents,
+			Fees:                cc.fees,
 			TotalAmount:         total,
 			CurrencyCode:        store.CurrencyCode,
 			CustomerNote:        in.CustomerNote,
@@ -807,12 +824,12 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 }
 
 // Assembles the total from priced parts, pure and table-tested - tax-inclusive stores don't re-add tax, a non-nil override wins, and the result floors at zero
-func computeOrderTotal(subtotal, discount, tax, shipping int64, taxInclusive bool, override *int64) int64 {
+func computeOrderTotal(subtotal, discount, tax, shipping, fees int64, taxInclusive bool, override *int64) int64 {
 	var total int64
 	if taxInclusive {
-		total = subtotal - discount + shipping
+		total = subtotal - discount + shipping + fees
 	} else {
-		total = subtotal - discount + tax + shipping
+		total = subtotal - discount + tax + shipping + fees
 	}
 	if override != nil {
 		total = *override

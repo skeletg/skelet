@@ -142,6 +142,8 @@ type ProductAttributeReference struct {
 
 type CreateProductInput struct {
 	ProductTypeID uuid.UUID
+	// What the save carries for plugins, each under its slug - handed to product.saving inside the create's transaction
+	Extensions map[string]json.RawMessage
 	// Required - bundle and grouped are rejected at create time until those features land
 	Kind                ProductKind
 	DefaultPrice        int64
@@ -183,6 +185,7 @@ type GenerateConfigurableChildInput struct {
 // Nil pointers mean "no change" and ProductTypeID is immutable - name/description/seo copy goes through UpsertProductContent instead
 type UpdateProductInput struct {
 	ID                  uuid.UUID
+	Extensions          map[string]json.RawMessage // as on CreateProductInput
 	DefaultPrice        *int64
 	DefaultCurrencyCode *string
 	// Mandatory at all times, so empty is rejected - there is no "clear SKU"

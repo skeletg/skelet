@@ -3,6 +3,7 @@ package route
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -63,6 +64,8 @@ func TestResolveRoutes(t *testing.T) {
 		{[]string{"search", "status"}, []string{"status"}, ""},
 		{[]string{"release"}, nil, ""},
 		{[]string{"provider", "http://x"}, []string{"http://x"}, ""},
+		{[]string{"plugin", "add", "example.com/acme/fraud@v1.2.0", "--slug", "fraud"}, []string{"example.com/acme/fraud@v1.2.0", "--slug", "fraud"}, ""},
+		{[]string{"plugin", "install", "./fraud"}, []string{"./fraud"}, ""},
 	}
 	// Each resolves to its Go handler
 	for _, c := range cases {
@@ -84,6 +87,8 @@ func TestResolveRefusals(t *testing.T) {
 		{[]string{"db"}, "skelet db migrate [--signals] up|rollback|status|new <name> | export | import | shell"},
 		{[]string{"db", "--signals"}, "skelet db migrate [--signals] up|rollback|status|new <name> | export | import | shell"},
 		{[]string{"nope"}, `Unknown command "nope" - try: skelet help`},
+		{[]string{"plugin"}, "skelet plugin " + subs["plugin"] + " - the other plugin commands are the ops CLI's: skelet cli plugin"},
+		{[]string{"plugin", "enable", "fraud"}, "skelet plugin " + subs["plugin"] + " - the other plugin commands are the ops CLI's: skelet cli plugin"},
 		{[]string{"new", "my-shop", "--yes"}, newProject},
 	}
 	for _, c := range cases {
@@ -145,6 +150,24 @@ func TestGoRoutesSurviveEveryPath(t *testing.T) {
 		a.Go(root, a.Args)
 		if called != want {
 			t.Errorf("%q ran %q, want %q", args, called, want)
+		}
+	}
+}
+
+// A route the table lists and the resolver never reaches is a command the help advertises and nobody can run
+func TestEverySubRouteReachesItsOwnHandler(t *testing.T) {
+	root := fakeRoot(t)
+	for _, r := range routes {
+		if r.Sub == "" || r.Sub == AnyApp || r.Sub == AnyPackage {
+			continue
+		}
+		args := []string{r.Verb, r.Sub}
+		if r.Flag != "" {
+			args = append(args, r.Flag)
+		}
+		a := Resolve(root, args)
+		if a.Go == nil || reflect.ValueOf(a.Go).Pointer() != reflect.ValueOf(r.Go).Pointer() {
+			t.Errorf("skelet %s resolves to %+v, not the handler its route names", strings.Join(args, " "), a)
 		}
 	}
 }

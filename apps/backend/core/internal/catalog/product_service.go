@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/recordsave"
 	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/applog"
@@ -91,6 +92,9 @@ func (s *productService) CreateProduct(ctx context.Context, input CreateProductI
 	if err != nil {
 		return Product{}, err
 	}
+	if err := recordsave.Check(input.Extensions); err != nil {
+		return Product{}, err
+	}
 	// Sync pre-tx hook - external systems can reject the create or contribute tags folded into metadata
 	if s.bus != nil {
 		ing := &ProductCreating{
@@ -128,6 +132,10 @@ func (s *productService) CreateProduct(ctx context.Context, input CreateProductI
 				MetaDescription:  input.MetaDescription,
 				MetaKeywords:     input.MetaKeywords,
 			}); err != nil {
+				return err
+			}
+			// An attempt that rolls back took the plugins' rows with it, so each attempt asks them again
+			if err := s.saving(ctx, t, created.ID, true, input.Extensions); err != nil {
 				return err
 			}
 			p = created
@@ -685,6 +693,10 @@ func (s *productService) UpdateProduct(ctx context.Context, input UpdateProductI
 	if err := validateUpdatePrices(input); err != nil {
 		return Product{}, err
 	}
+	// Before product.updating goes out - a webhook told the update is happening shouldn't hear it for one refused here
+	if err := recordsave.Check(input.Extensions); err != nil {
+		return Product{}, err
+	}
 	if input.DefaultCurrencyCode != nil {
 		if len(*input.DefaultCurrencyCode) != 3 {
 			return Product{}, ErrInvalidCurrency
@@ -740,7 +752,14 @@ func (s *productService) UpdateProduct(ctx context.Context, input UpdateProductI
 		return Product{}, ErrManualPathWhileAuto
 	}
 	oldPath := current.URL
-	updated, err := s.repo.UpdateProduct(ctx, input)
+	var updated Product
+	err = s.inTxSQL(ctx, func(t *sql.Tx, r Repository) error {
+		var err error
+		if updated, err = r.UpdateProduct(ctx, input); err != nil {
+			return err
+		}
+		return s.saving(ctx, t, updated.ID, false, input.Extensions)
+	})
 	if err != nil {
 		return Product{}, err
 	}
@@ -2021,4 +2040,18 @@ func (s *core) persistAndSyncWithRetry(ctx context.Context, productID uuid.UUID,
 		return candidate, nil
 	}
 	return "", fmt.Errorf("%w: no free suffix for %q after %d attempts", urlrewrite.ErrPathConflict, path, maxUniqueSuffixAttempts)
+}
+
+// product.saving - inside the write's transaction, so a plugin's rows commit with the product's and a refusal rolls
+// both back
+func (s *productService) saving(ctx context.Context, t *sql.Tx, id uuid.UUID, created bool, ext map[string]json.RawMessage) error {
+	if s.bus == nil {
+		return nil
+	}
+	if ext == nil {
+		ext = map[string]json.RawMessage{}
+	}
+	return s.bus.PublishSync(ctx, &recordsave.Saving{
+		Event: recordsave.EventProductSaving, Record: recordsave.RecordProduct, RecordID: id, Created: created, Extensions: ext, Tx: t,
+	})
 }

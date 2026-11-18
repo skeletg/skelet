@@ -5,6 +5,7 @@ query CustomersPaged(
   $isActive: Boolean
   $limit: Int
   $offset: Int
+  $pluginFilters: [PluginListFilterInput!]
   $withMetadata: Boolean! = false
 ) {
   customersPaged(
@@ -14,6 +15,7 @@ query CustomersPaged(
     isActive: $isActive
     limit: $limit
     offset: $offset
+    pluginFilters: $pluginFilters
   ) {
     totalCount
     items {

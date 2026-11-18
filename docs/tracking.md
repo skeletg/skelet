@@ -27,13 +27,13 @@ once.
 
 ## Destinations
 
-**Each platform is a plugin in its own repository**, installed into a build with `skelet cli plugin add`. None is
+**Each platform is a plugin in its own repository**, installed into a build with `skelet plugin add`. None is
 compiled in by default. Every one is still in development: built from its vendor's documentation and tested against
 recorded requests, but not yet run against a production account. Verify one against a real account before relying on
 it in production:
 
 ```bash
-skelet cli plugin add github.com/skeletg/skelet-tracking-ga4    # then rebuild the backend
+skelet plugin add github.com/skeletg/skelet-tracking-ga4    # then rebuild the backend
 ```
 
 | Kind | Plugin | Platform | Needs |
@@ -49,7 +49,7 @@ Any other platform is a plugin you write against the SDK's `RegisterDestination`
 
 **Marketing → Tracking** lists every platform with where it stands on the selected channel: on, off, failing,
 waiting for its secret, not set up, its plugin switched off on the channel, or not in this build - with the
-`skelet cli plugin add` command that adds it. Admins need `tracking.view` to see it and `tracking.manage`
+`skelet plugin add` command that adds it. Admins need `tracking.view` to see it and `tracking.manage`
 to change it.
 
 Setting a platform up is guided:
@@ -127,7 +127,7 @@ Setting one up:
 4. Add the destination, checking it first with `validate_only`, which records nothing:
 
 ```bash
-skelet cli plugin add github.com/skeletg/skelet-tracking-google-ads   # then rebuild the backend
+skelet plugin add github.com/skeletg/skelet-tracking-google-ads   # then rebuild the backend
 TRACKING_SECRET="$(cat service-account.json)" skelet cli tracking add --channel <id> --kind google_ads \
   --name "Google Ads" --set customer_id=1234567890 --set conversion_action_id=<id> --set validate_only=true
 skelet cli tracking test <destination-id>

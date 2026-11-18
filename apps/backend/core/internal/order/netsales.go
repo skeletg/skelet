@@ -20,7 +20,7 @@ func LineNet(o Order) map[uuid.UUID]int64 {
 	discounts := allocateLineDiscount(lineSubs, subtotal, o.DiscountAmount)
 	var taxes []int64
 	if !taxAddedOnTop(o) && o.TaxAmount > 0 { // prices include tax, so each line's share comes out
-		taxes = allocateLineDiscount(lineSubs, subtotal, max(o.TaxAmount-o.ShippingTaxAmount, 0))
+		taxes = allocateLineDiscount(lineSubs, subtotal, max(o.TaxAmount-o.ShippingTaxAmount-o.FeeTaxAmount(), 0))
 	}
 	out := make(map[uuid.UUID]int64, len(o.Lines))
 	for i, l := range o.Lines {

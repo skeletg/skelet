@@ -41,7 +41,6 @@ import { RecordFormPage } from '@/shared/saving/RecordFormPage'
 import { useRecordForm } from '@/shared/saving/useRecordForm'
 import { useSaveSection, type SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { LoadingState } from '@/components/ui/loading-state'
-import { PluginSections } from '@/plugins/detail-sections'
 import { AttributesDocument } from './Catalog.gql'
 import { SetCollectionFacetOverridesDocument } from './Collections.gql'
 import { FacetOverridesEditor } from './FacetOverridesEditor'
@@ -152,6 +151,7 @@ function CollectionForm({ collection, locale }: { collection: CollectionRecord; 
 
   return (
     <RecordFormPage
+      plugins={{ target: 'collection', entity: collection, mode: 'edit' }}
       record={record}
       backTo="/collections"
       backLabel="Back to collections"
@@ -297,7 +297,6 @@ function CollectionForm({ collection, locale }: { collection: CollectionRecord; 
         </fieldset>
       </DetailPageSection>
 
-      <PluginSections target="collection" entity={collection} mode="edit" />
 
       <ConfirmDialog
         open={confirmingContentDelete}

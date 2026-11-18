@@ -203,6 +203,7 @@ export function ChannelsList() {
   return (
     <>
       <DataTable
+        target="channels"
         urlState={urlState}
         columns={columns}
         data={rows}

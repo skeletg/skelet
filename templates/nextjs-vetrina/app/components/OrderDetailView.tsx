@@ -11,6 +11,7 @@ import {
   humanizeStatus,
 } from "./account/StatusChip";
 import { formatPhone } from "@skelet/storefront-core/forms/phone";
+import { Slots } from "@/app/plugins/Slots";
 
 type OrderEvent = { id: string; message: string; createdAt: string };
 
@@ -186,6 +187,11 @@ export function OrderDetailView({
           <Row label={t("shipping")}>
             {formatPrice(order.shippingAmount, order.currencyCode)}
           </Row>
+          {(order.fees ?? []).map((fee) => (
+            <Row key={fee.key} label={fee.label}>
+              {formatPrice(fee.amount, order.currencyCode)}
+            </Row>
+          ))}
           {/* Tax already inside the prices isn't one more amount to add, so it's said under the total instead */}
           {order.taxIncluded ? null : (
             <Row label={t("tax")}>
@@ -248,6 +254,11 @@ export function OrderDetailView({
       ) : null}
 
       {extraSections}
+      {/* On every order a shopper reads - the receipt after placing and the account's order page */}
+      <Slots
+        zone="order"
+        ctx={{ orderId: order.id, number: order.number, status: order.status, total: order.total, currencyCode: order.currencyCode }}
+      />
 
       {order.events && order.events.length > 0 ? (
         <section className="glass mt-6 rounded-xl p-5">

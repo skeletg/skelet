@@ -43,6 +43,7 @@ const (
 	colOrderSubtotal   = "order_subtotal_cents"
 	colOrderDiscount   = "order_discount_cents"
 	colOrderShipping   = "order_shipping_cents"
+	colOrderFees       = "order_fees_cents"
 	colOrderTax        = "order_tax_cents"
 	colOrderGiftCard   = "order_giftcard_cents"
 	colOrderTotal      = "order_total_cents"
@@ -66,6 +67,7 @@ var orderFields = []dataio.Field{
 	{Name: colOrderSubtotal, Label: "Order subtotal", Type: dataio.FieldMoney, ReadOnly: true},
 	{Name: colOrderDiscount, Label: "Order discount", Type: dataio.FieldMoney, ReadOnly: true},
 	{Name: colOrderShipping, Label: "Order shipping", Type: dataio.FieldMoney, ReadOnly: true},
+	{Name: colOrderFees, Label: "Order fees", Type: dataio.FieldMoney, ReadOnly: true},
 	{Name: colOrderTax, Label: "Order tax", Type: dataio.FieldMoney, ReadOnly: true},
 	{Name: colOrderGiftCard, Label: "Order gift card", Type: dataio.FieldMoney, ReadOnly: true},
 	{Name: colOrderTotal, Label: "Order total", Type: dataio.FieldMoney, ReadOnly: true},
@@ -184,6 +186,7 @@ func lineRow(src db.ExportOrderRowsRow) *dataio.Row {
 	r.Set(colOrderSubtotal, src.SubtotalAmount)
 	r.Set(colOrderDiscount, src.DiscountAmount)
 	r.Set(colOrderShipping, src.ShippingAmount)
+	r.Set(colOrderFees, src.FeeAmount)
 	r.Set(colOrderTax, src.TaxAmount)
 	r.Set(colOrderGiftCard, src.GiftCardAmount)
 	r.Set(colOrderTotal, src.TotalAmount)

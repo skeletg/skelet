@@ -24,7 +24,8 @@
 
     /* Path aliases */
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@skelet/dashboard-sdk": ["./src/sdk/index.ts"]
     }
   },
   "include": ["src"]

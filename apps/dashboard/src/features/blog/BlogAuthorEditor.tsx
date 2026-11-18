@@ -119,6 +119,7 @@ function AuthorForm({ author }: { author?: BlogAuthorRowFragment }) {
   return (
     <>
       <RecordFormPage
+        plugins={{ target: 'blog-author', entity: author ?? null, mode: author ? 'edit' : 'create' }}
         record={record}
         readOnly={!canManage}
         backTo={BACK_TO}

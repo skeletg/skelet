@@ -28,6 +28,8 @@ const (
 	StageAwaitingStock  = "awaiting_stock"
 	DoublePointsPrefix  = "EX-DOUBLE-"
 	HalfPricePrefix     = "EX-HALF-"
+	OfflineFeeCents     = 150    // what paying with the offline method costs on top
+	OfflineCeilingCents = 100000 // past which the offline method isn't taken at all
 )
 
 //go:embed migrations/*.sql
@@ -48,7 +50,7 @@ func init() {
 		Version:  "0.1.0",
 		SDKRange: "^0.1.0",
 		Emits:    []string{EventSettled, EventSettling},
-		Consumes: []string{EventSettled, EventSettling, sdk.EventOrderPlacing, sdk.EventOrderTransitioning, sdk.EventLoyaltyEarning, sdk.EventSubscriptionRenewing},
+		Consumes: []string{EventSettled, EventSettling, sdk.EventOrderPlacing, sdk.EventOrderTransitioning, sdk.EventLoyaltyEarning, sdk.EventSubscriptionRenewing, sdk.EventCustomerSaving},
 		Capabilities: []string{
 			"db.write",
 			"events.publish:" + EventSettled,
@@ -116,6 +118,17 @@ func init() {
 		}
 		return nil
 	})
+
+	// Paying with the offline method costs a handling fee, taxed like any product, and isn't taken on a big order
+	p.RegisterFee(sdk.Fee{Key: "offline_handling", Label: "Offline payment handling", Charge: func(_ context.Context, req sdk.FeeRequest) (int64, error) {
+		if req.PaymentMethod != OfflineProviderSlug {
+			return 0, nil
+		}
+		if req.SubtotalCents-req.DiscountCents > OfflineCeilingCents {
+			return 0, sdk.Invalid("pay a total this large with another method")
+		}
+		return OfflineFeeCents, nil
+	}})
 
 	// Names the orders of every channel the plugin is on, from a yearly count of its own
 	p.RegisterOrderNumberer(func(ctx context.Context, req sdk.OrderNumberRequest) (string, error) {
@@ -226,6 +239,10 @@ func init() {
 
 	p.RegisterPermission("payments", "example.manage", "Manage the example gateway")
 	p.RegisterDataResource(recordsResource)
+	p.RegisterCustomerData(customerNotes)
+	p.RegisterListFilter(customersWithNotes)
+	p.RegisterRecordExtension(sdk.RecordExtension{Record: sdk.RecordCustomer, Permission: "example.manage"})
+	p.SubscribeSync(sdk.EventCustomerSaving, 100, saveNoteWithCustomer(p))
 
 	p.RegisterMigrations(sdk.MigrationsRegistration{Namespace: Slug, FS: migrationsFS})
 }

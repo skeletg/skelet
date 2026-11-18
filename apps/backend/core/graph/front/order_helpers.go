@@ -54,6 +54,7 @@ func toOrderModel(o order.Order) *model.Order {
 		Events:              events,
 		Subtotal:            int32(o.SubtotalAmount),
 		ShippingAmount:      int32(o.ShippingAmount),
+		Fees:                toOrderFees(o.Fees),
 		DiscountAmount:      int32(o.DiscountAmount),
 		TaxAmount:           int32(o.TaxAmount),
 		TaxIncluded:         o.TaxIncluded(),
@@ -72,6 +73,15 @@ func toOrderModel(o order.Order) *model.Order {
 		m.CustomerNote = &o.CustomerNote
 	}
 	return m
+}
+
+// The tax on each stays the admin's to see - the shopper's summary shows it in taxAmount
+func toOrderFees(fees []order.Fee) []*model.OrderFee {
+	out := make([]*model.OrderFee, len(fees))
+	for i, f := range fees {
+		out[i] = &model.OrderFee{Key: f.Key, Label: f.Label, Amount: int32(f.AmountCents)}
+	}
+	return out
 }
 
 func toOrderReturnModel(r order.OrderReturn) *model.OrderReturn {

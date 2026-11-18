@@ -25,6 +25,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/permission"
 	"github.com/skeletg/skelet/apps/backend/core/internal/pluginmigrate"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/core/internal/recordsave"
 	"github.com/skeletg/skelet/apps/backend/core/internal/search"
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/internal/webhook"
@@ -1227,6 +1228,10 @@ func Manifests() []sdk.Manifest {
 }
 
 // ValidateManifests runs cross-plugin checks once at boot (before migrations/requests), returning the first error: SDK-range admits sdk.Version, deps registered + in-range, no dependency cycles, and every Consumes resolves to a declared event - Manifest-less plugins are skipped (opt-in)
+// Core events raised for compiled-in plugins alone. No webhook is offered them - they run inside a record's own
+// transaction - so the webhook registry, otherwise the list of what core emits, doesn't hold them
+var inProcessEvents = []string{recordsave.EventProductSaving, recordsave.EventCustomerSaving}
+
 func ValidateManifests() error {
 	h := installedHost.Load()
 	if h == nil {
@@ -1247,6 +1252,9 @@ func ValidateManifests() error {
 		if _, pluginOwned := eventOwners[e.Type]; !pluginOwned {
 			known[e.Type] = struct{}{}
 		}
+	}
+	for _, t := range inProcessEvents {
+		known[t] = struct{}{}
 	}
 	subscribed := make(map[string][]string, len(subscriptions))
 	for slug, types := range subscriptions {

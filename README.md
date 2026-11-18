@@ -25,7 +25,7 @@ cards, loyalty, a blog and a block-based CMS. Plus **Signals**, a built-in
 analytics stack with four surfaces - Lens for web, Synapse for customers, Pulse for
 email, Prism for experiments - writing to its own database.
 
-The rest is plugins: Go compiled into the binary, added with `skelet cli plugin add`,
+The rest is plugins: Go compiled into the binary, added with `skelet plugin add`,
 each one its own versioned module - payment gateways, whole business domains with their own
 tables and admin screens, or a small integration. See [docs/plugins.md](docs/plugins.md).
 

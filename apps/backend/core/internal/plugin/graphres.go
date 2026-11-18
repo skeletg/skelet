@@ -7,6 +7,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
@@ -14,7 +15,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
-// Replaces a codegen pass that rewrote gqlgen's stub bodies in place - gqlgen already copies hand-written resolver bodies through, so delegation is written once and Do is the one chokepoint giving plugin GraphQL the gating every other surface has - see sdk/graphql.go for the plugin-author contract
+// cmd/plugingraph writes each plugin field's delegation, and Do - DoBatch for a field on a core type - is the one chokepoint giving plugin GraphQL the gating every other surface has - see sdk/graphql.go for the plugin-author contract
 
 var ErrNoGraphResolver = errors.New("plugin: no graph resolver registered")
 
@@ -49,7 +50,11 @@ func (h *Host) RegisterGraphResolver(slug string, surface sdk.GraphSurface, impl
 }
 
 // I is an interface the CALLER declares privately, so the plugin imports no core resolver contract and core imports no plugin package - Go matches them structurally call takes the ctx back rather than closing over the caller's, or the resolver runs outside Instrument's timeout, span and tagged logger while looking like it doesn't
-func Do[I any, T any](ctx context.Context, surface sdk.GraphSurface, slug, field string, call func(context.Context, I) (T, error)) (_ T, err error) {
+func Do[I any, T any](ctx context.Context, surface sdk.GraphSurface, slug, field string, call func(context.Context, I) (T, error)) (T, error) {
+	return do(ctx, surface, slug, field, call)
+}
+
+func do[I any, T any](ctx context.Context, surface sdk.GraphSurface, slug, field string, call func(context.Context, I) (T, error), opts ...InstrumentOption) (_ T, err error) {
 	var zero T
 	impl, ok := lookupGraphResolver(surface, slug)
 	if !ok {
@@ -59,7 +64,7 @@ func Do[I any, T any](ctx context.Context, surface sdk.GraphSurface, slug, field
 	if !ok {
 		return zero, fmt.Errorf("plugin %s: %s resolver does not implement %T (field %s)", slug, surface, *new(I), field)
 	}
-	ctx, finish, gate := Instrument(ctx, slug, "graph "+string(surface)+"."+field, graphChannelID(ctx))
+	ctx, finish, gate := Instrument(ctx, slug, "graph "+string(surface)+"."+field, graphChannelID(ctx), opts...)
 	defer finish(&err)
 	if gate != nil {
 		return zero, gate
@@ -90,6 +95,35 @@ func userErrorClass(k sdk.ErrorKind) apperr.Class {
 	default:
 		return apperr.ClassValidation
 	}
+}
+
+// DoBatch serves a plugin's field on a core type for a whole list of parents in one call, the answers in the parents'
+// order. The field is on every channel's schema and the plugin isn't on every channel, so where it's off each parent
+// answers null rather than the core query failing. Unmetered, because it rides core's own listings: anonymous browsing
+// must not spend the allowance the plugin's own work runs on, and a spent one must not fail those listings
+func DoBatch[I any, E any](ctx context.Context, surface sdk.GraphSurface, slug, field string, parents int, call func(context.Context, I) ([]E, error)) ([]E, error) {
+	out, err := do(ctx, surface, slug, field, call, Unmetered())
+	if isGateError(err) {
+		return make([]E, parents), nil
+	}
+	if err == nil && len(out) != parents {
+		err = fmt.Errorf("plugin %s: %s answered %d values for %d parents", slug, field, len(out), parents)
+	}
+	if err != nil {
+		return make([]E, parents), oncePerBatch(err, parents)
+	}
+	return out, nil
+}
+
+// gqlgen reports a batch resolver's plain error against every parent, so one plugin timeout on a page of 48 products
+// is 48 errors in the response and 48 in the log. Against the first parent alone it's one, and the rest answer null
+func oncePerBatch(err error, parents int) error {
+	if parents == 0 {
+		return err
+	}
+	errs := make(graphql.BatchErrorList, parents)
+	errs[0] = err
+	return errs
 }
 
 // Boot-time proof that a plugin still serves the fields its SDL declares, so drift fails the deploy

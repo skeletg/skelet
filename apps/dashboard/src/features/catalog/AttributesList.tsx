@@ -161,6 +161,7 @@ export function AttributesList() {
   return (
     <>
       <DataTable
+        target="catalog.attributes"
         urlState={urlState}
         columns={columns}
         data={rows}

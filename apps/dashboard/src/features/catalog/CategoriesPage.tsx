@@ -36,6 +36,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { DetailPageLayout } from '@/components/layout/detail-page'
+import { PluginSections } from '@/plugins/detail-sections'
 import { LoadingState } from '@/components/ui/loading-state'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -817,6 +818,7 @@ function CategoryRecordForm({
 
         {/* ── Body ────────────────────────────────────────────── */}
         <div className="divide-y pb-16">
+          <PluginSections target="category" entity={category ?? null} mode={isNew ? 'create' : 'edit'} placement="before" />
           {draft.offer !== null && (
             <div className="px-6 py-4">
               <RestoredDraftBanner draft={draft} labels={CATEGORY_LABELS} />
@@ -992,6 +994,9 @@ function CategoryRecordForm({
 
           {/* ── Storefront filters ── */}
           {category ? <CategoryFacetOverridesSection category={category} canManage={canManage} /> : null}
+
+          {/* The tree takes the side, so a plugin's side sections stay in the body */}
+          <PluginSections target="category" entity={category ?? null} mode={isNew ? 'create' : 'edit'} sideInBody />
 
         </div>
 

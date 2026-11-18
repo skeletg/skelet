@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/lib/email"
 )
 
 // TestRenderStoredOrderConfirmation locks the flow-engine render path: a specific (flow-chosen) library email renders
@@ -171,5 +173,28 @@ func TestPreflight(t *testing.T) {
 		if w.Severity == "warn" {
 			t.Errorf("clean email should have no warnings, got: %s", w.Message)
 		}
+	}
+}
+
+// A totals block written in Liquid can list what plugins charged on top, or its parts fall short of the total
+func TestScriptedBlockReadsTheOrdersFees(t *testing.T) {
+	repo := fakeRepo{blocks: map[string]Snippet{
+		"totals": {Slug: "totals", Name: "Totals", Scripted: true,
+			HTMLTemplate: `{% for fee in order.fees %}<p>{{ fee.label }}: {{ fee.amount }}</p>{% endfor %}`},
+	}}
+	d := sampleConfirmation()
+	d.Fees = []email.OrderEmailFee{{Label: "Cash on delivery", Amount: 500}, {Label: "Eco <fee>", Amount: 100}}
+	e := LibraryEmail{ChannelID: uuid.New(), Subject: "S", Blocks: []Block{{Type: "ref", Slug: "totals"}}}
+	_, out, _, err := NewService(repo, nil).RenderStoredOrderConfirmation(context.Background(), e.ChannelID, e, d)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	for _, want := range []string{"Cash on delivery: 5.00 USD", "1.00 USD"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the fees block lacks %q in:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "<fee>") {
+		t.Errorf("a fee's label reached the email unescaped:\n%s", out)
 	}
 }

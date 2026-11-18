@@ -180,10 +180,15 @@ func NewService(
 // Runs a write in one transaction with the events it produces - enqueued in that transaction when an outbox is wired,
 // published on the bus once it commits otherwise, so a committed write never loses its event and a failed one never sends it
 func (s *Service) atomically(ctx context.Context, write func(r *postgresRepository) ([]events.Event, error)) error {
+	return s.atomicallyTx(ctx, func(r *postgresRepository, _ *sql.Tx) ([]events.Event, error) { return write(r) })
+}
+
+// atomically with the transaction itself too, for a sync event its subscribers write in
+func (s *Service) atomicallyTx(ctx context.Context, write func(r *postgresRepository, t *sql.Tx) ([]events.Event, error)) error {
 	var evs []events.Event
 	err := s.repo.tx.InTransaction(ctx, func(t *sql.Tx) error {
 		var err error
-		if evs, err = write(s.repo.withTx(t)); err != nil {
+		if evs, err = write(s.repo.withTx(t), t); err != nil {
 			return err
 		}
 		if s.outbox == nil {

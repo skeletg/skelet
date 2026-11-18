@@ -10,7 +10,6 @@ import { RecordFormPage } from '@/shared/saving/RecordFormPage'
 import { useRecordForm } from '@/shared/saving/useRecordForm'
 import { SchemaForm, type JSONSchema } from '@/features/promotions/SchemaForm'
 import { FORM_WIDGETS } from '@/features/promotions/widgets/registry'
-import { PluginSections } from '@/plugins/detail-sections'
 import {
   CreateTaxRuleDocument,
   TaxRuleDocument,
@@ -103,7 +102,7 @@ function TaxRuleFormPage({ mode, rule, channelId }: { mode: 'create' | 'edit'; r
       }
       labels={TAX_RULE_LABELS}
       // Outside the form on purpose - plugin submit handlers must not trip it
-      after={<PluginSections target="tax-rule" entity={rule ?? null} mode={isEdit ? 'edit' : 'create'} />}
+      plugins={{ target: 'tax-rule', entity: rule ?? null, mode: isEdit ? 'edit' : 'create' }}
     >
       <DetailPageSection title="Rule">
         <div className="grid items-start gap-4 sm:grid-cols-2">

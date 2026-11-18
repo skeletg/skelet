@@ -228,6 +228,7 @@ function RuleEditor({
         }
       />
       <DetailPageBody>
+        <PluginSections target="promotion" entity={rule ?? null} mode={isEdit ? 'edit' : 'create'} placement="before" />
         {analyticsSlot}
         {draft.offer !== null && (
           <div className="px-6 py-4">
@@ -489,7 +490,7 @@ function RuleEditor({
         </fieldset>
 
         {isEdit ? <CodesSection ruleId={rule.id} /> : null}
-        <PluginSections target="promotion" entity={rule ?? null} mode={isEdit ? 'edit' : 'create'} />
+        <PluginSections target="promotion" entity={rule ?? null} mode={isEdit ? 'edit' : 'create'} sideInBody />
       </DetailPageBody>
       <SaveConfirmDialog {...confirm.dialogProps} scopeLabel={record.label} sections={registry.dirtySections} />
     </SaveRegistryContext.Provider>

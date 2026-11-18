@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react'
+import { useContext, useMemo, type ReactNode } from 'react'
 import { useMutation } from '@apollo/client/react'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
@@ -21,6 +21,7 @@ import {
   toProductGeneralValues,
 } from '../schemas/product'
 import { Section, type ProductCategoryItem, type ProductContentEntry } from './shared'
+import { RecordExtensionsContext } from '@/shared/saving/extensions'
 import { ProductCategoriesPicker } from './ProductCategoriesPicker'
 
 type GeneralProduct = {
@@ -57,6 +58,7 @@ export function GeneralProductSection({
 }) {
   const refetchQueries = ['ProductsPaged', { query: ProductDocument, variables: productVariables }]
   const [updateProduct] = useMutation(UpdateProductDocument, { refetchQueries })
+  const extensions = useContext(RecordExtensionsContext)
   const [setTaxClassMut] = useMutation(SetProductTaxClassDocument, { refetchQueries })
   const writeContent = useProductContentWrite(product.id, locale)
   const [deleteContent] = useMutation(DeleteProductContentDocument, { refetchQueries })
@@ -71,7 +73,10 @@ export function GeneralProductSection({
     routeKey: `product-general:${product.id}:${locale}`,
     submit: async (v) => {
       const changes = productGeneralChanges(baseline, v)
-      if (changes.update) await updateProduct({ variables: { input: { id: product.id, ...changes.update } } })
+      // Plugins' staged parts ride this mutation, so they commit with the product's own fields
+      const ext = extensions?.take()
+      if (changes.update || ext) await updateProduct({ variables: { input: { id: product.id, ...changes.update, extensions: ext?.parts } } })
+      ext?.saved()
       if (changes.taxClass) await setTaxClassMut({ variables: { productId: product.id, taxClass: changes.taxClass } })
       if (changes.name) await writeContent({ name: changes.name })
     },

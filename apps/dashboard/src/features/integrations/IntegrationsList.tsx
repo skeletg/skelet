@@ -275,6 +275,7 @@ export function IntegrationsList() {
   return (
     <>
       <DataTable
+        target="integrations"
         urlState={urlState}
         columns={columns}
         data={rows}

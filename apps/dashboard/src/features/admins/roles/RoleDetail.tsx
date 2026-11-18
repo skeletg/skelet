@@ -204,6 +204,7 @@ export function RoleDetail({ roleId }: { roleId?: string } = {}) {
       />
 
       <DetailPageBody>
+        <PluginSections target="role" entity={role} mode="edit" placement="before" />
         <DetailPageSection title="Overview">
           <p className="text-sm">{headline}</p>
           {role.description && (
@@ -325,7 +326,7 @@ export function RoleDetail({ roleId }: { roleId?: string } = {}) {
             </Table>
           </div>
         </DetailPageSection>
-        <PluginSections target="role" entity={role} mode="edit" />
+        <PluginSections target="role" entity={role} mode="edit" sideInBody />
       </DetailPageBody>
 
       <AddRoleMembersDialog

@@ -20,6 +20,12 @@ fragment OrderSummaryFields on Order {
   paymentInstructions
   subtotal
   shippingAmount
+  # Plugin charges, a summary row each - included in total
+  fees {
+    key
+    label
+    amount
+  }
   discountAmount
   taxAmount
   taxIncluded
@@ -351,11 +357,17 @@ query CheckoutState($id: ID!) {
         subtotalCents
         discountCents
         shippingCents
+        fees {
+          key
+          label
+          amount
+        }
         taxCents
         totalCents
         giftCardCents
         storeCreditCents
         amountDueCents
+        problem
       }
     }
   }

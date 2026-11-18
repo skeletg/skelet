@@ -43,7 +43,6 @@ import {
   UpsertMenuItemTranslationDocument,
   type MenuDetailQuery,
 } from './Menus.gql'
-import { PluginSections } from '@/plugins/detail-sections'
 import {
   MENU_LABELS,
   TARGET_KINDS,
@@ -197,6 +196,7 @@ function MenuForm({ menu }: { menu: Menu }) {
 
   return (
     <RecordFormPage
+      plugins={{ target: 'menu', entity: menu, mode: 'edit' }}
       record={record}
       backTo="/menus"
       backLabel="Menus"
@@ -305,7 +305,6 @@ function MenuForm({ menu }: { menu: Menu }) {
           </ul>
         )}
       </DetailPageSection>
-      <PluginSections target="menu" entity={menu} mode="edit" />
 
       {/* Radix unmounts the content on close, so each open starts from the item it edits */}
       <Dialog open={creating !== null} onOpenChange={(o) => !o && setCreating(null)}>

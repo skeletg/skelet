@@ -21,8 +21,8 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
-const About = `Regenerates everything: the Signals gRPC contract (buf), the plugin set, sqlc, both gqlgen schemas, the
-plugin GraphQL bridge, the remote-provider contract, the docs reference tables and the edge security
+const About = `Regenerates everything: the Signals gRPC contract (buf), the plugin set and its UI packages, sqlc, both
+gqlgen schemas, the plugin GraphQL bridge, the remote-provider contract, the docs reference tables and the edge security
 headers - then the dashboard's and every storefront's typed queries, which need the backend up.
 
   --check        fail if anything was stale, listing what regeneration changed
@@ -117,10 +117,12 @@ func backend(root string) int {
 		}},
 		// Before gqlgen: plugins.json decides which plugins compile in
 		{"plugin set", func() error { return goRun(root, "plugingen") }},
+		// The dashboard's and storefronts' imports of the enabled plugins' UI packages, from the same decision file
+		{"plugin UI packages", func() error { return pluginUI(root) }},
 		{"sqlc generate", func() error { return sqlc(root) }},
 		// Before gqlgen: a removed or disabled plugin leaves delegation files referencing model types its SDL took
 		// with it, and gqlgen type-checks the graph package first. plugingraph only parses, so it runs on the stale tree
-		{"plugin graph (prune)", func() error { return goRun(root, "plugingraph") }},
+		{"plugin graph (prune)", func() error { return goRun(root, "plugingraph", "-prune") }},
 		{"gqlgen admin", func() error { return gqlgen(root, "generate", "--config", "gqlgen.admin.yml").Run() }},
 		{"gqlgen front", func() error { return gqlgen(root, "generate", "--config", "gqlgen.front.yml").Run() }},
 		// gqlgen stubs each plugin field; this turns the stubs into delegation through the runtime registry, so a plugin
@@ -145,11 +147,13 @@ func backend(root string) int {
 }
 
 // goRun runs one of core's generators on the host Go
-func goRun(root, generator string) error { return goRunIn(root, "core", generator) }
+func goRun(root, generator string, args ...string) error {
+	return goRunIn(root, "core", generator, args...)
+}
 
 // goRunIn runs a generator from one of the backend modules on the host Go
-func goRunIn(root, module, generator string) error {
-	cmd := exec.Command("go", "run", "./cmd/"+generator)
+func goRunIn(root, module, generator string, args ...string) error {
+	cmd := exec.Command("go", append([]string{"run", "./cmd/" + generator}, args...)...)
 	cmd.Dir = filepath.Join(root, "apps", "backend", module)
 	cmd.Env = append(sys.Env(), "LC_ALL=C.UTF-8", "LANG=C.UTF-8")
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr

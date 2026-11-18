@@ -31,6 +31,12 @@ type OrderEmailLine struct {
 	Options []string
 }
 
+// OrderEmailFee is a charge a plugin added to the order, rendered as a totals row under its own label
+type OrderEmailFee struct {
+	Label  string `json:"label"`
+	Amount int64  `json:"amount"`
+}
+
 // OrderConfirmationData is the render context for the order-confirmation email
 type OrderConfirmationData struct {
 	StoreName     string
@@ -41,6 +47,7 @@ type OrderConfirmationData struct {
 	Subtotal      int64
 	Discount      int64
 	Shipping      int64
+	Fees          []OrderEmailFee
 	Tax           int64
 	TaxIncluded   bool // the tax sits inside the prices, so it's said under the total rather than added
 	Total         int64
@@ -88,6 +95,7 @@ type OrderSnapshot struct {
 	Subtotal  int64            `json:"subtotal,omitempty"`
 	Discount  int64            `json:"discount,omitempty"`
 	Shipping  int64            `json:"shipping,omitempty"`
+	Fees      []OrderEmailFee  `json:"fees,omitempty"`
 	Tax       int64            `json:"tax,omitempty"`
 	// The tax sits inside the prices rather than being added on top
 	TaxIncluded bool     `json:"tax_included,omitempty"`
@@ -132,6 +140,7 @@ var orderConfirmationHTML = template.Must(template.New("order_conf_html").Funcs(
   <tr><td>Subtotal</td><td style="text-align:right;">{{money .Subtotal .Currency}}</td></tr>
   {{if .Discount}}<tr><td>Discount</td><td style="text-align:right;">-{{money .Discount .Currency}}</td></tr>{{end}}
   <tr><td>Shipping</td><td style="text-align:right;">{{money .Shipping .Currency}}</td></tr>
+  {{range .Fees}}<tr><td>{{.Label}}</td><td style="text-align:right;">{{money .Amount $.Currency}}</td></tr>{{end}}
   {{if not .TaxIncluded}}<tr><td>Tax</td><td style="text-align:right;">{{money .Tax .Currency}}</td></tr>{{end}}
   <tr><td><strong>Total</strong></td><td style="text-align:right;"><strong>{{money .Total .Currency}}</strong></td></tr>
   {{if and .TaxIncluded .Tax}}<tr><td style="color:#888;font-size:12px;">Includes tax</td><td style="text-align:right;color:#888;font-size:12px;">{{money .Tax .Currency}}</td></tr>{{end}}
@@ -151,7 +160,8 @@ Thanks for your order! We've received order {{.OrderNumber}} and it's being proc
 Subtotal: {{money .Subtotal .Currency}}
 {{if .Discount}}Discount: -{{money .Discount .Currency}}
 {{end}}Shipping: {{money .Shipping .Currency}}
-{{if not .TaxIncluded}}Tax: {{money .Tax .Currency}}
+{{range .Fees}}{{.Label}}: {{money .Amount $.Currency}}
+{{end}}{{if not .TaxIncluded}}Tax: {{money .Tax .Currency}}
 {{end}}Total: {{money .Total .Currency}}
 {{if and .TaxIncluded .Tax}}Includes tax: {{money .Tax .Currency}}
 {{end}}

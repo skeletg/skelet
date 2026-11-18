@@ -19,7 +19,8 @@
     "codegen:watch": "graphql-codegen --config codegen.ts --watch",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "build:sdk": "node sdk/build.mjs"
   },
   "dependencies": {
     "@apollo/client": "^4.2.12",

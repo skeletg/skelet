@@ -13,6 +13,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"golang.org/x/tools/go/ast/astutil"
+
+	"github.com/skeletg/skelet/apps/backend/core/internal/pluginset"
 )
 
 var pluginInstallCmd = &cobra.Command{
@@ -91,6 +93,11 @@ func runPluginInstall(cmd *cobra.Command, args []string) error {
 	if err := verifyRegisters(staged); err != nil {
 		return err
 	}
+	// Read before --force clears what's there, so a malformed manifest leaves the installed plugin as it was
+	ui, err := pluginset.ReadUI(staged)
+	if err != nil {
+		return err
+	}
 	if bad := internalImports(staged); len(bad) > 0 {
 		fmt.Printf("WARNING: imports of core internals - the plugin contract is SDK-only, and skelet lint's depguard will refuse these unless allow-listed:\n")
 		for _, imp := range bad {
@@ -129,6 +136,15 @@ func runPluginInstall(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	if err := setPluginState(slug, true); err != nil {
+		return err
+	}
+	// Always, so a source that dropped its manifest stops naming the packages an earlier install recorded
+	set, err := pluginset.Load(".")
+	if err != nil {
+		return err
+	}
+	set.SetUI(slug, ui)
+	if err := set.Save("."); err != nil {
 		return err
 	}
 	if out, err := exec.Command("go", "mod", "tidy").CombinedOutput(); err != nil {
@@ -174,6 +190,7 @@ func runPluginInstall(cmd *cobra.Command, args []string) error {
 	if _, err := os.Stat(filepath.Join(dest, "migrations")); err == nil {
 		printStep(fmt.Sprintf("skelet cli plugin migrate up %s - it ships migrations", slug))
 	}
+	uiSteps(printStep, ui)
 	printStep("Rebuild")
 	return nil
 }

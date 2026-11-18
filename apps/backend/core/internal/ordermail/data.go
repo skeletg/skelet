@@ -108,9 +108,18 @@ func Snapshot(o order.Order) email.OrderSnapshot {
 	return email.OrderSnapshot{
 		Number: o.Number, FirstName: FirstName(o), Currency: o.CurrencyCode,
 		Lines: Lines(o), Subtotal: o.SubtotalAmount, Discount: o.DiscountAmount,
-		Shipping: o.ShippingAmount, Tax: o.TaxAmount, Total: o.TotalAmount,
+		Shipping: o.ShippingAmount, Fees: Fees(o), Tax: o.TaxAmount, Total: o.TotalAmount,
 		ShipTo: AddressLines(o.ShippingAddress), Locale: o.Locale, TaxIncluded: o.TaxInclusive,
 	}
+}
+
+// Fees is the order's plugin charges as an email's totals rows
+func Fees(o order.Order) []email.OrderEmailFee {
+	var out []email.OrderEmailFee
+	for _, f := range o.Fees {
+		out = append(out, email.OrderEmailFee{Label: f.Label, Amount: f.AmountCents})
+	}
+	return out
 }
 
 // ShipmentSnapshot narrows the lines to what this fulfillment carried, and names the carrier that took it

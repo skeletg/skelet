@@ -303,7 +303,7 @@ func (s *Service) orderConfirmationCtx(ctx context.Context, channelID uuid.UUID,
 	if d.Discount > 0 {
 		v["order.discount"] = money(d.Discount, d.Currency)
 	}
-	return renderCtx{Vars: v, Currency: d.Currency, Lines: d.Lines, ShipTo: d.ShipTo}
+	return renderCtx{Vars: v, Currency: d.Currency, Lines: d.Lines, ShipTo: d.ShipTo, Fees: d.Fees}
 }
 
 func (s *Service) orderShipmentCtx(ctx context.Context, channelID uuid.UUID, d email.OrderShipmentData) renderCtx {

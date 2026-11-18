@@ -290,6 +290,7 @@ export function CmsPagesPage() {
 
   return (
     <DataTable
+      target="cms.pages"
       urlState={urlState}
       columns={columns}
       data={pages}

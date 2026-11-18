@@ -33,7 +33,7 @@
     "shipping_carrier.schema.json": "e1b2db2276137ebb0703faa09e3824de23597558bbf23833cc980d18d3f75b21",
     "shipping_tracking.request.json": "ebbe4608d40aed7a0b9b34632534b6ca2d8f43b957d8938b28dc746b1f92ff40",
     "shipping_tracking.schema.json": "c402d10989804bf3f1b2f80b8623d5e72f521dbbcc87a413be201824b758836f",
-    "tax_provider.request.json": "6603e6e1e9cb4aad750f8a8654a0997396d1de2d9f0e673e57d5d77dc5169928",
-    "tax_provider.schema.json": "8ace62b734910e7477b22790098d8de7a61d5f6a08537046bba59918bb4fc887"
+    "tax_provider.request.json": "00fb5d6d1fba869b942132a3d118d125ffe239a7163f28471716aa383b7d4c43",
+    "tax_provider.schema.json": "4d5a056e2f1a4dcb00c560a64a2afb711e50432b5e7e52cf5444ba8935e64226"
   }
 }

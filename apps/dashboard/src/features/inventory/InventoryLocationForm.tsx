@@ -137,6 +137,7 @@ function InventoryLocationFormPage({
 
   return (
     <RecordFormPage
+      plugins={{ target: 'location', entity: location ?? null, mode: isEdit ? 'edit' : 'create' }}
       record={record}
       backTo="/inventory/locations"
       backLabel="Back to inventory locations"

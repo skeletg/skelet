@@ -391,6 +391,7 @@ type AdminCreateCartOfferInput struct {
 }
 
 type AdminCreateCustomerInput struct {
+	Extensions        any     `json:"extensions,omitempty"`
 	ChannelID         string  `json:"channelId"`
 	Email             string  `json:"email"`
 	Password          string  `json:"password"`
@@ -519,6 +520,7 @@ type AdminUpdateCartOfferInput struct {
 }
 
 type AdminUpdateCustomerInput struct {
+	Extensions               any              `json:"extensions,omitempty"`
 	Email                    *string          `json:"email,omitempty"`
 	FirstName                *string          `json:"firstName,omitempty"`
 	LastName                 *string          `json:"lastName,omitempty"`
@@ -2157,6 +2159,7 @@ type CreateMenuItemInput struct {
 
 type CreateProductInput struct {
 	ProductTypeID           string           `json:"productTypeId"`
+	Extensions              any              `json:"extensions,omitempty"`
 	Kind                    ProductKind      `json:"kind"`
 	DefaultPrice            *int32           `json:"defaultPrice,omitempty"`
 	DefaultCurrencyCode     *string          `json:"defaultCurrencyCode,omitempty"`
@@ -2364,6 +2367,7 @@ type CreditMemo struct {
 	ReturnID         *string           `json:"returnId,omitempty"`
 	ItemsTotal       int32             `json:"itemsTotal"`
 	ShippingRefund   int32             `json:"shippingRefund"`
+	FeesRefund       int32             `json:"feesRefund"`
 	AdjustmentRefund int32             `json:"adjustmentRefund"`
 	AdjustmentFee    int32             `json:"adjustmentFee"`
 	Total            int32             `json:"total"`
@@ -3260,6 +3264,7 @@ type IssueCreditMemoInput struct {
 	OrderID          string                 `json:"orderId"`
 	Lines            []*CreditMemoLineInput `json:"lines,omitempty"`
 	ShippingRefund   *int32                 `json:"shippingRefund,omitempty"`
+	FeesRefund       *int32                 `json:"feesRefund,omitempty"`
 	AdjustmentRefund *int32                 `json:"adjustmentRefund,omitempty"`
 	AdjustmentFee    *int32                 `json:"adjustmentFee,omitempty"`
 	RefundTarget     *string                `json:"refundTarget,omitempty"`
@@ -3787,6 +3792,8 @@ type Order struct {
 	TaxIncluded         bool                  `json:"taxIncluded"`
 	ShippingTaxAmount   int32                 `json:"shippingTaxAmount"`
 	ShippingRefundable  int32                 `json:"shippingRefundable"`
+	FeesRefundable      int32                 `json:"feesRefundable"`
+	Fees                []*OrderFee           `json:"fees"`
 	Total               int32                 `json:"total"`
 	GiftCardAmount      int32                 `json:"giftCardAmount"`
 	StoreCreditAmount   int32                 `json:"storeCreditAmount"`
@@ -3837,6 +3844,13 @@ type OrderEvent struct {
 	Message    string    `json:"message"`
 	ActorEmail *string   `json:"actorEmail,omitempty"`
 	CreatedAt  time.Time `json:"createdAt"`
+}
+
+type OrderFee struct {
+	Key       string `json:"key"`
+	Label     string `json:"label"`
+	Amount    int32  `json:"amount"`
+	TaxAmount int32  `json:"taxAmount"`
 }
 
 type OrderLine struct {
@@ -3985,6 +3999,23 @@ type PermissionGroup struct {
 	Name        string        `json:"name"`
 	Slug        string        `json:"slug"`
 	Permissions []*Permission `json:"permissions"`
+}
+
+type PluginListFilter struct {
+	Key     string                    `json:"key"`
+	Plugin  string                    `json:"plugin"`
+	Label   string                    `json:"label"`
+	Options []*PluginListFilterOption `json:"options"`
+}
+
+type PluginListFilterInput struct {
+	Key    string   `json:"key"`
+	Values []string `json:"values"`
+}
+
+type PluginListFilterOption struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
 }
 
 type Product struct {
@@ -6236,6 +6267,7 @@ type UpdateProductDownloadInput struct {
 
 type UpdateProductInput struct {
 	ID                           string           `json:"id"`
+	Extensions                   any              `json:"extensions,omitempty"`
 	DefaultPrice                 *int32           `json:"defaultPrice,omitempty"`
 	DefaultCurrencyCode          *string          `json:"defaultCurrencyCode,omitempty"`
 	CompareAtPrice               *int32           `json:"compareAtPrice,omitempty"`
@@ -9535,6 +9567,63 @@ func (e *PaymentStatus) UnmarshalJSON(b []byte) error {
 }
 
 func (e PaymentStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type PluginList string
+
+const (
+	PluginListProducts  PluginList = "PRODUCTS"
+	PluginListCustomers PluginList = "CUSTOMERS"
+	PluginListOrders    PluginList = "ORDERS"
+)
+
+var AllPluginList = []PluginList{
+	PluginListProducts,
+	PluginListCustomers,
+	PluginListOrders,
+}
+
+func (e PluginList) IsValid() bool {
+	switch e {
+	case PluginListProducts, PluginListCustomers, PluginListOrders:
+		return true
+	}
+	return false
+}
+
+func (e PluginList) String() string {
+	return string(e)
+}
+
+func (e *PluginList) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = PluginList(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid PluginList", str)
+	}
+	return nil
+}
+
+func (e PluginList) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *PluginList) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e PluginList) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

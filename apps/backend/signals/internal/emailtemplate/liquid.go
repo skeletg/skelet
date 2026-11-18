@@ -150,7 +150,7 @@ func (s *Service) renderScriptedHTML(snip Snippet, vars map[string]string, rc re
 	return htmlOut, textOut
 }
 
-// Turns the flat dotted merge vars into a nested map Liquid can dot-walk, and layers on the structured data the flat vars can't carry - order.items for loops, and order.ship_to
+// Turns the flat dotted merge vars into a nested map Liquid can dot-walk, and layers on the structured data the flat vars can't carry - order.items and order.fees for loops, and order.ship_to
 func liquidBindings(vars map[string]string, rc renderCtx) map[string]any {
 	root := map[string]any{}
 	for k, v := range vars {
@@ -186,6 +186,12 @@ func liquidBindings(vars map[string]string, rc renderCtx) map[string]any {
 		}
 	}
 	order["items"] = items
+	// What plugins charged on top - without them a totals block written in Liquid can't add up to the total it shows
+	fees := make([]map[string]any, len(rc.Fees))
+	for i, f := range rc.Fees {
+		fees[i] = map[string]any{"label": f.Label, "amount": money(f.Amount, rc.Currency)}
+	}
+	order["fees"] = fees
 	order["ship_to"] = rc.ShipTo
 	return root
 }

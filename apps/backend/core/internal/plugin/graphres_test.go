@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
@@ -241,3 +242,92 @@ func TestPlainErrorKeepsPluginAttribution(t *testing.T) {
 type erroringImpl struct{ err error }
 
 func (e *erroringImpl) Connected(context.Context) (bool, error) { return false, e.err }
+
+type demoProduct struct{ ID string }
+
+type demoBatchAdmin interface {
+	ProductWarranty(ctx context.Context, objs []*demoProduct) ([]*string, error)
+}
+
+type demoBatchImpl struct {
+	calls int
+	short bool
+}
+
+func (d *demoBatchImpl) ProductWarranty(_ context.Context, objs []*demoProduct) ([]*string, error) {
+	d.calls++
+	out := make([]*string, len(objs))
+	for i, o := range objs {
+		w := "2y for " + o.ID
+		out[i] = &w
+	}
+	if d.short {
+		return out[:len(out)-1], nil
+	}
+	return out, nil
+}
+
+func callBatch(ctx context.Context, objs []*demoProduct) ([]*string, error) {
+	return DoBatch(ctx, sdk.GraphAdmin, "demo", "Product.warranty", len(objs),
+		func(ctx context.Context, impl demoBatchAdmin) ([]*string, error) {
+			return impl.ProductWarranty(ctx, objs)
+		})
+}
+
+// A field on a core type answers a whole list in one call, in the parents' order, and a plugin that's off on the
+// channel answers null for each without failing the core query around it
+func TestBatchFieldAnswersAListInOneCall(t *testing.T) {
+	h := resetGraph(t)
+	impl := &demoBatchImpl{}
+	if err := h.RegisterGraphResolver("demo", sdk.GraphAdmin, impl); err != nil {
+		t.Fatal(err)
+	}
+	objs := []*demoProduct{{ID: "a"}, {ID: "b"}, {ID: "c"}}
+	got, err := callBatch(context.Background(), objs)
+	if err != nil || len(got) != 3 || *got[1] != "2y for b" || impl.calls != 1 {
+		t.Fatalf("batch = %v, %v after %d calls", got, err, impl.calls)
+	}
+
+	off := uuid.New()
+	orig := isEnabledFromContext
+	t.Cleanup(func() { isEnabledFromContext = orig })
+	isEnabledFromContext = func(_ context.Context, _ string, ch uuid.UUID) bool { return ch != off }
+	ctx := channel.WithChannel(context.Background(), &channel.Channel{ID: off})
+	got, err = callBatch(ctx, objs)
+	if err != nil || len(got) != 3 || got[0] != nil || impl.calls != 1 {
+		t.Errorf("plugin off on the channel: %v, %v after %d calls - want three nulls and no call", got, err, impl.calls)
+	}
+
+	// A failure is reported against the first parent alone, where a plain error would be repeated for every row
+	impl.short = true
+	got, err = callBatch(context.Background(), objs)
+	var perParent graphql.BatchErrors
+	if !errors.As(err, &perParent) || len(got) != 3 || len(perParent.Errors()) != 3 {
+		t.Fatalf("an answer short of the parents: %v, %v", got, err)
+	}
+	if errs := perParent.Errors(); errs[0] == nil || !strings.Contains(errs[0].Error(), "2 values for 3 parents") || errs[1] != nil || errs[2] != nil {
+		t.Errorf("per-parent errors %v - want the one, on the first", errs)
+	}
+}
+
+// The field rides core's own listings, so it never spends the plugin's per-minute allowance - a spent one would turn
+// every product page into errors
+func TestBatchFieldIsUnmetered(t *testing.T) {
+	h := resetGraph(t)
+	both := &struct {
+		demoImpl
+		demoBatchImpl
+	}{}
+	if err := h.RegisterGraphResolver("demo", sdk.GraphAdmin, both); err != nil {
+		t.Fatal(err)
+	}
+	orig := checkRateLimitFn
+	t.Cleanup(func() { checkRateLimitFn = orig })
+	checkRateLimitFn = func(context.Context, string) error { return ErrPluginRateLimited }
+	if got, err := callBatch(context.Background(), []*demoProduct{{ID: "a"}}); err != nil || got[0] == nil {
+		t.Errorf("a spent allowance reached the field: %v, %v", got, err)
+	}
+	if _, err := callDemo(context.Background()); !errors.Is(err, ErrPluginRateLimited) {
+		t.Errorf("a plugin's own query is still metered: %v", err)
+	}
+}

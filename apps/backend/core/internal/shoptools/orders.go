@@ -31,6 +31,7 @@ var (
 	myOrderDoc = document("myOrder", `query AgentMyOrder($id: ID!) {
   myOrder(id: $id) {
     id number status paymentStatus paymentInstructions total subtotal shippingAmount discountAmount taxAmount amountDue currencyCode createdAt
+    fees { label amount }
     carrier trackingNumber trackingUrl shippingAddress { city countryCode }
     lines { id name sku quantity totalPrice isGift }
     events { type message createdAt }
@@ -89,23 +90,27 @@ type lineQuantity struct {
 }
 
 type orderDetail struct {
-	ID                  string    `json:"id"`
-	Number              string    `json:"number"`
-	Status              string    `json:"status"`
-	PaymentStatus       string    `json:"paymentStatus"`
-	PaymentInstructions *string   `json:"paymentInstructions"`
-	Total               int64     `json:"total"`
-	Subtotal            int64     `json:"subtotal"`
-	ShippingAmount      int64     `json:"shippingAmount"`
-	DiscountAmount      int64     `json:"discountAmount"`
-	TaxAmount           int64     `json:"taxAmount"`
-	AmountDue           int64     `json:"amountDue"`
-	CurrencyCode        string    `json:"currencyCode"`
-	CreatedAt           time.Time `json:"createdAt"`
-	Carrier             string    `json:"carrier"`
-	TrackingNumber      string    `json:"trackingNumber"`
-	TrackingURL         *string   `json:"trackingUrl"`
-	ShippingAddress     struct {
+	ID                  string  `json:"id"`
+	Number              string  `json:"number"`
+	Status              string  `json:"status"`
+	PaymentStatus       string  `json:"paymentStatus"`
+	PaymentInstructions *string `json:"paymentInstructions"`
+	Total               int64   `json:"total"`
+	Subtotal            int64   `json:"subtotal"`
+	ShippingAmount      int64   `json:"shippingAmount"`
+	DiscountAmount      int64   `json:"discountAmount"`
+	TaxAmount           int64   `json:"taxAmount"`
+	Fees                []struct {
+		Label  string `json:"label"`
+		Amount int64  `json:"amount"`
+	} `json:"fees"`
+	AmountDue       int64     `json:"amountDue"`
+	CurrencyCode    string    `json:"currencyCode"`
+	CreatedAt       time.Time `json:"createdAt"`
+	Carrier         string    `json:"carrier"`
+	TrackingNumber  string    `json:"trackingNumber"`
+	TrackingURL     *string   `json:"trackingUrl"`
+	ShippingAddress struct {
 		City        string `json:"city"`
 		CountryCode string `json:"countryCode"`
 	} `json:"shippingAddress"`
@@ -247,6 +252,9 @@ func renderOrder(o orderDetail) string {
 	fmt.Fprintf(&b, "\nSubtotal %s, delivery %s", price(o.Subtotal, o.CurrencyCode), price(o.ShippingAmount, o.CurrencyCode))
 	if o.DiscountAmount > 0 {
 		fmt.Fprintf(&b, ", discount -%s", price(o.DiscountAmount, o.CurrencyCode))
+	}
+	for _, f := range o.Fees { // or the parts fall short of the total they're followed by
+		fmt.Fprintf(&b, ", %s %s", f.Label, price(f.Amount, o.CurrencyCode))
 	}
 	if o.TaxAmount > 0 {
 		fmt.Fprintf(&b, ", tax %s", price(o.TaxAmount, o.CurrencyCode))

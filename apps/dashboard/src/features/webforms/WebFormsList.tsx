@@ -169,6 +169,7 @@ export function WebFormsList() {
         ) : (
           <DetailPageSection>
             <DataTable
+              target="web-forms"
               urlState={urlState}
               columns={columns}
               data={forms}

@@ -17,6 +17,7 @@ import { useConfigScope } from '@/lib/config-scope'
 import { useFeatures } from '@/shared/features/useFeatures'
 import { formatCents } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { PluginSections } from '@/plugins/detail-sections'
 import { ProductSidebarStatsDocument, ProductTrafficDocument } from '../Catalog.gql'
 
 const COLLAPSE_KEY = 'skelet-dash:product-sidebar-collapsed'
@@ -101,23 +102,25 @@ function Section({
   )
 }
 
-export function ProductSidebar({ product }: { product: SidebarProduct }) {
-  // Persisted, so the choice survives moving between products rather than resetting each time
-  const [collapsed, setCollapsed] = useState(
-    () => localStorage.getItem(COLLAPSE_KEY) === '1',
-  )
-  const { effectiveChannelId } = useConfigScope()
-  const { enabled: featureEnabled } = useFeatures()
-  // Lens keys pages by path and needs one channel - a global scope has no single page to ask about
-  const signalsOn = featureEnabled('signals') && !!product.url
-  const trafficReady = signalsOn && !!effectiveChannelId
-
+// Whether the panel is folded to its rail - persisted, so the choice survives moving between products rather than
+// resetting each time. The page holds it: folded, the panel's plugin sections move into the page body
+export function useProductPanelCollapsed(): [boolean, () => void] {
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1')
   const toggle = () => {
     setCollapsed((c) => {
       localStorage.setItem(COLLAPSE_KEY, c ? '0' : '1')
       return !c
     })
   }
+  return [collapsed, toggle]
+}
+
+export function ProductSidebar({ product, collapsed, toggle }: { product: SidebarProduct; collapsed: boolean; toggle: () => void }) {
+  const { effectiveChannelId } = useConfigScope()
+  const { enabled: featureEnabled } = useFeatures()
+  // Lens keys pages by path and needs one channel - a global scope has no single page to ask about
+  const signalsOn = featureEnabled('signals') && !!product.url
+  const trafficReady = signalsOn && !!effectiveChannelId
 
   // errorPolicy 'all' so an admin without reports.view still gets stock and reviews rather than
   // an empty sidebar - the missing block simply doesn't render
@@ -296,6 +299,9 @@ export function ProductSidebar({ product }: { product: SidebarProduct }) {
           )}
         </Section>
       )}
+      <div className="flex flex-col gap-4 border-t p-4 empty:hidden">
+        <PluginSections target="product" entity={product} mode="edit" placement="side" />
+      </div>
     </aside>
   )
 }

@@ -38,6 +38,8 @@ type Order {
   events:          [OrderEvent!]!
   subtotal:        Int!
   shippingAmount:  Int!
+  # What plugins charged on top of the goods and shipping, each a row of its own on the summary. Included in total.
+  fees:            [OrderFee!]!
   discountAmount:  Int!
   taxAmount:       Int!
   # taxAmount is already inside the prices rather than added on top - label it "includes tax"
@@ -294,4 +296,13 @@ extend type Query {
   # Soft-check a checkout address against the store's configured
   # validator (format checks by default; pluggable providers).
   validateAddress(street1: String!, street2: String, city: String!, state: String, postalCode: String!, countryCode: String!): AddressValidationResult!
+}
+
+# A charge a plugin added - handling, a payment surcharge - with the label the shopper saw. Its tax is in taxAmount.
+type OrderFee {
+  # "<plugin>:<key>", stable across label changes
+  key:    String!
+  label:  String!
+  # In minor units
+  amount: Int!
 }

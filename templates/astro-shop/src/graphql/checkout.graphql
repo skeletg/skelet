@@ -79,8 +79,14 @@ query Checkout($id: ID!) {
         subtotalCents
         discountCents
         shippingCents
+        fees {
+          key
+          label
+          amount
+        }
         taxCents
         totalCents
+        problem
       }
     }
   }

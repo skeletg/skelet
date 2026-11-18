@@ -103,6 +103,7 @@ export function MenusList() {
   return (
     <>
       <DataTable
+        target="menus"
         urlState={urlState}
         columns={columns}
         data={rows}

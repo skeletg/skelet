@@ -18,6 +18,7 @@ SELECT o.id AS order_id, ol.id AS line_id, o.number, o.created_at, o.status, o.p
        COALESCE(o.payment_provider, '')::text AS payment_provider,
        o.email, o.currency_code,
        o.subtotal_amount, o.discount_amount, o.shipping_amount,
+       (SELECT COALESCE(SUM((f->>'amountCents')::bigint), 0) FROM jsonb_array_elements(o.fees) f)::bigint AS fee_amount,
        o.tax_amount, o.total_amount, o.gift_card_amount,
        ol.product_sku, ol.product_name, ol.quantity, ol.unit_price,
        ol.total_price, ol.cost_cents,

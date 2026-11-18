@@ -60,6 +60,7 @@ export function OptionTemplatesList() {
 
   return (
     <DataTable
+      target="catalog.option-templates"
       urlState={urlState}
       columns={columns}
       data={rows}

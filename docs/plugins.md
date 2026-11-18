@@ -47,7 +47,7 @@ repo after the slug is what makes the install need no flags. A deployment that t
 payment installs the gateway it needs:
 
 ```
-skelet cli plugin add github.com/acme/payment-gateway@<version>
+skelet plugin add github.com/acme/payment-gateway@<version>
 ```
 
 A fresh build therefore ships with NO gateway compiled in - offline payment
@@ -63,8 +63,8 @@ to reach for.
 **`plugin add` - a Go module dependency.** Nothing is copied into this repo:
 
 ```
-skelet cli plugin add github.com/acme/skelet-plugin-fraud@v1.2.0
-skelet cli plugin add github.com/acme/skelet-plugin-fraud        # latest
+skelet plugin add github.com/acme/skelet-plugin-fraud@v1.2.0
+skelet plugin add github.com/acme/skelet-plugin-fraud        # latest
 ```
 
 `go get` fetches it, `plugins/plugins.json` records the module path, and
@@ -84,8 +84,8 @@ module cache or in-tree, never behind a `replace` pointing at a checkout elsewhe
 no `go.mod`, or no repo you can fetch from.
 
 ```
-skelet cli plugin install https://github.com/acme/skelet-plugin-fraud@v1.2.0
-skelet cli plugin install ../my-plugin --slug my-plugin
+skelet plugin install https://github.com/acme/skelet-plugin-fraud@v1.2.0
+skelet plugin install ../my-plugin --slug my-plugin
 ```
 
 The source is copied to `plugins/<slug>/` with its `.git`, `go.mod`, `go.sum` and
@@ -94,12 +94,26 @@ pulled in by `go mod tidy` and any self-imports rewritten onto the vendored path
 failure parks the plugin (`plugins/_<slug>`) so the tree keeps compiling while you fix it.
 
 Either way, installing compiles the code into core with full privileges - read it before
-you install it. The manifest's capabilities are a disclosure, not a sandbox.
+you install it. The manifest's capabilities are a disclosure, not a sandbox. Both commands
+stop once the source is fetched, say which npm packages they're about to add and that
+`skelet gen` comes next - the first time the plugin's code runs on your machine - and ask.
+`--yes` skips the question; without a terminal to ask on they stop there. The npm packages
+are published apart from the Go module, so `go.sum` says nothing about them: they run in
+the admin's session and on checkout pages, and want the same reading.
 
-One thing to know about graph-extending plugins: their resolvers reference types in core's
+A plugin's SDL can extend `Query`, `Mutation`, and core's own object types - see "Your data on
+core's records" below. One thing to know about graph-extending plugins: their resolvers reference types in core's
 *generated* `graph/*/model` package, which core produces from that plugin's own SDL. So the
 order is always fetch, then codegen, then compile - and such a plugin never builds
 standalone in its own repo. A plugin with no GraphQL does.
+
+### Building with your plugins
+
+`skelet build` makes what a deployment runs, with the plugins `plugins.json` enables. It regenerates
+first, so a plugin just added or switched off is in or out, then builds core's image as
+`skelet-core:prod` - the name its compose service runs when `CORE_IMAGE` is unset - and the
+dashboard's static files. Name what you want instead: `skelet build core signals dashboard shop
+--tag v1.2`. `skelet release` pushes the backends' images to your registry.
 
 ## Remote providers - HTTP, out of process
 
@@ -226,6 +240,14 @@ all out of tree. This is what the SDK gives it.
   error leaves the period for later too: a minute, then twice as long each time up to six hours,
   while the store's other subscriptions bill as usual. One period costs at most
   10,000,000,000 in minor units.
+- **Your data on core's records** - a warranty on a product, an ERP status on an order, as fields
+  on core's own GraphQL types, saved with the record in its own transaction. See below.
+- **`RegisterListFilter`** - a filter on the products, customers or orders list by your own data,
+  in the list's toolbar beside core's. See below.
+- **`RegisterCustomerData`** - what you keep about a customer leaves with their data export and goes
+  with an erasure. See below.
+- **`RegisterFee`** - a charge of your own on the order: cash-on-delivery handling, a payment
+  surcharge, an eco fee, a deposit. See below.
 - **`RegisterDataResource`** - your own data in the dashboard's import and export hub. Declare
   the columns, a view permission and an import permission you registered, and give an `Import`
   per row and an `Export` that streams records. Core handles the CSV or JSON Lines file, the
@@ -266,38 +288,337 @@ shows them under **At checkout** even after the field changes. Carts and orders 
 the order's metadata under `<slug>:delivery_slot`, so no other plugin overwrites it; the admin API
 returns it as `Order.metadata`. Both go with a customer's data when they're erased.
 
+### Your data on core's records
+
+Keep your data in your own tables, with a foreign key to the core table it belongs to - core's
+migrations run before any plugin's, so `customers`, `catalog_products`, `orders` and the rest are
+there to point at. Give the key `ON DELETE CASCADE` and your rows go when the record does.
+
+Then put them on core's type, in your SDL:
+
+```graphql
+extend type Product {
+  acmeWarranty: AcmeWarranty @goField(forceResolver: true, batch: true)
+}
+```
+
+The field is nullable and batched, or codegen refuses it. Your resolver gets one call per list of
+parents, `ProductAcmeWarranty(ctx, objs []*model.Product) ([]*model.AcmeWarranty, error)`, and answers
+one value per parent in their order, nil for none - so a listing of 48 products asks you once, and
+one `WHERE product_id = ANY($1)` serves it. The method is named after the type and the field, so a
+warranty on products and one on orders never clash. Where your plugin is off on a channel the field
+answers null without calling you. On the admin API you gate it like a root field, with an
+`sdk.Require*` the authz tests follow into your method. Prefix the field with your slug, as for root
+fields, so it never collides with a field core adds later.
+
+When the field is just your rows for the record, `sdk.Link` and `sdk.LoadOne` / `sdk.LoadMany` write
+that query for you - the resolver becomes a line:
+
+```go
+var warranties = sdk.Link{Table: "acme_warranties", Key: "product_id"}
+
+func (adminResolver) ProductAcmeWarranty(ctx context.Context, objs []*model.Product) ([]*model.AcmeWarranty, error) {
+    if err := sdk.RequirePermission(ctx, "catalog.view"); err != nil {
+        return nil, err
+    }
+    return sdk.LoadOne[model.AcmeWarranty](ctx, warranties, sdk.IDs(objs, func(p *model.Product) string { return p.ID }))
+}
+```
+
+The columns are your model's fields - each field with a JSON tag reads its column in snake case
+(`monthsLeft` reads `months_left`) - and `LoadMany` returns every row per record, ordered by
+`Link.Order`. Write your own query when the answer needs more than that.
+
+Your own types can point back at core's records the same way - a warranty's product, a note's
+customer. Ask for a resolver on the field, batched and nullable as before, and answer it from
+`graph/admin/refs` or `graph/front/refs`, which load core's own models through core's own queries -
+the admin's permission checks, the storefront's visibility on the channel:
+
+```graphql
+type AcmeWarranty {
+  months: Int!
+  productId: ID!
+  product: Product @goField(forceResolver: true, batch: true)
+}
+```
+
+```go
+func (adminResolver) AcmeWarrantyProduct(ctx context.Context, objs []*model.AcmeWarranty) ([]*model.Product, error) {
+    if err := sdk.RequirePermission(ctx, "catalog.view"); err != nil {
+        return nil, err
+    }
+    return refs.Products(ctx, sdk.IDs(objs, func(w *model.AcmeWarranty) string { return w.ProductID }))
+}
+```
+
+Each answers one record per id in their order, nil for one the caller can't see. The admin's cover
+products, customers, orders, categories and collections; the storefront's products, categories and
+collections, since a shopper sees no one else's customer or order.
+
+The storefront caches product, category and collection pages, and your field with them, so when your
+data on a record changes, call `sdk.InvalidateStorefront(ctx, sdk.StorefrontProduct, id)`: the
+record's pages are purged the way core's own change to it purges them, following the store's cache
+settings. Core sends no event about your table, so nothing else will.
+
+### Saving your data with the record
+
+`createProduct`, `updateProduct`, `adminCreateCustomer` and `adminUpdateCustomer` take `extensions`, an
+object with each plugin's part under its slug - `{"acme": {"months": 24}}`. Core hands them to
+`product.saving` or `customer.saving`, a sync event inside the save's own transaction, after the
+record's row is written:
+
+```go
+p.SubscribeSync(sdk.EventProductSaving, 100, func(ctx context.Context, e any) error {
+    save, ok := e.(sdk.RecordSaving)
+    var warranty struct{ Months int `json:"months"` }
+    if !ok {
+        return nil
+    }
+    if given, err := p.Extension(save, &warranty); !given || err != nil {
+        return err
+    }
+    _, err := save.SavingTx().ExecContext(ctx,
+        `INSERT INTO acme_warranties (product_id, months) VALUES ($1, $2)
+         ON CONFLICT (product_id) DO UPDATE SET months = $2`, save.SavingRecordID(), warranty.Months)
+    return err
+})
+```
+
+Your rows commit with the record's, and an error refuses the whole save - an `sdk.UserError` reads
+to the admin. Declare the part first, or core refuses a save that carries it:
+
+```go
+p.RegisterRecordExtension(sdk.RecordExtension{Record: sdk.RecordProduct, Permission: "acme.manage"})
+```
+
+`Permission` is what an admin needs to send your part on top of the record's own; leave it empty and
+anyone who may save the record may set it. A part under a slug that declared none, or whose plugin
+is off, is refused before anything is written. The events are for compiled-in plugins, not
+webhooks - `product.updating` and `customer.updating` are a webhook's say, before the transaction
+opens. `product.saving` fires wherever core saves a product, the import included; `customer.saving`
+on the admin API's saves, so follow `customer.created` for every new customer. Keep the handler to
+your own writes, since the record's row is locked until it returns. A save carries at most 64 KB of
+extensions, each keyed by a slug.
+
+In the dashboard, a section on the product or customer page stages its part with
+`useExtensionSection` from `@skelet/dashboard-sdk`, and it goes out with the page's own Save - in the
+mutation of the page's main section when that changed too (General, on a product), alone through
+the same mutation when it didn't. Another section of the page that saves in a call of its own, a
+product's pricing or SEO, commits apart from your part. The confirm dialog lists it under your
+title. Two sections of one plugin each stage an object, and your subscriber reads them joined.
+Refetch your data in `onSaved`, so your section stops reporting a change once it's saved:
+
+```tsx
+useExtensionSection('acme', {
+  title: 'Warranty',
+  diff: months === saved ? [] : [{ label: 'Months', before: String(saved), after: String(months) }],
+  value: { months },
+  onSaved: refetch,
+})
+```
+
+### Filtering core's lists by your data
+
+`RegisterListFilter` puts a filter on the products, customers or orders list, beside core's own -
+"has a warranty", "ERP sync failed". The dashboard shows it in the list's toolbar with your options,
+with no dashboard code from you, and core narrows the list to the records `Match` answers:
+
+```go
+p.RegisterListFilter(sdk.ListFilter{
+    List:    sdk.ListProducts,
+    Key:     "warranty",
+    Label:   "Warranty",
+    Options: []sdk.ListFilterOption{{Value: "any", Label: "Has a warranty"}},
+    Match: func(ctx context.Context, values []string) ([]uuid.UUID, error) {
+        // the ids of the products holding a row in acme_warranties
+    },
+})
+```
+
+`Match` gets the values the admin ticked - each one of your options, checked before you're asked -
+and answers with the ids matching any of them, at most `sdk.MaxListFilterMatches`: past that the
+list is refused with your filter named, since core carries the ids into its query. Core has already
+checked the list's own permission and keeps to the channels the admin may see whatever you answer,
+and several filters narrow the list together. Paging asks again on every page, so keep it to one
+indexed query. The admin API lists the filters as `pluginListFilters(list:)`, and each paged list
+takes them as `pluginFilters`.
+
+### Customer data
+
+A customer's data export and their erasure reach what core keeps; `RegisterCustomerData` makes them
+reach what you keep too:
+
+```go
+p.RegisterCustomerData(sdk.CustomerData{
+    Key:    "warranties",
+    Export: func(ctx context.Context, who sdk.CustomerDataSubject) (any, error) { ... },
+    Erase:  func(ctx context.Context, who sdk.CustomerDataSubject) error { ... },
+})
+```
+
+`Export` returns anything that marshals to JSON, and the export carries it under `<slug>:<key>`; nil
+leaves nothing. An error fails the export, since one quietly missing a section answers the request
+wrongly. `Erase` runs after the customer is erased - core blanks the account rather than deleting
+it, so a cascading key never fires - and after one is deleted, for the rows a key can't reach: the
+ones you keep by email, or in a system of your own. Core keeps each erasure owed until yours returns
+nil, asking again on a widening schedule for as long as that takes, and the `plugin-erasures` job
+fails, and alerts, while any is - so make it safe to repeat. Both run whether or not your plugin is
+on, since what you kept outlives that. `who.Email` is empty when the address wasn't confirmed as the
+customer's: never match your rows on an empty one.
+
+### Fees
+
+```go
+p.RegisterFee(sdk.Fee{
+    Key: "cod_handling", Label: "Cash on delivery",
+    Charge: func(ctx context.Context, req sdk.FeeRequest) (int64, error) {
+        if req.PaymentMethod != "cod" {
+            return 0, nil
+        }
+        return 250, nil
+    },
+})
+```
+
+A fee goes on after shipping and before tax. `Charge` gets the checkout as it stands - the lines,
+subtotal, discount, the shipping picked and what it costs, the payment method, the shopper's country,
+group and checkout-field answers (`p.FeeAnswer(req, key)` reads yours) - and returns what the fee comes
+to in minor units, holding its tax when `req.TaxInclusive`. Return 0 and the order carries no line for
+it. Core taxes it under `TaxClass`, empty being the class of a product that has none, unless you mark
+it `Untaxed`; a remote tax provider gets the fees in its request and taxes them its own way. A plugin
+that sets the order's tax through `SetPlacingTaxCents` does it before the fees are priced, so its figure
+covers the goods and shipping and core taxes the fees on top.
+
+The checkout quote runs it the same way placement does, so the shopper's summary shows the fee before
+they pay, and both storefront templates draw it as a row of its own under its label. It runs whenever
+the checkout is priced, often several times per checkout, so compute rather than act, and keep it quick:
+it's on every checkout of every channel your plugin is on. An `sdk.UserError` stops the order with your
+message ("cash on delivery takes orders up to 100.00"); so does any other error, since charging less
+than the store asked is worse than not selling. At the quote the same refusal can't stop anything, so
+it reads as `CheckoutTotals.problem` beside totals that stop at the subtotal, and both templates show
+it. A fee is zero or more and at most `sdk.MaxFeeCents`, its label at most `sdk.MaxFeeLabel`
+characters, in one language - a discount of your own is a promotion action or
+`CheckoutReview.AddCheckoutDiscount`.
+
+The order keeps each fee as it was charged, `<slug>:<key>` with its label, amount and tax, so an edit
+re-taxes it with the order but never asks your plugin again, and the invoice, the order emails, the
+dashboard and both APIs (`Order.fees`, `CheckoutTotals.fees`) show the same rows. A credit memo
+refunds a fee through its fees refund, up to `Order.feesRefundable`, apart from the goods - so a
+refunded handling fee takes back no loyalty points and reports no returned merchandise. Drafts an
+admin builds carry no fees - they're priced by hand.
+
 ## The frontend halves
 
-A plugin's Go arrives through `go get`. Its UI does not, and shipping TypeScript through a
-Go module buys nothing - so dashboard and storefront code lives in its own repository,
-destined for npm once there are SDK packages for the two apps to depend on.
+A plugin's Go arrives through `go get`, its UI through npm. A `skelet-plugin.json` at the plugin's
+root names the packages holding its dashboard and storefront halves:
 
-Until then it is copied into place by hand. What core provides either way is the registry
-each half hooks into, so a plugin's UI never edits a core page.
+```json
+{ "dashboard": "@acme/fraud-dashboard@^1.2.0", "storefront": "@acme/fraud-storefront@^1.2.0" }
+```
 
-**Dashboard.** `apps/dashboard/src/plugins/<slug>/` with a `plugin.tsx` in it. The app's
-`src/plugins/loader.ts` glob imports every one eagerly, and the import-time
-`extendGroup` / `registerNavNode` / `registerDetailRoute` calls are the whole wiring.
+`skelet plugin add github.com/acme/fraud@v1.2.0` then brings both halves. The ops CLI fetches the
+module and records the packages in `plugins.json`, pnpm adds them to the dashboard and to every
+storefront that loads plugins, and `skelet gen` writes each app's import list from `plugins.json` -
+`apps/dashboard/src/plugins/packages.ts`, and `app/plugins/packages.ts` in each storefront - so
+switching the plugin off unloads its UI too. `skelet plugin install` does the same for a plugin
+vendored from source. A package published less than a day ago won't install yet (pnpm's
+`minimumReleaseAge`).
+
+A spec is a package name with an optional registry version, range or tag - no `npm:` alias, URL, git
+or file source. The command only adds what an app is missing, for every enabled plugin, so running it
+again finishes an install that stopped halfway, and it never moves a package an app already has: a
+manifest naming `next` changes nothing, and where the versions differ it says so and prints the
+`skelet pnpm <app> add` that would move it. A plugin enabled later with `skelet cli plugin enable`, or
+a storefront forked since, is missing the package until you add it - `skelet gen` stops and names the
+command. Leave `"sideEffects": false` out of a UI package's `package.json`: its registrations are
+side effects, and a production build would drop them.
+
+A dashboard package imports what it needs from `@skelet/dashboard-sdk` - the registries below, the
+detail-page layout, `useSaveSection` and the UI kit. The dashboard's build points that name at its
+own source, so the plugin registers into the same registries and draws with the same components;
+the npm package of that name holds the types alone. Ship your source
+(`"exports": { ".": "./src/plugin.tsx" }`), take `react`, `@apollo/client`, `react-router-dom`,
+`@lingui/react` and `sonner` as peers where you use them, and query through the dashboard's Apollo
+client with `@apollo/client/react`'s hooks. A storefront package imports from
+`@skelet/storefront-react/plugins/registry` and takes `@skelet/storefront-react` as a peer too - a
+copy of its own would be a registry no page reads.
+
+A plugin's UI can still live in the tree instead - `apps/dashboard/src/plugins/<slug>/`, which the
+dashboard's loader globs, or a storefront's `app/plugins/<slug>/`, imported by hand in its
+`loaded.ts`. Either way it reaches core's pages only through the registries, never by editing one.
+
+**Dashboard.** The import-time `extendGroup` / `registerNavNode` / `registerDetailRoute` calls are
+the whole wiring of a plugin's own pages.
 
 Inside core's own pages a plugin reaches in through registries keyed by a target name:
 
+- **`registerDetailSection`** adds a whole section to a record's page, with `useSaveSection` to
+  join the page's Save. `placement` puts it at the top of the page's body (`before`), at the end of
+  it (`after`, the default) or in the side panel (`side`), where a body section is a
+  `<DetailPageSection>` and a side one a small block of its own. The side panel shows on wide
+  screens; below that, or with the panel folded away, a side section renders at the end of the
+  body instead, so it's never lost and never mounted twice. A section that throws is replaced by a
+  line naming it, and the page around it carries on. Every
+  record page takes sections: `product`, `order`, `customer`, `customer-group`, `category`,
+  `collection`, `attribute`, `product-type`, `option-template`, `cart`, `promotion`, `review`,
+  `review-question`, `segment`, `campaign`, `experiment`, `cms-page`, `cms-page-type`,
+  `cms-block-type`, `cms-attribute`, `blog-post`, `blog-author`, `blog-term`, `menu`, `web-form`,
+  `webhook`, `integration`, `channel`, `country`, `currency`, `locale`, `location`,
+  `shipping-zone`, `tax-rule`, `admin` and `role`. On a page whose side is something else - the
+  category tree, a live preview, the post's own panel - side sections stay in the body.
 - **`registerDetailField`** puts a field on a record's page - `product`, `customer`,
   `collection`, `country`, `currency`, `location` or `locale` - stored under a metadata key of
   that record. It edits the page's own metadata, so the page's Save, its before-and-after dialog
   and the unsaved-work guard cover it, and the dialog names it by your label. Text, textarea,
   number, checkbox, select or date; the key leaves the free-form metadata rows so nothing edits it
   twice.
-- **`registerDetailSection`** adds a whole section, with `useSaveSection` to join the page's Save.
 - **`registerListColumn`**, `registerListFilter`, `registerListRowAction` and
-  `registerListMassAction` extend a list - `catalog.products`, `customers`, `orders`.
-  `metadataColumn(key, header)` shows one of your metadata fields as a column on the products
-  and customers lists, whose rows carry metadata.
+  `registerListMassAction` extend a list. Every top-level list has a target: `catalog.products`,
+  `catalog.collections`, `catalog.attributes`, `catalog.product-types`, `catalog.option-templates`,
+  `catalog.url-rewrites`, `orders`, `carts`, `offers`, `customers`, `customer-groups`, `segments`,
+  `subscriptions`, `gift-cards`, `reviews`, `questions`, `conversations`, `promotions`, `campaigns`,
+  `flows`, `signup-forms`, `web-forms`, `experiments`, `blog.posts`, `cms.pages`, `menus`,
+  `inventory.locations`, `inventory.low-stock`, `shipping.zones`, `tax-rules`, `countries`,
+  `currencies`, `locales`, `channels`, `admins`, `roles`, `integrations`, `remote-providers`,
+  `webhooks` and `scheduled-jobs`. `metadataColumn(key, header)` shows one of your metadata
+  fields as a column on the products and customers lists, whose rows carry metadata.
+- **`registerSlot`** renders into a zone: `list-header:<target>`, `list-toolbar:<target>` and
+  `list-footer:<target>` on every list above, each handed `{table}`, and `home:widgets` at the
+  end of Home. A target is only where you reach a list - it changes nothing else about it.
+- **`registerHomeWidget`** adds a section of your own to Home, with an id like
+  `<slug>:sales`, and an optional permission and feature switch. An admin arranges it, hides it or
+  finds it in the library, like core's own. `defaultHidden` leaves it in the library until they
+  switch it on.
 
-**Storefront.** `app/plugins/<slug>/` plus one line in `app/plugins/loaded.ts`. Routes need
-no registration - Next's filesystem router is already the glob, so a page copied to its real
-path simply exists. What `app/plugins/registry.ts` covers is the places a plugin appears
-INSIDE a core page: `registerAccountNavItem` for the account sidebar, and `registerSlot` for
-a zone like `cart:summary` or `cart:actions`.
+**Storefront.** Routes need no registration - Next's filesystem router is already the glob, so a
+page copied to its real path simply exists. The registry lives in `@skelet/storefront-react/plugins/registry` and covers
+the places a plugin appears INSIDE a core page: `registerAccountNavItem` for the account sidebar,
+and `registerSlot` for a zone. The template reaches it through `app/plugins/registry.ts` and
+`app/plugins/Slots.tsx`, which load `loaded.ts` too - a slot renders in the browser as well, and the
+browser keeps its own copy of the registry, so the plugins register there as well as on the
+server. A slot that throws is left out and logged, so one can't take the checkout, or a page's
+header, down with it. Vetrina draws these zones, each with the ctx it hands over:
+
+| Zone | Where | ctx |
+|---|---|---|
+| `header:actions` | the header's icon row | - |
+| `footer:end` | above the footer's last line | - |
+| `listing:top` | over every category, collection, catalog and search listing's results | `{path, total, query}` |
+| `product-card` | beside each product card's price | `{productId, sku}` |
+| `product:buy-box` | under the product page's buy box | `{productId, sku, name}` |
+| `product:details` | under the product, above its reviews | `{productId, sku, name}` |
+| `mini-cart:footer` | under the mini cart's buttons | `{subtotal, currency}` |
+| `cart:summary` | under the cart's totals | `{subtotal, currency}` |
+| `cart:actions` | beside Proceed to checkout | `{subtotal, currency}` |
+| `checkout:summary` | under checkout's order summary | `{cartId, totalCents, currency}` |
+| `checkout:payment` | above Pay, inside the payment form - give a button `type="button"` | `{provider, amountDueCents, currency}` |
+| `order` | on every order the shopper reads | `{orderId, number, status, total, currencyCode}` |
+| `order:placed` | once, as the order is placed | `{orderId, number, total, currencyCode}` |
+| `account:overview` | under the account overview's cards | `{customerId}` |
+
+ctx crosses from server to client components, so it's plain data - a slot that needs more calls
+its own server action. The Astro template draws no slots: it renders on the server with no
+client components to mount one in.
 
 **A gateway's card fields.** `registerPaymentUI({ provider, Fields })` puts a payment
 plugin's fields into the Next storefront's checkout while its method is picked and no saved
@@ -322,14 +643,13 @@ rather than on a thank-you.
 The gateway's hosts also have to be in the storefront's CSP - see `PAYMENT_ORIGINS` in
 [env.md](env.md).
 
-Everything in the storefront registry is client-safe on purpose. The host components are all
-`"use client"`, so a server-rendered slot could not mount in them; a plugin needing server
-data calls its own `"use server"` action from the slot, which is how a plugin shows its own
-data at checkout without core fetching it on the plugin's behalf.
+Everything in the storefront registry is client-safe on purpose. A slot renders in a client
+component; a plugin needing server data calls its own `"use server"` action from it, which is how
+a plugin shows its own data at checkout without core fetching it on the plugin's behalf.
 
-`loaded.ts` is a hand-maintained import list rather than a glob, for the same reason
-`plugins/firstparty` is generated from `plugins.json`: the enabled set decides what loads,
-not whatever is sitting in a directory.
+`packages.ts` is generated from `plugins.json` and `loaded.ts` kept by hand, rather than a glob, for
+the same reason `plugins/firstparty` is generated: the enabled set decides what loads, not whatever
+is sitting in a directory.
 
 Note that a storefront is a template you fork, not an app every install shares. Treat a
 plugin's storefront half as reference markup to restyle rather than a drop-in.

@@ -2,6 +2,7 @@
 package route
 
 import (
+	"github.com/skeletg/skelet/cmd/skelet/internal/build"
 	"github.com/skeletg/skelet/cmd/skelet/internal/changelog"
 	"github.com/skeletg/skelet/cmd/skelet/internal/container"
 	"github.com/skeletg/skelet/cmd/skelet/internal/db"
@@ -11,6 +12,7 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/gen"
 	"github.com/skeletg/skelet/cmd/skelet/internal/hooks"
 	"github.com/skeletg/skelet/cmd/skelet/internal/lint"
+	"github.com/skeletg/skelet/cmd/skelet/internal/pluginadd"
 	"github.com/skeletg/skelet/cmd/skelet/internal/pnpm"
 	"github.com/skeletg/skelet/cmd/skelet/internal/release"
 	"github.com/skeletg/skelet/cmd/skelet/internal/scaffold"
@@ -53,6 +55,9 @@ var routes = []Route{
 	{Verb: "lint", Go: lint.Run, About: lint.About},
 	{Verb: "search", Go: search.Run, About: search.About},
 	{Verb: "release", Go: release.Run, About: release.About},
+	{Verb: "build", Go: build.Run, About: build.About},
+	{Verb: "plugin", Sub: "add", Go: pluginadd.Add, About: pluginadd.AddAbout},
+	{Verb: "plugin", Sub: "install", Go: pluginadd.Install, About: pluginadd.InstallAbout},
 	{Verb: "hooks", Go: hooks.Run, About: hooks.About},
 	{Verb: "fixperms", Go: fixperms.Run, About: fixperms.About},
 	{Verb: "provider", Go: container.Provider, About: container.ProviderAbout},
@@ -98,6 +103,8 @@ var subs = map[string]string{
 	"rm":        "channel <name> [-y] [--volumes]",
 	"changelog": "(preview) | check | release <version> [date]",
 	"release":   "core|signals... [--tag T]",
+	"build":     "[core] [signals] [dashboard] [<storefront>...] [--tag T]",
+	"plugin":    "add <module>[@version] [--slug s] [--yes] | install <git-url|dir>[@ref] [--slug s] [--yes]",
 }
 
 // Routes is the table, for the tests that hold it together

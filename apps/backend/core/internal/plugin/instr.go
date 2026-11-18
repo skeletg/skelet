@@ -38,6 +38,7 @@ func init() {
 	apperr.RegisterSentinel(ErrPluginPanicked, "PLUGIN_PANICKED", apperr.ClassInternal)
 	apperr.RegisterSentinel(ErrConfigUnavailable, "PLUGIN_CONFIG_UNAVAILABLE", apperr.ClassInternal)
 	apperr.RegisterSentinel(ErrNoGraphResolver, "PLUGIN_NO_RESOLVER", apperr.ClassInternal)
+	apperr.RegisterSentinel(ErrNoCustomerData, "PLUGIN_NO_CUSTOMER_DATA", apperr.ClassInternal)
 }
 
 // isGateError - the kill switch or per-minute allowance refused the hook before it ran - the promotion

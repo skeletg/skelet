@@ -15,6 +15,7 @@ import {
   DetailPageLayout,
   DetailPageSection,
 } from '@/components/layout/detail-page'
+import { PluginSections } from '@/plugins/detail-sections'
 import { RestoredDraftBanner } from '@/shared/saving/RestoredDraftBanner'
 import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
 import { SaveRegistryContext } from '@/shared/saving/saveRegistry'
@@ -194,6 +195,7 @@ function QuestionEditor({ question }: { question: ReviewQuestionFieldsFragment }
       />
 
       <DetailPageBody>
+        <PluginSections target="review-question" entity={question} mode="edit" placement="before" />
         {draft.offer !== null && (
           <div className="px-6 py-4">
             <RestoredDraftBanner draft={draft} labels={QUESTION_TRANSLATIONS_LABELS} />
@@ -247,6 +249,7 @@ function QuestionEditor({ question }: { question: ReviewQuestionFieldsFragment }
             </form.Field>
           </fieldset>
         </DetailPageSection>
+        <PluginSections target="review-question" entity={question} mode="edit" sideInBody />
       </DetailPageBody>
 
       <ReviewQuestionFormDialog open={editingSettings} onOpenChange={setEditingSettings} attribute={question} />

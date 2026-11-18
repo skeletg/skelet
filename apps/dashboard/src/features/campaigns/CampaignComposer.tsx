@@ -33,7 +33,7 @@ import { CampaignAudienceEstimateDocument, CampaignGroupsDocument, CampaignLimit
 import { AudiencePicker, EmailPicker, MeasurePicker, SharePicker, SubjectPicker, WhenPicker, WindowPicker } from './CampaignPickers'
 import { Landing, Pick, Plan, Reach, Said, SendDate, Sentence, Stage } from './SendSheet'
 import { abSplit, audiencePhrase, hasPassed, localInput, sendPlan, sendTime, whenPhrase, windowPhrase, type When } from './sentence'
-import { PluginSections } from '@/plugins/detail-sections'
+import { PluginAside, PluginSections } from '@/plugins/detail-sections'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 import { LoadError } from '@/shared/errors/LoadError'
@@ -597,7 +597,7 @@ function ReadOnlyCampaign({ initial }: { initial: Draft }) {
   const lead = said.charAt(0).toUpperCase() + said.slice(1)
 
   return (
-    <DetailPageLayout>
+    <DetailPageLayout rightSidebar={<PluginAside target="campaign" entity={initial} mode={initial.id ? 'edit' : 'create'} />}>
       <DetailPageHeader
         title={initial.name || 'Campaign'}
         backTo="/campaigns"
@@ -617,6 +617,7 @@ function ReadOnlyCampaign({ initial }: { initial: Draft }) {
         </Alert>
       )}
       <DetailPageBody>
+        <PluginSections target="campaign" entity={initial} mode={initial.id ? 'edit' : 'create'} placement="before" />
         <div className="px-6 py-6">
           <Stage
             aside={

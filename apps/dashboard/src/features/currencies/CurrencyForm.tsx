@@ -10,7 +10,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { PluginSections } from '@/plugins/detail-sections'
 import { LoadError } from '@/shared/errors/LoadError'
 import { ClashNote } from '@/shared/saving/RestoredDraftBanner'
 import { RecordFormPage } from '@/shared/saving/RecordFormPage'
@@ -113,7 +112,7 @@ function CurrencyFormPage({ mode, currency }: { mode: 'create' | 'edit'; currenc
       }
       createLabel="Create currency"
       labels={CURRENCY_LABELS}
-      after={<PluginSections target="currency" entity={currency ?? null} mode={isEdit ? 'edit' : 'create'} />}
+      plugins={{ target: 'currency', entity: currency ?? null, mode: isEdit ? 'edit' : 'create' }}
     >
       <DetailPageSection title="Identity" description="3-letter ISO 4217 code with display name.">
         <div className="grid gap-4">

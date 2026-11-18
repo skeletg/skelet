@@ -21,7 +21,6 @@ import {
   UpdateCustomerGroupDocument,
   type CustomerGroupQuery,
 } from './CustomerGroups.gql'
-import { PluginSections } from '@/plugins/detail-sections'
 import {
   CUSTOMER_GROUP_LABELS,
   customerGroupDiff,
@@ -175,6 +174,7 @@ function CustomerGroupForm({ group }: { group: Group }) {
 
   return (
     <RecordFormPage
+      plugins={{ target: 'customer-group', entity: group, mode: 'edit' }}
       record={record}
       backTo="/customers/groups"
       backLabel="Back to customer groups"
@@ -255,7 +255,6 @@ function CustomerGroupForm({ group }: { group: Group }) {
               </Button>
             </div>
           </DetailPageSection>
-          <PluginSections target="customer-group" entity={group} mode="edit" />
         </>
       }
     >

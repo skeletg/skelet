@@ -50,7 +50,7 @@ import {
   ScopeIndicator,
 } from './product-detail/shared'
 import { GeneralProductSection } from './product-detail/GeneralProductSection'
-import { ProductSidebar } from './product-detail/ProductSidebar'
+import { ProductSidebar, useProductPanelCollapsed } from './product-detail/ProductSidebar'
 import { AdvancedInventoryPricingSection } from './product-detail/AdvancedInventoryPricingSection'
 import { TierPricingSection } from './product-detail/TierPricingSection'
 import { RecommendationsSection } from './product-detail/RecommendationsSection'
@@ -60,6 +60,7 @@ import { ChannelUrlOverridesEditor } from './product-detail/ChannelUrlOverridesE
 import { ConfigurableVariantsCard } from './product-detail/ConfigurableVariantsCard'
 import { ProductMetadataEditor } from './product-detail/MetadataEditor'
 import { PluginSections } from '@/plugins/detail-sections'
+import { RecordExtensionsContext, useRecordExtensions } from '@/shared/saving/extensions'
 import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 export function ProductDetail() {
@@ -102,6 +103,9 @@ export function ProductDetail() {
   const [updateProductMetadata] = useMutation(UpdateProductDocument, {
     refetchQueries: productRefetch,
   })
+  // A plugin section's part of the save rides the product's own mutation - see shared/saving/extensions
+  const extensions = useRecordExtensions((parts) => updateProductMetadata({ variables: { input: { id, extensions: parts } } }))
+  const [panelCollapsed, togglePanel] = useProductPanelCollapsed()
 
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [attributesOpen, setAttributesOpen] = useState(false)
@@ -180,7 +184,8 @@ export function ProductDetail() {
 
   return (
     <ProductSaveContext.Provider value={saveContextValue}>
-    <DetailPageLayout rightSidebar={<ProductSidebar product={product} />}>
+    <RecordExtensionsContext.Provider value={extensions}>
+    <DetailPageLayout rightSidebar={<ProductSidebar product={product} collapsed={panelCollapsed} toggle={togglePanel} />}>
       <DetailPageHeader
         backTo="/products"
         backLabel="Back to products"
@@ -261,6 +266,7 @@ export function ProductDetail() {
       />
 
       <DetailPageBody>
+        <PluginSections target="product" entity={product} mode="edit" placement="before" />
           <GeneralProductSection
             key={`${product.id}:${translationLocale || 'no-locale'}:general`}
             product={product}
@@ -553,7 +559,7 @@ export function ProductDetail() {
             <span>·</span>
             <span>Updated {new Date(product.updatedAt).toLocaleDateString()}</span>
           </div>
-        <PluginSections target="product" entity={product} mode="edit" />
+        <PluginSections target="product" entity={product} mode="edit" sideInBody={panelCollapsed} />
       </DetailPageBody>
     </DetailPageLayout>
 
@@ -577,6 +583,7 @@ export function ProductDetail() {
         onCancel={() => { setConfirmingSave(false); setSaveError(null) }}
         onConfirm={onConfirmSave}
       />
+    </RecordExtensionsContext.Provider>
     </ProductSaveContext.Provider>
   )
 }

@@ -2,8 +2,10 @@ package wiring
 
 import (
 	"context"
-	"github.com/skeletg/skelet/apps/backend/core/internal/sso"
 	"log"
+	"time"
+
+	"github.com/skeletg/skelet/apps/backend/core/internal/sso"
 
 	"github.com/google/uuid"
 	"go.uber.org/fx"
@@ -30,6 +32,8 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/ordermail"
 	"github.com/skeletg/skelet/apps/backend/core/internal/outbox"
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
+	pluginhost "github.com/skeletg/skelet/apps/backend/core/internal/plugin"
+	"github.com/skeletg/skelet/apps/backend/core/internal/pluginerase"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/core/internal/qna"
 	"github.com/skeletg/skelet/apps/backend/core/internal/referral"
@@ -139,7 +143,8 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 	d.Catalog.RegisterSubscribers(bus)
 	subscribeOrderReactors(d)
 	ordercapture.Register(bus, d.Order, d.Payment)
-	purges := cacheinvalidate.Register(bus, d.RevalidateCli, d.RevalidateQueue, d.URLRewrite, d.Config)
+	purges, invalidate := cacheinvalidate.Register(bus, d.RevalidateCli, d.RevalidateQueue, d.URLRewrite, d.Config)
+	pluginhost.SetStorefrontInvalidator(invalidate.Invalidate)                                             // a plugin's data on a record changed - core sends no event about it
 	d.Lifecycle.Append(fx.Hook{OnStop: func(ctx context.Context) error { purges.Flush(ctx); return nil }}) // a purge gathered in the last second still goes out
 	d.Flows.Subscribe(bus)
 	// Owns the order-lifecycle mail: asks the flow engine first, sends directly when no flow took it.
@@ -175,6 +180,28 @@ func subscribeOrderReactors(d subscriberDeps) {
 	d.Referral.SubscribeToOrderEvents(bus)    // give-get payout on the referee's first order
 	d.Download.SubscribeToOrderEvents(bus)    // grants the buyer access to a purchased product's downloads
 	d.Download.SubscribeToCustomerEvents(bus) // a file shared with an account goes when the account does
+	// What plugins keep about a customer goes with them, erased or deleted. The event only queues it and asks once -
+	// a plugin that fails is asked again by the plugin-erasures job until it succeeds, without this event, and
+	// everyone else subscribed to it, being delivered again
+	owePluginErasures := func(ctx context.Context, customerID, channelID uuid.UUID, email string) error {
+		if err := pluginerase.Enqueue(ctx, d.Queries, customerID, channelID, email); err != nil {
+			return err
+		}
+		pluginerase.DrainCustomer(ctx, d.Queries, customerID, time.Now())
+		return nil
+	}
+	bus.Subscribe(customer.EventErased, func(ctx context.Context, e events.Event) error {
+		if ev, ok := e.(*customer.CustomerErased); ok {
+			return owePluginErasures(ctx, ev.CustomerID, ev.ChannelID, ev.Email)
+		}
+		return nil
+	})
+	bus.Subscribe(customer.EventDeleted, func(ctx context.Context, e events.Event) error {
+		if ev, ok := e.(*customer.CustomerDeleted); ok {
+			return owePluginErasures(ctx, ev.CustomerID, ev.ChannelID, ev.Email)
+		}
+		return nil
+	})
 	d.Subscription.SubscribeToOrderEvents(bus)
 }
 

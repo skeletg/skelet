@@ -1,7 +1,7 @@
 {
   "name": "@skelet/storefront-react",
   "version": "0.0.0",
-  "description": "The client-side React a Skelet storefront shares across frameworks: compare, consent, experiments and the action-form hook",
+  "description": "The client-side React a Skelet storefront shares across frameworks: compare, consent, experiments, the action-form hook and the plugin registry",
   "license": "MIT",
   "repository": {
     "type": "git",

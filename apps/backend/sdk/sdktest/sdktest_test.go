@@ -243,3 +243,15 @@ func TestAnAlwaysHandlerKeepsVetoingWhileDisabled(t *testing.T) {
 		t.Fatalf("disabled plugin's veto = %v, want it to run and refuse", err)
 	}
 }
+
+// A plugin's purge reaches the fake host, so its test can see what it asked to invalidate
+func TestStorefrontPurgesAreRecorded(t *testing.T) {
+	h := Install()
+	id := uuid.New()
+	if err := sdk.InvalidateStorefront(context.Background(), sdk.StorefrontProduct, id); err != nil {
+		t.Fatal(err)
+	}
+	if len(h.StorefrontPurges) != 1 || h.StorefrontPurges[0] != (StorefrontPurge{Kind: "product", ID: id}) {
+		t.Errorf("purges %+v", h.StorefrontPurges)
+	}
+}

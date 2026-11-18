@@ -11,6 +11,7 @@ import { gqlFetch } from "@skelet/storefront-next/graphql";
 import { GuestOrderDocument } from "@skelet/storefront-core/checkout/operations.gql";
 import { SubmitButton } from "@/app/components/account/SubmitButton";
 import { resendVerificationEmailAction } from "@skelet/storefront-next/auth/actions";
+import { Slots } from "@/app/plugins/Slots";
 
 export async function generateMetadata({
   params,
@@ -129,6 +130,8 @@ export default async function GuestOrderPage({
           </p>
         </section>
       )}
+
+      {justPlaced ? <Slots zone="order:placed" ctx={{ orderId: order.id, number: order.number, total: order.total, currencyCode: order.currencyCode }} /> : null}
 
       {/* Admin-facing history - signed-in page only, never the guest receipt */}
       <OrderDetailView order={{ ...order, events: [] }} paymentIncomplete={paymentIncomplete} />

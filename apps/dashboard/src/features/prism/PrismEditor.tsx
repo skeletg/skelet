@@ -30,7 +30,7 @@ import {
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
 import { CreateExperimentDocument, DeleteExperimentDocument, ExperimentDocument, ExperimentGoalEventsDocument, ExperimentResultsDocument, PrismSegmentsDocument, UpdateExperimentDocument } from './Prism.gql'
-import { PluginSections } from '@/plugins/detail-sections'
+import { PluginAside, PluginSections } from '@/plugins/detail-sections'
 import { Panel } from '@/components/layout/panels'
 import { LoadError } from '@/shared/errors/LoadError'
 import { NotFound } from '@/shared/errors/NotFound'
@@ -186,7 +186,7 @@ function EditorInner({ initial, onSaved }: { initial: Draft; onSaved: (id: strin
   }
 
   return (
-    <DetailPageLayout>
+    <DetailPageLayout rightSidebar={<PluginAside target="experiment" entity={initial} mode={initial.id ? 'edit' : 'create'} />}>
       <DetailPageHeader
         title={initial.id ? initial.name || 'Experiment' : 'New experiment'}
         backTo="/prism/experiments"
@@ -204,6 +204,7 @@ function EditorInner({ initial, onSaved }: { initial: Draft; onSaved: (id: strin
         }
       />
       <DetailPageBody>
+        <PluginSections target="experiment" entity={initial} mode={initial.id ? 'edit' : 'create'} placement="before" />
         {error && (
           <Alert variant="destructive" className="mx-6 mt-4">
             <AlertTitle>Error</AlertTitle>

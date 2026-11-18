@@ -414,6 +414,7 @@ export function WebFormDetail() {
         }
       />
       <DetailPageBody>
+        <PluginSections target="web-form" entity={loaded ?? null} mode={isNew ? 'create' : 'edit'} placement="before" />
         {saveError && (
           <DetailPageSection>
             <Alert variant="destructive">
@@ -510,7 +511,7 @@ export function WebFormDetail() {
         >
           {previewPane}
         </DetailPageSection>
-        <PluginSections target="web-form" entity={loaded ?? null} mode={isNew ? 'create' : 'edit'} />
+        <PluginSections target="web-form" entity={loaded ?? null} mode={isNew ? 'create' : 'edit'} sideInBody />
       </DetailPageBody>
     </DetailPageLayout>
   )

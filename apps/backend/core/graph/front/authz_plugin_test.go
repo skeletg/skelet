@@ -30,7 +30,7 @@ func pluginSourceDir(t *testing.T, slug string) string {
 	return dir
 }
 
-// Reads the slug out of pluginhost.Do(ctx, sdk.GraphFront, "<slug>", "<field>", ...)
+// Reads the slug out of pluginhost.Do or DoBatch(ctx, sdk.GraphFront, "<slug>", "<field>", ...)
 func delegatedPluginSlug(body *ast.BlockStmt) string {
 	slug := ""
 	ast.Inspect(body, func(n ast.Node) bool {
@@ -39,7 +39,7 @@ func delegatedPluginSlug(body *ast.BlockStmt) string {
 			return true
 		}
 		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok || sel.Sel.Name != "Do" {
+		if !ok || (sel.Sel.Name != "Do" && sel.Sel.Name != "DoBatch") {
 			return true
 		}
 		if pkg, ok := sel.X.(*ast.Ident); !ok || pkg.Name != "pluginhost" {

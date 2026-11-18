@@ -425,6 +425,7 @@ export type AdminCreateCustomerInput = {
   channelId: Scalars['ID']['input'];
   customerGroupSlug?: InputMaybe<Scalars['String']['input']>;
   email: Scalars['String']['input'];
+  extensions?: InputMaybe<Scalars['JSON']['input']>;
   firstName: Scalars['String']['input'];
   isActive?: InputMaybe<Scalars['Boolean']['input']>;
   isEmailVerified?: InputMaybe<Scalars['Boolean']['input']>;
@@ -566,6 +567,7 @@ export type AdminUpdateCustomerInput = {
   defaultBillingAddressId?: InputMaybe<Scalars['ID']['input']>;
   defaultShippingAddressId?: InputMaybe<Scalars['ID']['input']>;
   email?: InputMaybe<Scalars['String']['input']>;
+  extensions?: InputMaybe<Scalars['JSON']['input']>;
   firstName?: InputMaybe<Scalars['String']['input']>;
   isActive?: InputMaybe<Scalars['Boolean']['input']>;
   isEmailVerified?: InputMaybe<Scalars['Boolean']['input']>;
@@ -2540,6 +2542,7 @@ export type CreateProductInput = {
   defaultCurrencyCode?: InputMaybe<Scalars['String']['input']>;
   defaultPrice?: InputMaybe<Scalars['Int']['input']>;
   descriptionRichText?: InputMaybe<Scalars['JSON']['input']>;
+  extensions?: InputMaybe<Scalars['JSON']['input']>;
   kind: ProductKind;
   locale: Scalars['String']['input'];
   metaDescription?: InputMaybe<Scalars['String']['input']>;
@@ -2744,6 +2747,7 @@ export type CreditMemo = {
   adjustmentFee: Scalars['Int']['output'];
   adjustmentRefund: Scalars['Int']['output'];
   createdAt: Scalars['Time']['output'];
+  feesRefund: Scalars['Int']['output'];
   id: Scalars['ID']['output'];
   itemsTotal: Scalars['Int']['output'];
   lines: Array<CreditMemoLine>;
@@ -3743,6 +3747,7 @@ export type InventoryReservation = {
 export type IssueCreditMemoInput = {
   adjustmentFee?: InputMaybe<Scalars['Int']['input']>;
   adjustmentRefund?: InputMaybe<Scalars['Int']['input']>;
+  feesRefund?: InputMaybe<Scalars['Int']['input']>;
   lines?: InputMaybe<Array<CreditMemoLineInput>>;
   orderId: Scalars['ID']['input'];
   reason?: InputMaybe<Scalars['String']['input']>;
@@ -7786,6 +7791,8 @@ export type Order = {
   discountAmount: Scalars['Int']['output'];
   email: Scalars['String']['output'];
   events: Array<OrderEvent>;
+  fees: Array<OrderFee>;
+  feesRefundable: Scalars['Int']['output'];
   fulfillmentNeed: Scalars['String']['output'];
   fulfillments: Array<Fulfillment>;
   giftCardAmount: Scalars['Int']['output'];
@@ -7873,6 +7880,14 @@ export type OrderEvent = {
   id: Scalars['ID']['output'];
   message: Scalars['String']['output'];
   type: Scalars['String']['output'];
+};
+
+export type OrderFee = {
+  __typename?: 'OrderFee';
+  amount: Scalars['Int']['output'];
+  key: Scalars['String']['output'];
+  label: Scalars['String']['output'];
+  taxAmount: Scalars['Int']['output'];
 };
 
 export type OrderLine = {
@@ -8055,6 +8070,30 @@ export type PermissionGroup = {
   name: Scalars['String']['output'];
   permissions: Array<Permission>;
   slug: Scalars['String']['output'];
+};
+
+export type PluginList =
+  | 'CUSTOMERS'
+  | 'ORDERS'
+  | 'PRODUCTS';
+
+export type PluginListFilter = {
+  __typename?: 'PluginListFilter';
+  key: Scalars['String']['output'];
+  label: Scalars['String']['output'];
+  options: Array<PluginListFilterOption>;
+  plugin: Scalars['String']['output'];
+};
+
+export type PluginListFilterInput = {
+  key: Scalars['String']['input'];
+  values: Array<Scalars['String']['input']>;
+};
+
+export type PluginListFilterOption = {
+  __typename?: 'PluginListFilterOption';
+  label: Scalars['String']['output'];
+  value: Scalars['String']['output'];
 };
 
 export type Product = ProductOptionOwner & {
@@ -8876,6 +8915,7 @@ export type Query = {
   paymentMethods: Array<PaymentMethodAdmin>;
   paymentProviders: Array<PaymentProviderAdmin>;
   permissionGroups: Array<PermissionGroup>;
+  pluginListFilters: Array<PluginListFilter>;
   previewSchedule: SchedulePreview;
   product: Product;
   productAttributeLocaleValues: Array<ProductAttributeLocaleValue>;
@@ -9392,6 +9432,7 @@ export type QueryCustomersPagedArgs = {
   isActive?: InputMaybe<Scalars['Boolean']['input']>;
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
+  pluginFilters?: InputMaybe<Array<PluginListFilterInput>>;
   search?: InputMaybe<Scalars['String']['input']>;
 };
 
@@ -9749,6 +9790,7 @@ export type QueryOrdersPagedArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   paymentStatuses?: InputMaybe<Array<Scalars['String']['input']>>;
+  pluginFilters?: InputMaybe<Array<PluginListFilterInput>>;
   search?: InputMaybe<Scalars['String']['input']>;
   stages?: InputMaybe<Array<Scalars['String']['input']>>;
   statuses?: InputMaybe<Array<Scalars['String']['input']>>;
@@ -9762,6 +9804,11 @@ export type QueryPaymentMethodsArgs = {
 
 export type QueryPaymentProvidersArgs = {
   channelId?: InputMaybe<Scalars['ID']['input']>;
+};
+
+
+export type QueryPluginListFiltersArgs = {
+  list: PluginList;
 };
 
 
@@ -9841,6 +9888,7 @@ export type QueryProductsPagedArgs = {
   kinds?: InputMaybe<Array<ProductKind>>;
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
+  pluginFilters?: InputMaybe<Array<PluginListFilterInput>>;
   priceMax?: InputMaybe<Scalars['String']['input']>;
   priceMin?: InputMaybe<Scalars['String']['input']>;
   productTypeSlugs?: InputMaybe<Array<Scalars['String']['input']>>;
@@ -12299,6 +12347,7 @@ export type UpdateProductInput = {
   costCents?: InputMaybe<Scalars['Int']['input']>;
   defaultCurrencyCode?: InputMaybe<Scalars['String']['input']>;
   defaultPrice?: InputMaybe<Scalars['Int']['input']>;
+  extensions?: InputMaybe<Scalars['JSON']['input']>;
   heightMm?: InputMaybe<Scalars['Int']['input']>;
   id: Scalars['ID']['input'];
   kitItemsReturnable?: InputMaybe<Scalars['Boolean']['input']>;

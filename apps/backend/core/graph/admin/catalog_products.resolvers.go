@@ -21,7 +21,12 @@ func (r *mutationResolver) CreateProduct(ctx context.Context, input model.Create
 	if err != nil {
 		return nil, err
 	}
+	ext, err := r.extensionsInput(ctx, productSave, input.Extensions)
+	if err != nil {
+		return nil, err
+	}
 	p, err := r.CatalogSvc.CreateProduct(ctx, catalog.CreateProductInput{
+		Extensions:              ext,
 		ProductTypeID:           productTypeID,
 		Kind:                    catalog.ProductKind(strings.ToLower(string(input.Kind))),
 		DefaultPrice:            int64(int32Or(input.DefaultPrice, 0)),
@@ -59,7 +64,12 @@ func (r *mutationResolver) UpdateProduct(ctx context.Context, input model.Update
 	if err != nil {
 		return nil, err
 	}
+	ext, err := r.extensionsInput(ctx, productSave, input.Extensions)
+	if err != nil {
+		return nil, err
+	}
 	domainInput := catalog.UpdateProductInput{
+		Extensions:                   ext,
 		ID:                           id,
 		DefaultCurrencyCode:          input.DefaultCurrencyCode,
 		SKU:                          input.Sku,
@@ -792,7 +802,7 @@ func (r *queryResolver) Products(ctx context.Context, channelID *string) ([]*mod
 	return r.renderProductRows(ctx, products, channelID)
 }
 
-func (r *queryResolver) ProductsPaged(ctx context.Context, channelID *string, search *string, kinds []model.ProductKind, productTypeSlugs []string, published *bool, attributeValueIds []string, categoryIds []string, collectionIds []string, priceMin *string, priceMax *string, inStock *bool, sortKey *string, sortDesc *bool, limit *int32, offset *int32) (*model.ProductPage, error) {
+func (r *queryResolver) ProductsPaged(ctx context.Context, channelID *string, search *string, kinds []model.ProductKind, productTypeSlugs []string, published *bool, attributeValueIds []string, categoryIds []string, collectionIds []string, priceMin *string, priceMax *string, inStock *bool, sortKey *string, sortDesc *bool, limit *int32, offset *int32, pluginFilters []*model.PluginListFilterInput) (*model.ProductPage, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.view"); err != nil {
 		return nil, err
 	}
@@ -863,6 +873,9 @@ func (r *queryResolver) ProductsPaged(ctx context.Context, channelID *string, se
 	if f.Offset < 0 {
 		f.Offset = 0
 	}
+	if f.OnlyIDs, f.RestrictIDs, err = pluginFilterIDs(ctx, model.PluginListProducts, pluginFilters); err != nil {
+		return nil, err
+	}
 	products, total, err := r.CatalogSvc.ListPageWithGraph(ctx, f)
 	if err != nil {
 		return nil, err
@@ -908,8 +921,8 @@ func (r *queryResolver) ProductsByIds(ctx context.Context, ids []string) ([]*mod
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.view"); err != nil {
 		return nil, err
 	}
-	if len(ids) > 100 {
-		ids = ids[:100]
+	if len(ids) > byIDsMax {
+		ids = ids[:byIDsMax]
 	}
 	parsed := make([]uuid.UUID, 0, len(ids))
 	for _, raw := range ids {

@@ -171,6 +171,9 @@ type ListPageFilter struct {
 	IsActive *bool
 	Limit    int32
 	Offset   int32
+	// Set by a plugin's list filter - RestrictIDs narrows to OnlyIDs, which may be empty when nothing matched
+	OnlyIDs     []uuid.UUID
+	RestrictIDs bool
 }
 
 // ListPage is the paged, filtered admin list - returns the page plus the unpaged total, both from one query via COUNT(*) OVER ()
@@ -188,6 +191,8 @@ func (r *postgresRepository) ListPage(ctx context.Context, f ListPageFilter) ([]
 		IsActive:     active,
 		Lim:          f.Limit,
 		Off:          f.Offset,
+		RestrictIds:  f.RestrictIDs,
+		OnlyIds:      orEmpty(f.OnlyIDs),
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("list customers page: %w", err)
@@ -429,4 +434,11 @@ func toCustomer(row db.Customer) Customer {
 		c.DefaultShippingAddressID = &id
 	}
 	return c
+}
+
+func orEmpty(ids []uuid.UUID) []uuid.UUID {
+	if ids == nil {
+		return []uuid.UUID{}
+	}
+	return ids
 }

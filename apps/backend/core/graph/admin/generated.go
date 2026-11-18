@@ -1572,6 +1572,7 @@ type ComplexityRoot struct {
 		AdjustmentFee    func(childComplexity int) int
 		AdjustmentRefund func(childComplexity int) int
 		CreatedAt        func(childComplexity int) int
+		FeesRefund       func(childComplexity int) int
 		ID               func(childComplexity int) int
 		ItemsTotal       func(childComplexity int) int
 		Lines            func(childComplexity int) int
@@ -3333,6 +3334,8 @@ type ComplexityRoot struct {
 		DiscountAmount      func(childComplexity int) int
 		Email               func(childComplexity int) int
 		Events              func(childComplexity int) int
+		Fees                func(childComplexity int) int
+		FeesRefundable      func(childComplexity int) int
 		FulfillmentNeed     func(childComplexity int) int
 		Fulfillments        func(childComplexity int) int
 		GiftCardAmount      func(childComplexity int) int
@@ -3398,6 +3401,13 @@ type ComplexityRoot struct {
 		ID         func(childComplexity int) int
 		Message    func(childComplexity int) int
 		Type       func(childComplexity int) int
+	}
+
+	OrderFee struct {
+		Amount    func(childComplexity int) int
+		Key       func(childComplexity int) int
+		Label     func(childComplexity int) int
+		TaxAmount func(childComplexity int) int
 	}
 
 	OrderLine struct {
@@ -3546,6 +3556,18 @@ type ComplexityRoot struct {
 		Name        func(childComplexity int) int
 		Permissions func(childComplexity int) int
 		Slug        func(childComplexity int) int
+	}
+
+	PluginListFilter struct {
+		Key     func(childComplexity int) int
+		Label   func(childComplexity int) int
+		Options func(childComplexity int) int
+		Plugin  func(childComplexity int) int
+	}
+
+	PluginListFilterOption struct {
+		Label func(childComplexity int) int
+		Value func(childComplexity int) int
 	}
 
 	Product struct {
@@ -4091,7 +4113,7 @@ type ComplexityRoot struct {
 		CustomerSignals              func(childComplexity int, customerID string) int
 		Customers                    func(childComplexity int, channelID *string) int
 		CustomersByIds               func(childComplexity int, ids []string) int
-		CustomersPaged               func(childComplexity int, channelID *string, search *string, groupSlug *string, isActive *bool, limit *int32, offset *int32) int
+		CustomersPaged               func(childComplexity int, channelID *string, search *string, groupSlug *string, isActive *bool, limit *int32, offset *int32, pluginFilters []*model.PluginListFilterInput) int
 		DataFormats                  func(childComplexity int) int
 		DataJob                      func(childComplexity int, id string) int
 		DataJobErrors                func(childComplexity int, id string, limit *int32, offset *int32) int
@@ -4170,10 +4192,11 @@ type ComplexityRoot struct {
 		OrderDocumentPDF             func(childComplexity int, orderID string, kind model.OrderDocumentKind, creditMemoID *string) int
 		OrderStages                  func(childComplexity int, channelID *string) int
 		Orders                       func(childComplexity int, channelID *string) int
-		OrdersPaged                  func(childComplexity int, channelID *string, search *string, statuses []string, paymentStatuses []string, limit *int32, offset *int32, stages []string) int
+		OrdersPaged                  func(childComplexity int, channelID *string, search *string, statuses []string, paymentStatuses []string, limit *int32, offset *int32, stages []string, pluginFilters []*model.PluginListFilterInput) int
 		PaymentMethods               func(childComplexity int, channelID string) int
 		PaymentProviders             func(childComplexity int, channelID *string) int
 		PermissionGroups             func(childComplexity int) int
+		PluginListFilters            func(childComplexity int, list model.PluginList) int
 		PreviewSchedule              func(childComplexity int, schedule string, timezone *string, count *int32) int
 		Product                      func(childComplexity int, id string) int
 		ProductAttributeLocaleValues func(childComplexity int, productID string) int
@@ -4187,7 +4210,7 @@ type ComplexityRoot struct {
 		Products                     func(childComplexity int, channelID *string) int
 		ProductsByIds                func(childComplexity int, ids []string) int
 		ProductsBySkus               func(childComplexity int, skus []string) int
-		ProductsPaged                func(childComplexity int, channelID *string, search *string, kinds []model.ProductKind, productTypeSlugs []string, published *bool, attributeValueIds []string, categoryIds []string, collectionIds []string, priceMin *string, priceMax *string, inStock *bool, sortKey *string, sortDesc *bool, limit *int32, offset *int32) int
+		ProductsPaged                func(childComplexity int, channelID *string, search *string, kinds []model.ProductKind, productTypeSlugs []string, published *bool, attributeValueIds []string, categoryIds []string, collectionIds []string, priceMin *string, priceMax *string, inStock *bool, sortKey *string, sortDesc *bool, limit *int32, offset *int32, pluginFilters []*model.PluginListFilterInput) int
 		PromotionActionTypes         func(childComplexity int) int
 		PromotionAnalytics           func(childComplexity int, start *time.Time, end *time.Time) int
 		PromotionAnalyticsDaily      func(childComplexity int, start *time.Time, end *time.Time, ruleID *string) int
@@ -6105,7 +6128,7 @@ type QueryResolver interface {
 	ProductTypes(ctx context.Context) ([]*model.ProductType, error)
 	ProductType(ctx context.Context, id string) (*model.ProductType, error)
 	Products(ctx context.Context, channelID *string) ([]*model.Product, error)
-	ProductsPaged(ctx context.Context, channelID *string, search *string, kinds []model.ProductKind, productTypeSlugs []string, published *bool, attributeValueIds []string, categoryIds []string, collectionIds []string, priceMin *string, priceMax *string, inStock *bool, sortKey *string, sortDesc *bool, limit *int32, offset *int32) (*model.ProductPage, error)
+	ProductsPaged(ctx context.Context, channelID *string, search *string, kinds []model.ProductKind, productTypeSlugs []string, published *bool, attributeValueIds []string, categoryIds []string, collectionIds []string, priceMin *string, priceMax *string, inStock *bool, sortKey *string, sortDesc *bool, limit *int32, offset *int32, pluginFilters []*model.PluginListFilterInput) (*model.ProductPage, error)
 	Product(ctx context.Context, id string) (*model.Product, error)
 	ProductsByIds(ctx context.Context, ids []string) ([]*model.Product, error)
 	ProductsBySkus(ctx context.Context, skus []string) ([]*model.Product, error)
@@ -6139,7 +6162,7 @@ type QueryResolver interface {
 	Currency(ctx context.Context, code string) (*model.Currency, error)
 	Customers(ctx context.Context, channelID *string) ([]*model.Customer, error)
 	CustomersByIds(ctx context.Context, ids []string) ([]*model.Customer, error)
-	CustomersPaged(ctx context.Context, channelID *string, search *string, groupSlug *string, isActive *bool, limit *int32, offset *int32) (*model.CustomerPage, error)
+	CustomersPaged(ctx context.Context, channelID *string, search *string, groupSlug *string, isActive *bool, limit *int32, offset *int32, pluginFilters []*model.PluginListFilterInput) (*model.CustomerPage, error)
 	Customer(ctx context.Context, id string) (*model.Customer, error)
 	CustomerGroups(ctx context.Context) ([]*model.CustomerGroup, error)
 	CustomerGroup(ctx context.Context, id string) (*model.CustomerGroup, error)
@@ -6205,7 +6228,7 @@ type QueryResolver interface {
 	Notifications(ctx context.Context, unreadOnly *bool, limit *int32) ([]*model.AdminNotification, error)
 	NotificationUnreadCount(ctx context.Context) (int32, error)
 	Orders(ctx context.Context, channelID *string) ([]*model.Order, error)
-	OrdersPaged(ctx context.Context, channelID *string, search *string, statuses []string, paymentStatuses []string, limit *int32, offset *int32, stages []string) (*model.OrderPage, error)
+	OrdersPaged(ctx context.Context, channelID *string, search *string, statuses []string, paymentStatuses []string, limit *int32, offset *int32, stages []string, pluginFilters []*model.PluginListFilterInput) (*model.OrderPage, error)
 	OrderStages(ctx context.Context, channelID *string) ([]*model.OrderStage, error)
 	Order(ctx context.Context, id string) (*model.Order, error)
 	OrderDocumentPDF(ctx context.Context, orderID string, kind model.OrderDocumentKind, creditMemoID *string) (string, error)
@@ -6213,6 +6236,7 @@ type QueryResolver interface {
 	CreditableQuantities(ctx context.Context, orderID string) ([]*model.OrderLineQuantity, error)
 	PaymentProviders(ctx context.Context, channelID *string) ([]*model.PaymentProviderAdmin, error)
 	PaymentMethods(ctx context.Context, channelID string) ([]*model.PaymentMethodAdmin, error)
+	PluginListFilters(ctx context.Context, list model.PluginList) ([]*model.PluginListFilter, error)
 	MyPreferences(ctx context.Context) ([]*model.AdminPreference, error)
 	Experiments(ctx context.Context, channelID string) ([]*model.Experiment, error)
 	Experiment(ctx context.Context, id string) (*model.Experiment, error)
@@ -12689,6 +12713,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CreditMemo.CreatedAt(childComplexity), true
+	case "CreditMemo.feesRefund":
+		if e.ComplexityRoot.CreditMemo.FeesRefund == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CreditMemo.FeesRefund(childComplexity), true
 	case "CreditMemo.id":
 		if e.ComplexityRoot.CreditMemo.ID == nil {
 			break
@@ -23732,6 +23762,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Order.Events(childComplexity), true
+	case "Order.fees":
+		if e.ComplexityRoot.Order.Fees == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Order.Fees(childComplexity), true
+	case "Order.feesRefundable":
+		if e.ComplexityRoot.Order.FeesRefundable == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Order.FeesRefundable(childComplexity), true
 	case "Order.fulfillmentNeed":
 		if e.ComplexityRoot.Order.FulfillmentNeed == nil {
 			break
@@ -24054,6 +24096,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OrderEvent.Type(childComplexity), true
+
+	case "OrderFee.amount":
+		if e.ComplexityRoot.OrderFee.Amount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderFee.Amount(childComplexity), true
+	case "OrderFee.key":
+		if e.ComplexityRoot.OrderFee.Key == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderFee.Key(childComplexity), true
+	case "OrderFee.label":
+		if e.ComplexityRoot.OrderFee.Label == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderFee.Label(childComplexity), true
+	case "OrderFee.taxAmount":
+		if e.ComplexityRoot.OrderFee.TaxAmount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderFee.TaxAmount(childComplexity), true
 
 	case "OrderLine.components":
 		if e.ComplexityRoot.OrderLine.Components == nil {
@@ -24687,6 +24754,44 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.PermissionGroup.Slug(childComplexity), true
+
+	case "PluginListFilter.key":
+		if e.ComplexityRoot.PluginListFilter.Key == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PluginListFilter.Key(childComplexity), true
+	case "PluginListFilter.label":
+		if e.ComplexityRoot.PluginListFilter.Label == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PluginListFilter.Label(childComplexity), true
+	case "PluginListFilter.options":
+		if e.ComplexityRoot.PluginListFilter.Options == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PluginListFilter.Options(childComplexity), true
+	case "PluginListFilter.plugin":
+		if e.ComplexityRoot.PluginListFilter.Plugin == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PluginListFilter.Plugin(childComplexity), true
+
+	case "PluginListFilterOption.label":
+		if e.ComplexityRoot.PluginListFilterOption.Label == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PluginListFilterOption.Label(childComplexity), true
+	case "PluginListFilterOption.value":
+		if e.ComplexityRoot.PluginListFilterOption.Value == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PluginListFilterOption.Value(childComplexity), true
 
 	case "Product.attributeValues":
 		if e.ComplexityRoot.Product.AttributeValues == nil {
@@ -27635,7 +27740,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.CustomersPaged(childComplexity, args["channelId"].(*string), args["search"].(*string), args["groupSlug"].(*string), args["isActive"].(*bool), args["limit"].(*int32), args["offset"].(*int32)), true
+		return e.ComplexityRoot.Query.CustomersPaged(childComplexity, args["channelId"].(*string), args["search"].(*string), args["groupSlug"].(*string), args["isActive"].(*bool), args["limit"].(*int32), args["offset"].(*int32), args["pluginFilters"].([]*model.PluginListFilterInput)), true
 	case "Query.dataFormats":
 		if e.ComplexityRoot.Query.DataFormats == nil {
 			break
@@ -28420,7 +28525,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.OrdersPaged(childComplexity, args["channelId"].(*string), args["search"].(*string), args["statuses"].([]string), args["paymentStatuses"].([]string), args["limit"].(*int32), args["offset"].(*int32), args["stages"].([]string)), true
+		return e.ComplexityRoot.Query.OrdersPaged(childComplexity, args["channelId"].(*string), args["search"].(*string), args["statuses"].([]string), args["paymentStatuses"].([]string), args["limit"].(*int32), args["offset"].(*int32), args["stages"].([]string), args["pluginFilters"].([]*model.PluginListFilterInput)), true
 	case "Query.paymentMethods":
 		if e.ComplexityRoot.Query.PaymentMethods == nil {
 			break
@@ -28449,6 +28554,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.PermissionGroups(childComplexity), true
+	case "Query.pluginListFilters":
+		if e.ComplexityRoot.Query.PluginListFilters == nil {
+			break
+		}
+
+		args, err := ec.field_Query_pluginListFilters_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.PluginListFilters(childComplexity, args["list"].(model.PluginList)), true
 	case "Query.previewSchedule":
 		if e.ComplexityRoot.Query.PreviewSchedule == nil {
 			break
@@ -28597,7 +28713,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.ProductsPaged(childComplexity, args["channelId"].(*string), args["search"].(*string), args["kinds"].([]model.ProductKind), args["productTypeSlugs"].([]string), args["published"].(*bool), args["attributeValueIds"].([]string), args["categoryIds"].([]string), args["collectionIds"].([]string), args["priceMin"].(*string), args["priceMax"].(*string), args["inStock"].(*bool), args["sortKey"].(*string), args["sortDesc"].(*bool), args["limit"].(*int32), args["offset"].(*int32)), true
+		return e.ComplexityRoot.Query.ProductsPaged(childComplexity, args["channelId"].(*string), args["search"].(*string), args["kinds"].([]model.ProductKind), args["productTypeSlugs"].([]string), args["published"].(*bool), args["attributeValueIds"].([]string), args["categoryIds"].([]string), args["collectionIds"].([]string), args["priceMin"].(*string), args["priceMax"].(*string), args["inStock"].(*bool), args["sortKey"].(*string), args["sortDesc"].(*bool), args["limit"].(*int32), args["offset"].(*int32), args["pluginFilters"].([]*model.PluginListFilterInput)), true
 	case "Query.promotionActionTypes":
 		if e.ComplexityRoot.Query.PromotionActionTypes == nil {
 			break
@@ -34185,6 +34301,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputMintBlogPostPreviewTokenInput,
 		ec.unmarshalInputMintCMSPagePreviewTokenInput,
 		ec.unmarshalInputOptionTemplateInput,
+		ec.unmarshalInputPluginListFilterInput,
 		ec.unmarshalInputProductAttributeAssignmentInput,
 		ec.unmarshalInputProductGroupPriceInput,
 		ec.unmarshalInputProductOptionRuleActionInput,
@@ -37383,6 +37500,9 @@ input SetSubscriptionTermsInput {
 # productTypeId is immutable on update.
 input CreateProductInput {
   productTypeId:        ID!
+  # What this save carries for plugins, an object under each plugin's slug - {"acme": {"months": 24}}. Each plugin reads
+  # its own part inside the save's transaction, and any of them can refuse the whole save.
+  extensions: JSON
   # Structural kind. Required at create, immutable afterwards. All four
   # kinds (SIMPLE, CONFIGURABLE, BUNDLE, GROUPED) are supported.
   kind:                 ProductKind!
@@ -37418,6 +37538,9 @@ input CreateProductInput {
 # Only non-translatable fields. Use upsertProductContent to update name/description/SEO copy.
 input UpdateProductInput {
   id:                   ID!
+  # What this save carries for plugins, an object under each plugin's slug - {"acme": {"months": 24}}. Each plugin reads
+  # its own part inside the save's transaction, and any of them can refuse the whole save.
+  extensions: JSON
   defaultPrice:         Int
   defaultCurrencyCode:  String
   # null = no change; clearCompareAtPrice reverts to none.
@@ -37584,6 +37707,7 @@ extend type Query {
     sortDesc:          Boolean
     limit:             Int = 25
     offset:            Int = 0
+    pluginFilters:     [PluginListFilterInput!]
   ): ProductPage!
   product(id: ID!): Product!
   # Batched label/detail resolution for pickers holding bare ids - capped at 100
@@ -38975,6 +39099,9 @@ input UpdateCustomerGroupInput {
 }
 
 input AdminCreateCustomerInput {
+  # What this save carries for plugins, an object under each plugin's slug - {"acme": {"months": 24}}. Each plugin reads
+  # its own part inside the save's transaction, and any of them can refuse the whole save.
+  extensions: JSON
   # Required: which subsidiary the customer registers on. Customers are not shared across stores; the same email may exist on multiple stores as separate accounts.
   channelId:       ID!
   email:             String!
@@ -38989,6 +39116,9 @@ input AdminCreateCustomerInput {
 }
 
 input AdminUpdateCustomerInput {
+  # What this save carries for plugins, an object under each plugin's slug - {"acme": {"months": 24}}. Each plugin reads
+  # its own part inside the save's transaction, and any of them can refuse the whole save.
+  extensions: JSON
   email:             String
   firstName:         String
   lastName:          String
@@ -39065,7 +39195,7 @@ extend type Query {
   # Names for a known set of ids, channel-filtered like the list above - lets a service holding ids but not details, such as Lens recordings, label them without copying names into its own database
   customersByIds(ids: [ID!]!): [Customer!]!
   # Paged + filtered on the server. search matches email/first/last name.
-  customersPaged(channelId: ID, search: String, groupSlug: String, isActive: Boolean, limit: Int, offset: Int): CustomerPage!
+  customersPaged(channelId: ID, search: String, groupSlug: String, isActive: Boolean, limit: Int, offset: Int, pluginFilters: [PluginListFilterInput!]): CustomerPage!
   customer(id: ID!):           Customer!
   customerGroups:              [CustomerGroup!]!
   customerGroup(id: ID!):      CustomerGroup!
@@ -40836,6 +40966,16 @@ enum PaymentStatus {
   VOIDED
 }
 
+# A charge a plugin added at placement. A credit memo refunds it through its fees refund.
+type OrderFee {
+  # "<plugin>:<key>", stable across label changes
+  key:       String!
+  label:     String!
+  amount:    Int!
+  # The part of taxAmount charged on it. Zero when a remote tax provider or plugin priced the tax.
+  taxAmount: Int!
+}
+
 type Order {
   id:              ID!
   # Owning channel - orders are placed on exactly one channel. The
@@ -40884,6 +41024,10 @@ type Order {
   shippingTaxAmount: Int!
   # The most a credit memo can refund for shipping - its tax included where tax was added on top.
   shippingRefundable: Int!
+  # The most a credit memo's feesRefund may be: the fees, with their tax where tax was added on top.
+  feesRefundable:     Int!
+  # What plugins charged on top of the goods and shipping, with the labels the shopper saw. Included in total.
+  fees: [OrderFee!]!
   total:           Int!
   # Cents of ` + "`" + `total` + "`" + ` covered by gift-card tenders (not a discount - total
   # is unchanged). Amount owed to the payment provider is total minus this.
@@ -41117,7 +41261,7 @@ extend type Query {
   orders(channelId: ID): [Order!]!
   # Server-side page for the orders grid - statuses/paymentStatuses take the
   # SCREAMING enum spellings, search matches number, email and last names
-  ordersPaged(channelId: ID, search: String, statuses: [String!], paymentStatuses: [String!], limit: Int, offset: Int, stages: [String!]): OrderPage!
+  ordersPaged(channelId: ID, search: String, statuses: [String!], paymentStatuses: [String!], limit: Int, offset: Int, stages: [String!], pluginFilters: [PluginListFilterInput!]): OrderPage!
   # The stages the plugins enabled on a channel offer, or every compiled-in plugin's without channelId
   orderStages(channelId: ID): [OrderStage!]!
   order(id: ID!):          Order!
@@ -41264,7 +41408,7 @@ extend type Query {
   orderDocumentPdf(orderId: ID!, kind: OrderDocumentKind!, creditMemoId: ID): String!
 }
 
-# A credit memo is one refund event, recorded with the lines it covered. Memos come from settling an RMA, or are issued directly against an order when there is no return to make - a goodwill refund, a pricing correction, a shipping credit. total = items + shipping + adjustment - fee.
+# A credit memo is one refund event, recorded with the lines it covered. Memos come from settling an RMA, or are issued directly against an order when there is no return to make - a goodwill refund, a pricing correction, a shipping credit. total = items + shipping + fees + adjustment - fee.
 type CreditMemo {
   id:                    ID!
   number:                String!
@@ -41273,6 +41417,8 @@ type CreditMemo {
   returnId:              ID
   itemsTotal:            Int!
   shippingRefund:        Int!
+  # Of the fees plugins charged on the order - not the restocking fee below, which is taken off.
+  feesRefund:            Int!
   adjustmentRefund:      Int!
   adjustmentFee:         Int!
   total:                 Int!
@@ -41304,6 +41450,9 @@ input IssueCreditMemoInput {
   # Optional - omit for an adjustment-only or shipping-only memo.
   lines:            [CreditMemoLineInput!]
   shippingRefund:   Int
+  # Of the fees plugins charged, up to the order's feesRefundable. Kept apart from the goods: a refunded handling fee
+  # takes back no loyalty points and reports no returned merchandise.
+  feesRefund:       Int
   # Goodwill on top of the lines.
   adjustmentRefund: Int
   # A restocking fee, subtracted.
@@ -41412,6 +41561,38 @@ extend type Mutation {
   # mode is "all" or "specific"; countries is the allow-list (ignored
   # when mode is "all").
   setPaymentMethodCountries(channelId: ID!, providerSlug: String!, mode: String!, countries: [String!]!): PaymentMethodAdmin!
+}
+`, BuiltIn: false},
+	{Name: "../schema/admin/plugin_list_filters.graphqls", Input: `# Core's admin lists a plugin can filter by its own data
+enum PluginList {
+  PRODUCTS
+  CUSTOMERS
+  ORDERS
+}
+
+# A filter a plugin offers on one of core's lists - the list's toolbar shows it beside core's own
+type PluginListFilter {
+  # "<plugin>:<key>", what the list's pluginFilters name
+  key: String!
+  plugin: String!
+  label: String!
+  options: [PluginListFilterOption!]!
+}
+
+type PluginListFilterOption {
+  value: String!
+  label: String!
+}
+
+# A plugin filter picked on a list - the records matching any of its values. Several narrow the list together
+input PluginListFilterInput {
+  key: String!
+  values: [String!]!
+}
+
+extend type Query {
+  # Gated on the list's own view permission, so whoever can read the list sees what it can be filtered by
+  pluginListFilters(list: PluginList!): [PluginListFilter!]!
 }
 `, BuiltIn: false},
 	{Name: "../schema/admin/preferences.graphqls", Input: `# Per-admin UI preferences - self-scoped key/value blobs the dashboard owns (table layouts, saved list views, nav pins, home layout). Identity comes from the caller's claims - there is deliberately no admin-id argument, and integration tokens are refused since they have no admin row to attach state to.
@@ -42595,6 +42776,10 @@ extend type Mutation {
 
 type Query
 type Mutation
+
+# How gqlgen binds a field - a plugin's field on one of core's types carries @goField(forceResolver: true, batch: true),
+# so the plugin answers once per list of parents. Read at generation time only; nothing runs it per request
+directive @goField(forceResolver: Boolean, name: String, omittable: Boolean, batch: Boolean) on INPUT_FIELD_DEFINITION | FIELD_DEFINITION
 
 # Shared metadata key/value pair used across the admin schema
 # (catalog, cms, blog, channels, inventory, ...).
@@ -47805,6 +47990,8 @@ func (ec *executionContext) childFields_CreditMemo(ctx context.Context, field gr
 		return ec.fieldContext_CreditMemo_itemsTotal(ctx, field)
 	case "shippingRefund":
 		return ec.fieldContext_CreditMemo_shippingRefund(ctx, field)
+	case "feesRefund":
+		return ec.fieldContext_CreditMemo_feesRefund(ctx, field)
 	case "adjustmentRefund":
 		return ec.fieldContext_CreditMemo_adjustmentRefund(ctx, field)
 	case "adjustmentFee":
@@ -50273,6 +50460,10 @@ func (ec *executionContext) childFields_Order(ctx context.Context, field graphql
 		return ec.fieldContext_Order_shippingTaxAmount(ctx, field)
 	case "shippingRefundable":
 		return ec.fieldContext_Order_shippingRefundable(ctx, field)
+	case "feesRefundable":
+		return ec.fieldContext_Order_feesRefundable(ctx, field)
+	case "fees":
+		return ec.fieldContext_Order_fees(ctx, field)
 	case "total":
 		return ec.fieldContext_Order_total(ctx, field)
 	case "giftCardAmount":
@@ -50375,6 +50566,20 @@ func (ec *executionContext) childFields_OrderEvent(ctx context.Context, field gr
 		return ec.fieldContext_OrderEvent_createdAt(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type OrderEvent", field.Name)
+}
+
+func (ec *executionContext) childFields_OrderFee(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "key":
+		return ec.fieldContext_OrderFee_key(ctx, field)
+	case "label":
+		return ec.fieldContext_OrderFee_label(ctx, field)
+	case "amount":
+		return ec.fieldContext_OrderFee_amount(ctx, field)
+	case "taxAmount":
+		return ec.fieldContext_OrderFee_taxAmount(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type OrderFee", field.Name)
 }
 
 func (ec *executionContext) childFields_OrderLine(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -50671,6 +50876,30 @@ func (ec *executionContext) childFields_PermissionGroup(ctx context.Context, fie
 		return ec.fieldContext_PermissionGroup_permissions(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type PermissionGroup", field.Name)
+}
+
+func (ec *executionContext) childFields_PluginListFilter(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "key":
+		return ec.fieldContext_PluginListFilter_key(ctx, field)
+	case "plugin":
+		return ec.fieldContext_PluginListFilter_plugin(ctx, field)
+	case "label":
+		return ec.fieldContext_PluginListFilter_label(ctx, field)
+	case "options":
+		return ec.fieldContext_PluginListFilter_options(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type PluginListFilter", field.Name)
+}
+
+func (ec *executionContext) childFields_PluginListFilterOption(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "value":
+		return ec.fieldContext_PluginListFilterOption_value(ctx, field)
+	case "label":
+		return ec.fieldContext_PluginListFilterOption_label(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type PluginListFilterOption", field.Name)
 }
 
 func (ec *executionContext) childFields_Product(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -65440,6 +65669,14 @@ func (ec *executionContext) field_Query_customersPaged_args(ctx context.Context,
 		return nil, err
 	}
 	args["offset"] = arg5
+	arg6, err := graphql.ProcessArgField(ctx, rawArgs, "pluginFilters",
+		func(ctx context.Context, v any) ([]*model.PluginListFilterInput, error) {
+			return ec.unmarshalOPluginListFilterInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPluginListFilterInputᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["pluginFilters"] = arg6
 	return args, nil
 }
 
@@ -66700,6 +66937,14 @@ func (ec *executionContext) field_Query_ordersPaged_args(ctx context.Context, ra
 		return nil, err
 	}
 	args["stages"] = arg6
+	arg7, err := graphql.ProcessArgField(ctx, rawArgs, "pluginFilters",
+		func(ctx context.Context, v any) ([]*model.PluginListFilterInput, error) {
+			return ec.unmarshalOPluginListFilterInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPluginListFilterInputᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["pluginFilters"] = arg7
 	return args, nil
 }
 
@@ -66742,6 +66987,20 @@ func (ec *executionContext) field_Query_paymentProviders_args(ctx context.Contex
 		return nil, err
 	}
 	args["channelId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_pluginListFilters_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "list",
+		func(ctx context.Context, v any) (model.PluginList, error) {
+			return ec.unmarshalNPluginList2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPluginList(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["list"] = arg0
 	return args, nil
 }
 
@@ -67078,6 +67337,14 @@ func (ec *executionContext) field_Query_productsPaged_args(ctx context.Context, 
 		return nil, err
 	}
 	args["offset"] = arg14
+	arg15, err := graphql.ProcessArgField(ctx, rawArgs, "pluginFilters",
+		func(ctx context.Context, v any) ([]*model.PluginListFilterInput, error) {
+			return ec.unmarshalOPluginListFilterInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPluginListFilterInputᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["pluginFilters"] = arg15
 	return args, nil
 }
 
@@ -94098,6 +94365,29 @@ func (ec *executionContext) _CreditMemo_shippingRefund(ctx context.Context, fiel
 	)
 }
 func (ec *executionContext) fieldContext_CreditMemo_shippingRefund(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CreditMemo", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _CreditMemo_feesRefund(ctx context.Context, field graphql.CollectedField, obj *model.CreditMemo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CreditMemo_feesRefund(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FeesRefund, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CreditMemo_feesRefund(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CreditMemo", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
@@ -138246,6 +138536,61 @@ func (ec *executionContext) fieldContext_Order_shippingRefundable(_ context.Cont
 	return graphql.NewScalarFieldContext("Order", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _Order_feesRefundable(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Order_feesRefundable(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FeesRefundable, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Order_feesRefundable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Order", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _Order_fees(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Order_fees(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Fees, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.OrderFee) graphql.Marshaler {
+			return ec.marshalNOrderFee2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderFeeᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Order_fees(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Order",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OrderFee(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Order_total(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -139172,6 +139517,98 @@ func (ec *executionContext) _OrderEvent_createdAt(ctx context.Context, field gra
 }
 func (ec *executionContext) fieldContext_OrderEvent_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("OrderEvent", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _OrderFee_key(ctx context.Context, field graphql.CollectedField, obj *model.OrderFee) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderFee_key(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Key, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderFee_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderFee", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OrderFee_label(ctx context.Context, field graphql.CollectedField, obj *model.OrderFee) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderFee_label(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Label, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderFee_label(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderFee", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OrderFee_amount(ctx context.Context, field graphql.CollectedField, obj *model.OrderFee) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderFee_amount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Amount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderFee_amount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderFee", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _OrderFee_taxAmount(ctx context.Context, field graphql.CollectedField, obj *model.OrderFee) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderFee_taxAmount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TaxAmount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderFee_taxAmount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderFee", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _OrderLine_id(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
@@ -141595,6 +142032,153 @@ func (ec *executionContext) fieldContext_PermissionGroup_permissions(_ context.C
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _PluginListFilter_key(ctx context.Context, field graphql.CollectedField, obj *model.PluginListFilter) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PluginListFilter_key(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Key, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PluginListFilter_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PluginListFilter", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PluginListFilter_plugin(ctx context.Context, field graphql.CollectedField, obj *model.PluginListFilter) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PluginListFilter_plugin(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Plugin, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PluginListFilter_plugin(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PluginListFilter", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PluginListFilter_label(ctx context.Context, field graphql.CollectedField, obj *model.PluginListFilter) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PluginListFilter_label(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Label, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PluginListFilter_label(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PluginListFilter", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PluginListFilter_options(ctx context.Context, field graphql.CollectedField, obj *model.PluginListFilter) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PluginListFilter_options(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Options, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.PluginListFilterOption) graphql.Marshaler {
+			return ec.marshalNPluginListFilterOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPluginListFilterOptionᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PluginListFilter_options(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PluginListFilter",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PluginListFilterOption(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PluginListFilterOption_value(ctx context.Context, field graphql.CollectedField, obj *model.PluginListFilterOption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PluginListFilterOption_value(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Value, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PluginListFilterOption_value(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PluginListFilterOption", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PluginListFilterOption_label(ctx context.Context, field graphql.CollectedField, obj *model.PluginListFilterOption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PluginListFilterOption_label(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Label, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PluginListFilterOption_label(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PluginListFilterOption", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _Product_id(ctx context.Context, field graphql.CollectedField, obj *model.Product) (ret graphql.Marshaler) {
@@ -152236,7 +152820,7 @@ func (ec *executionContext) _Query_productsPaged(ctx context.Context, field grap
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().ProductsPaged(ctx, fc.Args["channelId"].(*string), fc.Args["search"].(*string), fc.Args["kinds"].([]model.ProductKind), fc.Args["productTypeSlugs"].([]string), fc.Args["published"].(*bool), fc.Args["attributeValueIds"].([]string), fc.Args["categoryIds"].([]string), fc.Args["collectionIds"].([]string), fc.Args["priceMin"].(*string), fc.Args["priceMax"].(*string), fc.Args["inStock"].(*bool), fc.Args["sortKey"].(*string), fc.Args["sortDesc"].(*bool), fc.Args["limit"].(*int32), fc.Args["offset"].(*int32))
+			return ec.Resolvers.Query().ProductsPaged(ctx, fc.Args["channelId"].(*string), fc.Args["search"].(*string), fc.Args["kinds"].([]model.ProductKind), fc.Args["productTypeSlugs"].([]string), fc.Args["published"].(*bool), fc.Args["attributeValueIds"].([]string), fc.Args["categoryIds"].([]string), fc.Args["collectionIds"].([]string), fc.Args["priceMin"].(*string), fc.Args["priceMax"].(*string), fc.Args["inStock"].(*bool), fc.Args["sortKey"].(*string), fc.Args["sortDesc"].(*bool), fc.Args["limit"].(*int32), fc.Args["offset"].(*int32), fc.Args["pluginFilters"].([]*model.PluginListFilterInput))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.ProductPage) graphql.Marshaler {
@@ -153648,7 +154232,7 @@ func (ec *executionContext) _Query_customersPaged(ctx context.Context, field gra
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().CustomersPaged(ctx, fc.Args["channelId"].(*string), fc.Args["search"].(*string), fc.Args["groupSlug"].(*string), fc.Args["isActive"].(*bool), fc.Args["limit"].(*int32), fc.Args["offset"].(*int32))
+			return ec.Resolvers.Query().CustomersPaged(ctx, fc.Args["channelId"].(*string), fc.Args["search"].(*string), fc.Args["groupSlug"].(*string), fc.Args["isActive"].(*bool), fc.Args["limit"].(*int32), fc.Args["offset"].(*int32), fc.Args["pluginFilters"].([]*model.PluginListFilterInput))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.CustomerPage) graphql.Marshaler {
@@ -156342,7 +156926,7 @@ func (ec *executionContext) _Query_ordersPaged(ctx context.Context, field graphq
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().OrdersPaged(ctx, fc.Args["channelId"].(*string), fc.Args["search"].(*string), fc.Args["statuses"].([]string), fc.Args["paymentStatuses"].([]string), fc.Args["limit"].(*int32), fc.Args["offset"].(*int32), fc.Args["stages"].([]string))
+			return ec.Resolvers.Query().OrdersPaged(ctx, fc.Args["channelId"].(*string), fc.Args["search"].(*string), fc.Args["statuses"].([]string), fc.Args["paymentStatuses"].([]string), fc.Args["limit"].(*int32), fc.Args["offset"].(*int32), fc.Args["stages"].([]string), fc.Args["pluginFilters"].([]*model.PluginListFilterInput))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.OrderPage) graphql.Marshaler {
@@ -156678,6 +157262,50 @@ func (ec *executionContext) fieldContext_Query_paymentMethods(ctx context.Contex
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_paymentMethods_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_pluginListFilters(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_pluginListFilters(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().PluginListFilters(ctx, fc.Args["list"].(model.PluginList))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.PluginListFilter) graphql.Marshaler {
+			return ec.marshalNPluginListFilter2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPluginListFilterᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_pluginListFilters(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PluginListFilter(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_pluginListFilters_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -181186,13 +181814,20 @@ func (ec *executionContext) unmarshalInputAdminCreateCustomerInput(ctx context.C
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"channelId", "email", "password", "firstName", "lastName", "phone", "isActive", "isEmailVerified", "customerGroupSlug"}
+	fieldsInOrder := [...]string{"extensions", "channelId", "email", "password", "firstName", "lastName", "phone", "isActive", "isEmailVerified", "customerGroupSlug"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
+		case "extensions":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("extensions"))
+			data, err := ec.unmarshalOJSON2interface(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Extensions = data
 		case "channelId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("channelId"))
 			data, err := ec.unmarshalNID2string(ctx, v)
@@ -181453,13 +182088,20 @@ func (ec *executionContext) unmarshalInputAdminUpdateCustomerInput(ctx context.C
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"email", "firstName", "lastName", "phone", "isActive", "isEmailVerified", "note", "customerGroupSlug", "metadata", "defaultBillingAddressId", "defaultShippingAddressId"}
+	fieldsInOrder := [...]string{"extensions", "email", "firstName", "lastName", "phone", "isActive", "isEmailVerified", "note", "customerGroupSlug", "metadata", "defaultBillingAddressId", "defaultShippingAddressId"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
+		case "extensions":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("extensions"))
+			data, err := ec.unmarshalOJSON2interface(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Extensions = data
 		case "email":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("email"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
@@ -184977,7 +185619,7 @@ func (ec *executionContext) unmarshalInputCreateProductInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"productTypeId", "kind", "defaultPrice", "defaultCurrencyCode", "sku", "seoNoindex", "canonicalUrl", "url", "urlAuto", "urlTemplateOverride", "tracksInventoryOverride", "quantityDecimals", "quantityStep", "metadata", "privateMetadata", "locale", "name", "shortDescription", "descriptionRichText", "metaTitle", "metaDescription", "metaKeywords"}
+	fieldsInOrder := [...]string{"productTypeId", "extensions", "kind", "defaultPrice", "defaultCurrencyCode", "sku", "seoNoindex", "canonicalUrl", "url", "urlAuto", "urlTemplateOverride", "tracksInventoryOverride", "quantityDecimals", "quantityStep", "metadata", "privateMetadata", "locale", "name", "shortDescription", "descriptionRichText", "metaTitle", "metaDescription", "metaKeywords"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -184991,6 +185633,13 @@ func (ec *executionContext) unmarshalInputCreateProductInput(ctx context.Context
 				return it, err
 			}
 			it.ProductTypeID = data
+		case "extensions":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("extensions"))
+			data, err := ec.unmarshalOJSON2interface(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Extensions = data
 		case "kind":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("kind"))
 			data, err := ec.unmarshalNProductKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐProductKind(ctx, v)
@@ -187252,7 +187901,7 @@ func (ec *executionContext) unmarshalInputIssueCreditMemoInput(ctx context.Conte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"orderId", "lines", "shippingRefund", "adjustmentRefund", "adjustmentFee", "refundTarget", "reason"}
+	fieldsInOrder := [...]string{"orderId", "lines", "shippingRefund", "feesRefund", "adjustmentRefund", "adjustmentFee", "refundTarget", "reason"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -187280,6 +187929,13 @@ func (ec *executionContext) unmarshalInputIssueCreditMemoInput(ctx context.Conte
 				return it, err
 			}
 			it.ShippingRefund = data
+		case "feesRefund":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("feesRefund"))
+			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.FeesRefund = data
 		case "adjustmentRefund":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("adjustmentRefund"))
 			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
@@ -187500,6 +188156,43 @@ func (ec *executionContext) unmarshalInputOptionTemplateInput(ctx context.Contex
 				return it, err
 			}
 			it.CurrencyCode = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputPluginListFilterInput(ctx context.Context, obj any) (model.PluginListFilterInput, error) {
+	var it model.PluginListFilterInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"key", "values"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "key":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("key"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Key = data
+		case "values":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("values"))
+			data, err := ec.unmarshalNString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Values = data
 		}
 	}
 	return it, nil
@@ -193110,7 +193803,7 @@ func (ec *executionContext) unmarshalInputUpdateProductInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "defaultPrice", "defaultCurrencyCode", "compareAtPrice", "clearCompareAtPrice", "specialPrice", "specialFrom", "specialTo", "clearSpecialPrice", "weightGrams", "lengthMm", "widthMm", "heightMm", "minOrderQty", "maxOrderQty", "costCents", "clearCostCents", "kitItemsReturnable", "sku", "seoNoindex", "canonicalUrl", "url", "urlAuto", "urlTemplateOverride", "tracksInventoryOverride", "clearTracksInventoryOverride", "quantityDecimals", "quantityStep", "metadata", "privateMetadata"}
+	fieldsInOrder := [...]string{"id", "extensions", "defaultPrice", "defaultCurrencyCode", "compareAtPrice", "clearCompareAtPrice", "specialPrice", "specialFrom", "specialTo", "clearSpecialPrice", "weightGrams", "lengthMm", "widthMm", "heightMm", "minOrderQty", "maxOrderQty", "costCents", "clearCostCents", "kitItemsReturnable", "sku", "seoNoindex", "canonicalUrl", "url", "urlAuto", "urlTemplateOverride", "tracksInventoryOverride", "clearTracksInventoryOverride", "quantityDecimals", "quantityStep", "metadata", "privateMetadata"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -193124,6 +193817,13 @@ func (ec *executionContext) unmarshalInputUpdateProductInput(ctx context.Context
 				return it, err
 			}
 			it.ID = data
+		case "extensions":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("extensions"))
+			data, err := ec.unmarshalOJSON2interface(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Extensions = data
 		case "defaultPrice":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("defaultPrice"))
 			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
@@ -206591,6 +207291,11 @@ func (ec *executionContext) _CreditMemo(ctx context.Context, sel ast.SelectionSe
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "feesRefund":
+			out.Values[i] = ec._CreditMemo_feesRefund(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "adjustmentRefund":
 			out.Values[i] = ec._CreditMemo_adjustmentRefund(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -218992,6 +219697,16 @@ func (ec *executionContext) _Order(ctx context.Context, sel ast.SelectionSet, ob
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "feesRefundable":
+			out.Values[i] = ec._Order_feesRefundable(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "fees":
+			out.Values[i] = ec._Order_fees(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "total":
 			out.Values[i] = ec._Order_total(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -219542,6 +220257,59 @@ func (ec *executionContext) _OrderEvent(ctx context.Context, sel ast.SelectionSe
 			}
 		case "createdAt":
 			out.Values[i] = ec._OrderEvent_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var orderFeeImplementors = []string{"OrderFee"}
+
+func (ec *executionContext) _OrderFee(ctx context.Context, sel ast.SelectionSet, obj *model.OrderFee) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, orderFeeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OrderFee")
+		case "key":
+			out.Values[i] = ec._OrderFee_key(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "label":
+			out.Values[i] = ec._OrderFee_label(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "amount":
+			out.Values[i] = ec._OrderFee_amount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "taxAmount":
+			out.Values[i] = ec._OrderFee_taxAmount(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -220552,6 +221320,102 @@ func (ec *executionContext) _PermissionGroup(ctx context.Context, sel ast.Select
 			}
 		case "permissions":
 			out.Values[i] = ec._PermissionGroup_permissions(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var pluginListFilterImplementors = []string{"PluginListFilter"}
+
+func (ec *executionContext) _PluginListFilter(ctx context.Context, sel ast.SelectionSet, obj *model.PluginListFilter) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, pluginListFilterImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PluginListFilter")
+		case "key":
+			out.Values[i] = ec._PluginListFilter_key(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "plugin":
+			out.Values[i] = ec._PluginListFilter_plugin(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "label":
+			out.Values[i] = ec._PluginListFilter_label(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "options":
+			out.Values[i] = ec._PluginListFilter_options(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var pluginListFilterOptionImplementors = []string{"PluginListFilterOption"}
+
+func (ec *executionContext) _PluginListFilterOption(ctx context.Context, sel ast.SelectionSet, obj *model.PluginListFilterOption) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, pluginListFilterOptionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PluginListFilterOption")
+		case "value":
+			out.Values[i] = ec._PluginListFilterOption_value(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "label":
+			out.Values[i] = ec._PluginListFilterOption_label(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -227876,6 +228740,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_paymentMethods(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "pluginListFilters":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_pluginListFilters(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -246556,6 +247442,32 @@ func (ec *executionContext) marshalNOrderEvent2ᚖgithubᚗcomᚋskeletgᚋskele
 	return ec._OrderEvent(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNOrderFee2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderFeeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OrderFee) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNOrderFee2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderFee(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNOrderFee2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderFee(ctx context.Context, sel ast.SelectionSet, v *model.OrderFee) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OrderFee(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNOrderLine2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderLineᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OrderLine) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -246990,6 +247902,73 @@ func (ec *executionContext) marshalNPermissionGroup2ᚖgithubᚗcomᚋskeletgᚋ
 		return graphql.Null
 	}
 	return ec._PermissionGroup(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNPluginList2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPluginList(ctx context.Context, v any) (model.PluginList, error) {
+	var res model.PluginList
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNPluginList2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPluginList(ctx context.Context, sel ast.SelectionSet, v model.PluginList) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNPluginListFilter2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPluginListFilterᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.PluginListFilter) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNPluginListFilter2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPluginListFilter(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNPluginListFilter2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPluginListFilter(ctx context.Context, sel ast.SelectionSet, v *model.PluginListFilter) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PluginListFilter(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNPluginListFilterInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPluginListFilterInput(ctx context.Context, v any) (*model.PluginListFilterInput, error) {
+	res, err := ec.unmarshalInputPluginListFilterInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNPluginListFilterOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPluginListFilterOptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.PluginListFilterOption) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNPluginListFilterOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPluginListFilterOption(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNPluginListFilterOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPluginListFilterOption(ctx context.Context, sel ast.SelectionSet, v *model.PluginListFilterOption) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PluginListFilterOption(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNProduct2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐProduct(ctx context.Context, sel ast.SelectionSet, v model.Product) graphql.Marshaler {
@@ -253409,6 +254388,23 @@ func (ec *executionContext) marshalOOrderStage2ᚖgithubᚗcomᚋskeletgᚋskele
 		return graphql.Null
 	}
 	return ec._OrderStage(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOPluginListFilterInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPluginListFilterInputᚄ(ctx context.Context, v any) ([]*model.PluginListFilterInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]*model.PluginListFilterInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNPluginListFilterInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPluginListFilterInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
 }
 
 func (ec *executionContext) marshalOProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐProduct(ctx context.Context, sel ast.SelectionSet, v *model.Product) graphql.Marshaler {

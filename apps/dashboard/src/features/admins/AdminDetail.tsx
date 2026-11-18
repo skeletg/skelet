@@ -17,7 +17,6 @@ import {
   UpdateAdminDocument,
   type AdminQuery,
 } from './Admins.gql'
-import { PluginSections } from '@/plugins/detail-sections'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import {
   ADMIN_DETAIL_LABELS,
@@ -92,6 +91,7 @@ function AdminForm({ admin }: { admin: AdminQuery['admin'] }) {
 
   return (
     <RecordFormPage
+      plugins={{ target: 'admin', entity: admin, mode: 'edit' }}
       record={record}
       backTo="/admins"
       backLabel="All admins"
@@ -146,7 +146,6 @@ function AdminForm({ admin }: { admin: AdminQuery['admin'] }) {
               </div>
             </DetailPageSection>
           )}
-          <PluginSections target="admin" entity={admin} mode="edit" />
         </>
       }
     >

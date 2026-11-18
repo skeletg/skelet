@@ -1,5 +1,5 @@
-query OrdersPaged($search: String, $statuses: [String!], $paymentStatuses: [String!], $stages: [String!], $limit: Int, $offset: Int, $channelId: ID) {
-  ordersPaged(search: $search, statuses: $statuses, paymentStatuses: $paymentStatuses, stages: $stages, limit: $limit, offset: $offset, channelId: $channelId) {
+query OrdersPaged($search: String, $statuses: [String!], $paymentStatuses: [String!], $stages: [String!], $limit: Int, $offset: Int, $channelId: ID, $pluginFilters: [PluginListFilterInput!]) {
+  ordersPaged(search: $search, statuses: $statuses, paymentStatuses: $paymentStatuses, stages: $stages, limit: $limit, offset: $offset, channelId: $channelId, pluginFilters: $pluginFilters) {
     totalCount
     items {
       id
@@ -42,6 +42,13 @@ query Order($id: ID!) {
     taxAmount
     taxIncluded
     shippingRefundable
+    feesRefundable
+    fees {
+      key
+      label
+      amount
+      taxAmount
+    }
     total
     giftCardAmount
     storeCreditAmount
@@ -417,6 +424,7 @@ query CreditMemos($orderId: ID!) {
     returnId
     itemsTotal
     shippingRefund
+    feesRefund
     adjustmentRefund
     adjustmentFee
     total

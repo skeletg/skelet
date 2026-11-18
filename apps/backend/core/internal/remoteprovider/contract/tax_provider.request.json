@@ -11,6 +11,15 @@
   "currency": "USD",
   "customerGroup": "example",
   "discountCents": 1000,
+  "fees": [
+    {
+      "amountCents": 1000,
+      "key": "example",
+      "label": "example",
+      "taxClass": "example",
+      "taxable": false
+    }
+  ],
   "lines": [
     {
       "quantity": 1,

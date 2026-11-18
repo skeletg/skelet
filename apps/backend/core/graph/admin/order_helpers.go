@@ -191,6 +191,8 @@ func toOrderModel(o order.Order) *model.Order {
 		TaxIncluded:        o.TaxIncluded(),
 		ShippingTaxAmount:  int32(o.ShippingTaxAmount),
 		ShippingRefundable: int32(o.ShippingRefundable()),
+		FeesRefundable:     int32(o.FeesRefundable()),
+		Fees:               toOrderFees(o.Fees),
 		Total:              int32(o.TotalAmount),
 		GiftCardAmount:     int32(o.GiftCardAmount),
 		StoreCreditAmount:  int32(o.StoreCreditAmount),
@@ -208,6 +210,14 @@ func toOrderModel(o order.Order) *model.Order {
 		m.CustomerNote = &o.CustomerNote
 	}
 	return m
+}
+
+func toOrderFees(fees []order.Fee) []*model.OrderFee {
+	out := make([]*model.OrderFee, len(fees))
+	for i, f := range fees {
+		out[i] = &model.OrderFee{Key: f.Key, Label: f.Label, Amount: int32(f.AmountCents), TaxAmount: int32(f.TaxCents)}
+	}
+	return out
 }
 
 func toFulfillmentModel(f order.Fulfillment) *model.Fulfillment {
@@ -331,6 +341,7 @@ func toCreditMemoModel(m order.CreditMemo, o order.Order) *model.CreditMemo {
 		OrderID:          m.OrderID.String(),
 		ItemsTotal:       int32(m.LinesTotalCents),
 		ShippingRefund:   int32(m.ShippingRefundCents),
+		FeesRefund:       int32(m.FeesRefundCents),
 		AdjustmentRefund: int32(m.AdjustmentRefundCents),
 		AdjustmentFee:    int32(m.AdjustmentFeeCents),
 		Total:            int32(m.TotalCents),

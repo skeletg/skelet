@@ -22,6 +22,16 @@ enum PaymentStatus {
   VOIDED
 }
 
+# A charge a plugin added at placement. A credit memo refunds it through its fees refund.
+type OrderFee {
+  # "<plugin>:<key>", stable across label changes
+  key:       String!
+  label:     String!
+  amount:    Int!
+  # The part of taxAmount charged on it. Zero when a remote tax provider or plugin priced the tax.
+  taxAmount: Int!
+}
+
 type Order {
   id:              ID!
   # Owning channel - orders are placed on exactly one channel. The
@@ -70,6 +80,10 @@ type Order {
   shippingTaxAmount: Int!
   # The most a credit memo can refund for shipping - its tax included where tax was added on top.
   shippingRefundable: Int!
+  # The most a credit memo's feesRefund may be: the fees, with their tax where tax was added on top.
+  feesRefundable:     Int!
+  # What plugins charged on top of the goods and shipping, with the labels the shopper saw. Included in total.
+  fees: [OrderFee!]!
   total:           Int!
   # Cents of `total` covered by gift-card tenders (not a discount - total
   # is unchanged). Amount owed to the payment provider is total minus this.
@@ -303,7 +317,7 @@ extend type Query {
   orders(channelId: ID): [Order!]!
   # Server-side page for the orders grid - statuses/paymentStatuses take the
   # SCREAMING enum spellings, search matches number, email and last names
-  ordersPaged(channelId: ID, search: String, statuses: [String!], paymentStatuses: [String!], limit: Int, offset: Int, stages: [String!]): OrderPage!
+  ordersPaged(channelId: ID, search: String, statuses: [String!], paymentStatuses: [String!], limit: Int, offset: Int, stages: [String!], pluginFilters: [PluginListFilterInput!]): OrderPage!
   # The stages the plugins enabled on a channel offer, or every compiled-in plugin's without channelId
   orderStages(channelId: ID): [OrderStage!]!
   order(id: ID!):          Order!
@@ -450,7 +464,7 @@ extend type Query {
   orderDocumentPdf(orderId: ID!, kind: OrderDocumentKind!, creditMemoId: ID): String!
 }
 
-# A credit memo is one refund event, recorded with the lines it covered. Memos come from settling an RMA, or are issued directly against an order when there is no return to make - a goodwill refund, a pricing correction, a shipping credit. total = items + shipping + adjustment - fee.
+# A credit memo is one refund event, recorded with the lines it covered. Memos come from settling an RMA, or are issued directly against an order when there is no return to make - a goodwill refund, a pricing correction, a shipping credit. total = items + shipping + fees + adjustment - fee.
 type CreditMemo {
   id:                    ID!
   number:                String!
@@ -459,6 +473,8 @@ type CreditMemo {
   returnId:              ID
   itemsTotal:            Int!
   shippingRefund:        Int!
+  # Of the fees plugins charged on the order - not the restocking fee below, which is taken off.
+  feesRefund:            Int!
   adjustmentRefund:      Int!
   adjustmentFee:         Int!
   total:                 Int!
@@ -490,6 +506,9 @@ input IssueCreditMemoInput {
   # Optional - omit for an adjustment-only or shipping-only memo.
   lines:            [CreditMemoLineInput!]
   shippingRefund:   Int
+  # Of the fees plugins charged, up to the order's feesRefundable. Kept apart from the goods: a refunded handling fee
+  # takes back no loyalty points and reports no returned merchandise.
+  feesRefund:       Int
   # Goodwill on top of the lines.
   adjustmentRefund: Int
   # A restocking fee, subtracted.

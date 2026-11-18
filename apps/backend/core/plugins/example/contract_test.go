@@ -3,12 +3,14 @@ package example
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"go/parser"
 	"go/token"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -20,9 +22,11 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
 	pluginhost "github.com/skeletg/skelet/apps/backend/core/internal/plugin"
 	"github.com/skeletg/skelet/apps/backend/core/internal/pluginmigrate"
+	"github.com/skeletg/skelet/apps/backend/core/internal/recordsave"
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // One boot per binary, since plugin.Install panics on a second call and exposes no reset - the conn is process-scoped for the same reason, because SetConfigService is single-shot and a per-test conn would leave the host holding a service over a closed handle
@@ -33,6 +37,7 @@ func TestMain(m *testing.M) {
 	if conn, _ := testdb.Open("DATABASE_URL"); conn != nil {
 		testDB = conn
 		pluginhost.SetConfigService(config.NewService(configstore.New(dbsqlc.New(conn))))
+		pluginhost.SetDatabase(conn) // what sdk.Database hands the plugin's own queries
 	}
 	code := m.Run()
 	if testDB != nil {
@@ -284,12 +289,12 @@ func TestMigrationsApply(t *testing.T) {
 	conn := withDB(t)
 	ctx := context.Background()
 
-	t.Cleanup(func() {
-		_, _ = conn.Exec(`DROP TABLE IF EXISTS example_plugin_records`)
+	drop := func() {
+		_, _ = conn.Exec(`DROP TABLE IF EXISTS example_plugin_records, example_plugin_customer_notes`)
 		_, _ = conn.Exec(`DELETE FROM plugin_migrations WHERE namespace = $1`, Slug)
-	})
-	_, _ = conn.Exec(`DROP TABLE IF EXISTS example_plugin_records`)
-	_, _ = conn.Exec(`DELETE FROM plugin_migrations WHERE namespace = $1`, Slug)
+	}
+	t.Cleanup(drop)
+	drop()
 
 	runner := pluginmigrate.New(conn)
 	if err := runner.UpInOrder(ctx, pluginhost.OrderedManifestSlugs()); err != nil {
@@ -306,5 +311,97 @@ func TestMigrationsApply(t *testing.T) {
 	}
 	if err := runner.UpInOrder(ctx, pluginhost.OrderedManifestSlugs()); err != nil {
 		t.Fatalf("re-run should be a no-op: %v", err)
+	}
+
+	// The notes linked to a customer come out with their export, go with an erasure, and go with the customer too
+	var group, customer uuid.UUID
+	if err := conn.QueryRow(`SELECT id FROM customer_groups ORDER BY created_at LIMIT 1`).Scan(&group); err != nil {
+		t.Fatalf("a customer group: %v", err)
+	}
+	var channelID uuid.UUID
+	if err := conn.QueryRow(`INSERT INTO channels (slug, name, currency_code) VALUES ($1, 'Notes', 'EUR') RETURNING id`,
+		"notes-"+uuid.NewString()[:8]).Scan(&channelID); err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.QueryRow(`INSERT INTO customers (email, password_hash, customer_group_id, channel_id) VALUES ($1, '', $2, $3) RETURNING id`,
+		uuid.NewString()[:8]+"@notes.test", group, channelID).Scan(&customer); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.Exec(`INSERT INTO example_plugin_customer_notes (customer_id, note) VALUES ($1, 'prefers mornings'), ($1, 'gift wrap')`, customer); err != nil {
+		t.Fatal(err)
+	}
+	// The same rows as a field on Customer would read them - every note per customer, in one query
+	type note struct {
+		Note string `json:"note"`
+	}
+	notes := sdk.Link{Table: "example_plugin_customer_notes", Key: "customer_id", Order: "id"}
+	stranger := uuid.NewString()
+	many, err := sdk.LoadMany[note](ctx, notes, []string{customer.String(), stranger})
+	if err != nil || len(many) != 2 || len(many[0]) != 2 || many[0][1].Note != "gift wrap" || len(many[1]) != 0 {
+		t.Errorf("linked notes %v, %v", many, err)
+	}
+	one, err := sdk.LoadOne[note](ctx, notes, []string{stranger, customer.String()})
+	if err != nil || one[0] != nil || one[1] == nil || one[1].Note != "prefers mornings" {
+		t.Errorf("first note per customer %v, %v", one, err)
+	}
+
+	// The customers list narrowed to those with a note holds this one
+	withNotes := []pluginhost.ListFilterPick{{Key: Slug + ":notes", Values: []string{"any"}}}
+	if ids, restrict, err := pluginhost.ListFilterIDs(ctx, sdk.ListCustomers, withNotes); err != nil || !restrict || !slices.Contains(ids, customer) {
+		t.Errorf("customers with notes %v (restrict %v), %v - want %s among them", ids, restrict, err, customer)
+	}
+
+	export, err := pluginhost.CustomerDataExport(ctx, customer, channelID, "")
+	if notes, _ := export[Slug+":notes"].([]string); err != nil || len(notes) != 2 || notes[0] != "prefers mornings" {
+		t.Errorf("export %v, %v - want both notes under %s:notes", export, err, Slug)
+	}
+	if err := pluginhost.EraseCustomerData(ctx, customer, channelID, ""); err != nil {
+		t.Fatal(err)
+	}
+	if export, err := pluginhost.CustomerDataExport(ctx, customer, channelID, ""); err != nil || len(export) != 0 {
+		t.Errorf("after the erasure: %v, %v - want nothing left", export, err)
+	}
+	// A note sent with the customer's save is written in the save's transaction: there when it commits, and gone
+	// with it when the plugin refuses the part
+	perms, err := pluginhost.RecordExtensionPermissions(ctx, sdk.RecordCustomer, []string{Slug})
+	if err != nil || !slices.Equal(perms, []string{"example.manage"}) {
+		t.Errorf("sending the note takes %v (%v), want example.manage", perms, err)
+	}
+	saveNote := func(note string) error {
+		tx, err := conn.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = tx.Rollback() }()
+		part, _ := json.Marshal(map[string]string{"note": note})
+		saving := &recordsave.Saving{
+			Event: recordsave.EventCustomerSaving, Record: recordsave.RecordCustomer, RecordID: customer, ChannelID: channelID,
+			Extensions: map[string]json.RawMessage{Slug: part}, Tx: tx,
+		}
+		if err := sharedBus().PublishSync(ctx, saving); err != nil {
+			return err
+		}
+		return tx.Commit()
+	}
+	if err := saveNote("from the save"); err != nil {
+		t.Fatalf("a note with the save: %v", err)
+	}
+	if err := saveNote("  "); err == nil {
+		t.Error("an empty note was taken")
+	}
+	var saved string
+	if err := conn.QueryRow(`SELECT string_agg(note, ',') FROM example_plugin_customer_notes WHERE customer_id = $1`, customer).Scan(&saved); err != nil || saved != "from the save" {
+		t.Errorf("notes after the two saves: %q, %v - want the one that committed", saved, err)
+	}
+
+	if _, err := conn.Exec(`INSERT INTO example_plugin_customer_notes (customer_id, note) VALUES ($1, 'again')`, customer); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.Exec(`DELETE FROM customers WHERE id = $1`, customer); err != nil {
+		t.Fatalf("deleting the customer: %v - the link must not hold it back", err)
+	}
+	var left int
+	if err := conn.QueryRow(`SELECT count(*) FROM example_plugin_customer_notes`).Scan(&left); err != nil || left != 0 {
+		t.Errorf("%d notes outlived their customer (%v)", left, err)
 	}
 }

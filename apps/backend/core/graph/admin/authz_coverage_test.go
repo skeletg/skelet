@@ -143,6 +143,14 @@ func TestEveryAdminFieldResolverIsAccountedFor(t *testing.T) {
 		if info.guards {
 			continue
 		}
+		// A plugin's field on a core type answers through the plugin's ProductAcmeWarranty-style method - follow it there
+		// and demand a guard, as for the plugin's root fields: the parent's gate was written before the plugin's data existed
+		if slug := info.pluginSlug; slug != "" {
+			if !pluginGates(t, slug, strings.Replace(key, ".", "", 1)) {
+				t.Errorf("field %s is served by plugin %q, whose resolver has no sdk.Require*/PermittedChannels guard - gate it in the plugin", key, slug)
+			}
+			continue
+		}
 		reached := false
 		for _, callee := range info.calls {
 			if gates(callee, funcs, 1, map[string]bool{}) {
@@ -218,6 +226,7 @@ func parseFieldResolvers(t *testing.T) map[string]funcInfo {
 				continue
 			}
 			info := out[key]
+			info.pluginSlug = delegatedPluginSlug(fn.Body)
 			gates := bodyAuthGates(fn.Body)
 			info.guards = info.guards || len(gates) > 0
 			info.authGates = append(info.authGates, gates...)

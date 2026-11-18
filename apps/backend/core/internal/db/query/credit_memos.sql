@@ -3,8 +3,8 @@
 INSERT INTO credit_memos (
     order_id, return_id, lines_total_cents, shipping_refund_cents,
     adjustment_refund_cents, adjustment_fee_cents, total_cents,
-    refund_target, offline, reason, admin_id
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    refund_target, offline, reason, admin_id, fees_refund_cents
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 RETURNING *;
 
 -- name: AddCreditMemoLine :one

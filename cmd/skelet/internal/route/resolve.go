@@ -45,6 +45,8 @@ func Resolve(root string, args []string) Action {
 		return dbRoute(rest)
 	case "gen", "check", "test":
 		return withSubs(verb, rest)
+	case "plugin":
+		return pluginRoute(rest)
 	case "new":
 		if len(rest) > 0 && rest[0] != "channel" && !strings.HasPrefix(rest[0], "-") {
 			return die(newProject)
@@ -80,6 +82,16 @@ func withSubs(verb string, rest []string) Action {
 		}
 	}
 	return simple(verb, rest)
+}
+
+// plugin has no bare form - the ops CLI holds the plugin commands that aren't about getting one in
+func pluginRoute(rest []string) Action {
+	if len(rest) > 0 && rest[0] != "" {
+		if r, ok := lookup("plugin", rest[0]); ok {
+			return to(r, rest[1:])
+		}
+	}
+	return die("skelet plugin " + subs["plugin"] + " - the other plugin commands are the ops CLI's: skelet cli plugin")
 }
 
 func dbRoute(rest []string) Action {

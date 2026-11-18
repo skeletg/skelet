@@ -17,8 +17,10 @@ RETURNING *;
 SELECT * FROM catalog_products WHERE id = $1;
 
 -- name: GetProductByIDForUpdate :one
--- UpdateProduct merges the input over this row in Go, so the lock keeps a concurrent edit from being overwritten
-SELECT * FROM catalog_products WHERE id = $1 FOR UPDATE;
+-- UpdateProduct merges the input over this row in Go, so the lock keeps a concurrent edit from being overwritten.
+-- NO KEY UPDATE, since nothing here changes the id: a plain FOR UPDATE also holds up every insert that points at the
+-- product - a review, a wishlist row - for as long as the save's transaction runs, plugins' part of it included
+SELECT * FROM catalog_products WHERE id = $1 FOR NO KEY UPDATE;
 
 -- name: CountActiveCartReferencesToSKU :one
 SELECT ((SELECT COUNT(*) FROM cart_lines cl JOIN carts c ON c.id = cl.cart_id
@@ -547,6 +549,8 @@ filtered AS (
            OR p.url ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
            OR co.name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%')
       AND (cardinality(sqlc.arg(kinds)::text[]) = 0 OR p.kind::text = ANY(sqlc.arg(kinds)::text[]))
+      -- A plugin's list filter answered with the ids that match it
+      AND (NOT sqlc.arg(restrict_ids)::boolean OR p.id = ANY(sqlc.arg(only_ids)::uuid[]))
       AND (cardinality(sqlc.arg(type_slugs)::text[]) = 0 OR pt.slug = ANY(sqlc.arg(type_slugs)::text[]))
       -- Published means "has a published listing in scope" - in global mode any
       -- channel counts, which matches what the unpaginated list showed

@@ -13,6 +13,7 @@ import { gqlFetch, isBackendFailure } from "@skelet/storefront-next/graphql";
 import { MyOrderDocument } from "@skelet/storefront-core/checkout/operations.gql";
 import { ReorderButton } from "@/app/[channel]/[locale]/account/orders/ReorderButton";
 import { ReturnRequestForm, type ReturnableItem } from "@/app/[channel]/[locale]/account/orders/ReturnRequestForm";
+import { Slots } from "@/app/plugins/Slots";
 
 export async function generateMetadata({
   params,
@@ -76,6 +77,8 @@ export default async function OrderDetailPage({
           <p className="mt-1 text-sm text-muted-foreground">{t("thanksBody")}</p>
         </section>
       ) : null}
+      {/* Once, as the order is placed - a plugin's survey, referral offer or conversion tag */}
+      {justPlaced ? <Slots zone="order:placed" ctx={{ orderId: order.id, number: order.number, total: order.total, currencyCode: order.currencyCode }} /> : null}
 
       <OrderDetailView
         order={order}

@@ -368,14 +368,16 @@ type CheckoutRequirement struct {
 }
 
 type CheckoutTotals struct {
-	SubtotalCents    int32 `json:"subtotalCents"`
-	DiscountCents    int32 `json:"discountCents"`
-	ShippingCents    int32 `json:"shippingCents"`
-	TaxCents         int32 `json:"taxCents"`
-	TotalCents       int32 `json:"totalCents"`
-	GiftCardCents    int32 `json:"giftCardCents"`
-	StoreCreditCents int32 `json:"storeCreditCents"`
-	AmountDueCents   int32 `json:"amountDueCents"`
+	SubtotalCents    int32             `json:"subtotalCents"`
+	DiscountCents    int32             `json:"discountCents"`
+	ShippingCents    int32             `json:"shippingCents"`
+	Fees             []*model.OrderFee `json:"fees"`
+	TaxCents         int32             `json:"taxCents"`
+	TotalCents       int32             `json:"totalCents"`
+	GiftCardCents    int32             `json:"giftCardCents"`
+	StoreCreditCents int32             `json:"storeCreditCents"`
+	AmountDueCents   int32             `json:"amountDueCents"`
+	Problem          *string           `json:"problem,omitempty"`
 }
 
 type CountrySettings struct {

@@ -1343,6 +1343,7 @@ type CreditMemo struct {
 	AdminID               uuid.NullUUID `json:"admin_id"`
 	CreatedAt             time.Time     `json:"created_at"`
 	Status                string        `json:"status"`
+	FeesRefundCents       int64         `json:"fees_refund_cents"`
 }
 
 type CreditMemoLine struct {
@@ -1856,6 +1857,7 @@ type Order struct {
 	CheckoutFields      json.RawMessage       `json:"checkout_fields"`
 	Stage               string                `json:"stage"`
 	Seller              pqtype.NullRawMessage `json:"seller"`
+	Fees                json.RawMessage       `json:"fees"`
 }
 
 type OrderEmailLog struct {
@@ -2064,6 +2066,19 @@ type PermissionGroup struct {
 	Name      string    `json:"name"`
 	Slug      string    `json:"slug"`
 	SortOrder int32     `json:"sort_order"`
+}
+
+type PluginCustomerErasure struct {
+	ID            uuid.UUID `json:"id"`
+	CustomerID    uuid.UUID `json:"customer_id"`
+	ChannelID     uuid.UUID `json:"channel_id"`
+	Email         string    `json:"email"`
+	PluginSlug    string    `json:"plugin_slug"`
+	DataKey       string    `json:"data_key"`
+	Attempts      int32     `json:"attempts"`
+	LastError     string    `json:"last_error"`
+	NextAttemptAt time.Time `json:"next_attempt_at"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 type PluginEventDedup struct {

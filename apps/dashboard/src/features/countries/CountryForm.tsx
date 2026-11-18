@@ -13,7 +13,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { PluginSections } from '@/plugins/detail-sections'
 import { LoadError } from '@/shared/errors/LoadError'
 import { ClashNote } from '@/shared/saving/RestoredDraftBanner'
 import { RecordFormPage } from '@/shared/saving/RecordFormPage'
@@ -120,7 +119,7 @@ function CountryFormPage({ mode, country }: { mode: 'create' | 'edit'; country?:
       }
       createLabel="Create country"
       labels={COUNTRY_LABELS}
-      after={<PluginSections target="country" entity={country ?? null} mode={isEdit ? 'edit' : 'create'} />}
+      plugins={{ target: 'country', entity: country ?? null, mode: isEdit ? 'edit' : 'create' }}
     >
       <DetailPageSection title="Identity" description="2-letter ISO 3166-1 alpha-2 code, name, and native name.">
         <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">

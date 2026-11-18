@@ -157,6 +157,7 @@ export function ProductTypesList() {
   return (
     <>
       <DataTable
+        target="catalog.product-types"
         urlState={urlState}
         columns={columns}
         data={rows}

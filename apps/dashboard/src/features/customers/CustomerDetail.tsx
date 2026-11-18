@@ -16,6 +16,7 @@ import { EntityChannelForbidden, EntityWrongChannel } from '@/shared/errors/Chan
 import { isForbiddenError } from '@/shared/errors/isForbiddenError'
 import { RecordFormPage } from '@/shared/saving/RecordFormPage'
 import { useRecordForm } from '@/shared/saving/useRecordForm'
+import { RecordExtensionsContext, useRecordExtensions } from '@/shared/saving/extensions'
 import { toAddressInput, toAddressValues } from '@/shared/schemas/address'
 import { GdprActions } from './GdprActions'
 import { MasqueradeButton } from '@/features/customers/MasqueradeButton'
@@ -39,7 +40,6 @@ import {
 } from './Customers.gql'
 import { CustomerGroupsDocument } from './CustomerGroups.gql'
 import { useCustomerAccess } from './useCustomerAccess'
-import { PluginSections } from '@/plugins/detail-sections'
 import {
   CUSTOMER_LABELS,
   customerChanges,
@@ -141,6 +141,8 @@ function CustomerForm({ customer }: { customer: Customer }) {
   )
   const name = `${customer.firstName} ${customer.lastName}`
 
+  // A plugin section's part of the save rides the customer's own mutation - see shared/saving/extensions
+  const extensions = useRecordExtensions((parts) => updateCustomer({ variables: { id, input: { extensions: parts } } }))
   const record = useRecordForm({
     id: 'customer',
     title: 'Customer',
@@ -152,7 +154,9 @@ function CustomerForm({ customer }: { customer: Customer }) {
     persist: { routeKey: `customer:${id}` },
     submit: async (v) => {
       const changes = customerChanges(baseline, v)
-      if (changes.update) await updateCustomer({ variables: { id, input: changes.update } })
+      const ext = extensions.take()
+      if (changes.update || ext) await updateCustomer({ variables: { id, input: { ...changes.update, extensions: ext?.parts } } })
+      ext?.saved()
       if (changes.groupId) await setGroup({ variables: { customerId: id, groupId: changes.groupId } })
       if (changes.taxStatus) await setTaxStatus({ variables: { customerId: id, ...changes.taxStatus } })
       if (changes.vatId !== null) await setVatId({ variables: { customerId: id, vatId: changes.vatId } })
@@ -169,7 +173,9 @@ function CustomerForm({ customer }: { customer: Customer }) {
   }
 
   return (
+    <RecordExtensionsContext.Provider value={extensions}>
     <RecordFormPage
+      plugins={{ target: 'customer', entity: customer, mode: 'edit' }}
       record={record}
       backTo="/customers"
       backLabel="Back to customers"
@@ -263,7 +269,6 @@ function CustomerForm({ customer }: { customer: Customer }) {
               </Button>
             </div>
           </DetailPageSection>
-          <PluginSections target="customer" entity={customer} mode="edit" />
         </>
       }
     >
@@ -396,6 +401,7 @@ function CustomerForm({ customer }: { customer: Customer }) {
         onConfirm={onDelete}
       />
     </RecordFormPage>
+    </RecordExtensionsContext.Provider>
   )
 }
 

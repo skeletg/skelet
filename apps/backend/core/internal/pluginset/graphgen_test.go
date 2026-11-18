@@ -42,13 +42,15 @@ func TestSDLFieldsReadsEveryLayout(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, f := range []string{"acmeTabbed", "acmeDeep", "acmeOneLine"} {
-		if o, ok := owned[f]; !ok || o.slug != "acme" || !o.enabled {
+		if o, ok := owned[ownedKey("", f)]; !ok || o.slug != "acme" || o.field != f {
 			t.Errorf("%s not owned by acme: %+v", f, o)
 		}
 	}
 	for _, f := range []string{"notAField", "alsoNot"} {
-		if _, ok := owned[f]; ok {
-			t.Errorf("%s is not a Query or Mutation field but was claimed", f)
+		for key := range owned {
+			if strings.HasSuffix(key, strings.ToLower(f)) {
+				t.Errorf("%s is the plugin's own type's field but was claimed as %s", f, key)
+			}
 		}
 	}
 }
@@ -86,7 +88,7 @@ func (r *mutationResolver) AcmeUpload(ctx context.Context, file graphql.Upload) 
 }
 `,
 	})
-	owned := map[string]sdlField{"acmeUpload": {slug: "acme", field: "acmeUpload", enabled: true}}
+	owned := map[string]sdlField{ownedKey("", "acmeUpload"): {slug: "acme", field: "acmeUpload"}}
 	ms, err := rewriteResolverFiles(root, "admin", "sdk.GraphAdmin", "admin", owned)
 	if err != nil {
 		t.Fatal(err)
@@ -167,5 +169,386 @@ func TestAtomicWriteCleansUpOnFailure(t *testing.T) {
 	}
 	if len(entries) != 1 {
 		t.Errorf("a failed write left %d entries behind, want only the original", len(entries))
+	}
+}
+
+// A field on a core type is claimed under its type, and refused unless it's batched and nullable
+func TestSDLFieldsClaimsFieldsOnCoreTypes(t *testing.T) {
+	ok := `extend type Product { acmeWarranty: AcmeWarranty @goField(forceResolver: true, batch: true) }
+type AcmeWarranty { months: Int }
+extend type AcmeWarranty { provider: String }
+`
+	root := writeTree(t, map[string]string{
+		StateFile:                               `{"plugins": {"acme": {"enabled": true}}}`,
+		"plugins/acme/graphql/admin/a.graphqls": ok,
+	})
+	set, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owned, err := sdlFields(root, set, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if o, found := owned[ownedKey("Product", "acmeWarranty")]; !found || o.typ != "Product" || o.field != "acmeWarranty" || len(owned) != 1 {
+		t.Errorf("owned %+v - want Product.acmeWarranty alone, the plugin's own type left out", owned)
+	}
+
+	for name, tc := range map[string]struct{ sdl, want string }{
+		"unbatched": {`extend type Product { acmeNote: String @goField(forceResolver: true) }`, "batch: true"},
+		"bare":      {`extend type Product { acmeNote: String }`, "batch: true"},
+		"non-null":  {`extend type Product { acmeNote: String! @goField(forceResolver: true, batch: true) }`, "nullable"},
+		"input":     {`extend input ProductInput { acmeNote: String }`, "object types only"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := writeTree(t, map[string]string{
+				StateFile:                               `{"plugins": {"acme": {"enabled": true}}}`,
+				"plugins/acme/graphql/admin/a.graphqls": tc.sdl,
+			})
+			set, err := Load(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := sdlFields(root, set, "admin"); err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("got %v, want an error about %q", err, tc.want)
+			}
+		})
+	}
+}
+
+// gqlgen's batch stub on a core type becomes a DoBatch delegation to a type-prefixed plugin method, beside the core
+// resolvers on the same type, which stay where they are
+func TestCoreTypeFieldsDelegateInABatch(t *testing.T) {
+	root := writeTree(t, map[string]string{
+		"graph/admin/acme.resolvers.go": `package admin
+
+import (
+	"context"
+
+	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+)
+
+func (r *productResolver) AcmeURL(ctx context.Context, objs []*model.Product) ([]*string, error) {
+	panic("not implemented")
+}
+
+func (r *queryResolver) AcmeStatus(ctx context.Context) (*string, error) {
+	panic("not implemented")
+}
+`,
+		"graph/admin/catalog.resolvers.go": `package admin
+
+import "context"
+
+func (r *productResolver) Options(ctx context.Context, obj *Product) ([]string, error) { return nil, nil }
+`,
+	})
+	owned := map[string]sdlField{
+		ownedKey("Product", "acmeUrl"): {slug: "acme", typ: "Product", field: "acmeUrl"},
+		ownedKey("", "acmeStatus"):     {slug: "acme", field: "acmeStatus"},
+	}
+	ms, err := rewriteResolverFiles(root, "admin", "sdk.GraphAdmin", "admin", owned)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writePluginResolvers(root, "admin", "sdk.GraphAdmin", "admin", ms); err != nil {
+		t.Fatal(err)
+	}
+	read := func(name string) string {
+		b, err := os.ReadFile(filepath.Join(root, "graph", "admin", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	got := read("acme.resolvers.go")
+	for _, want := range []string{
+		`pluginhost.DoBatch(ctx, sdk.GraphAdmin, "acme", "Product.acmeUrl", len(objs),`,
+		`return impl.ProductAcmeURL(ctx, objs)`,
+		`pluginhost.Do(ctx, sdk.GraphAdmin, "acme", "acmeStatus",`,
+		`return impl.AcmeStatus(ctx)`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("delegation lacks %q:\n%s", want, got)
+		}
+	}
+	if iface := read("plugin_resolvers.go"); !strings.Contains(iface, "ProductAcmeURL(ctx context.Context, objs []*model.Product) ([]*string, error)") {
+		t.Errorf("interface lacks the type-prefixed method:\n%s", iface)
+	}
+	if !strings.Contains(read("catalog.resolvers.go"), "func (r *productResolver) Options") {
+		t.Error("a core resolver on the same type was touched")
+	}
+}
+
+// A departed plugin's batched delegations go with it, or gqlgen type-checks a file whose interface and model types left
+// the schema with the plugin
+func TestADepartedPluginsTypeFieldsArePruned(t *testing.T) {
+	root := writeTree(t, map[string]string{
+		"graph/admin/gone.resolvers.go": `package admin
+
+func (r *productResolver) GoneWarranty(ctx context.Context, objs []*model.Product) ([]*model.GoneWarranty, error) {
+	return pluginhost.DoBatch(ctx, sdk.GraphAdmin, "gone", "Product.goneWarranty", len(objs),
+		func(ctx context.Context, impl goneAdmin) ([]*model.GoneWarranty, error) { return impl.ProductGoneWarranty(ctx, objs) })
+}
+`,
+	})
+	if _, err := rewriteResolverFiles(root, "admin", "sdk.GraphAdmin", "admin", map[string]sdlField{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "graph", "admin", "gone.resolvers.go")); !os.IsNotExist(err) {
+		t.Errorf("the departed plugin's delegation file is still there: %v", err)
+	}
+}
+
+// A plugin's own type gets a delegated field only where it asks for a resolver - a reference back to core's record -
+// and the plumbing gqlgen writes for that type survives the rewrite
+func TestOwnTypeFieldsPointingAtCoreDelegate(t *testing.T) {
+	root := writeTree(t, map[string]string{
+		StateFile: `{"plugins": {"acme": {"enabled": true}}}`,
+		"plugins/acme/graphql/admin/a.graphqls": `type AcmeWarranty {
+  months: Int!
+  productId: ID!
+  product: Product @goField(forceResolver: true, batch: true)
+}
+`,
+		"graph/admin/a.resolvers.go": `package admin
+
+import (
+	"context"
+
+	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+)
+
+func (r *acmeWarrantyResolver) Product(ctx context.Context, objs []*model.AcmeWarranty) ([]*model.Product, error) {
+	panic("not implemented")
+}
+
+func (r *Resolver) AcmeWarranty() AcmeWarrantyResolver { return &acmeWarrantyResolver{r} }
+
+type acmeWarrantyResolver struct{ *Resolver }
+`,
+	})
+	set, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owned, err := sdlFields(root, set, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(owned) != 1 || owned[ownedKey("AcmeWarranty", "product")].typ != "AcmeWarranty" {
+		t.Fatalf("owned %+v - want AcmeWarranty.product alone, its plain fields left to the model", owned)
+	}
+	if _, err := rewriteResolverFiles(root, "admin", "sdk.GraphAdmin", "admin", owned); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(root, "graph", "admin", "a.resolvers.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`pluginhost.DoBatch(ctx, sdk.GraphAdmin, "acme", "AcmeWarranty.product", len(objs),`,
+		`return impl.AcmeWarrantyProduct(ctx, objs)`,
+		`func (r *Resolver) AcmeWarranty() AcmeWarrantyResolver`,
+		`type acmeWarrantyResolver struct{ *Resolver }`,
+	} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("rewritten file lacks %q:\n%s", want, b)
+		}
+	}
+}
+
+func parses(t *testing.T, path string) string {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := parser.ParseFile(token.NewFileSet(), path, b, 0); err != nil {
+		t.Fatalf("%s is not Go: %v\n%s", path, err, b)
+	}
+	return string(b)
+}
+
+// gqlgen groups the resolver structs of a file with several such types into one type ( ... ) block, which has to
+// survive the rewrite as the single-type form does - dropped, the accessors beside it name types that aren't there
+func TestTwoOwnTypesInOneFileKeepTheirPlumbing(t *testing.T) {
+	root := writeTree(t, map[string]string{
+		"graph/admin/a.resolvers.go": `package admin
+
+import (
+	"context"
+
+	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+)
+
+func (r *acmeNoteResolver) Customer(ctx context.Context, objs []*model.AcmeNote) ([]*model.Customer, error) {
+	panic("not implemented")
+}
+
+func (r *acmeWarrantyResolver) Product(ctx context.Context, objs []*model.AcmeWarranty) ([]*model.Product, error) {
+	panic("not implemented")
+}
+
+func (r *Resolver) AcmeNote() AcmeNoteResolver { return &acmeNoteResolver{r} }
+
+func (r *Resolver) AcmeWarranty() AcmeWarrantyResolver { return &acmeWarrantyResolver{r} }
+
+type (
+	acmeNoteResolver     struct{ *Resolver }
+	acmeWarrantyResolver struct{ *Resolver }
+)
+`,
+	})
+	owned := map[string]sdlField{
+		ownedKey("AcmeNote", "customer"):    {slug: "acme", typ: "AcmeNote", field: "customer"},
+		ownedKey("AcmeWarranty", "product"): {slug: "acme", typ: "AcmeWarranty", field: "product"},
+	}
+	if _, err := rewriteResolverFiles(root, "admin", "sdk.GraphAdmin", "admin", owned); err != nil {
+		t.Fatal(err)
+	}
+	got := parses(t, filepath.Join(root, "graph", "admin", "a.resolvers.go"))
+	for _, want := range []string{"acmeNoteResolver", "acmeWarrantyResolver"} {
+		if !strings.Contains(got, want+" struct{ *Resolver }") && !strings.Contains(got, want+"     struct{ *Resolver }") {
+			t.Errorf("the rewrite lost %s's struct:\n%s", want, got)
+		}
+	}
+}
+
+// On the storefront surface model is the admin models in one resolver file and the storefront's own in the next. The
+// interfaces of both land in one file, where each package needs one name
+func TestMergedInterfacesNameEachPackageOnce(t *testing.T) {
+	const adminModel, frontModel = "github.com/skeletg/skelet/apps/backend/core/graph/admin/model", "github.com/skeletg/skelet/apps/backend/core/graph/front/model"
+	root := writeTree(t, map[string]string{
+		"graph/front/acme_fields.resolvers.go": `package front
+
+import (
+	"context"
+
+	"` + adminModel + `"
+	model1 "` + frontModel + `"
+)
+
+func (r *productResolver) AcmeWarranty(ctx context.Context, objs []*model.Product) ([]*model1.AcmeWarranty, error) {
+	panic("not implemented")
+}
+`,
+		"graph/front/acme_queries.resolvers.go": `package front
+
+import (
+	"context"
+
+	"` + frontModel + `"
+)
+
+func (r *queryResolver) AcmeWarranties(ctx context.Context) ([]*model.AcmeWarranty, error) {
+	panic("not implemented")
+}
+`,
+	})
+	owned := map[string]sdlField{
+		ownedKey("Product", "acmeWarranty"): {slug: "acme", typ: "Product", field: "acmeWarranty"},
+		ownedKey("", "acmeWarranties"):      {slug: "acme", field: "acmeWarranties"},
+	}
+	ms, err := rewriteResolverFiles(root, "front", "sdk.GraphFront", "front", owned)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writePluginResolvers(root, "front", "sdk.GraphFront", "front", ms); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(root, "graph", "front", "plugin_resolvers.go")
+	got := parses(t, path)
+	file, _ := parser.ParseFile(token.NewFileSet(), path, got, 0)
+	names := map[string]string{}
+	for name, p := range importsOf(file) {
+		names[p] = name
+	}
+	if names[adminModel] == "" || names[frontModel] == "" || names[adminModel] == names[frontModel] {
+		t.Fatalf("the two model packages are imported as %q and %q:\n%s", names[adminModel], names[frontModel], got)
+	}
+	for _, want := range []string{
+		"ProductAcmeWarranty(ctx context.Context, objs []*" + names[adminModel] + ".Product) ([]*" + names[frontModel] + ".AcmeWarranty, error)",
+		"AcmeWarranties(ctx context.Context) ([]*" + names[frontModel] + ".AcmeWarranty, error)",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the interface lacks %q:\n%s", want, got)
+		}
+	}
+}
+
+// A field renamed in the plugin's SDL leaves its old delegation in the file - dropped, where it used to read as a core
+// resolver mixed into a plugin's file and stop codegen until someone edited generated code
+func TestARenamedFieldsOldDelegationIsDropped(t *testing.T) {
+	root := writeTree(t, map[string]string{
+		"graph/admin/acme.resolvers.go": `package admin
+
+import "context"
+
+func (r *queryResolver) AcmeOld(ctx context.Context) (*string, error) {
+	return pluginhost.Do(ctx, sdk.GraphAdmin, "acme", "acmeOld",
+		func(ctx context.Context, impl acmeAdmin) (*string, error) { return impl.AcmeOld(ctx) })
+}
+
+func (r *queryResolver) AcmeKept(ctx context.Context) (*string, error) {
+	return pluginhost.Do(ctx, sdk.GraphAdmin, "acme", "acmeKept",
+		func(ctx context.Context, impl acmeAdmin) (*string, error) { return impl.AcmeKept(ctx) })
+}
+`,
+	})
+	owned := map[string]sdlField{
+		ownedKey("", "acmeKept"): {slug: "acme", field: "acmeKept"},
+		ownedKey("", "acmeNew"):  {slug: "acme", field: "acmeNew"},
+	}
+	ms, err := rewriteResolverFiles(root, "admin", "sdk.GraphAdmin", "admin", owned)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := parses(t, filepath.Join(root, "graph", "admin", "acme.resolvers.go"))
+	if strings.Contains(got, "AcmeOld") || !strings.Contains(got, "impl.AcmeKept(ctx)") {
+		t.Errorf("want the kept field's delegation alone:\n%s", got)
+	}
+	// Before gqlgen the new field has no resolver yet; after it, one that still has none is an error rather than a
+	// panicking stub nothing checks for
+	if err := everyFieldResolved("admin", owned, ms); err == nil || !strings.Contains(err.Error(), "acme's acmeNew") {
+		t.Errorf("a claimed field with no resolver: %v", err)
+	}
+}
+
+func TestClaimedFieldsMatchTheNamesGqlgenGivesThem(t *testing.T) {
+	root := writeTree(t, map[string]string{
+		StateFile: `{"plugins": {"acme": {"enabled": true}}}`,
+		"plugins/acme/graphql/admin/a.graphqls": `extend type Query {
+  acme_sync_status: String
+  acmeRenamed: String @goField(name: "AcmeOther")
+}
+`,
+		"graph/admin/a.resolvers.go": `package admin
+
+import "context"
+
+func (r *queryResolver) AcmeSyncStatus(ctx context.Context) (*string, error) { panic("not implemented") }
+
+func (r *queryResolver) AcmeOther(ctx context.Context) (*string, error) { panic("not implemented") }
+`,
+	})
+	set, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owned, err := sdlFields(root, set, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ms, err := rewriteResolverFiles(root, "admin", "sdk.GraphAdmin", "admin", owned)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := everyFieldResolved("admin", owned, ms); err != nil || len(ms) != 2 {
+		t.Errorf("%d of 2 fields matched their resolvers: %v", len(ms), err)
+	}
+	clash := []method{{slug: "acme", key: "a", field: "Product.optionAcmeX", impl: "ProductOptionAcmeX"}, {slug: "acme", key: "b", field: "ProductOption.acmeX", impl: "ProductOptionAcmeX"}}
+	if err := everyFieldResolved("admin", map[string]sdlField{}, clash); err == nil {
+		t.Error("two fields coming to one plugin method were let through")
 	}
 }

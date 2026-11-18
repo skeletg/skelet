@@ -1,0 +1,38 @@
+{
+  "name": "@skelet/dashboard-sdk",
+  "version": "0.0.0",
+  "description": "The types of what a Skelet dashboard plugin imports - registries, layout, the UI kit. The dashboard's build points the name at its own source",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/skeletg/skelet.git",
+    "directory": "apps/dashboard/sdk"
+  },
+  "homepage": "https://github.com/skeletg/skelet/tree/main/apps/dashboard/sdk#readme",
+  "type": "module",
+  "types": "./dist/sdk/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/sdk/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "@tanstack/react-table": "^9.1.2",
+    "radix-ui": "^1.6.7",
+    "class-variance-authority": "^0.7.1",
+    "@graphql-typed-document-node/core": "^3.2.0",
+    "lexical": "^0.49.0",
+    "cmdk": "^1.1.1",
+    "clsx": "^2.1.1",
+    "@lingui/core": "^5.9.5"
+  },
+  "peerDependencies": {
+    "react": "^19.2.8",
+    "@apollo/client": "^4.2.12"
+  }
+}

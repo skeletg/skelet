@@ -46,6 +46,7 @@ import { ACTIONS_COLUMN_ID, PLUGIN_ACTIONS_COLUMN_ID, rowActionsColumn, type Row
 import { useDefaultPageSize, useTablePrefs } from './useTablePrefs'
 import { SavedViews } from './SavedViews'
 import { booleanFilterFn, dateRangeFilterFn, numberRangeFilterFn } from './filterFns'
+import { Slot } from '@/plugins/slots'
 
 // Opt-in server-driven mode - the caller owns the page/search/filter state and feeds the query
 // with it, so the table renders exactly the rows it is handed instead of slicing a full download
@@ -134,8 +135,8 @@ export function DataTable<TData extends RowData>({
   rowActions?: RowAction<TData>[]
   rowActionLabel?: (row: TData) => string
   enableDensityToggle?: boolean
-  // stable identity for per-admin layout persistence - defaults to `target`, so plugin-extended
-  // tables roam for free; leave both unset for ephemeral embedded tables
+  // stable identity for per-admin layout persistence and, on a URL-backed list, its saved views - a list opts in by
+  // naming one. `target` is only where plugins reach the list: giving a list one changes nothing else about it
   prefsKey?: string
   // opts the saved-views dropdown in explicitly - manual/server-paged pages that keep their list
   // state in the URL themselves (OrdersList) pass this since they never hand DataTable a urlState
@@ -203,7 +204,7 @@ export function DataTable<TData extends RowData>({
     dense,
     setDense,
     resetLayout,
-  } = useTablePrefs(prefsKey ?? target, initialColumnVisibility)
+  } = useTablePrefs(prefsKey, initialColumnVisibility)
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [expanded, setExpanded] = useState({})
   const [localGlobalFilter, setLocalGlobalFilter] = useState('')
@@ -354,6 +355,8 @@ export function DataTable<TData extends RowData>({
     // its own bordered container instead of pushing the content area sideways
     // Block, not a grid - a grid item's containing block is its own area, leaving the sticky pagination no room to travel
     <div className="min-w-0 space-y-2">
+      {/* A plugin's notice or summary over a list it extends - ctx carries the table, as the toolbar zone's does */}
+      <Slot zone={target && `list-header:${target}`} ctx={{ table }} />
       {!compact && (
       <DataTableToolbar
         table={table}
@@ -362,7 +365,7 @@ export function DataTable<TData extends RowData>({
         filters={allFilters}
         toolbarSlot={toolbarSlot?.(table)}
         viewsSlot={(() => {
-          const key = viewsKey ?? (urlState ? (prefsKey ?? target) : undefined)
+          const key = viewsKey ?? (urlState ? prefsKey : undefined)
           return key ? <SavedViews viewsKey={key} paramKey={urlState?.paramKey ?? ''} /> : null
         })()}
         rightSlot={
@@ -540,6 +543,7 @@ export function DataTable<TData extends RowData>({
       </div>
 
       {!compact && <DataTablePagination table={table} />}
+      <Slot zone={target && `list-footer:${target}`} ctx={{ table }} />
     </div>
   )
 }

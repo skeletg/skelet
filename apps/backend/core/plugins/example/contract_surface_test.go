@@ -21,6 +21,7 @@ import (
 	pluginhost "github.com/skeletg/skelet/apps/backend/core/internal/plugin"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
@@ -208,6 +209,21 @@ func TestOrderNumbererNamesOrdersFromItsOwnCount(t *testing.T) {
 	})
 	if err != nil || !ok || num != "EX-2026-00007" || drawn != "plugin:"+Slug+":orders|2026" {
 		t.Errorf("numbered %q, %v, %v - drew %q", num, ok, err, drawn)
+	}
+}
+
+func TestOfflinePaymentCostsAFee(t *testing.T) {
+	ctx := context.Background()
+	fees, err := pluginhost.Fees(ctx, order.FeeRequest{PaymentMethod: OfflineProviderSlug, SubtotalCents: 5000})
+	if err != nil || len(fees) != 1 || fees[0].Key != Slug+":offline_handling" || fees[0].AmountCents != OfflineFeeCents || !fees[0].Taxable {
+		t.Fatalf("offline fees %+v, %v", fees, err)
+	}
+	if fees, err := pluginhost.Fees(ctx, order.FeeRequest{PaymentMethod: ProviderSlug, SubtotalCents: 5000}); err != nil || len(fees) != 0 {
+		t.Errorf("a card payment was charged %+v, %v", fees, err)
+	}
+	_, err = pluginhost.Fees(ctx, order.FeeRequest{PaymentMethod: OfflineProviderSlug, SubtotalCents: OfflineCeilingCents + 1})
+	if apperr.ClassOf(err) != apperr.ClassValidation || !strings.Contains(err.Error(), "another method") {
+		t.Errorf("a big offline order: %v - want the shopper told why", err)
 	}
 }
 

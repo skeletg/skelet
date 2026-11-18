@@ -271,6 +271,7 @@ export function AdminsList() {
   return (
     <>
       <DataTable
+        target="admins"
         urlState={urlState}
         columns={columns}
         data={rows}

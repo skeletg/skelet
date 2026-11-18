@@ -652,6 +652,7 @@ func (r *mutationResolver) IssueCreditMemo(ctx context.Context, input model.Issu
 	in := order.IssueCreditMemoInput{
 		OrderID:               orderID,
 		ShippingRefundCents:   int64(int32Deref(input.ShippingRefund)),
+		FeesRefundCents:       int64(int32Deref(input.FeesRefund)),
 		AdjustmentRefundCents: int64(int32Deref(input.AdjustmentRefund)),
 		AdjustmentFeeCents:    int64(int32Deref(input.AdjustmentFee)),
 		RefundTarget:          ptr.Deref(input.RefundTarget),
@@ -826,7 +827,7 @@ func (r *queryResolver) Orders(ctx context.Context, channelID *string) ([]*model
 	return result, nil
 }
 
-func (r *queryResolver) OrdersPaged(ctx context.Context, channelID *string, search *string, statuses []string, paymentStatuses []string, limit *int32, offset *int32, stages []string) (*model.OrderPage, error) {
+func (r *queryResolver) OrdersPaged(ctx context.Context, channelID *string, search *string, statuses []string, paymentStatuses []string, limit *int32, offset *int32, stages []string, pluginFilters []*model.PluginListFilterInput) (*model.OrderPage, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "orders.view"); err != nil {
 		return nil, err
 	}
@@ -847,6 +848,9 @@ func (r *queryResolver) OrdersPaged(ctx context.Context, channelID *string, sear
 	}
 	if search != nil {
 		f.Search = *search
+	}
+	if f.OnlyIDs, f.RestrictIDs, err = pluginFilterIDs(ctx, model.PluginListOrders, pluginFilters); err != nil {
+		return nil, err
 	}
 	rows, total, err := r.OrderSvc.ListOrdersPage(ctx, f)
 	if err != nil {

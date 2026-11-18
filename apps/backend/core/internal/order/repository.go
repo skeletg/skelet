@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -344,6 +345,7 @@ func toCreditMemo(row db.CreditMemo) CreditMemo {
 		Number:                row.Number,
 		LinesTotalCents:       row.LinesTotalCents,
 		ShippingRefundCents:   row.ShippingRefundCents,
+		FeesRefundCents:       row.FeesRefundCents,
 		AdjustmentRefundCents: row.AdjustmentRefundCents,
 		AdjustmentFeeCents:    row.AdjustmentFeeCents,
 		TotalCents:            row.TotalCents,
@@ -386,6 +388,7 @@ func (r *postgresRepository) CreateCreditMemo(ctx context.Context, m CreditMemo)
 		ReturnID:              returnID,
 		LinesTotalCents:       m.LinesTotalCents,
 		ShippingRefundCents:   m.ShippingRefundCents,
+		FeesRefundCents:       m.FeesRefundCents,
 		AdjustmentRefundCents: m.AdjustmentRefundCents,
 		AdjustmentFeeCents:    m.AdjustmentFeeCents,
 		TotalCents:            m.TotalCents,
@@ -831,6 +834,7 @@ func (r *postgresRepository) CreateOrder(ctx context.Context, o Order) (Order, e
 		BusinessIds:         businessIDsJSON(o.BusinessIDs),
 		CheckoutFields:      checkoutFieldsJSON(o.CheckoutFields),
 		Seller:              sellerJSON(o.Seller),
+		Fees:                feesJSON(o.Fees),
 		PaymentProvider:     o.PaymentProvider,
 		ShippingMethodID:    sqlnull.UUID(o.ShippingMethodID),
 		ShippingCarrierSlug: sqlnull.String(o.ShippingCarrierSlug),
@@ -888,6 +892,7 @@ func (r *postgresRepository) UpdateOrderAmounts(ctx context.Context, id uuid.UUI
 		TaxAmount:         a.Tax,
 		ShippingTaxAmount: a.ShippingTax,
 		TotalAmount:       a.Total,
+		Fees:              feesJSON(a.Fees),
 	})
 	if err != nil {
 		return Order{}, fmt.Errorf("update order amounts: %w", err)
@@ -1093,6 +1098,10 @@ func (r *postgresRepository) ListOrderEventsByOrder(ctx context.Context, orderID
 
 func (r *postgresRepository) ListOrdersPage(ctx context.Context, f ListPageFilter) ([]Order, int64, error) {
 	allStatuses, allPayment, allStages := len(f.Statuses) == 0, len(f.PaymentStatuses) == 0, len(f.Stages) == 0
+	ids := f.OnlyIDs
+	if ids == nil {
+		ids = []uuid.UUID{}
+	}
 	var (
 		rows  []db.Order
 		total int64
@@ -1102,22 +1111,26 @@ func (r *postgresRepository) ListOrdersPage(ctx context.Context, f ListPageFilte
 		rows, err = r.queries.ListOrdersPaged(ctx, db.ListOrdersPagedParams{
 			Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
 			AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses, AllStages: allStages, Stages: f.Stages, Lim: f.Limit, Off: f.Offset,
+			RestrictIds: f.RestrictIDs, OnlyIds: ids,
 		})
 		if err == nil && !f.SkipCount {
 			total, err = r.queries.CountOrdersPaged(ctx, db.CountOrdersPagedParams{
 				Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
 				AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses, AllStages: allStages, Stages: f.Stages,
+				RestrictIds: f.RestrictIDs, OnlyIds: ids,
 			})
 		}
 	} else {
 		rows, err = r.queries.ListOrdersPagedInChannels(ctx, db.ListOrdersPagedInChannelsParams{
 			ChannelIds: f.ChannelIDs, Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
 			AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses, AllStages: allStages, Stages: f.Stages, Lim: f.Limit, Off: f.Offset,
+			RestrictIds: f.RestrictIDs, OnlyIds: ids,
 		})
 		if err == nil && !f.SkipCount {
 			total, err = r.queries.CountOrdersPagedInChannels(ctx, db.CountOrdersPagedInChannelsParams{
 				ChannelIds: f.ChannelIDs, Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
 				AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses, AllStages: allStages, Stages: f.Stages,
+				RestrictIds: f.RestrictIDs, OnlyIds: ids,
 			})
 		}
 	}
@@ -1282,6 +1295,10 @@ func (r *postgresRepository) UpdateOrderStatusFrom(ctx context.Context, id uuid.
 
 func toOrder(row db.Order) Order {
 	shopper, metadata := decodeMetadata(row.Metadata)
+	fees, feesOK := decodeFees(row.Fees)
+	if !feesOK {
+		slog.Error("order: stored fees don't decode, loading the order without them", "order", row.ID)
+	}
 	var customerID *uuid.UUID
 	if row.CustomerID.Valid {
 		c := row.CustomerID.UUID
@@ -1342,6 +1359,8 @@ func toOrder(row db.Order) Order {
 		BusinessIDs:       decodeBusinessIDs(row.BusinessIds),
 		CheckoutFields:    decodeCheckoutFields(row.CheckoutFields),
 		Seller:            decodeSeller(row.Seller),
+		Fees:              fees,
+		feesUnreadable:    !feesOK,
 		Shopper:           shopper,
 		Metadata:          metadata,
 		Carrier:           row.Carrier,

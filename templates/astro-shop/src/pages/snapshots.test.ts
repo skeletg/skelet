@@ -97,7 +97,7 @@ const checkout = (destination: { countryCode: string; postalCode: string } | nul
         ? [{ key: "g1", choices: [choice(1, 0), choice(2, 990), { ...choice(3, 500), kind: "pickup_point" }], selection: null }]
         : [],
       requirements: [],
-      totals: { subtotalCents: 3900, discountCents: 400, shippingCents: destination ? 990 : 0, taxCents: 120, totalCents: 4610 },
+      totals: { subtotalCents: 3900, discountCents: 400, shippingCents: destination ? 990 : 0, fees: [], taxCents: 120, totalCents: 4610, problem: null },
     },
   },
 });

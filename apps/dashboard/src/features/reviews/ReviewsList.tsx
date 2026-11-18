@@ -275,6 +275,7 @@ export function ReviewsList({
   return (
     <div className="grid min-w-0 gap-3">
       <DataTable
+        target="reviews"
         columns={columns}
         data={rows}
         loading={loading}

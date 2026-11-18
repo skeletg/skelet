@@ -332,6 +332,8 @@ type CheckoutTotals {
   subtotalCents:    Int!
   discountCents:    Int!
   shippingCents:    Int!
+  # What plugins charge on top, priced as placeOrder will. Included in totalCents; their tax is in taxCents.
+  fees:             [OrderFee!]!
   # Included in total unless the store prices tax-inclusive.
   taxCents:         Int!
   totalCents:       Int!
@@ -339,6 +341,10 @@ type CheckoutTotals {
   storeCreditCents: Int!
   # What the payment method is charged: total less gift cards and store credit.
   amountDueCents:   Int!
+  # Set when an address is saved and the checkout still couldn't be priced, so the figures above stop at the discounted
+  # subtotal and aren't what the order would come to. A refusal reads in its own words ("pay a total this large with
+  # another method"), a fault as a plain line. Show it with the totals; placeOrder refuses the same way.
+  problem:          String
 }
 
 type AppliedPromotionCode {

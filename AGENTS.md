@@ -50,6 +50,8 @@ skelet gen              # ALL codegen: buf, sqlc, gqlgen, plugin bridge, docs, T
 skelet go test ./...    # go, inside the app container
 skelet go --signals test ./...   # the same, in the Signals module
 skelet cli <args>       # the ops CLI, inside the app container
+skelet plugin add <mod> # a plugin's Go module and its npm UI packages, then gen
+skelet build            # core's image and the dashboard, with the enabled plugins in
 skelet psql             # psql on the dev commerce database
 skelet logs app         # tail one service
 ```
@@ -191,8 +193,8 @@ only its design. GraphQL is server-only, channel and locale are resolved server-
 backend-driven through the `[...slug]` catch-all and the URL-rewrite resolver.
 
 **Plugins** are compiled in from `plugins/plugins.json`, which is the decision file.
-Anything writing it must MERGE, never rewrite - `skelet cli plugin install|enable`
-and `skelet setup` all touch it. A slug enabled with no `plugins/<slug>` directory fails
+Anything writing it must MERGE, never rewrite - `skelet plugin add|install`, `skelet cli plugin enable`
+and `skelet setup` all touch it, and an entry carries fields (`dashboard`, `storefront`) some writers never set. A slug enabled with no `plugins/<slug>` directory fails
 codegen outright.
 
 ## 8. Environment traps

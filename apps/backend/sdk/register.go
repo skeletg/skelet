@@ -115,6 +115,10 @@ func ResetForTest() {
 	orderStages.reset()
 	documentRenderers.reset()
 	dataResources.reset()
+	fees.reset()
+	customerData.reset()
+	listFilters.reset()
+	recordExtensions.reset()
 }
 
 func withHost(op func(Host) error) {

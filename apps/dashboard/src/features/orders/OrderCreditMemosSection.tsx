@@ -51,6 +51,7 @@ export function OrderCreditMemosSection({ order }: { order: OrderData }) {
   const [open, setOpen] = useState(false)
   const [lines, setLines] = useState<Record<string, LineDraft>>({})
   const [shippingRefund, setShippingRefund] = useState('')
+  const [feesRefund, setFeesRefund] = useState('')
   const [adjustmentRefund, setAdjustmentRefund] = useState('')
   const [adjustmentFee, setAdjustmentFee] = useState('')
   const [refundTarget, setRefundTarget] = useState('original')
@@ -105,6 +106,7 @@ export function OrderCreditMemosSection({ order }: { order: OrderData }) {
       Object.fromEntries(order.lines.map((l) => [l.id, { checked: false, quantity: '' }])),
     )
     setShippingRefund('')
+    setFeesRefund('')
     setAdjustmentRefund('')
     setAdjustmentFee('')
     setRefundTarget('original')
@@ -128,14 +130,15 @@ export function OrderCreditMemosSection({ order }: { order: OrderData }) {
     }
     const picked = checked.filter((l) => l.quantity > 0)
     const shipping = cents(shippingRefund)
+    const fees = cents(feesRefund)
     const adjustment = cents(adjustmentRefund)
     const fee = cents(adjustmentFee)
-    if (shipping === null || adjustment === null || fee === null || shipping < 0 || adjustment < 0 || fee < 0) {
+    if (shipping === null || fees === null || adjustment === null || fee === null || shipping < 0 || fees < 0 || adjustment < 0 || fee < 0) {
       setError('Amounts must be positive numbers in the order currency, or blank.')
       return
     }
-    if (picked.length === 0 && shipping === 0 && adjustment === 0) {
-      setError('Pick at least one line, or enter a shipping or adjustment amount.')
+    if (picked.length === 0 && shipping === 0 && fees === 0 && adjustment === 0) {
+      setError('Pick at least one line, or enter a shipping, fees or adjustment amount.')
       return
     }
     try {
@@ -145,6 +148,7 @@ export function OrderCreditMemosSection({ order }: { order: OrderData }) {
             orderId: order.id,
             lines: picked,
             shippingRefund: shipping,
+            feesRefund: fees,
             adjustmentRefund: adjustment,
             adjustmentFee: fee,
             refundTarget,
@@ -298,7 +302,7 @@ export function OrderCreditMemosSection({ order }: { order: OrderData }) {
               </p>
             )}
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className={order.feesRefundable > 0 ? 'grid grid-cols-2 gap-3 sm:grid-cols-4' : 'grid grid-cols-3 gap-3'}>
               <div className="space-y-1">
                 <Label htmlFor="cm-shipping">Shipping refund</Label>
                 <Input
@@ -311,6 +315,21 @@ export function OrderCreditMemosSection({ order }: { order: OrderData }) {
                   onChange={(e) => setShippingRefund(e.target.value)}
                 />
               </div>
+              {/* What the order was charged on top of the goods - refunded as that, so it takes back no loyalty points */}
+              {order.feesRefundable > 0 && (
+                <div className="space-y-1">
+                  <Label htmlFor="cm-fees">Order fees refund</Label>
+                  <Input
+                    id="cm-fees"
+                    type="number"
+                    min="0"
+                    step={10 ** -currencyDecimals(order.currencyCode)}
+                    placeholder={`Up to ${formatCents(order.feesRefundable, order.currencyCode)}`}
+                    value={feesRefund}
+                    onChange={(e) => setFeesRefund(e.target.value)}
+                  />
+                </div>
+              )}
               <div className="space-y-1">
                 <Label htmlFor="cm-adjustment">Adjustment</Label>
                 <Input

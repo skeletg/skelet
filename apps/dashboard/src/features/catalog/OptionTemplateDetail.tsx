@@ -9,6 +9,7 @@ import {
   DetailPageLayout,
   DetailPageSection,
 } from '@/components/layout/detail-page'
+import { PluginAside, PluginSections } from '@/plugins/detail-sections'
 import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
 import { RestoredDraftBanner } from '@/shared/saving/RestoredDraftBanner'
 import { useSectionForm } from '@/shared/saving/useSectionForm'
@@ -106,7 +107,7 @@ export function OptionTemplateDetail({ templateId }: { templateId?: string } = {
 
   return (
     <SaveRegistryContext.Provider value={contextValue}>
-      <DetailPageLayout>
+      <DetailPageLayout rightSidebar={<PluginAside target="option-template" entity={template} mode="edit" />}>
         <DetailPageHeader
           backTo={back.to}
           backLabel={back.label}
@@ -147,6 +148,7 @@ export function OptionTemplateDetail({ templateId }: { templateId?: string } = {
           }
         />
         <DetailPageBody>
+          <PluginSections target="option-template" entity={template} mode="edit" placement="before" />
           <GeneralSection key={template.id} template={template} canManage={canManage} />
           <DetailPageSection
             title="Options and rules"
@@ -155,6 +157,7 @@ export function OptionTemplateDetail({ templateId }: { templateId?: string } = {
             <ConfiguratorSection subject={subject} canManage={canManage} />
           </DetailPageSection>
           <UsedBySection template={template} canManage={canManage} />
+          <PluginSections target="option-template" entity={template} mode="edit" />
         </DetailPageBody>
       </DetailPageLayout>
 

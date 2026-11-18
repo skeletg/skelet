@@ -2,6 +2,8 @@ package customer
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -10,6 +12,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/internal/recordsave"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
@@ -51,6 +54,9 @@ func (s *Service) ListInChannels(ctx context.Context, channelIDs []uuid.UUID) ([
 // Password is admin-supplied and bcrypted here, and the customer should change it after first login
 // No verification email - the admin vouched for the address by setting is_email_verified=true, which is the default
 func (s *Service) AdminCreateCustomer(ctx context.Context, input AdminCreateCustomerInput) (Customer, error) {
+	if err := recordsave.Check(input.Extensions); err != nil {
+		return Customer{}, err
+	}
 	input.Email = NormalizeEmail(input.Email)
 	if err := validateEmail(input.Email); err != nil {
 		return Customer{}, err
@@ -89,9 +95,12 @@ func (s *Service) AdminCreateCustomer(ctx context.Context, input AdminCreateCust
 
 	// Admin-created accounts skip the pre-commit fraud chain because the admin vouched for the address
 	var c Customer
-	err = s.atomically(ctx, func(r *postgresRepository) ([]events.Event, error) {
+	err = s.atomicallyTx(ctx, func(r *postgresRepository, t *sql.Tx) ([]events.Event, error) {
 		var err error
 		if c, err = r.AdminCreate(ctx, normalized, string(hash), group.ID); err != nil {
+			return nil, err
+		}
+		if err := s.saving(ctx, t, c, true, input.Extensions); err != nil {
 			return nil, err
 		}
 		return []events.Event{&CustomerRegistered{
@@ -123,6 +132,9 @@ func (s *Service) AdminUpdateCustomer(ctx context.Context, id uuid.UUID, input A
 	if err := validateAdminUpdate(input); err != nil {
 		return Customer{}, err
 	}
+	if err := recordsave.Check(input.Extensions); err != nil {
+		return Customer{}, err
+	}
 	changed := adminChangedFields(input)
 
 	// Load the customer first so events carry its store - subscribers filter on that
@@ -148,9 +160,12 @@ func (s *Service) AdminUpdateCustomer(ctx context.Context, id uuid.UUID, input A
 	}
 
 	var before, c Customer
-	err = s.atomically(ctx, func(r *postgresRepository) ([]events.Event, error) {
+	err = s.atomicallyTx(ctx, func(r *postgresRepository, t *sql.Tx) ([]events.Event, error) {
 		var err error
 		if before, c, err = r.AdminUpdate(ctx, id, input, groupID); err != nil {
+			return nil, err
+		}
+		if err := s.saving(ctx, t, c, false, input.Extensions); err != nil {
 			return nil, err
 		}
 		return []events.Event{updatedEvent(c, changed, updatingEvt.Tags)}, nil
@@ -325,5 +340,19 @@ func (s *Service) SetVatID(ctx context.Context, id uuid.UUID, vatID, status stri
 	}
 	return s.adminSet(ctx, id, []string{FieldVatID}, func(r *postgresRepository) error {
 		return r.SetVatID(ctx, id, vatID, status)
+	})
+}
+
+// customer.saving - inside the write's transaction, so a plugin's rows commit with the customer's and a refusal rolls
+// both back
+func (s *Service) saving(ctx context.Context, t *sql.Tx, c Customer, created bool, ext map[string]json.RawMessage) error {
+	if s.bus == nil {
+		return nil
+	}
+	if ext == nil {
+		ext = map[string]json.RawMessage{}
+	}
+	return s.bus.PublishSync(ctx, &recordsave.Saving{
+		Event: recordsave.EventCustomerSaving, Record: recordsave.RecordCustomer, RecordID: c.ID, ChannelID: c.ChannelID, Created: created, Extensions: ext, Tx: t,
 	})
 }

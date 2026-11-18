@@ -1,6 +1,7 @@
 package main // rewrites the plugin-owned GraphQL resolvers and their interface declarations - run from apps/backend AFTER gqlgen, which owns the signatures this reads back
 
 import (
+	"flag"
 	"fmt"
 	"os"
 
@@ -8,7 +9,13 @@ import (
 )
 
 func main() {
-	if err := pluginset.GenerateGraph("."); err != nil {
+	prune := flag.Bool("prune", false, "the pass before gqlgen: clear what a departed plugin or a renamed field left behind")
+	flag.Parse()
+	run := pluginset.GenerateGraph
+	if *prune {
+		run = pluginset.PruneGraph
+	}
+	if err := run("."); err != nil {
 		fmt.Fprintln(os.Stderr, "plugingraph:", err)
 		os.Exit(1)
 	}

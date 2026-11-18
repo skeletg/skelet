@@ -180,9 +180,10 @@ type renderCtx struct {
 	Currency  string // ISO code, for the items/totals data blocks
 	Lines     []email.OrderEmailLine
 	ShipTo    []string
-	Theme     EmailStyles // email-level look; blocks fall back to it for colors/fonts
-	ChannelID uuid.UUID   // resolves refs + custom block types per channel
-	refStack  []string    // chain of ref slugs being expanded (nesting cycle/depth guard)
+	Fees      []email.OrderEmailFee // plugin charges, a totals row each under shipping
+	Theme     EmailStyles           // email-level look; blocks fall back to it for colors/fonts
+	ChannelID uuid.UUID             // resolves refs + custom block types per channel
+	refStack  []string              // chain of ref slugs being expanded (nesting cycle/depth guard)
 }
 
 const maxRefDepth = 8

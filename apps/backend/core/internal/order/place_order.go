@@ -37,6 +37,7 @@ type checkoutContext struct {
 	noShipping  bool
 	taxLines    []TaxLine // per-rule breakdown from the last computeLineTax call
 	shippingTax int64
+	fees        []Fee // what plugins charge on top, priced after shipping - computeLineTax sets each one's tax
 }
 
 // Loads and validates everything PlaceOrder needs before the tx - customer, addresses, channel country and region enforcement, payment provider, the cart with its ownership checks and subtotal, and a pre-allocated order id
@@ -235,7 +236,19 @@ func (s *Service) resolveCheckoutCart(ctx context.Context, in PlaceOrderInput, s
 
 // Runs the core per-line tax when no plugin claimed the seam - resolves each line's tax class by SKU, distributes the discount across lines, and asks the tax service for the total. totalDiscount floors at zero Also records the per-rule breakdown on cc.taxLines - the engine resolves it anyway, and dropping it left orders with a tax_amount nothing could explain
 func (s *Service) computeLineTax(ctx context.Context, cc *checkoutContext, totalDiscount, shippingCents int64) (int64, error) {
+	return s.computeTax(ctx, cc, totalDiscount, shippingCents, false)
+}
+
+// The tax on the fees alone, under core's rules. A plugin that claims the order's tax does it before the fees are
+// priced, so its figure covers the goods and shipping and never the fees - they'd be charged untaxed, and the quote,
+// which runs core's tax, would have shown them taxed
+func (s *Service) computeFeeTax(ctx context.Context, cc *checkoutContext) (int64, error) {
+	return s.computeTax(ctx, cc, 0, 0, true)
+}
+
+func (s *Service) computeTax(ctx context.Context, cc *checkoutContext, totalDiscount, shippingCents int64, feesOnly bool) (int64, error) {
 	cc.taxLines, cc.shippingTax = nil, 0
+	cc.fees = withoutFeeTax(cc.fees)
 	// Tax-exempt customers pay zero core tax on every recompute path - a TaxCents plugin is still authoritative, this only gates core
 	if cc.customer.TaxExempt {
 		return 0, nil
@@ -269,15 +282,29 @@ func (s *Service) computeLineTax(ctx context.Context, cc *checkoutContext, total
 	}
 
 	lines := allocateLineTaxInputs(cc.cart.Lines, cc.subtotal, totalDiscount, classByLine)
-	goods := len(lines)
-	if shippingCents > 0 {
+	if feesOnly {
+		lines = nil
+	}
+	shippingLine := -1
+	if shippingCents > 0 && !feesOnly {
 		class, taxable := "", true
 		if s.shippingTax != nil {
 			class, taxable = s.shippingTax(ctx, cc.store.ID)
 		}
 		if taxable {
+			shippingLine = len(lines)
 			lines = append(lines, tax.LineTaxInput{ProductTaxClass: class, TaxableCents: shippingCents})
 		}
+	}
+	feeLines := map[int]int{} // tax line -> fee
+	for i, f := range cc.fees {
+		if f.Taxable && f.AmountCents > 0 {
+			feeLines[len(lines)] = i
+			lines = append(lines, tax.LineTaxInput{ProductTaxClass: f.TaxClass, TaxableCents: f.AmountCents})
+		}
+	}
+	if len(lines) == 0 {
+		return 0, nil
 	}
 	res, err := s.tax.ComputeOrder(ctx, tax.ComputeOrderInput{
 		ChannelID:         cc.store.ID,
@@ -290,8 +317,13 @@ func (s *Service) computeLineTax(ctx context.Context, cc *checkoutContext, total
 	if err != nil {
 		return 0, fmt.Errorf("compute tax: %w", err)
 	}
-	if len(res.Lines) > goods {
-		cc.shippingTax = res.Lines[goods].TotalCents
+	if shippingLine >= 0 && len(res.Lines) > shippingLine {
+		cc.shippingTax = res.Lines[shippingLine].TotalCents
+	}
+	for line, fee := range feeLines {
+		if line < len(res.Lines) {
+			cc.fees[fee].TaxCents = res.Lines[line].TotalCents
+		}
 	}
 	// Sum per rule - the engine works line by line, but the document wants one row per tax
 	byRule := map[uuid.UUID]*TaxLine{}

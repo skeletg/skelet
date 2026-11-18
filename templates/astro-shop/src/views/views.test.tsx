@@ -93,7 +93,7 @@ describe("ProductView", () => {
 
 describe("CheckoutView", () => {
   const channel = { name: "Test Shop", defaultLocale: "en", publicUrl: "", taxInclusivePricing: false, currency: { code: "USD", symbol: "", symbolPosition: "prefix", decimals: 2 } };
-  const totals = { subtotalCents: 3900, discountCents: 0, shippingCents: 0, taxCents: 0, totalCents: 3900 };
+  const totals = { subtotalCents: 3900, discountCents: 0, shippingCents: 0, fees: [], taxCents: 0, totalCents: 3900, problem: null };
   const cart = {
     id: "c1", subtotal: 3900, totalDiscount: 0, lines,
     checkout: { email: "", paymentProviderSlug: null, fields: [], destination: null, shippingAddress: null, deliveryGroups: [], requirements: [], totals },

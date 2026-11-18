@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
 
 // Generic UI slot registry - a registry per surface (nav, detail sections, list extensions, lexical blocks, CMS blocks) stopped paying at five
-// Zone is free-form, conventionally '<surface>:<target>' so a new surface needs no core change - today `list-toolbar:<target>` ctx {table}, `home:widgets` no ctx
+// Zone is free-form, conventionally '<surface>:<target>' so a new surface needs no core change - today `list-header:<target>`,
+// `list-toolbar:<target>` and `list-footer:<target>` on every list with a target, ctx {table}, and `home:widgets` with no ctx
 
 export type SlotEntry<TCtx = unknown> = {
   id: string // conventionally '<plugin-name>:thing' - duplicates throw at registration

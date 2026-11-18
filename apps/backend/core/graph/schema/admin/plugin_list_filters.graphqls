@@ -1,0 +1,31 @@
+# Core's admin lists a plugin can filter by its own data
+enum PluginList {
+  PRODUCTS
+  CUSTOMERS
+  ORDERS
+}
+
+# A filter a plugin offers on one of core's lists - the list's toolbar shows it beside core's own
+type PluginListFilter {
+  # "<plugin>:<key>", what the list's pluginFilters name
+  key: String!
+  plugin: String!
+  label: String!
+  options: [PluginListFilterOption!]!
+}
+
+type PluginListFilterOption {
+  value: String!
+  label: String!
+}
+
+# A plugin filter picked on a list - the records matching any of its values. Several narrow the list together
+input PluginListFilterInput {
+  key: String!
+  values: [String!]!
+}
+
+extend type Query {
+  # Gated on the list's own view permission, so whoever can read the list sees what it can be filtered by
+  pluginListFilters(list: PluginList!): [PluginListFilter!]!
+}

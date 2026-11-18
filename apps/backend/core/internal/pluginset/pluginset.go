@@ -36,6 +36,10 @@ var SlugPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{1,39}$`)
 type Entry struct {
 	Enabled bool   `json:"enabled"`
 	Module  string `json:"module,omitempty"`
+	// The npm packages holding its dashboard and storefront halves, which skelet gen imports into those apps -
+	// written by skelet plugin add, carried through every other write here
+	Dashboard  string `json:"dashboard,omitempty"`
+	Storefront string `json:"storefront,omitempty"`
 }
 
 // Accepts the old shape (a bare 0 or 1) as well as the object, so a tree written before module plugins
@@ -108,12 +112,14 @@ func (s *Set) Set(slug string, on bool) {
 	s.Plugins[slug] = e
 }
 
-// SetModule records a plugin that ships as a Go module, enabled
+// SetModule records a plugin that ships as a Go module, enabled - keeping the UI packages it already had
 func (s *Set) SetModule(slug, module string) {
 	if s.Plugins == nil {
 		s.Plugins = map[string]Entry{}
 	}
-	s.Plugins[slug] = Entry{Enabled: true, Module: module}
+	e := s.Plugins[slug]
+	e.Enabled, e.Module = true, module
+	s.Plugins[slug] = e
 }
 
 func Load(root string) (*Set, error) {
@@ -136,6 +142,11 @@ func Load(root string) (*Set, error) {
 		if e.Module != "" {
 			if err := module.CheckPath(e.Module); err != nil {
 				return nil, fmt.Errorf("%s: plugin %s: %w", StateFile, slug, err)
+			}
+		}
+		for _, spec := range []string{e.Dashboard, e.Storefront} {
+			if spec != "" && !ValidPackageSpec(spec) {
+				return nil, fmt.Errorf("%s: plugin %s names %q, which is not an npm package with an optional @version", StateFile, slug, spec)
 			}
 		}
 	}

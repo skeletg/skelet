@@ -12,6 +12,7 @@ import { LowStockWidget } from './low-stock'
 import { ModerationWidget } from './moderation'
 import { OrderChartsWidget } from './order-charts'
 import { PluginWidget } from './plugin-slot'
+import { getHomeWidgets } from '@/plugins/home-widget-registry'
 import { PromotionsWidget } from './promotions'
 import { QuickActionsWidget } from './quick-actions'
 import { RecentCustomersWidget } from './recent-customers'
@@ -67,6 +68,12 @@ export const HOME_WIDGETS: HomeWidget[] = [
   // last on purpose - a plugin's section belongs after the core page, not in the middle of it
   { id: 'plugins', title: 'Plugin widgets', Component: PluginWidget },
 ]
+
+// Core's sections with the plugins' own before the closing plugin slot - read at render, after every plugin registered
+export function homeWidgets(): HomeWidget[] {
+  const slot = HOME_WIDGETS.findIndex((w) => w.id === 'plugins')
+  return [...HOME_WIDGETS.slice(0, slot), ...getHomeWidgets(), ...HOME_WIDGETS.slice(slot)]
+}
 
 // Pure so it can be tested without mounting the page - a section whose permission the admin doesn't hold, or whose feature switch is off,
 // is absent rather than empty. Gates read as unmet while the grants are still loading, so nothing flashes in and out
