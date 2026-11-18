@@ -2,6 +2,7 @@ package money
 
 import (
 	"math"
+	"slices"
 	"testing"
 )
 
@@ -68,5 +69,39 @@ func TestNonFiniteInputsAreZero(t *testing.T) {
 	}
 	if got := PerUnit(1000, inf); got != 0 {
 		t.Errorf("PerUnit(Inf) = %d", got)
+	}
+}
+
+func TestSpread(t *testing.T) {
+	cases := []struct {
+		name    string
+		weights []int64
+		cents   int64
+		want    []int64
+	}{
+		{"in proportion", []int64{6_000, 3_000, 1_000}, 1_000, []int64{600, 300, 100}},
+		{"the cents left over go to the last with room", []int64{1_000, 1_000, 1_000}, 100, []int64{33, 33, 34}},
+		{"an empty last weight takes nothing", []int64{1_000, 1_000, 0}, 101, []int64{50, 51, 0}},
+		{"a weight never takes more than itself", []int64{1, 1_000}, 1_001, []int64{1, 1_000}},
+		{"more than the weights hold stops at them", []int64{300, 200}, 900, []int64{300, 200}},
+		{"the cents left over spill back past a full weight", []int64{10, 10, 1}, 20, []int64{9, 10, 1}},
+		{"negative weights count as none", []int64{-500, 500}, 100, []int64{0, 100}},
+		{"nothing to share", []int64{500, 500}, 0, []int64{0, 0}},
+		{"nothing to share it over", []int64{0, 0}, 100, []int64{0, 0}},
+		{"no weights", nil, 100, []int64{}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := Spread(c.weights, c.cents)
+			if !slices.Equal(got, c.want) {
+				t.Fatalf("Spread(%v, %d) = %v, want %v", c.weights, c.cents, got, c.want)
+			}
+		})
+	}
+
+	// Amounts whose product passes int64: an order of a few thousand dollars in a currency of small units
+	big := []int64{4_000_000_000_000, 2_000_000_000_000, 3_000_000_000_000}
+	if got, want := Spread(big, 4_500_000_000_000), []int64{2_000_000_000_000, 1_000_000_000_000, 1_500_000_000_000}; !slices.Equal(got, want) {
+		t.Fatalf("large amounts: %v, want %v", got, want)
 	}
 }

@@ -7893,6 +7893,7 @@ export type OrderFee = {
 export type OrderLine = {
   __typename?: 'OrderLine';
   components: Array<OrderLineComponent>;
+  discountAmount: Scalars['Int']['output'];
   id: Scalars['ID']['output'];
   isCustom: Scalars['Boolean']['output'];
   isGift: Scalars['Boolean']['output'];
@@ -7900,6 +7901,7 @@ export type OrderLine = {
   options: Array<OrderLineOption>;
   quantity: Scalars['Float']['output'];
   sku: Scalars['String']['output'];
+  taxAmount: Scalars['Int']['output'];
   totalPrice: Scalars['Int']['output'];
   unitPrice: Scalars['Int']['output'];
 };

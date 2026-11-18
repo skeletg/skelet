@@ -130,8 +130,13 @@ type OrderLine struct {
 	// An admin's free-form charge from an offer - no catalog product, nothing reserved or shipped
 	IsCustom bool
 	// The tax class the admin gave a custom line - empty on catalog lines, which take their product's
-	TaxClass   string
-	Components []OrderLineComponent
+	TaxClass string
+	// The line's share of the order's discount and its own tax, as the order was priced - what a refund of it gives
+	// back and a report counts. Tax is in the price where the shop's prices include it, and on top where they don't
+	DiscountCents int64
+	TaxCents      int64
+	Position      int // the line's place on the order, so it reads in the order it was bought
+	Components    []OrderLineComponent
 	// What the line took stock from besides or instead of itself, per line unit, snapshotted at placement
 	StockParts []OrderLineStockPart
 	Options    []OrderLineOption
@@ -223,6 +228,8 @@ type Repository interface {
 	OrderNumberTaken(ctx context.Context, number string) (bool, error)
 	DefaultOrderNumber(ctx context.Context) (string, error)
 	AddOrderLine(ctx context.Context, line OrderLine) (OrderLine, error)
+	// Each named line's share of the discount and its tax, the three slices in step
+	SetOrderLineMoney(ctx context.Context, orderID uuid.UUID, lineIDs []uuid.UUID, discounts, taxes []int64) error
 	AddOrderLineComponent(ctx context.Context, component OrderLineComponent) (OrderLineComponent, error)
 	AddOrderLineStockParts(ctx context.Context, orderLineID uuid.UUID, parts []OrderLineStockPart) error
 	AddOrderLineOption(ctx context.Context, option OrderLineOption) (OrderLineOption, error)

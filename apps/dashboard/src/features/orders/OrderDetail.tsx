@@ -499,6 +499,19 @@ export function OrderDetail() {
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {formatCents(l.totalPrice, order.currencyCode)}
+                      {(l.discountAmount > 0 || l.taxAmount > 0) && (
+                        <div className="text-xs font-normal text-muted-foreground">
+                          {l.discountAmount > 0 && (
+                            <div>-{formatCents(l.discountAmount, order.currencyCode)} discount</div>
+                          )}
+                          {l.taxAmount > 0 && (
+                            <div>
+                              {order.taxIncluded ? 'incl. ' : '+'}
+                              {formatCents(l.taxAmount, order.currencyCode)} tax
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

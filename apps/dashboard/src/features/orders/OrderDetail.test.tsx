@@ -145,3 +145,36 @@ describe('OrderDetail stage', () => {
     expect(await screen.findByText('Awaiting stock', { selector: '[data-slot="badge"]' }, SLOW)).toBeDefined()
   })
 })
+
+describe('OrderDetail lines', () => {
+  const line = (id: string, name: string, more: { discountAmount: number; taxAmount: number }) => ({
+    __typename: 'OrderLine' as const, id, name, sku: id.toUpperCase(), unitPrice: 5000, quantity: 2, totalPrice: 10000,
+    isGift: false, components: [], options: [], ...more,
+  })
+  const show = (taxIncluded: boolean) =>
+    renderPage({
+      path: '/orders/o1',
+      routes: { '/orders/:id': <OrderDetail /> },
+      mocks: [meMock(), { request: { query: OrderDocument, variables: { id: 'o1' } }, result: { data: { order: {
+        ...order, taxIncluded,
+        lines: [line('shirt', 'Shirt', { discountAmount: 2000, taxAmount: 0 }), line('book', 'Book', { discountAmount: 0, taxAmount: 500 })],
+      } } }, maxUsageCount: 3 }, stagesMock],
+      adminId: 'admin-1',
+    })
+
+  it('shows each line its own discount and tax, and neither where it has none', async () => {
+    show(false)
+    const shirt = (await screen.findByText('Shirt', {}, SLOW)).closest('tr')
+    const book = screen.getByText('Book').closest('tr')
+    expect(shirt?.textContent).toMatch(/-.*20\.00 discount/)
+    expect(shirt?.textContent).not.toMatch(/tax/)
+    expect(book?.textContent).toMatch(/\+.*5\.00 tax/)
+    expect(book?.textContent).not.toMatch(/discount/)
+  })
+
+  it('says the tax is in the price where the order was priced that way', async () => {
+    show(true)
+    const book = (await screen.findByText('Book', {}, SLOW)).closest('tr')
+    expect(book?.textContent).toMatch(/incl\..*5\.00 tax/)
+  })
+})

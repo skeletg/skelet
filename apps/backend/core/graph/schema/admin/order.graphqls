@@ -250,6 +250,10 @@ type OrderLine {
   isGift:      Boolean!
   # A free-form charge from an offer cart - no catalog product, nothing to reserve or ship
   isCustom:    Boolean!
+  # The line's own share of the order's discount and its own tax, as the order was priced - what a refund of the
+  # line gives back. The tax is inside totalPrice where the order's prices include it (taxIncluded), on top otherwise
+  discountAmount: Int!
+  taxAmount:      Int!
   # Custom-option picks captured at placement (engraving text, gift wrap,
   # etc.) - the immutable record of what was configured, for fulfillment.
   options:     [OrderLineOption!]!

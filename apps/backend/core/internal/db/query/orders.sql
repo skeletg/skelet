@@ -208,14 +208,22 @@ RETURNING *;
 -- name: CreateOrderLine :one
 -- is_gift marks a promotion free gift: zero-priced, stock reserved like any other line, but excluded from pro-rata refunds since the customer paid nothing for it
 -- is_custom marks an admin's free-form charge from an offer - no catalog product, so nothing to reserve or ship, taxed by its own tax_class
-INSERT INTO order_lines (id, order_id, product_name, product_sku, unit_price, quantity, total_price, cost_cents, is_gift, is_custom, tax_class)
-VALUES (COALESCE(sqlc.narg(id), uuidv7()), sqlc.arg(order_id), sqlc.arg(product_name), sqlc.arg(product_sku), sqlc.arg(unit_price), sqlc.arg(quantity), sqlc.arg(total_price), sqlc.arg(cost_cents), sqlc.arg(is_gift), sqlc.arg(is_custom), sqlc.arg(tax_class))
+INSERT INTO order_lines (id, order_id, product_name, product_sku, unit_price, quantity, total_price, cost_cents, is_gift, is_custom, tax_class, "position", discount_cents, tax_cents)
+VALUES (COALESCE(sqlc.narg(id), uuidv7()), sqlc.arg(order_id), sqlc.arg(product_name), sqlc.arg(product_sku), sqlc.arg(unit_price), sqlc.arg(quantity), sqlc.arg(total_price), sqlc.arg(cost_cents), sqlc.arg(is_gift), sqlc.arg(is_custom), sqlc.arg(tax_class), sqlc.arg(position), sqlc.arg(discount_cents), sqlc.arg(tax_cents))
 RETURNING *;
 
 -- name: ListOrderLinesByOrder :many
 -- Active lines only: an edit soft-deletes a removed line (removed_at) so its
--- FKs + audit survive, but it no longer counts toward the order
-SELECT * FROM order_lines WHERE order_id = $1 AND removed_at IS NULL;
+-- FKs + audit survive, but it no longer counts toward the order. In the order they were bought - an edited row
+-- otherwise comes back wherever the table put its new version
+SELECT * FROM order_lines WHERE order_id = $1 AND removed_at IS NULL ORDER BY "position", created_at, id;
+
+-- name: SetOrderLineMoney :exec
+-- Each line's share of the order's discount and its tax, after the order was priced again
+UPDATE order_lines l
+SET    discount_cents = v.discount_cents, tax_cents = v.tax_cents
+FROM   (SELECT unnest(sqlc.arg(ids)::uuid[]) AS id, unnest(sqlc.arg(discounts)::bigint[]) AS discount_cents, unnest(sqlc.arg(taxes)::bigint[]) AS tax_cents) v
+WHERE  l.id = v.id AND l.order_id = sqlc.arg(order_id);
 
 -- name: UpdateOrderLineQuantity :one
 -- Edit a line's quantity + recomputed line total - guarded to active lines. Component rows hold line totals, so a kit

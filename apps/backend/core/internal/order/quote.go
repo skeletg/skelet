@@ -49,6 +49,7 @@ func (s *Service) QuoteCheckout(ctx context.Context, in PlaceOrderInput) (Checko
 		eval, ranEngine = res.Result, true
 		cc.cart = s.appendFreeGiftLines(ctx, cc.cart, cc.store.ID, eval.Ledger.FreeGifts())
 		discount = eval.Ledger.SubtotalDiscountCents()
+		cc.discountOnLine = eval.Ledger.LineAdjustments() // taxed by line as placement will, so the quote's tax is the order's
 	}
 
 	var ship shippingSelection

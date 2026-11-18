@@ -54,7 +54,7 @@ func TestRefundCeiling_GiftCardOrderCanBeRefundedToAGiftCard(t *testing.T) {
 func TestRefundUnitByLine(t *testing.T) {
 	lineA, lineB := uuid.New(), uuid.New()
 	mk := func(discount, tax, shipping, total int64) Order {
-		return Order{
+		return priced(Order{
 			Lines: []OrderLine{
 				{ID: lineA, UnitPrice: 1_000, Quantity: 2}, // 2000
 				{ID: lineB, UnitPrice: 500, Quantity: 4},   // 2000
@@ -64,7 +64,7 @@ func TestRefundUnitByLine(t *testing.T) {
 			TaxAmount:      tax,
 			ShippingAmount: shipping,
 			TotalAmount:    total,
-		}
+		})
 	}
 
 	t.Run("no discount or tax refunds the unit price", func(t *testing.T) {
@@ -95,6 +95,24 @@ func TestRefundUnitByLine(t *testing.T) {
 		o.TaxInclusive = true
 		if got := refundUnitByLine(o)[lineA]; got != 1_000 {
 			t.Errorf("line A per-unit = %d, want 1000 - inclusive prices already contain the tax", got)
+		}
+	})
+
+	// A promotion on one product and two tax rates: the lines' own figures, where shares by subtotal would refund
+	// line B part of a discount it never had and tax at a rate it was never charged
+	t.Run("each line refunds its own discount and tax", func(t *testing.T) {
+		o := mk(400, 290, 0, 3_890)
+		o.Lines[0].DiscountCents, o.Lines[0].TaxCents = 400, 160 // 10% on the 1600 left
+		o.Lines[1].DiscountCents, o.Lines[1].TaxCents = 0, 130   // 6.5% on 2000
+		got := refundUnitByLine(o)
+		if got[lineA] != 880 { // (2000 - 400 + 160) / 2
+			t.Errorf("line A per-unit = %d, want 880", got[lineA])
+		}
+		if got[lineB] != 533 { // (2000 + 130) / 4, to the nearest cent
+			t.Errorf("line B per-unit = %d, want 533", got[lineB])
+		}
+		if net := LineNet(o); net[lineA] != 1_600 || net[lineB] != 2_000 {
+			t.Errorf("net sales = %d / %d, want 1600 / 2000", net[lineA], net[lineB])
 		}
 	})
 }

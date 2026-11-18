@@ -32,8 +32,8 @@ func sampleOrder() order.Order {
 		BillingAddress: order.OrderAddress{Phone: &phone},
 		CreatedAt:      time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC),
 		Lines: []order.OrderLine{
-			{ID: line1, ProductSku: "SKU-1", ProductName: "Mug", UnitPrice: 1500, Quantity: 2},
-			{ID: line2, ProductSku: "SKU-2", ProductName: "Tee", UnitPrice: 2000, Quantity: 1},
+			{ID: line1, ProductSku: "SKU-1", ProductName: "Mug", UnitPrice: 1500, Quantity: 2, DiscountCents: 300, TaxCents: 540},
+			{ID: line2, ProductSku: "SKU-2", ProductName: "Tee", UnitPrice: 2000, Quantity: 1, DiscountCents: 200, TaxCents: 360},
 		},
 		Shopper: &auth.Shopper{
 			Consent: auth.Consent{Analytics: true, Ads: true}, AnonID: "visitor-1",

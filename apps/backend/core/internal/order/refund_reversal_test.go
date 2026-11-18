@@ -187,12 +187,12 @@ func TestRefundedMerchandiseFraction_ZeroMerchandise(t *testing.T) {
 // Tax rides the refund basis but never the reward basis
 func TestMerchandiseUnitByLine_ExcludesTax(t *testing.T) {
 	lineA := uuid.New()
-	exclusive := Order{
+	exclusive := priced(Order{
 		Lines:          []OrderLine{{ID: lineA, UnitPrice: 1_000, Quantity: 2}},
 		SubtotalAmount: 2_000,
 		TaxAmount:      400,
 		TotalAmount:    2_400,
-	}
+	})
 	if got := merchandiseUnitByLine(exclusive)[lineA]; got != 1_000 {
 		t.Errorf("merchandise per-unit = %d, want 1000 - rewards were never earned on tax", got)
 	}
@@ -200,13 +200,13 @@ func TestMerchandiseUnitByLine_ExcludesTax(t *testing.T) {
 		t.Errorf("refund per-unit = %d, want 1200 - the customer paid the tax and gets it back", got)
 	}
 
-	inclusive := Order{
+	inclusive := priced(Order{
 		Lines:          []OrderLine{{ID: lineA, UnitPrice: 1_000, Quantity: 2}},
 		SubtotalAmount: 2_000,
 		TaxAmount:      400,
 		TotalAmount:    2_000,
 		TaxInclusive:   true,
-	}
+	})
 	if got, want := merchandiseUnitByLine(inclusive)[lineA], refundUnitByLine(inclusive)[lineA]; got != want {
 		t.Errorf("inclusive pricing: merchandise %d vs refund %d, want them equal", got, want)
 	}
@@ -215,14 +215,14 @@ func TestMerchandiseUnitByLine_ExcludesTax(t *testing.T) {
 // Shipping's tax leaves the line basis and joins what shipping can refund
 func TestRefundBasisKeepsShippingTaxOffTheLines(t *testing.T) {
 	lineA := uuid.New()
-	o := Order{
+	o := priced(Order{
 		Lines:             []OrderLine{{ID: lineA, UnitPrice: 1_000, Quantity: 2}},
 		SubtotalAmount:    2_000,
 		ShippingAmount:    500,
 		TaxAmount:         250,
 		ShippingTaxAmount: 50,
 		TotalAmount:       2_750,
-	}
+	})
 	if got := refundUnitByLine(o)[lineA]; got != 1_100 {
 		t.Errorf("refund per-unit = %d, want 1100 - shipping's 50 tax isn't the goods'", got)
 	}

@@ -300,16 +300,18 @@ func OrderLineModel(l order.OrderLine) *model.OrderLine {
 		}
 	}
 	return &model.OrderLine{
-		ID:         l.ID.String(),
-		Name:       l.ProductName,
-		Sku:        l.ProductSku,
-		UnitPrice:  int32(l.UnitPrice),
-		Quantity:   l.Quantity,
-		TotalPrice: int32(l.TotalPrice),
-		IsGift:     l.IsGift,
-		IsCustom:   l.IsCustom,
-		Options:    options,
-		Components: components,
+		ID:             l.ID.String(),
+		Name:           l.ProductName,
+		Sku:            l.ProductSku,
+		UnitPrice:      int32(l.UnitPrice),
+		Quantity:       l.Quantity,
+		TotalPrice:     int32(l.TotalPrice),
+		IsGift:         l.IsGift,
+		IsCustom:       l.IsCustom,
+		DiscountAmount: int32(l.DiscountCents),
+		TaxAmount:      int32(l.TaxCents),
+		Options:        options,
+		Components:     components,
 	}
 }
 

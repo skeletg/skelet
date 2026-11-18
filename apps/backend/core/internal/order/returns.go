@@ -27,7 +27,7 @@ func validReturnTransition(from, to string) bool {
 	return returnTransitions[from][to]
 }
 
-// Re-derives each line's discounted per-unit basis, via the placement-tax allocator so the rounding matches what was charged
+// Each line's per-unit refund basis: what a unit of it was charged after the line's own share of the discount, as stored when the order was priced
 // Tax belongs in it only when the store priced EXCLUSIVE - inclusive prices already contain it
 func refundUnitByLine(o Order) map[uuid.UUID]int64 {
 	return unitBasisByLine(o, true)
@@ -39,22 +39,11 @@ func merchandiseUnitByLine(o Order) map[uuid.UUID]int64 {
 }
 
 func unitBasisByLine(o Order, withTax bool) map[uuid.UUID]int64 {
-	lineSubs := make([]int64, len(o.Lines))
-	var subtotal int64
-	for i, l := range o.Lines {
-		lineSubs[i] = money.LineTotal(l.UnitPrice, l.Quantity)
-		subtotal += lineSubs[i]
-	}
-	discounts := allocateLineDiscount(lineSubs, subtotal, o.DiscountAmount)
-	var taxes []int64
-	if withTax && taxAddedOnTop(o) {
-		taxes = allocateLineDiscount(lineSubs, subtotal, max(o.TaxAmount-o.ShippingTaxAmount-o.FeeTaxAmount(), 0))
-	}
 	out := make(map[uuid.UUID]int64, len(o.Lines))
-	for i, l := range o.Lines {
-		gross := lineSubs[i] - discounts[i]
-		if taxes != nil {
-			gross += taxes[i]
+	for _, l := range o.Lines {
+		gross := money.LineTotal(l.UnitPrice, l.Quantity) - l.DiscountCents
+		if withTax && taxAddedOnTop(o) {
+			gross += l.TaxCents
 		}
 		out[l.ID] = money.PerUnit(gross, l.Quantity)
 	}

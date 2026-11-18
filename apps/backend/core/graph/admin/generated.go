@@ -3411,16 +3411,18 @@ type ComplexityRoot struct {
 	}
 
 	OrderLine struct {
-		Components func(childComplexity int) int
-		ID         func(childComplexity int) int
-		IsCustom   func(childComplexity int) int
-		IsGift     func(childComplexity int) int
-		Name       func(childComplexity int) int
-		Options    func(childComplexity int) int
-		Quantity   func(childComplexity int) int
-		Sku        func(childComplexity int) int
-		TotalPrice func(childComplexity int) int
-		UnitPrice  func(childComplexity int) int
+		Components     func(childComplexity int) int
+		DiscountAmount func(childComplexity int) int
+		ID             func(childComplexity int) int
+		IsCustom       func(childComplexity int) int
+		IsGift         func(childComplexity int) int
+		Name           func(childComplexity int) int
+		Options        func(childComplexity int) int
+		Quantity       func(childComplexity int) int
+		Sku            func(childComplexity int) int
+		TaxAmount      func(childComplexity int) int
+		TotalPrice     func(childComplexity int) int
+		UnitPrice      func(childComplexity int) int
 	}
 
 	OrderLineComponent struct {
@@ -24128,6 +24130,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OrderLine.Components(childComplexity), true
+	case "OrderLine.discountAmount":
+		if e.ComplexityRoot.OrderLine.DiscountAmount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLine.DiscountAmount(childComplexity), true
 	case "OrderLine.id":
 		if e.ComplexityRoot.OrderLine.ID == nil {
 			break
@@ -24170,6 +24178,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OrderLine.Sku(childComplexity), true
+	case "OrderLine.taxAmount":
+		if e.ComplexityRoot.OrderLine.TaxAmount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLine.TaxAmount(childComplexity), true
 	case "OrderLine.totalPrice":
 		if e.ComplexityRoot.OrderLine.TotalPrice == nil {
 			break
@@ -41194,6 +41208,10 @@ type OrderLine {
   isGift:      Boolean!
   # A free-form charge from an offer cart - no catalog product, nothing to reserve or ship
   isCustom:    Boolean!
+  # The line's own share of the order's discount and its own tax, as the order was priced - what a refund of the
+  # line gives back. The tax is inside totalPrice where the order's prices include it (taxIncluded), on top otherwise
+  discountAmount: Int!
+  taxAmount:      Int!
   # Custom-option picks captured at placement (engraving text, gift wrap,
   # etc.) - the immutable record of what was configured, for fulfillment.
   options:     [OrderLineOption!]!
@@ -50600,6 +50618,10 @@ func (ec *executionContext) childFields_OrderLine(ctx context.Context, field gra
 		return ec.fieldContext_OrderLine_isGift(ctx, field)
 	case "isCustom":
 		return ec.fieldContext_OrderLine_isCustom(ctx, field)
+	case "discountAmount":
+		return ec.fieldContext_OrderLine_discountAmount(ctx, field)
+	case "taxAmount":
+		return ec.fieldContext_OrderLine_taxAmount(ctx, field)
 	case "options":
 		return ec.fieldContext_OrderLine_options(ctx, field)
 	case "components":
@@ -139795,6 +139817,52 @@ func (ec *executionContext) fieldContext_OrderLine_isCustom(_ context.Context, f
 	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _OrderLine_discountAmount(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderLine_discountAmount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DiscountAmount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderLine_discountAmount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _OrderLine_taxAmount(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderLine_taxAmount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TaxAmount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderLine_taxAmount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
 func (ec *executionContext) _OrderLine_options(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -220383,6 +220451,16 @@ func (ec *executionContext) _OrderLine(ctx context.Context, sel ast.SelectionSet
 			}
 		case "isCustom":
 			out.Values[i] = ec._OrderLine_isCustom(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "discountAmount":
+			out.Values[i] = ec._OrderLine_discountAmount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "taxAmount":
+			out.Values[i] = ec._OrderLine_taxAmount(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

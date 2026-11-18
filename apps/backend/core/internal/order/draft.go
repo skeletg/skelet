@@ -207,7 +207,7 @@ func (s *Service) CreateDraftOrder(ctx context.Context, in CreateDraftOrderInput
 		if err != nil {
 			return fmt.Errorf("create draft order: %w", err)
 		}
-		if err := s.persistOrderLines(ctx, orderR, order.ID, in.ChannelID, lines); err != nil {
+		if err := s.persistOrderLines(ctx, orderR, order.ID, in.ChannelID, lines, cc.shares(discount, taxCents-cc.shippingTax)); err != nil {
 			return err
 		}
 		if _, err := orderR.AddOrderEvent(ctx, OrderEvent{

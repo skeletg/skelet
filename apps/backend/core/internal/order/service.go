@@ -479,6 +479,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		// Doing it here means they flow through the whole placement unchanged: fraud and tax see them, the shipping quote carries their weight, inventory reserves them off OrderPlacing, and persistOrderLines writes them - all without a cart_lines row the shopper could edit
 		cartObj = s.appendFreeGiftLines(ctx, cartObj, store.ID, evalResult.Ledger.FreeGifts())
 		cc.cart = cartObj
+		cc.discountOnLine = evalResult.Ledger.LineAdjustments()
 	}
 	stamped, err := s.stampStockParts(ctx, cartObj.Lines)
 	if err != nil {
@@ -684,7 +685,9 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		if err != nil {
 			return fmt.Errorf("create order: %w", err)
 		}
-		if err := s.persistOrderLines(ctx, orderR, order.ID, cartObj.ChannelID, cartObj.Lines); err != nil {
+		// The lines carry what the order was priced at: the engine's discount where it put it, a plugin's spread over the rest
+		shares := cc.shares(placing.DiscountCents, taxCents-shippingTax-feeTax(cc.fees))
+		if err := s.persistOrderLines(ctx, orderR, order.ID, cartObj.ChannelID, cartObj.Lines, shares); err != nil {
 			return err
 		}
 		if err := s.persistShipments(ctx, orderR, order.ID, in.Shipments, shipmentAmounts); err != nil {

@@ -202,7 +202,12 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 			}
 		}
 		var added []OrderLine
+		position := 0 // new lines go after the ones the order has
+		for _, l := range o.Lines {
+			position = max(position, l.Position)
+		}
 		for _, a := range adds {
+			position++
 			line, err := r.AddOrderLine(ctx, OrderLine{
 				OrderID:     o.ID,
 				ProductName: a.name,
@@ -210,6 +215,7 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 				UnitPrice:   a.unit,
 				Quantity:    a.qty,
 				TotalPrice:  money.LineTotal(a.unit, a.qty),
+				Position:    position,
 			})
 			if err != nil {
 				return err
@@ -245,15 +251,19 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 		}
 
 		// A fee stays what the shopper agreed to - only its tax follows the new lines, the way shipping's does
+		// A line keeps the discount it carried, by the quantity it has now - what a removed line gives up goes to the rest
 		tax, shippingTax, fees := o.TaxAmount, o.ShippingTaxAmount, o.Fees
 		var taxLines []TaxLine
+		cc := &checkoutContext{customer: cust, shipping: o.ShippingAddress, store: &store, cart: synthetic, subtotal: subtotal, fees: o.Fees, discountOnLine: storedDiscounts(o.Lines, qtyByID)}
 		if s.tax != nil {
-			cc := &checkoutContext{customer: cust, shipping: o.ShippingAddress, store: &store, cart: synthetic, subtotal: subtotal, fees: o.Fees}
 			tax, err = s.computeLineTax(ctx, cc, discount, shipping)
 			if err != nil {
 				return err
 			}
 			taxLines, shippingTax, fees = cc.taxLines, cc.shippingTax, cc.fees
+		}
+		if err := writeLineShares(ctx, r, o.ID, synthetic.Lines, cc.shares(discount, tax-shippingTax-feeTax(fees))); err != nil {
+			return err
 		}
 
 		total := computeOrderTotal(subtotal, discount, tax, shipping, feeTotal(fees), store.TaxInclusivePricing, nil)
@@ -459,12 +469,15 @@ func (s *Service) EditOrderAddress(ctx context.Context, in EditOrderAddressInput
 			}
 			tax, shippingTax, fees := o.TaxAmount, o.ShippingTaxAmount, o.Fees
 			var taxLines []TaxLine
+			cc := &checkoutContext{customer: cust, shipping: shipping, store: &store, cart: synthetic, subtotal: subtotal, fees: o.Fees, discountOnLine: storedDiscounts(o.Lines, nil)}
 			if s.tax != nil {
-				cc := &checkoutContext{customer: cust, shipping: shipping, store: &store, cart: synthetic, subtotal: subtotal, fees: o.Fees}
 				if tax, err = s.computeLineTax(ctx, cc, discount, shipAmount); err != nil {
 					return err
 				}
 				taxLines, shippingTax, fees = cc.taxLines, cc.shippingTax, cc.fees
+			}
+			if err := writeLineShares(ctx, r, o.ID, synthetic.Lines, cc.shares(discount, tax-shippingTax-feeTax(fees))); err != nil {
+				return err
 			}
 			total := computeOrderTotal(subtotal, discount, tax, shipAmount, feeTotal(fees), store.TaxInclusivePricing, nil)
 			if updated, err = r.UpdateOrderAmounts(ctx, o.ID, OrderAmounts{Subtotal: subtotal, Shipping: shipAmount, Discount: discount, Tax: tax, ShippingTax: shippingTax, Fees: fees, Total: total}); err != nil {

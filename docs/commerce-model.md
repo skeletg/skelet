@@ -193,6 +193,19 @@ stage (`orders.stage`, `RegisterOrderStage`) sits inside the statuses it
 lists and clears when the order moves to one it doesn't; `order.transitioning`
 can refuse any status or stage move but placement's own.
 
+**Order line money**: each line keeps its own share of the order's discount
+(`order_lines.discount_cents`) and its own tax (`tax_cents`), written when the
+order is priced - at placement, on a draft and on every edit - and the lines
+add up to `discount_amount` and to the tax on the goods. A promotion that
+discounts certain products stays on their lines; whatever else the discount
+holds (an order-wide rule, a plugin's, a draft's) is spread by what each line
+has left. Core's tax is kept as the engine worked it out line by line, so two
+tax rates on one order stay apart; a tax plugin's or remote provider's single
+figure is shared by each line's amount after its discount. Refunds, returns
+and net sales read these columns and never work the shares out again
+(`order/line_money.go`). An edit keeps a line's discount where it was, by the
+quantity it has now, and moves what a removed line carried to the rest.
+
 **Config**: paths always `section/group/field`. Scope is `default` or
 `channel`; all global values at `default/0`. Resolution:
 requested scope → default/0 → registry default. `Set` validates +

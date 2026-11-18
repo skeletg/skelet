@@ -1914,6 +1914,8 @@ type OrderLine struct {
 	CostCents       sql.NullInt64 `json:"cost_cents"`
 	IsCustom        bool          `json:"is_custom"`
 	TaxClass        string        `json:"tax_class"`
+	TaxCents        int64         `json:"tax_cents"`
+	Position        int32         `json:"position"`
 }
 
 type OrderLineComponent struct {
