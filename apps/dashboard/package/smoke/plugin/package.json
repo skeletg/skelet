@@ -1,0 +1,8 @@
+{
+  "name": "@skelet-smoke/dashboard-plugin",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/plugin.tsx" },
+  "peerDependencies": { "@skelet/dashboard": "*", "react": "*" }
+}

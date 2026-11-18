@@ -1,0 +1,16 @@
+{
+  // @skelet/dashboard's types - what a plugin imports (sdk) and what a project's config takes (config). mount's one
+  // signature is written by hand in package/index.d.ts, since generating it would declare the whole app
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "./package/out/types",
+    "rootDir": "./src",
+    "incremental": false,
+    "tsBuildInfoFile": null
+  },
+  "include": [],
+  "files": ["./src/sdk/index.ts", "./src/lib/package/config.ts", "./src/vite-env.d.ts"]
+}

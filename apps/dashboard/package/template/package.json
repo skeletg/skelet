@@ -1,0 +1,17 @@
+{
+  "name": "dashboard",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@skelet/dashboard": "{{DASHBOARD_VERSION}}"
+  },
+  "devDependencies": {
+    "typescript": "{{TYPESCRIPT_VERSION}}",
+    "vite": "{{VITE_VERSION}}"
+  }
+}

@@ -25,3 +25,7 @@ dist-ssr
 e2e/.auth/
 test-results/
 playwright-report/
+
+# The published @skelet/dashboard, built by package/build.mjs
+package/out
+package/*.tgz

@@ -17,7 +17,7 @@ host with `skelet dev`.
 | `apps/backend/core/` | Core's `go.mod`. gqlgen + sqlc. Two GraphQL surfaces, the Signals wire contract's client and generated types, and `lib/`, the infrastructure the suite compiles against |
 | `apps/backend/signals/` | The Signals suite, its own `go.mod` requiring core's by relative path: the contract's server, the beacon surface, the spine and its engines |
 | `apps/backend/sdk/` | The plugin SDK, its own `go.mod`. Plugin repositories build against it, plus core's gqlgen model packages for the resolvers they add |
-| `apps/dashboard/` | React 19 + Vite admin SPA, strict TypeScript |
+| `apps/dashboard/` | React 19 + Vite admin SPA, strict TypeScript - also published compiled as `@skelet/dashboard` (`package/build.mjs`), which a project builds with its plugins |
 | `apps/channels/<name>/` | The project's own storefronts, each forked from a template with `skelet add channel` |
 | `templates/<name>/` | Storefront templates, the framework in the name. `nextjs-vetrina` is the full Next.js 16 one (App Router, RSC) the dev stack runs; `astro-shop` a fast Astro 7 one for small catalogs |
 | `packages/<name>/` | TypeScript the storefronts share - the workspace reads the source, and each release publishes them to npm compiled (`packages/publish.mjs`). `storefront-core` is a storefront's logic with no framework in it; `storefront-next` and `storefront-astro` adapt it to Next and Astro; `storefront-react` holds client hooks |

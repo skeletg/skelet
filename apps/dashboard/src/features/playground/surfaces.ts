@@ -1,4 +1,5 @@
 import { ADMIN_GRAPHQL_ENDPOINT, API_ORIGIN } from '@/lib/api-endpoint'
+import { runtimeConfig } from '@/lib/runtime-config'
 export type SurfaceId = 'admin' | 'front'
 
 export type Surface = {
@@ -18,7 +19,7 @@ export const SURFACES: Surface[] = [
   {
     id: 'front',
     label: 'Storefront',
-    endpoint: import.meta.env.VITE_FRONT_GRAPHQL_URL ?? `${API_ORIGIN}/api/front/graphql`,
+    endpoint: runtimeConfig.frontGraphqlUrl ?? `${API_ORIGIN}/api/front/graphql`,
     hint: 'Public storefront API - most queries need an X-Channel-Id header',
   },
 ]

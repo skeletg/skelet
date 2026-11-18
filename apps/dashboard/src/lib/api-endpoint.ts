@@ -1,9 +1,11 @@
+import { runtimeConfig } from './runtime-config'
+
 // The admin GraphQL endpoint, decided ONCE - four modules each had this literal, and compose warns
 // that ADMIN_API_SLUG and VITE_GRAPHQL_URL have to move together
 //
 // Relative on purpose: the vite proxy (API_PROXY) resolves it, so the same value works on the host
 // and in the container
-export const ADMIN_GRAPHQL_ENDPOINT = import.meta.env.VITE_GRAPHQL_URL ?? '/api/admin/graphql'
+export const ADMIN_GRAPHQL_ENDPOINT = runtimeConfig.graphqlUrl
 
 export const API_ORIGIN = ADMIN_GRAPHQL_ENDPOINT.replace(/\/api\/admin\/.*$/, '')
 

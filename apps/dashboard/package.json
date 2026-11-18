@@ -20,7 +20,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "build:sdk": "node sdk/build.mjs"
+    "build:package": "node package/build.mjs"
   },
   "dependencies": {
     "@apollo/client": "^4.2.12",
