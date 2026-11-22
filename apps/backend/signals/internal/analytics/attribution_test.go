@@ -42,12 +42,16 @@ func TestAClickAnchorsTheConversionWithItsCampaign(t *testing.T) {
 	})
 
 	store := uuid.New()
+	base := int64(4600)
 	ok, err := r.RecordConversion(context.Background(), ConversionSpec{
 		CustomerID: uuid.New(), ChannelID: store, OrderID: uuid.New(),
-		RevenueCents: 4200, Currency: "EUR", At: now,
+		RevenueCents: 4200, Currency: "EUR", At: now, RevenueBaseCents: &base,
 	})
 	if err != nil || !ok {
 		t.Fatalf("RecordConversion = %v, %v, want true, nil", ok, err)
+	}
+	if sp.appended[0].Props["revenue_base_cents"] != int64(4600) {
+		t.Errorf("revenue_base_cents = %v, want core's conversion kept for boards that add revenue up across currencies", sp.appended[0].Props["revenue_base_cents"])
 	}
 	if sp.askedFor != store {
 		t.Errorf("attribution looked in channel %v, want the order's own %v - another store's email would get the credit", sp.askedFor, store)

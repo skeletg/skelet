@@ -63,3 +63,40 @@ func editedLines(o Order) []EditedLine {
 	}
 	return out
 }
+
+// LineAdjustment is what an edit changed on one line: Quantity and NetCents are the after less the before, so a removed
+// line takes all of its net sales back and an added one counts in full
+type LineAdjustment struct {
+	EditedLine
+	Added, Removed bool
+}
+
+// LineAdjustments is every line an edit moved, in the order the lines stood - a line the edit left as it was isn't one,
+// while a line whose share of the discount moved is
+func LineAdjustments(before []EditedLine, after Order) []LineAdjustment {
+	out := make([]LineAdjustment, 0, len(before))
+	at := make(map[uuid.UUID]int, len(before))
+	for _, b := range before {
+		at[b.LineID] = len(out)
+		b.Quantity, b.NetCents = -b.Quantity, -b.NetCents
+		out = append(out, LineAdjustment{EditedLine: b, Removed: true})
+	}
+	for _, l := range editedLines(after) {
+		i, had := at[l.LineID]
+		if !had {
+			out = append(out, LineAdjustment{EditedLine: l, Added: true})
+			continue
+		}
+		a := &out[i]
+		a.ProductSku, a.Removed = l.ProductSku, false
+		a.Quantity += l.Quantity
+		a.NetCents += l.NetCents
+	}
+	moved := out[:0]
+	for _, a := range out {
+		if a.Quantity != 0 || a.NetCents != 0 {
+			moved = append(moved, a)
+		}
+	}
+	return moved
+}
