@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http/httptest"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/integration"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
@@ -171,6 +173,52 @@ func TestPromotionsLeaveASetPriceAlone(t *testing.T) {
 	}
 	if lines = h.linesAddUp(t, o); lines[0].DiscountCents != 850 || lines[0].NoPromotions || lines[1].DiscountCents != 500 {
 		t.Errorf("with promotions allowed: shares %d and %d, want 850 and 500", lines[0].DiscountCents, lines[1].DiscountCents)
+	}
+	h.Settle(t)
+}
+
+// Scenario: a plugin prices a line as it goes into the cart. Checkout doesn't put it back on the catalog price - which
+// is what used to happen - the order line says a plugin set it and what the catalog asked, and a promotion on the
+// cart leaves it alone
+func TestAPluginPricedLineReachesTheOrder(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 20, 10_000)
+	mug := h.AddProduct(t, f, 2_500, true, 20)
+	h.newRule(t, promotion.CreateRuleInput{
+		Rule: promotion.Rule{
+			Slug: "e2e-" + uuid.NewString()[:8], Name: "E2E a tenth off",
+			ChannelID: &f.Channel.ID, IsActive: true,
+		},
+		Actions: []promotion.Action{{Type: "core.percent_off_subtotal", Params: json.RawMessage(`{"bps":1000}`)}},
+	})
+	// One handler for the whole suite's bus: it prices this store's main product and nothing else
+	h.D.Bus.SubscribeSync(cart.EventLineAdding, 0, func(_ context.Context, e events.Event) error {
+		adding := e.(*cart.LineAdding)
+		if adding.ChannelID != f.Channel.ID || adding.ProductSku != f.Product.SKU {
+			return nil
+		}
+		adding.ActingAs("plugin:e2e-member-prices")
+		defer adding.ActingAs("")
+		return adding.SetLineUnitPrice(8_000)
+	})
+
+	cartID := h.NewGuestCart(t, f, 1)
+	if _, err := h.D.Cart.AddToCart(h.Ctx, cartID, nil, mug.SKU, 2); err != nil {
+		t.Fatalf("add the mugs: %v", err)
+	}
+	o, err := h.TryPlace(t, f.Channel, cartID)
+	if err != nil {
+		t.Fatalf("place: %v", err)
+	}
+	if o.SubtotalAmount != 13_000 || o.DiscountAmount != 500 {
+		t.Fatalf("subtotal %d discount %d, want 8000 + 5000 and a tenth of the mugs", o.SubtotalAmount, o.DiscountAmount)
+	}
+	lines := h.linesAddUp(t, o)
+	if l := lines[0]; l.PriceSource != "hook" || l.PriceRef != "plugin:e2e-member-prices" || l.UnitPrice != 8_000 || l.ListUnitPrice.Int64 != 10_000 || !l.NoPromotions || l.DiscountCents != 0 {
+		t.Errorf("the plugin-priced order line %+v, want 8000 by the plugin in place of 10000, undiscounted", l)
+	}
+	if l := lines[1]; l.PriceSource != "catalog" || l.DiscountCents != 500 {
+		t.Errorf("the line beside it %+v, want the catalog's price and the whole 500", l)
 	}
 	h.Settle(t)
 }

@@ -195,6 +195,11 @@ func (d *Dispatcher) deliverSyncOne(ctx context.Context, wh Webhook, e events.Ev
 
 	// 2xx - hand the body to the event - Only events implementing the interface can be mutated or rejected; the rest treat sync delivery as a blocking notification
 	if hasApplier && len(respBody) > 0 {
+		// An event that keeps who changed it (a cart line's price) is told the answer is this webhook's
+		if named, ok := e.(interface{ ActingAs(string) }); ok {
+			named.ActingAs("webhook:" + wh.Name)
+			defer named.ActingAs("")
+		}
 		reject, reason, err := applier.ApplyWebhookResponse(respBody)
 		if err != nil {
 			if failOpen {

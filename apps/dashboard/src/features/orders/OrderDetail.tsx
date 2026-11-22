@@ -36,6 +36,7 @@ import { EntityChannelForbidden, EntityWrongChannel } from '@/shared/errors/Chan
 import { isForbiddenError } from '@/shared/errors/isForbiddenError'
 import { useConfigScope } from '@/lib/config-scope'
 import { usePermissions } from '@/shared/auth/usePermissions'
+import { priceRefLabel } from '@/shared/priceRef'
 import type { OrderCheckoutFieldType, OrderStatus } from '@/graphql/schema.types'
 import { ResendEmailMenu } from './ResendEmailMenu'
 import { OrderStatusBadge } from './OrderStatusBadge'
@@ -496,7 +497,7 @@ export function OrderDetail() {
                     )}
                     <TableCell className="text-right tabular-nums">
                       {formatCents(l.unitPrice, order.currencyCode)}
-                      {l.priceSource === 'ADMIN' && (l.listUnitPrice != null || l.priceReason) && (
+                      {l.priceSource !== 'CATALOG' && (l.listUnitPrice != null || l.priceReason || l.priceRef) && (
                         <div className="text-xs font-normal text-muted-foreground">
                           {l.listUnitPrice != null && (
                             <div>
@@ -505,6 +506,7 @@ export function OrderDetail() {
                             </div>
                           )}
                           {l.priceReason && <div className="font-sans">{l.priceReason}</div>}
+                          {priceRefLabel(l.priceRef) && <div className="font-sans">{priceRefLabel(l.priceRef)}</div>}
                         </div>
                       )}
                       {!l.promotionsApply && <div className="text-xs font-normal text-muted-foreground">no promotions</div>}

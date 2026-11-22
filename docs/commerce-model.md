@@ -214,9 +214,11 @@ Beside a set price the line keeps who set it, a note saying why, and the
 catalog price it replaced (`list_unit_price`, refreshed whenever the catalog is
 read for the line). Placement copies all four onto the order line, and a draft
 line priced by hand records them the same way, so an order always says which
-of its prices were the catalog's. Today the only other source is `admin` (an
-offer line, a custom line, a hand-priced draft line, or a price set on a
-shopper's own cart). On a shopper's cart a set price has two limits of its own,
+of its prices were the catalog's. The other sources are `admin` (an offer line,
+a custom line, a hand-priced draft line, or a price set on a shopper's own
+cart) and `hook`: a plugin's handler or a sync webhook that priced the line on
+`cart.line.adding` or `cart.line.updating`, named in `price_ref`
+(`plugin:<slug>`, `webhook:<name>`). An admin's price outranks a hook's. On a shopper's cart a set price has two limits of its own,
 since the shopper can still change that cart: `price_max_quantity`, which
 shopper edits may not pass (an admin's quantity raises it), and
 `price_expires_at`, after which `PriceHeld` is false and the next reprice puts

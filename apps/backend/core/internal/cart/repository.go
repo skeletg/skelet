@@ -377,6 +377,7 @@ func (r *postgresRepository) UpsertBundleCartLine(ctx context.Context, cartID uu
 		BundleHookPriced: input.HookPriced,
 		ConfigKey:        input.ConfigKey,
 		KeepSetPrice:     input.KeepSetPrice,
+		NoPromotions:     input.NoPromotions,
 	})
 	if err != nil {
 		return CartLine{}, fmt.Errorf("upsert bundle cart line: %w", err)
@@ -679,7 +680,7 @@ func (r *postgresRepository) MarkOffersExpiredNotified(ctx context.Context, ids 
 
 func (r *postgresRepository) SetLinePrice(ctx context.Context, lineID uuid.UUID, p LinePrice) (CartLine, error) {
 	row, err := r.queries.SetCartLinePrice(ctx, db.SetCartLinePriceParams{
-		ID: lineID, UnitPrice: p.UnitPrice, PriceSource: p.Source, PriceSetBy: sqlnull.UUID(p.SetBy), PriceReason: p.Reason, ListUnitPrice: sqlnull.Int64(p.ListUnitPrice),
+		ID: lineID, UnitPrice: p.UnitPrice, PriceSource: p.Source, PriceSetBy: sqlnull.UUID(p.SetBy), PriceRef: p.Ref, PriceReason: p.Reason, ListUnitPrice: sqlnull.Int64(p.ListUnitPrice),
 		PriceMaxQuantity: sqlnull.Float64(p.MaxQuantity), PriceExpiresAt: sqlnull.Time(p.ExpiresAt), NoPromotions: p.NoPromotions,
 	})
 	if err != nil {
@@ -864,6 +865,7 @@ func toCartLine(row db.CartLine) CartLine {
 		Quantity:         row.Quantity,
 		PriceSource:      row.PriceSource,
 		PriceSetBy:       sqlnull.UUIDPtr(row.PriceSetBy),
+		PriceRef:         row.PriceRef,
 		PriceReason:      row.PriceReason,
 		ListUnitPrice:    sqlnull.Int64Ptr(row.ListUnitPrice),
 		PriceMaxQuantity: sqlnull.Float64Ptr(row.PriceMaxQuantity),

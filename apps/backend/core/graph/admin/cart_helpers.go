@@ -94,6 +94,7 @@ func toAdminCartModel(c cart.Cart, email, name *string, currency string) *model.
 			PriceSource:      toLinePriceSource(l.PriceSource),
 			ListUnitPrice:    int32PtrFrom64(l.ListUnitPrice),
 			PriceReason:      l.PriceReason,
+			PriceRef:         l.PriceRef,
 			PriceMaxQuantity: l.PriceMaxQuantity,
 			PriceExpiresAt:   l.PriceExpiresAt,
 			PromotionsApply:  !l.NoPromotions,

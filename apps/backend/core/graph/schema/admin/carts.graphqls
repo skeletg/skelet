@@ -42,6 +42,8 @@ type AdminCartLine {
   priceSource:   LinePriceSource!
   listUnitPrice: Int
   priceReason:   String!
+  # Who set a HOOK price: "plugin:<slug>" or "webhook:<name>" - empty otherwise
+  priceRef:      String!
   # On a shopper's own cart a set price is for at most this many of the item, and holds until this moment - past
   # it the line goes back to its catalog price at checkout. Both null on an offer's lines and on a catalog price
   priceMaxQuantity: Float

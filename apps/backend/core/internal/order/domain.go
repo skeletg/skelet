@@ -140,6 +140,7 @@ type OrderLine struct {
 	// the catalog price it replaced - nil where there was none
 	PriceSource   string
 	PriceSetBy    *uuid.UUID
+	PriceRef      string // the hook behind a price a plugin or webhook set
 	PriceReason   string
 	ListUnitPrice *int64
 	// Coupons and promotions left the line alone - an edit that spreads a discount again does too

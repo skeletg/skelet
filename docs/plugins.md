@@ -183,6 +183,18 @@ all out of tree. This is what the SDK gives it.
 - **`RegisterPriceResolver`** - what a specific customer pays for a product, resolved ahead of
   list and tier pricing. Fail-soft by contract: an error reads as "no plugin price" rather than
   breaking add-to-cart.
+- **`cart.line.adding` / `cart.line.updating`** - sync events as a line goes into a cart or its
+  quantity changes, with the cart in view: its id, the customer or nil for a guest, the SKU,
+  the quantity and the price core would charge. Type-assert to `sdk.CartLineAdding` or
+  `sdk.CartLineUpdating`. `SetLineUnitPrice` makes it a set price, which core treats the way it
+  treats one an admin set: it holds through checkout instead of going back to the catalog's,
+  the cart and order line record that your plugin set it and what the catalog asked, and
+  coupons and promotions leave the line alone unless you call `SetLinePromotionsApply(true)`.
+  It's for the quantity you priced. The shopper can lower it; more of the item reaches you
+  again and is refused if you don't price it then, so a line you priced never sells at a figure
+  you didn't set. An admin's price on the line outranks yours. Use this for a price that
+  belongs to one cart (a quote, a negotiated deal); use `RegisterPriceResolver` for one that
+  should behave like the catalog's own.
 - **`sdk.RequireChannelPermission` / `sdk.PermittedChannels`** - the channel-scoped half of the
   admin permission model. Where your object has a channel, gate on these rather than the bare
   `RequirePermission`, or an admin scoped to one store can act on another's records. Core's

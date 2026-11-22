@@ -445,6 +445,14 @@ func rateRequestFromCheckout(cc *checkoutContext, discount int64) shippingpkg.Ra
 	}
 }
 
+// A bundle a hook priced keeps its own flag on the cart - the order line says a hook priced it all the same
+func linePriceSource(l cart.CartLine) string {
+	if l.BundleHookPriced && !l.PriceSet() {
+		return cart.PriceHook
+	}
+	return l.PriceSource
+}
+
 // Writes every cart line onto the order, copying bundle components with quantities already pre-multiplied and option picks, so the order is a complete immutable record of what was configured and paid for
 func (s *Service) persistOrderLines(ctx context.Context, orderR Repository, orderID uuid.UUID, channelID uuid.UUID, lines []cart.CartLine, shares lineShares) error {
 	// Snapshot unit COGS at placement in ONE batch (was 3 queries/line) - Best-effort
@@ -482,8 +490,9 @@ func (s *Service) persistOrderLines(ctx context.Context, orderR Repository, orde
 			Position:      i,
 			DiscountCents: shares.discount[i],
 			TaxCents:      shares.tax[i],
-			PriceSource:   l.PriceSource,
+			PriceSource:   linePriceSource(l),
 			PriceSetBy:    l.PriceSetBy,
+			PriceRef:      l.PriceRef,
 			PriceReason:   l.PriceReason,
 			ListUnitPrice: l.ListUnitPrice,
 			NoPromotions:  l.NoPromotions,

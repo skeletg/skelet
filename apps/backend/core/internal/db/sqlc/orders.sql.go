@@ -371,10 +371,10 @@ func (q *Queries) CreateOrderEvent(ctx context.Context, arg CreateOrderEventPara
 
 const createOrderLine = `-- name: CreateOrderLine :one
 INSERT INTO order_lines (id, order_id, product_name, product_sku, unit_price, quantity, total_price, cost_cents, is_gift, is_custom, tax_class, "position", discount_cents, tax_cents,
-                         price_source, price_set_by, price_reason, list_unit_price, no_promotions)
+                         price_source, price_set_by, price_reason, list_unit_price, no_promotions, price_ref)
 VALUES (COALESCE($1, uuidv7()), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-        $15, $16, $17, $18, $19)
-RETURNING id, order_id, product_name, product_sku, unit_price, quantity, total_price, created_at, discount_cents, is_gift, offered_by_rule_id, removed_at, cost_cents, is_custom, tax_class, tax_cents, position, price_source, price_set_by, price_reason, list_unit_price, no_promotions
+        $15, $16, $17, $18, $19, $20)
+RETURNING id, order_id, product_name, product_sku, unit_price, quantity, total_price, created_at, discount_cents, is_gift, offered_by_rule_id, removed_at, cost_cents, is_custom, tax_class, tax_cents, position, price_source, price_set_by, price_reason, list_unit_price, no_promotions, price_ref
 `
 
 type CreateOrderLineParams struct {
@@ -397,6 +397,7 @@ type CreateOrderLineParams struct {
 	PriceReason   string        `json:"price_reason"`
 	ListUnitPrice sql.NullInt64 `json:"list_unit_price"`
 	NoPromotions  bool          `json:"no_promotions"`
+	PriceRef      string        `json:"price_ref"`
 }
 
 // Optional explicit id: checkout passes the CART line's id so the inventory reservations written earlier in the placement tx (they link order_line_id before the line row exists - FK is deferred) resolve to the real order line - NULL generates one (draft/manual orders)
@@ -423,6 +424,7 @@ func (q *Queries) CreateOrderLine(ctx context.Context, arg CreateOrderLineParams
 		arg.PriceReason,
 		arg.ListUnitPrice,
 		arg.NoPromotions,
+		arg.PriceRef,
 	)
 	var i OrderLine
 	err := row.Scan(
@@ -448,6 +450,7 @@ func (q *Queries) CreateOrderLine(ctx context.Context, arg CreateOrderLineParams
 		&i.PriceReason,
 		&i.ListUnitPrice,
 		&i.NoPromotions,
+		&i.PriceRef,
 	)
 	return i, err
 }
@@ -809,7 +812,7 @@ func (q *Queries) ListOrderLineOptionsByOrderLineIDs(ctx context.Context, orderL
 }
 
 const listOrderLinesByOrder = `-- name: ListOrderLinesByOrder :many
-SELECT id, order_id, product_name, product_sku, unit_price, quantity, total_price, created_at, discount_cents, is_gift, offered_by_rule_id, removed_at, cost_cents, is_custom, tax_class, tax_cents, position, price_source, price_set_by, price_reason, list_unit_price, no_promotions FROM order_lines WHERE order_id = $1 AND removed_at IS NULL ORDER BY "position", created_at, id
+SELECT id, order_id, product_name, product_sku, unit_price, quantity, total_price, created_at, discount_cents, is_gift, offered_by_rule_id, removed_at, cost_cents, is_custom, tax_class, tax_cents, position, price_source, price_set_by, price_reason, list_unit_price, no_promotions, price_ref FROM order_lines WHERE order_id = $1 AND removed_at IS NULL ORDER BY "position", created_at, id
 `
 
 // Active lines only: an edit soft-deletes a removed line (removed_at) so its
@@ -847,6 +850,7 @@ func (q *Queries) ListOrderLinesByOrder(ctx context.Context, orderID uuid.UUID) 
 			&i.PriceReason,
 			&i.ListUnitPrice,
 			&i.NoPromotions,
+			&i.PriceRef,
 		); err != nil {
 			return nil, err
 		}
@@ -1855,7 +1859,7 @@ const softDeleteOrderLine = `-- name: SoftDeleteOrderLine :one
 UPDATE order_lines
 SET    removed_at = NOW()
 WHERE  id = $1 AND removed_at IS NULL
-RETURNING id, order_id, product_name, product_sku, unit_price, quantity, total_price, created_at, discount_cents, is_gift, offered_by_rule_id, removed_at, cost_cents, is_custom, tax_class, tax_cents, position, price_source, price_set_by, price_reason, list_unit_price, no_promotions
+RETURNING id, order_id, product_name, product_sku, unit_price, quantity, total_price, created_at, discount_cents, is_gift, offered_by_rule_id, removed_at, cost_cents, is_custom, tax_class, tax_cents, position, price_source, price_set_by, price_reason, list_unit_price, no_promotions, price_ref
 `
 
 // Remove a line from an order without deleting the row (preserves
@@ -1886,6 +1890,7 @@ func (q *Queries) SoftDeleteOrderLine(ctx context.Context, id uuid.UUID) (OrderL
 		&i.PriceReason,
 		&i.ListUnitPrice,
 		&i.NoPromotions,
+		&i.PriceRef,
 	)
 	return i, err
 }
@@ -2162,7 +2167,7 @@ UPDATE order_lines l
 SET    quantity = $1::numeric, total_price = $2::bigint
 FROM   old
 WHERE  l.id = old.id
-RETURNING l.id, l.order_id, l.product_name, l.product_sku, l.unit_price, l.quantity, l.total_price, l.created_at, l.discount_cents, l.is_gift, l.offered_by_rule_id, l.removed_at, l.cost_cents, l.is_custom, l.tax_class, l.tax_cents, l.position, l.price_source, l.price_set_by, l.price_reason, l.list_unit_price, l.no_promotions
+RETURNING l.id, l.order_id, l.product_name, l.product_sku, l.unit_price, l.quantity, l.total_price, l.created_at, l.discount_cents, l.is_gift, l.offered_by_rule_id, l.removed_at, l.cost_cents, l.is_custom, l.tax_class, l.tax_cents, l.position, l.price_source, l.price_set_by, l.price_reason, l.list_unit_price, l.no_promotions, l.price_ref
 `
 
 type UpdateOrderLineQuantityParams struct {
@@ -2199,6 +2204,7 @@ func (q *Queries) UpdateOrderLineQuantity(ctx context.Context, arg UpdateOrderLi
 		&i.PriceReason,
 		&i.ListUnitPrice,
 		&i.NoPromotions,
+		&i.PriceRef,
 	)
 	return i, err
 }

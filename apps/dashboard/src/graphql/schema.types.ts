@@ -342,6 +342,7 @@ export type AdminCartLine = {
   priceMaxQuantity?: Maybe<Scalars['Float']['output']>;
   priceOverride: Scalars['Boolean']['output'];
   priceReason: Scalars['String']['output'];
+  priceRef: Scalars['String']['output'];
   priceSource: LinePriceSource;
   promotionsApply: Scalars['Boolean']['output'];
   quantity: Scalars['Float']['output'];
@@ -4015,7 +4016,8 @@ export type LibraryEmail = {
 
 export type LinePriceSource =
   | 'ADMIN'
-  | 'CATALOG';
+  | 'CATALOG'
+  | 'HOOK';
 
 export type LinkClicks = {
   __typename?: 'LinkClicks';
@@ -7921,6 +7923,7 @@ export type OrderLine = {
   name: Scalars['String']['output'];
   options: Array<OrderLineOption>;
   priceReason: Scalars['String']['output'];
+  priceRef: Scalars['String']['output'];
   priceSource: LinePriceSource;
   promotionsApply: Scalars['Boolean']['output'];
   quantity: Scalars['Float']['output'];

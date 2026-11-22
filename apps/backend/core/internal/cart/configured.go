@@ -69,6 +69,8 @@ func (s *Service) addConfiguredLine(ctx context.Context, cart Cart, input AddCon
 		base = pricing.ApplyTiers(base, sp.Tiers, quantity)
 	}
 	unitPrice := max(base+optionDelta, 0) // a mistyped negative delta must not produce a negative line - free is the floor
+	coreUnit := unitPrice
+	var hook *LinePrice // the price a hook put on the add, which then holds like any set price
 	name := res.ProductName
 	if name == "" {
 		name = input.ProductSku
@@ -87,6 +89,9 @@ func (s *Service) addConfiguredLine(ctx context.Context, cart Cart, input AddCon
 		if err := s.bus.PublishSync(ctx, adding); err != nil {
 			return Cart{}, fmt.Errorf("add to cart rejected: %w", err)
 		}
+		if p, ok := adding.linePrice(valueOr(adding.UnitPrice, unitPrice), coreUnit); ok {
+			hook = &p
+		}
 		unitPrice, quantity = valueOr(adding.UnitPrice, unitPrice), valueOr(adding.Quantity, quantity) // read off the event, since the SDK setters and a webhook response swap the pointer rather than write through it
 	}
 	var line CartLine
@@ -100,6 +105,10 @@ func (s *Service) addConfiguredLine(ctx context.Context, cart Cart, input AddCon
 			Options:      options,
 			KeepSetPrice: keepSetPrice,
 		})
+		if err != nil {
+			return err
+		}
+		line, err = holdHookPrice(ctx, r, line, hook)
 		return err
 	}); err != nil {
 		return Cart{}, fmt.Errorf("add configured to cart: %w", err)

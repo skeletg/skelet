@@ -593,6 +593,11 @@ func attachSyncHandler(bus *events.Bus, slug, eventType string, priority int, ha
 			ctx, cancel = context.WithTimeout(ctx, hookTimeoutFromContext(ctx, slug))
 			defer cancel()
 		}
+		// An event that keeps who changed it (a cart line's price) is told whose handler this is, and that it's over
+		if named, ok := e.(interface{ ActingAs(string) }); ok && slug != "" {
+			named.ActingAs("plugin:" + slug)
+			defer named.ActingAs("")
+		}
 		// A sync veto is the plugin telling the SHOPPER why their order was refused ("your company credit line is short"), so classify it here for the same reason the graph boundary does - unclassified, the presenter scrubs it to "internal error" and the message is wasted
 		return translateUserError(handler(ctx, e))
 	})

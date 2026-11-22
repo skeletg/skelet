@@ -149,7 +149,7 @@ describe('OrderDetail stage', () => {
 describe('OrderDetail lines', () => {
   const line = (id: string, name: string, more: Record<string, unknown>) => ({
     __typename: 'OrderLine' as const, id, name, sku: id.toUpperCase(), unitPrice: 5000, quantity: 2, totalPrice: 10000,
-    discountAmount: 0, taxAmount: 0, priceSource: 'CATALOG' as const, listUnitPrice: null, priceReason: '', promotionsApply: true,
+    discountAmount: 0, taxAmount: 0, priceSource: 'CATALOG' as const, priceRef: '', listUnitPrice: null, priceReason: '', promotionsApply: true,
     isGift: false, components: [], options: [], ...more,
   })
   const show = (taxIncluded: boolean, lines = [line('shirt', 'Shirt', { discountAmount: 2000 }), line('book', 'Book', { taxAmount: 500 })]) =>
@@ -183,6 +183,13 @@ describe('OrderDetail lines', () => {
     expect(screen.getByText('Book').closest('tr')?.textContent).not.toContain('no promotions')
     expect(screen.getByText('Setup fee').closest('tr')?.querySelector('s')).toBeNull()
     expect(screen.getByText('Book').closest('tr')?.querySelector('s')).toBeNull()
+  })
+
+  it('names the plugin that priced a line, beside the catalog price it replaced', async () => {
+    show(false, [line('tee', 'Tee', { priceSource: 'HOOK', priceRef: 'plugin:member-prices', listUnitPrice: 6000, promotionsApply: false })])
+    const tee = (await screen.findByText('Tee', {}, SLOW)).closest('tr')
+    expect(tee?.textContent).toContain('member-prices plugin')
+    expect(tee?.querySelector('s')?.textContent).toMatch(/60\.00/)
   })
 
   it('says the tax is in the price where the order was priced that way', async () => {

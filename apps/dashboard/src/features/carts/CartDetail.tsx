@@ -42,6 +42,7 @@ import { ProductSearch } from './pickers'
 import { CustomLineDialog } from './offer/CustomLineDialog'
 import { LinePrice } from './offer/LinePrice'
 import { SetPriceDialog } from './SetPriceDialog'
+import { priceRefLabel } from '@/shared/priceRef'
 import { OfferActions } from './offer/OfferActions'
 import { OfferEditor } from './offer/OfferEditor'
 import { OfferStateBadge } from './offer/OfferStateBadge'
@@ -297,7 +298,7 @@ export function CartDetail() {
                         )}
                         {l.priceOverride && !l.isCustom && (
                           <Badge variant="info" className="ml-2 text-[9px] uppercase">
-                            {offer ? 'offer price' : 'set price'}
+                            {l.priceSource === 'HOOK' ? priceRefLabel(l.priceRef) || 'hook price' : offer ? 'offer price' : 'set price'}
                           </Badge>
                         )}
                       </div>

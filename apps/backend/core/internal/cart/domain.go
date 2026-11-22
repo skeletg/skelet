@@ -296,6 +296,7 @@ type CartLine struct {
 	// Where the price came from: PriceCatalog, or who set it - a set price holds through repricing (PriceHeld)
 	PriceSource   string
 	PriceSetBy    *uuid.UUID // the admin behind a set price
+	PriceRef      string     // the hook behind one: "plugin:<slug>" or "webhook:<name>"
 	PriceReason   string
 	ListUnitPrice *int64 // the catalog price a set price replaced - nil on a catalog line, and where there was none
 	// A price set on a shopper's own cart is for at most this many and until this moment - nil on an offer's lines,
@@ -413,6 +414,8 @@ type CartLineComponent struct {
 const (
 	PriceCatalog = "catalog"
 	PriceAdmin   = "admin"
+	// A plugin's handler or a sync webhook set it, answering cart.line.adding or cart.line.updating
+	PriceHook = "hook"
 )
 
 // MaxPriceReason is how long the note on a set price may be
@@ -442,6 +445,7 @@ type LinePrice struct {
 	UnitPrice     int64
 	Source        string
 	SetBy         *uuid.UUID
+	Ref           string
 	Reason        string
 	ListUnitPrice *int64
 	MaxQuantity   *float64
@@ -452,7 +456,7 @@ type LinePrice struct {
 // linePrice is what a line keeps about its set price, to put on the line it is copied to
 func (l CartLine) linePrice() LinePrice {
 	return LinePrice{
-		UnitPrice: l.UnitPrice, Source: l.PriceSource, SetBy: l.PriceSetBy, Reason: l.PriceReason, ListUnitPrice: l.ListUnitPrice,
+		UnitPrice: l.UnitPrice, Source: l.PriceSource, SetBy: l.PriceSetBy, Ref: l.PriceRef, Reason: l.PriceReason, ListUnitPrice: l.ListUnitPrice,
 		MaxQuantity: l.PriceMaxQuantity, ExpiresAt: l.PriceExpiresAt, NoPromotions: l.NoPromotions,
 	}
 }
@@ -472,6 +476,8 @@ type AddBundleLineInput struct {
 	Components  []AddCartLineComponentInput
 	HookPriced  bool
 	ConfigKey   string // the picks' key - a line rewritten in place passes the key it already has
+	// Coupons and promotions leave the line alone - a hook priced it and didn't say they apply
+	NoPromotions bool
 	// Whether a price set on the line this replaces stays - true for everything but a shopper picking again
 	KeepSetPrice bool
 }

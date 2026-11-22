@@ -369,7 +369,9 @@ func (s *Service) AddToCart(ctx context.Context, cartID uuid.UUID, callerID *uui
 	if err != nil {
 		return Cart{}, err
 	}
-	if s.bus != nil { // a LineAdding hook may reject the add or move price and quantity - intentional for dynamic-pricing plugins running with operator trust
+	coreUnit := input.UnitPrice
+	var hook *LinePrice // the price a hook put on the add, which then holds like any set price
+	if s.bus != nil {   // a LineAdding hook may reject the add or move price and quantity - intentional for dynamic-pricing plugins running with operator trust
 		adding := &LineAdding{
 			CartID:      cart.ID,
 			ChannelID:   cart.ChannelID,
@@ -383,13 +385,18 @@ func (s *Service) AddToCart(ctx context.Context, cartID uuid.UUID, callerID *uui
 			return Cart{}, fmt.Errorf("add to cart rejected: %w", err)
 		}
 		input.UnitPrice, input.Quantity = valueOr(adding.UnitPrice, input.UnitPrice), valueOr(adding.Quantity, input.Quantity) // read off the event, since the SDK setters and a webhook response swap the pointer rather than write through it
+		if p, ok := adding.linePrice(input.UnitPrice, coreUnit); ok {
+			hook = &p
+		}
 	}
-	if onto != nil { // more of a line whose price was set: up to what the price is for
+	// More of a line whose price was set: up to what the price is for. A hook that priced this add priced the whole
+	// line, so its own earlier limit is replaced - an admin's price outranks a hook's, and its limit stands
+	if onto != nil && (hook == nil || onto.PriceSource == PriceAdmin) {
 		if err := onto.PriceQuantityErr(onto.Quantity + input.Quantity); err != nil {
 			return Cart{}, err
 		}
 	}
-	line, err := s.repo.UpsertCartLineBySku(ctx, cart.ID, input)
+	line, err := s.upsertPlainLine(ctx, cart.ID, input, hook)
 	if err != nil {
 		return Cart{}, fmt.Errorf("add to cart: %w", err)
 	}
@@ -402,11 +409,28 @@ func (s *Service) AddToCart(ctx context.Context, cartID uuid.UUID, callerID *uui
 			Shopper:    auth.ShopperFromContext(ctx),
 			LineID:     line.ID,
 			ProductSku: input.ProductSku,
-			UnitPrice:  input.UnitPrice,
+			UnitPrice:  line.UnitPrice,
 			Quantity:   input.Quantity,
 		})
 	}
 	return loadCartWithLines(ctx, s.repo, cart.ID)
+}
+
+// The plain upsert, and the hook's price put on the line it made - together or not at all. No hook, no transaction
+func (s *Service) upsertPlainLine(ctx context.Context, cartID uuid.UUID, input AddCartLineInput, hook *LinePrice) (CartLine, error) {
+	if hook == nil {
+		return s.repo.UpsertCartLineBySku(ctx, cartID, input)
+	}
+	var line CartLine
+	err := s.inTx(ctx, func(r Repository) error {
+		var err error
+		if line, err = r.UpsertCartLineBySku(ctx, cartID, input); err != nil {
+			return err
+		}
+		line, err = holdHookPrice(ctx, r, line, hook)
+		return err
+	})
+	return line, err
 }
 
 // Everything a plain add checks before its upsert, shared by the storefront and the admin console - catalog name and price whatever the caller sent, so a hostile caller can't buy a $25 shirt for a cent
@@ -494,6 +518,20 @@ func (s *Service) validateQuantityEdit(ctx context.Context, cart Cart, line Cart
 	return nil, nil
 }
 
+// The quantity, and a hook's price for it where one priced the edit - together or not at all
+func (s *Service) writeLineQuantityPrice(ctx context.Context, line CartLine, quantity float64, repricedUnit *int64, hook *LinePrice) error {
+	if hook == nil {
+		return s.writeLineQuantity(ctx, line, quantity, repricedUnit)
+	}
+	return s.inTx(ctx, func(r Repository) error {
+		if _, err := r.UpdateCartLineQuantity(ctx, line.ID, quantity); err != nil {
+			return fmt.Errorf("update cart line: %w", err)
+		}
+		_, err := r.SetLinePrice(ctx, line.ID, *hook)
+		return err
+	})
+}
+
 // A bundle line's components scale with it, since reservation reads their totals as-is
 func (s *Service) writeLineQuantity(ctx context.Context, line CartLine, quantity float64, repricedUnit *int64) error {
 	var err error
@@ -530,8 +568,11 @@ func (s *Service) UpdateCartLine(ctx context.Context, cartID, lineID uuid.UUID, 
 	if err != nil {
 		return Cart{}, err
 	}
+	var hook *LinePrice // the price a hook put on the line at its new quantity, which then holds like any set price
 	if s.bus != nil {
 		requested := quantity
+		coreUnit := valueOr(repricedUnit, line.UnitPrice)
+		unit := coreUnit
 		updating := &LineUpdating{
 			CartID:     cart.ID,
 			ChannelID:  cart.ChannelID,
@@ -539,6 +580,7 @@ func (s *Service) UpdateCartLine(ctx context.Context, cartID, lineID uuid.UUID, 
 			LineID:     lineID,
 			ProductSku: line.ProductSku,
 			Quantity:   &quantity,
+			UnitPrice:  &unit,
 			StockParts: append(OptionStockParts(line.Options), ComponentStockParts(line)...),
 		}
 		if err := s.bus.PublishSync(ctx, updating); err != nil {
@@ -550,12 +592,24 @@ func (s *Service) UpdateCartLine(ctx context.Context, cartID, lineID uuid.UUID, 
 				return Cart{}, err
 			}
 		}
+		// A bundle keeps its own price, and an admin's price outranks a hook's
+		if p, ok := updating.linePrice(valueOr(updating.UnitPrice, coreUnit), coreUnit); ok && len(line.Components) == 0 && line.PriceSource != PriceAdmin {
+			at := line
+			at.Quantity = quantity
+			p.ListUnitPrice, p.MaxQuantity = s.catalogUnit(ctx, cart, at), &quantity
+			hook = &p
+		}
 	}
-	if err := line.PriceQuantityErr(quantity); err != nil {
+	if hook == nil { // more of a line whose price was set, with no hook pricing it again: up to what the price is for
+		if err := line.PriceQuantityErr(quantity); err != nil {
+			return Cart{}, err
+		}
+	}
+	if err := s.writeLineQuantityPrice(ctx, line, quantity, repricedUnit, hook); err != nil {
 		return Cart{}, err
 	}
-	if err := s.writeLineQuantity(ctx, line, quantity, repricedUnit); err != nil {
-		return Cart{}, err
+	if hook != nil {
+		repricedUnit = &hook.UnitPrice
 	}
 	if s.bus != nil {
 		s.bus.Publish(ctx, &LineUpdated{
@@ -754,6 +808,7 @@ func (s *Service) repriceBundleLine(ctx context.Context, c Cart, l *CartLine) {
 			HookPriced:   l.BundleHookPriced,
 			ConfigKey:    l.ConfigKey,
 			KeepSetPrice: true,
+			NoPromotions: l.NoPromotions,
 		})
 		return err
 	}); err != nil {

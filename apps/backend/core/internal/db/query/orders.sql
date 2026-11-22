@@ -209,9 +209,9 @@ RETURNING *;
 -- is_gift marks a promotion free gift: zero-priced, stock reserved like any other line, but excluded from pro-rata refunds since the customer paid nothing for it
 -- is_custom marks an admin's free-form charge from an offer - no catalog product, so nothing to reserve or ship, taxed by its own tax_class
 INSERT INTO order_lines (id, order_id, product_name, product_sku, unit_price, quantity, total_price, cost_cents, is_gift, is_custom, tax_class, "position", discount_cents, tax_cents,
-                         price_source, price_set_by, price_reason, list_unit_price, no_promotions)
+                         price_source, price_set_by, price_reason, list_unit_price, no_promotions, price_ref)
 VALUES (COALESCE(sqlc.narg(id), uuidv7()), sqlc.arg(order_id), sqlc.arg(product_name), sqlc.arg(product_sku), sqlc.arg(unit_price), sqlc.arg(quantity), sqlc.arg(total_price), sqlc.arg(cost_cents), sqlc.arg(is_gift), sqlc.arg(is_custom), sqlc.arg(tax_class), sqlc.arg(position), sqlc.arg(discount_cents), sqlc.arg(tax_cents),
-        sqlc.arg(price_source), sqlc.narg(price_set_by), sqlc.arg(price_reason), sqlc.narg(list_unit_price), sqlc.arg(no_promotions))
+        sqlc.arg(price_source), sqlc.narg(price_set_by), sqlc.arg(price_reason), sqlc.narg(list_unit_price), sqlc.arg(no_promotions), sqlc.arg(price_ref))
 RETURNING *;
 
 -- name: ListOrderLinesByOrder :many

@@ -277,8 +277,11 @@ func OrderEventModel(e order.OrderEvent) *model.OrderEvent {
 
 // LinePriceSource is where a cart or order line's price came from - a line with nothing recorded is the catalog's
 func LinePriceSource(source string) model.LinePriceSource {
-	if source == cart.PriceAdmin {
+	switch source {
+	case cart.PriceAdmin:
 		return model.LinePriceSourceAdmin
+	case cart.PriceHook:
+		return model.LinePriceSourceHook
 	}
 	return model.LinePriceSourceCatalog
 }
@@ -330,6 +333,7 @@ func OrderLineModel(l order.OrderLine) *model.OrderLine {
 		PriceSource:     LinePriceSource(l.PriceSource),
 		ListUnitPrice:   int32Ptr(l.ListUnitPrice),
 		PriceReason:     l.PriceReason,
+		PriceRef:        l.PriceRef,
 		PromotionsApply: !l.NoPromotions,
 		Options:         options,
 		Components:      components,

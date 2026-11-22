@@ -159,6 +159,7 @@ func copyLines(ctx context.Context, r Repository, destID uuid.UUID, lines []Cart
 				HookPriced:   l.BundleHookPriced,
 				ConfigKey:    l.ConfigKey,
 				KeepSetPrice: true,
+				NoPromotions: l.NoPromotions,
 			})
 		case len(l.Options) > 0:
 			if plain[l.ProductSku] {

@@ -52,6 +52,8 @@ fragment CartFields on AdminCart {
     totalPrice
     isSimple
     priceOverride
+    priceSource
+    priceRef
     listUnitPrice
     priceReason
     priceMaxQuantity

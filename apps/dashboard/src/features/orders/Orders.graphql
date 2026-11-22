@@ -104,6 +104,7 @@ query Order($id: ID!) {
       discountAmount
       taxAmount
       priceSource
+      priceRef
       listUnitPrice
       priceReason
       promotionsApply

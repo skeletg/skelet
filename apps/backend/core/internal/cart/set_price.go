@@ -59,6 +59,17 @@ func shopperPrice(p LinePrice, line CartLine, in SetLinePriceInput) (LinePrice, 
 	return p, nil
 }
 
+// holdHookPrice puts a hook's price on the line it just priced, for the quantity the line holds now. An admin's price
+// already on the line outranks a hook's and stays
+func holdHookPrice(ctx context.Context, r Repository, line CartLine, hook *LinePrice) (CartLine, error) {
+	if hook == nil || line.PriceSource == PriceAdmin {
+		return line, nil
+	}
+	p, quantity := *hook, line.Quantity
+	p.MaxQuantity = &quantity
+	return r.SetLinePrice(ctx, line.ID, p)
+}
+
 // setPriceAllows checks a shopper's replacing add against the line it will replace: a set price there is for so many
 func (s *Service) setPriceAllows(ctx context.Context, c Cart, sku, configKey string, quantity float64) error {
 	lines, err := s.repo.ListCartLinesByCart(ctx, c.ID)

@@ -242,7 +242,8 @@ input RecordOfflinePaymentInput {
 # Where a line's price came from
 enum LinePriceSource {
   CATALOG  # the catalog's price for it
-  ADMIN    # set by an admin - on an offer, a draft, or a custom line
+  ADMIN    # set by an admin - on an offer, a draft, a custom line or a shopper's own cart
+  HOOK     # set by a plugin or a sync webhook as the line was added or its quantity changed - priceRef names it
 }
 
 type OrderLine {
@@ -265,6 +266,8 @@ type OrderLine {
   priceSource:   LinePriceSource!
   listUnitPrice: Int
   priceReason:   String!
+  # Who set a HOOK price: "plugin:<slug>" or "webhook:<name>" - empty otherwise
+  priceRef:      String!
   # False when coupons and promotions left this line alone - its discountAmount is then only its share of a discount
   # given on the order itself
   promotionsApply: Boolean!

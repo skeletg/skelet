@@ -42,6 +42,13 @@ const (
 // A line about to be added to a cart - what arrives is what will be written, so a price or quantity set here is the
 // line's
 //
+// A price you set is a set price, and core treats it the way it treats one an admin set. It holds: checkout doesn't
+// price the line again from the catalog. It is for the quantity you priced - the shopper may lower the quantity, but
+// more of the item reaches you again (here, or as a CartLineUpdating), and is refused if you don't price it then.
+// Coupons and promotions leave the line alone unless you say they apply. The line and the order line it becomes
+// record that your plugin set the price, and the catalog price it replaced. For a price that should behave like
+// the catalog's own - repriced, discounted by promotions - register a PriceResolver instead
+//
 // cart.bundle.adding arrives as one of these too, the price being the bundle's, so one handler can register for both
 //
 //	p.SubscribeSync(sdk.EventCartLineAdding, 100, func(ctx context.Context, e any) error {
@@ -63,13 +70,16 @@ type CartLineAdding interface {
 	LineName() string
 	LineQuantity() float64
 	LineUnitPriceCents() int64
-	// Refuses a negative price
+	// Refuses a negative price, and one past what a line can cost
 	SetLineUnitPrice(cents int64) error
+	// Lets coupons and promotions lower a line whose price you set - they don't unless this says so
+	SetLinePromotionsApply(apply bool)
 	// Refuses anything not above zero - removing a line is its own operation
 	SetLineQuantity(qty float64) error
 }
 
-// A cart line's quantity about to change - the quantity is the absolute new one, not a delta
+// A cart line's quantity about to change - the quantity is the absolute new one, not a delta. The price is the unit
+// price the line will have at it: set it to price the line at the new quantity, with the same meaning as on an add
 type CartLineUpdating interface {
 	LineCartID() uuid.UUID
 	LineChannelID() uuid.UUID
@@ -79,6 +89,10 @@ type CartLineUpdating interface {
 	LineSKU() string
 	LineQuantity() float64
 	SetLineQuantity(qty float64) error
+	LineUnitPriceCents() int64
+	// Ignored on a bundle line, which keeps its own price, and on a line whose price an admin set
+	SetLineUnitPrice(cents int64) error
+	SetLinePromotionsApply(apply bool)
 }
 
 // A cart line about to be removed - refuse-only, for a line a plugin put there on purpose, like a free gift the cart

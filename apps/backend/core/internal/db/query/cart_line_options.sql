@@ -30,6 +30,7 @@ ON CONFLICT (cart_id, product_sku, config_key) DO UPDATE
       list_unit_price = CASE WHEN cart_lines.price_source <> 'catalog' AND sqlc.arg(keep_set_price)::boolean THEN EXCLUDED.unit_price END,
       price_source = CASE WHEN sqlc.arg(keep_set_price)::boolean THEN cart_lines.price_source ELSE 'catalog' END,
       price_set_by = CASE WHEN sqlc.arg(keep_set_price)::boolean THEN cart_lines.price_set_by END,
+      price_ref = CASE WHEN sqlc.arg(keep_set_price)::boolean THEN cart_lines.price_ref ELSE '' END,
       price_reason = CASE WHEN sqlc.arg(keep_set_price)::boolean THEN cart_lines.price_reason ELSE '' END,
       price_max_quantity = CASE WHEN sqlc.arg(keep_set_price)::boolean THEN cart_lines.price_max_quantity END,
       price_expires_at = CASE WHEN sqlc.arg(keep_set_price)::boolean THEN cart_lines.price_expires_at END,

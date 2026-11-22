@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 )
 
 func heldAt(l CartLine, unit, list int64) bool {
@@ -299,5 +301,118 @@ func TestASetPriceFollowsItsLine(t *testing.T) {
 	}
 	if l := lineBySku(t, merged, "other"); l.PriceSet() || l.Quantity != 1 {
 		t.Fatalf("the line beside it: %+v, want it untouched", l)
+	}
+}
+
+// A price a plugin or a sync webhook sets as a line is added is a set price: it holds through repricing, says who set
+// it and what the catalog asked, is for the quantity it priced, and coupons leave it alone unless the hook says
+func TestAHookPriceHolds(t *testing.T) {
+	r := newDBRig(t, catalogStub{prices: map[string]SimplePricing{"tee": {ProductName: "Tee", UnitPrice: 2500}}})
+	ctx := context.Background()
+	// What the plugin answers an add and a quantity change with - zero leaves the line to core
+	var onAdd, onUpdate int64
+	bus := events.NewBus()
+	bus.SubscribeSync(EventLineAdding, 0, func(_ context.Context, e events.Event) error {
+		ev := e.(*LineAdding)
+		ev.ActingAs("plugin:member-prices") // the plugin host names the plugin before its handler runs
+		defer ev.ActingAs("")
+		if onAdd == 0 {
+			return nil
+		}
+		return ev.SetLineUnitPrice(onAdd)
+	})
+	bus.SubscribeSync(EventLineUpdating, 0, func(_ context.Context, e events.Event) error {
+		ev := e.(*LineUpdating)
+		ev.ActingAs("plugin:member-prices")
+		defer ev.ActingAs("")
+		if onUpdate == 0 {
+			return nil
+		}
+		ev.SetLinePromotionsApply(true)
+		return ev.SetLineUnitPrice(onUpdate)
+	})
+	r.svc.SetEventBus(bus)
+	c := r.guestCart(t)
+
+	onAdd = 1999
+	got, err := r.svc.AddToCart(ctx, c.ID, nil, "tee", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	l := lineBySku(t, got, "tee")
+	hooked := func(l CartLine, unit int64, max float64) bool {
+		return l.PriceHeld() && l.PriceSource == PriceHook && l.PriceRef == "plugin:member-prices" && l.UnitPrice == unit &&
+			l.ListUnitPrice != nil && *l.ListUnitPrice == 2500 && l.PriceMaxQuantity != nil && *l.PriceMaxQuantity == max
+	}
+	if !hooked(l, 1999, 2) || !l.NoPromotions {
+		t.Fatalf("a hook-priced add: %+v, want 1999 by the plugin for up to 2, in place of 2500, promotions off", l)
+	}
+	if l = lineBySku(t, r.svc.RepriceCartLines(ctx, got), "tee"); !hooked(l, 1999, 2) {
+		t.Fatalf("repriced: %+v, want the hook's price left alone - it used to go back to the catalog's here", l)
+	}
+
+	// More of the item reaches the plugin again: priced, the line is the plugin's at the new total
+	onAdd = 1899
+	if got, err = r.svc.AddToCart(ctx, c.ID, nil, "tee", 1); err != nil || !hooked(lineBySku(t, got, "tee"), 1899, 3) {
+		t.Fatalf("more, priced again: %+v, %v - want 3 at 1899", got.Lines, err)
+	}
+	// Not priced, there is no price for the larger quantity - refused rather than sold at a figure nobody set
+	onAdd = 0
+	if _, err = r.svc.AddToCart(ctx, c.ID, nil, "tee", 1); !errors.Is(err, ErrLinePriceQuantity) {
+		t.Fatalf("more, with the plugin silent: %v, want it refused", err)
+	}
+	if _, err = r.svc.UpdateCartLine(ctx, c.ID, l.ID, nil, 5); !errors.Is(err, ErrLinePriceQuantity) {
+		t.Fatalf("a higher quantity, with the plugin silent: %v, want it refused", err)
+	}
+	if got, err = r.svc.UpdateCartLine(ctx, c.ID, l.ID, nil, 2); err != nil || !hooked(lineBySku(t, got, "tee"), 1899, 3) {
+		t.Fatalf("fewer: %+v, %v - want 2 at the hook's 1899, still for up to 3", got.Lines, err)
+	}
+
+	// A quantity change the plugin prices, saying promotions may apply
+	onUpdate = 1500
+	if got, err = r.svc.UpdateCartLine(ctx, c.ID, l.ID, nil, 6); err != nil {
+		t.Fatal(err)
+	}
+	if l = lineBySku(t, got, "tee"); !hooked(l, 1500, 6) || l.Quantity != 6 || l.NoPromotions {
+		t.Fatalf("a priced quantity change: %+v, want 6 at 1500 with promotions allowed", l)
+	}
+
+	// An admin's price outranks a hook's: the plugin pricing a later edit doesn't replace it
+	admin := int64(1000)
+	if _, err = r.svc.AdminSetLinePrice(ctx, c.ID, l.ID, SetLinePriceInput{UnitPrice: &admin, Reason: "goodwill"}); err != nil {
+		t.Fatal(err)
+	}
+	if got, err = r.svc.UpdateCartLine(ctx, c.ID, l.ID, nil, 4); err != nil {
+		t.Fatal(err)
+	}
+	if l = lineBySku(t, got, "tee"); l.PriceSource != PriceAdmin || l.UnitPrice != 1000 || l.Quantity != 4 {
+		t.Fatalf("after the admin's price: %+v, want it kept at 1000", l)
+	}
+}
+
+// A sync webhook's answer prices a line the same way, and is named as the one that did
+func TestAWebhooksAnswerPricesALine(t *testing.T) {
+	r := newDBRig(t, catalogStub{prices: map[string]SimplePricing{"tee": {ProductName: "Tee", UnitPrice: 2500}}})
+	bus := events.NewBus()
+	bus.SubscribeSync(EventLineAdding, 0, func(_ context.Context, e events.Event) error {
+		ev := e.(*LineAdding)
+		ev.ActingAs("webhook:quotes") // the dispatcher names the webhook before it applies its answer
+		defer ev.ActingAs("")
+		_, _, err := ev.ApplyWebhookResponse([]byte(`{"unitPriceCents": 1700, "promotionsApply": true}`))
+		return err
+	})
+	r.svc.SetEventBus(bus)
+	c := r.guestCart(t)
+	got, err := r.svc.AddToCart(context.Background(), c.ID, nil, "tee", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l := lineBySku(t, got, "tee"); l.PriceSource != PriceHook || l.PriceRef != "webhook:quotes" || l.UnitPrice != 1700 || l.NoPromotions || !l.PriceHeld() {
+		t.Fatalf("a webhook-priced add: %+v, want 1700 by the webhook, held, promotions allowed", l)
+	}
+	for _, body := range []string{`{"unitPriceCents": -1}`, `{"unitPriceCents": 99999999999}`} {
+		if _, _, err := (&LineAdding{}).ApplyWebhookResponse([]byte(body)); err == nil {
+			t.Errorf("%s was taken as a price", body)
+		}
 	}
 }

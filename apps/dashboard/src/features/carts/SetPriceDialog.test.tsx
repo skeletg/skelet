@@ -10,7 +10,7 @@ import { priceFloor } from './schemas/setPrice'
 
 const line = {
   __typename: 'AdminCartLine' as const, id: 'l1', name: 'Rain jacket', sku: 'JACKET-M', unitPrice: 10000, quantity: 2, totalPrice: 20000,
-  isSimple: true, priceOverride: false, priceSource: 'CATALOG' as const, listUnitPrice: null, priceReason: '', priceMaxQuantity: null, priceExpiresAt: null, promotionsApply: true,
+  isSimple: true, priceOverride: false, priceSource: 'CATALOG' as const, priceRef: '', listUnitPrice: null, priceReason: '', priceMaxQuantity: null, priceExpiresAt: null, promotionsApply: true,
   isCustom: false, taxClass: '', components: [], options: [],
 }
 const cart = {
@@ -90,6 +90,13 @@ describe('setting a price on a shopper cart', () => {
     expect(row?.textContent).toContain('no promotions')
     expect(screen.getByRole('button', { name: 'Change price' })).toBeDefined()
     expect(screen.getByRole('button', { name: 'Reset' })).toBeDefined()
+  })
+
+  it('names the plugin behind a price a hook set, which an admin can still replace', async () => {
+    renderCart({ cart: { lines: [{ ...line, unitPrice: 8000, priceOverride: true, priceSource: 'HOOK', priceRef: 'plugin:member-prices', listUnitPrice: 10000, priceMaxQuantity: 2, promotionsApply: false }] } })
+    const row = (await screen.findByText('Rain jacket', {}, SLOW)).closest('div.rounded')
+    expect(row?.textContent).toContain('member-prices plugin')
+    expect(screen.getByRole('button', { name: 'Change price' })).toBeDefined()
   })
 
   it('is not offered without the permission, whatever else the admin may do to the cart', async () => {

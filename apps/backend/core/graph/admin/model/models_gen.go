@@ -319,6 +319,7 @@ type AdminCartLine struct {
 	PriceSource      LinePriceSource           `json:"priceSource"`
 	ListUnitPrice    *int32                    `json:"listUnitPrice,omitempty"`
 	PriceReason      string                    `json:"priceReason"`
+	PriceRef         string                    `json:"priceRef"`
 	PriceMaxQuantity *float64                  `json:"priceMaxQuantity,omitempty"`
 	PriceExpiresAt   *time.Time                `json:"priceExpiresAt,omitempty"`
 	PromotionsApply  bool                      `json:"promotionsApply"`
@@ -3880,6 +3881,7 @@ type OrderLine struct {
 	PriceSource     LinePriceSource       `json:"priceSource"`
 	ListUnitPrice   *int32                `json:"listUnitPrice,omitempty"`
 	PriceReason     string                `json:"priceReason"`
+	PriceRef        string                `json:"priceRef"`
 	PromotionsApply bool                  `json:"promotionsApply"`
 	Options         []*OrderLineOption    `json:"options"`
 	Components      []*OrderLineComponent `json:"components"`
@@ -8870,16 +8872,18 @@ type LinePriceSource string
 const (
 	LinePriceSourceCatalog LinePriceSource = "CATALOG"
 	LinePriceSourceAdmin   LinePriceSource = "ADMIN"
+	LinePriceSourceHook    LinePriceSource = "HOOK"
 )
 
 var AllLinePriceSource = []LinePriceSource{
 	LinePriceSourceCatalog,
 	LinePriceSourceAdmin,
+	LinePriceSourceHook,
 }
 
 func (e LinePriceSource) IsValid() bool {
 	switch e {
-	case LinePriceSourceCatalog, LinePriceSourceAdmin:
+	case LinePriceSourceCatalog, LinePriceSourceAdmin, LinePriceSourceHook:
 		return true
 	}
 	return false

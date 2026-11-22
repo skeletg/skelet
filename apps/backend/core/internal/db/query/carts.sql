@@ -280,7 +280,7 @@ UPDATE carts SET order_id = $2 WHERE id = $1;
 -- name: SetCartLinePrice :one
 -- A price put on a line with where it came from, or the line put back on the catalog's
 UPDATE cart_lines
-SET unit_price = sqlc.arg(unit_price), price_source = sqlc.arg(price_source), price_set_by = sqlc.narg(price_set_by),
+SET unit_price = sqlc.arg(unit_price), price_source = sqlc.arg(price_source), price_set_by = sqlc.narg(price_set_by), price_ref = sqlc.arg(price_ref),
     price_reason = sqlc.arg(price_reason), list_unit_price = sqlc.narg(list_unit_price),
     price_max_quantity = sqlc.narg(price_max_quantity), price_expires_at = sqlc.narg(price_expires_at),
     no_promotions = sqlc.arg(no_promotions), updated_at = NOW()

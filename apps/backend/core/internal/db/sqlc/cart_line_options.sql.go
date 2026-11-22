@@ -139,13 +139,14 @@ ON CONFLICT (cart_id, product_sku, config_key) DO UPDATE
       list_unit_price = CASE WHEN cart_lines.price_source <> 'catalog' AND $6::boolean THEN EXCLUDED.unit_price END,
       price_source = CASE WHEN $6::boolean THEN cart_lines.price_source ELSE 'catalog' END,
       price_set_by = CASE WHEN $6::boolean THEN cart_lines.price_set_by END,
+      price_ref = CASE WHEN $6::boolean THEN cart_lines.price_ref ELSE '' END,
       price_reason = CASE WHEN $6::boolean THEN cart_lines.price_reason ELSE '' END,
       price_max_quantity = CASE WHEN $6::boolean THEN cart_lines.price_max_quantity END,
       price_expires_at = CASE WHEN $6::boolean THEN cart_lines.price_expires_at END,
       no_promotions = $6::boolean AND cart_lines.no_promotions,
       product_name = EXCLUDED.product_name,
       updated_at   = NOW()
-RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, is_custom, tax_class, bundle_hook_priced, config_key, price_source, price_set_by, price_reason, list_unit_price, price_max_quantity, price_expires_at, no_promotions
+RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, is_custom, tax_class, bundle_hook_priced, config_key, price_source, price_set_by, price_reason, list_unit_price, price_max_quantity, price_expires_at, no_promotions, price_ref
 `
 
 type UpsertConfiguredCartLineParams struct {
@@ -190,6 +191,7 @@ func (q *Queries) UpsertConfiguredCartLine(ctx context.Context, arg UpsertConfig
 		&i.PriceMaxQuantity,
 		&i.PriceExpiresAt,
 		&i.NoPromotions,
+		&i.PriceRef,
 	)
 	return i, err
 }
