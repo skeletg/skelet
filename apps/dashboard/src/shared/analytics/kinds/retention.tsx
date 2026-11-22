@@ -3,7 +3,8 @@ import { cn } from '@/lib/utils'
 import { formatNumber } from '@/lib/format'
 import { eventLabel } from '@/features/synapse/eventLabel'
 import { SynapseRetentionDocument, SynapseStickinessDocument } from '@/features/synapse/Synapse.gql'
-import type { ControlsProps, Kind, ReportDefinition, ResultProps } from './definition'
+import { describeConditions, readyConditions, type ControlsProps, type Kind, type ReportDefinition, type ResultProps } from './definition'
+import { ConditionsEditor } from './conditions'
 import { Bars, EventSelect, Field, Headline, Note, State, StatTile, Toggle, pct, useTopEvents } from './ui'
 
 type Bucket = { period: number; count: number; eligible: number }
@@ -27,15 +28,16 @@ const periodsFor = (unit: string) => (unit === 'day' ? 14 : 8)
 export function switchRetentionView(d: ReportDefinition, view: 'STICKINESS' | 'RETENTION'): ReportDefinition {
   if (view === d.kind) return d
   const { sinceDays } = d
-  if (view === 'STICKINESS') return { kind: 'STICKINESS', event: d.returnEvent || undefined, sinceDays }
+  if (view === 'STICKINESS') return { kind: 'STICKINESS', event: d.returnEvent || undefined, where: d.returnWhere, sinceDays }
   const ev = d.event || retention.start.startEvent
-  return { ...retention.start, startEvent: ev, returnEvent: ev, sinceDays }
+  return { ...retention.start, startEvent: ev, returnEvent: ev, startWhere: d.where, returnWhere: d.where, sinceDays }
 }
 
 function RetentionControls({ channelId, value: d, onChange }: ControlsProps) {
   const events = useTopEvents(channelId)
   const view = d.kind === 'STICKINESS' ? 'STICKINESS' : 'RETENTION'
   return (
+    <div className="space-y-3">
     <div className="flex flex-wrap items-end gap-3 text-sm">
       <Field label="View">
         <Toggle
@@ -91,6 +93,15 @@ function RetentionControls({ channelId, value: d, onChange }: ControlsProps) {
         </>
       )}
     </div>
+    {view === 'STICKINESS' ? (
+      <ConditionsEditor channelId={channelId} events={d.event ? [d.event] : []} label="Where" value={d.where} onChange={(where) => onChange({ ...d, where })} />
+    ) : (
+      <div className="grid gap-3 sm:grid-cols-2">
+        <ConditionsEditor channelId={channelId} events={d.startEvent ? [d.startEvent] : []} label="Where the start event" value={d.startWhere} onChange={(startWhere) => onChange({ ...d, startWhere })} />
+        <ConditionsEditor channelId={channelId} events={d.returnEvent ? [d.returnEvent] : []} label="Where the return event" value={d.returnWhere} onChange={(returnWhere) => onChange({ ...d, returnWhere })} />
+      </div>
+    )}
+    </div>
   )
 }
 
@@ -98,7 +109,7 @@ function RetentionResult({ channelId, d, sinceDays, compact }: ResultProps) {
   const unit = d.unit ?? UNIT
   const periods = d.periods ?? periodsFor(unit)
   const { data, loading, error } = useQuery(SynapseRetentionDocument, {
-    variables: { channelId, startEvent: d.startEvent ?? '', returnEvent: d.returnEvent ?? '', sinceDays, periods, unit },
+    variables: { channelId, startEvent: d.startEvent ?? '', returnEvent: d.returnEvent ?? '', sinceDays, periods, unit, startFilters: readyConditions(d.startWhere), returnFilters: readyConditions(d.returnWhere) },
     skip: !channelId || !d.startEvent || !d.returnEvent,
     fetchPolicy: 'cache-and-network',
   })
@@ -200,7 +211,7 @@ function CohortRow({ label, size, buckets, emphasize }: { label: string; size: n
 
 function StickinessResult({ channelId, d, sinceDays, compact }: ResultProps) {
   const { data, loading, error } = useQuery(SynapseStickinessDocument, {
-    variables: { channelId, event: d.event || null, sinceDays, windowDays: d.windowDays ?? null },
+    variables: { channelId, event: d.event || null, sinceDays, windowDays: d.windowDays ?? null, filters: readyConditions(d.where) },
     skip: !channelId,
     fetchPolicy: 'cache-and-network',
   })
@@ -292,9 +303,11 @@ function StickinessResult({ channelId, d, sinceDays, compact }: ResultProps) {
 }
 
 export const retention: Kind = {
+  page: '/synapse/retention',
   label: 'Retention by cohort',
   menu: { label: 'Retention', hint: 'Whether people come back' },
-  describe: (d) => `${d.startEvent} then ${d.returnEvent}, by ${d.unit ?? UNIT}`,
+  describe: (d) =>
+    `${d.startEvent}${d.startWhere?.length ? ` where ${describeConditions(d.startWhere)}` : ''} then ${d.returnEvent}${d.returnWhere?.length ? ` where ${describeConditions(d.returnWhere)}` : ''}, by ${d.unit ?? UNIT}`,
   title: (d) => `${eventLabel(d.startEvent ?? '')} retention`,
   start: { kind: 'RETENTION', startEvent: 'order_placed', returnEvent: 'order_placed', unit: UNIT, periods: periodsFor(UNIT) },
   Controls: RetentionControls,
@@ -302,9 +315,10 @@ export const retention: Kind = {
 }
 
 export const stickiness: Kind = {
+  page: '/synapse/stickiness',
   label: 'Return rate',
   builder: 'RETENTION',
-  describe: (d) => `Returning on ${d.event || 'any activity'}`,
+  describe: (d) => `Returning on ${d.event || 'any activity'}${d.where?.length ? ` where ${describeConditions(d.where)}` : ''}`,
   title: (d) => (d.event ? `Returning on ${eventLabel(d.event)}` : 'Returning shoppers'),
   start: { kind: 'STICKINESS' },
   Controls: RetentionControls,

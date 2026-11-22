@@ -19,7 +19,7 @@ import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 import { ChannelRequired } from '@/shared/analytics/ChannelRequired'
 import { PeriodPicker } from '@/shared/analytics/PeriodPicker'
 import { BUILDERS, KINDS, ReportResult, describeReport, kindOf } from '@/shared/analytics/kinds'
-import type { ReportKind } from '@/shared/analytics/kinds/definition'
+import { cleanDefinition, type ReportDefinition, type ReportKind } from '@/shared/analytics/kinds/definition'
 import { cleanReport, type ReportSize } from './report'
 import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
 import { useSaveRegistry, useSaveSection } from '@/shared/saving/saveRegistry'
@@ -118,7 +118,7 @@ export function BoardPage() {
       save: async () => {
         if (!board) return
         const res = await saveBoard({
-          variables: { channelId, id: board.id, name: draftName.trim(), reports: unkeyed(draft).map((r) => ({ ...r, title: r.title.trim() })), readAt: kept.base },
+          variables: { channelId, id: board.id, name: draftName.trim(), reports: unkeyed(draft).map((r) => ({ ...r, title: r.title.trim(), definition: cleanDefinition(r.definition) })), readAt: kept.base },
         })
         const next = res.data?.saveBoard
         if (next) {
@@ -146,9 +146,10 @@ export function BoardPage() {
   }
 
   const update = (key: string, patch: Partial<DraftReport>) => setDraft((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)))
-  const add = (kind: ReportKind) => {
-    const { start, title } = KINDS[kind]
-    const added = fresh({ title: title(start), size: 'MEDIUM', definition: start })
+  const add = (kind: ReportKind) => addReport(KINDS[kind].title(KINDS[kind].start), KINDS[kind].start)
+  // A report a tile leads to - a funnel step's drop-offs - goes on the board beside it, staged like any other
+  const addReport = (title: string, definition: ReportDefinition) => {
+    const added = fresh({ title, size: 'MEDIUM', definition })
     setDraft((rs) => [...rs, added])
     setEditing(added.key)
     setFocused(false)
@@ -327,6 +328,7 @@ export function BoardPage() {
                         onEdit={() => setEditing(r.key)}
                         onRemove={() => remove(r.key)}
                         onDuplicate={() => duplicate(r.key)}
+                        onAddReport={canEdit ? addReport : undefined}
                       />
                     ))}
                     {!focused &&
@@ -406,9 +408,10 @@ type TileProps = {
   onEdit: () => void
   onRemove: () => void
   onDuplicate: () => void
+  onAddReport?: (title: string, d: ReportDefinition) => void
 }
 
-function Tile({ r, channelId, sinceDays, canManage, editing, focused, onEdit, onRemove, onDuplicate, seesData, shop }: TileProps) {
+function Tile({ r, channelId, sinceDays, canManage, editing, focused, onEdit, onRemove, onDuplicate, onAddReport, seesData, shop }: TileProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: r.key, disabled: !canManage || focused })
   const size: ReportSize = focused ? 'FULL' : r.size
   return (
@@ -447,7 +450,7 @@ function Tile({ r, channelId, sinceDays, canManage, editing, focused, onEdit, on
         )}
       </div>
       {seesData ? (
-        <ReportResult channelId={channelId} d={r.definition} sinceDays={r.definition.sinceDays || sinceDays} compact={size !== 'FULL'} />
+        <ReportResult channelId={channelId} d={r.definition} sinceDays={r.definition.sinceDays || sinceDays} compact={size !== 'FULL'} onAddReport={onAddReport} />
       ) : (
         <p className="py-6 text-center text-sm text-muted-foreground">You need customer analytics on {shop} to see this report's numbers.</p>
       )}

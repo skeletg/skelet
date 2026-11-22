@@ -16,7 +16,7 @@ const channelScope = {
   selectedChannel: { id: 'c1', name: 'Main', slug: 'main' },
 } as unknown as ConfigScopeContextValue
 
-const insights = { __typename: 'SynapseInsights', points: [], series: [], total: 0, uniques: 0, prevTotal: 0, prevUniques: 0, aggregate: 0 }
+const insights = { __typename: 'SynapseInsights', points: [], series: [], uniques: 0, prevUniques: 0, aggregate: 0, totalAmount: 0, prevTotalAmount: 0, baseCurrency: 'USD' }
 
 function Search() {
   return <output data-testid="search">{useLocation().search}</output>

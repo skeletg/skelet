@@ -47,19 +47,37 @@ type SynapseFunnelBreakdown {
 
 # A step's events must carry property `key` with the text `value` (numbers and bools as written).
 input SynapseFunnelFilterInput {
-  step:  Int!   # 0-based
-  key:   String!
-  value: String!
+  step:   Int!   # 0-based
+  key:    String!
+  op:     PropertyFilterOp  # unset = EQ
+  values: [String!]
+  value:  String            # a filter from before operators - the one value, compared with EQ
+}
+
+enum PropertyFilterOp {
+  EQ   # the one value
+  NEQ  # not it - an event without the property passes
+  IN   # one of up to 50
+}
+
+# Holds a report's events to those whose property compares to the values: eq (one value), neq (an event without the
+# property passes) or in (up to 50). Compared as text - numbers and bools as written
+input SynapsePropertyFilterInput {
+  key:    String!
+  op:     PropertyFilterOp!
+  values: [String!]!
 }
 
 type InsightPoint {
   bucket: Time!
   key:    String!   # breakdown series this value belongs to
   value:  Int!
+  amount: Int64!    # the measure unclamped - value stops at Int, which a sum in cents passes
 }
 type InsightSeries {
-  key:   String!
-  total: Int!
+  key:    String!
+  total:  Int!
+  amount: Int64!    # the total unclamped
 }
 
 # Ad-hoc breakdown: a measure over time, split by a property.
@@ -72,6 +90,11 @@ type SynapseInsights {
   prevTotal:   Int!
   prevUniques: Int!
   aggregate:   Int!   # of total, events counted as nobody - visitors who hadn't allowed analytics
+  # On a sum, total and prevTotal unclamped - money in cents passes Int's range
+  totalAmount:     Int64!
+  prevTotalAmount: Int64!
+  # The currency a *_base_cents sum is in - the platform's base currency
+  baseCurrency:    String!
 }
 
 type ActivePoint {
@@ -331,14 +354,17 @@ extend type Query {
   synapseFunnel(channelId: ID!, steps: [String!]!, sinceDays: Int, windowHours: Int, filters: [SynapseFunnelFilterInput!], breakdown: String): SynapseFunnel!
   # Forward path tree from a focus event over the last `sinceDays` days (default
   # 30), `depth` steps deep (default 3). Gated customers.view.
-  synapseFlow(channelId: ID!, event: String!, sinceDays: Int, depth: Int): SynapseFlow!
+  # filters hold the focus event; notThen keeps only the people who didn't do that event within notThenWithinHours after it
+  synapseFlow(channelId: ID!, event: String!, sinceDays: Int, depth: Int, filters: [SynapsePropertyFilterInput!], notThen: String, notThenWithinHours: Int): SynapseFlow!
   # Commerce engagement: return rate over a window + daily-active trend. Optional `event` ("" = any activity), `sinceDays` (trend length, default 30), and `windowDays` (return cadence; defaults to the channel's configured value).
-  synapseStickiness(channelId: ID!, event: String, sinceDays: Int, windowDays: Int): SynapseStickiness!
+  synapseStickiness(channelId: ID!, event: String, sinceDays: Int, windowDays: Int, filters: [SynapsePropertyFilterInput!]): SynapseStickiness!
   # Ad-hoc breakdown: `measure` ("total"|"unique") of `event` ("" = any) over `unit` ("day"|"week") buckets for the last `sinceDays` (default 30), split by the `breakdown` property key ("" = none). Gated customers.view.
-  synapseInsights(channelId: ID!, event: String, breakdown: String, measure: String, unit: String, sinceDays: Int): SynapseInsights!
+  # measure "sum" adds up sumKey (net_base_cents, say); events counts several together (net sales is order_line,
+  # order_line_adjusted and refund_line) in place of event
+  synapseInsights(channelId: ID!, event: String, breakdown: String, measure: String, unit: String, sinceDays: Int, events: [String!], sumKey: String, filters: [SynapsePropertyFilterInput!]): SynapseInsights!
   # Cohort retention: startEvent → returnEvent over `periods` buckets of `unit`
   # ("day"|"week"), cohort window = last `sinceDays` days. Gated customers.view.
-  synapseRetention(channelId: ID!, startEvent: String!, returnEvent: String!, sinceDays: Int, periods: Int, unit: String): SynapseRetention!
+  synapseRetention(channelId: ID!, startEvent: String!, returnEvent: String!, sinceDays: Int, periods: Int, unit: String, startFilters: [SynapsePropertyFilterInput!], returnFilters: [SynapsePropertyFilterInput!]): SynapseRetention!
   # A single anonymous visitor's behavioural profile (same shape as customerProfile), keyed by the anon visitor id. Gated customers.view on the channel the operator is browsing (anon activity itself is channel-agnostic).
   visitorProfile(channelId: ID!, anonId: String!, sinceDays: Int): CustomerProfile!
   # The audiences a customer belongs to, shown on their profile beside the commerce panels

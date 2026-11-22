@@ -6,6 +6,7 @@ import { flattenLeaves } from './types'
 import { useVisibleNav } from './use-visible-nav'
 import { useVisiblePages } from './use-visible-pages'
 import './routes'
+import { KINDS } from '@/shared/analytics/kinds'
 
 vi.mock('@/shared/auth/usePermissions', () => ({
   usePermissions: () => ({ has: () => true, loading: false }),
@@ -71,5 +72,12 @@ describe('configurator templates', () => {
   it('are no menu entry but still open by link', () => {
     expect(visibleSidebarPaths().filter((p) => p.startsWith('/catalog/configurator-templates'))).toEqual([])
     expect(allRouterRoutes().map((r) => r.path)).toEqual(expect.arrayContaining(['/catalog/configurator-templates', '/catalog/configurator-templates/:id']))
+  })
+})
+
+describe('report kinds', () => {
+  it('each open a report page the router serves', () => {
+    const paths = allRouterRoutes().map((r) => r.path)
+    for (const [kind, k] of Object.entries(KINDS)) expect(paths, kind).toContain(k.page)
   })
 })

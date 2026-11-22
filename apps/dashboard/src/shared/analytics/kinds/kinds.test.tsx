@@ -2,8 +2,8 @@ import { fireEvent, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { renderDialog } from '@/test/page-harness'
 import { SynapseOverviewDocument } from '@/features/synapse/Synapse.gql'
-import type { ReportDefinition } from './definition'
-import { moveStep, removeStep } from './funnel'
+import { cleanDefinition, isNetSales, type ReportDefinition } from './definition'
+import { dropOffFlow, moveStep, removeStep } from './funnel'
 import { switchRetentionView } from './retention'
 import { BUILDERS, KINDS, ReportControls, builderOf } from '.'
 
@@ -61,10 +61,11 @@ describe('each builder hands back the definition its engine reads', () => {
   it('funnel: a step filter names the step it holds', () => {
     const onChange = controls(KINDS.FUNNEL.start)
     fireEvent.click(screen.getByRole('button', { name: 'Filter step 3' }))
-    fireEvent.change(screen.getByRole('textbox', { name: 'Property for step 3' }), { target: { value: 'sku' } })
-    fireEvent.change(screen.getByRole('textbox', { name: 'Value for step 3' }), { target: { value: 'TSHIRT' } })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Property for step 3' }), { target: { value: 'sku' } })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Operator for step 3' }), { target: { value: 'IN' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Value for step 3' }), { target: { value: 'TSHIRT, MUG' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add filter' }))
-    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ filters: [{ step: 2, key: 'sku', value: 'TSHIRT' }] }))
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ filters: [{ step: 2, key: 'sku', op: 'IN', values: ['TSHIRT', 'MUG'] }] }))
   })
   it('funnel: a conversion window', () => {
     const onChange = controls(KINDS.FUNNEL.start)
@@ -94,5 +95,48 @@ describe('the kinds', () => {
   })
   it('start each new report as a definition of its own kind', () => {
     for (const [kind, k] of Object.entries(KINDS)) expect(k.start.kind).toBe(kind)
+  })
+})
+
+describe('conditions', () => {
+  it('build a where list from the property picker, the operator and the values', () => {
+    const onChange = controls({ kind: 'STICKINESS' })
+    fireEvent.click(screen.getByRole('button', { name: 'Add a condition' }))
+    expect(onChange).toHaveBeenLastCalledWith({ kind: 'STICKINESS', where: [{ key: 'sku', op: 'EQ', values: [''] }] })
+  })
+  it("don't run or save until they have a value", () => {
+    const d = cleanDefinition({ kind: 'INSIGHTS', where: [{ key: 'sku', op: 'EQ', values: [''] }, { key: 'device', op: 'IN', values: [' mobile ', ''] }] })
+    expect(d.where).toEqual([{ key: 'device', op: 'IN', values: ['mobile'] }])
+  })
+  it('read back from a board, compare the same as the ones staged', () => {
+    const read = { kind: 'INSIGHTS' as const, where: [{ __typename: 'BoardReportCondition' as const, key: 'sku', op: 'EQ' as const, values: ['X'] }], filters: null }
+    expect(cleanDefinition(read)).toEqual({ kind: 'INSIGHTS', where: [{ key: 'sku', op: 'EQ', values: ['X'] }] })
+  })
+  it("read in a report's one-line description", () => {
+    expect(KINDS.INSIGHTS.describe({ kind: 'INSIGHTS', event: 'view_item', where: [{ key: 'sku', op: 'EQ', values: ['X'] }] })).toBe('Count of view_item where sku = X')
+  })
+})
+
+describe('net sales', () => {
+  it('is a measure of its own that sets the events and the sum, and back to a count drops them', () => {
+    const onChange = controls(KINDS.INSIGHTS.start)
+    fireEvent.click(screen.getByRole('button', { name: 'Net sales' }))
+    const d = onChange.mock.lastCall![0]
+    expect(isNetSales(d)).toBe(true)
+    expect(KINDS.INSIGHTS.describe(d)).toBe('Net sales')
+  })
+  it('back to a count drops the net sales events', () => {
+    const onChange = controls({ kind: 'INSIGHTS', events: ['order_line', 'order_line_adjusted', 'refund_line'], measure: 'sum', sumKey: 'net_base_cents' })
+    expect(screen.queryByRole('combobox', { name: 'Event' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Total' }))
+    expect(onChange).toHaveBeenLastCalledWith({ kind: 'INSIGHTS', measure: 'total', sumKey: undefined, events: undefined })
+  })
+})
+
+describe('a funnel drop-off', () => {
+  it("opens a flow from the step people dropped off at, without the ones who went on, held to the step's filters", () => {
+    const f: ReportDefinition = { kind: 'FUNNEL', steps: ['view_item', 'cart_add', 'order_placed'], windowHours: 24, filters: [{ step: 0, key: 'sku', value: 'X' }] }
+    expect(dropOffFlow(f, 0)).toEqual({ kind: 'FLOW', event: 'view_item', depth: 4, notThen: 'cart_add', notThenWithinHours: 24, where: [{ key: 'sku', op: 'EQ', values: ['X'] }] })
+    expect(dropOffFlow(f, 1)).toMatchObject({ event: 'cart_add', notThen: 'order_placed', where: undefined })
   })
 })
