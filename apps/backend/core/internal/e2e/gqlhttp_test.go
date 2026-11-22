@@ -13,10 +13,16 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 )
 
-// gqlPost drives the real front API - the request crosses the entire production middleware
+// One error of a GraphQL response - its message, and the code and whatever else its extensions carry
+type gqlError struct {
+	Message    string         `json:"message"`
+	Extensions map[string]any `json:"extensions"`
+}
+
+// gqlPostErrors drives the real front API - the request crosses the entire production middleware
 // chain: recover, body limits, rate limiting, auth, channel resolution, locale clamp, dataloaders
 // headers adds request headers on top, such as an offer link's X-Cart-Offer
-func (h *harness) gqlPost(t *testing.T, ts *httptest.Server, channelID, query string, headers ...map[string]string) (map[string]any, []string) {
+func (h *harness) gqlPostErrors(t *testing.T, ts *httptest.Server, channelID, query string, headers ...map[string]string) (map[string]any, []gqlError) {
 	t.Helper()
 	body, err := json.Marshal(map[string]string{"query": query})
 	if err != nil {
@@ -42,18 +48,22 @@ func (h *harness) gqlPost(t *testing.T, ts *httptest.Server, channelID, query st
 	defer resp.Body.Close()
 	var out struct {
 		Data   map[string]any `json:"data"`
-		Errors []struct {
-			Message string `json:"message"`
-		} `json:"errors"`
+		Errors []gqlError     `json:"errors"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		t.Fatalf("decode graphql response (http %d): %v", resp.StatusCode, err)
 	}
+	return out.Data, out.Errors
+}
+
+func (h *harness) gqlPost(t *testing.T, ts *httptest.Server, channelID, query string, headers ...map[string]string) (map[string]any, []string) {
+	t.Helper()
+	data, errs := h.gqlPostErrors(t, ts, channelID, query, headers...)
 	var msgs []string
-	for _, e := range out.Errors {
+	for _, e := range errs {
 		msgs = append(msgs, e.Message)
 	}
-	return out.Data, msgs
+	return data, msgs
 }
 
 func gqlField(t *testing.T, data map[string]any, object, field string) string {

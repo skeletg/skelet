@@ -191,11 +191,24 @@ export function paymentStepSchema(mode: PaymentMode) {
     note: optionalText(2000),
     // Email offers, signed-in shoppers only - unticked by default, and leaving it unticked changes nothing they chose before
     marketingOptIn: z.boolean().optional(),
+    // The order total the page showed when Pay was pressed - the backend places nothing if it would charge another
+    expectedTotalCents: z.number().int().min(0).optional(),
     tos:
       mode.consent === "checkbox"
         ? z.boolean({ error: "tosRequired" }).refine((v) => v, "tosRequired")
         : z.boolean().optional(),
   });
+}
+
+// A placement refused because the order would come to something other than the total the page showed: what it comes
+// to now, and what the checkout quotes now. Where the two differ, something prices the order only as it is placed, so
+// the page shows totalCents itself and sends it as the total agreed to
+export type TotalChanged = { totalCents: number; quotedCents: number };
+
+// The total to send with the next try: the refusal's, while the checkout still quotes what it quoted then - anything
+// the shopper has changed since is on the page, and the page's total is the one they are looking at
+export function expectedTotal(pageTotalCents: number, changed: TotalChanged | undefined): number {
+  return changed && changed.quotedCents === pageTotalCents ? changed.totalCents : pageTotalCents;
 }
 
 export const giftCardSchema = z.object({

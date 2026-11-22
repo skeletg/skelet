@@ -5,6 +5,7 @@ import {
   groupDeliverySchema,
   destinationSchema,
   detailsStepSchema,
+  expectedTotal,
   paymentStepSchema,
   type DetailsMode,
   splitSelection,
@@ -270,5 +271,22 @@ describe("paymentStepSchema", () => {
       savedPaymentMethodId: null,
       paymentToken: null,
     });
+  });
+});
+
+describe("expectedTotal", () => {
+  it("is the page's total until a placement is refused", () => {
+    expect(expectedTotal(4400, undefined)).toBe(4400);
+  });
+
+  it("is the refusal's total while the checkout still quotes what it quoted then", () => {
+    // Something prices the order only as it is placed: the page can't show it, so the refusal's figure is the one agreed to
+    expect(expectedTotal(4400, { totalCents: 4600, quotedCents: 4400 })).toBe(4600);
+    // The quote caught up with the refusal: the page shows the same figure
+    expect(expectedTotal(5500, { totalCents: 5500, quotedCents: 5500 })).toBe(5500);
+  });
+
+  it("is the page's total again once the shopper has changed the checkout", () => {
+    expect(expectedTotal(4900, { totalCents: 4600, quotedCents: 4400 })).toBe(4900);
   });
 });

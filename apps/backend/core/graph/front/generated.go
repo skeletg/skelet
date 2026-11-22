@@ -939,7 +939,7 @@ type ComplexityRoot struct {
 		MoveSavedToCart                func(childComplexity int, cartID string, savedItemID string) int
 		MoveToCart                     func(childComplexity int, productID string) int
 		OpenCartOffer                  func(childComplexity int, token string) int
-		PlaceOrder                     func(childComplexity int, cartID *string, paymentToken *string, savedPaymentMethodID *string, acceptTerms *bool, marketingOptIn *bool) int
+		PlaceOrder                     func(childComplexity int, cartID *string, paymentToken *string, savedPaymentMethodID *string, acceptTerms *bool, marketingOptIn *bool, expectedTotalCents *int32) int
 		PresignWebFormUpload           func(childComplexity int, formID string, fieldKey string, filename string, contentType string, sizeBytes int32) int
 		RedeemCartHandoff              func(childComplexity int, token string, cartID *string) int
 		RedeemLoyaltyPoints            func(childComplexity int, points int32) int
@@ -1781,7 +1781,7 @@ type MutationResolver interface {
 	FinalizeOrderPayment(ctx context.Context, orderID string) (bool, error)
 	Reorder(ctx context.Context, orderID string) (*model1.ReorderResult, error)
 	RequestReturn(ctx context.Context, input model.RequestReturnInput) (*model.OrderReturn, error)
-	PlaceOrder(ctx context.Context, cartID *string, paymentToken *string, savedPaymentMethodID *string, acceptTerms *bool, marketingOptIn *bool) (*model.Order, error)
+	PlaceOrder(ctx context.Context, cartID *string, paymentToken *string, savedPaymentMethodID *string, acceptTerms *bool, marketingOptIn *bool, expectedTotalCents *int32) (*model.Order, error)
 	SavePaymentMethod(ctx context.Context, providerSlug string, token string) (*model1.SavedPaymentMethod, error)
 	DeleteMyPaymentMethod(ctx context.Context, id string) (bool, error)
 	SubmitProductQuestion(ctx context.Context, productID string, question string, authorName *string, authorEmail *string) (bool, error)
@@ -5946,7 +5946,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.PlaceOrder(childComplexity, args["cartId"].(*string), args["paymentToken"].(*string), args["savedPaymentMethodId"].(*string), args["acceptTerms"].(*bool), args["marketingOptIn"].(*bool)), true
+		return e.ComplexityRoot.Mutation.PlaceOrder(childComplexity, args["cartId"].(*string), args["paymentToken"].(*string), args["savedPaymentMethodId"].(*string), args["acceptTerms"].(*bool), args["marketingOptIn"].(*bool), args["expectedTotalCents"].(*int32)), true
 	case "Mutation.presignWebFormUpload":
 		if e.ComplexityRoot.Mutation.PresignWebFormUpload == nil {
 			break
@@ -12030,6 +12030,8 @@ extend type Mutation {
     acceptTerms: Boolean
     # A guest ticked "send me offers by email". Kept under the order's email, with the order number as proof, and applied to the account once someone proves they own the address. A signed-in shopper's choice goes through setConsent instead, so it is ignored for them.
     marketingOptIn: Boolean
+    # The total the shopper was shown (checkout.totals.totalCents). When the order would come to anything else - a price, a promotion or a rate moved, or a plugin changed a figure at placement - nothing is placed and the error is CHECKOUT_TOTAL_CHANGED, its extensions carrying totalCents, subtotalCents, discountCents, shippingCents, feesCents and taxCents as they are now. Show them and call again with the new total. Omitted, the order is placed at whatever it comes to.
+    expectedTotalCents: Int
   ): Order!
 }
 
@@ -16170,6 +16172,14 @@ func (ec *executionContext) field_Mutation_placeOrder_args(ctx context.Context, 
 		return nil, err
 	}
 	args["marketingOptIn"] = arg4
+	arg5, err := graphql.ProcessArgField(ctx, rawArgs, "expectedTotalCents",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["expectedTotalCents"] = arg5
 	return args, nil
 }
 
@@ -35039,7 +35049,7 @@ func (ec *executionContext) _Mutation_placeOrder(ctx context.Context, field grap
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().PlaceOrder(ctx, fc.Args["cartId"].(*string), fc.Args["paymentToken"].(*string), fc.Args["savedPaymentMethodId"].(*string), fc.Args["acceptTerms"].(*bool), fc.Args["marketingOptIn"].(*bool))
+			return ec.Resolvers.Mutation().PlaceOrder(ctx, fc.Args["cartId"].(*string), fc.Args["paymentToken"].(*string), fc.Args["savedPaymentMethodId"].(*string), fc.Args["acceptTerms"].(*bool), fc.Args["marketingOptIn"].(*bool), fc.Args["expectedTotalCents"].(*int32))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Order) graphql.Marshaler {

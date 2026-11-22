@@ -125,6 +125,20 @@ describe("CheckoutView", () => {
     expect((screen.getByRole("checkbox", { name: "Accept the gift terms" }) as HTMLInputElement).checked).toBe(true);
   });
 
+  // The total on the page is the one the shopper agrees to - it posts with the order, and a placement refused for
+  // coming to something else says what, and posts that figure with the next try
+  it("posts the total it shows, and the one a refused placement came to", () => {
+    const expected = (container: HTMLElement) => container.querySelector<HTMLInputElement>('input[name="expectedTotalCents"]')?.value;
+    const first = render(<CheckoutView {...base} dest={{ countryCode: "DE", postalCode: "10115" }} />);
+    expect(expected(first.container)).toBe("3900");
+    expect(first.container.textContent).not.toContain("The order total is now");
+    first.unmount();
+
+    const again = render(<CheckoutView {...base} dest={{ countryCode: "DE", postalCode: "10115" }} totalNow={4100} />);
+    expect(expected(again.container)).toBe("4100");
+    expect(screen.getAllByRole("alert").map((a) => a.textContent).join(" | ")).toMatch(/The order total is now .*41\.00.*place your order again/);
+  });
+
   it("asks where it's going first, and the summary has no shipping line yet", () => {
     const { container } = render(<CheckoutView {...base} dest={null} />);
     expect((screen.getByRole("combobox", { name: "Country" }) as HTMLSelectElement).value).toBe("DE");

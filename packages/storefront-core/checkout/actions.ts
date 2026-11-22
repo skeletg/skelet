@@ -36,6 +36,7 @@ import {
   paymentStepSchema,
   splitSelection,
   type DetailsValues,
+  type TotalChanged,
 } from "./schemas";
 import { FIELDS_ASKED, fieldAnswer } from "./fields";
 import { getCheckoutSettings } from "../config/read";
@@ -353,7 +354,7 @@ export async function setStoreCreditAction(formData: FormData): Promise<void> {
 // A placed order whose gateway wants an in-page step (3DS) before the payment counts - the page runs it with the
 // secret, then finalizePlacedPaymentAction asks the gateway how it went
 export type PendingPayment = { orderId: string; clientSecret: string; email: string; cartId: string; offer: boolean };
-export type PlaceOrderResult = FormResult & { payment?: PendingPayment };
+export type PlaceOrderResult = FormResult & { payment?: PendingPayment; totalChanged?: TotalChanged };
 
 export async function placeOrderAction(
   _prev: PlaceOrderResult | undefined,
@@ -399,6 +400,7 @@ export async function placeOrderAction(
       acceptTerms: v.tos === true,
       // Kept for a guest under the order's email until they prove they own it - the backend ignores it on a customer's order
       marketingOptIn: v.marketingOptIn === true,
+      expectedTotalCents: v.expectedTotalCents ?? null,
     });
     orderId = res.data.placeOrder.id;
     const secret = res.data.placeOrder.paymentClientSecret;
@@ -406,6 +408,11 @@ export async function placeOrderAction(
     failed = res.data.placeOrder.paymentFailed === true;
   } catch (err) {
     request().refresh(); // a step the backend says is missing reopens once the page re-reads the cart
+    const ext = err instanceof GraphQLRequestError ? err.errors[0]?.extensions : undefined;
+    if (ext?.code === "CHECKOUT_TOTAL_CHANGED" && typeof ext.totalCents === "number") {
+      const totalChanged = { totalCents: ext.totalCents, quotedCents: checkout.totals.totalCents };
+      return { ...submission.reply({ formErrors: ["checkoutTotalChanged"] }), totalChanged };
+    }
     return checkoutError(submission, err, "placeOrderFailed");
   }
 

@@ -148,3 +148,36 @@ describe("paying through a gateway's fields", () => {
     expect(sent.get("paymentUi")).toBeNull();
   });
 });
+
+// The total on the page is the one the shopper agrees to: it travels with the order, and when the backend places
+// nothing because the order comes to something else, the step says what and sends that figure with the next try
+describe("the total the shopper agreed to", () => {
+  it("goes with the order as the page shows it", async () => {
+    actions.place.mockResolvedValue({ status: "success" });
+    renderStep();
+    await userEvent.click(screen.getByRole("button", { name: /Pay/ }));
+    await waitFor(() => expect(actions.place).toHaveBeenCalled());
+    expect((actions.place.mock.calls[0][1] as FormData).get("expectedTotalCents")).toBe("2000");
+  });
+
+  it("shows a total only placement could know, and agrees to it on the next try", async () => {
+    actions.place.mockResolvedValue({ status: "error", error: { "": ["checkoutTotalChanged"] }, totalChanged: { totalCents: 2300, quotedCents: 2000 } });
+    renderStep();
+    await userEvent.click(screen.getByRole("button", { name: /Pay/ }));
+    expect(await screen.findByText(/The order total is now/)).toHaveTextContent("23.00");
+    expect(screen.getByText(/The order total changed since this page loaded/)).toBeInTheDocument();
+
+    actions.place.mockResolvedValue({ status: "success" });
+    await userEvent.click(screen.getByRole("button", { name: /Pay/ }));
+    await waitFor(() => expect(actions.place).toHaveBeenCalledTimes(2));
+    expect((actions.place.mock.calls[1][1] as FormData).get("expectedTotalCents")).toBe("2300");
+  });
+
+  it("says nothing more once the page itself shows the new total", async () => {
+    actions.place.mockResolvedValue({ status: "error", error: { "": ["checkoutTotalChanged"] }, totalChanged: { totalCents: 2000, quotedCents: 2000 } });
+    renderStep();
+    await userEvent.click(screen.getByRole("button", { name: /Pay/ }));
+    expect(await screen.findByText(/The order total changed since this page loaded/)).toBeInTheDocument();
+    expect(screen.queryByText(/The order total is now/)).toBeNull();
+  });
+});

@@ -24,6 +24,8 @@ const id = await getOwnCartId();
 if (!id) return Astro.redirect("/cart");
 
 let error: string | undefined;
+// What a refused placement comes to, when it isn't the total this page showed - shown, and sent with the next try
+let totalNow: number | undefined;
 let posted: FormData | undefined;
 const field = (name: string, fallback?: string | null) => String(posted?.get(name) ?? fallback ?? "");
 // A radio group's pick: what was just posted, else what the cart has saved, else the first option
@@ -74,13 +76,16 @@ if (Astro.request.method === "POST") {
         input: { email: field("email").trim(), phone: opt("phone"), billingSameAsShipping: true, shippingAddress: address, billingAddress: address, fields },
       });
       await gql(SetPaymentDocument, { cartId: id, providerSlug: field("payment") });
-      const { placeOrder } = await gql(PlaceDocument, { cartId: id, acceptTerms: field("acceptTerms") === "on" });
+      // The total the page showed goes with the order, so nothing is placed at a figure the shopper didn't see
+      const shown = Number.parseInt(field("expectedTotalCents"), 10);
+      const { placeOrder } = await gql(PlaceDocument, { cartId: id, acceptTerms: field("acceptTerms") === "on", expectedTotalCents: Number.isFinite(shown) ? shown : null });
       // shortcut: card gateways that confirm in the browser (3DS) aren't wired - offline methods only, add the gateway's client step for cards
       forgetCart(Astro.cookies);
       return Astro.redirect(`/order-placed?n=${encodeURIComponent(placeOrder.number)}`, 303);
     }
   } catch (err) {
-    error = shopperMessage(err, "We couldn't place your order - please try again.");
+    if (err instanceof GqlError && err.code === "CHECKOUT_TOTAL_CHANGED" && typeof err.extensions.totalCents === "number") totalNow = err.extensions.totalCents;
+    else error = shopperMessage(err, "We couldn't place your order - please try again.");
   }
 }
 
@@ -120,6 +125,7 @@ const values = {
 <Base title="Checkout" noindex transitions={false}>
   <CheckoutView
     error={error}
+    totalNow={totalNow}
     cart={cart}
     channel={channel}
     countries={countries}

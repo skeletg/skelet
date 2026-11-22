@@ -30,6 +30,8 @@ export type CheckoutValues = {
 
 type Props = {
   error?: string;
+  // What a placement just refused comes to, when it isn't the total the page showed
+  totalNow?: number;
   cart: Cart;
   channel: Channel;
   countries: CountriesQuery["countries"];
@@ -55,11 +57,16 @@ function StepTitle({ n, children }: { n: number; children: string }) {
   );
 }
 
-export function CheckoutView({ error, cart, channel, countries, dest, groups, picks, payments, pickedPayment, values }: Props) {
+export function CheckoutView({ error, totalNow, cart, channel, countries, dest, groups, picks, payments, pickedPayment, values }: Props) {
   return (
     <>
       <h1 className="mb-8 text-3xl font-semibold tracking-tight sm:text-4xl">Checkout</h1>
       {error && <Notice>{error}</Notice>}
+      {totalNow !== undefined && (
+        <Notice>
+          The order total is now <Price amount={totalNow} currency={channel.currency} />. Check it, then place your order again.
+        </Notice>
+      )}
 
       <div className="grid items-start gap-10 lg:grid-cols-[1fr_380px]">
         <div>
@@ -69,6 +76,8 @@ export function CheckoutView({ error, cart, channel, countries, dest, groups, pi
             <form method="post" id="checkout-details" className="grid gap-10">
               <input type="hidden" name="countryCode" value={dest.countryCode} />
               <input type="hidden" name="postalCode" value={dest.postalCode} />
+              {/* The total this page shows goes with the order, so nothing is placed at a figure the shopper didn't see */}
+              <input type="hidden" name="expectedTotalCents" value={totalNow ?? cart.checkout.totals.totalCents} />
               <DeliverySection dest={dest} countries={countries} groups={groups} picks={picks} channel={channel} />
               <ContactSection values={values} asked={cart.checkout.fields} />
               <PaymentSection payments={payments} pickedPayment={pickedPayment} />

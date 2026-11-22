@@ -395,6 +395,9 @@ type PlaceOrderInput struct {
 	FulfillmentNeed string
 	// The shopper ticked the email opt-in at checkout - only a guest's rides the order, a signed-in shopper's goes straight to their consent
 	MarketingOptIn bool
+	// The total the shopper was shown. Placement refuses with a TotalChangedError when the order would come to
+	// anything else, rather than charge a figure nobody agreed to - nil skips the check
+	ExpectedTotalCents *int64
 }
 
 // Redeems a gift card as a tender in the placement tx, where applied is the cents covered - local so order doesn't import giftcard, which imports order
@@ -644,6 +647,12 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		}
 		// Tax-inclusive stores don't add tax on top - taxCents is recorded for the receipt breakdown but is informational
 		total := computeOrderTotal(subtotal, placing.DiscountCents, taxCents, shippingCents, feeTotal(cc.fees), store.TaxInclusivePricing, placing.TotalCents)
+		// Before anything of the order is written: the transaction rolls back whatever a plugin did in it
+		if in.ExpectedTotalCents != nil && *in.ExpectedTotalCents != total {
+			return &TotalChangedError{ExpectedCents: *in.ExpectedTotalCents, Now: CheckoutQuote{
+				SubtotalCents: subtotal, DiscountCents: placing.DiscountCents, ShippingCents: shippingCents, Fees: cc.fees, TaxCents: taxCents, TotalCents: total,
+			}}
+		}
 
 		orderR := s.repo.WithTx(sqlTx)
 		cartR := s.cartRepo.WithTx(sqlTx)

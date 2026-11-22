@@ -9,6 +9,8 @@ export class GqlError extends Error {
     message: string,
     // The backend's extensions.code (PRODUCT_NOT_FOUND ...), or UNAVAILABLE when the store itself failed
     readonly code: string,
+    // Whatever else the backend said about it - the totals a refused placement comes to now
+    readonly extensions: Record<string, unknown> = {},
   ) {
     super(message);
   }
@@ -49,7 +51,7 @@ export async function gql<TData, TVars>(doc: TypedDocumentNode<TData, TVars>, ..
     if (err instanceof GraphQLRequestError) {
       const first = err.errors[0];
       const code = first?.extensions?.code ?? first?.extensions?.class;
-      throw new GqlError(first?.message ?? err.message, typeof code === "string" && code ? code : "INTERNAL");
+      throw new GqlError(first?.message ?? err.message, typeof code === "string" && code ? code : "INTERNAL", first?.extensions);
     }
     if (err instanceof BackendUnavailableError) throw new GqlError(err.detail, "UNAVAILABLE");
     throw err;

@@ -59,6 +59,7 @@
       "shippingMethodUnavailable": "That option isn't available for this postcode any more - choose another.",
       "shippingQuoteFailed": "We can't price delivery right now. Please try again in a moment.",
       "checkoutConflict": "Your checkout changed in another tab. Reload the page and try again.",
+      "checkoutTotalChanged": "The order total changed since this page loaded. Check it, then place your order again.",
       "checkoutFieldTooLong": "One of the fields is too long - shorten it and try again.",
       "paymentMethodRequired": "Choose a payment method.",
       "paymentMethodUnavailable": "That payment method isn't available for this country - choose another.",
@@ -999,6 +1000,7 @@
       "addNote": "Add a note to your order",
       "tosNotice": "By placing your order you agree to the <terms>terms of service</terms> and <privacy>privacy policy</privacy>.",
       "pay": "Pay {amount}",
+      "totalNow": "The order total is now {amount}.",
       "placeCovered": "Place order",
       "marketingOptIn": "Send me occasional offers by email."
     },
