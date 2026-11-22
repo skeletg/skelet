@@ -29,8 +29,12 @@ const (
 // SetLinePriceInput is an admin's price for a line - a nil UnitPrice puts a catalog line back on its catalog price
 type SetLinePriceInput struct {
 	UnitPrice *int64
-	Reason    string     // why, for whoever reads the order later
+	Reason    string     // why, for whoever reads the order later - required on a shopper's own cart
 	By        *uuid.UUID // the admin setting it
+	// On a shopper's own cart only: the most that may come off the catalog price, in percent (nil for any price),
+	// and when the price stops holding (nil for as long as the cart lives)
+	MaxCutPercent *int
+	HoldsUntil    *time.Time
 }
 
 var ErrOfferAccountNeedsCustomer = errors.New("only an offer for a customer can show in their account")
@@ -118,10 +122,15 @@ func normalizeOfferSettings(c Cart, in *OfferSettings, ships bool) error {
 
 // AdminSetLinePrice sets a line's price on an offer, which then holds through repricing - nil puts a catalog line back on today's catalog price
 // The line keeps who set it, why, and the catalog price it replaced, and its order line does after it
+// On a shopper's own cart the price is for the quantity the line holds, needs a reason and stays within the cut the
+// store allows - see shopperPrice
 func (s *Service) AdminSetLinePrice(ctx context.Context, cartID, lineID uuid.UUID, in SetLinePriceInput) (Cart, error) {
-	cart, err := s.adminOffer(ctx, cartID)
+	cart, err := s.adminActiveCart(ctx, cartID)
 	if err != nil {
 		return Cart{}, err
+	}
+	if cart.IsOffer() && cart.Offer.RevokedAt != nil {
+		return Cart{}, ErrOfferRevoked
 	}
 	line, err := s.findHydratedLine(ctx, cart.ID, lineID)
 	if err != nil {
@@ -135,8 +144,13 @@ func (s *Service) AdminSetLinePrice(ctx context.Context, cartID, lineID uuid.UUI
 		if utf8.RuneCountInString(reason) > MaxPriceReason {
 			return Cart{}, fmt.Errorf("%w: the reason is at most %d characters", ErrOfferLinePriceInvalid, MaxPriceReason)
 		}
-		list := s.catalogUnit(ctx, cart, line)
-		if _, err := s.repo.SetLinePrice(ctx, line.ID, LinePrice{UnitPrice: *in.UnitPrice, Source: PriceAdmin, SetBy: in.By, Reason: reason, ListUnitPrice: list}); err != nil {
+		price := LinePrice{UnitPrice: *in.UnitPrice, Source: PriceAdmin, SetBy: in.By, Reason: reason, ListUnitPrice: s.catalogUnit(ctx, cart, line)}
+		if !cart.IsOffer() {
+			if price, err = shopperPrice(price, line, in); err != nil {
+				return Cart{}, err
+			}
+		}
+		if _, err := s.repo.SetLinePrice(ctx, line.ID, price); err != nil {
 			return Cart{}, err
 		}
 		return loadCartWithLines(ctx, s.repo, cart.ID)

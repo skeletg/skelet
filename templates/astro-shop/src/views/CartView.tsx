@@ -6,7 +6,7 @@ import { Button, ButtonLink, Notice } from "../components/ui";
 
 // What the view reads of the core's cart
 type Cart = Pick<CoreCart, "id" | "subtotal" | "totalDiscount"> & {
-  lines: Pick<CartLine, "id" | "name" | "sku" | "imageUrl" | "unitPrice" | "quantity" | "totalPrice">[];
+  lines: Pick<CartLine, "id" | "name" | "sku" | "imageUrl" | "unitPrice" | "quantity" | "totalPrice" | "listUnitPrice" | "priceMaxQuantity">[];
 };
 type Props = { cart: Cart | null; flash?: string; currency: Currency };
 
@@ -71,6 +71,17 @@ function CartLine({ line: l, currency }: { line: Cart["lines"][number]; currency
         <p className="mt-0.5 text-sm text-muted-foreground">
           <Price amount={l.unitPrice} currency={currency} /> each
         </p>
+        {(l.listUnitPrice != null || l.priceMaxQuantity != null) && (
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            A price set for you
+            {l.listUnitPrice != null && l.listUnitPrice !== l.unitPrice && (
+              <>
+                {" "}- usually <Price amount={l.listUnitPrice} currency={currency} />
+              </>
+            )}
+            .{l.priceMaxQuantity != null && ` It is for up to ${l.priceMaxQuantity}.`}
+          </p>
+        )}
         <div className="mt-3 flex flex-wrap items-center gap-4">
           <form method="post" className="flex items-center gap-2" data-enhance="[data-cart]">
             <input type="hidden" name="intent" value="update" />

@@ -22,6 +22,7 @@ func init() {
 	Register(Definition{Group: "orders", Slug: "orders.view", Name: "View Orders", SortOrder: 1})
 	Register(Definition{Group: "orders", Slug: "orders.update", Name: "Update Orders", SortOrder: 2})
 	Register(Definition{Group: "orders", Slug: "orders.refund", Name: "Refund Orders", Description: "Issue refunds and credit memos against any order in scope, including goodwill credits with no return behind them. Money leaves on this permission - grant it separately from orders.update.", SortOrder: 3})
+	Register(Definition{Group: "orders", Slug: "orders.set_cart_price", Name: "Set Cart Prices", Description: "Set the price of a line in a shopper's own cart - a price match, a goodwill cut. The shopper checks out at it. An offer's prices come with Update Orders.", SortOrder: 4})
 
 	Register(Definition{Group: "customers", Slug: "customers.view", Name: "View Customers", SortOrder: 1})
 	Register(Definition{Group: "customers", Slug: "customers.manage", Name: "Manage Customers", SortOrder: 2})

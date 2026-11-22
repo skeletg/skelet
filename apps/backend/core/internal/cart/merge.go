@@ -143,34 +143,37 @@ func copyLines(ctx context.Context, r Repository, destID uuid.UUID, lines []Cart
 		if snapshotted[l.ProductSku+"\x00"+l.ConfigKey] {
 			continue
 		}
+		var copied CartLine
 		var err error
 		switch {
 		case len(l.Components) > 0:
 			if plain[l.ProductSku] {
 				continue
 			}
-			_, err = r.UpsertBundleCartLine(ctx, destID, AddBundleLineInput{
-				ProductName: l.ProductName,
-				ProductSku:  l.ProductSku,
-				UnitPrice:   l.UnitPrice,
-				Quantity:    l.Quantity,
-				Components:  componentInputs(l.Components),
-				HookPriced:  l.BundleHookPriced,
-				ConfigKey:   l.ConfigKey,
+			copied, err = r.UpsertBundleCartLine(ctx, destID, AddBundleLineInput{
+				ProductName:  l.ProductName,
+				ProductSku:   l.ProductSku,
+				UnitPrice:    l.UnitPrice,
+				Quantity:     l.Quantity,
+				Components:   componentInputs(l.Components),
+				HookPriced:   l.BundleHookPriced,
+				ConfigKey:    l.ConfigKey,
+				KeepSetPrice: true,
 			})
 		case len(l.Options) > 0:
 			if plain[l.ProductSku] {
 				continue
 			}
-			_, err = r.UpsertConfiguredCartLine(ctx, destID, AddConfiguredLineInput{
-				ProductName: l.ProductName,
-				ProductSku:  l.ProductSku,
-				UnitPrice:   l.UnitPrice,
-				Quantity:    l.Quantity,
-				Options:     l.Options,
+			copied, err = r.UpsertConfiguredCartLine(ctx, destID, AddConfiguredLineInput{
+				ProductName:  l.ProductName,
+				ProductSku:   l.ProductSku,
+				UnitPrice:    l.UnitPrice,
+				Quantity:     l.Quantity,
+				Options:      l.Options,
+				KeepSetPrice: true,
 			})
 		default:
-			_, err = r.UpsertCartLineBySku(ctx, destID, AddCartLineInput{
+			copied, err = r.UpsertCartLineBySku(ctx, destID, AddCartLineInput{
 				ProductName: l.ProductName,
 				ProductSku:  l.ProductSku,
 				UnitPrice:   l.UnitPrice,
@@ -179,6 +182,18 @@ func copyLines(ctx context.Context, r Repository, destID uuid.UUID, lines []Cart
 		}
 		if err != nil {
 			return fmt.Errorf("copy line %q: %w", l.ProductSku, err)
+		}
+		// A price set on the line comes with it. One already set on the line it joins stands - either way the line
+		// holds no more than its price is for, however many the two carts had between them
+		if l.PriceHeld() && !copied.PriceSet() {
+			if _, err := r.SetLinePrice(ctx, copied.ID, l.linePrice()); err != nil {
+				return fmt.Errorf("copy line %q: %w", l.ProductSku, err)
+			}
+		}
+		if l.PriceHeld() || copied.PriceSet() {
+			if err := r.CapLineQuantity(ctx, copied.ID); err != nil {
+				return fmt.Errorf("copy line %q: %w", l.ProductSku, err)
+			}
 		}
 	}
 	return nil

@@ -180,6 +180,7 @@ type ComplexityRoot struct {
 		Kind          func(childComplexity int) int
 		Lines         func(childComplexity int) int
 		Offer         func(childComplexity int) int
+		PriceLimits   func(childComplexity int) int
 		Source        func(childComplexity int) int
 		Status        func(childComplexity int) int
 		Subtotal      func(childComplexity int) int
@@ -232,21 +233,23 @@ type ComplexityRoot struct {
 	}
 
 	AdminCartLine struct {
-		Components    func(childComplexity int) int
-		ID            func(childComplexity int) int
-		IsCustom      func(childComplexity int) int
-		IsSimple      func(childComplexity int) int
-		ListUnitPrice func(childComplexity int) int
-		Name          func(childComplexity int) int
-		Options       func(childComplexity int) int
-		PriceOverride func(childComplexity int) int
-		PriceReason   func(childComplexity int) int
-		PriceSource   func(childComplexity int) int
-		Quantity      func(childComplexity int) int
-		Sku           func(childComplexity int) int
-		TaxClass      func(childComplexity int) int
-		TotalPrice    func(childComplexity int) int
-		UnitPrice     func(childComplexity int) int
+		Components       func(childComplexity int) int
+		ID               func(childComplexity int) int
+		IsCustom         func(childComplexity int) int
+		IsSimple         func(childComplexity int) int
+		ListUnitPrice    func(childComplexity int) int
+		Name             func(childComplexity int) int
+		Options          func(childComplexity int) int
+		PriceExpiresAt   func(childComplexity int) int
+		PriceMaxQuantity func(childComplexity int) int
+		PriceOverride    func(childComplexity int) int
+		PriceReason      func(childComplexity int) int
+		PriceSource      func(childComplexity int) int
+		Quantity         func(childComplexity int) int
+		Sku              func(childComplexity int) int
+		TaxClass         func(childComplexity int) int
+		TotalPrice       func(childComplexity int) int
+		UnitPrice        func(childComplexity int) int
 	}
 
 	AdminCartLineComponent struct {
@@ -1248,6 +1251,11 @@ type ComplexityRoot struct {
 		Status         func(childComplexity int) int
 		Subtotal       func(childComplexity int) int
 		UpdatedAt      func(childComplexity int) int
+	}
+
+	CartPriceLimits struct {
+		HoldsUntil    func(childComplexity int) int
+		MaxCutPercent func(childComplexity int) int
 	}
 
 	CascadeAttributeIndexableResult struct {
@@ -6868,6 +6876,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AdminCart.Offer(childComplexity), true
+	case "AdminCart.priceLimits":
+		if e.ComplexityRoot.AdminCart.PriceLimits == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCart.PriceLimits(childComplexity), true
 	case "AdminCart.source":
 		if e.ComplexityRoot.AdminCart.Source == nil {
 			break
@@ -7120,6 +7134,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AdminCartLine.Options(childComplexity), true
+	case "AdminCartLine.priceExpiresAt":
+		if e.ComplexityRoot.AdminCartLine.PriceExpiresAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartLine.PriceExpiresAt(childComplexity), true
+	case "AdminCartLine.priceMaxQuantity":
+		if e.ComplexityRoot.AdminCartLine.PriceMaxQuantity == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartLine.PriceMaxQuantity(childComplexity), true
 	case "AdminCartLine.priceOverride":
 		if e.ComplexityRoot.AdminCartLine.PriceOverride == nil {
 			break
@@ -11338,6 +11364,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CartListItem.UpdatedAt(childComplexity), true
+
+	case "CartPriceLimits.holdsUntil":
+		if e.ComplexityRoot.CartPriceLimits.HoldsUntil == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CartPriceLimits.HoldsUntil(childComplexity), true
+	case "CartPriceLimits.maxCutPercent":
+		if e.ComplexityRoot.CartPriceLimits.MaxCutPercent == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CartPriceLimits.MaxCutPercent(childComplexity), true
 
 	case "CascadeAttributeIndexableResult.affectedProductsCount":
 		if e.ComplexityRoot.CascadeAttributeIndexableResult.AffectedProductsCount == nil {
@@ -35722,6 +35761,8 @@ type AdminCart {
   email:         String!      # the cart's own email - a guest offer's recipient, or what a guest typed at checkout
   # Set on an offer only
   offer:         AdminCartOffer
+  # Set on a shopper's own cart only: what the store allows when a line's price is set there
+  priceLimits:   CartPriceLimits
   lines:         [AdminCartLine!]!
   subtotal:      Int!         # Σ line totals (estimate - no tax/shipping)
   itemCount:     Int!
@@ -35748,9 +35789,22 @@ type AdminCartLine {
   priceSource:   LinePriceSource!
   listUnitPrice: Int
   priceReason:   String!
+  # On a shopper's own cart a set price is for at most this many of the item, and holds until this moment - past
+  # it the line goes back to its catalog price at checkout. Both null on an offer's lines and on a catalog price
+  priceMaxQuantity: Float
+  priceExpiresAt:   Time
   # A free-form line added to an offer, with no catalog product behind it
   isCustom:    Boolean!
   taxClass:    String!
+}
+
+# What the store allows when an admin sets a line's price on a shopper's own cart (sales/cart/max_price_cut_percent
+# and sales/cart/set_price_days). The price also needs a reason and the orders.set_cart_price permission
+type CartPriceLimits {
+  # The most that may come off the line's catalog price, in percent - 100 allows any price
+  maxCutPercent: Int!
+  # When a price set now stops holding - null when it holds for as long as the cart lives
+  holdsUntil: Time
 }
 
 enum CartKind {
@@ -36006,8 +36060,11 @@ extend type Mutation {
   # Offers - a cart built for one recipient and sent as a link. Always a fresh cart, never the customer's active one
   adminCreateCartOffer(input: AdminCreateCartOfferInput!): AdminCart!
   adminUpdateCartOffer(cartId: ID!, input: AdminUpdateCartOfferInput!): AdminCart!
-  # Sets a line's price on an offer - it holds through checkout. null puts a catalog line back on its catalog price.
-  # The reason stays with the line and its order line, for whoever reads the order later
+  # Sets a line's price - it holds through checkout. null puts a catalog line back on its catalog price.
+  # The reason stays with the line and its order line, for whoever reads the order later.
+  # On an offer that is all. On a shopper's own cart it takes orders.set_cart_price and a reason, the price may be no
+  # lower than the cart's priceLimits allow (CART_LINE_PRICE_TOO_LOW, with floorCents in the error's extensions), and
+  # it is for the quantity the line holds: the shopper may buy fewer at it, not more
   adminSetCartLinePrice(cartId: ID!, lineId: ID!, unitPrice: Int, reason: String): AdminCart!
   adminAddCustomCartLine(cartId: ID!, input: AdminCustomCartLineInput!): AdminCart!
   # Emails the offer's link to its recipient - again on every call
@@ -45275,6 +45332,8 @@ func (ec *executionContext) childFields_AdminCart(ctx context.Context, field gra
 		return ec.fieldContext_AdminCart_email(ctx, field)
 	case "offer":
 		return ec.fieldContext_AdminCart_offer(ctx, field)
+	case "priceLimits":
+		return ec.fieldContext_AdminCart_priceLimits(ctx, field)
 	case "lines":
 		return ec.fieldContext_AdminCart_lines(ctx, field)
 	case "subtotal":
@@ -45407,6 +45466,10 @@ func (ec *executionContext) childFields_AdminCartLine(ctx context.Context, field
 		return ec.fieldContext_AdminCartLine_listUnitPrice(ctx, field)
 	case "priceReason":
 		return ec.fieldContext_AdminCartLine_priceReason(ctx, field)
+	case "priceMaxQuantity":
+		return ec.fieldContext_AdminCartLine_priceMaxQuantity(ctx, field)
+	case "priceExpiresAt":
+		return ec.fieldContext_AdminCartLine_priceExpiresAt(ctx, field)
 	case "isCustom":
 		return ec.fieldContext_AdminCartLine_isCustom(ctx, field)
 	case "taxClass":
@@ -47415,6 +47478,16 @@ func (ec *executionContext) childFields_CartListItem(ctx context.Context, field 
 		return ec.fieldContext_CartListItem_updatedAt(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type CartListItem", field.Name)
+}
+
+func (ec *executionContext) childFields_CartPriceLimits(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "maxCutPercent":
+		return ec.fieldContext_CartPriceLimits_maxCutPercent(ctx, field)
+	case "holdsUntil":
+		return ec.fieldContext_CartPriceLimits_holdsUntil(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CartPriceLimits", field.Name)
 }
 
 func (ec *executionContext) childFields_CascadeAttributeIndexableResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -71181,6 +71254,38 @@ func (ec *executionContext) fieldContext_AdminCart_offer(_ context.Context, fiel
 	return fc, nil
 }
 
+func (ec *executionContext) _AdminCart_priceLimits(ctx context.Context, field graphql.CollectedField, obj *model.AdminCart) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCart_priceLimits(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PriceLimits, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CartPriceLimits) graphql.Marshaler {
+			return ec.marshalOCartPriceLimits2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCartPriceLimits(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCart_priceLimits(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AdminCart",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CartPriceLimits(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _AdminCart_lines(ctx context.Context, field graphql.CollectedField, obj *model.AdminCart) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -72319,6 +72424,52 @@ func (ec *executionContext) _AdminCartLine_priceReason(ctx context.Context, fiel
 }
 func (ec *executionContext) fieldContext_AdminCartLine_priceReason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AdminCartLine", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartLine_priceMaxQuantity(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartLine_priceMaxQuantity(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PriceMaxQuantity, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartLine_priceMaxQuantity(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartLine", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartLine_priceExpiresAt(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartLine_priceExpiresAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PriceExpiresAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartLine_priceExpiresAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartLine", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
 func (ec *executionContext) _AdminCartLine_isCustom(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLine) (ret graphql.Marshaler) {
@@ -88755,6 +88906,52 @@ func (ec *executionContext) _CartListItem_updatedAt(ctx context.Context, field g
 }
 func (ec *executionContext) fieldContext_CartListItem_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CartListItem", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _CartPriceLimits_maxCutPercent(ctx context.Context, field graphql.CollectedField, obj *model.CartPriceLimits) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CartPriceLimits_maxCutPercent(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MaxCutPercent, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CartPriceLimits_maxCutPercent(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CartPriceLimits", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _CartPriceLimits_holdsUntil(ctx context.Context, field graphql.CollectedField, obj *model.CartPriceLimits) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CartPriceLimits_holdsUntil(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.HoldsUntil, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_CartPriceLimits_holdsUntil(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CartPriceLimits", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
 func (ec *executionContext) _CascadeAttributeIndexableResult_attribute(ctx context.Context, field graphql.CollectedField, obj *model.CascadeAttributeIndexableResult) (ret graphql.Marshaler) {
@@ -197488,6 +197685,11 @@ func (ec *executionContext) _AdminCart(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
+		case "priceLimits":
+			out.Values[i] = ec._AdminCart_priceLimits(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		case "lines":
 			out.Values[i] = ec._AdminCart_lines(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -197924,6 +198126,16 @@ func (ec *executionContext) _AdminCartLine(ctx context.Context, sel ast.Selectio
 		case "priceReason":
 			out.Values[i] = ec._AdminCartLine_priceReason(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "priceMaxQuantity":
+			out.Values[i] = ec._AdminCartLine_priceMaxQuantity(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "priceExpiresAt":
+			out.Values[i] = ec._AdminCartLine_priceExpiresAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		case "isCustom":
@@ -204982,6 +205194,49 @@ func (ec *executionContext) _CartListItem(ctx context.Context, sel ast.Selection
 		case "updatedAt":
 			out.Values[i] = ec._CartListItem_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var cartPriceLimitsImplementors = []string{"CartPriceLimits"}
+
+func (ec *executionContext) _CartPriceLimits(ctx context.Context, sel ast.SelectionSet, obj *model.CartPriceLimits) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, cartPriceLimitsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CartPriceLimits")
+		case "maxCutPercent":
+			out.Values[i] = ec._CartPriceLimits_maxCutPercent(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "holdsUntil":
+			out.Values[i] = ec._CartPriceLimits_holdsUntil(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:
@@ -254086,6 +254341,13 @@ func (ec *executionContext) marshalOCartOfferState2ᚖgithubᚗcomᚋskeletgᚋs
 		return graphql.Null
 	}
 	return v
+}
+
+func (ec *executionContext) marshalOCartPriceLimits2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCartPriceLimits(ctx context.Context, sel ast.SelectionSet, v *model.CartPriceLimits) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._CartPriceLimits(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOCategory2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCategory(ctx context.Context, sel ast.SelectionSet, v *model.Category) graphql.Marshaler {

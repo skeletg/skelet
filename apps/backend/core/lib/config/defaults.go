@@ -96,6 +96,8 @@ func init() {
 	Register(Definition{Path: "sales/inventory/reservations_retention_days", Type: TypeInt, Default: "180", Label: "Reservation retention (days, keep well past the return window; 0 disables pruning)", Public: false})
 	Register(Definition{Path: "sales/cart/retention_days", Type: TypeInt, Default: "90", Label: "Cart retention (days)", Description: "How long an untouched cart survives before it is deleted. Abandoned-cart flows can't fire on a cart that is already gone.", Public: false})
 	Register(Definition{Path: "sales/cart/offer_expiry_days", Scoping: ScopingChannel, Type: TypeInt, Default: "7", Label: "Offer expiry (days)", Description: "How long a new cart offer stays open by default. Each offer's expiry can still be changed before or after it is sent.", Public: false})
+	Register(Definition{Path: "sales/cart/set_price_days", Scoping: ScopingChannel, Type: TypeInt, Default: "7", Label: "Set price holds (days)", Description: "How long a price an admin sets on a line of a shopper's cart holds. After that the line goes back to its catalog price at checkout. 0 holds it for as long as the cart lives.", Public: false, Check: intWithin(0, 365)})
+	Register(Definition{Path: "sales/cart/max_price_cut_percent", Scoping: ScopingChannel, Type: TypeInt, Default: "100", Label: "Largest price cut (%)", Description: "The most an admin may take off a line's catalog price when setting it on a shopper's cart. 100 allows any price, 0 none below the catalog's.", Public: false, Check: intWithin(0, 100)})
 
 	// whole months only (the send log's partition unit) - the log lives in the commerce database and every transactional
 	// mail writes a row, so it ages out by default rather than growing forever on a store that never opens Signals

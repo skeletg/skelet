@@ -36,6 +36,9 @@ export type CartLine = {
   totalPrice: number;
   availableQuantity?: number | null;
   currentUnitPrice?: number | null;
+  // The store set this line's price for the shopper: the regular price it stands in for, and how many it is for
+  listUnitPrice?: number | null;
+  priceMaxQuantity?: number | null;
   components: CartLineComponent[];
   options: CartLineOption[];
   // A charge the store added to an offer by hand - no product page, nothing to deliver

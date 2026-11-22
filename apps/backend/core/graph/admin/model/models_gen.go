@@ -231,6 +231,7 @@ type AdminCart struct {
 	Source        string           `json:"source"`
 	Email         string           `json:"email"`
 	Offer         *AdminCartOffer  `json:"offer,omitempty"`
+	PriceLimits   *CartPriceLimits `json:"priceLimits,omitempty"`
 	Lines         []*AdminCartLine `json:"lines"`
 	Subtotal      int32            `json:"subtotal"`
 	ItemCount     int32            `json:"itemCount"`
@@ -305,21 +306,23 @@ type AdminCartDeliverySelection struct {
 }
 
 type AdminCartLine struct {
-	ID            string                    `json:"id"`
-	Name          string                    `json:"name"`
-	Sku           string                    `json:"sku"`
-	UnitPrice     int32                     `json:"unitPrice"`
-	Quantity      float64                   `json:"quantity"`
-	TotalPrice    int32                     `json:"totalPrice"`
-	IsSimple      bool                      `json:"isSimple"`
-	Components    []*AdminCartLineComponent `json:"components"`
-	Options       []*AdminCartLineOption    `json:"options"`
-	PriceOverride bool                      `json:"priceOverride"`
-	PriceSource   LinePriceSource           `json:"priceSource"`
-	ListUnitPrice *int32                    `json:"listUnitPrice,omitempty"`
-	PriceReason   string                    `json:"priceReason"`
-	IsCustom      bool                      `json:"isCustom"`
-	TaxClass      string                    `json:"taxClass"`
+	ID               string                    `json:"id"`
+	Name             string                    `json:"name"`
+	Sku              string                    `json:"sku"`
+	UnitPrice        int32                     `json:"unitPrice"`
+	Quantity         float64                   `json:"quantity"`
+	TotalPrice       int32                     `json:"totalPrice"`
+	IsSimple         bool                      `json:"isSimple"`
+	Components       []*AdminCartLineComponent `json:"components"`
+	Options          []*AdminCartLineOption    `json:"options"`
+	PriceOverride    bool                      `json:"priceOverride"`
+	PriceSource      LinePriceSource           `json:"priceSource"`
+	ListUnitPrice    *int32                    `json:"listUnitPrice,omitempty"`
+	PriceReason      string                    `json:"priceReason"`
+	PriceMaxQuantity *float64                  `json:"priceMaxQuantity,omitempty"`
+	PriceExpiresAt   *time.Time                `json:"priceExpiresAt,omitempty"`
+	IsCustom         bool                      `json:"isCustom"`
+	TaxClass         string                    `json:"taxClass"`
 }
 
 type AdminCartLineComponent struct {
@@ -1529,6 +1532,11 @@ type CartListItem struct {
 	ItemCount      int32           `json:"itemCount"`
 	Subtotal       int32           `json:"subtotal"`
 	UpdatedAt      time.Time       `json:"updatedAt"`
+}
+
+type CartPriceLimits struct {
+	MaxCutPercent int32      `json:"maxCutPercent"`
+	HoldsUntil    *time.Time `json:"holdsUntil,omitempty"`
 }
 
 type CascadeAttributeIndexableResult struct {

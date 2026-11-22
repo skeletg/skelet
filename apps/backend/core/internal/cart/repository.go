@@ -376,6 +376,7 @@ func (r *postgresRepository) UpsertBundleCartLine(ctx context.Context, cartID uu
 		Quantity:         input.Quantity,
 		BundleHookPriced: input.HookPriced,
 		ConfigKey:        input.ConfigKey,
+		KeepSetPrice:     input.KeepSetPrice,
 	})
 	if err != nil {
 		return CartLine{}, fmt.Errorf("upsert bundle cart line: %w", err)
@@ -408,11 +409,12 @@ func (r *postgresRepository) UpsertBundleCartLine(ctx context.Context, cartID uu
 // Writes the line then replaces its option rows, OVERWRITING quantity/price/name on a SKU conflict like the bundle path (a reconfigure, not an accumulation) - several statements, so callers run it in a transaction
 func (r *postgresRepository) UpsertConfiguredCartLine(ctx context.Context, cartID uuid.UUID, input AddConfiguredLineInput) (CartLine, error) {
 	row, err := r.queries.UpsertConfiguredCartLine(ctx, db.UpsertConfiguredCartLineParams{
-		CartID:      cartID,
-		ProductName: input.ProductName,
-		ProductSku:  input.ProductSku,
-		UnitPrice:   input.UnitPrice,
-		Quantity:    input.Quantity,
+		CartID:       cartID,
+		ProductName:  input.ProductName,
+		ProductSku:   input.ProductSku,
+		UnitPrice:    input.UnitPrice,
+		Quantity:     input.Quantity,
+		KeepSetPrice: input.KeepSetPrice,
 	})
 	if err != nil {
 		return CartLine{}, fmt.Errorf("upsert configured cart line: %w", err)
@@ -678,11 +680,26 @@ func (r *postgresRepository) MarkOffersExpiredNotified(ctx context.Context, ids 
 func (r *postgresRepository) SetLinePrice(ctx context.Context, lineID uuid.UUID, p LinePrice) (CartLine, error) {
 	row, err := r.queries.SetCartLinePrice(ctx, db.SetCartLinePriceParams{
 		ID: lineID, UnitPrice: p.UnitPrice, PriceSource: p.Source, PriceSetBy: sqlnull.UUID(p.SetBy), PriceReason: p.Reason, ListUnitPrice: sqlnull.Int64(p.ListUnitPrice),
+		PriceMaxQuantity: sqlnull.Float64(p.MaxQuantity), PriceExpiresAt: sqlnull.Time(p.ExpiresAt),
 	})
 	if err != nil {
 		return CartLine{}, fmt.Errorf("set line price: %w", err)
 	}
 	return toCartLine(row), nil
+}
+
+func (r *postgresRepository) RaiseLinePriceCap(ctx context.Context, lineID uuid.UUID) error {
+	if err := r.queries.RaiseCartLinePriceCap(ctx, lineID); err != nil {
+		return fmt.Errorf("raise line price cap: %w", err)
+	}
+	return nil
+}
+
+func (r *postgresRepository) CapLineQuantity(ctx context.Context, lineID uuid.UUID) error {
+	if err := r.queries.CapCartLineQuantity(ctx, lineID); err != nil {
+		return fmt.Errorf("cap line quantity: %w", err)
+	}
+	return nil
 }
 
 func (r *postgresRepository) InsertCustomLine(ctx context.Context, cartID uuid.UUID, in CustomLineInput) (CartLine, error) {
@@ -848,6 +865,8 @@ func toCartLine(row db.CartLine) CartLine {
 		PriceSetBy:       sqlnull.UUIDPtr(row.PriceSetBy),
 		PriceReason:      row.PriceReason,
 		ListUnitPrice:    sqlnull.Int64Ptr(row.ListUnitPrice),
+		PriceMaxQuantity: sqlnull.Float64Ptr(row.PriceMaxQuantity),
+		PriceExpiresAt:   sqlnull.TimePtr(row.PriceExpiresAt),
 		BundleHookPriced: row.BundleHookPriced,
 		ConfigKey:        row.ConfigKey,
 		IsCustom:         row.IsCustom,

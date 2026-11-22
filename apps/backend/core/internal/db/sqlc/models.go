@@ -647,24 +647,26 @@ type CartHandoffRedemption struct {
 }
 
 type CartLine struct {
-	ID               uuid.UUID     `json:"id"`
-	CartID           uuid.UUID     `json:"cart_id"`
-	ProductName      string        `json:"product_name"`
-	ProductSku       string        `json:"product_sku"`
-	UnitPrice        int64         `json:"unit_price"`
-	Quantity         float64       `json:"quantity"`
-	CreatedAt        time.Time     `json:"created_at"`
-	UpdatedAt        time.Time     `json:"updated_at"`
-	IsGift           bool          `json:"is_gift"`
-	OfferedByRuleID  uuid.NullUUID `json:"offered_by_rule_id"`
-	IsCustom         bool          `json:"is_custom"`
-	TaxClass         string        `json:"tax_class"`
-	BundleHookPriced bool          `json:"bundle_hook_priced"`
-	ConfigKey        string        `json:"config_key"`
-	PriceSource      string        `json:"price_source"`
-	PriceSetBy       uuid.NullUUID `json:"price_set_by"`
-	PriceReason      string        `json:"price_reason"`
-	ListUnitPrice    sql.NullInt64 `json:"list_unit_price"`
+	ID               uuid.UUID       `json:"id"`
+	CartID           uuid.UUID       `json:"cart_id"`
+	ProductName      string          `json:"product_name"`
+	ProductSku       string          `json:"product_sku"`
+	UnitPrice        int64           `json:"unit_price"`
+	Quantity         float64         `json:"quantity"`
+	CreatedAt        time.Time       `json:"created_at"`
+	UpdatedAt        time.Time       `json:"updated_at"`
+	IsGift           bool            `json:"is_gift"`
+	OfferedByRuleID  uuid.NullUUID   `json:"offered_by_rule_id"`
+	IsCustom         bool            `json:"is_custom"`
+	TaxClass         string          `json:"tax_class"`
+	BundleHookPriced bool            `json:"bundle_hook_priced"`
+	ConfigKey        string          `json:"config_key"`
+	PriceSource      string          `json:"price_source"`
+	PriceSetBy       uuid.NullUUID   `json:"price_set_by"`
+	PriceReason      string          `json:"price_reason"`
+	ListUnitPrice    sql.NullInt64   `json:"list_unit_price"`
+	PriceMaxQuantity sql.NullFloat64 `json:"price_max_quantity"`
+	PriceExpiresAt   sql.NullTime    `json:"price_expires_at"`
 }
 
 type CartLineComponent struct {

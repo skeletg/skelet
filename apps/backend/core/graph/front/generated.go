@@ -456,8 +456,10 @@ type ComplexityRoot struct {
 		ID                func(childComplexity int) int
 		ImageURL          func(childComplexity int) int
 		IsCustom          func(childComplexity int) int
+		ListUnitPrice     func(childComplexity int) int
 		Name              func(childComplexity int) int
 		Options           func(childComplexity int) int
+		PriceMaxQuantity  func(childComplexity int) int
 		Quantity          func(childComplexity int) int
 		Sku               func(childComplexity int) int
 		TotalPrice        func(childComplexity int) int
@@ -3678,6 +3680,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CartLine.IsCustom(childComplexity), true
+	case "CartLine.listUnitPrice":
+		if e.ComplexityRoot.CartLine.ListUnitPrice == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CartLine.ListUnitPrice(childComplexity), true
 	case "CartLine.name":
 		if e.ComplexityRoot.CartLine.Name == nil {
 			break
@@ -3690,6 +3698,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CartLine.Options(childComplexity), true
+	case "CartLine.priceMaxQuantity":
+		if e.ComplexityRoot.CartLine.PriceMaxQuantity == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CartLine.PriceMaxQuantity(childComplexity), true
 	case "CartLine.quantity":
 		if e.ComplexityRoot.CartLine.Quantity == nil {
 			break
@@ -10526,6 +10540,11 @@ type CartLine {
   options:     [CartLineOption!]!
   # A charge the store added to an offer by hand - no product page behind it, and nothing to deliver
   isCustom:    Boolean!
+  # The store set this line's price for the shopper. listUnitPrice is the regular price it stands in for - null when
+  # the line is at its regular price, or has none. priceMaxQuantity is how many the price is for: a shopper asking
+  # for more is refused with CART_LINE_PRICE_QUANTITY (maxQuantity in the error's extensions) - null when there is no limit
+  listUnitPrice:    Int
+  priceMaxQuantity: Float
 }
 
 # Snapshotted custom-option pick on a cart line. Option/value IDs reference the product's option structure at add time; priceDelta is the cents this pick added to the line's unit price (already included in unitPrice).
@@ -13481,6 +13500,10 @@ func (ec *executionContext) childFields_CartLine(ctx context.Context, field grap
 		return ec.fieldContext_CartLine_options(ctx, field)
 	case "isCustom":
 		return ec.fieldContext_CartLine_isCustom(ctx, field)
+	case "listUnitPrice":
+		return ec.fieldContext_CartLine_listUnitPrice(ctx, field)
+	case "priceMaxQuantity":
+		return ec.fieldContext_CartLine_priceMaxQuantity(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type CartLine", field.Name)
 }
@@ -25243,6 +25266,52 @@ func (ec *executionContext) _CartLine_isCustom(ctx context.Context, field graphq
 }
 func (ec *executionContext) fieldContext_CartLine_isCustom(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CartLine", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _CartLine_listUnitPrice(ctx context.Context, field graphql.CollectedField, obj *model1.CartLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CartLine_listUnitPrice(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ListUnitPrice, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int32) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint32(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_CartLine_listUnitPrice(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CartLine", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _CartLine_priceMaxQuantity(ctx context.Context, field graphql.CollectedField, obj *model1.CartLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CartLine_priceMaxQuantity(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PriceMaxQuantity, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_CartLine_priceMaxQuantity(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CartLine", field, false, false, errors.New("field of type Float does not have child fields"))
 }
 
 func (ec *executionContext) _CartLineComponent_id(ctx context.Context, field graphql.CollectedField, obj *model1.CartLineComponent) (ret graphql.Marshaler) {
@@ -54885,6 +54954,16 @@ func (ec *executionContext) _CartLine(ctx context.Context, sel ast.SelectionSet,
 		case "isCustom":
 			out.Values[i] = ec._CartLine_isCustom(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "listUnitPrice":
+			out.Values[i] = ec._CartLine_listUnitPrice(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "priceMaxQuantity":
+			out.Values[i] = ec._CartLine_priceMaxQuantity(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:

@@ -95,17 +95,23 @@ func (s *Service) AddBundleToCart(ctx context.Context, cartID uuid.UUID, callerI
 	for i := range components {
 		components[i].Quantity = perBundle[i] * bundleQty
 	}
+	configKey := bundleConfigKey(components, perBundle)
+	// The same picks again are the same thing a set price was for - it stays, for as many as it is for
+	if err := s.setPriceAllows(ctx, cart, input.ProductSku, configKey, bundleQty); err != nil {
+		return Cart{}, err
+	}
 	var bundleLine CartLine
 	if err := s.inTx(ctx, func(r Repository) error {
 		var err error
 		bundleLine, err = r.UpsertBundleCartLine(ctx, cart.ID, AddBundleLineInput{
-			ProductName: bundleName,
-			ProductSku:  input.ProductSku,
-			UnitPrice:   unitPrice,
-			Quantity:    bundleQty,
-			Components:  components,
-			HookPriced:  hookPriced,
-			ConfigKey:   bundleConfigKey(components, perBundle),
+			ProductName:  bundleName,
+			ProductSku:   input.ProductSku,
+			UnitPrice:    unitPrice,
+			Quantity:     bundleQty,
+			Components:   components,
+			HookPriced:   hookPriced,
+			ConfigKey:    configKey,
+			KeepSetPrice: true,
 		})
 		return err
 	}); err != nil {

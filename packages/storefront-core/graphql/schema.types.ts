@@ -584,8 +584,10 @@ export type CartLine = {
   id: Scalars['ID']['output'];
   imageUrl?: Maybe<Scalars['String']['output']>;
   isCustom: Scalars['Boolean']['output'];
+  listUnitPrice?: Maybe<Scalars['Int']['output']>;
   name: Scalars['String']['output'];
   options: Array<CartLineOption>;
+  priceMaxQuantity?: Maybe<Scalars['Float']['output']>;
   quantity: Scalars['Float']['output'];
   sku: Scalars['String']['output'];
   totalPrice: Scalars['Int']['output'];

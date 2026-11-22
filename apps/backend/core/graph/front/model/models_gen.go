@@ -272,6 +272,8 @@ type CartLine struct {
 	Components        []*CartLineComponent `json:"components"`
 	Options           []*CartLineOption    `json:"options"`
 	IsCustom          bool                 `json:"isCustom"`
+	ListUnitPrice     *int32               `json:"listUnitPrice,omitempty"`
+	PriceMaxQuantity  *float64             `json:"priceMaxQuantity,omitempty"`
 }
 
 type CartLineComponent struct {

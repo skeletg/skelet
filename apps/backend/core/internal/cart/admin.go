@@ -35,12 +35,16 @@ func (s *Service) AdminAddToCart(ctx context.Context, cartID uuid.UUID, sku stri
 	if err != nil {
 		return Cart{}, err
 	}
-	input, err := s.prepareSimpleAdd(ctx, cart, sku, quantity)
+	input, _, err := s.prepareSimpleAdd(ctx, cart, sku, quantity)
 	if err != nil {
 		return Cart{}, err
 	}
-	if _, err := s.repo.UpsertCartLineBySku(ctx, cart.ID, input); err != nil {
+	line, err := s.repo.UpsertCartLineBySku(ctx, cart.ID, input)
+	if err != nil {
 		return Cart{}, fmt.Errorf("add cart line: %w", err)
+	}
+	if err := s.repo.RaiseLinePriceCap(ctx, line.ID); err != nil { // an admin's quantity is one the set price is for
+		return Cart{}, err
 	}
 	return loadCartWithLines(ctx, s.repo, cart.ID)
 }
@@ -62,6 +66,9 @@ func (s *Service) AdminUpdateCartLine(ctx context.Context, cartID, lineID uuid.U
 		return Cart{}, err
 	}
 	if err := s.writeLineQuantity(ctx, line, quantity, repricedUnit); err != nil {
+		return Cart{}, err
+	}
+	if err := s.repo.RaiseLinePriceCap(ctx, line.ID); err != nil { // an admin's quantity is one the set price is for
 		return Cart{}, err
 	}
 	return loadCartWithLines(ctx, s.repo, cart.ID)

@@ -365,7 +365,7 @@ func (s *Service) AddToCart(ctx context.Context, cartID uuid.UUID, callerID *uui
 	if err := checkProtectedOfferLine(cart, uuid.Nil, sku); err != nil {
 		return Cart{}, err
 	}
-	input, err := s.prepareSimpleAdd(ctx, cart, sku, quantity)
+	input, onto, err := s.prepareSimpleAdd(ctx, cart, sku, quantity)
 	if err != nil {
 		return Cart{}, err
 	}
@@ -383,6 +383,11 @@ func (s *Service) AddToCart(ctx context.Context, cartID uuid.UUID, callerID *uui
 			return Cart{}, fmt.Errorf("add to cart rejected: %w", err)
 		}
 		input.UnitPrice, input.Quantity = valueOr(adding.UnitPrice, input.UnitPrice), valueOr(adding.Quantity, input.Quantity) // read off the event, since the SDK setters and a webhook response swap the pointer rather than write through it
+	}
+	if onto != nil { // more of a line whose price was set: up to what the price is for
+		if err := onto.PriceQuantityErr(onto.Quantity + input.Quantity); err != nil {
+			return Cart{}, err
+		}
 	}
 	line, err := s.repo.UpsertCartLineBySku(ctx, cart.ID, input)
 	if err != nil {
@@ -407,44 +412,47 @@ func (s *Service) AddToCart(ctx context.Context, cartID uuid.UUID, callerID *uui
 // Everything a plain add checks before its upsert, shared by the storefront and the admin console - catalog name and price whatever the caller sent, so a hostile caller can't buy a $25 shirt for a cent
 // A REQUIRED-options product must go through the configured add, or an under-priced line reaches checkout - only options visible with no picks count, since one hidden behind an unsatisfied visible_if is how a customer legitimately buys without it
 // Bounds and the tier break apply to the PROSPECTIVE total, since the upsert sums into an existing same-SKU line
-func (s *Service) prepareSimpleAdd(ctx context.Context, c Cart, sku string, quantity float64) (AddCartLineInput, error) {
+// Also answers the line the add will sum into, when the cart already has one
+func (s *Service) prepareSimpleAdd(ctx context.Context, c Cart, sku string, quantity float64) (AddCartLineInput, *CartLine, error) {
 	if s.products == nil {
-		return AddCartLineInput{}, errNoCatalog
+		return AddCartLineInput{}, nil, errNoCatalog
 	}
 	if err := validQuantity(quantity); err != nil {
-		return AddCartLineInput{}, err
+		return AddCartLineInput{}, nil, err
 	}
 	p, err := s.resolvePricing(ctx, c.ChannelID, sku, c.CustomerID)
 	if err != nil {
-		return AddCartLineInput{}, fmt.Errorf("resolve pricing for %q: %w", sku, err)
+		return AddCartLineInput{}, nil, fmt.Errorf("resolve pricing for %q: %w", sku, err)
 	}
 	res, oerr := s.products.ResolveProductOptions(ctx, c.ChannelID, sku, c.CustomerID)
 	if oerr != nil && !errors.Is(oerr, ErrOptionsUnsupportedKind) {
-		return AddCartLineInput{}, fmt.Errorf("resolve product options for %q: %w", sku, oerr)
+		return AddCartLineInput{}, nil, fmt.Errorf("resolve product options for %q: %w", sku, oerr)
 	}
 	if oerr == nil && HasVisiblyRequiredOptions(res) {
-		return AddCartLineInput{}, ErrProductOptionsRequired
+		return AddCartLineInput{}, nil, ErrProductOptionsRequired
 	}
 	lines, err := s.repo.ListCartLinesByCart(ctx, c.ID)
 	if err != nil {
-		return AddCartLineInput{}, fmt.Errorf("load cart lines: %w", err)
+		return AddCartLineInput{}, nil, fmt.Errorf("load cart lines: %w", err)
 	}
 	total := quantity
+	var onto *CartLine
 	for _, l := range lines {
 		if l.ProductSku != sku {
 			continue
 		}
 		if len(l.Options) > 0 || len(l.Components) > 0 { // the plain upsert would sum quantity but reset the price with the snapshot rows still attached
-			return AddCartLineInput{}, ErrLineConfigured
+			return AddCartLineInput{}, nil, ErrLineConfigured
 		}
 		total += l.Quantity
+		onto = &l
 		break
 	}
 	if err := validateQtyBounds(p, total); err != nil {
-		return AddCartLineInput{}, err
+		return AddCartLineInput{}, nil, err
 	}
 	// the upsert's incoming-price-wins rule re-prices the whole line, so the tier reads the line's prospective total
-	return AddCartLineInput{ProductSku: sku, ProductName: p.ProductName, UnitPrice: pricing.ApplyTiers(p.UnitPrice, p.Tiers, total), Quantity: quantity}, nil
+	return AddCartLineInput{ProductSku: sku, ProductName: p.ProductName, UnitPrice: pricing.ApplyTiers(p.UnitPrice, p.Tiers, total), Quantity: quantity}, onto, nil
 }
 
 // Shared by customer and admin quantity edits - enforces the forced-qty lock (fail-closed, the lock is an invariant not a hint) and the min/max/step bounds, returning the tier-repriced unit with the line's snapshot option deltas back on top (nil = price unchanged)
@@ -542,6 +550,9 @@ func (s *Service) UpdateCartLine(ctx context.Context, cartID, lineID uuid.UUID, 
 				return Cart{}, err
 			}
 		}
+	}
+	if err := line.PriceQuantityErr(quantity); err != nil {
+		return Cart{}, err
 	}
 	if err := s.writeLineQuantity(ctx, line, quantity, repricedUnit); err != nil {
 		return Cart{}, err
@@ -690,8 +701,16 @@ func (s *Service) RepriceCartLines(ctx context.Context, c Cart) Cart {
 	}
 	for i := range c.Lines {
 		l := &c.Lines[i]
-		if l.PriceHeld() || l.IsCustom { // an admin's offer price is the price
+		if l.PriceHeld() || l.IsCustom { // a set price is the price
 			continue
+		}
+		if l.PriceSet() { // set once, and lapsed: the line is the catalog's again, priced below like any other
+			back, err := s.repo.SetLinePrice(ctx, l.ID, LinePrice{UnitPrice: l.UnitPrice, Source: PriceCatalog})
+			if err != nil {
+				slog.WarnContext(ctx, "cart: lift a lapsed set price", "cart", c.ID, "sku", l.ProductSku, "err", err)
+				continue
+			}
+			l.PriceSource, l.PriceSetBy, l.PriceReason, l.ListUnitPrice, l.PriceMaxQuantity, l.PriceExpiresAt = back.PriceSource, nil, "", nil, nil, nil
 		}
 		if len(l.Components) > 0 {
 			s.repriceBundleLine(ctx, c, l)
@@ -727,13 +746,14 @@ func (s *Service) repriceBundleLine(ctx context.Context, c Cart, l *CartLine) {
 	if err := s.inTx(ctx, func(r Repository) error {
 		var err error
 		updated, err = r.UpsertBundleCartLine(ctx, c.ID, AddBundleLineInput{
-			ProductName: l.ProductName,
-			ProductSku:  l.ProductSku,
-			UnitPrice:   unit,
-			Quantity:    l.Quantity,
-			Components:  components,
-			HookPriced:  l.BundleHookPriced,
-			ConfigKey:   l.ConfigKey,
+			ProductName:  l.ProductName,
+			ProductSku:   l.ProductSku,
+			UnitPrice:    unit,
+			Quantity:     l.Quantity,
+			Components:   components,
+			HookPriced:   l.BundleHookPriced,
+			ConfigKey:    l.ConfigKey,
+			KeepSetPrice: true,
 		})
 		return err
 	}); err != nil {

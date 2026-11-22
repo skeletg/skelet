@@ -94,6 +94,16 @@ func (q *Queries) BumpCartOfferLink(ctx context.Context, id uuid.UUID) (int32, e
 	return offer_link_version, err
 }
 
+const capCartLineQuantity = `-- name: CapCartLineQuantity :exec
+UPDATE cart_lines SET quantity = price_max_quantity WHERE id = $1 AND price_max_quantity IS NOT NULL AND quantity > price_max_quantity
+`
+
+// Two carts became one and a line whose price is set took in more than the price is for - it keeps what it is for
+func (q *Queries) CapCartLineQuantity(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, capCartLineQuantity, id)
+	return err
+}
+
 const carryCartAppliedCodes = `-- name: CarryCartAppliedCodes :exec
 INSERT INTO cart_applied_codes (cart_id, rule_id, code_id)
 SELECT $1::uuid, c.rule_id, c.code_id FROM cart_applied_codes c
@@ -798,7 +808,7 @@ func (q *Queries) GetCartByOfferToken(ctx context.Context, offerLinkToken string
 }
 
 const getCartLineByID = `-- name: GetCartLineByID :one
-SELECT id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, is_custom, tax_class, bundle_hook_priced, config_key, price_source, price_set_by, price_reason, list_unit_price FROM cart_lines WHERE id = $1 LIMIT 1
+SELECT id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, is_custom, tax_class, bundle_hook_priced, config_key, price_source, price_set_by, price_reason, list_unit_price, price_max_quantity, price_expires_at FROM cart_lines WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetCartLineByID(ctx context.Context, id uuid.UUID) (CartLine, error) {
@@ -823,6 +833,8 @@ func (q *Queries) GetCartLineByID(ctx context.Context, id uuid.UUID) (CartLine, 
 		&i.PriceSetBy,
 		&i.PriceReason,
 		&i.ListUnitPrice,
+		&i.PriceMaxQuantity,
+		&i.PriceExpiresAt,
 	)
 	return i, err
 }
@@ -848,7 +860,7 @@ func (q *Queries) GetSavedItem(ctx context.Context, id uuid.UUID) (CartSavedItem
 const insertCustomCartLine = `-- name: InsertCustomCartLine :one
 INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity, price_source, price_set_by, is_custom, tax_class)
 VALUES ($1, $2, $3, $4, $5, 'admin', $6, true, $7)
-RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, is_custom, tax_class, bundle_hook_priced, config_key, price_source, price_set_by, price_reason, list_unit_price
+RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, is_custom, tax_class, bundle_hook_priced, config_key, price_source, price_set_by, price_reason, list_unit_price, price_max_quantity, price_expires_at
 `
 
 type InsertCustomCartLineParams struct {
@@ -891,12 +903,14 @@ func (q *Queries) InsertCustomCartLine(ctx context.Context, arg InsertCustomCart
 		&i.PriceSetBy,
 		&i.PriceReason,
 		&i.ListUnitPrice,
+		&i.PriceMaxQuantity,
+		&i.PriceExpiresAt,
 	)
 	return i, err
 }
 
 const listCartLinesByCart = `-- name: ListCartLinesByCart :many
-SELECT id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, is_custom, tax_class, bundle_hook_priced, config_key, price_source, price_set_by, price_reason, list_unit_price FROM cart_lines WHERE cart_id = $1 ORDER BY created_at ASC
+SELECT id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, is_custom, tax_class, bundle_hook_priced, config_key, price_source, price_set_by, price_reason, list_unit_price, price_max_quantity, price_expires_at FROM cart_lines WHERE cart_id = $1 ORDER BY created_at ASC
 `
 
 func (q *Queries) ListCartLinesByCart(ctx context.Context, cartID uuid.UUID) ([]CartLine, error) {
@@ -927,6 +941,8 @@ func (q *Queries) ListCartLinesByCart(ctx context.Context, cartID uuid.UUID) ([]
 			&i.PriceSetBy,
 			&i.PriceReason,
 			&i.ListUnitPrice,
+			&i.PriceMaxQuantity,
+			&i.PriceExpiresAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1429,6 +1445,16 @@ func (q *Queries) PruneStaleCarts(ctx context.Context, cutoff time.Time) (int64,
 	return result.RowsAffected()
 }
 
+const raiseCartLinePriceCap = `-- name: RaiseCartLinePriceCap :exec
+UPDATE cart_lines SET price_max_quantity = GREATEST(price_max_quantity, quantity) WHERE id = $1 AND price_max_quantity IS NOT NULL
+`
+
+// An admin put more of the item on a line whose price is set - the price is then for that many
+func (q *Queries) RaiseCartLinePriceCap(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, raiseCartLinePriceCap, id)
+	return err
+}
+
 const reassignCartToCustomer = `-- name: ReassignCartToCustomer :one
 UPDATE carts SET customer_id = $2, updated_at = NOW()
 WHERE id = $1 AND customer_id IS NULL AND status = 'active' AND kind = 'shopper'
@@ -1668,17 +1694,20 @@ func (q *Queries) SetCartEmail(ctx context.Context, arg SetCartEmailParams) erro
 const setCartLinePrice = `-- name: SetCartLinePrice :one
 UPDATE cart_lines
 SET unit_price = $1, price_source = $2, price_set_by = $3,
-    price_reason = $4, list_unit_price = $5, updated_at = NOW()
-WHERE id = $6 RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, is_custom, tax_class, bundle_hook_priced, config_key, price_source, price_set_by, price_reason, list_unit_price
+    price_reason = $4, list_unit_price = $5,
+    price_max_quantity = $6, price_expires_at = $7, updated_at = NOW()
+WHERE id = $8 RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, is_custom, tax_class, bundle_hook_priced, config_key, price_source, price_set_by, price_reason, list_unit_price, price_max_quantity, price_expires_at
 `
 
 type SetCartLinePriceParams struct {
-	UnitPrice     int64         `json:"unit_price"`
-	PriceSource   string        `json:"price_source"`
-	PriceSetBy    uuid.NullUUID `json:"price_set_by"`
-	PriceReason   string        `json:"price_reason"`
-	ListUnitPrice sql.NullInt64 `json:"list_unit_price"`
-	ID            uuid.UUID     `json:"id"`
+	UnitPrice        int64           `json:"unit_price"`
+	PriceSource      string          `json:"price_source"`
+	PriceSetBy       uuid.NullUUID   `json:"price_set_by"`
+	PriceReason      string          `json:"price_reason"`
+	ListUnitPrice    sql.NullInt64   `json:"list_unit_price"`
+	PriceMaxQuantity sql.NullFloat64 `json:"price_max_quantity"`
+	PriceExpiresAt   sql.NullTime    `json:"price_expires_at"`
+	ID               uuid.UUID       `json:"id"`
 }
 
 // A price put on a line with where it came from, or the line put back on the catalog's
@@ -1689,6 +1718,8 @@ func (q *Queries) SetCartLinePrice(ctx context.Context, arg SetCartLinePricePara
 		arg.PriceSetBy,
 		arg.PriceReason,
 		arg.ListUnitPrice,
+		arg.PriceMaxQuantity,
+		arg.PriceExpiresAt,
 		arg.ID,
 	)
 	var i CartLine
@@ -1711,6 +1742,8 @@ func (q *Queries) SetCartLinePrice(ctx context.Context, arg SetCartLinePricePara
 		&i.PriceSetBy,
 		&i.PriceReason,
 		&i.ListUnitPrice,
+		&i.PriceMaxQuantity,
+		&i.PriceExpiresAt,
 	)
 	return i, err
 }
@@ -1927,7 +1960,7 @@ func (q *Queries) StartCartHandoff(ctx context.Context, arg StartCartHandoffPara
 }
 
 const updateCartLineQuantity = `-- name: UpdateCartLineQuantity :one
-UPDATE cart_lines SET quantity = $2, updated_at = NOW() WHERE id = $1 RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, is_custom, tax_class, bundle_hook_priced, config_key, price_source, price_set_by, price_reason, list_unit_price
+UPDATE cart_lines SET quantity = $2, updated_at = NOW() WHERE id = $1 RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, is_custom, tax_class, bundle_hook_priced, config_key, price_source, price_set_by, price_reason, list_unit_price, price_max_quantity, price_expires_at
 `
 
 type UpdateCartLineQuantityParams struct {
@@ -1957,6 +1990,8 @@ func (q *Queries) UpdateCartLineQuantity(ctx context.Context, arg UpdateCartLine
 		&i.PriceSetBy,
 		&i.PriceReason,
 		&i.ListUnitPrice,
+		&i.PriceMaxQuantity,
+		&i.PriceExpiresAt,
 	)
 	return i, err
 }
@@ -1967,7 +2002,7 @@ SET quantity = $1,
     unit_price = CASE WHEN price_source <> 'catalog' THEN unit_price ELSE $2::bigint END,
     list_unit_price = CASE WHEN price_source <> 'catalog' THEN $2::bigint END,
     updated_at = NOW()
-WHERE id = $3 RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, is_custom, tax_class, bundle_hook_priced, config_key, price_source, price_set_by, price_reason, list_unit_price
+WHERE id = $3 RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, is_custom, tax_class, bundle_hook_priced, config_key, price_source, price_set_by, price_reason, list_unit_price, price_max_quantity, price_expires_at
 `
 
 type UpdateCartLineQuantityPriceParams struct {
@@ -2000,6 +2035,8 @@ func (q *Queries) UpdateCartLineQuantityPrice(ctx context.Context, arg UpdateCar
 		&i.PriceSetBy,
 		&i.PriceReason,
 		&i.ListUnitPrice,
+		&i.PriceMaxQuantity,
+		&i.PriceExpiresAt,
 	)
 	return i, err
 }
@@ -2013,7 +2050,7 @@ ON CONFLICT (cart_id, product_sku, config_key) DO UPDATE
       unit_price = CASE WHEN cart_lines.price_source <> 'catalog' THEN cart_lines.unit_price ELSE EXCLUDED.unit_price END,
       list_unit_price = CASE WHEN cart_lines.price_source <> 'catalog' THEN EXCLUDED.unit_price END,
       updated_at = NOW()
-RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, is_custom, tax_class, bundle_hook_priced, config_key, price_source, price_set_by, price_reason, list_unit_price
+RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, is_custom, tax_class, bundle_hook_priced, config_key, price_source, price_set_by, price_reason, list_unit_price, price_max_quantity, price_expires_at
 `
 
 type UpsertCartLineBySkuParams struct {
@@ -2052,6 +2089,8 @@ func (q *Queries) UpsertCartLineBySku(ctx context.Context, arg UpsertCartLineByS
 		&i.PriceSetBy,
 		&i.PriceReason,
 		&i.ListUnitPrice,
+		&i.PriceMaxQuantity,
+		&i.PriceExpiresAt,
 	)
 	return i, err
 }

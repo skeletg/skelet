@@ -15,7 +15,10 @@ export function CartLineNotice({
     line.availableQuantity != null && line.availableQuantity < line.quantity;
   const priceChanged =
     line.currentUnitPrice != null && line.currentUnitPrice !== line.unitPrice;
-  if (!stockShort && !priceChanged) return null;
+  // The store set this line's price for the shopper - said plainly, with what it usually costs and how many it is for
+  const yourPrice = line.listUnitPrice != null && line.listUnitPrice !== line.unitPrice;
+  const priceFor = line.priceMaxQuantity ?? null;
+  if (!stockShort && !priceChanged && !yourPrice && priceFor === null) return null;
 
   return (
     <div className="mt-1 space-y-0.5">
@@ -24,6 +27,12 @@ export function CartLineNotice({
           {line.availableQuantity === 0
             ? t("outOfStock")
             : t("onlyLeft", { count: line.availableQuantity ?? 0 })}
+        </p>
+      )}
+      {(yourPrice || priceFor !== null) && (
+        <p className="text-xs text-muted-foreground">
+          {yourPrice ? t("yourPrice", { regular: formatPrice(line.listUnitPrice as number, currency) }) : t("yourPriceOnly")}
+          {priceFor !== null ? ` ${t("priceFor", { count: priceFor })}` : ""}
         </p>
       )}
       {priceChanged && (

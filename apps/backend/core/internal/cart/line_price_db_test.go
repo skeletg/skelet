@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -140,5 +141,163 @@ func TestPickingAgainKeepsASetPrice(t *testing.T) {
 	}
 	if l = pick(plain); !heldAt(l, 900, 1020) || len(l.Options) != 1 || l.Options[0].ValueLabel != "Plain" {
 		t.Fatalf("picked again: %+v, want the new pick at the set 900, beside the 1020 the catalog asks for it", l)
+	}
+}
+
+// A price set on a shopper's own cart: it needs a reason, may take no more off the catalog price than the store
+// allows, is for no more of the item than the line held, and the shopper can still buy fewer, or none
+func TestASetPriceOnAShoppersOwnCart(t *testing.T) {
+	r := newDBRig(t, catalogStub{prices: map[string]SimplePricing{"sku": {ProductName: "Item", UnitPrice: 1000}}})
+	ctx := context.Background()
+	c := r.guestCart(t)
+	c, err := r.svc.AddToCart(ctx, c.ID, nil, "sku", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	line := c.Lines[0]
+	admin, cut, until := uuid.New(), 20, time.Now().Add(48*time.Hour).Truncate(time.Second)
+	set := func(cents int64, reason string) (Cart, error) {
+		return r.svc.AdminSetLinePrice(ctx, c.ID, line.ID, SetLinePriceInput{UnitPrice: &cents, Reason: reason, By: &admin, MaxCutPercent: &cut, HoldsUntil: &until})
+	}
+
+	if _, err := set(900, "  "); !errors.Is(err, ErrLinePriceReasonRequired) {
+		t.Fatalf("no reason: %v, want one asked for", err)
+	}
+	var floor *PriceFloorError
+	if _, err := set(799, "price match"); !errors.As(err, &floor) || floor.FloorCents != 800 {
+		t.Fatalf("a cent past the cut: %v, want it refused with the 800 that is the lowest", err)
+	}
+	got, err := set(800, "price match")
+	if err != nil {
+		t.Fatalf("the lowest price allowed: %v", err)
+	}
+	l := lineBySku(t, got, "sku")
+	if !heldAt(l, 800, 1000) || l.PriceMaxQuantity == nil || *l.PriceMaxQuantity != 2 || l.PriceExpiresAt == nil || !l.PriceExpiresAt.Equal(until) {
+		t.Fatalf("set on a shopper's cart: %+v, want 800 for up to 2 until %v", l, until)
+	}
+
+	// The shopper's own edits: fewer at the price, never more
+	var over *PriceQuantityError
+	if _, err := r.svc.UpdateCartLine(ctx, c.ID, line.ID, nil, 3); !errors.As(err, &over) || over.Max != 2 {
+		t.Fatalf("a shopper raising the quantity: %v, want it refused at 2", err)
+	}
+	if _, err := r.svc.AddToCart(ctx, c.ID, nil, "sku", 1); !errors.Is(err, ErrLinePriceQuantity) {
+		t.Fatalf("a shopper adding one more: %v, want it refused", err)
+	}
+	fewer, err := r.svc.UpdateCartLine(ctx, c.ID, line.ID, nil, 1)
+	if err != nil || !heldAt(lineBySku(t, fewer, "sku"), 800, 1000) {
+		t.Fatalf("a shopper buying fewer: %+v, %v - want 1 at the set price", fewer.Lines, err)
+	}
+	if back, err := r.svc.AddToCart(ctx, c.ID, nil, "sku", 1); err != nil || lineBySku(t, back, "sku").Quantity != 2 {
+		t.Fatalf("a shopper back up to what the price is for: %v", err)
+	}
+
+	// An admin's quantity is one the price is for
+	more, err := r.svc.AdminUpdateCartLine(ctx, c.ID, line.ID, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l = lineBySku(t, more, "sku"); !heldAt(l, 800, 1000) || *l.PriceMaxQuantity != 5 {
+		t.Fatalf("an admin's quantity: %+v, want the price to be for 5 now", l)
+	}
+	if _, err := r.svc.UpdateCartLine(ctx, c.ID, line.ID, nil, 6); !errors.Is(err, ErrLinePriceQuantity) {
+		t.Fatalf("a shopper past the admin's quantity: %v, want it refused", err)
+	}
+
+	// Past its expiry the price no longer holds, and the next reprice puts the line back on the catalog's
+	past := time.Now().Add(-time.Minute)
+	cents := int64(800)
+	lapsed, err := r.svc.AdminSetLinePrice(ctx, c.ID, line.ID, SetLinePriceInput{UnitPrice: &cents, Reason: "price match", MaxCutPercent: &cut, HoldsUntil: &past})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l = lineBySku(t, lapsed, "sku"); l.PriceHeld() || !l.PriceSet() {
+		t.Fatalf("a lapsed price: %+v, want it set but no longer holding", l)
+	}
+	if l = lineBySku(t, r.svc.RepriceCartLines(ctx, lapsed), "sku"); l.UnitPrice != 1000 || l.PriceSet() || l.ListUnitPrice != nil || l.PriceMaxQuantity != nil {
+		t.Fatalf("repriced after it lapsed: %+v, want the catalog's 1000 and nothing kept", l)
+	}
+	if reread, err := r.svc.GetCart(ctx, c.ID, nil); err != nil || lineBySku(t, reread, "sku").PriceSource != PriceCatalog {
+		t.Fatalf("the lifted price wasn't saved: %v", err)
+	}
+	if _, err := r.svc.RemoveFromCart(ctx, c.ID, line.ID, nil); err != nil {
+		t.Fatalf("a shopper removing the line: %v", err)
+	}
+}
+
+// A shopper who picks a product's options again is choosing something else than the price was set for
+func TestAShopperPickingAgainGetsTheCatalogPrice(t *testing.T) {
+	optionID, gold, plain := uuid.New(), uuid.New(), uuid.New()
+	r := newDBRig(t, catalogStub{
+		prices: map[string]SimplePricing{"pen": {ProductName: "Pen", UnitPrice: 1000}},
+		options: map[string]ProductOptionsResolution{
+			"pen": {UnitPrice: 1000, Options: []ProductOptionConfig{{ID: optionID, InputType: "radio", Title: "Ink", Values: []ProductOptionValueConfig{
+				{ID: gold, Title: "Gold", PriceValue: 150, PriceType: "fixed", Quantity: 1},
+				{ID: plain, Title: "Plain", PriceValue: 20, PriceType: "fixed", Quantity: 1},
+			}}}},
+		},
+	})
+	ctx := context.Background()
+	c := r.guestCart(t)
+	pick := func(value uuid.UUID) CartLine {
+		t.Helper()
+		got, err := r.svc.AddConfiguredToCart(ctx, c.ID, nil, AddConfiguredToCartInput{ProductSku: "pen", Quantity: 1, Options: []CartLineOptionInput{{OptionID: optionID, ValueIDs: []uuid.UUID{value}}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return lineBySku(t, got, "pen")
+	}
+	l := pick(plain)
+	if _, err := r.svc.AdminSetLinePrice(ctx, c.ID, l.ID, SetLinePriceInput{UnitPrice: ptrI(600), Reason: "goodwill"}); err != nil {
+		t.Fatal(err)
+	}
+	if l = pick(gold); l.PriceSet() || l.UnitPrice != 1150 || l.ListUnitPrice != nil || l.PriceReason != "" || l.PriceMaxQuantity != nil {
+		t.Fatalf("picked again by the shopper: %+v, want the catalog's 1150 for the new pick", l)
+	}
+}
+
+// A set price comes with the line when carts become one, and when a cart is copied - and the line never holds more
+// than the price is for, however many the two carts had between them
+func TestASetPriceFollowsItsLine(t *testing.T) {
+	r := newDBRig(t, catalogStub{prices: map[string]SimplePricing{"sku": {ProductName: "Item", UnitPrice: 1000}, "other": {ProductName: "Other", UnitPrice: 500}}})
+	ctx := context.Background()
+	guest := r.guestCart(t)
+	guest, err := r.svc.AddToCart(ctx, guest.ID, nil, "sku", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.svc.AdminSetLinePrice(ctx, guest.ID, guest.Lines[0].ID, SetLinePriceInput{UnitPrice: ptrI(800), Reason: "price match"}); err != nil {
+		t.Fatal(err)
+	}
+
+	copied, err := r.svc.AdminDuplicateCart(ctx, guest.ID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = r.conn.Exec(`DELETE FROM carts WHERE id = $1`, copied.ID) })
+	if l := lineBySku(t, copied, "sku"); !heldAt(l, 800, 1000) || l.PriceReason != "price match" || *l.PriceMaxQuantity != 2 {
+		t.Fatalf("a copied cart's line: %+v, want the set price with it", l)
+	}
+
+	// The customer already has three at the catalog price: signed in, the line is the two the price is for
+	customerID := r.customer(t)
+	own, err := r.svc.GetOrCreateCart(ctx, customerID, r.channel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for sku, qty := range map[string]float64{"sku": 3, "other": 1} {
+		if _, err := r.svc.AddToCart(ctx, own.ID, &customerID, sku, qty); err != nil {
+			t.Fatal(err)
+		}
+	}
+	merged, err := r.svc.MergeGuestCart(ctx, customerID, guest.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l := lineBySku(t, merged, "sku"); !heldAt(l, 800, 1000) || l.Quantity != 2 {
+		t.Fatalf("merged: %+v, want 2 at the set 800", l)
+	}
+	if l := lineBySku(t, merged, "other"); l.PriceSet() || l.Quantity != 1 {
+		t.Fatalf("the line beside it: %+v, want it untouched", l)
 	}
 }

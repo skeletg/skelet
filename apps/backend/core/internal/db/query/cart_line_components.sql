@@ -35,11 +35,18 @@ DELETE FROM cart_line_components WHERE cart_line_id = $1;
 -- Bundle cart-line upsert: unlike the simple-product path the ON CONFLICT clause REPLACES quantity + price + name rather than summing - when a customer reconfigures the bundle they're submitting a fresh selection set, not adding more units of the previous configuration
 -- name: UpsertBundleCartLine :one
 INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity, bundle_hook_priced, config_key)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+VALUES (sqlc.arg(cart_id), sqlc.arg(product_name), sqlc.arg(product_sku), sqlc.arg(unit_price), sqlc.arg(quantity), sqlc.arg(bundle_hook_priced), sqlc.arg(config_key))
 ON CONFLICT (cart_id, product_sku, config_key) DO UPDATE
   SET quantity     = EXCLUDED.quantity,
-      unit_price   = CASE WHEN cart_lines.price_source <> 'catalog' THEN cart_lines.unit_price ELSE EXCLUDED.unit_price END,
-      list_unit_price = CASE WHEN cart_lines.price_source <> 'catalog' THEN EXCLUDED.unit_price END,
+      -- picking again prices the new picks. An admin doing it keeps a price set on the line; a shopper doing it is
+      -- choosing something else than the price was set for, so the line goes back to the catalog's
+      unit_price   = CASE WHEN cart_lines.price_source <> 'catalog' AND sqlc.arg(keep_set_price)::boolean THEN cart_lines.unit_price ELSE EXCLUDED.unit_price END,
+      list_unit_price = CASE WHEN cart_lines.price_source <> 'catalog' AND sqlc.arg(keep_set_price)::boolean THEN EXCLUDED.unit_price END,
+      price_source = CASE WHEN sqlc.arg(keep_set_price)::boolean THEN cart_lines.price_source ELSE 'catalog' END,
+      price_set_by = CASE WHEN sqlc.arg(keep_set_price)::boolean THEN cart_lines.price_set_by END,
+      price_reason = CASE WHEN sqlc.arg(keep_set_price)::boolean THEN cart_lines.price_reason ELSE '' END,
+      price_max_quantity = CASE WHEN sqlc.arg(keep_set_price)::boolean THEN cart_lines.price_max_quantity END,
+      price_expires_at = CASE WHEN sqlc.arg(keep_set_price)::boolean THEN cart_lines.price_expires_at END,
       product_name = EXCLUDED.product_name,
       bundle_hook_priced = EXCLUDED.bundle_hook_priced,
       updated_at   = NOW()

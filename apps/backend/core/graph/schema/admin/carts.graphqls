@@ -14,6 +14,8 @@ type AdminCart {
   email:         String!      # the cart's own email - a guest offer's recipient, or what a guest typed at checkout
   # Set on an offer only
   offer:         AdminCartOffer
+  # Set on a shopper's own cart only: what the store allows when a line's price is set there
+  priceLimits:   CartPriceLimits
   lines:         [AdminCartLine!]!
   subtotal:      Int!         # Σ line totals (estimate - no tax/shipping)
   itemCount:     Int!
@@ -40,9 +42,22 @@ type AdminCartLine {
   priceSource:   LinePriceSource!
   listUnitPrice: Int
   priceReason:   String!
+  # On a shopper's own cart a set price is for at most this many of the item, and holds until this moment - past
+  # it the line goes back to its catalog price at checkout. Both null on an offer's lines and on a catalog price
+  priceMaxQuantity: Float
+  priceExpiresAt:   Time
   # A free-form line added to an offer, with no catalog product behind it
   isCustom:    Boolean!
   taxClass:    String!
+}
+
+# What the store allows when an admin sets a line's price on a shopper's own cart (sales/cart/max_price_cut_percent
+# and sales/cart/set_price_days). The price also needs a reason and the orders.set_cart_price permission
+type CartPriceLimits {
+  # The most that may come off the line's catalog price, in percent - 100 allows any price
+  maxCutPercent: Int!
+  # When a price set now stops holding - null when it holds for as long as the cart lives
+  holdsUntil: Time
 }
 
 enum CartKind {
@@ -298,8 +313,11 @@ extend type Mutation {
   # Offers - a cart built for one recipient and sent as a link. Always a fresh cart, never the customer's active one
   adminCreateCartOffer(input: AdminCreateCartOfferInput!): AdminCart!
   adminUpdateCartOffer(cartId: ID!, input: AdminUpdateCartOfferInput!): AdminCart!
-  # Sets a line's price on an offer - it holds through checkout. null puts a catalog line back on its catalog price.
-  # The reason stays with the line and its order line, for whoever reads the order later
+  # Sets a line's price - it holds through checkout. null puts a catalog line back on its catalog price.
+  # The reason stays with the line and its order line, for whoever reads the order later.
+  # On an offer that is all. On a shopper's own cart it takes orders.set_cart_price and a reason, the price may be no
+  # lower than the cart's priceLimits allow (CART_LINE_PRICE_TOO_LOW, with floorCents in the error's extensions), and
+  # it is for the quantity the line holds: the shopper may buy fewer at it, not more
   adminSetCartLinePrice(cartId: ID!, lineId: ID!, unitPrice: Int, reason: String): AdminCart!
   adminAddCustomCartLine(cartId: ID!, input: AdminCustomCartLineInput!): AdminCart!
   # Emails the offer's link to its recipient - again on every call

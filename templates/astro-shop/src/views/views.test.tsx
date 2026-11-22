@@ -55,6 +55,13 @@ describe("CartView", () => {
     expect(container.textContent).toContain("−$4.00");
     expect(screen.getByRole("link", { name: "Checkout" }).getAttribute("href")).toBe("/checkout");
   });
+  it("says when the store set a line's price, with what it usually costs and how many it is for", () => {
+    const set = [{ ...lines[0], unitPrice: 800, listUnitPrice: 1000, priceMaxQuantity: 2 }, lines[1]];
+    const { container } = render(<CartView cart={{ id: "c1", subtotal: 3900, totalDiscount: 0, lines: set }} currency={usd} />);
+    const [first, second] = [...container.querySelectorAll("[data-line]")];
+    expect(first.textContent).toMatch(/A price set for you - usually \$10\.00\. It is for up to 2\./);
+    expect(second.textContent).not.toContain("A price set for you");
+  });
 });
 
 describe("ProductView", () => {

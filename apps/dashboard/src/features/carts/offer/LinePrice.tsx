@@ -2,8 +2,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { centsToDollars, dollarsToCents, parseNumberText } from '@/shared/schemas/fields'
-
-export const MAX_PRICE_REASON = 200 // cart.MaxPriceReason
+import { MAX_PRICE_REASON } from '../schemas/setPrice'
 
 // An offer line's unit price, applied when the field is left - like the quantity beside it. A
 // price the admin set holds through checkout; reset puts a catalog line back on its catalog price.

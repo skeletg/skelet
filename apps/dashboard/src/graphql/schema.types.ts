@@ -251,6 +251,7 @@ export type AdminCart = {
   kind: CartKind;
   lines: Array<AdminCartLine>;
   offer?: Maybe<AdminCartOffer>;
+  priceLimits?: Maybe<CartPriceLimits>;
   source: Scalars['String']['output'];
   status: Scalars['String']['output'];
   subtotal: Scalars['Int']['output'];
@@ -337,6 +338,8 @@ export type AdminCartLine = {
   listUnitPrice?: Maybe<Scalars['Int']['output']>;
   name: Scalars['String']['output'];
   options: Array<AdminCartLineOption>;
+  priceExpiresAt?: Maybe<Scalars['Time']['output']>;
+  priceMaxQuantity?: Maybe<Scalars['Float']['output']>;
   priceOverride: Scalars['Boolean']['output'];
   priceReason: Scalars['String']['output'];
   priceSource: LinePriceSource;
@@ -1814,6 +1817,12 @@ export type CartOfferState =
   | 'OPENED'
   | 'REVOKED'
   | 'SENT';
+
+export type CartPriceLimits = {
+  __typename?: 'CartPriceLimits';
+  holdsUntil?: Maybe<Scalars['Time']['output']>;
+  maxCutPercent: Scalars['Int']['output'];
+};
 
 export type CascadeAttributeIndexableResult = {
   __typename?: 'CascadeAttributeIndexableResult';

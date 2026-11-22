@@ -23,6 +23,10 @@ query Carts($channelId: ID!, $customerId: ID, $status: String, $kind: CartKind, 
 
 fragment CartFields on AdminCart {
   id
+  priceLimits {
+    maxCutPercent
+    holdsUntil
+  }
   customerId
   customerEmail
   customerName
@@ -50,6 +54,8 @@ fragment CartFields on AdminCart {
     priceOverride
     listUnitPrice
     priceReason
+    priceMaxQuantity
+    priceExpiresAt
     isCustom
     taxClass
     components {

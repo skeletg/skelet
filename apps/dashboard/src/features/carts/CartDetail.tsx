@@ -41,6 +41,7 @@ import { visibleOptionPicks } from './optionVisibility'
 import { ProductSearch } from './pickers'
 import { CustomLineDialog } from './offer/CustomLineDialog'
 import { LinePrice } from './offer/LinePrice'
+import { SetPriceDialog } from './SetPriceDialog'
 import { OfferActions } from './offer/OfferActions'
 import { OfferEditor } from './offer/OfferEditor'
 import { OfferStateBadge } from './offer/OfferStateBadge'
@@ -62,6 +63,8 @@ export function CartDetail() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [customOpen, setCustomOpen] = useState(false)
+  // The line of a shopper's own cart whose price is being set
+  const [pricing, setPricing] = useState<string | null>(null)
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const { data, loading, error, refetch } = useQuery(CartDocument, { variables: { id }, skip: !id })
@@ -99,6 +102,9 @@ export function CartDetail() {
   // A withdrawn offer is history like a converted cart - an expired one can still be extended and edited
   const isActive = cart.status === 'active' && offer?.state !== 'REVOKED'
   const canEditOffer = !!offer && isActive && permissions.canAccessChannelScope('orders.update', cart.channelId)
+  // A shopper checks out at a price set on their own cart, so setting one takes a permission of its own
+  const limits = cart.priceLimits ?? null
+  const canSetPrice = !offer && isActive && limits !== null && permissions.canAccessChannelScope('orders.set_cart_price', cart.channelId)
   const owner = cart.customerName ?? cart.customerEmail ?? (cart.email || 'Guest')
 
   return (
@@ -291,14 +297,19 @@ export function CartDetail() {
                         )}
                         {l.priceOverride && !l.isCustom && (
                           <Badge variant="info" className="ml-2 text-[9px] uppercase">
-                            offer price
+                            {offer ? 'offer price' : 'set price'}
                           </Badge>
                         )}
                       </div>
                       <div className="font-mono text-[10px] text-muted-foreground">
                         {l.isCustom ? `tax class ${l.taxClass || '-'}` : l.sku} · {formatCents(l.unitPrice, currency)} each
                         {l.priceOverride && l.listUnitPrice != null && ` · catalog ${formatCents(l.listUnitPrice, currency)}`}
+                        {!offer && l.priceOverride && l.priceMaxQuantity != null && ` · for up to ${l.priceMaxQuantity}`}
+                        {!offer && l.priceOverride && l.priceExpiresAt && ` · until ${new Date(l.priceExpiresAt).toLocaleDateString()}`}
                       </div>
+                      {!offer && l.priceOverride && l.priceReason && (
+                        <div className="text-[11px] text-muted-foreground">{l.priceReason}</div>
+                      )}
                       {l.options.length > 0 && (
                         <ul className="mt-1 space-y-0.5">
                           {l.options.map((o) => (
@@ -332,6 +343,24 @@ export function CartDetail() {
                         onCommit={(cents, reason) => run(() => setLinePrice({ variables: { cartId: cart.id, lineId: l.id, unitPrice: cents, reason } }))}
                         onReset={() => run(() => setLinePrice({ variables: { cartId: cart.id, lineId: l.id, unitPrice: null } }))}
                       />
+                    )}
+                    {canSetPrice && (
+                      <div className="flex items-center gap-1">
+                        <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => setPricing(l.id)}>
+                          {l.priceOverride ? 'Change price' : 'Set price'}
+                        </Button>
+                        {l.priceOverride && l.components.length === 0 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => run(() => setLinePrice({ variables: { cartId: cart.id, lineId: l.id, unitPrice: null } }))}
+                          >
+                            Reset
+                          </Button>
+                        )}
+                      </div>
                     )}
                     {isActive && (l.isSimple || l.isCustom) ? (
                       <QtyInput
@@ -373,6 +402,15 @@ export function CartDetail() {
         </DetailPageBody>
       </DetailPageLayout>
       {offer && <CustomLineDialog open={customOpen} onOpenChange={setCustomOpen} cartId={cart.id} />}
+      {canSetPrice && limits && (
+        <SetPriceDialog
+          line={cart.lines.find((l) => l.id === pricing) ?? null}
+          onClose={() => setPricing(null)}
+          cartId={cart.id}
+          currency={currency}
+          limits={limits}
+        />
+      )}
       <SaveConfirmDialog
         open={confirmSave}
         scopeLabel="This offer"

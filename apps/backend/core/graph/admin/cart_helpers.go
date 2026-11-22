@@ -81,21 +81,23 @@ func toAdminCartModel(c cart.Cart, email, name *string, currency string) *model.
 			}
 		}
 		lines[i] = &model.AdminCartLine{
-			ID:            l.ID.String(),
-			Name:          l.ProductName,
-			Sku:           l.ProductSku,
-			UnitPrice:     int32(l.UnitPrice),
-			Quantity:      l.Quantity,
-			TotalPrice:    int32(lt),
-			IsSimple:      len(l.Components) == 0 && len(l.Options) == 0 && !l.IsCustom,
-			Components:    comps,
-			Options:       opts,
-			PriceOverride: l.PriceHeld(),
-			PriceSource:   toLinePriceSource(l.PriceSource),
-			ListUnitPrice: int32PtrFrom64(l.ListUnitPrice),
-			PriceReason:   l.PriceReason,
-			IsCustom:      l.IsCustom,
-			TaxClass:      l.TaxClass,
+			ID:               l.ID.String(),
+			Name:             l.ProductName,
+			Sku:              l.ProductSku,
+			UnitPrice:        int32(l.UnitPrice),
+			Quantity:         l.Quantity,
+			TotalPrice:       int32(lt),
+			IsSimple:         len(l.Components) == 0 && len(l.Options) == 0 && !l.IsCustom,
+			Components:       comps,
+			Options:          opts,
+			PriceOverride:    l.PriceHeld(),
+			PriceSource:      toLinePriceSource(l.PriceSource),
+			ListUnitPrice:    int32PtrFrom64(l.ListUnitPrice),
+			PriceReason:      l.PriceReason,
+			PriceMaxQuantity: l.PriceMaxQuantity,
+			PriceExpiresAt:   l.PriceExpiresAt,
+			IsCustom:         l.IsCustom,
+			TaxClass:         l.TaxClass,
 		}
 	}
 	m := &model.AdminCart{
@@ -196,5 +198,9 @@ func (r *Resolver) mapCart(ctx context.Context, c cart.Cart) *model.AdminCart {
 	email, name := r.cartCustomerInfo(ctx, c.CustomerID)
 	m := toAdminCartModel(c, email, name, r.channelCurrency(ctx, c.ChannelID))
 	m.Offer = r.toAdminCartOfferModel(ctx, c)
+	if !c.IsOffer() {
+		cut, until := r.shopperPriceLimits(ctx, c.ChannelID)
+		m.PriceLimits = &model.CartPriceLimits{MaxCutPercent: int32(*cut), HoldsUntil: until}
+	}
 	return m
 }

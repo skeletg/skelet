@@ -194,7 +194,7 @@ func (r *mutationResolver) AdminUpdateCartOffer(ctx context.Context, cartID stri
 }
 
 func (r *mutationResolver) AdminSetCartLinePrice(ctx context.Context, cartID string, lineID string, unitPrice *int32, reason *string) (*model.AdminCart, error) {
-	c, err := r.offerForAdmin(ctx, cartID)
+	c, err := r.cartForPricing(ctx, cartID)
 	if err != nil {
 		return nil, err
 	}
@@ -203,6 +203,9 @@ func (r *mutationResolver) AdminSetCartLinePrice(ctx context.Context, cartID str
 		return nil, err
 	}
 	in := cart.SetLinePriceInput{By: actingAdminID(ctx)}
+	if !c.IsOffer() {
+		in.MaxCutPercent, in.HoldsUntil = r.shopperPriceLimits(ctx, c.ChannelID)
+	}
 	if reason != nil {
 		in.Reason = *reason
 	}

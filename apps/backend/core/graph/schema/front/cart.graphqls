@@ -439,6 +439,11 @@ type CartLine {
   options:     [CartLineOption!]!
   # A charge the store added to an offer by hand - no product page behind it, and nothing to deliver
   isCustom:    Boolean!
+  # The store set this line's price for the shopper. listUnitPrice is the regular price it stands in for - null when
+  # the line is at its regular price, or has none. priceMaxQuantity is how many the price is for: a shopper asking
+  # for more is refused with CART_LINE_PRICE_QUANTITY (maxQuantity in the error's extensions) - null when there is no limit
+  listUnitPrice:    Int
+  priceMaxQuantity: Float
 }
 
 # Snapshotted custom-option pick on a cart line. Option/value IDs reference the product's option structure at add time; priceDelta is the cents this pick added to the line's unit price (already included in unitPrice).

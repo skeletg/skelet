@@ -73,6 +73,46 @@ func (r *mutationResolver) offerForAdmin(ctx context.Context, idStr string) (car
 	return c, nil
 }
 
+// cartForPricing loads the cart a line's price is being set on. An offer's prices come with editing it; a shopper's own
+// cart takes a permission of its own, since the shopper checks out at whatever is set there
+func (r *mutationResolver) cartForPricing(ctx context.Context, idStr string) (cart.Cart, error) {
+	id, err := r.cartForAdmin(ctx, idStr)
+	if err != nil {
+		return cart.Cart{}, err
+	}
+	c, err := r.CartSvc.GetCartByIDReadOnly(ctx, id)
+	if err != nil {
+		return cart.Cart{}, errNotFound("cart")
+	}
+	if !c.IsOffer() {
+		if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "orders.set_cart_price", c.ChannelID, nil); err != nil {
+			return cart.Cart{}, err
+		}
+	}
+	return c, nil
+}
+
+// How far below the catalog price an admin may set a line of a shopper's cart, and until when it holds - the channel's
+// sales/cart/max_price_cut_percent and sales/cart/set_price_days. A setting that can't be read is the strictest
+// reading of it: no cut, and a day
+func (r *Resolver) shopperPriceLimits(ctx context.Context, channelID uuid.UUID) (*int, *time.Time) {
+	cut, days := 0, int64(1)
+	if r.ConfigSvc != nil {
+		scope := config.Scope{Kind: config.ScopeChannel, ChannelID: &channelID}
+		if n, err := r.ConfigSvc.GetInt(ctx, "sales/cart/max_price_cut_percent", scope); err == nil {
+			cut = int(n)
+		}
+		if n, err := r.ConfigSvc.GetInt(ctx, "sales/cart/set_price_days", scope); err == nil {
+			days = n
+		}
+	}
+	if days <= 0 {
+		return &cut, nil
+	}
+	until := time.Now().Add(time.Duration(days) * 24 * time.Hour)
+	return &cut, &until
+}
+
 func (r *Resolver) offerChannel(ctx context.Context, channelID uuid.UUID) (*channel.Channel, error) {
 	if r.ChannelSvc == nil {
 		return nil, errNotFound("channel")

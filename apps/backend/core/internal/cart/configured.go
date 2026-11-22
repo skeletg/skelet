@@ -24,7 +24,7 @@ func (s *Service) AddConfiguredToCart(ctx context.Context, cartID uuid.UUID, cal
 	if err := checkProtectedOfferLine(cart, uuid.Nil, input.ProductSku); err != nil {
 		return Cart{}, err
 	}
-	return s.addConfiguredLine(ctx, cart, input)
+	return s.addConfiguredLine(ctx, cart, input, false)
 }
 
 func (s *Service) AdminAddConfiguredToCart(ctx context.Context, cartID uuid.UUID, input AddConfiguredToCartInput) (Cart, error) { // ownership-bypassing twin of AddConfiguredToCart - phone orders need option picks too, and without this any required-option SKU is un-orderable through the console
@@ -38,10 +38,10 @@ func (s *Service) AdminAddConfiguredToCart(ctx context.Context, cartID uuid.UUID
 	if err != nil {
 		return Cart{}, err
 	}
-	return s.addConfiguredLine(ctx, cart, input)
+	return s.addConfiguredLine(ctx, cart, input, true)
 }
 
-func (s *Service) addConfiguredLine(ctx context.Context, cart Cart, input AddConfiguredToCartInput) (Cart, error) { // shared by the customer and admin configured adds - callers have already authorized the cart
+func (s *Service) addConfiguredLine(ctx context.Context, cart Cart, input AddConfiguredToCartInput, keepSetPrice bool) (Cart, error) { // shared by the customer and admin configured adds - callers have already authorized the cart
 	res, err := s.products.ResolveProductOptions(ctx, cart.ChannelID, input.ProductSku, cart.CustomerID)
 	if err != nil {
 		return Cart{}, fmt.Errorf("resolve product options for %q: %w", input.ProductSku, err)
@@ -93,11 +93,12 @@ func (s *Service) addConfiguredLine(ctx context.Context, cart Cart, input AddCon
 	if err := s.inTx(ctx, func(r Repository) error {
 		var err error
 		line, err = r.UpsertConfiguredCartLine(ctx, cart.ID, AddConfiguredLineInput{
-			ProductName: name,
-			ProductSku:  input.ProductSku,
-			UnitPrice:   unitPrice,
-			Quantity:    quantity,
-			Options:     options,
+			ProductName:  name,
+			ProductSku:   input.ProductSku,
+			UnitPrice:    unitPrice,
+			Quantity:     quantity,
+			Options:      options,
+			KeepSetPrice: keepSetPrice,
 		})
 		return err
 	}); err != nil {

@@ -182,3 +182,32 @@ minutes.
 | Storefront API | `openCartOffer`, `myCartOffers` and `Cart.offer` in `graph/schema/front/cart.graphqls` |
 | Console | `apps/dashboard/src/features/carts/offer/` |
 | Storefront | `app/offer/[token]/route.ts`, `app/[channel]/[locale]/cart/offer/`, `app/[channel]/[locale]/account/offers/` |
+
+## A price on a shopper's own cart
+
+An offer is a cart you build. Sometimes the shopper already has one - they're on the phone
+asking you to match a price, or you owe them a goodwill cut. On their cart's page, **Set
+price** on a line does that without an offer:
+
+- It takes the **Set Cart Prices** permission (`orders.set_cart_price`), on top of the one
+  for editing carts. The shopper checks out at whatever is set, so it's kept apart.
+- It always takes a reason. The line keeps it, with who set the price and the catalog price
+  it replaced, and so does the order line afterwards.
+- It can't go lower than the channel allows: **Largest price cut (%)**
+  (`sales/cart/max_price_cut_percent`) is the most that may come off the catalog price. The
+  dialog shows the lowest price it will take. The default, 100, allows any price.
+- It's for the quantity the line holds when you set it. The shopper can buy fewer at that
+  price, or remove the line, but not more - the storefront tells them how many it's for. A
+  quantity you change yourself afterwards is one the price is for.
+- It holds for **Set price holds (days)** (`sales/cart/set_price_days`, a week by default).
+  After that the line goes back to its catalog price the next time checkout prices the cart.
+- **Reset** puts the line back on its catalog price straight away.
+
+The price follows the line when a guest signs in and their cart joins their account's, and
+when you duplicate the cart. If the two carts hold the same product, the line that comes out
+has the set price and no more of the item than the price is for. A shopper who picks a
+product's options again in the storefront is choosing something else than the price was set
+for, so that line goes back to its catalog price.
+
+The shopper sees the line marked as a price set for them, with what the item usually costs.
+
