@@ -142,7 +142,9 @@ type OrderLine struct {
 	PriceSetBy    *uuid.UUID
 	PriceReason   string
 	ListUnitPrice *int64
-	Components    []OrderLineComponent
+	// Coupons and promotions left the line alone - an edit that spreads a discount again does too
+	NoPromotions bool
+	Components   []OrderLineComponent
 	// What the line took stock from besides or instead of itself, per line unit, snapshotted at placement
 	StockParts []OrderLineStockPart
 	Options    []OrderLineOption

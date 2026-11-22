@@ -10,7 +10,7 @@ import { priceFloor } from './schemas/setPrice'
 
 const line = {
   __typename: 'AdminCartLine' as const, id: 'l1', name: 'Rain jacket', sku: 'JACKET-M', unitPrice: 10000, quantity: 2, totalPrice: 20000,
-  isSimple: true, priceOverride: false, priceSource: 'CATALOG' as const, listUnitPrice: null, priceReason: '', priceMaxQuantity: null, priceExpiresAt: null,
+  isSimple: true, priceOverride: false, priceSource: 'CATALOG' as const, listUnitPrice: null, priceReason: '', priceMaxQuantity: null, priceExpiresAt: null, promotionsApply: true,
   isCustom: false, taxClass: '', components: [], options: [],
 }
 const cart = {
@@ -67,15 +67,27 @@ describe('setting a price on a shopper cart', () => {
 
     fireEvent.change(screen.getByLabelText('Reason'), { target: { value: '  Price match ' } })
     fireEvent.click(screen.getByRole('button', { name: 'Set price' }))
-    await waitFor(() => expect(set).toHaveBeenCalledWith({ cartId: 'cart-1', lineId: 'l1', unitPrice: 8500, reason: 'Price match' }))
+    await waitFor(() => expect(set).toHaveBeenCalledWith({ cartId: 'cart-1', lineId: 'l1', unitPrice: 8500, reason: 'Price match', promotionsApply: false }))
+  })
+
+  it('lets coupons and promotions apply only when the box is ticked', async () => {
+    const set = renderCart()
+    fireEvent.click(await screen.findByRole('button', { name: 'Set price' }, SLOW))
+    await screen.findByRole('dialog')
+    fireEvent.change(screen.getByLabelText('Unit price'), { target: { value: '85' } })
+    fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'Price match' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Coupons and promotions can lower it further' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Set price' }))
+    await waitFor(() => expect(set).toHaveBeenCalledWith(expect.objectContaining({ unitPrice: 8500, promotionsApply: true })))
   })
 
   it('shows a set price with what it replaced, how many it is for and why', async () => {
-    renderCart({ cart: { lines: [{ ...line, unitPrice: 8500, priceOverride: true, priceSource: 'ADMIN', listUnitPrice: 10000, priceReason: 'Price match', priceMaxQuantity: 2, priceExpiresAt: '2030-03-05T12:00:00Z' }] } })
+    renderCart({ cart: { lines: [{ ...line, unitPrice: 8500, priceOverride: true, priceSource: 'ADMIN', listUnitPrice: 10000, priceReason: 'Price match', priceMaxQuantity: 2, priceExpiresAt: '2030-03-05T12:00:00Z', promotionsApply: false }] } })
     const row = (await screen.findByText('Rain jacket', {}, SLOW)).closest('div.rounded')
     expect(row?.textContent).toMatch(/set price/)
     expect(row?.textContent).toMatch(/catalog .*100\.00.*for up to 2/)
     expect(row?.textContent).toContain('Price match')
+    expect(row?.textContent).toContain('no promotions')
     expect(screen.getByRole('button', { name: 'Change price' })).toBeDefined()
     expect(screen.getByRole('button', { name: 'Reset' })).toBeDefined()
   })

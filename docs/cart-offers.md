@@ -32,6 +32,9 @@ On the cart page:
     the order page shows them under the unit price.
   - Adding more of the item, or picking a configured line's options again, keeps the price you
     set. The catalog price beside it follows the catalog.
+  - Coupons and promotions don't lower a line whose price you set, or a custom line, unless
+    you tick **Promotions apply** on it. The **Coupons** lock still switches them off for
+    the whole offer.
 - **Custom line:** a free-form charge with no product behind it, such as an extra payment,
   a service or a fee.
   - You give it a name, price, quantity and tax class.
@@ -202,6 +205,10 @@ price** on a line does that without an offer:
 - It holds for **Set price holds (days)** (`sales/cart/set_price_days`, a week by default).
   After that the line goes back to its catalog price the next time checkout prices the cart.
 - **Reset** puts the line back on its catalog price straight away.
+- Coupons and promotions leave the line alone, unless you tick **Coupons and promotions can
+  lower it further**. The price is the deal. The line still counts toward what the cart
+  holds, so "10% off over 100" is reached with it in the cart, and the 10% comes off the
+  other lines.
 
 The price follows the line when a guest signs in and their cart joins their account's, and
 when you duplicate the cart. If the two carts hold the same product, the line that comes out

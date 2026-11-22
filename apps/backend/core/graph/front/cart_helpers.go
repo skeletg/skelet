@@ -427,15 +427,16 @@ func toCartLineModel(l cart.CartLine) *frontmodel.CartLine {
 		options[i] = opt
 	}
 	line := &frontmodel.CartLine{
-		ID:         l.ID.String(),
-		Name:       l.ProductName,
-		Sku:        l.ProductSku,
-		UnitPrice:  int32(l.UnitPrice),
-		Quantity:   l.Quantity,
-		TotalPrice: int32(money.LineTotal(l.UnitPrice, l.Quantity)),
-		Components: components,
-		Options:    options,
-		IsCustom:   l.IsCustom,
+		ID:              l.ID.String(),
+		Name:            l.ProductName,
+		Sku:             l.ProductSku,
+		UnitPrice:       int32(l.UnitPrice),
+		Quantity:        l.Quantity,
+		TotalPrice:      int32(money.LineTotal(l.UnitPrice, l.Quantity)),
+		Components:      components,
+		Options:         options,
+		IsCustom:        l.IsCustom,
+		PromotionsApply: !l.NoPromotions,
 	}
 	if l.PriceHeld() { // a set price that still stands - a lapsed one is about to be the catalog's again
 		if l.ListUnitPrice != nil {

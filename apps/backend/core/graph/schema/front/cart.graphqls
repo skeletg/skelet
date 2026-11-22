@@ -444,6 +444,8 @@ type CartLine {
   # for more is refused with CART_LINE_PRICE_QUANTITY (maxQuantity in the error's extensions) - null when there is no limit
   listUnitPrice:    Int
   priceMaxQuantity: Float
+  # False when coupons and promotions don't lower this line - say so, or a shopper wonders why their code skipped it
+  promotionsApply:  Boolean!
 }
 
 # Snapshotted custom-option pick on a cart line. Option/value IDs reference the product's option structure at add time; priceDelta is the cents this pick added to the line's unit price (already included in unitPrice).

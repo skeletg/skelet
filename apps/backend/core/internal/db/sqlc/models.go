@@ -667,6 +667,7 @@ type CartLine struct {
 	ListUnitPrice    sql.NullInt64   `json:"list_unit_price"`
 	PriceMaxQuantity sql.NullFloat64 `json:"price_max_quantity"`
 	PriceExpiresAt   sql.NullTime    `json:"price_expires_at"`
+	NoPromotions     bool            `json:"no_promotions"`
 }
 
 type CartLineComponent struct {
@@ -1925,6 +1926,7 @@ type OrderLine struct {
 	PriceSetBy      uuid.NullUUID `json:"price_set_by"`
 	PriceReason     string        `json:"price_reason"`
 	ListUnitPrice   sql.NullInt64 `json:"list_unit_price"`
+	NoPromotions    bool          `json:"no_promotions"`
 }
 
 type OrderLineComponent struct {

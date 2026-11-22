@@ -74,6 +74,9 @@
         "lineId": {
           "type": "string"
         },
+        "noDiscount": {
+          "type": "boolean"
+        },
         "productId": {
           "type": "string"
         },

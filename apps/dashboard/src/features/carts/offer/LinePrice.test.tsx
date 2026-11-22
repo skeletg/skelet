@@ -5,7 +5,7 @@ import { LinePrice } from './LinePrice'
 function setup(props: Partial<Parameters<typeof LinePrice>[0]> = {}) {
   const onCommit = vi.fn()
   const onReset = vi.fn()
-  render(<LinePrice unitPrice={1500} reason="" override canReset onCommit={onCommit} onReset={onReset} {...props} />)
+  render(<LinePrice unitPrice={1500} reason="" promotionsApply={false} override canReset onCommit={onCommit} onReset={onReset} {...props} />)
   return { onCommit, onReset }
 }
 
@@ -15,7 +15,7 @@ describe('LinePrice', () => {
     const price = screen.getByLabelText('Unit price')
     fireEvent.change(price, { target: { value: '12.50' } })
     fireEvent.blur(price)
-    expect(onCommit).toHaveBeenCalledWith(1250, 'Trade price')
+    expect(onCommit).toHaveBeenCalledWith(1250, 'Trade price', false)
   })
 
   it('sends a changed note with the price as it stands, and nothing when the note is the same', () => {
@@ -25,7 +25,7 @@ describe('LinePrice', () => {
     expect(onCommit).not.toHaveBeenCalled()
     fireEvent.change(note, { target: { value: '  Matched a quote  ' } })
     fireEvent.blur(note)
-    expect(onCommit).toHaveBeenCalledWith(1500, 'Matched a quote')
+    expect(onCommit).toHaveBeenCalledWith(1500, 'Matched a quote', false)
   })
 
   it('asks for no note on a catalog price, nor on a line that takes none', () => {
@@ -38,6 +38,19 @@ describe('LinePrice', () => {
     setup({ canReset: false })
     expect(screen.getByLabelText('Reason for the price')).toBeDefined()
     expect(screen.queryByRole('button', { name: 'Reset' })).toBeNull()
+  })
+
+  it('keeps promotions off a set price until the box is ticked, and sends the tick with the price and note as they stand', () => {
+    const { onCommit } = setup({ reason: 'Trade price' })
+    const box = screen.getByRole('checkbox', { name: 'Promotions apply' })
+    expect(box.getAttribute('aria-checked')).toBe('false')
+    fireEvent.click(box)
+    expect(onCommit).toHaveBeenCalledWith(1500, 'Trade price', true)
+  })
+
+  it('offers no such box on a catalog price, which promotions apply to anyway', () => {
+    setup({ override: false, promotionsApply: true })
+    expect(screen.queryByRole('checkbox', { name: 'Promotions apply' })).toBeNull()
   })
 
   it('leaves a custom line without a note field', () => {

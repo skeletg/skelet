@@ -54,7 +54,7 @@ func (percentOffSubtotal) Apply(ctx context.Context, env promotion.Environment, 
 	if err := unmarshalParams(raw, &p); err != nil {
 		return err
 	}
-	discount := (env.SubtotalCents() * int64(p.BPS)) / 10000
+	discount := (promotion.DiscountableSubtotal(env) * int64(p.BPS)) / 10000
 	if discount <= 0 {
 		return nil
 	}

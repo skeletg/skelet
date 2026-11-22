@@ -56,6 +56,7 @@ fragment CartFields on AdminCart {
     priceReason
     priceMaxQuantity
     priceExpiresAt
+    promotionsApply
     isCustom
     taxClass
     components {
@@ -210,8 +211,8 @@ mutation AdminUpdateCartOffer($cartId: ID!, $input: AdminUpdateCartOfferInput!) 
   }
 }
 
-mutation AdminSetCartLinePrice($cartId: ID!, $lineId: ID!, $unitPrice: Int, $reason: String) {
-  adminSetCartLinePrice(cartId: $cartId, lineId: $lineId, unitPrice: $unitPrice, reason: $reason) {
+mutation AdminSetCartLinePrice($cartId: ID!, $lineId: ID!, $unitPrice: Int, $reason: String, $promotionsApply: Boolean) {
+  adminSetCartLinePrice(cartId: $cartId, lineId: $lineId, unitPrice: $unitPrice, reason: $reason, promotionsApply: $promotionsApply) {
     ...CartFields
   }
 }

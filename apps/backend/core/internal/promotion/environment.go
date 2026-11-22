@@ -35,6 +35,22 @@ type CartLineView struct {
 	ProductKind    string // "simple" | "configurable" | "bundle" | "grouped"
 	CategoryIDs    []uuid.UUID
 	AttributeKVs   map[string]string
+	// No promotion may lower this line's price - the store set it by hand, or it is an add-on sold at its own price.
+	// The line still counts toward what the cart holds: a spend threshold sees it, a discount doesn't touch it. The
+	// ledger enforces it for every action; an action that works out a figure from the cart reads DiscountableSubtotal
+	NoDiscount bool
+}
+
+// DiscountableSubtotal is what a discount on the cart may be worked out from - the subtotal less the lines no
+// promotion may lower. Conditions read SubtotalCents, the whole cart
+func DiscountableSubtotal(env Environment) int64 {
+	sub := env.SubtotalCents()
+	for _, l := range env.Lines() {
+		if l.NoDiscount {
+			sub -= money.LineTotal(l.UnitPriceCents, l.Quantity)
+		}
+	}
+	return max(sub, 0)
 }
 
 // The default implementation BuildEnvironment populates - conditions and actions never see it directly, going through the Environment interface

@@ -67,7 +67,7 @@ func TestAllocateLineTaxInputs(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := allocateLineTaxInputs(tc.lines, splitDiscount(lineSubtotals(tc.lines), nil, tc.discount), tc.classByLine)
+			got := allocateLineTaxInputs(tc.lines, splitDiscount(lineSubtotals(tc.lines), nil, tc.discount, nil), tc.classByLine)
 			if len(got) != len(tc.want) {
 				t.Fatalf("len = %d, want %d", len(got), len(tc.want))
 			}

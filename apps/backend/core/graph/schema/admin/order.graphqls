@@ -265,6 +265,9 @@ type OrderLine {
   priceSource:   LinePriceSource!
   listUnitPrice: Int
   priceReason:   String!
+  # False when coupons and promotions left this line alone - its discountAmount is then only its share of a discount
+  # given on the order itself
+  promotionsApply: Boolean!
   # Custom-option picks captured at placement (engraving text, gift wrap,
   # etc.) - the immutable record of what was configured, for fulfillment.
   options:     [OrderLineOption!]!

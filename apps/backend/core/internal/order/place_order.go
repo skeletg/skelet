@@ -486,6 +486,7 @@ func (s *Service) persistOrderLines(ctx context.Context, orderR Repository, orde
 			PriceSetBy:    l.PriceSetBy,
 			PriceReason:   l.PriceReason,
 			ListUnitPrice: l.ListUnitPrice,
+			NoPromotions:  l.NoPromotions,
 		})
 		if err != nil {
 			return fmt.Errorf("add order line: %w", err)

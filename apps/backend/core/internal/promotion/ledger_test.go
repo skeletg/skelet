@@ -221,3 +221,31 @@ func TestALoadRacingAnEvictionIsNotCached(t *testing.T) {
 		t.Error("rules read before an eviction were cached after it")
 	}
 }
+
+// Whatever an action puts on a line no promotion may lower is dropped, and a cart-level discount is shared by the
+// other lines and can't come to more than they are worth
+func TestFinalizeLeavesNoDiscountLinesAlone(t *testing.T) {
+	set, a, b := uuid.New(), uuid.New(), uuid.New()
+	lines := []CartLineView{
+		{LineID: set, UnitPriceCents: 5000, Quantity: 2, NoDiscount: true},
+		{LineID: a, UnitPriceCents: 3000, Quantity: 1},
+		{LineID: b, UnitPriceCents: 1000, Quantity: 1},
+	}
+	l := newLedger()
+	l.AddLineAdjustment(set, 700) // a plugin or a remote provider naming the line anyway
+	l.AddSubtotalDiscount(400)
+	l.Finalize(lines, 14_000)
+	if got := l.SubtotalDiscountCents(); got != 400 {
+		t.Fatalf("discount = %d, want the 400 and none of the 700", got)
+	}
+	if l.LineAdjustment(set) != 0 || l.LineAdjustment(a) != 300 || l.LineAdjustment(b) != 100 {
+		t.Errorf("shares %d / %d / %d, want 0 / 300 / 100", l.LineAdjustment(set), l.LineAdjustment(a), l.LineAdjustment(b))
+	}
+
+	over := newLedger()
+	over.AddSubtotalDiscount(9_000)
+	over.Finalize(lines, 14_000)
+	if got := over.SubtotalDiscountCents(); got != 4_000 || over.LineAdjustment(set) != 0 {
+		t.Errorf("a discount past the other lines came to %d with %d on the set-price line, want 4000 and 0", got, over.LineAdjustment(set))
+	}
+}

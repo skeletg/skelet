@@ -36,12 +36,13 @@ function SetPriceForm({ line, cartId, currency, limits, onClose }: { line: Line;
   const [setPrice] = useMutation(AdminSetCartLinePriceDocument)
   const catalog = line.priceOverride ? (line.listUnitPrice ?? null) : line.unitPrice
   const floor = priceFloor(catalog, limits)
-  const baseline: SetPriceValues = { price: centsToDollars(line.unitPrice), reason: line.priceReason }
+  // A line at its catalog price reads as one promotions apply to - a price set on it starts with them off
+  const baseline: SetPriceValues = { price: centsToDollars(line.unitPrice), reason: line.priceReason, promotionsApply: line.priceOverride && line.promotionsApply }
   const dialog = useDialogForm({
     baseline,
     schema: setPriceSchema,
     submit: async (v: SetPriceValues) => {
-      await setPrice({ variables: { cartId, lineId: line.id, unitPrice: dollarsToCents(v.price), reason: v.reason.trim() } })
+      await setPrice({ variables: { cartId, lineId: line.id, unitPrice: dollarsToCents(v.price), reason: v.reason.trim(), promotionsApply: v.promotionsApply } })
     },
     onSaved: onClose,
   })
@@ -77,6 +78,9 @@ function SetPriceForm({ line, cartId, currency, limits, onClose }: { line: Line;
       </form.AppField>
       <form.AppField name="reason">
         {(f) => <f.TextField id="sp-reason" label="Reason" placeholder="Price match" hint="Kept with the line and the order it becomes." />}
+      </form.AppField>
+      <form.AppField name="promotionsApply">
+        {(f) => <f.CheckboxField id="sp-promotions" label="Coupons and promotions can lower it further" />}
       </form.AppField>
     </FormDialogBody>
   )

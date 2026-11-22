@@ -120,12 +120,16 @@ func (l *ledgerImpl) Finalize(lines []CartLineView, subtotalCents int64) {
 	if l.discountCap != nil {
 		l.clampTo(*l.discountCap)
 	}
-	ceiling := subtotalCents
-	if ceiling <= 0 {
-		// Simulations and tests build an environment from lines alone - fall back to what the lines are worth
-		for _, line := range lines {
+	// What the lines a promotion may touch are worth - never more than the cart itself, where the caller gave it.
+	// Simulations and tests build an environment from lines alone, and then the lines are all there is
+	var ceiling int64
+	for _, line := range lines {
+		if !line.NoDiscount {
 			ceiling += money.LineTotal(line.UnitPriceCents, line.Quantity)
 		}
+	}
+	if subtotalCents > 0 {
+		ceiling = min(ceiling, subtotalCents)
 	}
 	l.clampTo(ceiling)
 	l.AllocateLineDiscounts(lines)
@@ -136,7 +140,9 @@ func (l *ledgerImpl) Finalize(lines []CartLineView, subtotalCents int64) {
 func (l *ledgerImpl) clampLines(lines []CartLineView) {
 	totals := make(map[uuid.UUID]int64, len(lines))
 	for _, line := range lines {
-		totals[line.LineID] += money.LineTotal(line.UnitPriceCents, line.Quantity)
+		if !line.NoDiscount { // a line no promotion may lower takes nothing, whichever action named it
+			totals[line.LineID] += money.LineTotal(line.UnitPriceCents, line.Quantity)
+		}
 	}
 	for id, cents := range l.lineAdjust {
 		ceiling, ok := totals[id]
@@ -180,7 +186,9 @@ func (l *ledgerImpl) AllocateLineDiscounts(lines []CartLineView) {
 	room := make([]int64, len(lines))
 	var totalRoom int64
 	for i, line := range lines {
-		room[i] = max(money.LineTotal(line.UnitPriceCents, line.Quantity)-l.lineAdjust[line.LineID], 0)
+		if !line.NoDiscount {
+			room[i] = max(money.LineTotal(line.UnitPriceCents, line.Quantity)-l.lineAdjust[line.LineID], 0)
+		}
 		totalRoom += room[i]
 	}
 	if totalRoom <= 0 {

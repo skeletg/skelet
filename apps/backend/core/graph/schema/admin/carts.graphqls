@@ -46,6 +46,9 @@ type AdminCartLine {
   # it the line goes back to its catalog price at checkout. Both null on an offer's lines and on a catalog price
   priceMaxQuantity: Float
   priceExpiresAt:   Time
+  # Whether coupons and promotions may lower this line. They leave a line alone once its price is set, unless
+  # whoever set it says otherwise - the line still counts toward what the cart holds
+  promotionsApply: Boolean!
   # A free-form line added to an offer, with no catalog product behind it
   isCustom:    Boolean!
   taxClass:    String!
@@ -287,6 +290,8 @@ input AdminCustomCartLineInput {
   unitPrice: Int!
   quantity:  Float!
   taxClass:  String     # the tax class the line is taxed by - empty for the store's default
+  # Lets coupons and promotions lower the line - they leave a charge added by hand alone unless this is true
+  promotionsApply: Boolean
 }
 
 # Option picks for an admin-entered configured line - mirrors the storefront's ProductOptionSelectionInput (server-side pricing and validation; nothing here is trusted for price).
@@ -318,7 +323,8 @@ extend type Mutation {
   # On an offer that is all. On a shopper's own cart it takes orders.set_cart_price and a reason, the price may be no
   # lower than the cart's priceLimits allow (CART_LINE_PRICE_TOO_LOW, with floorCents in the error's extensions), and
   # it is for the quantity the line holds: the shopper may buy fewer at it, not more
-  adminSetCartLinePrice(cartId: ID!, lineId: ID!, unitPrice: Int, reason: String): AdminCart!
+  # promotionsApply lets coupons and promotions lower the line on top of the price set - they don't by default
+  adminSetCartLinePrice(cartId: ID!, lineId: ID!, unitPrice: Int, reason: String, promotionsApply: Boolean): AdminCart!
   adminAddCustomCartLine(cartId: ID!, input: AdminCustomCartLineInput!): AdminCart!
   # Emails the offer's link to its recipient - again on every call
   adminSendCartOffer(cartId: ID!): AdminCart!

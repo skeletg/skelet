@@ -390,6 +390,7 @@
       "field PromotionCartLine.AttributeKVs map[string]string",
       "field PromotionCartLine.CategoryIDs []uuid.UUID",
       "field PromotionCartLine.LineID uuid.UUID",
+      "field PromotionCartLine.NoDiscount bool",
       "field PromotionCartLine.ProductID uuid.UUID",
       "field PromotionCartLine.ProductKind string",
       "field PromotionCartLine.ProductName string",

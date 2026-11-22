@@ -1,12 +1,19 @@
 package e2e
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/integration"
+	"github.com/skeletg/skelet/apps/backend/core/internal/order"
+	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 )
 
 // Scenario: support matches a price on a line of a shopper's own cart. It takes its own permission and a reason, and
@@ -93,6 +100,77 @@ func TestAPriceSetOnAShoppersOwnCart(t *testing.T) {
 	}
 	if ol := o.Lines[0]; ol.PriceSource != "admin" || ol.PriceReason != "Price match" || ol.ListUnitPrice == nil || *ol.ListUnitPrice != 10_000 {
 		t.Errorf("order line %+v, want it to say the price was set, why, and the catalog's 10000", ol)
+	}
+	h.Settle(t)
+}
+
+// Scenario: 10% off carts over 100.00, and a cart with a price-matched jacket beside two mugs. The jacket counts toward
+// the 100.00 - the cart holds it - but the 10% comes off the mugs alone, since the jacket's price is the deal. The
+// order line says promotions left it alone. Set with promotions allowed, the same line is discounted like any other
+func TestPromotionsLeaveASetPriceAlone(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 20, 10_000)
+	mug := h.AddProduct(t, f, 2_500, true, 20)
+	h.newRule(t, promotion.CreateRuleInput{
+		Rule: promotion.Rule{
+			Slug: "e2e-" + uuid.NewString()[:8], Name: "E2E a tenth off over 100",
+			ChannelID: &f.Channel.ID, IsActive: true,
+		},
+		Conditions: []promotion.Condition{{Type: "core.cart_subtotal_range", Params: json.RawMessage(`{"min_cents":10000}`)}},
+		Actions:    []promotion.Action{{Type: "core.percent_off_subtotal", Params: json.RawMessage(`{"bps":1000}`)}},
+	})
+	place := func(promotionsApply bool) order.Order {
+		t.Helper()
+		cartID := h.NewGuestCart(t, f, 1)
+		c, err := h.D.Cart.AddToCart(h.Ctx, cartID, nil, mug.SKU, 2)
+		if err != nil {
+			t.Fatalf("add the mugs: %v", err)
+		}
+		var jacket uuid.UUID
+		for _, l := range c.Lines {
+			if l.ProductSku == f.Product.SKU {
+				jacket = l.ID
+			}
+		}
+		price := int64(8_500)
+		if _, err := h.D.Cart.AdminSetLinePrice(h.Ctx, cartID, jacket, cart.SetLinePriceInput{UnitPrice: &price, Reason: "Price match", PromotionsApply: promotionsApply}); err != nil {
+			t.Fatalf("set the price: %v", err)
+		}
+		cod := "cod"
+		quote, err := h.D.Order.QuoteCheckout(channel.WithChannel(h.Ctx, &f.Channel), order.PlaceOrderInput{
+			CartID: &cartID, BillingAddress: e2eAddress(), ShippingAddress: e2eAddress(), PaymentProviderSlug: &cod,
+		})
+		if err != nil {
+			t.Fatalf("quote: %v", err)
+		}
+		o, err := h.TryPlace(t, f.Channel, cartID)
+		if err != nil {
+			t.Fatalf("place: %v", err)
+		}
+		if quote.DiscountCents != o.DiscountAmount || quote.TotalCents != o.TotalAmount {
+			t.Errorf("quoted discount %d total %d, placed %d and %d", quote.DiscountCents, quote.TotalCents, o.DiscountAmount, o.TotalAmount)
+		}
+		return o
+	}
+
+	o := place(false)
+	if o.SubtotalAmount != 13_500 || o.DiscountAmount != 500 {
+		t.Fatalf("subtotal %d discount %d, want 13500 and a tenth of the mugs' 5000", o.SubtotalAmount, o.DiscountAmount)
+	}
+	lines := h.linesAddUp(t, o)
+	if l := lines[0]; l.ProductSku != f.Product.SKU || l.DiscountCents != 0 || !l.NoPromotions {
+		t.Errorf("the set-price line %+v, want no discount and promotions marked as left off", l)
+	}
+	if l := lines[1]; l.DiscountCents != 500 || l.NoPromotions {
+		t.Errorf("the line beside it %+v, want the whole 500", l)
+	}
+
+	o = place(true)
+	if o.DiscountAmount != 1_350 {
+		t.Fatalf("with promotions allowed the discount is %d, want a tenth of the whole 13500", o.DiscountAmount)
+	}
+	if lines = h.linesAddUp(t, o); lines[0].DiscountCents != 850 || lines[0].NoPromotions || lines[1].DiscountCents != 500 {
+		t.Errorf("with promotions allowed: shares %d and %d, want 850 and 500", lines[0].DiscountCents, lines[1].DiscountCents)
 	}
 	h.Settle(t)
 }

@@ -149,7 +149,7 @@ describe('OrderDetail stage', () => {
 describe('OrderDetail lines', () => {
   const line = (id: string, name: string, more: Record<string, unknown>) => ({
     __typename: 'OrderLine' as const, id, name, sku: id.toUpperCase(), unitPrice: 5000, quantity: 2, totalPrice: 10000,
-    discountAmount: 0, taxAmount: 0, priceSource: 'CATALOG' as const, listUnitPrice: null, priceReason: '',
+    discountAmount: 0, taxAmount: 0, priceSource: 'CATALOG' as const, listUnitPrice: null, priceReason: '', promotionsApply: true,
     isGift: false, components: [], options: [], ...more,
   })
   const show = (taxIncluded: boolean, lines = [line('shirt', 'Shirt', { discountAmount: 2000 }), line('book', 'Book', { taxAmount: 500 })]) =>
@@ -172,13 +172,15 @@ describe('OrderDetail lines', () => {
 
   it('shows a price an admin set beside the catalog price it replaced, with the note left for it', async () => {
     show(false, [
-      line('shirt', 'Shirt', { priceSource: 'ADMIN', listUnitPrice: 6500, priceReason: 'Trade price' }),
+      line('shirt', 'Shirt', { priceSource: 'ADMIN', listUnitPrice: 6500, priceReason: 'Trade price', promotionsApply: false }),
       line('fee', 'Setup fee', { priceSource: 'ADMIN' }),
       line('book', 'Book', {}),
     ])
     const shirt = (await screen.findByText('Shirt', {}, SLOW)).closest('tr')
     expect(shirt?.querySelector('s')?.textContent).toMatch(/65\.00/)
     expect(shirt?.textContent).toContain('Trade price')
+    expect(shirt?.textContent).toContain('no promotions')
+    expect(screen.getByText('Book').closest('tr')?.textContent).not.toContain('no promotions')
     expect(screen.getByText('Setup fee').closest('tr')?.querySelector('s')).toBeNull()
     expect(screen.getByText('Book').closest('tr')?.querySelector('s')).toBeNull()
   })

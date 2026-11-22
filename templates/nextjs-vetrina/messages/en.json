@@ -486,6 +486,7 @@
     "yourPrice": "A price set for you - usually {regular}.",
     "yourPriceOnly": "A price set for you.",
     "priceFor": "It is for up to {count}.",
+    "noPromotions": "Coupons and promotions don't apply to this item.",
     "freeShippingUnlocked": "You’ve reached the threshold for eligible delivery rates.",
     "freeShippingRemaining": "Add <amount></amount> more to reach the threshold for eligible delivery rates.",
     "freeShippingProgress": "Progress toward free shipping",

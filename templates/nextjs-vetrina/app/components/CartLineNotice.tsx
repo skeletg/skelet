@@ -18,7 +18,9 @@ export function CartLineNotice({
   // The store set this line's price for the shopper - said plainly, with what it usually costs and how many it is for
   const yourPrice = line.listUnitPrice != null && line.listUnitPrice !== line.unitPrice;
   const priceFor = line.priceMaxQuantity ?? null;
-  if (!stockShort && !priceChanged && !yourPrice && priceFor === null) return null;
+  // Said so a shopper whose code skipped the line knows why
+  const noPromotions = line.promotionsApply === false;
+  if (!stockShort && !priceChanged && !yourPrice && priceFor === null && !noPromotions) return null;
 
   return (
     <div className="mt-1 space-y-0.5">
@@ -35,6 +37,7 @@ export function CartLineNotice({
           {priceFor !== null ? ` ${t("priceFor", { count: priceFor })}` : ""}
         </p>
       )}
+      {noPromotions && <p className="text-xs text-muted-foreground">{t("noPromotions")}</p>}
       {priceChanged && (
         <p className="text-xs text-amber-700">
           {t("priceUpdated", {

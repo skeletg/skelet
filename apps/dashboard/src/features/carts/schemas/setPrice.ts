@@ -14,6 +14,7 @@ export const setPriceSchema = z
       .min(1, 'Say why the price is being set')
       .max(MAX_PRICE_REASON, `At most ${MAX_PRICE_REASON} characters`)
       .describe('Why - it stays with the line and the order it becomes'),
+    promotionsApply: z.boolean().describe('Whether coupons and promotions may lower the line on top of the price set - off unless ticked'),
   })
   .describe('A price set on a line of a shopper cart')
 

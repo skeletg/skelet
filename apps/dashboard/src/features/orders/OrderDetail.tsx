@@ -507,6 +507,7 @@ export function OrderDetail() {
                           {l.priceReason && <div className="font-sans">{l.priceReason}</div>}
                         </div>
                       )}
+                      {!l.promotionsApply && <div className="text-xs font-normal text-muted-foreground">no promotions</div>}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {formatCents(l.totalPrice, order.currencyCode)}

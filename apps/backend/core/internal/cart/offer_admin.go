@@ -35,6 +35,8 @@ type SetLinePriceInput struct {
 	// and when the price stops holding (nil for as long as the cart lives)
 	MaxCutPercent *int
 	HoldsUntil    *time.Time
+	// Whether coupons and promotions may lower the line on top of the price set - they don't unless this says so
+	PromotionsApply bool
 }
 
 var ErrOfferAccountNeedsCustomer = errors.New("only an offer for a customer can show in their account")
@@ -144,7 +146,7 @@ func (s *Service) AdminSetLinePrice(ctx context.Context, cartID, lineID uuid.UUI
 		if utf8.RuneCountInString(reason) > MaxPriceReason {
 			return Cart{}, fmt.Errorf("%w: the reason is at most %d characters", ErrOfferLinePriceInvalid, MaxPriceReason)
 		}
-		price := LinePrice{UnitPrice: *in.UnitPrice, Source: PriceAdmin, SetBy: in.By, Reason: reason, ListUnitPrice: s.catalogUnit(ctx, cart, line)}
+		price := LinePrice{UnitPrice: *in.UnitPrice, Source: PriceAdmin, SetBy: in.By, Reason: reason, ListUnitPrice: s.catalogUnit(ctx, cart, line), NoPromotions: !in.PromotionsApply}
 		if !cart.IsOffer() {
 			if price, err = shopperPrice(price, line, in); err != nil {
 				return Cart{}, err

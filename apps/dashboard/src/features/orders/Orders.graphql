@@ -106,6 +106,7 @@ query Order($id: ID!) {
       priceSource
       listUnitPrice
       priceReason
+      promotionsApply
       isGift
       components {
         id

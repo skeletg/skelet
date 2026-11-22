@@ -223,6 +223,16 @@ shopper edits may not pass (an admin's quantity raises it), and
 the line back on the catalog's. Copies (guest merge, handoff, duplicate) carry a
 set price with its line and cap the quantity at what it is for.
 
+**Lines promotions leave alone**: `cart_lines.no_promotions` (and the order
+line's) marks a line no coupon or promotion may lower - the default once a price
+is set by hand, lifted per line by whoever set it. The promotion engine sees
+the line with `CartLineView.NoDiscount`: conditions still count it (a spend
+threshold, "cart contains"), but the ledger drops any discount an action puts
+on it, cart-level discounts are worked out from `DiscountableSubtotal` and
+shared by the other lines, and line promotions (matching items, buy-X-get-Y)
+skip it. A discount given on the order itself - a plugin's at placement, a
+draft's - also goes to the open lines first (`order.splitDiscount`).
+
 **Config**: paths always `section/group/field`. Scope is `default` or
 `channel`; all global values at `default/0`. Resolution:
 requested scope → default/0 → registry default. `Set` validates +

@@ -18,8 +18,9 @@ type lineShares struct {
 
 // splitDiscount shares an order's discount over its lines. What already sits on a line - the promotion engine's own
 // allocation at checkout, the stored share on an edit - stays there, and the rest is spread by what each line has
-// left, so no line goes below zero. A discount smaller than what the lines already carry takes from each in proportion
-func splitDiscount(lineSubs, onLine []int64, total int64) []int64 {
+// left, so no line goes below zero. A discount smaller than what the lines already carry takes from each in proportion.
+// A closed line is one promotions leave alone: it takes of the rest only what the open lines can't carry
+func splitDiscount(lineSubs, onLine []int64, total int64, closed []bool) []int64 {
 	out := make([]int64, len(lineSubs))
 	var placed int64
 	for i, sub := range lineSubs {
@@ -31,11 +32,21 @@ func splitDiscount(lineSubs, onLine []int64, total int64) []int64 {
 	if placed >= total {
 		return money.Spread(out, total)
 	}
-	room := make([]int64, len(lineSubs))
+	open, shut := make([]int64, len(lineSubs)), make([]int64, len(lineSubs))
+	var openRoom int64
 	for i, sub := range lineSubs {
-		room[i] = sub - out[i]
+		if i < len(closed) && closed[i] {
+			shut[i] = sub - out[i]
+			continue
+		}
+		open[i] = sub - out[i]
+		openRoom += max(open[i], 0)
 	}
-	for i, more := range money.Spread(room, total-placed) {
+	rest := total - placed
+	for i, more := range money.Spread(open, rest) {
+		out[i] += more
+	}
+	for i, more := range money.Spread(shut, rest-openRoom) {
 		out[i] += more
 	}
 	return out
@@ -57,7 +68,11 @@ func (cc *checkoutContext) discountShares(total int64) []int64 {
 			onLine[i] = cc.discountOnLine[l.ID]
 		}
 	}
-	return splitDiscount(lineSubtotals(cc.cart.Lines), onLine, total)
+	closed := make([]bool, len(cc.cart.Lines))
+	for i, l := range cc.cart.Lines {
+		closed[i] = l.NoPromotions
+	}
+	return splitDiscount(lineSubtotals(cc.cart.Lines), onLine, total, closed)
 }
 
 // shares settles each line's part of a priced order. Core's tax is worked out line by line and kept as it came. A

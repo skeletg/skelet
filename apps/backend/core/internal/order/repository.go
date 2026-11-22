@@ -926,6 +926,7 @@ func (r *postgresRepository) AddOrderLine(ctx context.Context, line OrderLine) (
 		PriceSetBy:    sqlnull.UUID(line.PriceSetBy),
 		PriceReason:   line.PriceReason,
 		ListUnitPrice: sqlnull.Int64(line.ListUnitPrice),
+		NoPromotions:  line.NoPromotions,
 	})
 	if err != nil {
 		return OrderLine{}, fmt.Errorf("add order line: %w", err)
@@ -1415,6 +1416,7 @@ func toOrderLine(row db.OrderLine) OrderLine {
 		PriceSetBy:    sqlnull.UUIDPtr(row.PriceSetBy),
 		PriceReason:   row.PriceReason,
 		ListUnitPrice: sqlnull.Int64Ptr(row.ListUnitPrice),
+		NoPromotions:  row.NoPromotions,
 		CreatedAt:     row.CreatedAt,
 	}
 }

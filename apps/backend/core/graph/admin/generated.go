@@ -245,6 +245,7 @@ type ComplexityRoot struct {
 		PriceOverride    func(childComplexity int) int
 		PriceReason      func(childComplexity int) int
 		PriceSource      func(childComplexity int) int
+		PromotionsApply  func(childComplexity int) int
 		Quantity         func(childComplexity int) int
 		Sku              func(childComplexity int) int
 		TaxClass         func(childComplexity int) int
@@ -2815,7 +2816,7 @@ type ComplexityRoot struct {
 		AdminRemoveCartLine               func(childComplexity int, cartID string, lineID string) int
 		AdminRevokeCartOffer              func(childComplexity int, cartID string) int
 		AdminSendCartOffer                func(childComplexity int, cartID string) int
-		AdminSetCartLinePrice             func(childComplexity int, cartID string, lineID string, unitPrice *int32, reason *string) int
+		AdminSetCartLinePrice             func(childComplexity int, cartID string, lineID string, unitPrice *int32, reason *string, promotionsApply *bool) int
 		AdminSetCustomerConsent           func(childComplexity int, customerID string, kind string, optedIn bool) int
 		AdminSsoComplete                  func(childComplexity int, state string, code string, binding string) int
 		AdminSsoLinkComplete              func(childComplexity int, state string, code string, binding string) int
@@ -3422,21 +3423,22 @@ type ComplexityRoot struct {
 	}
 
 	OrderLine struct {
-		Components     func(childComplexity int) int
-		DiscountAmount func(childComplexity int) int
-		ID             func(childComplexity int) int
-		IsCustom       func(childComplexity int) int
-		IsGift         func(childComplexity int) int
-		ListUnitPrice  func(childComplexity int) int
-		Name           func(childComplexity int) int
-		Options        func(childComplexity int) int
-		PriceReason    func(childComplexity int) int
-		PriceSource    func(childComplexity int) int
-		Quantity       func(childComplexity int) int
-		Sku            func(childComplexity int) int
-		TaxAmount      func(childComplexity int) int
-		TotalPrice     func(childComplexity int) int
-		UnitPrice      func(childComplexity int) int
+		Components      func(childComplexity int) int
+		DiscountAmount  func(childComplexity int) int
+		ID              func(childComplexity int) int
+		IsCustom        func(childComplexity int) int
+		IsGift          func(childComplexity int) int
+		ListUnitPrice   func(childComplexity int) int
+		Name            func(childComplexity int) int
+		Options         func(childComplexity int) int
+		PriceReason     func(childComplexity int) int
+		PriceSource     func(childComplexity int) int
+		PromotionsApply func(childComplexity int) int
+		Quantity        func(childComplexity int) int
+		Sku             func(childComplexity int) int
+		TaxAmount       func(childComplexity int) int
+		TotalPrice      func(childComplexity int) int
+		UnitPrice       func(childComplexity int) int
 	}
 
 	OrderLineComponent struct {
@@ -5586,7 +5588,7 @@ type MutationResolver interface {
 	AdminDuplicateCart(ctx context.Context, cartID string, targetCustomerID *string) (*model.AdminCart, error)
 	AdminCreateCartOffer(ctx context.Context, input model.AdminCreateCartOfferInput) (*model.AdminCart, error)
 	AdminUpdateCartOffer(ctx context.Context, cartID string, input model.AdminUpdateCartOfferInput) (*model.AdminCart, error)
-	AdminSetCartLinePrice(ctx context.Context, cartID string, lineID string, unitPrice *int32, reason *string) (*model.AdminCart, error)
+	AdminSetCartLinePrice(ctx context.Context, cartID string, lineID string, unitPrice *int32, reason *string, promotionsApply *bool) (*model.AdminCart, error)
 	AdminAddCustomCartLine(ctx context.Context, cartID string, input model.AdminCustomCartLineInput) (*model.AdminCart, error)
 	AdminSendCartOffer(ctx context.Context, cartID string) (*model.AdminCart, error)
 	AdminRegenerateCartOfferLink(ctx context.Context, cartID string) (*model.AdminCart, error)
@@ -7164,6 +7166,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AdminCartLine.PriceSource(childComplexity), true
+	case "AdminCartLine.promotionsApply":
+		if e.ComplexityRoot.AdminCartLine.PromotionsApply == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartLine.PromotionsApply(childComplexity), true
 	case "AdminCartLine.quantity":
 		if e.ComplexityRoot.AdminCartLine.Quantity == nil {
 			break
@@ -18310,7 +18318,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.AdminSetCartLinePrice(childComplexity, args["cartId"].(string), args["lineId"].(string), args["unitPrice"].(*int32), args["reason"].(*string)), true
+		return e.ComplexityRoot.Mutation.AdminSetCartLinePrice(childComplexity, args["cartId"].(string), args["lineId"].(string), args["unitPrice"].(*int32), args["reason"].(*string), args["promotionsApply"].(*bool)), true
 	case "Mutation.adminSetCustomerConsent":
 		if e.ComplexityRoot.Mutation.AdminSetCustomerConsent == nil {
 			break
@@ -24247,6 +24255,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OrderLine.PriceSource(childComplexity), true
+	case "OrderLine.promotionsApply":
+		if e.ComplexityRoot.OrderLine.PromotionsApply == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLine.PromotionsApply(childComplexity), true
 	case "OrderLine.quantity":
 		if e.ComplexityRoot.OrderLine.Quantity == nil {
 			break
@@ -35793,6 +35807,9 @@ type AdminCartLine {
   # it the line goes back to its catalog price at checkout. Both null on an offer's lines and on a catalog price
   priceMaxQuantity: Float
   priceExpiresAt:   Time
+  # Whether coupons and promotions may lower this line. They leave a line alone once its price is set, unless
+  # whoever set it says otherwise - the line still counts toward what the cart holds
+  promotionsApply: Boolean!
   # A free-form line added to an offer, with no catalog product behind it
   isCustom:    Boolean!
   taxClass:    String!
@@ -36034,6 +36051,8 @@ input AdminCustomCartLineInput {
   unitPrice: Int!
   quantity:  Float!
   taxClass:  String     # the tax class the line is taxed by - empty for the store's default
+  # Lets coupons and promotions lower the line - they leave a charge added by hand alone unless this is true
+  promotionsApply: Boolean
 }
 
 # Option picks for an admin-entered configured line - mirrors the storefront's ProductOptionSelectionInput (server-side pricing and validation; nothing here is trusted for price).
@@ -36065,7 +36084,8 @@ extend type Mutation {
   # On an offer that is all. On a shopper's own cart it takes orders.set_cart_price and a reason, the price may be no
   # lower than the cart's priceLimits allow (CART_LINE_PRICE_TOO_LOW, with floorCents in the error's extensions), and
   # it is for the quantity the line holds: the shopper may buy fewer at it, not more
-  adminSetCartLinePrice(cartId: ID!, lineId: ID!, unitPrice: Int, reason: String): AdminCart!
+  # promotionsApply lets coupons and promotions lower the line on top of the price set - they don't by default
+  adminSetCartLinePrice(cartId: ID!, lineId: ID!, unitPrice: Int, reason: String, promotionsApply: Boolean): AdminCart!
   adminAddCustomCartLine(cartId: ID!, input: AdminCustomCartLineInput!): AdminCart!
   # Emails the offer's link to its recipient - again on every call
   adminSendCartOffer(cartId: ID!): AdminCart!
@@ -41328,6 +41348,9 @@ type OrderLine {
   priceSource:   LinePriceSource!
   listUnitPrice: Int
   priceReason:   String!
+  # False when coupons and promotions left this line alone - its discountAmount is then only its share of a discount
+  # given on the order itself
+  promotionsApply: Boolean!
   # Custom-option picks captured at placement (engraving text, gift wrap,
   # etc.) - the immutable record of what was configured, for fulfillment.
   options:     [OrderLineOption!]!
@@ -45470,6 +45493,8 @@ func (ec *executionContext) childFields_AdminCartLine(ctx context.Context, field
 		return ec.fieldContext_AdminCartLine_priceMaxQuantity(ctx, field)
 	case "priceExpiresAt":
 		return ec.fieldContext_AdminCartLine_priceExpiresAt(ctx, field)
+	case "promotionsApply":
+		return ec.fieldContext_AdminCartLine_promotionsApply(ctx, field)
 	case "isCustom":
 		return ec.fieldContext_AdminCartLine_isCustom(ctx, field)
 	case "taxClass":
@@ -50766,6 +50791,8 @@ func (ec *executionContext) childFields_OrderLine(ctx context.Context, field gra
 		return ec.fieldContext_OrderLine_listUnitPrice(ctx, field)
 	case "priceReason":
 		return ec.fieldContext_OrderLine_priceReason(ctx, field)
+	case "promotionsApply":
+		return ec.fieldContext_OrderLine_promotionsApply(ctx, field)
 	case "options":
 		return ec.fieldContext_OrderLine_options(ctx, field)
 	case "components":
@@ -55099,6 +55126,14 @@ func (ec *executionContext) field_Mutation_adminSetCartLinePrice_args(ctx contex
 		return nil, err
 	}
 	args["reason"] = arg3
+	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "promotionsApply",
+		func(ctx context.Context, v any) (*bool, error) {
+			return ec.unmarshalOBoolean2ᚖbool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["promotionsApply"] = arg4
 	return args, nil
 }
 
@@ -72470,6 +72505,29 @@ func (ec *executionContext) _AdminCartLine_priceExpiresAt(ctx context.Context, f
 }
 func (ec *executionContext) fieldContext_AdminCartLine_priceExpiresAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AdminCartLine", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartLine_promotionsApply(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartLine_promotionsApply(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PromotionsApply, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartLine_promotionsApply(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartLine", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _AdminCartLine_isCustom(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLine) (ret graphql.Marshaler) {
@@ -118039,7 +118097,7 @@ func (ec *executionContext) _Mutation_adminSetCartLinePrice(ctx context.Context,
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().AdminSetCartLinePrice(ctx, fc.Args["cartId"].(string), fc.Args["lineId"].(string), fc.Args["unitPrice"].(*int32), fc.Args["reason"].(*string))
+			return ec.Resolvers.Mutation().AdminSetCartLinePrice(ctx, fc.Args["cartId"].(string), fc.Args["lineId"].(string), fc.Args["unitPrice"].(*int32), fc.Args["reason"].(*string), fc.Args["promotionsApply"].(*bool))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminCart) graphql.Marshaler {
@@ -140275,6 +140333,29 @@ func (ec *executionContext) _OrderLine_priceReason(ctx context.Context, field gr
 }
 func (ec *executionContext) fieldContext_OrderLine_priceReason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OrderLine_promotionsApply(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderLine_promotionsApply(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PromotionsApply, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderLine_promotionsApply(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _OrderLine_options(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
@@ -182389,7 +182470,7 @@ func (ec *executionContext) unmarshalInputAdminCustomCartLineInput(ctx context.C
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "unitPrice", "quantity", "taxClass"}
+	fieldsInOrder := [...]string{"name", "unitPrice", "quantity", "taxClass", "promotionsApply"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -182424,6 +182505,13 @@ func (ec *executionContext) unmarshalInputAdminCustomCartLineInput(ctx context.C
 				return it, err
 			}
 			it.TaxClass = data
+		case "promotionsApply":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("promotionsApply"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PromotionsApply = data
 		}
 	}
 	return it, nil
@@ -198136,6 +198224,11 @@ func (ec *executionContext) _AdminCartLine(ctx context.Context, sel ast.Selectio
 		case "priceExpiresAt":
 			out.Values[i] = ec._AdminCartLine_priceExpiresAt(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "promotionsApply":
+			out.Values[i] = ec._AdminCartLine_promotionsApply(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "isCustom":
@@ -220963,6 +221056,11 @@ func (ec *executionContext) _OrderLine(ctx context.Context, sel ast.SelectionSet
 			}
 		case "priceReason":
 			out.Values[i] = ec._OrderLine_priceReason(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "promotionsApply":
+			out.Values[i] = ec._OrderLine_promotionsApply(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

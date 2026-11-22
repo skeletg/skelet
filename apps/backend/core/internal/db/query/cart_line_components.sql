@@ -47,6 +47,7 @@ ON CONFLICT (cart_id, product_sku, config_key) DO UPDATE
       price_reason = CASE WHEN sqlc.arg(keep_set_price)::boolean THEN cart_lines.price_reason ELSE '' END,
       price_max_quantity = CASE WHEN sqlc.arg(keep_set_price)::boolean THEN cart_lines.price_max_quantity END,
       price_expires_at = CASE WHEN sqlc.arg(keep_set_price)::boolean THEN cart_lines.price_expires_at END,
+      no_promotions = sqlc.arg(keep_set_price)::boolean AND cart_lines.no_promotions,
       product_name = EXCLUDED.product_name,
       bundle_hook_priced = EXCLUDED.bundle_hook_priced,
       updated_at   = NOW()

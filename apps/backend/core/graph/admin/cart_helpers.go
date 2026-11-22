@@ -96,6 +96,7 @@ func toAdminCartModel(c cart.Cart, email, name *string, currency string) *model.
 			PriceReason:      l.PriceReason,
 			PriceMaxQuantity: l.PriceMaxQuantity,
 			PriceExpiresAt:   l.PriceExpiresAt,
+			PromotionsApply:  !l.NoPromotions,
 			IsCustom:         l.IsCustom,
 			TaxClass:         l.TaxClass,
 		}

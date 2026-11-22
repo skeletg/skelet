@@ -302,6 +302,9 @@ type CartLine struct {
 	// which the recipient can't change and the offer's own expiry covers
 	PriceMaxQuantity *float64
 	PriceExpiresAt   *time.Time
+	// Coupons and promotions leave the line alone - the default once its price is set, and for whoever set it to lift.
+	// The line still counts toward what the cart holds
+	NoPromotions bool
 	// A cart.bundle.adding hook set the bundle's price - checkout refreshes the components but keeps that price
 	BundleHookPriced bool
 	// Names a bundle line's picks, so one bundle can sit in the cart in several configurations - empty on every other line
@@ -443,11 +446,15 @@ type LinePrice struct {
 	ListUnitPrice *int64
 	MaxQuantity   *float64
 	ExpiresAt     *time.Time
+	NoPromotions  bool
 }
 
 // linePrice is what a line keeps about its set price, to put on the line it is copied to
 func (l CartLine) linePrice() LinePrice {
-	return LinePrice{UnitPrice: l.UnitPrice, Source: l.PriceSource, SetBy: l.PriceSetBy, Reason: l.PriceReason, ListUnitPrice: l.ListUnitPrice, MaxQuantity: l.PriceMaxQuantity, ExpiresAt: l.PriceExpiresAt}
+	return LinePrice{
+		UnitPrice: l.UnitPrice, Source: l.PriceSource, SetBy: l.PriceSetBy, Reason: l.PriceReason, ListUnitPrice: l.ListUnitPrice,
+		MaxQuantity: l.PriceMaxQuantity, ExpiresAt: l.PriceExpiresAt, NoPromotions: l.NoPromotions,
+	}
 }
 
 type AddCartLineInput struct {
@@ -634,6 +641,8 @@ type CustomLineInput struct {
 	Quantity  float64
 	TaxClass  string
 	By        *uuid.UUID // the admin adding it
+	// Whether coupons and promotions may lower it - not unless the admin says so, like any price set by hand
+	PromotionsApply bool
 }
 
 // AssistedCreditWindow is how long an assistant's or agent's help counts toward the order a cart becomes - long enough for a

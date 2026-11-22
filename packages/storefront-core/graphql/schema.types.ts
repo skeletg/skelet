@@ -588,6 +588,7 @@ export type CartLine = {
   name: Scalars['String']['output'];
   options: Array<CartLineOption>;
   priceMaxQuantity?: Maybe<Scalars['Float']['output']>;
+  promotionsApply: Scalars['Boolean']['output'];
   quantity: Scalars['Float']['output'];
   sku: Scalars['String']['output'];
   totalPrice: Scalars['Int']['output'];

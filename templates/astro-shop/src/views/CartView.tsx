@@ -6,7 +6,7 @@ import { Button, ButtonLink, Notice } from "../components/ui";
 
 // What the view reads of the core's cart
 type Cart = Pick<CoreCart, "id" | "subtotal" | "totalDiscount"> & {
-  lines: Pick<CartLine, "id" | "name" | "sku" | "imageUrl" | "unitPrice" | "quantity" | "totalPrice" | "listUnitPrice" | "priceMaxQuantity">[];
+  lines: Pick<CartLine, "id" | "name" | "sku" | "imageUrl" | "unitPrice" | "quantity" | "totalPrice" | "listUnitPrice" | "priceMaxQuantity" | "promotionsApply">[];
 };
 type Props = { cart: Cart | null; flash?: string; currency: Currency };
 
@@ -82,6 +82,7 @@ function CartLine({ line: l, currency }: { line: Cart["lines"][number]; currency
             .{l.priceMaxQuantity != null && ` It is for up to ${l.priceMaxQuantity}.`}
           </p>
         )}
+        {l.promotionsApply === false && <p className="mt-0.5 text-sm text-muted-foreground">Coupons and promotions don't apply to this item.</p>}
         <div className="mt-3 flex flex-wrap items-center gap-4">
           <form method="post" className="flex items-center gap-2" data-enhance="[data-cart]">
             <input type="hidden" name="intent" value="update" />

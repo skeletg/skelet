@@ -350,15 +350,16 @@ func syntheticCart(o Order, lines []OrderLine) cart.Cart {
 			parts[j] = cart.CartLineStockPart{ProductID: p.ProductID, Quantity: p.Quantity, Source: p.Source}
 		}
 		cl[i] = cart.CartLine{
-			ID:          l.ID,
-			ProductSku:  l.ProductSku,
-			ProductName: l.ProductName,
-			UnitPrice:   l.UnitPrice,
-			Quantity:    l.Quantity,
-			Components:  comps,
-			StockParts:  parts,
-			IsCustom:    l.IsCustom,
-			TaxClass:    l.TaxClass,
+			ID:           l.ID,
+			ProductSku:   l.ProductSku,
+			ProductName:  l.ProductName,
+			UnitPrice:    l.UnitPrice,
+			Quantity:     l.Quantity,
+			Components:   comps,
+			StockParts:   parts,
+			IsCustom:     l.IsCustom,
+			TaxClass:     l.TaxClass,
+			NoPromotions: l.NoPromotions,
 		}
 	}
 	return cart.Cart{ChannelID: o.ChannelID, CustomerID: o.CustomerID, Lines: cl}

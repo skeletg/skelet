@@ -1440,6 +1440,7 @@ func (a *sdkEnvironmentAdapter) Lines() []sdk.PromotionCartLine {
 			ProductKind:    l.ProductKind,
 			CategoryIDs:    l.CategoryIDs,
 			AttributeKVs:   l.AttributeKVs,
+			NoDiscount:     l.NoDiscount,
 		}
 	}
 	return out

@@ -49,7 +49,7 @@ func (fixedOffSubtotal) Apply(ctx context.Context, env promotion.Environment, ra
 	if err := unmarshalParams(raw, &p); err != nil {
 		return err
 	}
-	discount := min(p.Cents, env.SubtotalCents())
+	discount := min(p.Cents, promotion.DiscountableSubtotal(env))
 	ledger.AddSubtotalDiscount(discount)
 	return nil
 }

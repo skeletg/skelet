@@ -30,4 +30,14 @@ describe("CartLineNotice", () => {
     expect(note.textContent).not.toMatch(/usually/);
     expect(note.textContent).toContain("It is for up to 3.");
   });
+
+  it("says when coupons leave the line alone, so a code that skipped it isn't a mystery", () => {
+    renderWithIntl(<CartLineNotice line={line({ listUnitPrice: 10000, promotionsApply: false })} currency="EUR" />);
+    expect(screen.getByText("Coupons and promotions don't apply to this item.")).toBeInTheDocument();
+  });
+
+  it("says nothing of coupons on a line they apply to", () => {
+    const { container } = renderWithIntl(<CartLineNotice line={line({ promotionsApply: true })} currency="EUR" />);
+    expect(container.textContent).toBe("");
+  });
 });

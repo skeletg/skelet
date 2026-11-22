@@ -282,7 +282,8 @@ UPDATE carts SET order_id = $2 WHERE id = $1;
 UPDATE cart_lines
 SET unit_price = sqlc.arg(unit_price), price_source = sqlc.arg(price_source), price_set_by = sqlc.narg(price_set_by),
     price_reason = sqlc.arg(price_reason), list_unit_price = sqlc.narg(list_unit_price),
-    price_max_quantity = sqlc.narg(price_max_quantity), price_expires_at = sqlc.narg(price_expires_at), updated_at = NOW()
+    price_max_quantity = sqlc.narg(price_max_quantity), price_expires_at = sqlc.narg(price_expires_at),
+    no_promotions = sqlc.arg(no_promotions), updated_at = NOW()
 WHERE id = sqlc.arg(id) RETURNING *;
 
 -- name: RaiseCartLinePriceCap :exec
@@ -294,8 +295,8 @@ UPDATE cart_lines SET price_max_quantity = GREATEST(price_max_quantity, quantity
 UPDATE cart_lines SET quantity = price_max_quantity WHERE id = $1 AND price_max_quantity IS NOT NULL AND quantity > price_max_quantity;
 
 -- name: InsertCustomCartLine :one
-INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity, price_source, price_set_by, is_custom, tax_class)
-VALUES (sqlc.arg(cart_id), sqlc.arg(product_name), sqlc.arg(product_sku), sqlc.arg(unit_price), sqlc.arg(quantity), 'admin', sqlc.narg(price_set_by), true, sqlc.arg(tax_class))
+INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity, price_source, price_set_by, is_custom, tax_class, no_promotions)
+VALUES (sqlc.arg(cart_id), sqlc.arg(product_name), sqlc.arg(product_sku), sqlc.arg(unit_price), sqlc.arg(quantity), 'admin', sqlc.narg(price_set_by), true, sqlc.arg(tax_class), sqlc.arg(no_promotions))
 RETURNING *;
 
 -- name: ListCustomerCartOffers :many

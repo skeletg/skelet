@@ -306,6 +306,7 @@ export function CartDetail() {
                         {l.priceOverride && l.listUnitPrice != null && ` · catalog ${formatCents(l.listUnitPrice, currency)}`}
                         {!offer && l.priceOverride && l.priceMaxQuantity != null && ` · for up to ${l.priceMaxQuantity}`}
                         {!offer && l.priceOverride && l.priceExpiresAt && ` · until ${new Date(l.priceExpiresAt).toLocaleDateString()}`}
+                        {!offer && !l.promotionsApply && ' · no promotions'}
                       </div>
                       {!offer && l.priceOverride && l.priceReason && (
                         <div className="text-[11px] text-muted-foreground">{l.priceReason}</div>
@@ -335,12 +336,15 @@ export function CartDetail() {
                     </div>
                     {offer && isActive && (
                       <LinePrice
-                        key={`${l.id}:${l.unitPrice}:${l.priceReason}`}
+                        key={`${l.id}:${l.unitPrice}:${l.priceReason}:${l.promotionsApply}`}
                         unitPrice={l.unitPrice}
                         reason={l.isCustom ? null : l.priceReason}
+                        promotionsApply={l.promotionsApply}
                         override={l.priceOverride}
                         canReset={!l.isCustom && l.components.length === 0}
-                        onCommit={(cents, reason) => run(() => setLinePrice({ variables: { cartId: cart.id, lineId: l.id, unitPrice: cents, reason } }))}
+                        onCommit={(cents, reason, promotionsApply) =>
+                          run(() => setLinePrice({ variables: { cartId: cart.id, lineId: l.id, unitPrice: cents, reason, promotionsApply } }))
+                        }
                         onReset={() => run(() => setLinePrice({ variables: { cartId: cart.id, lineId: l.id, unitPrice: null } }))}
                       />
                     )}

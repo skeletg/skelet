@@ -343,6 +343,7 @@ export type AdminCartLine = {
   priceOverride: Scalars['Boolean']['output'];
   priceReason: Scalars['String']['output'];
   priceSource: LinePriceSource;
+  promotionsApply: Scalars['Boolean']['output'];
   quantity: Scalars['Float']['output'];
   sku: Scalars['String']['output'];
   taxClass: Scalars['String']['output'];
@@ -442,6 +443,7 @@ export type AdminCreateCustomerInput = {
 
 export type AdminCustomCartLineInput = {
   name: Scalars['String']['input'];
+  promotionsApply?: InputMaybe<Scalars['Boolean']['input']>;
   quantity: Scalars['Float']['input'];
   taxClass?: InputMaybe<Scalars['String']['input']>;
   unitPrice: Scalars['Int']['input'];
@@ -5036,6 +5038,7 @@ export type MutationAdminSendCartOfferArgs = {
 export type MutationAdminSetCartLinePriceArgs = {
   cartId: Scalars['ID']['input'];
   lineId: Scalars['ID']['input'];
+  promotionsApply?: InputMaybe<Scalars['Boolean']['input']>;
   reason?: InputMaybe<Scalars['String']['input']>;
   unitPrice?: InputMaybe<Scalars['Int']['input']>;
 };
@@ -7919,6 +7922,7 @@ export type OrderLine = {
   options: Array<OrderLineOption>;
   priceReason: Scalars['String']['output'];
   priceSource: LinePriceSource;
+  promotionsApply: Scalars['Boolean']['output'];
   quantity: Scalars['Float']['output'];
   sku: Scalars['String']['output'];
   taxAmount: Scalars['Int']['output'];

@@ -710,7 +710,7 @@ func (s *Service) RepriceCartLines(ctx context.Context, c Cart) Cart {
 				slog.WarnContext(ctx, "cart: lift a lapsed set price", "cart", c.ID, "sku", l.ProductSku, "err", err)
 				continue
 			}
-			l.PriceSource, l.PriceSetBy, l.PriceReason, l.ListUnitPrice, l.PriceMaxQuantity, l.PriceExpiresAt = back.PriceSource, nil, "", nil, nil, nil
+			l.PriceSource, l.PriceSetBy, l.PriceReason, l.ListUnitPrice, l.PriceMaxQuantity, l.PriceExpiresAt, l.NoPromotions = back.PriceSource, nil, "", nil, nil, nil, false
 		}
 		if len(l.Components) > 0 {
 			s.repriceBundleLine(ctx, c, l)

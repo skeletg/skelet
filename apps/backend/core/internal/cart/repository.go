@@ -680,7 +680,7 @@ func (r *postgresRepository) MarkOffersExpiredNotified(ctx context.Context, ids 
 func (r *postgresRepository) SetLinePrice(ctx context.Context, lineID uuid.UUID, p LinePrice) (CartLine, error) {
 	row, err := r.queries.SetCartLinePrice(ctx, db.SetCartLinePriceParams{
 		ID: lineID, UnitPrice: p.UnitPrice, PriceSource: p.Source, PriceSetBy: sqlnull.UUID(p.SetBy), PriceReason: p.Reason, ListUnitPrice: sqlnull.Int64(p.ListUnitPrice),
-		PriceMaxQuantity: sqlnull.Float64(p.MaxQuantity), PriceExpiresAt: sqlnull.Time(p.ExpiresAt),
+		PriceMaxQuantity: sqlnull.Float64(p.MaxQuantity), PriceExpiresAt: sqlnull.Time(p.ExpiresAt), NoPromotions: p.NoPromotions,
 	})
 	if err != nil {
 		return CartLine{}, fmt.Errorf("set line price: %w", err)
@@ -708,13 +708,14 @@ func (r *postgresRepository) InsertCustomLine(ctx context.Context, cartID uuid.U
 		return CartLine{}, err
 	}
 	row, err := r.queries.InsertCustomCartLine(ctx, db.InsertCustomCartLineParams{
-		CartID:      cartID,
-		ProductName: in.Name,
-		ProductSku:  CustomLineSKUPrefix + strings.ToUpper(id.String()[24:]), // the line's unique key in the cart - no catalog product carries the prefix
-		UnitPrice:   in.UnitPrice,
-		Quantity:    in.Quantity,
-		TaxClass:    in.TaxClass,
-		PriceSetBy:  sqlnull.UUID(in.By),
+		CartID:       cartID,
+		ProductName:  in.Name,
+		ProductSku:   CustomLineSKUPrefix + strings.ToUpper(id.String()[24:]), // the line's unique key in the cart - no catalog product carries the prefix
+		UnitPrice:    in.UnitPrice,
+		Quantity:     in.Quantity,
+		TaxClass:     in.TaxClass,
+		PriceSetBy:   sqlnull.UUID(in.By),
+		NoPromotions: !in.PromotionsApply,
 	})
 	if err != nil {
 		return CartLine{}, fmt.Errorf("add custom line: %w", err)
@@ -867,6 +868,7 @@ func toCartLine(row db.CartLine) CartLine {
 		ListUnitPrice:    sqlnull.Int64Ptr(row.ListUnitPrice),
 		PriceMaxQuantity: sqlnull.Float64Ptr(row.PriceMaxQuantity),
 		PriceExpiresAt:   sqlnull.TimePtr(row.PriceExpiresAt),
+		NoPromotions:     row.NoPromotions,
 		BundleHookPriced: row.BundleHookPriced,
 		ConfigKey:        row.ConfigKey,
 		IsCustom:         row.IsCustom,

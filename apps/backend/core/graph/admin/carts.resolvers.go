@@ -193,7 +193,7 @@ func (r *mutationResolver) AdminUpdateCartOffer(ctx context.Context, cartID stri
 	return r.reloadAdminCart(ctx, c.ID)
 }
 
-func (r *mutationResolver) AdminSetCartLinePrice(ctx context.Context, cartID string, lineID string, unitPrice *int32, reason *string) (*model.AdminCart, error) {
+func (r *mutationResolver) AdminSetCartLinePrice(ctx context.Context, cartID string, lineID string, unitPrice *int32, reason *string, promotionsApply *bool) (*model.AdminCart, error) {
 	c, err := r.cartForPricing(ctx, cartID)
 	if err != nil {
 		return nil, err
@@ -202,7 +202,7 @@ func (r *mutationResolver) AdminSetCartLinePrice(ctx context.Context, cartID str
 	if err != nil {
 		return nil, err
 	}
-	in := cart.SetLinePriceInput{By: actingAdminID(ctx)}
+	in := cart.SetLinePriceInput{By: actingAdminID(ctx), PromotionsApply: promotionsApply != nil && *promotionsApply}
 	if !c.IsOffer() {
 		in.MaxCutPercent, in.HoldsUntil = r.shopperPriceLimits(ctx, c.ChannelID)
 	}
@@ -229,6 +229,7 @@ func (r *mutationResolver) AdminAddCustomCartLine(ctx context.Context, cartID st
 	if input.TaxClass != nil {
 		in.TaxClass = *input.TaxClass
 	}
+	in.PromotionsApply = input.PromotionsApply != nil && *input.PromotionsApply
 	out, err := r.CartSvc.AdminAddCustomLine(ctx, c.ID, in)
 	if err != nil {
 		return nil, err

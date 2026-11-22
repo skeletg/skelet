@@ -158,10 +158,11 @@ ON CONFLICT (cart_id, product_sku, config_key) DO UPDATE
       price_reason = CASE WHEN $8::boolean THEN cart_lines.price_reason ELSE '' END,
       price_max_quantity = CASE WHEN $8::boolean THEN cart_lines.price_max_quantity END,
       price_expires_at = CASE WHEN $8::boolean THEN cart_lines.price_expires_at END,
+      no_promotions = $8::boolean AND cart_lines.no_promotions,
       product_name = EXCLUDED.product_name,
       bundle_hook_priced = EXCLUDED.bundle_hook_priced,
       updated_at   = NOW()
-RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, is_custom, tax_class, bundle_hook_priced, config_key, price_source, price_set_by, price_reason, list_unit_price, price_max_quantity, price_expires_at
+RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, is_custom, tax_class, bundle_hook_priced, config_key, price_source, price_set_by, price_reason, list_unit_price, price_max_quantity, price_expires_at, no_promotions
 `
 
 type UpsertBundleCartLineParams struct {
@@ -209,6 +210,7 @@ func (q *Queries) UpsertBundleCartLine(ctx context.Context, arg UpsertBundleCart
 		&i.ListUnitPrice,
 		&i.PriceMaxQuantity,
 		&i.PriceExpiresAt,
+		&i.NoPromotions,
 	)
 	return i, err
 }

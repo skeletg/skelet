@@ -31,22 +31,27 @@ func TestSplitDiscount(t *testing.T) {
 		subs   []int64
 		onLine []int64
 		total  int64
+		closed []bool
 		want   []int64
 	}{
-		{"nothing known spreads by line subtotal", []int64{1_000, 3_000}, nil, 400, []int64{100, 300}},
-		{"the cent left over goes to the last line", []int64{333, 333, 334}, nil, 100, []int64{33, 33, 34}},
-		{"a free line takes nothing", []int64{1_000, 0}, nil, 101, []int64{101, 0}},
-		{"what the engine put on a line stays there", []int64{10_000, 5_000}, []int64{2_000, 0}, 2_000, []int64{2_000, 0}},
-		{"the rest goes by what each line has left", []int64{10_000, 5_000}, []int64{2_000, 0}, 3_300, []int64{2_800, 500}},
-		{"a share is held to what its line is worth", []int64{1_000, 5_000}, []int64{4_000, 0}, 4_000, []int64{1_000, 3_000}},
-		{"a smaller discount takes from each in proportion", []int64{10_000, 5_000}, []int64{3_000, 1_000}, 2_000, []int64{1_500, 500}},
-		{"no line goes below zero", []int64{300, 200}, nil, 900, []int64{300, 200}},
-		{"no discount", []int64{1_000, 500}, []int64{100, 0}, 0, []int64{0, 0}},
-		{"a negative share counts as none", []int64{1_000, 1_000}, []int64{-50, 0}, 200, []int64{100, 100}},
+		{"nothing known spreads by line subtotal", []int64{1_000, 3_000}, nil, 400, nil, []int64{100, 300}},
+		{"the cent left over goes to the last line", []int64{333, 333, 334}, nil, 100, nil, []int64{33, 33, 34}},
+		{"a free line takes nothing", []int64{1_000, 0}, nil, 101, nil, []int64{101, 0}},
+		{"what the engine put on a line stays there", []int64{10_000, 5_000}, []int64{2_000, 0}, 2_000, nil, []int64{2_000, 0}},
+		{"the rest goes by what each line has left", []int64{10_000, 5_000}, []int64{2_000, 0}, 3_300, nil, []int64{2_800, 500}},
+		{"a share is held to what its line is worth", []int64{1_000, 5_000}, []int64{4_000, 0}, 4_000, nil, []int64{1_000, 3_000}},
+		{"a smaller discount takes from each in proportion", []int64{10_000, 5_000}, []int64{3_000, 1_000}, 2_000, nil, []int64{1_500, 500}},
+		{"no line goes below zero", []int64{300, 200}, nil, 900, nil, []int64{300, 200}},
+		{"no discount", []int64{1_000, 500}, []int64{100, 0}, 0, nil, []int64{0, 0}},
+		{"a negative share counts as none", []int64{1_000, 1_000}, []int64{-50, 0}, 200, nil, []int64{100, 100}},
+		{"a closed line takes none of the rest", []int64{1_000, 3_000, 1_000}, nil, 400, []bool{false, true, false}, []int64{200, 0, 200}},
+		{"what the engine put on an open line stays, the rest skips the closed one", []int64{10_000, 5_000, 5_000}, []int64{2_000, 0, 0}, 3_000, []bool{false, true, false}, []int64{2_615, 0, 385}},
+		{"a closed line takes only what the open ones can't carry", []int64{500, 2_000}, nil, 900, []bool{false, true}, []int64{500, 400}},
+		{"every line closed still carries the order's discount", []int64{1_000, 3_000}, nil, 400, []bool{true, true}, []int64{100, 300}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := splitDiscount(c.subs, c.onLine, c.total); !slices.Equal(got, c.want) {
+			if got := splitDiscount(c.subs, c.onLine, c.total, c.closed); !slices.Equal(got, c.want) {
 				t.Fatalf("splitDiscount(%v, %v, %d) = %v, want %v", c.subs, c.onLine, c.total, got, c.want)
 			}
 		})
