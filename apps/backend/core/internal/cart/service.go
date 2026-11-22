@@ -330,7 +330,7 @@ func (s *Service) CurrentLinePrices(ctx context.Context, c Cart) map[uuid.UUID]i
 		return out
 	}
 	for _, l := range c.Lines {
-		if l.PriceOverride || l.IsCustom {
+		if l.PriceHeld() || l.IsCustom {
 			continue
 		}
 		if len(l.Components) > 0 {
@@ -473,7 +473,7 @@ func (s *Service) validateQuantityEdit(ctx context.Context, cart Cart, line Cart
 	if err := validateQtyBounds(p, quantity); err != nil {
 		return nil, err
 	}
-	if line.PriceOverride {
+	if line.PriceHeld() {
 		return nil, nil
 	}
 	unit := pricing.ApplyTiers(p.UnitPrice, p.Tiers, quantity) // crossing a tier boundary in EITHER direction moves the base price, and the snapshot option surcharges are re-added below so a quantity edit never strips personalization pricing
@@ -690,7 +690,7 @@ func (s *Service) RepriceCartLines(ctx context.Context, c Cart) Cart {
 	}
 	for i := range c.Lines {
 		l := &c.Lines[i]
-		if l.PriceOverride || l.IsCustom { // an admin's offer price is the price
+		if l.PriceHeld() || l.IsCustom { // an admin's offer price is the price
 			continue
 		}
 		if len(l.Components) > 0 {

@@ -194,3 +194,38 @@ func TestADraftsLinesShareItsDiscount(t *testing.T) {
 		t.Errorf("draft taxes %d and %d, want 10%% of 9000 and 4500", lines[0].TaxCents, lines[1].TaxCents)
 	}
 }
+
+// A line an admin prices by hand on a draft says so on the order: who, and what the catalog asked. The line beside it
+// is the catalog's and says nothing
+func TestADraftsHandPricedLineKeepsItsListPrice(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 50, 10_000)
+	book := h.AddProduct(t, f, 5_000, true, 50)
+	admin, hand := uuid.New(), int64(8_000)
+	o, err := h.D.Order.CreateDraftOrder(h.Ctx, order.CreateDraftOrderInput{
+		ChannelID: f.Channel.ID, Email: "draft-" + uuid.NewString()[:8] + "@e2e.test", CreatedBy: &admin,
+		BillingAddress: *e2eAddress(), ShippingAddress: *e2eAddress(),
+		Lines: []order.CreateDraftLine{{ProductSku: f.Product.SKU, Quantity: 1, UnitPriceCents: &hand}, {ProductSku: book.SKU, Quantity: 1}},
+	})
+	if err != nil {
+		t.Fatalf("draft: %v", err)
+	}
+	lines := h.OrderLines(t, o.ID)
+	if len(lines) != 2 {
+		t.Fatalf("%d lines, want 2", len(lines))
+	}
+	if l := lines[0]; l.PriceSource != "admin" || l.UnitPrice != 8_000 || !l.ListUnitPrice.Valid || l.ListUnitPrice.Int64 != 10_000 || l.PriceSetBy.UUID != admin {
+		t.Errorf("hand-priced line %+v, want the admin's 8000 in place of the catalog's 10000", l)
+	}
+	if l := lines[1]; l.PriceSource != "catalog" || l.ListUnitPrice.Valid || l.PriceSetBy.Valid {
+		t.Errorf("catalog line %+v, want nothing kept about its price", l)
+	}
+	over := int64(1) << 40
+	if _, err := h.D.Order.CreateDraftOrder(h.Ctx, order.CreateDraftOrderInput{
+		ChannelID: f.Channel.ID, Email: "draft-" + uuid.NewString()[:8] + "@e2e.test",
+		BillingAddress: *e2eAddress(), ShippingAddress: *e2eAddress(),
+		Lines: []order.CreateDraftLine{{ProductSku: f.Product.SKU, Quantity: 1, UnitPriceCents: &over}},
+	}); err == nil {
+		t.Error("a draft line priced past what a line can cost was accepted")
+	}
+}

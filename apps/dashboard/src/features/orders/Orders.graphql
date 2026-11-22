@@ -103,6 +103,9 @@ query Order($id: ID!) {
       totalPrice
       discountAmount
       taxAmount
+      priceSource
+      listUnitPrice
+      priceReason
       isGift
       components {
         id

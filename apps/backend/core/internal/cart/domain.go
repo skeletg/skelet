@@ -287,13 +287,17 @@ func (c Checkout) ShippingCountry() string {
 
 // A BUNDLE line carries the bundle total with picks in Components, one row per component - simple lines leave it empty
 type CartLine struct {
-	ID            uuid.UUID
-	CartID        uuid.UUID
-	ProductName   string
-	ProductSku    string
-	UnitPrice     int64
-	Quantity      float64
-	PriceOverride bool // an admin set the price on an offer - repricing leaves it alone
+	ID          uuid.UUID
+	CartID      uuid.UUID
+	ProductName string
+	ProductSku  string
+	UnitPrice   int64
+	Quantity    float64
+	// Where the price came from: PriceCatalog, or who set it - a set price holds through repricing (PriceHeld)
+	PriceSource   string
+	PriceSetBy    *uuid.UUID // the admin behind a set price
+	PriceReason   string
+	ListUnitPrice *int64 // the catalog price a set price replaced - nil on a catalog line, and where there was none
 	// A cart.bundle.adding hook set the bundle's price - checkout refreshes the components but keeps that price
 	BundleHookPriced bool
 	// Names a bundle line's picks, so one bundle can sit in the cart in several configurations - empty on every other line
@@ -397,6 +401,28 @@ type CartLineComponent struct {
 	CreatedAt         time.Time
 }
 
+// Where a line's price can come from. A catalog line is priced again from the catalog whenever checkout reads the
+// cart; every other source is a price someone set, which holds
+const (
+	PriceCatalog = "catalog"
+	PriceAdmin   = "admin"
+)
+
+// MaxPriceReason is how long the note on a set price may be
+const MaxPriceReason = 200
+
+// PriceHeld is whether the line's price was set rather than read from the catalog - repricing leaves it alone
+func (l CartLine) PriceHeld() bool { return l.PriceSource != "" && l.PriceSource != PriceCatalog }
+
+// LinePrice is a price put on a line, and what is kept about it
+type LinePrice struct {
+	UnitPrice     int64
+	Source        string
+	SetBy         *uuid.UUID
+	Reason        string
+	ListUnitPrice *int64
+}
+
 type AddCartLineInput struct {
 	ProductName string
 	ProductSku  string
@@ -480,7 +506,7 @@ type Repository interface {
 	ListCustomerOffers(ctx context.Context, customerID, channelID uuid.UUID) ([]Cart, error)
 	ListExpiredOffers(ctx context.Context, limit int32) ([]Cart, error)
 	MarkOffersExpiredNotified(ctx context.Context, ids []uuid.UUID) ([]Cart, error)
-	SetLinePrice(ctx context.Context, lineID uuid.UUID, unitPrice int64, override bool) (CartLine, error)
+	SetLinePrice(ctx context.Context, lineID uuid.UUID, p LinePrice) (CartLine, error)
 	InsertCustomLine(ctx context.Context, cartID uuid.UUID, in CustomLineInput) (CartLine, error)
 
 	ListCarts(ctx context.Context, f CartFilter) ([]CartListItem, error)
@@ -572,6 +598,7 @@ type CustomLineInput struct {
 	UnitPrice int64
 	Quantity  float64
 	TaxClass  string
+	By        *uuid.UUID // the admin adding it
 }
 
 // AssistedCreditWindow is how long an assistant's or agent's help counts toward the order a cart becomes - long enough for a

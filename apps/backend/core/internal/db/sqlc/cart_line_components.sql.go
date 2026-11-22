@@ -149,11 +149,12 @@ INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity
 VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (cart_id, product_sku, config_key) DO UPDATE
   SET quantity     = EXCLUDED.quantity,
-      unit_price   = EXCLUDED.unit_price,
+      unit_price   = CASE WHEN cart_lines.price_source <> 'catalog' THEN cart_lines.unit_price ELSE EXCLUDED.unit_price END,
+      list_unit_price = CASE WHEN cart_lines.price_source <> 'catalog' THEN EXCLUDED.unit_price END,
       product_name = EXCLUDED.product_name,
       bundle_hook_priced = EXCLUDED.bundle_hook_priced,
       updated_at   = NOW()
-RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, price_override, is_custom, tax_class, bundle_hook_priced, config_key
+RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, is_custom, tax_class, bundle_hook_priced, config_key, price_source, price_set_by, price_reason, list_unit_price
 `
 
 type UpsertBundleCartLineParams struct {
@@ -189,11 +190,14 @@ func (q *Queries) UpsertBundleCartLine(ctx context.Context, arg UpsertBundleCart
 		&i.UpdatedAt,
 		&i.IsGift,
 		&i.OfferedByRuleID,
-		&i.PriceOverride,
 		&i.IsCustom,
 		&i.TaxClass,
 		&i.BundleHookPriced,
 		&i.ConfigKey,
+		&i.PriceSource,
+		&i.PriceSetBy,
+		&i.PriceReason,
+		&i.ListUnitPrice,
 	)
 	return i, err
 }

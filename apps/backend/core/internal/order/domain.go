@@ -136,6 +136,12 @@ type OrderLine struct {
 	DiscountCents int64
 	TaxCents      int64
 	Position      int // the line's place on the order, so it reads in the order it was bought
+	// Where the unit price came from (cart.PriceCatalog, cart.PriceAdmin), and for a set price who set it, why, and
+	// the catalog price it replaced - nil where there was none
+	PriceSource   string
+	PriceSetBy    *uuid.UUID
+	PriceReason   string
+	ListUnitPrice *int64
 	Components    []OrderLineComponent
 	// What the line took stock from besides or instead of itself, per line unit, snapshotted at placement
 	StockParts []OrderLineStockPart

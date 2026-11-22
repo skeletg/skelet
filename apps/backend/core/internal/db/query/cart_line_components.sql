@@ -38,7 +38,8 @@ INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity
 VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (cart_id, product_sku, config_key) DO UPDATE
   SET quantity     = EXCLUDED.quantity,
-      unit_price   = EXCLUDED.unit_price,
+      unit_price   = CASE WHEN cart_lines.price_source <> 'catalog' THEN cart_lines.unit_price ELSE EXCLUDED.unit_price END,
+      list_unit_price = CASE WHEN cart_lines.price_source <> 'catalog' THEN EXCLUDED.unit_price END,
       product_name = EXCLUDED.product_name,
       bundle_hook_priced = EXCLUDED.bundle_hook_priced,
       updated_at   = NOW()

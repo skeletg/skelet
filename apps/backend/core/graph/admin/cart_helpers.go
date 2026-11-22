@@ -90,7 +90,10 @@ func toAdminCartModel(c cart.Cart, email, name *string, currency string) *model.
 			IsSimple:      len(l.Components) == 0 && len(l.Options) == 0 && !l.IsCustom,
 			Components:    comps,
 			Options:       opts,
-			PriceOverride: l.PriceOverride,
+			PriceOverride: l.PriceHeld(),
+			PriceSource:   toLinePriceSource(l.PriceSource),
+			ListUnitPrice: int32PtrFrom64(l.ListUnitPrice),
+			PriceReason:   l.PriceReason,
 			IsCustom:      l.IsCustom,
 			TaxClass:      l.TaxClass,
 		}

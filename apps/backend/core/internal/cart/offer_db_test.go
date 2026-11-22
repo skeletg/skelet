@@ -35,7 +35,7 @@ func TestUnlockedOfferProtectsSpecialLines(t *testing.T) {
 		t.Fatal(err)
 	}
 	unit := int64(500)
-	if _, err := r.svc.AdminSetLinePrice(ctx, c.ID, c.Lines[0].ID, &unit); err != nil {
+	if _, err := r.svc.AdminSetLinePrice(ctx, c.ID, c.Lines[0].ID, SetLinePriceInput{UnitPrice: &unit}); err != nil {
 		t.Fatal(err)
 	}
 	c, err = r.svc.AdminAddCustomLine(ctx, c.ID, CustomLineInput{Name: "Fee", UnitPrice: 200, Quantity: 1})
@@ -89,7 +89,7 @@ func TestUnlockedOfferProtectsSpecialLines(t *testing.T) {
 		t.Fatalf("duplicate offer: %v", err)
 	}
 	// An unlocked ordinary line still behaves as a shopper line.
-	if _, err := r.svc.AdminSetLinePrice(ctx, c.ID, lineBySku(t, reread, "sku").ID, nil); err != nil {
+	if _, err := r.svc.AdminSetLinePrice(ctx, c.ID, lineBySku(t, reread, "sku").ID, SetLinePriceInput{}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := r.svc.AddToCart(ctx, c.ID, nil, "sku", 1); err != nil {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
 	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
@@ -274,6 +275,22 @@ func OrderEventModel(e order.OrderEvent) *model.OrderEvent {
 	return m
 }
 
+// LinePriceSource is where a cart or order line's price came from - a line with nothing recorded is the catalog's
+func LinePriceSource(source string) model.LinePriceSource {
+	if source == cart.PriceAdmin {
+		return model.LinePriceSourceAdmin
+	}
+	return model.LinePriceSourceCatalog
+}
+
+func int32Ptr(v *int64) *int32 {
+	if v == nil {
+		return nil
+	}
+	n := int32(*v)
+	return &n
+}
+
 func OrderLineModel(l order.OrderLine) *model.OrderLine {
 	options := make([]*model.OrderLineOption, len(l.Options))
 	for i, o := range l.Options {
@@ -310,6 +327,9 @@ func OrderLineModel(l order.OrderLine) *model.OrderLine {
 		IsCustom:       l.IsCustom,
 		DiscountAmount: int32(l.DiscountCents),
 		TaxAmount:      int32(l.TaxCents),
+		PriceSource:    LinePriceSource(l.PriceSource),
+		ListUnitPrice:  int32Ptr(l.ListUnitPrice),
+		PriceReason:    l.PriceReason,
 		Options:        options,
 		Components:     components,
 	}

@@ -27,6 +27,11 @@ On the cart page:
   - A price you type is the offer price, and checkout keeps it instead of repricing from
     the catalog.
   - **Reset** puts a catalog line back on its catalog price.
+  - A set price takes a short note saying why. The line keeps the note, who set the price and
+    the catalog price it replaced, and so does the order line once the offer is completed, where
+    the order page shows them under the unit price.
+  - Adding more of the item, or picking a configured line's options again, keeps the price you
+    set. The catalog price beside it follows the catalog.
 - **Custom line:** a free-form charge with no product behind it, such as an extra payment,
   a service or a fee.
   - You give it a name, price, quantity and tax class.

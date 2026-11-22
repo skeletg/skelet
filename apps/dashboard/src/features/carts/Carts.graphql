@@ -48,6 +48,8 @@ fragment CartFields on AdminCart {
     totalPrice
     isSimple
     priceOverride
+    listUnitPrice
+    priceReason
     isCustom
     taxClass
     components {
@@ -202,8 +204,8 @@ mutation AdminUpdateCartOffer($cartId: ID!, $input: AdminUpdateCartOfferInput!) 
   }
 }
 
-mutation AdminSetCartLinePrice($cartId: ID!, $lineId: ID!, $unitPrice: Int) {
-  adminSetCartLinePrice(cartId: $cartId, lineId: $lineId, unitPrice: $unitPrice) {
+mutation AdminSetCartLinePrice($cartId: ID!, $lineId: ID!, $unitPrice: Int, $reason: String) {
+  adminSetCartLinePrice(cartId: $cartId, lineId: $lineId, unitPrice: $unitPrice, reason: $reason) {
     ...CartFields
   }
 }

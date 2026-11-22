@@ -334,9 +334,12 @@ export type AdminCartLine = {
   id: Scalars['ID']['output'];
   isCustom: Scalars['Boolean']['output'];
   isSimple: Scalars['Boolean']['output'];
+  listUnitPrice?: Maybe<Scalars['Int']['output']>;
   name: Scalars['String']['output'];
   options: Array<AdminCartLineOption>;
   priceOverride: Scalars['Boolean']['output'];
+  priceReason: Scalars['String']['output'];
+  priceSource: LinePriceSource;
   quantity: Scalars['Float']['output'];
   sku: Scalars['String']['output'];
   taxClass: Scalars['String']['output'];
@@ -3999,6 +4002,10 @@ export type LibraryEmail = {
   updatedAt: Scalars['Time']['output'];
 };
 
+export type LinePriceSource =
+  | 'ADMIN'
+  | 'CATALOG';
+
 export type LinkClicks = {
   __typename?: 'LinkClicks';
   clicks: Scalars['Int']['output'];
@@ -5020,6 +5027,7 @@ export type MutationAdminSendCartOfferArgs = {
 export type MutationAdminSetCartLinePriceArgs = {
   cartId: Scalars['ID']['input'];
   lineId: Scalars['ID']['input'];
+  reason?: InputMaybe<Scalars['String']['input']>;
   unitPrice?: InputMaybe<Scalars['Int']['input']>;
 };
 
@@ -7897,8 +7905,11 @@ export type OrderLine = {
   id: Scalars['ID']['output'];
   isCustom: Scalars['Boolean']['output'];
   isGift: Scalars['Boolean']['output'];
+  listUnitPrice?: Maybe<Scalars['Int']['output']>;
   name: Scalars['String']['output'];
   options: Array<OrderLineOption>;
+  priceReason: Scalars['String']['output'];
+  priceSource: LinePriceSource;
   quantity: Scalars['Float']['output'];
   sku: Scalars['String']['output'];
   taxAmount: Scalars['Int']['output'];

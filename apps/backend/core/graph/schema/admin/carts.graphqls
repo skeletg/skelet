@@ -33,8 +33,13 @@ type AdminCartLine {
   isSimple:    Boolean!
   components:  [AdminCartLineComponent!]!
   options:     [AdminCartLineOption!]!
-  # The admin set the price on an offer - it holds through checkout's repricing
+  # The price was set rather than read from the catalog - it holds through checkout's repricing
   priceOverride: Boolean!
+  # Where the price came from, the catalog price it replaced (null on a catalog line, and where there was none) and
+  # the note left with it
+  priceSource:   LinePriceSource!
+  listUnitPrice: Int
+  priceReason:   String!
   # A free-form line added to an offer, with no catalog product behind it
   isCustom:    Boolean!
   taxClass:    String!
@@ -293,8 +298,9 @@ extend type Mutation {
   # Offers - a cart built for one recipient and sent as a link. Always a fresh cart, never the customer's active one
   adminCreateCartOffer(input: AdminCreateCartOfferInput!): AdminCart!
   adminUpdateCartOffer(cartId: ID!, input: AdminUpdateCartOfferInput!): AdminCart!
-  # Sets a line's price on an offer - it holds through checkout. null puts a catalog line back on its catalog price
-  adminSetCartLinePrice(cartId: ID!, lineId: ID!, unitPrice: Int): AdminCart!
+  # Sets a line's price on an offer - it holds through checkout. null puts a catalog line back on its catalog price.
+  # The reason stays with the line and its order line, for whoever reads the order later
+  adminSetCartLinePrice(cartId: ID!, lineId: ID!, unitPrice: Int, reason: String): AdminCart!
   adminAddCustomCartLine(cartId: ID!, input: AdminCustomCartLineInput!): AdminCart!
   # Emails the offer's link to its recipient - again on every call
   adminSendCartOffer(cartId: ID!): AdminCart!

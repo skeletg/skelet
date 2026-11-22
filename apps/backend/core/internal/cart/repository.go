@@ -675,8 +675,10 @@ func (r *postgresRepository) MarkOffersExpiredNotified(ctx context.Context, ids 
 	return toCarts(rows), nil
 }
 
-func (r *postgresRepository) SetLinePrice(ctx context.Context, lineID uuid.UUID, unitPrice int64, override bool) (CartLine, error) {
-	row, err := r.queries.SetCartLinePrice(ctx, db.SetCartLinePriceParams{ID: lineID, UnitPrice: unitPrice, PriceOverride: override})
+func (r *postgresRepository) SetLinePrice(ctx context.Context, lineID uuid.UUID, p LinePrice) (CartLine, error) {
+	row, err := r.queries.SetCartLinePrice(ctx, db.SetCartLinePriceParams{
+		ID: lineID, UnitPrice: p.UnitPrice, PriceSource: p.Source, PriceSetBy: sqlnull.UUID(p.SetBy), PriceReason: p.Reason, ListUnitPrice: sqlnull.Int64(p.ListUnitPrice),
+	})
 	if err != nil {
 		return CartLine{}, fmt.Errorf("set line price: %w", err)
 	}
@@ -695,6 +697,7 @@ func (r *postgresRepository) InsertCustomLine(ctx context.Context, cartID uuid.U
 		UnitPrice:   in.UnitPrice,
 		Quantity:    in.Quantity,
 		TaxClass:    in.TaxClass,
+		PriceSetBy:  sqlnull.UUID(in.By),
 	})
 	if err != nil {
 		return CartLine{}, fmt.Errorf("add custom line: %w", err)
@@ -841,7 +844,10 @@ func toCartLine(row db.CartLine) CartLine {
 		ProductSku:       row.ProductSku,
 		UnitPrice:        row.UnitPrice,
 		Quantity:         row.Quantity,
-		PriceOverride:    row.PriceOverride,
+		PriceSource:      row.PriceSource,
+		PriceSetBy:       sqlnull.UUIDPtr(row.PriceSetBy),
+		PriceReason:      row.PriceReason,
+		ListUnitPrice:    sqlnull.Int64Ptr(row.ListUnitPrice),
 		BundleHookPriced: row.BundleHookPriced,
 		ConfigKey:        row.ConfigKey,
 		IsCustom:         row.IsCustom,

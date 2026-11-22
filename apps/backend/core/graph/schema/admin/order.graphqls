@@ -239,6 +239,12 @@ input RecordOfflinePaymentInput {
   note: String
 }
 
+# Where a line's price came from
+enum LinePriceSource {
+  CATALOG  # the catalog's price for it
+  ADMIN    # set by an admin - on an offer, a draft, or a custom line
+}
+
 type OrderLine {
   id:          ID!
   name:        String!
@@ -254,6 +260,11 @@ type OrderLine {
   # line gives back. The tax is inside totalPrice where the order's prices include it (taxIncluded), on top otherwise
   discountAmount: Int!
   taxAmount:      Int!
+  # Where unitPrice came from, the catalog price it replaced (null on a catalog line, and where there was none) and
+  # the note left when it was set
+  priceSource:   LinePriceSource!
+  listUnitPrice: Int
+  priceReason:   String!
   # Custom-option picks captured at placement (engraving text, gift wrap,
   # etc.) - the immutable record of what was configured, for fulfillment.
   options:     [OrderLineOption!]!

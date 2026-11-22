@@ -496,6 +496,17 @@ export function OrderDetail() {
                     )}
                     <TableCell className="text-right tabular-nums">
                       {formatCents(l.unitPrice, order.currencyCode)}
+                      {l.priceSource === 'ADMIN' && (l.listUnitPrice != null || l.priceReason) && (
+                        <div className="text-xs font-normal text-muted-foreground">
+                          {l.listUnitPrice != null && (
+                            <div>
+                              <span className="sr-only">Catalog price </span>
+                              <s>{formatCents(l.listUnitPrice, order.currencyCode)}</s>
+                            </div>
+                          )}
+                          {l.priceReason && <div className="font-sans">{l.priceReason}</div>}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {formatCents(l.totalPrice, order.currencyCode)}

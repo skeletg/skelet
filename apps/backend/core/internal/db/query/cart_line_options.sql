@@ -24,7 +24,9 @@ INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity
 VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (cart_id, product_sku, config_key) DO UPDATE
   SET quantity     = EXCLUDED.quantity,
-      unit_price   = EXCLUDED.unit_price,
+      -- picking again prices the new picks, but a price someone set on the line stays the price
+      unit_price   = CASE WHEN cart_lines.price_source <> 'catalog' THEN cart_lines.unit_price ELSE EXCLUDED.unit_price END,
+      list_unit_price = CASE WHEN cart_lines.price_source <> 'catalog' THEN EXCLUDED.unit_price END,
       product_name = EXCLUDED.product_name,
       updated_at   = NOW()
 RETURNING *;

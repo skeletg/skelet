@@ -315,6 +315,9 @@ type AdminCartLine struct {
 	Components    []*AdminCartLineComponent `json:"components"`
 	Options       []*AdminCartLineOption    `json:"options"`
 	PriceOverride bool                      `json:"priceOverride"`
+	PriceSource   LinePriceSource           `json:"priceSource"`
+	ListUnitPrice *int32                    `json:"listUnitPrice,omitempty"`
+	PriceReason   string                    `json:"priceReason"`
 	IsCustom      bool                      `json:"isCustom"`
 	TaxClass      string                    `json:"taxClass"`
 }
@@ -3864,6 +3867,9 @@ type OrderLine struct {
 	IsCustom       bool                  `json:"isCustom"`
 	DiscountAmount int32                 `json:"discountAmount"`
 	TaxAmount      int32                 `json:"taxAmount"`
+	PriceSource    LinePriceSource       `json:"priceSource"`
+	ListUnitPrice  *int32                `json:"listUnitPrice,omitempty"`
+	PriceReason    string                `json:"priceReason"`
 	Options        []*OrderLineOption    `json:"options"`
 	Components     []*OrderLineComponent `json:"components"`
 }
@@ -8843,6 +8849,61 @@ func (e *LensPlanIssueKind) UnmarshalJSON(b []byte) error {
 }
 
 func (e LensPlanIssueKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type LinePriceSource string
+
+const (
+	LinePriceSourceCatalog LinePriceSource = "CATALOG"
+	LinePriceSourceAdmin   LinePriceSource = "ADMIN"
+)
+
+var AllLinePriceSource = []LinePriceSource{
+	LinePriceSourceCatalog,
+	LinePriceSourceAdmin,
+}
+
+func (e LinePriceSource) IsValid() bool {
+	switch e {
+	case LinePriceSourceCatalog, LinePriceSourceAdmin:
+		return true
+	}
+	return false
+}
+
+func (e LinePriceSource) String() string {
+	return string(e)
+}
+
+func (e *LinePriceSource) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = LinePriceSource(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid LinePriceSource", str)
+	}
+	return nil
+}
+
+func (e LinePriceSource) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *LinePriceSource) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e LinePriceSource) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

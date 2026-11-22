@@ -1,6 +1,7 @@
 package order
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -12,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
@@ -920,6 +922,10 @@ func (r *postgresRepository) AddOrderLine(ctx context.Context, line OrderLine) (
 		Position:      int32(line.Position),
 		DiscountCents: line.DiscountCents,
 		TaxCents:      line.TaxCents,
+		PriceSource:   cmp.Or(line.PriceSource, cart.PriceCatalog),
+		PriceSetBy:    sqlnull.UUID(line.PriceSetBy),
+		PriceReason:   line.PriceReason,
+		ListUnitPrice: sqlnull.Int64(line.ListUnitPrice),
 	})
 	if err != nil {
 		return OrderLine{}, fmt.Errorf("add order line: %w", err)
@@ -1405,6 +1411,10 @@ func toOrderLine(row db.OrderLine) OrderLine {
 		DiscountCents: row.DiscountCents,
 		TaxCents:      row.TaxCents,
 		Position:      int(row.Position),
+		PriceSource:   row.PriceSource,
+		PriceSetBy:    sqlnull.UUIDPtr(row.PriceSetBy),
+		PriceReason:   row.PriceReason,
+		ListUnitPrice: sqlnull.Int64Ptr(row.ListUnitPrice),
 		CreatedAt:     row.CreatedAt,
 	}
 }

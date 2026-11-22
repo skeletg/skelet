@@ -206,6 +206,17 @@ and net sales read these columns and never work the shares out again
 (`order/line_money.go`). An edit keeps a line's discount where it was, by the
 quantity it has now, and moves what a removed line carried to the rest.
 
+**Line price source**: a cart line says where its price came from
+(`cart_lines.price_source`). A `catalog` line is priced again from the catalog
+whenever checkout reads the cart; any other source is a price someone set,
+which holds through repricing, quantity edits and re-adds (`CartLine.PriceHeld`).
+Beside a set price the line keeps who set it, a note saying why, and the
+catalog price it replaced (`list_unit_price`, refreshed whenever the catalog is
+read for the line). Placement copies all four onto the order line, and a draft
+line priced by hand records them the same way, so an order always says which
+of its prices were the catalog's. Today the only other source is `admin` (an
+offer line, a custom line, a hand-priced draft line).
+
 **Config**: paths always `section/group/field`. Scope is `default` or
 `channel`; all global values at `default/0`. Resolution:
 requested scope → default/0 → registry default. `Set` validates +

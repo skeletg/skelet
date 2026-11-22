@@ -297,6 +297,7 @@ export function CartDetail() {
                       </div>
                       <div className="font-mono text-[10px] text-muted-foreground">
                         {l.isCustom ? `tax class ${l.taxClass || '-'}` : l.sku} · {formatCents(l.unitPrice, currency)} each
+                        {l.priceOverride && l.listUnitPrice != null && ` · catalog ${formatCents(l.listUnitPrice, currency)}`}
                       </div>
                       {l.options.length > 0 && (
                         <ul className="mt-1 space-y-0.5">
@@ -323,11 +324,12 @@ export function CartDetail() {
                     </div>
                     {offer && isActive && (
                       <LinePrice
-                        key={`${l.id}:${l.unitPrice}`}
+                        key={`${l.id}:${l.unitPrice}:${l.priceReason}`}
                         unitPrice={l.unitPrice}
+                        reason={l.isCustom ? null : l.priceReason}
                         override={l.priceOverride}
                         canReset={!l.isCustom && l.components.length === 0}
-                        onCommit={(cents) => run(() => setLinePrice({ variables: { cartId: cart.id, lineId: l.id, unitPrice: cents } }))}
+                        onCommit={(cents, reason) => run(() => setLinePrice({ variables: { cartId: cart.id, lineId: l.id, unitPrice: cents, reason } }))}
                         onReset={() => run(() => setLinePrice({ variables: { cartId: cart.id, lineId: l.id, unitPrice: null } }))}
                       />
                     )}

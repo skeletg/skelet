@@ -123,7 +123,9 @@ INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity
 VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (cart_id, product_sku, config_key) DO UPDATE
   SET quantity   = cart_lines.quantity + EXCLUDED.quantity,
-      unit_price = CASE WHEN cart_lines.price_override THEN cart_lines.unit_price ELSE EXCLUDED.unit_price END, -- an admin-set price is the offer, more of the item doesn't undo it
+      -- a set price is the price, more of the item doesn't undo it - what comes in is today's catalog price, kept beside it
+      unit_price = CASE WHEN cart_lines.price_source <> 'catalog' THEN cart_lines.unit_price ELSE EXCLUDED.unit_price END,
+      list_unit_price = CASE WHEN cart_lines.price_source <> 'catalog' THEN EXCLUDED.unit_price END,
       updated_at = NOW()
 RETURNING *;
 
@@ -142,8 +144,14 @@ SELECT * FROM cart_lines WHERE cart_id = $1 ORDER BY created_at ASC;
 UPDATE cart_lines SET quantity = $2, updated_at = NOW() WHERE id = $1 RETURNING *;
 
 -- name: UpdateCartLineQuantityPrice :one
--- Quantity change that also re-prices the line (tier-price boundary cross)
-UPDATE cart_lines SET quantity = $2, unit_price = $3, updated_at = NOW() WHERE id = $1 RETURNING *;
+-- Quantity change that also re-prices the line (tier-price boundary cross). The price is the catalog's, so a line
+-- whose price was set meanwhile keeps it and takes the new figure as its list price
+UPDATE cart_lines
+SET quantity = sqlc.arg(quantity),
+    unit_price = CASE WHEN price_source <> 'catalog' THEN unit_price ELSE sqlc.arg(unit_price)::bigint END,
+    list_unit_price = CASE WHEN price_source <> 'catalog' THEN sqlc.arg(unit_price)::bigint END,
+    updated_at = NOW()
+WHERE id = sqlc.arg(id) RETURNING *;
 
 -- name: DeleteCartLine :exec
 DELETE FROM cart_lines WHERE id = $1;
@@ -270,11 +278,15 @@ RETURNING offer_link_version;
 UPDATE carts SET order_id = $2 WHERE id = $1;
 
 -- name: SetCartLinePrice :one
-UPDATE cart_lines SET unit_price = $2, price_override = $3, updated_at = NOW() WHERE id = $1 RETURNING *;
+-- A price put on a line with where it came from, or the line put back on the catalog's
+UPDATE cart_lines
+SET unit_price = sqlc.arg(unit_price), price_source = sqlc.arg(price_source), price_set_by = sqlc.narg(price_set_by),
+    price_reason = sqlc.arg(price_reason), list_unit_price = sqlc.narg(list_unit_price), updated_at = NOW()
+WHERE id = sqlc.arg(id) RETURNING *;
 
 -- name: InsertCustomCartLine :one
-INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity, price_override, is_custom, tax_class)
-VALUES (sqlc.arg(cart_id), sqlc.arg(product_name), sqlc.arg(product_sku), sqlc.arg(unit_price), sqlc.arg(quantity), true, true, sqlc.arg(tax_class))
+INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity, price_source, price_set_by, is_custom, tax_class)
+VALUES (sqlc.arg(cart_id), sqlc.arg(product_name), sqlc.arg(product_sku), sqlc.arg(unit_price), sqlc.arg(quantity), 'admin', sqlc.narg(price_set_by), true, sqlc.arg(tax_class))
 RETURNING *;
 
 -- name: ListCustomerCartOffers :many

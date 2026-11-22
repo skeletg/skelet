@@ -657,11 +657,14 @@ type CartLine struct {
 	UpdatedAt        time.Time     `json:"updated_at"`
 	IsGift           bool          `json:"is_gift"`
 	OfferedByRuleID  uuid.NullUUID `json:"offered_by_rule_id"`
-	PriceOverride    bool          `json:"price_override"`
 	IsCustom         bool          `json:"is_custom"`
 	TaxClass         string        `json:"tax_class"`
 	BundleHookPriced bool          `json:"bundle_hook_priced"`
 	ConfigKey        string        `json:"config_key"`
+	PriceSource      string        `json:"price_source"`
+	PriceSetBy       uuid.NullUUID `json:"price_set_by"`
+	PriceReason      string        `json:"price_reason"`
+	ListUnitPrice    sql.NullInt64 `json:"list_unit_price"`
 }
 
 type CartLineComponent struct {
@@ -1916,6 +1919,10 @@ type OrderLine struct {
 	TaxClass        string        `json:"tax_class"`
 	TaxCents        int64         `json:"tax_cents"`
 	Position        int32         `json:"position"`
+	PriceSource     string        `json:"price_source"`
+	PriceSetBy      uuid.NullUUID `json:"price_set_by"`
+	PriceReason     string        `json:"price_reason"`
+	ListUnitPrice   sql.NullInt64 `json:"list_unit_price"`
 }
 
 type OrderLineComponent struct {
