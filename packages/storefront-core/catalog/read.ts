@@ -222,6 +222,8 @@ export type ProductCustomOptionValue = {
   quantity: number;
   isDefault: boolean;
   forcedLineQty: number | null;
+  // Picking it adds its source product to the cart as a line of its own, under this product's line
+  soldAsLine?: boolean;
   sourceProduct: {
     id: string;
     url: string;

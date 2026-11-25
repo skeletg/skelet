@@ -729,7 +729,8 @@
       "fileTooLarge": "File is too large (max {max}).",
       "allowedTypes": "Allowed file types: {types}.",
       "upTo": "up to {size}",
-      "uploading": "Uploading {name}…"
+      "uploading": "Uploading {name}…",
+      "separateItem": "added to your cart as its own item"
     },
     "variants": {
       "choose": "Choose {option}",

@@ -232,6 +232,7 @@ function FileControl({
 }
 
 function ValueRow({ value, currency, multi, optionId, checked, onToggle, invalid = false }: ValueProps) {
+  const t = useTranslations("product.options");
   const price = priceLabel(value.priceValue, value.priceType, currency);
   return (
     <li>
@@ -249,6 +250,7 @@ function ValueRow({ value, currency, multi, optionId, checked, onToggle, invalid
           {value.sourceProduct ? (
             <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
               {displayName(value.sourceProduct.name, value.sourceProduct.sku)}
+              {value.soldAsLine ? ` · ${t("separateItem")}` : ""}
             </span>
           ) : null}
         </span>
