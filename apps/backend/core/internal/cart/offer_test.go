@@ -196,8 +196,8 @@ func TestRepriceKeepsOfferPrices(t *testing.T) {
 	repo := &repriceRepo{}
 	svc := NewService(repo, nil, fakePricer{prices: map[string]SimplePricing{"plain": {UnitPrice: 1200}}})
 	c := svc.RepriceCartLines(context.Background(), Cart{ID: uuid.New(), Lines: []CartLine{
-		{ID: overrideID, ProductSku: "plain", UnitPrice: 500, Quantity: 1, PriceOverride: true},
-		{ID: customID, ProductSku: CustomLineSKUPrefix + "X", UnitPrice: 9900, Quantity: 1, IsCustom: true, PriceOverride: true},
+		{ID: overrideID, ProductSku: "plain", UnitPrice: 500, Quantity: 1, PriceSource: PriceAdmin},
+		{ID: customID, ProductSku: CustomLineSKUPrefix + "X", UnitPrice: 9900, Quantity: 1, IsCustom: true, PriceSource: PriceAdmin},
 	}})
 	if len(repo.writes) != 0 || c.Lines[0].UnitPrice != 500 || c.Lines[1].UnitPrice != 9900 {
 		t.Fatalf("an offer price moved: writes=%v lines=%+v", repo.writes, c.Lines)

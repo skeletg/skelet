@@ -35,12 +35,16 @@ func (s *Service) AdminAddToCart(ctx context.Context, cartID uuid.UUID, sku stri
 	if err != nil {
 		return Cart{}, err
 	}
-	input, err := s.prepareSimpleAdd(ctx, cart, sku, quantity)
+	input, _, err := s.prepareSimpleAdd(ctx, cart, sku, quantity)
 	if err != nil {
 		return Cart{}, err
 	}
-	if _, err := s.repo.UpsertCartLineBySku(ctx, cart.ID, input); err != nil {
+	line, err := s.repo.UpsertCartLineBySku(ctx, cart.ID, input)
+	if err != nil {
 		return Cart{}, fmt.Errorf("add cart line: %w", err)
+	}
+	if err := s.repo.RaiseLinePriceCap(ctx, line.ID); err != nil { // an admin's quantity is one the set price is for
+		return Cart{}, err
 	}
 	return loadCartWithLines(ctx, s.repo, cart.ID)
 }
@@ -57,11 +61,17 @@ func (s *Service) AdminUpdateCartLine(ctx context.Context, cartID, lineID uuid.U
 	if err != nil {
 		return Cart{}, err
 	}
+	if line.IsAddOn() {
+		return Cart{}, ErrLineFollowsParent
+	}
 	repricedUnit, err := s.validateQuantityEdit(ctx, cart, line, quantity) // the console must not break the forced-qty invariant or the ordering bounds either
 	if err != nil {
 		return Cart{}, err
 	}
 	if err := s.writeLineQuantity(ctx, line, quantity, repricedUnit); err != nil {
+		return Cart{}, err
+	}
+	if err := s.repo.RaiseLinePriceCap(ctx, line.ID); err != nil { // an admin's quantity is one the set price is for
 		return Cart{}, err
 	}
 	return loadCartWithLines(ctx, s.repo, cart.ID)
@@ -72,10 +82,11 @@ func (s *Service) AdminRemoveFromCart(ctx context.Context, cartID, lineID uuid.U
 	if err != nil {
 		return Cart{}, err
 	}
-	if err := verifyLineInCart(ctx, s.repo, lineID, cart.ID); err != nil {
+	line, err := lineInCart(ctx, s.repo, lineID, cart.ID)
+	if err != nil {
 		return Cart{}, err
 	}
-	if err := s.repo.RemoveCartLine(ctx, lineID); err != nil {
+	if err := s.removeLine(ctx, cart, line); err != nil {
 		return Cart{}, fmt.Errorf("remove cart line: %w", err)
 	}
 	return loadCartWithLines(ctx, s.repo, cart.ID)

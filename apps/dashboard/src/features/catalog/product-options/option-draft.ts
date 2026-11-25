@@ -36,6 +36,9 @@ export type ChoiceDraft = {
   quantity: string
   lockQty: string
   sourceProduct: SourceProduct | null
+  // A linked choice sold as that product's own cart and order line, and whether promotions may lower it
+  soldAsLine: boolean
+  linePromotions: boolean
   channelPrices: Record<string, string>
   image: OptionImageRef | null
 }
@@ -72,7 +75,7 @@ export function parsePrice(text: string, type: ProductOptionPriceType, currency:
 }
 
 export function newChoice(): ChoiceDraft {
-  return { key: newTempId(), id: null, title: '', price: '', priceType: 'FIXED', isDefault: false, quantity: '1', lockQty: '', sourceProduct: null, channelPrices: {}, image: null }
+  return { key: newTempId(), id: null, title: '', price: '', priceType: 'FIXED', isDefault: false, quantity: '1', lockQty: '', sourceProduct: null, soldAsLine: false, linePromotions: false, channelPrices: {}, image: null }
 }
 
 export function choiceFromProduct(p: SourceProduct): ChoiceDraft {
@@ -92,6 +95,8 @@ function choiceFromValue(v: OptionValue, locale: string, ctx: DraftContext): Cho
     quantity: String(v.quantity),
     lockQty: v.forcedLineQty != null ? String(v.forcedLineQty) : '',
     sourceProduct: v.sourceProduct ?? null,
+    soldAsLine: v.soldAsLine ?? false,
+    linePromotions: v.linePromotions ?? false,
     channelPrices: rawChannelPrices(v.channelPrices, ctx.channels),
     image: v.image ?? null,
   }
@@ -202,6 +207,9 @@ function addValueOp(c: ChoiceDraft, optionRef: string, sortOrder: number, locale
     locale,
     sourceProductId: c.sourceProduct?.id ?? null,
     sourceProduct: c.sourceProduct,
+    // Only a linked choice can be a line of its own
+    soldAsLine: c.soldAsLine && !!c.sourceProduct,
+    linePromotions: c.linePromotions,
     ...(c.image ? { image: c.image } : {}),
     ...(edits ? { channelPrices: edits } : {}),
   }
@@ -316,6 +324,9 @@ export function draftToOps({
       vu.sourceProductId = c.sourceProduct?.id ?? null
       vu.sourceProduct = c.sourceProduct
     }
+    const asLine = c.soldAsLine && !!c.sourceProduct
+    if (asLine !== (v.soldAsLine ?? false)) vu.soldAsLine = asLine
+    if (c.linePromotions !== (v.linePromotions ?? false)) vu.linePromotions = c.linePromotions
     if ((c.image?.assetId ?? null) !== (v.image?.assetId ?? null)) vu.image = c.image
     const edits = type === 'FIXED' ? channelEditsFrom(ctx.channels, c.channelPrices, v.channelPrices) : undefined
     if (edits) vu.channelPrices = edits

@@ -584,8 +584,12 @@ export type CartLine = {
   id: Scalars['ID']['output'];
   imageUrl?: Maybe<Scalars['String']['output']>;
   isCustom: Scalars['Boolean']['output'];
+  listUnitPrice?: Maybe<Scalars['Int']['output']>;
   name: Scalars['String']['output'];
   options: Array<CartLineOption>;
+  parentLineId?: Maybe<Scalars['ID']['output']>;
+  priceMaxQuantity?: Maybe<Scalars['Float']['output']>;
+  promotionsApply: Scalars['Boolean']['output'];
   quantity: Scalars['Float']['output'];
   sku: Scalars['String']['output'];
   totalPrice: Scalars['Int']['output'];
@@ -1402,6 +1406,7 @@ export type MutationOpenCartOfferArgs = {
 export type MutationPlaceOrderArgs = {
   acceptTerms?: InputMaybe<Scalars['Boolean']['input']>;
   cartId?: InputMaybe<Scalars['ID']['input']>;
+  expectedTotalCents?: InputMaybe<Scalars['Int']['input']>;
   marketingOptIn?: InputMaybe<Scalars['Boolean']['input']>;
   paymentToken?: InputMaybe<Scalars['String']['input']>;
   savedPaymentMethodId?: InputMaybe<Scalars['ID']['input']>;
@@ -1720,6 +1725,7 @@ export type OrderLine = {
   isGift: Scalars['Boolean']['output'];
   name: Scalars['String']['output'];
   options: Array<OrderLineOption>;
+  parentLineId?: Maybe<Scalars['ID']['output']>;
   quantity: Scalars['Float']['output'];
   sku: Scalars['String']['output'];
   totalPrice: Scalars['Int']['output'];
@@ -2016,6 +2022,7 @@ export type ProductCustomOptionValue = {
   priceType: Scalars['String']['output'];
   priceValue: Scalars['Int']['output'];
   quantity: Scalars['Float']['output'];
+  soldAsLine: Scalars['Boolean']['output'];
   sourceProduct?: Maybe<Product>;
   title: Scalars['String']['output'];
 };

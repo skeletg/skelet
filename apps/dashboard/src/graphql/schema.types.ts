@@ -166,11 +166,13 @@ export type AddProductOptionValueInput = {
   forcedLineQty?: InputMaybe<Scalars['Float']['input']>;
   imageAssetId?: InputMaybe<Scalars['ID']['input']>;
   isDefault?: InputMaybe<Scalars['Boolean']['input']>;
+  linePromotions?: InputMaybe<Scalars['Boolean']['input']>;
   locale: Scalars['String']['input'];
   optionId: Scalars['ID']['input'];
   priceType?: InputMaybe<ProductOptionPriceType>;
   priceValue?: InputMaybe<Scalars['Int']['input']>;
   quantity?: InputMaybe<Scalars['Float']['input']>;
+  soldAsLine?: InputMaybe<Scalars['Boolean']['input']>;
   sortOrder?: InputMaybe<Scalars['Int']['input']>;
   sourceProductId?: InputMaybe<Scalars['ID']['input']>;
   title: Scalars['String']['input'];
@@ -251,6 +253,7 @@ export type AdminCart = {
   kind: CartKind;
   lines: Array<AdminCartLine>;
   offer?: Maybe<AdminCartOffer>;
+  priceLimits?: Maybe<CartPriceLimits>;
   source: Scalars['String']['output'];
   status: Scalars['String']['output'];
   subtotal: Scalars['Int']['output'];
@@ -334,9 +337,17 @@ export type AdminCartLine = {
   id: Scalars['ID']['output'];
   isCustom: Scalars['Boolean']['output'];
   isSimple: Scalars['Boolean']['output'];
+  listUnitPrice?: Maybe<Scalars['Int']['output']>;
   name: Scalars['String']['output'];
   options: Array<AdminCartLineOption>;
+  parentLineId?: Maybe<Scalars['ID']['output']>;
+  priceExpiresAt?: Maybe<Scalars['Time']['output']>;
+  priceMaxQuantity?: Maybe<Scalars['Float']['output']>;
   priceOverride: Scalars['Boolean']['output'];
+  priceReason: Scalars['String']['output'];
+  priceRef: Scalars['String']['output'];
+  priceSource: LinePriceSource;
+  promotionsApply: Scalars['Boolean']['output'];
   quantity: Scalars['Float']['output'];
   sku: Scalars['String']['output'];
   taxClass: Scalars['String']['output'];
@@ -436,6 +447,7 @@ export type AdminCreateCustomerInput = {
 
 export type AdminCustomCartLineInput = {
   name: Scalars['String']['input'];
+  promotionsApply?: InputMaybe<Scalars['Boolean']['input']>;
   quantity: Scalars['Float']['input'];
   taxClass?: InputMaybe<Scalars['String']['input']>;
   unitPrice: Scalars['Int']['input'];
@@ -1811,6 +1823,12 @@ export type CartOfferState =
   | 'OPENED'
   | 'REVOKED'
   | 'SENT';
+
+export type CartPriceLimits = {
+  __typename?: 'CartPriceLimits';
+  holdsUntil?: Maybe<Scalars['Time']['output']>;
+  maxCutPercent: Scalars['Int']['output'];
+};
 
 export type CascadeAttributeIndexableResult = {
   __typename?: 'CascadeAttributeIndexableResult';
@@ -3999,6 +4017,11 @@ export type LibraryEmail = {
   updatedAt: Scalars['Time']['output'];
 };
 
+export type LinePriceSource =
+  | 'ADMIN'
+  | 'CATALOG'
+  | 'HOOK';
+
 export type LinkClicks = {
   __typename?: 'LinkClicks';
   clicks: Scalars['Int']['output'];
@@ -5020,6 +5043,8 @@ export type MutationAdminSendCartOfferArgs = {
 export type MutationAdminSetCartLinePriceArgs = {
   cartId: Scalars['ID']['input'];
   lineId: Scalars['ID']['input'];
+  promotionsApply?: InputMaybe<Scalars['Boolean']['input']>;
+  reason?: InputMaybe<Scalars['String']['input']>;
   unitPrice?: InputMaybe<Scalars['Int']['input']>;
 };
 
@@ -7893,13 +7918,22 @@ export type OrderFee = {
 export type OrderLine = {
   __typename?: 'OrderLine';
   components: Array<OrderLineComponent>;
+  discountAmount: Scalars['Int']['output'];
   id: Scalars['ID']['output'];
   isCustom: Scalars['Boolean']['output'];
   isGift: Scalars['Boolean']['output'];
+  listUnitPrice?: Maybe<Scalars['Int']['output']>;
   name: Scalars['String']['output'];
   options: Array<OrderLineOption>;
+  parentLineId?: Maybe<Scalars['ID']['output']>;
+  priceReason: Scalars['String']['output'];
+  priceRef: Scalars['String']['output'];
+  priceSource: LinePriceSource;
+  promotionsApply: Scalars['Boolean']['output'];
   quantity: Scalars['Float']['output'];
+  requiresShipping: Scalars['Boolean']['output'];
   sku: Scalars['String']['output'];
+  taxAmount: Scalars['Int']['output'];
   totalPrice: Scalars['Int']['output'];
   unitPrice: Scalars['Int']['output'];
 };
@@ -8453,9 +8487,11 @@ export type ProductOptionValue = {
   id: Scalars['ID']['output'];
   image?: Maybe<OptionImage>;
   isDefault: Scalars['Boolean']['output'];
+  linePromotions: Scalars['Boolean']['output'];
   priceType: ProductOptionPriceType;
   priceValue: Scalars['Int']['output'];
   quantity: Scalars['Float']['output'];
+  soldAsLine: Scalars['Boolean']['output'];
   sortOrder: Scalars['Int']['output'];
   sourceProduct?: Maybe<Product>;
   title: Scalars['String']['output'];
@@ -12401,9 +12437,11 @@ export type UpdateProductOptionValueInput = {
   id: Scalars['ID']['input'];
   imageAssetId?: InputMaybe<Scalars['ID']['input']>;
   isDefault?: InputMaybe<Scalars['Boolean']['input']>;
+  linePromotions?: InputMaybe<Scalars['Boolean']['input']>;
   priceType?: InputMaybe<ProductOptionPriceType>;
   priceValue?: InputMaybe<Scalars['Int']['input']>;
   quantity?: InputMaybe<Scalars['Float']['input']>;
+  soldAsLine?: InputMaybe<Scalars['Boolean']['input']>;
   sortOrder?: InputMaybe<Scalars['Int']['input']>;
   sourceProductId?: InputMaybe<Scalars['ID']['input']>;
 };

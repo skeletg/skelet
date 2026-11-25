@@ -93,7 +93,7 @@ export function CartView({
   const netSubtotal = cart ? Math.max(0, cart.subtotal - cart.totalDiscount) : 0;
 
   const renderLine = (line: CartLine) => (
-    <li key={line.id} className="py-4">
+    <li key={line.id} className={line.parentLineId ? "py-3 pl-6 sm:pl-10" : "py-4"} data-addon={line.parentLineId ? "" : undefined}>
       <div className="flex items-start gap-4">
         {line.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -138,7 +138,12 @@ export function CartView({
           <CartLineOptionsList options={line.options} currency={currency} />
         </div>
 
-        <CartQuantity lineId={line.id} quantity={line.quantity} />
+        {line.parentLineId ? (
+          // An add-on's quantity is its item's - shown, never edited here
+          <span className="w-24 text-center text-sm tabular-nums text-muted-foreground">×{line.quantity}</span>
+        ) : (
+          <CartQuantity lineId={line.id} quantity={line.quantity} />
+        )}
 
         <div className="w-24 text-right text-sm font-medium tabular-nums">
           {formatPrice(line.totalPrice, currency)}
@@ -152,7 +157,7 @@ export function CartView({
           >
             {tc("remove")}
           </button>
-          {line.components.length === 0 && line.options.length === 0 && (
+          {line.components.length === 0 && line.options.length === 0 && !line.parentLineId && (
             <SaveForLaterButton lineId={line.id} />
           )}
         </div>

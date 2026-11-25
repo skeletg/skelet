@@ -155,6 +155,26 @@ answered before the order can be placed, and the answers appear on the order pag
 **At checkout**. Turning the plugin off for a channel stops its questions there. How a
 plugin declares one: [plugins.md](plugins.md#checkout-fields).
 
+## The total the shopper agreed to
+
+The payment step sends the order total it is showing along with the order
+(`placeOrder(expectedTotalCents:)`). If the order would come to anything else, nothing
+is placed: no order, no stock held, the cart as it was. The shopper sees that the total
+changed and what it is now, and pressing the button again agrees to that figure.
+
+A total moves for two reasons. A price, a promotion or a shipping or tax rate changed
+between the page being drawn and the button being pressed - the page then shows the new
+total itself once it reloads. Or a plugin changes a figure only as the order is placed
+(a discount, the tax, the total), which no quote can show - then the refusal carries the
+figures, and the step shows the new total from it.
+
+The API refuses with `CHECKOUT_TOTAL_CHANGED`, and the error's extensions carry
+`totalCents`, `subtotalCents`, `discountCents`, `shippingCents`, `feesCents`, `taxCents`
+and the `expectedTotalCents` that was sent. A caller that sends no expected total is
+placed at whatever the order comes to, as before. Both templates send it; a storefront
+forked before this needs the hidden `expectedTotalCents` field in its own payment form
+(`expectedTotal` in `@skelet/storefront-core/checkout/schemas` picks the figure).
+
 ## Payment setup
 
 The Payment tab owns per-channel availability, country rules, checkout labels and display

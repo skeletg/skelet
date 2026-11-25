@@ -332,6 +332,8 @@ export function ConfiguratorSection({ subject, canManage }: { subject: Configura
               locale: op.locale,
               title: op.title,
               sourceProductId: op.sourceProductId ?? undefined,
+              soldAsLine: op.soldAsLine ?? undefined,
+              linePromotions: op.linePromotions ?? undefined,
               imageAssetId: op.image?.assetId ?? undefined,
             },
           },
@@ -356,6 +358,8 @@ export function ConfiguratorSection({ subject, canManage }: { subject: Configura
             quantity?: number
             forcedLineQty?: number
             sourceProductId?: string
+            soldAsLine?: boolean
+            linePromotions?: boolean
             imageAssetId?: string
           }
         } = { input: { id: op.id } }
@@ -373,6 +377,8 @@ export function ConfiguratorSection({ subject, canManage }: { subject: Configura
           // documented sentinel); a real uuid is sent verbatim
           variables.input.sourceProductId = op.sourceProductId ?? ''
         }
+        if (op.soldAsLine !== undefined) variables.input.soldAsLine = op.soldAsLine
+        if (op.linePromotions !== undefined) variables.input.linePromotions = op.linePromotions
         if (op.image !== undefined) variables.input.imageAssetId = op.image?.assetId ?? ''
         await updateValueMutation({ variables })
       },

@@ -134,6 +134,49 @@ describe("placing an order that owes money", () => {
   });
 });
 
+describe("the total the page showed", () => {
+  const placeVars = () => mocks.gqlFetch.mock.calls.find(([, vars]) => vars && "acceptTerms" in vars)?.[1];
+  const submit = (expected?: string) => {
+    const data = new FormData(); data.set("cartId", "cart-1"); data.set("locale", "en"); data.set("providerSlug", "cod");
+    if (expected !== undefined) data.set("expectedTotalCents", expected);
+    return placeOrderAction(undefined, data);
+  };
+  beforeEach(() => {
+    mocks.checkout.mockResolvedValue({ email: "guest@example.com", totals: { amountDueCents: 4400, totalCents: 4400 } });
+    mocks.methods.mockResolvedValue([{ providerSlug: "cod", isOffline: true }]);
+  });
+
+  it("goes with the order, and is left out when the page sent none", async () => {
+    mocks.gqlFetch.mockResolvedValue({ data: { placeOrder: { id: "order-1", paymentClientSecret: null } } });
+    await expect(submit("4400")).rejects.toThrow("redirect");
+    expect(placeVars()).toMatchObject({ expectedTotalCents: 4400 });
+    mocks.gqlFetch.mockClear();
+    await expect(submit()).rejects.toThrow("redirect");
+    expect(placeVars()).toMatchObject({ expectedTotalCents: null });
+  });
+
+  it("comes back with what the order is now when the backend refuses it", async () => {
+    const { GraphQLRequestError } = await import("../graphql");
+    mocks.gqlFetch.mockImplementation(async (_doc: unknown, vars: Record<string, unknown>) => {
+      if (vars && "acceptTerms" in vars) {
+        throw new GraphQLRequestError("the order total changed", [{ message: "the order total changed", extensions: { code: "CHECKOUT_TOTAL_CHANGED", totalCents: 4600 } }]);
+      }
+      return { data: {} };
+    });
+    const result = await submit("4400");
+    expect(result.error?.[""]).toEqual(["checkoutTotalChanged"]);
+    expect(result.totalChanged).toEqual({ totalCents: 4600, quotedCents: 4400 });
+    expect(mocks.refresh).toHaveBeenCalled();
+    expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
+  it("is refused as text when it isn't a whole amount", async () => {
+    const result = await submit("12.5");
+    expect(result.status).toBe("error");
+    expect(placeVars()).toBeUndefined();
+  });
+});
+
 describe("paying through a gateway", () => {
   const ORDER = "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b";
   const placeVars = () => mocks.gqlFetch.mock.calls.find(([, vars]) => vars && "acceptTerms" in vars)?.[1];

@@ -58,6 +58,43 @@ type ProductOptionValueConfig struct { // one select-family value, snapshotted
 	SourceUnavailable  bool     // the linked source isn't sold on this channel, so the value can't be picked
 	PriceUnavailable   bool     // no surcharge for this channel's currency, so the value can't be picked
 	ForcedLineQty      *float64 // picking this value forces the line quantity and locks it against manual edits - nil means no constraint
+	// Sold as the source product's own line under the one it is picked on, rather than a surcharge in that line's
+	// price - with the product's SKU and name for the line, and whether promotions may lower it
+	SoldAsLine     bool
+	SourceSKU      string
+	SourceName     string
+	LinePromotions bool
+}
+
+// lineAddOns is the picks sold as lines of their own, from the option rows a configuration built
+func lineAddOns(res ProductOptionsResolution, rows []CartLineOption) []LineAddOn {
+	var out []LineAddOn
+	for _, row := range rows {
+		if row.OptionValueID == nil {
+			continue
+		}
+		for _, opt := range res.Options {
+			if opt.ID != row.ProductOptionID {
+				continue
+			}
+			for _, v := range opt.Values {
+				if v.ID == *row.OptionValueID && v.SoldAsLine && v.HasSource {
+					out = append(out, LineAddOn{
+						ValueID: v.ID, ProductID: v.SourceProductID, ProductSku: v.SourceSKU, ProductName: cmpOr(v.SourceName, v.Title),
+						UnitPrice: max(valueContribution(res.BasePrice, v), 0), PerParent: v.Quantity, NoPromotions: !v.LinePromotions,
+					})
+				}
+			}
+		}
+	}
+	return out
+}
+
+func cmpOr(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }
 
 // Trusts nothing from the client beyond chosen IDs and text - two picks forcing different quantities is ErrProductOptionQtyConflict, and fileAssets is pre-resolved by the service so this stays I/O-free
@@ -134,7 +171,13 @@ func buildConfiguredLineOptions(res ProductOptionsResolution, inputs []CartLineO
 					q := *v.ForcedLineQty
 					forcedQty = &q
 				}
-				rowDelta := money.LineTotal(valueContribution(res.BasePrice, v), v.Quantity)
+				// A choice sold as its own line adds nothing to this line's price and takes none of its stock - the
+				// line it becomes carries both
+				asLine := v.SoldAsLine && v.HasSource
+				var rowDelta int64
+				if !asLine {
+					rowDelta = money.LineTotal(valueContribution(res.BasePrice, v), v.Quantity)
+				}
 				delta += rowDelta
 				valID := vid
 				lo := CartLineOption{
@@ -147,7 +190,7 @@ func buildConfiguredLineOptions(res ProductOptionsResolution, inputs []CartLineO
 					Quantity:        v.Quantity,
 					SortOrder:       sort,
 				}
-				if v.HasSource && v.SourceProductID != uuid.Nil {
+				if v.HasSource && v.SourceProductID != uuid.Nil && !asLine {
 					src := v.SourceProductID
 					lo.SourceProductID = &src
 				}

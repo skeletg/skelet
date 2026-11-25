@@ -193,6 +193,79 @@ stage (`orders.stage`, `RegisterOrderStage`) sits inside the statuses it
 lists and clears when the order moves to one it doesn't; `order.transitioning`
 can refuse any status or stage move but placement's own.
 
+**Order line money**: each line keeps its own share of the order's discount
+(`order_lines.discount_cents`) and its own tax (`tax_cents`), written when the
+order is priced - at placement, on a draft and on every edit - and the lines
+add up to `discount_amount` and to the tax on the goods. A promotion that
+discounts certain products stays on their lines; whatever else the discount
+holds (an order-wide rule, a plugin's, a draft's) is spread by what each line
+has left. Core's tax is kept as the engine worked it out line by line, so two
+tax rates on one order stay apart; a tax plugin's or remote provider's single
+figure is shared by each line's amount after its discount. Refunds, returns
+and net sales read these columns and never work the shares out again
+(`order/line_money.go`). An edit keeps a line's discount where it was, by the
+quantity it has now, and moves what a removed line carried to the rest.
+
+**Line price source**: a cart line says where its price came from
+(`cart_lines.price_source`). A `catalog` line is priced again from the catalog
+whenever checkout reads the cart; any other source is a price someone set,
+which holds through repricing, quantity edits and re-adds (`CartLine.PriceHeld`).
+Beside a set price the line keeps who set it, a note saying why, and the
+catalog price it replaced (`list_unit_price`, refreshed whenever the catalog is
+read for the line). Placement copies all four onto the order line, and a draft
+line priced by hand records them the same way, so an order always says which
+of its prices were the catalog's. The other sources are `admin` (an offer line,
+a custom line, a hand-priced draft line, or a price set on a shopper's own
+cart) and `hook`: a plugin's handler or a sync webhook that priced the line on
+`cart.line.adding` or `cart.line.updating`, named in `price_ref`
+(`plugin:<slug>`, `webhook:<name>`). An admin's price outranks a hook's. On a shopper's cart a set price has two limits of its own,
+since the shopper can still change that cart: `price_max_quantity`, which
+shopper edits may not pass (an admin's quantity raises it), and
+`price_expires_at`, after which `PriceHeld` is false and the next reprice puts
+the line back on the catalog's. Copies (guest merge, handoff, duplicate) carry a
+set price with its line and cap the quantity at what it is for.
+
+**Add-on lines**: a product option choice backed by a product can be sold as
+that product's own line (`catalog_product_option_values.sold_as_line`) - a
+protection plan, an installation, a refill. Picking it adds nothing to the
+item's unit price and takes no stock through it; instead the cart gets a line
+for the product itself, tied to the item's line (`cart_lines.parent_line_id`)
+with `per_parent` of it for each of the item. It has its own SKU, price and tax
+class, reserves its own stock, and is its own order line
+(`order_lines.parent_line_id`), so it is taxed at its own rate and refunded on
+its own. It follows its item: the same quantity ratio through every cart and
+order edit, gone when the item goes, copied with it when carts merge. Its own
+quantity is never edited (`CART_LINE_FOLLOWS_PARENT`); removing it takes the
+pick off the item, unless that option needs a choice (`CART_ADD_ON_REQUIRED`).
+Its price is the one it was picked at, kept like an option's surcharge rather
+than repriced at checkout. Coupons and promotions leave it alone unless the
+choice says they apply (`line_promotions`). The same product bought on its own
+is a separate line. Lines list with each add-on right after its item
+(`cart.underParents`, and `order_lines.position`).
+
+**Lines that don't ship**: an order line records whether it is something to
+ship (`order_lines.requires_shipping`), read from its product type when the
+order is placed or the line is added - a custom line never is. An order is
+`fulfilled` once every line that ships has shipped; a service or a download
+bought beside the goods doesn't hold it at `partially_fulfilled`. A fulfillment
+may still list such a line, and an order with nothing to ship at all is
+fulfilled the old way, when every line is covered.
+
+**Returning an item with an add-on**: the add-on is its own order line, so it
+is never returned or refunded as a side effect. When staff tick an item in the
+return or credit memo dialog, each of its add-ons not already ticked is offered
+with the quantity that goes with what is coming back, one click to include.
+
+**Lines promotions leave alone**: `cart_lines.no_promotions` (and the order
+line's) marks a line no coupon or promotion may lower - the default once a price
+is set by hand, lifted per line by whoever set it. The promotion engine sees
+the line with `CartLineView.NoDiscount`: conditions still count it (a spend
+threshold, "cart contains"), but the ledger drops any discount an action puts
+on it, cart-level discounts are worked out from `DiscountableSubtotal` and
+shared by the other lines, and line promotions (matching items, buy-X-get-Y)
+skip it. A discount given on the order itself - a plugin's at placement, a
+draft's - also goes to the open lines first (`order.splitDiscount`).
+
 **Config**: paths always `section/group/field`. Scope is `default` or
 `channel`; all global values at `default/0`. Resolution:
 requested scope → default/0 → registry default. `Set` validates +

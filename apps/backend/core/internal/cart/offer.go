@@ -58,7 +58,7 @@ var (
 	ErrOfferExpiryInvalid     = errors.New("the offer must expire in the future")
 	ErrOfferRecipientRequired = errors.New("an offer needs a customer or an email")
 	ErrOfferMessageTooLong    = errors.New("the offer message is too long")
-	ErrOfferLinePriceInvalid  = errors.New("the price can't be negative")
+	ErrOfferLinePriceInvalid  = errors.New("the price can't be set")
 	ErrCustomLineNameRequired = errors.New("a custom line needs a name")
 	ErrOfferPaymentNotAllowed = errors.New("this payment method isn't available for this offer")
 )
@@ -327,7 +327,7 @@ func checkProtectedOfferLine(c Cart, lineID uuid.UUID, sku string) error {
 		return nil
 	}
 	for _, l := range c.Lines {
-		if (lineID == uuid.Nil && sku == "" || l.ID == lineID || sku != "" && l.ProductSku == sku) && (l.IsCustom || l.PriceOverride) {
+		if (lineID == uuid.Nil && sku == "" || l.ID == lineID || sku != "" && l.ProductSku == sku) && (l.IsCustom || l.PriceHeld()) {
 			return lockedErr(LockLines)
 		}
 	}

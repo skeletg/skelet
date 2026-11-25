@@ -55,6 +55,27 @@ describe("CartView", () => {
     expect(container.textContent).toContain("−$4.00");
     expect(screen.getByRole("link", { name: "Checkout" }).getAttribute("href")).toBe("/checkout");
   });
+  it("shows an add-on under its item, with the item's quantity and no control of its own", () => {
+    const withPlan = [lines[0], { id: "plan", name: "Protection plan", sku: "PLAN", imageUrl: null, unitPrice: 300, quantity: lines[0].quantity, totalPrice: 300 * lines[0].quantity, parentLineId: lines[0].id }];
+    const { container } = render(<CartView cart={{ id: "c1", subtotal: 3900, totalDiscount: 0, lines: withPlan }} currency={usd} />);
+    const [item, addOn] = [...container.querySelectorAll("[data-line]")];
+    expect(item.hasAttribute("data-addon")).toBe(false);
+    expect(item.querySelector('input[name="intent"][value="update"]')).not.toBeNull();
+    expect(addOn.hasAttribute("data-addon")).toBe(true);
+    expect(addOn.querySelector('input[name="intent"][value="update"]')).toBeNull();
+    expect(addOn.textContent).toContain(`×${lines[0].quantity}`);
+    expect(addOn.querySelector('input[name="intent"][value="remove"]')).not.toBeNull();
+  });
+
+  it("says when the store set a line's price, with what it usually costs and how many it is for", () => {
+    const set = [{ ...lines[0], unitPrice: 800, listUnitPrice: 1000, priceMaxQuantity: 2, promotionsApply: false }, { ...lines[1], promotionsApply: true }];
+    const { container } = render(<CartView cart={{ id: "c1", subtotal: 3900, totalDiscount: 0, lines: set }} currency={usd} />);
+    const [first, second] = [...container.querySelectorAll("[data-line]")];
+    expect(first.textContent).toMatch(/A price set for you - usually \$10\.00\. It is for up to 2\./);
+    expect(second.textContent).not.toContain("A price set for you");
+    expect(first.textContent).toContain("Coupons and promotions don't apply to this item.");
+    expect(second.textContent).not.toContain("Coupons and promotions");
+  });
 });
 
 describe("ProductView", () => {
@@ -123,6 +144,20 @@ describe("CheckoutView", () => {
     expect([message.value, message.name]).toEqual(["Happy birthday", "field:acme:gift_message"]);
     expect(document.getElementById(message.getAttribute("aria-describedby") ?? "")?.textContent).toBe("Printed on the card");
     expect((screen.getByRole("checkbox", { name: "Accept the gift terms" }) as HTMLInputElement).checked).toBe(true);
+  });
+
+  // The total on the page is the one the shopper agrees to - it posts with the order, and a placement refused for
+  // coming to something else says what, and posts that figure with the next try
+  it("posts the total it shows, and the one a refused placement came to", () => {
+    const expected = (container: HTMLElement) => container.querySelector<HTMLInputElement>('input[name="expectedTotalCents"]')?.value;
+    const first = render(<CheckoutView {...base} dest={{ countryCode: "DE", postalCode: "10115" }} />);
+    expect(expected(first.container)).toBe("3900");
+    expect(first.container.textContent).not.toContain("The order total is now");
+    first.unmount();
+
+    const again = render(<CheckoutView {...base} dest={{ countryCode: "DE", postalCode: "10115" }} totalNow={4100} />);
+    expect(expected(again.container)).toBe("4100");
+    expect(screen.getAllByRole("alert").map((a) => a.textContent).join(" | ")).toMatch(/The order total is now .*41\.00.*place your order again/);
   });
 
   it("asks where it's going first, and the summary has no shipping line yet", () => {

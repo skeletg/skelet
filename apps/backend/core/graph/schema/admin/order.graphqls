@@ -239,6 +239,13 @@ input RecordOfflinePaymentInput {
   note: String
 }
 
+# Where a line's price came from
+enum LinePriceSource {
+  CATALOG  # the catalog's price for it
+  ADMIN    # set by an admin - on an offer, a draft, a custom line or a shopper's own cart
+  HOOK     # set by a plugin or a sync webhook as the line was added or its quantity changed - priceRef names it
+}
+
 type OrderLine {
   id:          ID!
   name:        String!
@@ -250,6 +257,26 @@ type OrderLine {
   isGift:      Boolean!
   # A free-form charge from an offer cart - no catalog product, nothing to reserve or ship
   isCustom:    Boolean!
+  # The line's own share of the order's discount and its own tax, as the order was priced - what a refund of the
+  # line gives back. The tax is inside totalPrice where the order's prices include it (taxIncluded), on top otherwise
+  discountAmount: Int!
+  taxAmount:      Int!
+  # Where unitPrice came from, the catalog price it replaced (null on a catalog line, and where there was none) and
+  # the note left when it was set
+  priceSource:   LinePriceSource!
+  listUnitPrice: Int
+  priceReason:   String!
+  # Who set a HOOK price: "plugin:<slug>" or "webhook:<name>" - empty otherwise
+  priceRef:      String!
+  # False for a line that is nothing to ship - a service, a download, a custom charge. It doesn't hold the order
+  # back from fulfilled: the order is fulfilled once every line that does ship has
+  requiresShipping: Boolean!
+  # Set on an add-on: the line it was bought with, which it reads under. An edit removes and re-quantifies it with
+  # that line; it can be removed or refunded on its own
+  parentLineId: ID
+  # False when coupons and promotions left this line alone - its discountAmount is then only its share of a discount
+  # given on the order itself
+  promotionsApply: Boolean!
   # Custom-option picks captured at placement (engraving text, gift wrap,
   # etc.) - the immutable record of what was configured, for fulfillment.
   options:     [OrderLineOption!]!

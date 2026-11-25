@@ -123,7 +123,9 @@ INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity
 VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (cart_id, product_sku, config_key) DO UPDATE
   SET quantity   = cart_lines.quantity + EXCLUDED.quantity,
-      unit_price = CASE WHEN cart_lines.price_override THEN cart_lines.unit_price ELSE EXCLUDED.unit_price END, -- an admin-set price is the offer, more of the item doesn't undo it
+      -- a set price is the price, more of the item doesn't undo it - what comes in is today's catalog price, kept beside it
+      unit_price = CASE WHEN cart_lines.price_source <> 'catalog' THEN cart_lines.unit_price ELSE EXCLUDED.unit_price END,
+      list_unit_price = CASE WHEN cart_lines.price_source <> 'catalog' THEN EXCLUDED.unit_price END,
       updated_at = NOW()
 RETURNING *;
 
@@ -136,14 +138,42 @@ RETURNING *;
 SELECT * FROM cart_lines WHERE id = $1 LIMIT 1;
 
 -- name: ListCartLinesByCart :many
-SELECT * FROM cart_lines WHERE cart_id = $1 ORDER BY created_at ASC;
+SELECT * FROM cart_lines WHERE cart_id = $1 ORDER BY created_at ASC, id ASC;
 
 -- name: UpdateCartLineQuantity :one
-UPDATE cart_lines SET quantity = $2, updated_at = NOW() WHERE id = $1 RETURNING *;
+WITH kids AS ( -- lines that belong to this one hold so many of themselves for each of it
+    UPDATE cart_lines c SET quantity = sqlc.arg(quantity)::numeric * c.per_parent, updated_at = NOW() WHERE c.parent_line_id = sqlc.arg(id)
+)
+UPDATE cart_lines l SET quantity = sqlc.arg(quantity), updated_at = NOW() WHERE l.id = sqlc.arg(id) RETURNING l.*;
+
+-- name: InsertChildCartLine :one
+-- A line that belongs to another - an add-on picked as one of the parent's options. Its config_key names the parent
+-- and the choice, so the same product can also sit in the cart on its own, or under another line
+INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity, config_key, parent_line_id, per_parent, parent_value_id, no_promotions)
+SELECT p.cart_id, sqlc.arg(product_name), sqlc.arg(product_sku), sqlc.arg(unit_price), p.quantity * sqlc.arg(per_parent)::numeric,
+       'of:' || p.id::text || ':' || sqlc.arg(parent_value_id)::uuid::text, p.id, sqlc.arg(per_parent)::numeric, sqlc.arg(parent_value_id)::uuid, sqlc.arg(no_promotions)
+FROM cart_lines p WHERE p.id = sqlc.arg(parent_line_id)
+RETURNING *;
+
+-- name: DeleteChildCartLines :exec
+DELETE FROM cart_lines WHERE parent_line_id = $1;
+
+-- name: DeleteCartLineOptionByValue :exec
+-- The pick a removed add-on line stood for comes off the line it was picked on
+DELETE FROM cart_line_options WHERE cart_line_id = $1 AND option_value_id = $2;
 
 -- name: UpdateCartLineQuantityPrice :one
--- Quantity change that also re-prices the line (tier-price boundary cross)
-UPDATE cart_lines SET quantity = $2, unit_price = $3, updated_at = NOW() WHERE id = $1 RETURNING *;
+-- Quantity change that also re-prices the line (tier-price boundary cross). The price is the catalog's, so a line
+-- whose price was set meanwhile keeps it and takes the new figure as its list price
+WITH kids AS ( -- lines that belong to this one hold so many of themselves for each of it
+    UPDATE cart_lines c SET quantity = sqlc.arg(quantity)::numeric * c.per_parent, updated_at = NOW() WHERE c.parent_line_id = sqlc.arg(id)
+)
+UPDATE cart_lines l
+SET quantity = sqlc.arg(quantity),
+    unit_price = CASE WHEN l.price_source <> 'catalog' THEN l.unit_price ELSE sqlc.arg(unit_price)::bigint END,
+    list_unit_price = CASE WHEN l.price_source <> 'catalog' THEN sqlc.arg(unit_price)::bigint END,
+    updated_at = NOW()
+WHERE l.id = sqlc.arg(id) RETURNING l.*;
 
 -- name: DeleteCartLine :exec
 DELETE FROM cart_lines WHERE id = $1;
@@ -270,11 +300,29 @@ RETURNING offer_link_version;
 UPDATE carts SET order_id = $2 WHERE id = $1;
 
 -- name: SetCartLinePrice :one
-UPDATE cart_lines SET unit_price = $2, price_override = $3, updated_at = NOW() WHERE id = $1 RETURNING *;
+-- A price put on a line with where it came from, or the line put back on the catalog's
+UPDATE cart_lines
+SET unit_price = sqlc.arg(unit_price), price_source = sqlc.arg(price_source), price_set_by = sqlc.narg(price_set_by), price_ref = sqlc.arg(price_ref),
+    price_reason = sqlc.arg(price_reason), list_unit_price = sqlc.narg(list_unit_price),
+    price_max_quantity = sqlc.narg(price_max_quantity), price_expires_at = sqlc.narg(price_expires_at),
+    no_promotions = sqlc.arg(no_promotions), updated_at = NOW()
+WHERE id = sqlc.arg(id) RETURNING *;
+
+-- name: RaiseCartLinePriceCap :exec
+-- An admin put more of the item on a line whose price is set - the price is then for that many
+UPDATE cart_lines SET price_max_quantity = GREATEST(price_max_quantity, quantity) WHERE id = $1 AND price_max_quantity IS NOT NULL;
+
+-- name: CapCartLineQuantity :exec
+-- Two carts became one and a line whose price is set took in more than the price is for - it keeps what it is for
+WITH capped AS (
+    UPDATE cart_lines p SET quantity = p.price_max_quantity WHERE p.id = $1 AND p.price_max_quantity IS NOT NULL AND p.quantity > p.price_max_quantity
+    RETURNING p.id, p.quantity
+)
+UPDATE cart_lines c SET quantity = capped.quantity * c.per_parent FROM capped WHERE c.parent_line_id = capped.id;
 
 -- name: InsertCustomCartLine :one
-INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity, price_override, is_custom, tax_class)
-VALUES (sqlc.arg(cart_id), sqlc.arg(product_name), sqlc.arg(product_sku), sqlc.arg(unit_price), sqlc.arg(quantity), true, true, sqlc.arg(tax_class))
+INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity, price_source, price_set_by, is_custom, tax_class, no_promotions)
+VALUES (sqlc.arg(cart_id), sqlc.arg(product_name), sqlc.arg(product_sku), sqlc.arg(unit_price), sqlc.arg(quantity), 'admin', sqlc.narg(price_set_by), true, sqlc.arg(tax_class), sqlc.arg(no_promotions))
 RETURNING *;
 
 -- name: ListCustomerCartOffers :many

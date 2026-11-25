@@ -110,6 +110,7 @@ var (
 	toOrderAddressModel       = modelconv.OrderAddressModel
 	toOrderEventModel         = modelconv.OrderEventModel
 	toOrderLineModel          = modelconv.OrderLineModel
+	toLinePriceSource         = modelconv.LinePriceSource
 	toProductContentModels    = modelconv.ProductContentModels
 	toProductMediaModel       = modelconv.ProductMediaModel
 	toStringMapItems          = modelconv.StringMapItems

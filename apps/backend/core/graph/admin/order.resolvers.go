@@ -33,7 +33,9 @@ func (r *mutationResolver) CreateDraftOrder(ctx context.Context, input model.Cre
 			return nil, err
 		}
 	}
-	o, err := r.OrderSvc.CreateDraftOrder(ctx, toCreateDraftOrderInput(input, channelID))
+	in := toCreateDraftOrderInput(input, channelID)
+	in.CreatedBy = actingAdminID(ctx)
+	o, err := r.OrderSvc.CreateDraftOrder(ctx, in)
 	if err != nil {
 		return nil, err
 	}

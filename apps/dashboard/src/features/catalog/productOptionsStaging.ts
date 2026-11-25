@@ -85,6 +85,9 @@ export type OptionValue = {
   // Optional linked SIMPLE product - When set the value's effective
   // cart contribution is (sourceProduct.defaultPrice * quantity) + priceValue
   sourceProduct?: SourceProduct | null
+  // A linked choice sold as that product's own cart and order line, and whether promotions may lower it
+  soldAsLine?: boolean
+  linePromotions?: boolean
   channelPrices?: ChannelPrice[]
   image?: OptionImageRef | null
 }
@@ -226,6 +229,8 @@ export type AddValueOp = {
   // sourceProduct is the display snapshot for the staged view
   sourceProductId?: string | null
   sourceProduct?: SourceProduct | null
+  soldAsLine?: boolean
+  linePromotions?: boolean
   channelPrices?: ChannelPriceEdits
   image?: OptionImageRef | null
 }
@@ -245,6 +250,8 @@ export type UpdateValueOp = {
   // null = unlink (clear) - Undefined = no change
   sourceProductId?: string | null
   sourceProduct?: SourceProduct | null
+  soldAsLine?: boolean
+  linePromotions?: boolean
   channelPrices?: ChannelPriceEdits
   // null = remove the picture - Undefined = no change
   image?: OptionImageRef | null
@@ -355,6 +362,8 @@ function mergeAddWithUpdate(add: AddOptionOp | AddValueOp, upd: UpdateOptionOp |
       // sourceProductId on the update wins (including the "unlink" null)
       sourceProductId: upd.sourceProductId !== undefined ? upd.sourceProductId : add.sourceProductId,
       sourceProduct: upd.sourceProductId !== undefined ? upd.sourceProduct ?? null : add.sourceProduct,
+      soldAsLine: upd.soldAsLine ?? add.soldAsLine,
+      linePromotions: upd.linePromotions ?? add.linePromotions,
       channelPrices: mergeChannelEdits(add.channelPrices, upd.channelPrices),
       image: upd.image !== undefined ? upd.image : add.image,
     }
@@ -438,6 +447,8 @@ export function applyOps(original: readonly ProductOption[], ops: readonly Pendi
                 title: op.title,
                 content: [{ locale: op.locale, title: op.title }],
                 sourceProduct: op.sourceProduct ?? null,
+                soldAsLine: op.soldAsLine ?? false,
+                linePromotions: op.linePromotions ?? false,
                 channelPrices: applyChannelEdits([], op.channelPrices),
                 image: op.image ?? null,
               },
@@ -457,6 +468,8 @@ export function applyOps(original: readonly ProductOption[], ops: readonly Pendi
             if (op.isDefault !== undefined) next.isDefault = op.isDefault
             if (op.quantity !== undefined) next.quantity = op.quantity
             if (op.forcedLineQty !== undefined) next.forcedLineQty = op.forcedLineQty
+            if (op.soldAsLine !== undefined) next.soldAsLine = op.soldAsLine
+            if (op.linePromotions !== undefined) next.linePromotions = op.linePromotions
             if (op.channelPrices !== undefined) next.channelPrices = applyChannelEdits(v.channelPrices, op.channelPrices)
             if (op.image !== undefined) next.image = op.image
             if (op.sourceProductId !== undefined) {
@@ -621,6 +634,8 @@ export function opsToDiff(
             op.sourceProductId === null ? 'none' : op.sourceProduct?.sku ?? op.sourceProduct?.name ?? op.sourceProductId,
           )
         }
+        if (op.soldAsLine !== undefined) push('sold as', prev?.value.soldAsLine ? 'its own line' : 'part of the item', op.soldAsLine ? 'its own line' : 'part of the item')
+        if (op.linePromotions !== undefined) push('promotions on its line', prev?.value.linePromotions ? 'apply' : 'left off', op.linePromotions ? 'apply' : 'left off')
         if (op.forcedLineQty !== undefined) {
           push('line qty', prev?.value.forcedLineQty != null ? `locked at ${prev.value.forcedLineQty}` : 'free', op.forcedLineQty === null ? 'free' : `locked at ${op.forcedLineQty}`)
         }

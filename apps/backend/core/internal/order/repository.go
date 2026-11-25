@@ -1,6 +1,7 @@
 package order
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -12,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
@@ -906,22 +908,44 @@ func (r *postgresRepository) AddOrderLine(ctx context.Context, line OrderLine) (
 		costCents = sql.NullInt64{Int64: *line.CostCents, Valid: true}
 	}
 	row, err := r.queries.CreateOrderLine(ctx, db.CreateOrderLineParams{
-		ID:          uuid.NullUUID{UUID: line.ID, Valid: line.ID != uuid.Nil},
-		OrderID:     line.OrderID,
-		ProductName: line.ProductName,
-		ProductSku:  line.ProductSku,
-		UnitPrice:   line.UnitPrice,
-		Quantity:    line.Quantity,
-		TotalPrice:  line.TotalPrice,
-		CostCents:   costCents,
-		IsGift:      line.IsGift,
-		IsCustom:    line.IsCustom,
-		TaxClass:    line.TaxClass,
+		ID:            uuid.NullUUID{UUID: line.ID, Valid: line.ID != uuid.Nil},
+		OrderID:       line.OrderID,
+		ProductName:   line.ProductName,
+		ProductSku:    line.ProductSku,
+		UnitPrice:     line.UnitPrice,
+		Quantity:      line.Quantity,
+		TotalPrice:    line.TotalPrice,
+		CostCents:     costCents,
+		IsGift:        line.IsGift,
+		IsCustom:      line.IsCustom,
+		TaxClass:      line.TaxClass,
+		Position:      int32(line.Position),
+		DiscountCents: line.DiscountCents,
+		TaxCents:      line.TaxCents,
+		PriceSource:   cmp.Or(line.PriceSource, cart.PriceCatalog),
+		PriceSetBy:    sqlnull.UUID(line.PriceSetBy),
+		PriceRef:      line.PriceRef,
+		PriceReason:   line.PriceReason,
+		ListUnitPrice: sqlnull.Int64(line.ListUnitPrice),
+		NoPromotions:  line.NoPromotions,
+		ParentLineID:  sqlnull.UUID(line.ParentLineID),
+
+		RequiresShipping: !line.NoShipping,
 	})
 	if err != nil {
 		return OrderLine{}, fmt.Errorf("add order line: %w", err)
 	}
 	return toOrderLine(row), nil
+}
+
+func (r *postgresRepository) SetOrderLineMoney(ctx context.Context, orderID uuid.UUID, lineIDs []uuid.UUID, discounts, taxes []int64) error {
+	if len(lineIDs) != len(discounts) || len(lineIDs) != len(taxes) {
+		return fmt.Errorf("set order line money: %d lines, %d discounts, %d taxes", len(lineIDs), len(discounts), len(taxes))
+	}
+	if err := r.queries.SetOrderLineMoney(ctx, db.SetOrderLineMoneyParams{OrderID: orderID, Ids: lineIDs, Discounts: discounts, Taxes: taxes}); err != nil {
+		return fmt.Errorf("set order line money: %w", err)
+	}
+	return nil
 }
 
 func (r *postgresRepository) AddOrderLineComponent(ctx context.Context, c OrderLineComponent) (OrderLineComponent, error) {
@@ -1379,17 +1403,28 @@ func toOrder(row db.Order) Order {
 
 func toOrderLine(row db.OrderLine) OrderLine {
 	return OrderLine{
-		ID:          row.ID,
-		OrderID:     row.OrderID,
-		ProductName: row.ProductName,
-		ProductSku:  row.ProductSku,
-		UnitPrice:   row.UnitPrice,
-		Quantity:    row.Quantity,
-		TotalPrice:  row.TotalPrice,
-		IsGift:      row.IsGift,
-		IsCustom:    row.IsCustom,
-		TaxClass:    row.TaxClass,
-		CreatedAt:   row.CreatedAt,
+		ID:            row.ID,
+		OrderID:       row.OrderID,
+		ProductName:   row.ProductName,
+		ProductSku:    row.ProductSku,
+		UnitPrice:     row.UnitPrice,
+		Quantity:      row.Quantity,
+		TotalPrice:    row.TotalPrice,
+		IsGift:        row.IsGift,
+		IsCustom:      row.IsCustom,
+		TaxClass:      row.TaxClass,
+		DiscountCents: row.DiscountCents,
+		TaxCents:      row.TaxCents,
+		Position:      int(row.Position),
+		PriceSource:   row.PriceSource,
+		PriceSetBy:    sqlnull.UUIDPtr(row.PriceSetBy),
+		PriceRef:      row.PriceRef,
+		PriceReason:   row.PriceReason,
+		ListUnitPrice: sqlnull.Int64Ptr(row.ListUnitPrice),
+		NoPromotions:  row.NoPromotions,
+		ParentLineID:  sqlnull.UUIDPtr(row.ParentLineID),
+		NoShipping:    !row.RequiresShipping,
+		CreatedAt:     row.CreatedAt,
 	}
 }
 

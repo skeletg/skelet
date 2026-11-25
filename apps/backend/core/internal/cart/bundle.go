@@ -73,6 +73,7 @@ func (s *Service) AddBundleToCart(ctx context.Context, cartID uuid.UUID, callerI
 		bundleName = input.ProductSku
 	}
 	bundleQty := input.Quantity
+	promotionsApply := false
 	if s.bus != nil { // the pre-commit hook may reject the bundle or override the summed price and the quantity
 		adding := &BundleAdding{
 			CartID:      cart.ID,
@@ -89,23 +90,31 @@ func (s *Service) AddBundleToCart(ctx context.Context, cartID uuid.UUID, callerI
 		if err := s.bus.PublishSync(ctx, adding); err != nil {
 			return Cart{}, fmt.Errorf("add bundle to cart rejected: %w", err)
 		}
+		promotionsApply = adding.promotionsApply
 		unitPrice, bundleQty = valueOr(adding.UnitPrice, unitPrice), valueOr(adding.Quantity, bundleQty) // read off the event, since the SDK setters and a webhook response swap the pointer rather than write through it
 	}
 	hookPriced := unitPrice != priced
 	for i := range components {
 		components[i].Quantity = perBundle[i] * bundleQty
 	}
+	configKey := bundleConfigKey(components, perBundle)
+	// The same picks again are the same thing a set price was for - it stays, for as many as it is for
+	if err := s.setPriceAllows(ctx, cart, input.ProductSku, configKey, bundleQty); err != nil {
+		return Cart{}, err
+	}
 	var bundleLine CartLine
 	if err := s.inTx(ctx, func(r Repository) error {
 		var err error
 		bundleLine, err = r.UpsertBundleCartLine(ctx, cart.ID, AddBundleLineInput{
-			ProductName: bundleName,
-			ProductSku:  input.ProductSku,
-			UnitPrice:   unitPrice,
-			Quantity:    bundleQty,
-			Components:  components,
-			HookPriced:  hookPriced,
-			ConfigKey:   bundleConfigKey(components, perBundle),
+			ProductName:  bundleName,
+			ProductSku:   input.ProductSku,
+			UnitPrice:    unitPrice,
+			Quantity:     bundleQty,
+			Components:   components,
+			HookPriced:   hookPriced,
+			ConfigKey:    configKey,
+			KeepSetPrice: true,
+			NoPromotions: hookPriced && !promotionsApply,
 		})
 		return err
 	}); err != nil {

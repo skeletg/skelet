@@ -66,11 +66,12 @@ type Service struct {
 	stages      func(ctx context.Context, channelID uuid.UUID) []Stage
 	allStages   func() []Stage
 	// Baseline calculators - each runs only when the matching OrderPlacing pointer is still nil after the sync chain, i.e. no plugin took the seam - Nil means no baseline
-	tax        *tax.Service
-	shipping   *shippingpkg.Service
-	promotion  *promotion.Service
-	taxClasses ProductTaxClassLookup
-	costs      ProductCostLookup
+	tax           *tax.Service
+	shipping      *shippingpkg.Service
+	promotion     *promotion.Service
+	taxClasses    ProductTaxClassLookup
+	shippingNeeds ShippingNeedLookup
+	costs         ProductCostLookup
 	// Computes order tax via an external endpoint before core (remote_tax.go)
 	remoteTax RemoteTaxSource
 	fees      FeeSource
@@ -179,6 +180,11 @@ type ProductTaxClassLookup interface {
 	ProductTaxClassesBySKUs(ctx context.Context, skus []string) (map[string]string, error)
 }
 
+// Says which products are something to ship, by SKU. A SKU it doesn't name ships
+type ShippingNeedLookup interface {
+	SKUsRequireShipping(ctx context.Context, skus []string) (map[string]bool, error)
+}
+
 // Batch-resolves SKUs to unit COGS for the margin snapshot - nil or absent means a NULL cost
 type ProductCostLookup interface {
 	ProductCostsBySKUs(ctx context.Context, skus []string) (map[string]int64, error)
@@ -246,6 +252,7 @@ func (s *Service) SetProductPricer(p ProductPricer)                 { s.pricer =
 func (s *Service) SetInventoryEditor(e InventoryEditor)             { s.inventoryEditor = e }
 func (s *Service) SetGiftStockChecker(c GiftStockChecker)           { s.giftStock = c }
 func (s *Service) SetProductTaxClassLookup(l ProductTaxClassLookup) { s.taxClasses = l }
+func (s *Service) SetShippingNeedLookup(l ShippingNeedLookup)       { s.shippingNeeds = l }
 func (s *Service) SetProductCostLookup(l ProductCostLookup)         { s.costs = l }
 func (s *Service) SetKitComponentLookup(l KitComponentLookup)       { s.kits = l }
 func (s *Service) SetCountryValidator(v CountryValidator)           { s.countries = v }
@@ -395,6 +402,9 @@ type PlaceOrderInput struct {
 	FulfillmentNeed string
 	// The shopper ticked the email opt-in at checkout - only a guest's rides the order, a signed-in shopper's goes straight to their consent
 	MarketingOptIn bool
+	// The total the shopper was shown. Placement refuses with a TotalChangedError when the order would come to
+	// anything else, rather than charge a figure nobody agreed to - nil skips the check
+	ExpectedTotalCents *int64
 }
 
 // Redeems a gift card as a tender in the placement tx, where applied is the cents covered - local so order doesn't import giftcard, which imports order
@@ -479,6 +489,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		// Doing it here means they flow through the whole placement unchanged: fraud and tax see them, the shipping quote carries their weight, inventory reserves them off OrderPlacing, and persistOrderLines writes them - all without a cart_lines row the shopper could edit
 		cartObj = s.appendFreeGiftLines(ctx, cartObj, store.ID, evalResult.Ledger.FreeGifts())
 		cc.cart = cartObj
+		cc.discountOnLine = evalResult.Ledger.LineAdjustments()
 	}
 	stamped, err := s.stampStockParts(ctx, cartObj.Lines)
 	if err != nil {
@@ -643,6 +654,12 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		}
 		// Tax-inclusive stores don't add tax on top - taxCents is recorded for the receipt breakdown but is informational
 		total := computeOrderTotal(subtotal, placing.DiscountCents, taxCents, shippingCents, feeTotal(cc.fees), store.TaxInclusivePricing, placing.TotalCents)
+		// Before anything of the order is written: the transaction rolls back whatever a plugin did in it
+		if in.ExpectedTotalCents != nil && *in.ExpectedTotalCents != total {
+			return &TotalChangedError{ExpectedCents: *in.ExpectedTotalCents, Now: CheckoutQuote{
+				SubtotalCents: subtotal, DiscountCents: placing.DiscountCents, ShippingCents: shippingCents, Fees: cc.fees, TaxCents: taxCents, TotalCents: total,
+			}}
+		}
 
 		orderR := s.repo.WithTx(sqlTx)
 		cartR := s.cartRepo.WithTx(sqlTx)
@@ -684,7 +701,9 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		if err != nil {
 			return fmt.Errorf("create order: %w", err)
 		}
-		if err := s.persistOrderLines(ctx, orderR, order.ID, cartObj.ChannelID, cartObj.Lines); err != nil {
+		// The lines carry what the order was priced at: the engine's discount where it put it, a plugin's spread over the rest
+		shares := cc.shares(placing.DiscountCents, taxCents-shippingTax-feeTax(cc.fees))
+		if err := s.persistOrderLines(ctx, orderR, order.ID, cartObj.ChannelID, cartObj.Lines, shares); err != nil {
 			return err
 		}
 		if err := s.persistShipments(ctx, orderR, order.ID, in.Shipments, shipmentAmounts); err != nil {

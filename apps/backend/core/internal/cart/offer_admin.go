@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -21,7 +22,22 @@ const (
 	maxOfferMessageRunes  = 2000
 	maxCustomLineName     = 255
 	maxCustomLineTaxClass = 100
+	// The most a line's price may be set to - the API's amounts are 32-bit, and nothing sells for more
+	MaxLinePriceCents = math.MaxInt32
 )
+
+// SetLinePriceInput is an admin's price for a line - a nil UnitPrice puts a catalog line back on its catalog price
+type SetLinePriceInput struct {
+	UnitPrice *int64
+	Reason    string     // why, for whoever reads the order later - required on a shopper's own cart
+	By        *uuid.UUID // the admin setting it
+	// On a shopper's own cart only: the most that may come off the catalog price, in percent (nil for any price),
+	// and when the price stops holding (nil for as long as the cart lives)
+	MaxCutPercent *int
+	HoldsUntil    *time.Time
+	// Whether coupons and promotions may lower the line on top of the price set - they don't unless this says so
+	PromotionsApply bool
+}
 
 var ErrOfferAccountNeedsCustomer = errors.New("only an offer for a customer can show in their account")
 
@@ -107,20 +123,36 @@ func normalizeOfferSettings(c Cart, in *OfferSettings, ships bool) error {
 }
 
 // AdminSetLinePrice sets a line's price on an offer, which then holds through repricing - nil puts a catalog line back on today's catalog price
-func (s *Service) AdminSetLinePrice(ctx context.Context, cartID, lineID uuid.UUID, unitPrice *int64) (Cart, error) {
-	cart, err := s.adminOffer(ctx, cartID)
+// The line keeps who set it, why, and the catalog price it replaced, and its order line does after it
+// On a shopper's own cart the price is for the quantity the line holds, needs a reason and stays within the cut the
+// store allows - see shopperPrice
+func (s *Service) AdminSetLinePrice(ctx context.Context, cartID, lineID uuid.UUID, in SetLinePriceInput) (Cart, error) {
+	cart, err := s.adminActiveCart(ctx, cartID)
 	if err != nil {
 		return Cart{}, err
+	}
+	if cart.IsOffer() && cart.Offer.RevokedAt != nil {
+		return Cart{}, ErrOfferRevoked
 	}
 	line, err := s.findHydratedLine(ctx, cart.ID, lineID)
 	if err != nil {
 		return Cart{}, err
 	}
-	if unitPrice != nil {
-		if *unitPrice < 0 {
-			return Cart{}, ErrOfferLinePriceInvalid
+	if in.UnitPrice != nil {
+		reason := strings.TrimSpace(in.Reason)
+		if err := validLinePrice(*in.UnitPrice); err != nil {
+			return Cart{}, err
 		}
-		if _, err := s.repo.SetLinePrice(ctx, line.ID, *unitPrice, true); err != nil {
+		if utf8.RuneCountInString(reason) > MaxPriceReason {
+			return Cart{}, fmt.Errorf("%w: the reason is at most %d characters", ErrOfferLinePriceInvalid, MaxPriceReason)
+		}
+		price := LinePrice{UnitPrice: *in.UnitPrice, Source: PriceAdmin, SetBy: in.By, Reason: reason, ListUnitPrice: s.catalogUnit(ctx, cart, line), NoPromotions: !in.PromotionsApply}
+		if !cart.IsOffer() {
+			if price, err = shopperPrice(price, line, in); err != nil {
+				return Cart{}, err
+			}
+		}
+		if _, err := s.repo.SetLinePrice(ctx, line.ID, price); err != nil {
 			return Cart{}, err
 		}
 		return loadCartWithLines(ctx, s.repo, cart.ID)
@@ -139,10 +171,52 @@ func (s *Service) AdminSetLinePrice(ctx context.Context, cartID, lineID uuid.UUI
 	for _, o := range line.Options {
 		unit += o.PriceDelta
 	}
-	if _, err := s.repo.SetLinePrice(ctx, line.ID, unit, false); err != nil {
+	if _, err := s.repo.SetLinePrice(ctx, line.ID, LinePrice{UnitPrice: unit, Source: PriceCatalog}); err != nil {
 		return Cart{}, err
 	}
 	return loadCartWithLines(ctx, s.repo, cart.ID)
+}
+
+func validLinePrice(cents int64) error {
+	switch {
+	case cents < 0:
+		return fmt.Errorf("%w: it can't be negative", ErrOfferLinePriceInvalid)
+	case cents > MaxLinePriceCents:
+		return fmt.Errorf("%w: it's more than a line can cost", ErrOfferLinePriceInvalid)
+	}
+	return nil
+}
+
+// What the catalog asks for a line as it stands, the price a set price replaces - today's figure where it resolves,
+// else the last one known: the price the line was added at, or what an earlier set price replaced. Nil for a custom
+// line, which has no catalog price
+func (s *Service) catalogUnit(ctx context.Context, c Cart, l CartLine) *int64 {
+	if l.IsCustom {
+		return nil
+	}
+	known := l.ListUnitPrice
+	if !l.PriceHeld() {
+		added := l.UnitPrice
+		known = &added
+	}
+	if s.products == nil {
+		return known
+	}
+	if len(l.Components) > 0 {
+		if unit, _, ok := s.liveBundleLine(ctx, c, l); ok {
+			return &unit
+		}
+		return known
+	}
+	p, err := s.resolvePricing(ctx, c.ChannelID, l.ProductSku, c.CustomerID)
+	if err != nil {
+		return known
+	}
+	unit := pricing.ApplyTiers(p.UnitPrice, p.Tiers, l.Quantity)
+	for _, o := range l.Options {
+		unit += o.PriceDelta
+	}
+	return &unit
 }
 
 // AdminAddCustomLine adds a free-form charge to an offer - an extra payment, a service, anything with no catalog product. It never ships and reserves nothing, and is taxed by the class the admin gives it
@@ -160,8 +234,9 @@ func (s *Service) AdminAddCustomLine(ctx context.Context, cartID uuid.UUID, in C
 		return Cart{}, fmt.Errorf("%w: the name is at most %d characters", ErrCustomLineNameRequired, maxCustomLineName)
 	case len(in.TaxClass) > maxCustomLineTaxClass:
 		return Cart{}, fmt.Errorf("tax class is at most %d characters", maxCustomLineTaxClass)
-	case in.UnitPrice < 0:
-		return Cart{}, ErrOfferLinePriceInvalid
+	}
+	if err := validLinePrice(in.UnitPrice); err != nil {
+		return Cart{}, err
 	}
 	if err := validCustomQuantity(in.Quantity); err != nil {
 		return Cart{}, err

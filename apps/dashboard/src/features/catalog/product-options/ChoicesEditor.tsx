@@ -206,6 +206,28 @@ export function ChoicesEditor({
                       <p className="text-xs text-muted-foreground">
                         Picking this choice then charges that product's price plus the extra charge, and takes from its stock.
                       </p>
+                      {c.sourceProduct ? (
+                        <div className="grid gap-2 rounded-md border px-3 py-2">
+                          <label className="flex items-start gap-2 text-sm">
+                            <Checkbox className="mt-0.5" checked={c.soldAsLine} disabled={translating} onCheckedChange={(v) => patch(c.key, { soldAsLine: !!v })} />
+                            <span>
+                              Sell it as its own line
+                              <span className="block text-xs text-muted-foreground">
+                                The product goes into the cart and onto the order as a separate line under this one, with its own SKU, tax and price - an add-on like a protection plan. It can be refunded on its own.
+                              </span>
+                            </span>
+                          </label>
+                          {c.soldAsLine ? (
+                            <label className="flex items-start gap-2 text-sm">
+                              <Checkbox className="mt-0.5" checked={c.linePromotions} disabled={translating} onCheckedChange={(v) => patch(c.key, { linePromotions: !!v })} />
+                              <span>
+                                Coupons and promotions can lower that line
+                                <span className="block text-xs text-muted-foreground">Left off, they leave the add-on at its price.</span>
+                              </span>
+                            </label>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="grid gap-1.5">

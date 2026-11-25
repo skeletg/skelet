@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
 	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
@@ -274,6 +275,33 @@ func OrderEventModel(e order.OrderEvent) *model.OrderEvent {
 	return m
 }
 
+// LinePriceSource is where a cart or order line's price came from - a line with nothing recorded is the catalog's
+func LinePriceSource(source string) model.LinePriceSource {
+	switch source {
+	case cart.PriceAdmin:
+		return model.LinePriceSourceAdmin
+	case cart.PriceHook:
+		return model.LinePriceSourceHook
+	}
+	return model.LinePriceSourceCatalog
+}
+
+func idPtr(id *uuid.UUID) *string {
+	if id == nil {
+		return nil
+	}
+	s := id.String()
+	return &s
+}
+
+func int32Ptr(v *int64) *int32 {
+	if v == nil {
+		return nil
+	}
+	n := int32(*v)
+	return &n
+}
+
 func OrderLineModel(l order.OrderLine) *model.OrderLine {
 	options := make([]*model.OrderLineOption, len(l.Options))
 	for i, o := range l.Options {
@@ -300,16 +328,26 @@ func OrderLineModel(l order.OrderLine) *model.OrderLine {
 		}
 	}
 	return &model.OrderLine{
-		ID:         l.ID.String(),
-		Name:       l.ProductName,
-		Sku:        l.ProductSku,
-		UnitPrice:  int32(l.UnitPrice),
-		Quantity:   l.Quantity,
-		TotalPrice: int32(l.TotalPrice),
-		IsGift:     l.IsGift,
-		IsCustom:   l.IsCustom,
-		Options:    options,
-		Components: components,
+		ID:              l.ID.String(),
+		Name:            l.ProductName,
+		Sku:             l.ProductSku,
+		UnitPrice:       int32(l.UnitPrice),
+		Quantity:        l.Quantity,
+		TotalPrice:      int32(l.TotalPrice),
+		IsGift:          l.IsGift,
+		IsCustom:        l.IsCustom,
+		DiscountAmount:  int32(l.DiscountCents),
+		TaxAmount:       int32(l.TaxCents),
+		PriceSource:     LinePriceSource(l.PriceSource),
+		ListUnitPrice:   int32Ptr(l.ListUnitPrice),
+		PriceReason:     l.PriceReason,
+		PriceRef:        l.PriceRef,
+		PromotionsApply: !l.NoPromotions,
+		ParentLineID:    idPtr(l.ParentLineID),
+
+		RequiresShipping: !l.NoShipping,
+		Options:          options,
+		Components:       components,
 	}
 }
 

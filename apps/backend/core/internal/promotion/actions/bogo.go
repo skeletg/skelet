@@ -92,6 +92,9 @@ func (bogo) Apply(ctx context.Context, env promotion.Environment, raw json.RawMe
 	var matching []promotion.CartLineView
 	var eligibleUnits float64
 	for _, line := range env.Lines() {
+		if line.NoDiscount { // neither bought toward the deal nor given by it
+			continue
+		}
 		singleLineEnv := promotion.ProjectLines(env, []promotion.CartLineView{line})
 		matches, err := impl.Evaluate(ctx, singleLineEnv, p.TargetCondition.Params)
 		if err != nil {

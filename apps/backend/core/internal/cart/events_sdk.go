@@ -20,12 +20,15 @@ func (e *LineAdding) LineQuantity() float64      { return ptr.Deref(e.Quantity) 
 func (e *LineAdding) LineUnitPriceCents() int64  { return ptr.Deref(e.UnitPrice) }
 
 func (e *LineAdding) SetLineUnitPrice(cents int64) error {
-	if cents < 0 {
-		return fmt.Errorf("cart line unit price must be >= 0, got %d", cents)
+	if cents < 0 || cents > MaxLinePriceCents {
+		return fmt.Errorf("cart line unit price must be from 0 to %d, got %d", int64(MaxLinePriceCents), cents)
 	}
 	e.UnitPrice = &cents
+	e.setPriced()
 	return nil
 }
+
+func (e *LineAdding) SetLinePromotionsApply(apply bool) { e.promotionsApply = apply }
 
 func (e *LineAdding) SetLineQuantity(qty float64) error {
 	if qty <= 0 {
@@ -50,6 +53,19 @@ func (e *LineUpdating) SetLineQuantity(qty float64) error {
 	return nil
 }
 
+func (e *LineUpdating) LineUnitPriceCents() int64 { return ptr.Deref(e.UnitPrice) }
+
+func (e *LineUpdating) SetLineUnitPrice(cents int64) error {
+	if cents < 0 || cents > MaxLinePriceCents {
+		return fmt.Errorf("cart line unit price must be from 0 to %d, got %d", int64(MaxLinePriceCents), cents)
+	}
+	e.UnitPrice = &cents
+	e.setPriced()
+	return nil
+}
+
+func (e *LineUpdating) SetLinePromotionsApply(apply bool) { e.promotionsApply = apply }
+
 // BundleAdding is sdk.CartLineAdding too - the same shape as a single line, the price being the bundle's
 func (e *BundleAdding) LineCartID() uuid.UUID      { return e.CartID }
 func (e *BundleAdding) LineChannelID() uuid.UUID   { return e.ChannelID }
@@ -60,12 +76,14 @@ func (e *BundleAdding) LineQuantity() float64      { return ptr.Deref(e.Quantity
 func (e *BundleAdding) LineUnitPriceCents() int64  { return ptr.Deref(e.UnitPrice) }
 
 func (e *BundleAdding) SetLineUnitPrice(cents int64) error {
-	if cents < 0 {
-		return fmt.Errorf("cart line unit price must be >= 0, got %d", cents)
+	if cents < 0 || cents > MaxLinePriceCents {
+		return fmt.Errorf("cart line unit price must be from 0 to %d, got %d", int64(MaxLinePriceCents), cents)
 	}
 	e.UnitPrice = &cents
 	return nil
 }
+
+func (e *BundleAdding) SetLinePromotionsApply(apply bool) { e.promotionsApply = apply }
 
 func (e *BundleAdding) SetLineQuantity(qty float64) error {
 	if qty <= 0 {

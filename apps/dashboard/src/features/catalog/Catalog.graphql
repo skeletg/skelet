@@ -1570,6 +1570,8 @@ fragment ProductOptionValueFields on ProductOptionValue {
   isDefault
   forcedLineQty
   quantity
+  soldAsLine
+  linePromotions
   title
   content {
     locale

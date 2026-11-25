@@ -124,8 +124,8 @@ mutation SetPayment($cartId: ID!, $providerSlug: String!) {
   }
 }
 
-mutation Place($cartId: ID!, $acceptTerms: Boolean) {
-  placeOrder(cartId: $cartId, acceptTerms: $acceptTerms) {
+mutation Place($cartId: ID!, $acceptTerms: Boolean, $expectedTotalCents: Int) {
+  placeOrder(cartId: $cartId, acceptTerms: $acceptTerms, expectedTotalCents: $expectedTotalCents) {
     number
     paymentClientSecret
   }

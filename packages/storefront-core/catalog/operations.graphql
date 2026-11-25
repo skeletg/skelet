@@ -96,6 +96,7 @@ fragment ProductCustomOptionFields on ProductCustomOption {
     quantity
     isDefault
     forcedLineQty
+    soldAsLine
     sourceProduct {
       id
       url

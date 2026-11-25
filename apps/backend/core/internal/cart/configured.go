@@ -24,7 +24,7 @@ func (s *Service) AddConfiguredToCart(ctx context.Context, cartID uuid.UUID, cal
 	if err := checkProtectedOfferLine(cart, uuid.Nil, input.ProductSku); err != nil {
 		return Cart{}, err
 	}
-	return s.addConfiguredLine(ctx, cart, input)
+	return s.addConfiguredLine(ctx, cart, input, false)
 }
 
 func (s *Service) AdminAddConfiguredToCart(ctx context.Context, cartID uuid.UUID, input AddConfiguredToCartInput) (Cart, error) { // ownership-bypassing twin of AddConfiguredToCart - phone orders need option picks too, and without this any required-option SKU is un-orderable through the console
@@ -38,10 +38,10 @@ func (s *Service) AdminAddConfiguredToCart(ctx context.Context, cartID uuid.UUID
 	if err != nil {
 		return Cart{}, err
 	}
-	return s.addConfiguredLine(ctx, cart, input)
+	return s.addConfiguredLine(ctx, cart, input, true)
 }
 
-func (s *Service) addConfiguredLine(ctx context.Context, cart Cart, input AddConfiguredToCartInput) (Cart, error) { // shared by the customer and admin configured adds - callers have already authorized the cart
+func (s *Service) addConfiguredLine(ctx context.Context, cart Cart, input AddConfiguredToCartInput, keepSetPrice bool) (Cart, error) { // shared by the customer and admin configured adds - callers have already authorized the cart
 	res, err := s.products.ResolveProductOptions(ctx, cart.ChannelID, input.ProductSku, cart.CustomerID)
 	if err != nil {
 		return Cart{}, fmt.Errorf("resolve product options for %q: %w", input.ProductSku, err)
@@ -54,6 +54,7 @@ func (s *Service) addConfiguredLine(ctx context.Context, cart Cart, input AddCon
 	if err != nil {
 		return Cart{}, err
 	}
+	addOns := lineAddOns(res, options)
 	quantity := input.Quantity // a picked value may force this ("Set of 4" -> 4), and it replaces the request BEFORE tier pricing so breaks apply to what's actually charged
 	if forcedQty != nil {
 		if err := validQuantity(*forcedQty); err != nil {
@@ -69,6 +70,8 @@ func (s *Service) addConfiguredLine(ctx context.Context, cart Cart, input AddCon
 		base = pricing.ApplyTiers(base, sp.Tiers, quantity)
 	}
 	unitPrice := max(base+optionDelta, 0) // a mistyped negative delta must not produce a negative line - free is the floor
+	coreUnit := unitPrice
+	var hook *LinePrice // the price a hook put on the add, which then holds like any set price
 	name := res.ProductName
 	if name == "" {
 		name = input.ProductSku
@@ -82,10 +85,13 @@ func (s *Service) addConfiguredLine(ctx context.Context, cart Cart, input AddCon
 			ProductName: name,
 			UnitPrice:   &unitPrice,
 			Quantity:    &quantity,
-			StockParts:  OptionStockParts(options),
+			StockParts:  append(OptionStockParts(options), addOnStockParts(addOns)...),
 		}
 		if err := s.bus.PublishSync(ctx, adding); err != nil {
 			return Cart{}, fmt.Errorf("add to cart rejected: %w", err)
+		}
+		if p, ok := adding.linePrice(valueOr(adding.UnitPrice, unitPrice), coreUnit); ok {
+			hook = &p
 		}
 		unitPrice, quantity = valueOr(adding.UnitPrice, unitPrice), valueOr(adding.Quantity, quantity) // read off the event, since the SDK setters and a webhook response swap the pointer rather than write through it
 	}
@@ -93,12 +99,18 @@ func (s *Service) addConfiguredLine(ctx context.Context, cart Cart, input AddCon
 	if err := s.inTx(ctx, func(r Repository) error {
 		var err error
 		line, err = r.UpsertConfiguredCartLine(ctx, cart.ID, AddConfiguredLineInput{
-			ProductName: name,
-			ProductSku:  input.ProductSku,
-			UnitPrice:   unitPrice,
-			Quantity:    quantity,
-			Options:     options,
+			ProductName:  name,
+			ProductSku:   input.ProductSku,
+			UnitPrice:    unitPrice,
+			Quantity:     quantity,
+			Options:      options,
+			KeepSetPrice: keepSetPrice,
+			AddOns:       addOns,
 		})
+		if err != nil {
+			return err
+		}
+		line, err = holdHookPrice(ctx, r, line, hook)
 		return err
 	}); err != nil {
 		return Cart{}, fmt.Errorf("add configured to cart: %w", err)

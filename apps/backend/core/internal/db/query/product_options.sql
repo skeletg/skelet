@@ -66,9 +66,10 @@ WHERE option_id = $1 AND locale = $2;
 
 -- name: CreateProductOptionValue :one
 INSERT INTO catalog_product_option_values (
-    option_id, sort_order, price_value, price_type, is_default, source_product_id, quantity, forced_line_qty, image_asset_id
+    option_id, sort_order, price_value, price_type, is_default, source_product_id, quantity, forced_line_qty, image_asset_id,
+    sold_as_line, line_promotions
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 RETURNING *;
 
 -- name: GetProductOptionValueByID :one
@@ -98,6 +99,8 @@ SET sort_order        = $2,
     quantity          = $7,
     forced_line_qty   = $8,
     image_asset_id    = $9,
+    sold_as_line      = $10,
+    line_promotions   = $11,
     updated_at        = NOW()
 WHERE id = $1
 RETURNING *;

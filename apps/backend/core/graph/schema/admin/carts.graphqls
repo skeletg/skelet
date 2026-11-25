@@ -14,6 +14,8 @@ type AdminCart {
   email:         String!      # the cart's own email - a guest offer's recipient, or what a guest typed at checkout
   # Set on an offer only
   offer:         AdminCartOffer
+  # Set on a shopper's own cart only: what the store allows when a line's price is set there
+  priceLimits:   CartPriceLimits
   lines:         [AdminCartLine!]!
   subtotal:      Int!         # Σ line totals (estimate - no tax/shipping)
   itemCount:     Int!
@@ -33,11 +35,36 @@ type AdminCartLine {
   isSimple:    Boolean!
   components:  [AdminCartLineComponent!]!
   options:     [AdminCartLineOption!]!
-  # The admin set the price on an offer - it holds through checkout's repricing
+  # The price was set rather than read from the catalog - it holds through checkout's repricing
   priceOverride: Boolean!
+  # Where the price came from, the catalog price it replaced (null on a catalog line, and where there was none) and
+  # the note left with it
+  priceSource:   LinePriceSource!
+  listUnitPrice: Int
+  priceReason:   String!
+  # Who set a HOOK price: "plugin:<slug>" or "webhook:<name>" - empty otherwise
+  priceRef:      String!
+  # On a shopper's own cart a set price is for at most this many of the item, and holds until this moment - past
+  # it the line goes back to its catalog price at checkout. Both null on an offer's lines and on a catalog price
+  priceMaxQuantity: Float
+  priceExpiresAt:   Time
+  # Set on an add-on: the line it belongs to, which it follows in quantity and leaves the cart with
+  parentLineId: ID
+  # Whether coupons and promotions may lower this line. They leave a line alone once its price is set, unless
+  # whoever set it says otherwise - the line still counts toward what the cart holds
+  promotionsApply: Boolean!
   # A free-form line added to an offer, with no catalog product behind it
   isCustom:    Boolean!
   taxClass:    String!
+}
+
+# What the store allows when an admin sets a line's price on a shopper's own cart (sales/cart/max_price_cut_percent
+# and sales/cart/set_price_days). The price also needs a reason and the orders.set_cart_price permission
+type CartPriceLimits {
+  # The most that may come off the line's catalog price, in percent - 100 allows any price
+  maxCutPercent: Int!
+  # When a price set now stops holding - null when it holds for as long as the cart lives
+  holdsUntil: Time
 }
 
 enum CartKind {
@@ -267,6 +294,8 @@ input AdminCustomCartLineInput {
   unitPrice: Int!
   quantity:  Float!
   taxClass:  String     # the tax class the line is taxed by - empty for the store's default
+  # Lets coupons and promotions lower the line - they leave a charge added by hand alone unless this is true
+  promotionsApply: Boolean
 }
 
 # Option picks for an admin-entered configured line - mirrors the storefront's ProductOptionSelectionInput (server-side pricing and validation; nothing here is trusted for price).
@@ -293,8 +322,13 @@ extend type Mutation {
   # Offers - a cart built for one recipient and sent as a link. Always a fresh cart, never the customer's active one
   adminCreateCartOffer(input: AdminCreateCartOfferInput!): AdminCart!
   adminUpdateCartOffer(cartId: ID!, input: AdminUpdateCartOfferInput!): AdminCart!
-  # Sets a line's price on an offer - it holds through checkout. null puts a catalog line back on its catalog price
-  adminSetCartLinePrice(cartId: ID!, lineId: ID!, unitPrice: Int): AdminCart!
+  # Sets a line's price - it holds through checkout. null puts a catalog line back on its catalog price.
+  # The reason stays with the line and its order line, for whoever reads the order later.
+  # On an offer that is all. On a shopper's own cart it takes orders.set_cart_price and a reason, the price may be no
+  # lower than the cart's priceLimits allow (CART_LINE_PRICE_TOO_LOW, with floorCents in the error's extensions), and
+  # it is for the quantity the line holds: the shopper may buy fewer at it, not more
+  # promotionsApply lets coupons and promotions lower the line on top of the price set - they don't by default
+  adminSetCartLinePrice(cartId: ID!, lineId: ID!, unitPrice: Int, reason: String, promotionsApply: Boolean): AdminCart!
   adminAddCustomCartLine(cartId: ID!, input: AdminCustomCartLineInput!): AdminCart!
   # Emails the offer's link to its recipient - again on every call
   adminSendCartOffer(cartId: ID!): AdminCart!

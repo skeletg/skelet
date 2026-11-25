@@ -26,6 +26,8 @@ import { Switch } from '@/components/ui/switch'
 import { DetailPageSection } from '@/components/layout/detail-page'
 import { SectionNote } from './SectionNote'
 import { formatCents } from '@/lib/format'
+import { cn } from '@/lib/utils'
+import { addOnQuantity, addOnsOf } from './addOns'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import {
   RequestReturnDocument,
@@ -241,7 +243,7 @@ export function OrderReturnsSection({ order }: { order: OrderData }) {
                 const draft = lineDrafts[l.id] ?? { checked: false, quantity: String(l.quantity) }
                 return (
                   <Fragment key={l.id}>
-                  <div className="flex items-center gap-3 rounded border px-3 py-2">
+                  <div className={cn('flex items-center gap-3 rounded border px-3 py-2', l.parentLineId && 'ml-6')}>
                     <Checkbox
                       checked={draft.checked}
                       onCheckedChange={(v) =>
@@ -293,6 +295,28 @@ export function OrderReturnsSection({ order }: { order: OrderData }) {
                       </div>
                     )
                   })}
+                  {draft.checked &&
+                    addOnsOf(order.lines, l.id)
+                      .filter((a) => !lineDrafts[a.id]?.checked)
+                      .map((a) => {
+                        const quantity = addOnQuantity(a, l, Number(draft.quantity))
+                        if (quantity <= 0) return null
+                        return (
+                          <div key={`suggest-${a.id}`} className="ml-6 flex items-center gap-3 rounded border border-info/40 bg-info-soft px-3 py-2 text-sm">
+                            <span className="min-w-0 flex-1">
+                              {a.name} was bought with this item. It isn't returned unless you include it.
+                            </span>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setLineDrafts((prev) => ({ ...prev, [a.id]: { checked: true, quantity: String(quantity) } }))}
+                            >
+                              Include {quantity}
+                            </Button>
+                          </div>
+                        )
+                      })}
                   </Fragment>
                 )
               })}

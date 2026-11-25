@@ -426,17 +426,30 @@ func toCartLineModel(l cart.CartLine) *frontmodel.CartLine {
 		}
 		options[i] = opt
 	}
-	return &frontmodel.CartLine{
-		ID:         l.ID.String(),
-		Name:       l.ProductName,
-		Sku:        l.ProductSku,
-		UnitPrice:  int32(l.UnitPrice),
-		Quantity:   l.Quantity,
-		TotalPrice: int32(money.LineTotal(l.UnitPrice, l.Quantity)),
-		Components: components,
-		Options:    options,
-		IsCustom:   l.IsCustom,
+	line := &frontmodel.CartLine{
+		ID:              l.ID.String(),
+		Name:            l.ProductName,
+		Sku:             l.ProductSku,
+		UnitPrice:       int32(l.UnitPrice),
+		Quantity:        l.Quantity,
+		TotalPrice:      int32(money.LineTotal(l.UnitPrice, l.Quantity)),
+		Components:      components,
+		Options:         options,
+		IsCustom:        l.IsCustom,
+		PromotionsApply: !l.NoPromotions,
 	}
+	if l.ParentLineID != nil {
+		parent := l.ParentLineID.String()
+		line.ParentLineID = &parent
+	}
+	if l.PriceHeld() { // a set price that still stands - a lapsed one is about to be the catalog's again
+		if l.ListUnitPrice != nil {
+			list := int32(*l.ListUnitPrice)
+			line.ListUnitPrice = &list
+		}
+		line.PriceMaxQuantity = l.PriceMaxQuantity
+	}
+	return line
 }
 
 // Shared shell for the three save-for-later mutations - parse + store-guard the cart id, run the op, hydrate the returned cart

@@ -217,3 +217,25 @@ func TestRecoverReportsThePanic(t *testing.T) {
 		t.Fatalf("panics reported = %v, want the raw value once", rep.panics)
 	}
 }
+
+type detailedErr struct{ error }
+
+func (e detailedErr) Unwrap() error { return e.error }
+
+func (detailedErr) ErrorExtensions() map[string]any {
+	return map[string]any{"totalCents": int64(5500), "code": "SPOOFED", "class": "SPOOFED"}
+}
+
+// An error can say more about itself than its code - both surfaces carry it, and it can't replace what the presenter set
+func TestPresenterCarriesAnErrorsOwnExtensions(t *testing.T) {
+	err := detailedErr{errFakeNotFound}
+	for _, s := range []graphqlx.Surface{graphqlx.SurfaceFront, graphqlx.SurfaceAdmin} {
+		gqlErr := graphqlx.Presenter(s)(context.Background(), err)
+		if got := gqlErr.Extensions["totalCents"]; got != int64(5500) {
+			t.Errorf("%s: totalCents = %v, want the error's own 5500", s, got)
+		}
+		if gqlErr.Extensions["code"] != "FAKE_NOT_FOUND_PRES" || gqlErr.Extensions["class"] != "NOT_FOUND" {
+			t.Errorf("%s: code %v class %v, want the registered ones kept", s, gqlErr.Extensions["code"], gqlErr.Extensions["class"])
+		}
+	}
+}

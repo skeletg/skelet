@@ -171,6 +171,7 @@ func init() {
 	apperr.RegisterSentinel(ErrQuantityOutOfRange, "QUANTITY_OUT_OF_RANGE", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrOptionPriceIncomplete, "PRODUCT_OPTION_PRICE_INCOMPLETE", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrInvalidForcedLineQty, "INVALID_FORCED_LINE_QTY", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrSoldAsLineNeedsProduct, "OPTION_VALUE_LINE_NEEDS_PRODUCT", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrOptionHasNoContent, "PRODUCT_OPTION_HAS_NO_CONTENT", apperr.ClassConflict)
 	apperr.RegisterSentinel(ErrOptionChannelPriceNotFixed, "PRODUCT_OPTION_CHANNEL_PRICE_NOT_FIXED", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrOptionChannelPriceRange, "PRODUCT_OPTION_CHANNEL_PRICE_RANGE", apperr.ClassValidation)

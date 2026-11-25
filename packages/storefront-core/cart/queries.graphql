@@ -40,6 +40,10 @@ fragment CartFull on Cart {
     totalPrice
     availableQuantity
     currentUnitPrice
+    listUnitPrice
+    priceMaxQuantity
+    promotionsApply
+    parentLineId
     components {
       id
       optionId

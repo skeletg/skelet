@@ -158,6 +158,8 @@ type AddProductOptionValueInput struct {
 	Quantity        *float64                `json:"quantity,omitempty"`
 	ForcedLineQty   *float64                `json:"forcedLineQty,omitempty"`
 	SourceProductID *string                 `json:"sourceProductId,omitempty"`
+	SoldAsLine      *bool                   `json:"soldAsLine,omitempty"`
+	LinePromotions  *bool                   `json:"linePromotions,omitempty"`
 	Locale          string                  `json:"locale"`
 	Title           string                  `json:"title"`
 }
@@ -231,6 +233,7 @@ type AdminCart struct {
 	Source        string           `json:"source"`
 	Email         string           `json:"email"`
 	Offer         *AdminCartOffer  `json:"offer,omitempty"`
+	PriceLimits   *CartPriceLimits `json:"priceLimits,omitempty"`
 	Lines         []*AdminCartLine `json:"lines"`
 	Subtotal      int32            `json:"subtotal"`
 	ItemCount     int32            `json:"itemCount"`
@@ -305,18 +308,26 @@ type AdminCartDeliverySelection struct {
 }
 
 type AdminCartLine struct {
-	ID            string                    `json:"id"`
-	Name          string                    `json:"name"`
-	Sku           string                    `json:"sku"`
-	UnitPrice     int32                     `json:"unitPrice"`
-	Quantity      float64                   `json:"quantity"`
-	TotalPrice    int32                     `json:"totalPrice"`
-	IsSimple      bool                      `json:"isSimple"`
-	Components    []*AdminCartLineComponent `json:"components"`
-	Options       []*AdminCartLineOption    `json:"options"`
-	PriceOverride bool                      `json:"priceOverride"`
-	IsCustom      bool                      `json:"isCustom"`
-	TaxClass      string                    `json:"taxClass"`
+	ID               string                    `json:"id"`
+	Name             string                    `json:"name"`
+	Sku              string                    `json:"sku"`
+	UnitPrice        int32                     `json:"unitPrice"`
+	Quantity         float64                   `json:"quantity"`
+	TotalPrice       int32                     `json:"totalPrice"`
+	IsSimple         bool                      `json:"isSimple"`
+	Components       []*AdminCartLineComponent `json:"components"`
+	Options          []*AdminCartLineOption    `json:"options"`
+	PriceOverride    bool                      `json:"priceOverride"`
+	PriceSource      LinePriceSource           `json:"priceSource"`
+	ListUnitPrice    *int32                    `json:"listUnitPrice,omitempty"`
+	PriceReason      string                    `json:"priceReason"`
+	PriceRef         string                    `json:"priceRef"`
+	PriceMaxQuantity *float64                  `json:"priceMaxQuantity,omitempty"`
+	PriceExpiresAt   *time.Time                `json:"priceExpiresAt,omitempty"`
+	ParentLineID     *string                   `json:"parentLineId,omitempty"`
+	PromotionsApply  bool                      `json:"promotionsApply"`
+	IsCustom         bool                      `json:"isCustom"`
+	TaxClass         string                    `json:"taxClass"`
 }
 
 type AdminCartLineComponent struct {
@@ -404,10 +415,11 @@ type AdminCreateCustomerInput struct {
 }
 
 type AdminCustomCartLineInput struct {
-	Name      string  `json:"name"`
-	UnitPrice int32   `json:"unitPrice"`
-	Quantity  float64 `json:"quantity"`
-	TaxClass  *string `json:"taxClass,omitempty"`
+	Name            string  `json:"name"`
+	UnitPrice       int32   `json:"unitPrice"`
+	Quantity        float64 `json:"quantity"`
+	TaxClass        *string `json:"taxClass,omitempty"`
+	PromotionsApply *bool   `json:"promotionsApply,omitempty"`
 }
 
 type AdminLoginInput struct {
@@ -1526,6 +1538,11 @@ type CartListItem struct {
 	ItemCount      int32           `json:"itemCount"`
 	Subtotal       int32           `json:"subtotal"`
 	UpdatedAt      time.Time       `json:"updatedAt"`
+}
+
+type CartPriceLimits struct {
+	MaxCutPercent int32      `json:"maxCutPercent"`
+	HoldsUntil    *time.Time `json:"holdsUntil,omitempty"`
 }
 
 type CascadeAttributeIndexableResult struct {
@@ -3854,16 +3871,25 @@ type OrderFee struct {
 }
 
 type OrderLine struct {
-	ID         string                `json:"id"`
-	Name       string                `json:"name"`
-	Sku        string                `json:"sku"`
-	UnitPrice  int32                 `json:"unitPrice"`
-	Quantity   float64               `json:"quantity"`
-	TotalPrice int32                 `json:"totalPrice"`
-	IsGift     bool                  `json:"isGift"`
-	IsCustom   bool                  `json:"isCustom"`
-	Options    []*OrderLineOption    `json:"options"`
-	Components []*OrderLineComponent `json:"components"`
+	ID               string                `json:"id"`
+	Name             string                `json:"name"`
+	Sku              string                `json:"sku"`
+	UnitPrice        int32                 `json:"unitPrice"`
+	Quantity         float64               `json:"quantity"`
+	TotalPrice       int32                 `json:"totalPrice"`
+	IsGift           bool                  `json:"isGift"`
+	IsCustom         bool                  `json:"isCustom"`
+	DiscountAmount   int32                 `json:"discountAmount"`
+	TaxAmount        int32                 `json:"taxAmount"`
+	PriceSource      LinePriceSource       `json:"priceSource"`
+	ListUnitPrice    *int32                `json:"listUnitPrice,omitempty"`
+	PriceReason      string                `json:"priceReason"`
+	PriceRef         string                `json:"priceRef"`
+	RequiresShipping bool                  `json:"requiresShipping"`
+	ParentLineID     *string               `json:"parentLineId,omitempty"`
+	PromotionsApply  bool                  `json:"promotionsApply"`
+	Options          []*OrderLineOption    `json:"options"`
+	Components       []*OrderLineComponent `json:"components"`
 }
 
 type OrderLineComponent struct {
@@ -4281,20 +4307,22 @@ type ProductOptionRuleLabelInput struct {
 }
 
 type ProductOptionValue struct {
-	ID            string                       `json:"id"`
-	SortOrder     int32                        `json:"sortOrder"`
-	PriceValue    int32                        `json:"priceValue"`
-	PriceType     ProductOptionPriceType       `json:"priceType"`
-	IsDefault     bool                         `json:"isDefault"`
-	ForcedLineQty *float64                     `json:"forcedLineQty,omitempty"`
-	Quantity      float64                      `json:"quantity"`
-	Title         string                       `json:"title"`
-	Content       []*ProductOptionValueContent `json:"content"`
-	SourceProduct *Product                     `json:"sourceProduct,omitempty"`
-	ChannelPrices []*OptionChannelPrice        `json:"channelPrices"`
-	CreatedAt     time.Time                    `json:"createdAt"`
-	UpdatedAt     time.Time                    `json:"updatedAt"`
-	Image         *OptionImage                 `json:"image,omitempty"`
+	ID             string                       `json:"id"`
+	SortOrder      int32                        `json:"sortOrder"`
+	PriceValue     int32                        `json:"priceValue"`
+	PriceType      ProductOptionPriceType       `json:"priceType"`
+	IsDefault      bool                         `json:"isDefault"`
+	ForcedLineQty  *float64                     `json:"forcedLineQty,omitempty"`
+	Quantity       float64                      `json:"quantity"`
+	Title          string                       `json:"title"`
+	Content        []*ProductOptionValueContent `json:"content"`
+	SoldAsLine     bool                         `json:"soldAsLine"`
+	LinePromotions bool                         `json:"linePromotions"`
+	SourceProduct  *Product                     `json:"sourceProduct,omitempty"`
+	ChannelPrices  []*OptionChannelPrice        `json:"channelPrices"`
+	CreatedAt      time.Time                    `json:"createdAt"`
+	UpdatedAt      time.Time                    `json:"updatedAt"`
+	Image          *OptionImage                 `json:"image,omitempty"`
 }
 
 type ProductOptionValueContent struct {
@@ -6334,6 +6362,8 @@ type UpdateProductOptionValueInput struct {
 	Quantity        *float64                `json:"quantity,omitempty"`
 	ForcedLineQty   *float64                `json:"forcedLineQty,omitempty"`
 	SourceProductID *string                 `json:"sourceProductId,omitempty"`
+	SoldAsLine      *bool                   `json:"soldAsLine,omitempty"`
+	LinePromotions  *bool                   `json:"linePromotions,omitempty"`
 }
 
 type UpdateProductTypeInput struct {
@@ -8841,6 +8871,63 @@ func (e *LensPlanIssueKind) UnmarshalJSON(b []byte) error {
 }
 
 func (e LensPlanIssueKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type LinePriceSource string
+
+const (
+	LinePriceSourceCatalog LinePriceSource = "CATALOG"
+	LinePriceSourceAdmin   LinePriceSource = "ADMIN"
+	LinePriceSourceHook    LinePriceSource = "HOOK"
+)
+
+var AllLinePriceSource = []LinePriceSource{
+	LinePriceSourceCatalog,
+	LinePriceSourceAdmin,
+	LinePriceSourceHook,
+}
+
+func (e LinePriceSource) IsValid() bool {
+	switch e {
+	case LinePriceSourceCatalog, LinePriceSourceAdmin, LinePriceSourceHook:
+		return true
+	}
+	return false
+}
+
+func (e LinePriceSource) String() string {
+	return string(e)
+}
+
+func (e *LinePriceSource) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = LinePriceSource(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid LinePriceSource", str)
+	}
+	return nil
+}
+
+func (e LinePriceSource) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *LinePriceSource) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e LinePriceSource) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

@@ -647,21 +647,31 @@ type CartHandoffRedemption struct {
 }
 
 type CartLine struct {
-	ID               uuid.UUID     `json:"id"`
-	CartID           uuid.UUID     `json:"cart_id"`
-	ProductName      string        `json:"product_name"`
-	ProductSku       string        `json:"product_sku"`
-	UnitPrice        int64         `json:"unit_price"`
-	Quantity         float64       `json:"quantity"`
-	CreatedAt        time.Time     `json:"created_at"`
-	UpdatedAt        time.Time     `json:"updated_at"`
-	IsGift           bool          `json:"is_gift"`
-	OfferedByRuleID  uuid.NullUUID `json:"offered_by_rule_id"`
-	PriceOverride    bool          `json:"price_override"`
-	IsCustom         bool          `json:"is_custom"`
-	TaxClass         string        `json:"tax_class"`
-	BundleHookPriced bool          `json:"bundle_hook_priced"`
-	ConfigKey        string        `json:"config_key"`
+	ID               uuid.UUID       `json:"id"`
+	CartID           uuid.UUID       `json:"cart_id"`
+	ProductName      string          `json:"product_name"`
+	ProductSku       string          `json:"product_sku"`
+	UnitPrice        int64           `json:"unit_price"`
+	Quantity         float64         `json:"quantity"`
+	CreatedAt        time.Time       `json:"created_at"`
+	UpdatedAt        time.Time       `json:"updated_at"`
+	IsGift           bool            `json:"is_gift"`
+	OfferedByRuleID  uuid.NullUUID   `json:"offered_by_rule_id"`
+	IsCustom         bool            `json:"is_custom"`
+	TaxClass         string          `json:"tax_class"`
+	BundleHookPriced bool            `json:"bundle_hook_priced"`
+	ConfigKey        string          `json:"config_key"`
+	PriceSource      string          `json:"price_source"`
+	PriceSetBy       uuid.NullUUID   `json:"price_set_by"`
+	PriceReason      string          `json:"price_reason"`
+	ListUnitPrice    sql.NullInt64   `json:"list_unit_price"`
+	PriceMaxQuantity sql.NullFloat64 `json:"price_max_quantity"`
+	PriceExpiresAt   sql.NullTime    `json:"price_expires_at"`
+	NoPromotions     bool            `json:"no_promotions"`
+	PriceRef         string          `json:"price_ref"`
+	ParentLineID     uuid.NullUUID   `json:"parent_line_id"`
+	PerParent        sql.NullFloat64 `json:"per_parent"`
+	ParentValueID    uuid.NullUUID   `json:"parent_value_id"`
 }
 
 type CartLineComponent struct {
@@ -976,6 +986,8 @@ type CatalogProductOptionValue struct {
 	Quantity        float64                       `json:"quantity"`
 	ForcedLineQty   sql.NullFloat64               `json:"forced_line_qty"`
 	ImageAssetID    uuid.NullUUID                 `json:"image_asset_id"`
+	SoldAsLine      bool                          `json:"sold_as_line"`
+	LinePromotions  bool                          `json:"line_promotions"`
 }
 
 type CatalogProductOptionValueChannelPrice struct {
@@ -1899,21 +1911,31 @@ type OrderFulfillmentLine struct {
 }
 
 type OrderLine struct {
-	ID              uuid.UUID     `json:"id"`
-	OrderID         uuid.UUID     `json:"order_id"`
-	ProductName     string        `json:"product_name"`
-	ProductSku      string        `json:"product_sku"`
-	UnitPrice       int64         `json:"unit_price"`
-	Quantity        float64       `json:"quantity"`
-	TotalPrice      int64         `json:"total_price"`
-	CreatedAt       time.Time     `json:"created_at"`
-	DiscountCents   int64         `json:"discount_cents"`
-	IsGift          bool          `json:"is_gift"`
-	OfferedByRuleID uuid.NullUUID `json:"offered_by_rule_id"`
-	RemovedAt       sql.NullTime  `json:"removed_at"`
-	CostCents       sql.NullInt64 `json:"cost_cents"`
-	IsCustom        bool          `json:"is_custom"`
-	TaxClass        string        `json:"tax_class"`
+	ID               uuid.UUID     `json:"id"`
+	OrderID          uuid.UUID     `json:"order_id"`
+	ProductName      string        `json:"product_name"`
+	ProductSku       string        `json:"product_sku"`
+	UnitPrice        int64         `json:"unit_price"`
+	Quantity         float64       `json:"quantity"`
+	TotalPrice       int64         `json:"total_price"`
+	CreatedAt        time.Time     `json:"created_at"`
+	DiscountCents    int64         `json:"discount_cents"`
+	IsGift           bool          `json:"is_gift"`
+	OfferedByRuleID  uuid.NullUUID `json:"offered_by_rule_id"`
+	RemovedAt        sql.NullTime  `json:"removed_at"`
+	CostCents        sql.NullInt64 `json:"cost_cents"`
+	IsCustom         bool          `json:"is_custom"`
+	TaxClass         string        `json:"tax_class"`
+	TaxCents         int64         `json:"tax_cents"`
+	Position         int32         `json:"position"`
+	PriceSource      string        `json:"price_source"`
+	PriceSetBy       uuid.NullUUID `json:"price_set_by"`
+	PriceReason      string        `json:"price_reason"`
+	ListUnitPrice    sql.NullInt64 `json:"list_unit_price"`
+	NoPromotions     bool          `json:"no_promotions"`
+	PriceRef         string        `json:"price_ref"`
+	ParentLineID     uuid.NullUUID `json:"parent_line_id"`
+	RequiresShipping bool          `json:"requires_shipping"`
 }
 
 type OrderLineComponent struct {

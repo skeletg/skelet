@@ -18,7 +18,7 @@ import { getPaymentUI, type PaymentHandle } from "@/app/plugins/registry";
 import { Slots } from "@/app/plugins/Slots";
 import type { PendingPayment } from "@skelet/storefront-core/checkout/actions";
 import type { CheckoutState, PaymentMethodOption } from "@skelet/storefront-next/checkout/read";
-import { giftCardSchema, paymentStepSchema } from "@skelet/storefront-core/checkout/schemas";
+import { expectedTotal, giftCardSchema, paymentStepSchema } from "@skelet/storefront-core/checkout/schemas";
 import type { CheckoutSettings } from "@skelet/storefront-core/checkout/settings";
 import { formatPrice } from "@skelet/storefront-core/format";
 import { useActionForm } from "@skelet/storefront-react/forms/use-action-form";
@@ -150,6 +150,7 @@ function PlaceOrderForm({
 
   // The order is placed and the gateway wants its in-page step - run it, then let the gateway say how it went
   const pendingPayment = lastResult?.payment;
+  const agreedTotal = expectedTotal(checkout.totals.totalCents, lastResult?.totalChanged);
   const [stalled, setStalled] = useState(false);
   const started = useRef<PendingPayment | null>(null);
   useEffect(() => {
@@ -194,6 +195,13 @@ function PlaceOrderForm({
         </>
       ) : null}
       {canRunStep ? <input type="hidden" name={fields.paymentUi.name} value="on" /> : null}
+      {/* The total this page shows goes with the order, so nothing is placed at a figure the shopper didn't see */}
+      <input type="hidden" name={fields.expectedTotalCents.name} value={agreedTotal} />
+      {agreedTotal !== checkout.totals.totalCents ? (
+        <p role="alert" className="text-sm font-medium">
+          {t("totalNow", { amount: formatPrice(agreedTotal, currency) })}
+        </p>
+      ) : null}
       <details className="text-sm" open={note !== ""}>
         <summary className="cursor-pointer text-xs underline underline-offset-2">{t("addNote")}</summary>
         <label className="mt-2 flex flex-col gap-1.5">

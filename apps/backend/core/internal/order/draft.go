@@ -38,6 +38,8 @@ type CreateDraftOrderInput struct {
 	ShippingMethodCode  *string
 	ManualDiscountCents int64
 	CustomerNote        string
+	// CreatedBy is the admin building it - kept on any line they price by hand
+	CreatedBy *uuid.UUID
 	// SourceCartID is the cart this was built from, marked converted in the same tx so it isn't double-processed
 	SourceCartID *uuid.UUID
 	// SkipRequiredOptionCheck bypasses the required-options gate for callers carrying personalization elsewhere (B2B quote)
@@ -111,19 +113,16 @@ func (s *Service) CreateDraftOrder(ctx context.Context, in CreateDraftOrderInput
 				return Order{}, err
 			}
 		}
-		unit := p.UnitPriceCents
+		line := cart.CartLine{ProductSku: dl.ProductSku, ProductName: p.ProductName, UnitPrice: p.UnitPriceCents, Quantity: dl.Quantity}
 		if dl.UnitPriceCents != nil {
-			if *dl.UnitPriceCents < 0 {
-				return Order{}, apperr.New("DRAFT_INVALID_PRICE", apperr.ClassValidation, "line price override must not be negative")
+			if *dl.UnitPriceCents < 0 || *dl.UnitPriceCents > cart.MaxLinePriceCents {
+				return Order{}, apperr.New("DRAFT_INVALID_PRICE", apperr.ClassValidation, "line price override must be zero or more, and no more than a line can cost")
 			}
-			unit = *dl.UnitPriceCents
+			list := p.UnitPriceCents // the order line says the price was set, by whom, and what the catalog asked
+			line.UnitPrice, line.PriceSource, line.PriceSetBy, line.ListUnitPrice = *dl.UnitPriceCents, cart.PriceAdmin, in.CreatedBy, &list
 		}
-		lines = append(lines, cart.CartLine{
-			ProductSku:  dl.ProductSku,
-			ProductName: p.ProductName,
-			UnitPrice:   unit,
-			Quantity:    dl.Quantity,
-		})
+		unit := line.UnitPrice
+		lines = append(lines, line)
 		subtotal += money.LineTotal(unit, dl.Quantity)
 	}
 
@@ -207,7 +206,7 @@ func (s *Service) CreateDraftOrder(ctx context.Context, in CreateDraftOrderInput
 		if err != nil {
 			return fmt.Errorf("create draft order: %w", err)
 		}
-		if err := s.persistOrderLines(ctx, orderR, order.ID, in.ChannelID, lines); err != nil {
+		if err := s.persistOrderLines(ctx, orderR, order.ID, in.ChannelID, lines, cc.shares(discount, taxCents-cc.shippingTax)); err != nil {
 			return err
 		}
 		if _, err := orderR.AddOrderEvent(ctx, OrderEvent{

@@ -35,7 +35,9 @@ import { LoadError } from '@/shared/errors/LoadError'
 import { EntityChannelForbidden, EntityWrongChannel } from '@/shared/errors/ChannelScopeError'
 import { isForbiddenError } from '@/shared/errors/isForbiddenError'
 import { useConfigScope } from '@/lib/config-scope'
+import { cn } from '@/lib/utils'
 import { usePermissions } from '@/shared/auth/usePermissions'
+import { priceRefLabel } from '@/shared/priceRef'
 import type { OrderCheckoutFieldType, OrderStatus } from '@/graphql/schema.types'
 import { ResendEmailMenu } from './ResendEmailMenu'
 import { OrderStatusBadge } from './OrderStatusBadge'
@@ -431,7 +433,8 @@ export function OrderDetail() {
               <TableBody>
                 {order.lines.map((l) => (
                   <TableRow key={l.id}>
-                    <TableCell className="font-medium">
+                    <TableCell className={cn('font-medium', l.parentLineId && 'pl-8')}>
+                      {l.parentLineId && <span className="mr-1 text-muted-foreground" aria-label="Add-on to the line above">↳</span>}
                       {l.name}
                       {l.isGift && (
                         <Badge variant="outline" className="ml-2 text-[10px] uppercase tracking-wider">
@@ -481,7 +484,7 @@ export function OrderDetail() {
                         {shippedByLine.get(l.id) ? (
                           qtyLabel(shippedByLine.get(l.id) ?? 0, l.quantity)
                         ) : (
-                          <span className="text-muted-foreground">-</span>
+                          <span className="text-muted-foreground">{l.requiresShipping ? '-' : 'not shipped'}</span>
                         )}
                       </TableCell>
                     )}
@@ -496,9 +499,35 @@ export function OrderDetail() {
                     )}
                     <TableCell className="text-right tabular-nums">
                       {formatCents(l.unitPrice, order.currencyCode)}
+                      {l.priceSource !== 'CATALOG' && (l.listUnitPrice != null || l.priceReason || l.priceRef) && (
+                        <div className="text-xs font-normal text-muted-foreground">
+                          {l.listUnitPrice != null && (
+                            <div>
+                              <span className="sr-only">Catalog price </span>
+                              <s>{formatCents(l.listUnitPrice, order.currencyCode)}</s>
+                            </div>
+                          )}
+                          {l.priceReason && <div className="font-sans">{l.priceReason}</div>}
+                          {priceRefLabel(l.priceRef) && <div className="font-sans">{priceRefLabel(l.priceRef)}</div>}
+                        </div>
+                      )}
+                      {!l.promotionsApply && <div className="text-xs font-normal text-muted-foreground">no promotions</div>}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {formatCents(l.totalPrice, order.currencyCode)}
+                      {(l.discountAmount > 0 || l.taxAmount > 0) && (
+                        <div className="text-xs font-normal text-muted-foreground">
+                          {l.discountAmount > 0 && (
+                            <div>-{formatCents(l.discountAmount, order.currencyCode)} discount</div>
+                          )}
+                          {l.taxAmount > 0 && (
+                            <div>
+                              {order.taxIncluded ? 'incl. ' : '+'}
+                              {formatCents(l.taxAmount, order.currencyCode)} tax
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

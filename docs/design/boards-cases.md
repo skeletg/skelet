@@ -20,7 +20,9 @@ agreed before the next one starts. Every decision is listed here, and the stages
 - **The subject** is a list of conditions joined with AND. Operators are `=`, `≠` and "is one of" (up to 50 values);
   `≠` treats an event without the property as passing.
 - **Revenue is net sales**, in the shop's base currency: discounts are taken off, and tax and shipping are left out.
-  An order discount is split across lines by each line's share of the subtotal, with core's `allocateLineDiscount`.
+  Each order line carries its own share of the discount, stored when the order is priced
+  (`order_lines.discount_cents`): a promotion on certain products stays on their lines, and an order-wide one is
+  split by each line's share of the subtotal.
   Returns and edits count on the day they happen. Past orders are backfilled.
 - **Engagement and Retention merge** into one builder, Retention, with a "Return rate" view and a "By cohort" view.
   The two engines and the two stored kinds (`stickiness`, `retention`) stay.
@@ -324,13 +326,13 @@ sales reports, and GA4's item revenue is the same idea:
 | Figure | X | What it is | Where it comes from |
 |---|---|---|---|
 | **Gross sales** | €40 | list price × quantity | `order_lines.total_price` |
-| **− Discounts** | −€4 | X's share of the coupon: €5 × 40/50 | core's `allocateLineDiscount`, the same split tax and refunds already use |
+| **− Discounts** | −€4 | X's share of the coupon: €5 × 40/50 | `order_lines.discount_cents`, the same figure tax and refunds use |
 | **= Net sales at checkout** | **€36** | what X earned when the order was placed | |
 | **− Returns** | −€18 | one T-shirt's net value (€36 / 2), booked on the day of the return | `order_return_lines.refund_unit_cents`, without its tax |
 | **= Net sales** | **€18** | what X earned in the end | |
 
 Tax is never revenue: it's collected for the state. In a shop whose prices include tax, each figure has its tax
-share taken out first (core's per-line tax allocation already does that split, `returns.go`), so the ladder reads
+share taken out first (the line's own `order_lines.tax_cents`), so the ladder reads
 the same.
 Shipping and the order-level fees never go to a product. They aren't the product's revenue.
 
@@ -494,7 +496,7 @@ runs real core, real Signals and its own ClickHouse spine.
 |---|---|
 | Orders containing X (unique `order_id` on `order_line`, `kind = placed`) | `count(DISTINCT order_id)` over `order_lines` where `product_sku = X` and `removed_at IS NULL` |
 | Units of X (sum of `qty` on `order_line`) | `sum(quantity)` over the same lines, minus returned quantity, plus or minus the edit |
-| Net sales of X in the base currency (sum of `net_base_cents` on `order_line`) | lines net of `allocateLineDiscount`, converted with `currency.Convert`, minus returns net of tax, plus or minus the edit |
+| Net sales of X in the base currency (sum of `net_base_cents` on `order_line`) | lines net of their `discount_cents`, converted with `currency.Convert`, minus returns net of tax, plus or minus the edit |
 | Buyers of X (unique) | `count(DISTINCT customer)` over the same orders |
 | Order 3 | contributes nothing to any X figure |
 

@@ -756,24 +756,27 @@ func init() {
 		Kind: KindSync,
 		Name: "Cart Item Adding (sync)",
 		Description: "Fires before a simple line is added. Reject to block the add. " +
-			`Response schema: {"reject": bool, "reason": string, "unitPriceCents": int, "quantity": number}. ` +
-			"unitPriceCents/quantity override the line being added (external dynamic pricing, per-customer clamps); omit to keep the input.",
+			`Response schema: {"reject": bool, "reason": string, "unitPriceCents": int, "quantity": number, "promotionsApply": bool}. ` +
+			"unitPriceCents/quantity override the line being added (external dynamic pricing, per-customer clamps); omit to keep the input. " +
+			"A unitPriceCents is a set price: it holds through checkout, is for the quantity priced (more of the item asks again, and is refused if unanswered), " +
+			"and coupons and promotions leave the line alone unless promotionsApply is true.",
 	})
 	RegisterEvent(EventDefinition{
 		Type: cart.EventBundleAdding,
 		Kind: KindSync,
 		Name: "Cart Bundle Adding (sync)",
 		Description: "Fires before a bundle line is added. Reject to block the add. " +
-			`Response schema: {"reject": bool, "reason": string, "unitPriceCents": int, "quantity": number}. ` +
-			"unitPriceCents overrides the bundle's summed component price.",
+			`Response schema: {"reject": bool, "reason": string, "unitPriceCents": int, "quantity": number, "promotionsApply": bool}. ` +
+			"unitPriceCents overrides the bundle's summed component price, and coupons and promotions then leave the line alone unless promotionsApply is true.",
 	})
 	RegisterEvent(EventDefinition{
 		Type: cart.EventLineUpdating,
 		Kind: KindSync,
 		Name: "Cart Item Updating (sync)",
 		Description: "Fires before a line quantity changes. Reject to block the change. " +
-			`Response schema: {"reject": bool, "reason": string, "quantity": number}. ` +
-			"quantity overrides the absolute new line quantity.",
+			`Response schema: {"reject": bool, "reason": string, "quantity": number, "unitPriceCents": int, "promotionsApply": bool}. ` +
+			"quantity overrides the absolute new line quantity. unitPriceCents prices the line at it, with the same meaning as on an add - " +
+			"it is ignored on a bundle line and on a line whose price an admin set.",
 	})
 	RegisterEvent(EventDefinition{
 		Type: cart.EventLineRemoving,

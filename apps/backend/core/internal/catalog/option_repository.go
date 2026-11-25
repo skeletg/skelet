@@ -215,6 +215,8 @@ func (r *postgresRepository) CreateProductOptionValue(ctx context.Context, input
 			Quantity:        input.Quantity,
 			ForcedLineQty:   sqlnull.Float64(input.ForcedLineQty),
 			ImageAssetID:    sqlnull.UUIDNonZero(input.ImageAssetID),
+			SoldAsLine:      input.SoldAsLine,
+			LinePromotions:  input.LinePromotions,
 		})
 		if err != nil {
 			return fmt.Errorf("create product option value: %w", err)
@@ -284,7 +286,7 @@ func (r *postgresRepository) CountProductOptionValueDefaultsForOption(ctx contex
 	return n, nil
 }
 
-func (r *postgresRepository) UpdateProductOptionValue(ctx context.Context, id uuid.UUID, sortOrder, priceValue int32, priceType ProductOptionPriceType, isDefault bool, sourceProductID *uuid.UUID, quantity float64, forcedLineQty *float64, imageAssetID *uuid.UUID) (ProductOptionValue, error) {
+func (r *postgresRepository) UpdateProductOptionValue(ctx context.Context, id uuid.UUID, sortOrder, priceValue int32, priceType ProductOptionPriceType, isDefault bool, sourceProductID *uuid.UUID, quantity float64, forcedLineQty *float64, imageAssetID *uuid.UUID, soldAsLine, linePromotions bool) (ProductOptionValue, error) {
 	row, err := r.queries.UpdateProductOptionValue(ctx, db.UpdateProductOptionValueParams{
 		ID:              id,
 		SortOrder:       sortOrder,
@@ -295,6 +297,8 @@ func (r *postgresRepository) UpdateProductOptionValue(ctx context.Context, id uu
 		Quantity:        quantity,
 		ForcedLineQty:   sqlnull.Float64(forcedLineQty),
 		ImageAssetID:    sqlnull.UUIDNonZero(imageAssetID),
+		SoldAsLine:      soldAsLine,
+		LinePromotions:  linePromotions,
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -416,6 +420,9 @@ func toProductOptionValue(row db.CatalogProductOptionValue) ProductOptionValue {
 		Quantity:   row.Quantity,
 		CreatedAt:  row.CreatedAt,
 		UpdatedAt:  row.UpdatedAt,
+
+		SoldAsLine:     row.SoldAsLine,
+		LinePromotions: row.LinePromotions,
 	}
 	if row.SourceProductID.Valid {
 		id := row.SourceProductID.UUID

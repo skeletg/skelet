@@ -32,6 +32,9 @@ func applyToMatchingLines(
 		if remaining == 0 {
 			break
 		}
+		if line.NoDiscount {
+			continue
+		}
 		// Per-line environment projection - the condition sees a cart containing only this line, so a SKU condition fires for matching lines rather than the whole cart at once
 		singleLineEnv := promotion.ProjectLines(env, []promotion.CartLineView{line})
 		matches, err := impl.Evaluate(ctx, singleLineEnv, cond.Params)

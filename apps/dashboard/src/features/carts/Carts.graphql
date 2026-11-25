@@ -23,6 +23,10 @@ query Carts($channelId: ID!, $customerId: ID, $status: String, $kind: CartKind, 
 
 fragment CartFields on AdminCart {
   id
+  priceLimits {
+    maxCutPercent
+    holdsUntil
+  }
   customerId
   customerEmail
   customerName
@@ -48,6 +52,14 @@ fragment CartFields on AdminCart {
     totalPrice
     isSimple
     priceOverride
+    priceSource
+    priceRef
+    listUnitPrice
+    priceReason
+    priceMaxQuantity
+    priceExpiresAt
+    promotionsApply
+    parentLineId
     isCustom
     taxClass
     components {
@@ -202,8 +214,8 @@ mutation AdminUpdateCartOffer($cartId: ID!, $input: AdminUpdateCartOfferInput!) 
   }
 }
 
-mutation AdminSetCartLinePrice($cartId: ID!, $lineId: ID!, $unitPrice: Int) {
-  adminSetCartLinePrice(cartId: $cartId, lineId: $lineId, unitPrice: $unitPrice) {
+mutation AdminSetCartLinePrice($cartId: ID!, $lineId: ID!, $unitPrice: Int, $reason: String, $promotionsApply: Boolean) {
+  adminSetCartLinePrice(cartId: $cartId, lineId: $lineId, unitPrice: $unitPrice, reason: $reason, promotionsApply: $promotionsApply) {
     ...CartFields
   }
 }

@@ -75,6 +75,8 @@ type OrderLine {
   options:     [OrderLineOption!]!
   # A bundle line's picked components, as snapshotted at checkout. Empty for every other line
   components:  [OrderLineComponent!]!
+  # Set on an add-on: the line it was bought with - show it under that line
+  parentLineId: ID
 }
 
 type OrderLineComponent {
@@ -241,6 +243,8 @@ extend type Mutation {
     acceptTerms: Boolean
     # A guest ticked "send me offers by email". Kept under the order's email, with the order number as proof, and applied to the account once someone proves they own the address. A signed-in shopper's choice goes through setConsent instead, so it is ignored for them.
     marketingOptIn: Boolean
+    # The total the shopper was shown (checkout.totals.totalCents). When the order would come to anything else - a price, a promotion or a rate moved, or a plugin changed a figure at placement - nothing is placed and the error is CHECKOUT_TOTAL_CHANGED, its extensions carrying totalCents, subtotalCents, discountCents, shippingCents, feesCents and taxCents as they are now. Show them and call again with the new total. Omitted, the order is placed at whatever it comes to.
+    expectedTotalCents: Int
   ): Order!
 }
 

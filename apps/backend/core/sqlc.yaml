@@ -22,6 +22,12 @@ sql:
           - column: "catalog_product_option_values.forced_line_qty"
             go_type: "database/sql.NullFloat64"
             nullable: true
+          - column: "cart_lines.price_max_quantity"
+            go_type: "database/sql.NullFloat64"
+            nullable: true
+          - column: "cart_lines.per_parent"
+            go_type: "database/sql.NullFloat64"
+            nullable: true
         rename:
           catalog_product: "Product"
           catalog_attribute: "Attribute"

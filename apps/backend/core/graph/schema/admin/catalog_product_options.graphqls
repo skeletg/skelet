@@ -71,6 +71,12 @@ type ProductOptionValue {
   title:      String!
   content:    [ProductOptionValueContent!]!
   # Optional reference to an existing SIMPLE product. When set, the value inherits the product's display data (name, SKU, default price, image) for storefront rendering; priceValue stays a markup on top of the source product's default_price (FIXED only).
+  # Sells the choice as its source product's own cart and order line, tied to the line it was picked on - an add-on
+  # with its own SKU, tax class and price (a protection plan, an installation) instead of a surcharge folded into
+  # the item's price. Needs a source product. linePromotions lets coupons and promotions lower that line - they
+  # leave an add-on alone otherwise
+  soldAsLine:     Boolean!
+  linePromotions: Boolean!
   sourceProduct: Product
   # Per-channel FIXED amounts (the markup for a linked value) replacing priceValue on those channels, only for channels the caller can see. Without one, priceValue applies only on channels selling in the product's default currency, and the value can't be picked elsewhere.
   channelPrices: [OptionChannelPrice!]!
@@ -151,6 +157,9 @@ input AddProductOptionValueInput {
   forcedLineQty: Float
   # Optional: id of a SIMPLE product whose data backs this value. Service rejects non-simple products + the combination of source + PERCENT price type.
   sourceProductId: ID
+  # Sell the choice as its source product's own line - see ProductOptionValue.soldAsLine. Refused without a source product
+  soldAsLine:     Boolean
+  linePromotions: Boolean
   # Initial-content row. Locale must equal the configured default locale.
   locale:     String!
   title:      String!
@@ -170,6 +179,9 @@ input UpdateProductOptionValueInput {
   # null = no change. Empty-string ID is interpreted as "unlink" so
   # the dashboard can clear a previously-set source product.
   sourceProductId: ID
+  # null = no change. Unlinking the source product ends it
+  soldAsLine:     Boolean
+  linePromotions: Boolean
 }
 
 # --- Mutations (require catalog.manage) ---

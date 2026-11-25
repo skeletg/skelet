@@ -145,3 +145,56 @@ describe('OrderDetail stage', () => {
     expect(await screen.findByText('Awaiting stock', { selector: '[data-slot="badge"]' }, SLOW)).toBeDefined()
   })
 })
+
+describe('OrderDetail lines', () => {
+  const line = (id: string, name: string, more: Record<string, unknown>) => ({
+    __typename: 'OrderLine' as const, id, name, sku: id.toUpperCase(), unitPrice: 5000, quantity: 2, totalPrice: 10000,
+    discountAmount: 0, taxAmount: 0, priceSource: 'CATALOG' as const, priceRef: '', listUnitPrice: null, priceReason: '', promotionsApply: true,
+    isGift: false, components: [], options: [], ...more,
+  })
+  const show = (taxIncluded: boolean, lines = [line('shirt', 'Shirt', { discountAmount: 2000 }), line('book', 'Book', { taxAmount: 500 })]) =>
+    renderPage({
+      path: '/orders/o1',
+      routes: { '/orders/:id': <OrderDetail /> },
+      mocks: [meMock(), { request: { query: OrderDocument, variables: { id: 'o1' } }, result: { data: { order: { ...order, taxIncluded, lines } } }, maxUsageCount: 3 }, stagesMock],
+      adminId: 'admin-1',
+    })
+
+  it('shows each line its own discount and tax, and neither where it has none', async () => {
+    show(false)
+    const shirt = (await screen.findByText('Shirt', {}, SLOW)).closest('tr')
+    const book = screen.getByText('Book').closest('tr')
+    expect(shirt?.textContent).toMatch(/-.*20\.00 discount/)
+    expect(shirt?.textContent).not.toMatch(/tax/)
+    expect(book?.textContent).toMatch(/\+.*5\.00 tax/)
+    expect(book?.textContent).not.toMatch(/discount/)
+  })
+
+  it('shows a price an admin set beside the catalog price it replaced, with the note left for it', async () => {
+    show(false, [
+      line('shirt', 'Shirt', { priceSource: 'ADMIN', listUnitPrice: 6500, priceReason: 'Trade price', promotionsApply: false }),
+      line('fee', 'Setup fee', { priceSource: 'ADMIN' }),
+      line('book', 'Book', {}),
+    ])
+    const shirt = (await screen.findByText('Shirt', {}, SLOW)).closest('tr')
+    expect(shirt?.querySelector('s')?.textContent).toMatch(/65\.00/)
+    expect(shirt?.textContent).toContain('Trade price')
+    expect(shirt?.textContent).toContain('no promotions')
+    expect(screen.getByText('Book').closest('tr')?.textContent).not.toContain('no promotions')
+    expect(screen.getByText('Setup fee').closest('tr')?.querySelector('s')).toBeNull()
+    expect(screen.getByText('Book').closest('tr')?.querySelector('s')).toBeNull()
+  })
+
+  it('names the plugin that priced a line, beside the catalog price it replaced', async () => {
+    show(false, [line('tee', 'Tee', { priceSource: 'HOOK', priceRef: 'plugin:member-prices', listUnitPrice: 6000, promotionsApply: false })])
+    const tee = (await screen.findByText('Tee', {}, SLOW)).closest('tr')
+    expect(tee?.textContent).toContain('member-prices plugin')
+    expect(tee?.querySelector('s')?.textContent).toMatch(/60\.00/)
+  })
+
+  it('says the tax is in the price where the order was priced that way', async () => {
+    show(true)
+    const book = (await screen.findByText('Book', {}, SLOW)).closest('tr')
+    expect(book?.textContent).toMatch(/incl\..*5\.00 tax/)
+  })
+})

@@ -180,6 +180,7 @@ type ComplexityRoot struct {
 		Kind          func(childComplexity int) int
 		Lines         func(childComplexity int) int
 		Offer         func(childComplexity int) int
+		PriceLimits   func(childComplexity int) int
 		Source        func(childComplexity int) int
 		Status        func(childComplexity int) int
 		Subtotal      func(childComplexity int) int
@@ -232,18 +233,26 @@ type ComplexityRoot struct {
 	}
 
 	AdminCartLine struct {
-		Components    func(childComplexity int) int
-		ID            func(childComplexity int) int
-		IsCustom      func(childComplexity int) int
-		IsSimple      func(childComplexity int) int
-		Name          func(childComplexity int) int
-		Options       func(childComplexity int) int
-		PriceOverride func(childComplexity int) int
-		Quantity      func(childComplexity int) int
-		Sku           func(childComplexity int) int
-		TaxClass      func(childComplexity int) int
-		TotalPrice    func(childComplexity int) int
-		UnitPrice     func(childComplexity int) int
+		Components       func(childComplexity int) int
+		ID               func(childComplexity int) int
+		IsCustom         func(childComplexity int) int
+		IsSimple         func(childComplexity int) int
+		ListUnitPrice    func(childComplexity int) int
+		Name             func(childComplexity int) int
+		Options          func(childComplexity int) int
+		ParentLineID     func(childComplexity int) int
+		PriceExpiresAt   func(childComplexity int) int
+		PriceMaxQuantity func(childComplexity int) int
+		PriceOverride    func(childComplexity int) int
+		PriceReason      func(childComplexity int) int
+		PriceRef         func(childComplexity int) int
+		PriceSource      func(childComplexity int) int
+		PromotionsApply  func(childComplexity int) int
+		Quantity         func(childComplexity int) int
+		Sku              func(childComplexity int) int
+		TaxClass         func(childComplexity int) int
+		TotalPrice       func(childComplexity int) int
+		UnitPrice        func(childComplexity int) int
 	}
 
 	AdminCartLineComponent struct {
@@ -1245,6 +1254,11 @@ type ComplexityRoot struct {
 		Status         func(childComplexity int) int
 		Subtotal       func(childComplexity int) int
 		UpdatedAt      func(childComplexity int) int
+	}
+
+	CartPriceLimits struct {
+		HoldsUntil    func(childComplexity int) int
+		MaxCutPercent func(childComplexity int) int
 	}
 
 	CascadeAttributeIndexableResult struct {
@@ -2804,7 +2818,7 @@ type ComplexityRoot struct {
 		AdminRemoveCartLine               func(childComplexity int, cartID string, lineID string) int
 		AdminRevokeCartOffer              func(childComplexity int, cartID string) int
 		AdminSendCartOffer                func(childComplexity int, cartID string) int
-		AdminSetCartLinePrice             func(childComplexity int, cartID string, lineID string, unitPrice *int32) int
+		AdminSetCartLinePrice             func(childComplexity int, cartID string, lineID string, unitPrice *int32, reason *string, promotionsApply *bool) int
 		AdminSetCustomerConsent           func(childComplexity int, customerID string, kind string, optedIn bool) int
 		AdminSsoComplete                  func(childComplexity int, state string, code string, binding string) int
 		AdminSsoLinkComplete              func(childComplexity int, state string, code string, binding string) int
@@ -3411,16 +3425,25 @@ type ComplexityRoot struct {
 	}
 
 	OrderLine struct {
-		Components func(childComplexity int) int
-		ID         func(childComplexity int) int
-		IsCustom   func(childComplexity int) int
-		IsGift     func(childComplexity int) int
-		Name       func(childComplexity int) int
-		Options    func(childComplexity int) int
-		Quantity   func(childComplexity int) int
-		Sku        func(childComplexity int) int
-		TotalPrice func(childComplexity int) int
-		UnitPrice  func(childComplexity int) int
+		Components       func(childComplexity int) int
+		DiscountAmount   func(childComplexity int) int
+		ID               func(childComplexity int) int
+		IsCustom         func(childComplexity int) int
+		IsGift           func(childComplexity int) int
+		ListUnitPrice    func(childComplexity int) int
+		Name             func(childComplexity int) int
+		Options          func(childComplexity int) int
+		ParentLineID     func(childComplexity int) int
+		PriceReason      func(childComplexity int) int
+		PriceRef         func(childComplexity int) int
+		PriceSource      func(childComplexity int) int
+		PromotionsApply  func(childComplexity int) int
+		Quantity         func(childComplexity int) int
+		RequiresShipping func(childComplexity int) int
+		Sku              func(childComplexity int) int
+		TaxAmount        func(childComplexity int) int
+		TotalPrice       func(childComplexity int) int
+		UnitPrice        func(childComplexity int) int
 	}
 
 	OrderLineComponent struct {
@@ -3798,20 +3821,22 @@ type ComplexityRoot struct {
 	}
 
 	ProductOptionValue struct {
-		ChannelPrices func(childComplexity int) int
-		Content       func(childComplexity int) int
-		CreatedAt     func(childComplexity int) int
-		ForcedLineQty func(childComplexity int) int
-		ID            func(childComplexity int) int
-		Image         func(childComplexity int) int
-		IsDefault     func(childComplexity int) int
-		PriceType     func(childComplexity int) int
-		PriceValue    func(childComplexity int) int
-		Quantity      func(childComplexity int) int
-		SortOrder     func(childComplexity int) int
-		SourceProduct func(childComplexity int) int
-		Title         func(childComplexity int) int
-		UpdatedAt     func(childComplexity int) int
+		ChannelPrices  func(childComplexity int) int
+		Content        func(childComplexity int) int
+		CreatedAt      func(childComplexity int) int
+		ForcedLineQty  func(childComplexity int) int
+		ID             func(childComplexity int) int
+		Image          func(childComplexity int) int
+		IsDefault      func(childComplexity int) int
+		LinePromotions func(childComplexity int) int
+		PriceType      func(childComplexity int) int
+		PriceValue     func(childComplexity int) int
+		Quantity       func(childComplexity int) int
+		SoldAsLine     func(childComplexity int) int
+		SortOrder      func(childComplexity int) int
+		SourceProduct  func(childComplexity int) int
+		Title          func(childComplexity int) int
+		UpdatedAt      func(childComplexity int) int
 	}
 
 	ProductOptionValueContent struct {
@@ -5570,7 +5595,7 @@ type MutationResolver interface {
 	AdminDuplicateCart(ctx context.Context, cartID string, targetCustomerID *string) (*model.AdminCart, error)
 	AdminCreateCartOffer(ctx context.Context, input model.AdminCreateCartOfferInput) (*model.AdminCart, error)
 	AdminUpdateCartOffer(ctx context.Context, cartID string, input model.AdminUpdateCartOfferInput) (*model.AdminCart, error)
-	AdminSetCartLinePrice(ctx context.Context, cartID string, lineID string, unitPrice *int32) (*model.AdminCart, error)
+	AdminSetCartLinePrice(ctx context.Context, cartID string, lineID string, unitPrice *int32, reason *string, promotionsApply *bool) (*model.AdminCart, error)
 	AdminAddCustomCartLine(ctx context.Context, cartID string, input model.AdminCustomCartLineInput) (*model.AdminCart, error)
 	AdminSendCartOffer(ctx context.Context, cartID string) (*model.AdminCart, error)
 	AdminRegenerateCartOfferLink(ctx context.Context, cartID string) (*model.AdminCart, error)
@@ -6860,6 +6885,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AdminCart.Offer(childComplexity), true
+	case "AdminCart.priceLimits":
+		if e.ComplexityRoot.AdminCart.PriceLimits == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCart.PriceLimits(childComplexity), true
 	case "AdminCart.source":
 		if e.ComplexityRoot.AdminCart.Source == nil {
 			break
@@ -7094,6 +7125,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AdminCartLine.IsSimple(childComplexity), true
+	case "AdminCartLine.listUnitPrice":
+		if e.ComplexityRoot.AdminCartLine.ListUnitPrice == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartLine.ListUnitPrice(childComplexity), true
 	case "AdminCartLine.name":
 		if e.ComplexityRoot.AdminCartLine.Name == nil {
 			break
@@ -7106,12 +7143,54 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AdminCartLine.Options(childComplexity), true
+	case "AdminCartLine.parentLineId":
+		if e.ComplexityRoot.AdminCartLine.ParentLineID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartLine.ParentLineID(childComplexity), true
+	case "AdminCartLine.priceExpiresAt":
+		if e.ComplexityRoot.AdminCartLine.PriceExpiresAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartLine.PriceExpiresAt(childComplexity), true
+	case "AdminCartLine.priceMaxQuantity":
+		if e.ComplexityRoot.AdminCartLine.PriceMaxQuantity == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartLine.PriceMaxQuantity(childComplexity), true
 	case "AdminCartLine.priceOverride":
 		if e.ComplexityRoot.AdminCartLine.PriceOverride == nil {
 			break
 		}
 
 		return e.ComplexityRoot.AdminCartLine.PriceOverride(childComplexity), true
+	case "AdminCartLine.priceReason":
+		if e.ComplexityRoot.AdminCartLine.PriceReason == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartLine.PriceReason(childComplexity), true
+	case "AdminCartLine.priceRef":
+		if e.ComplexityRoot.AdminCartLine.PriceRef == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartLine.PriceRef(childComplexity), true
+	case "AdminCartLine.priceSource":
+		if e.ComplexityRoot.AdminCartLine.PriceSource == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartLine.PriceSource(childComplexity), true
+	case "AdminCartLine.promotionsApply":
+		if e.ComplexityRoot.AdminCartLine.PromotionsApply == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartLine.PromotionsApply(childComplexity), true
 	case "AdminCartLine.quantity":
 		if e.ComplexityRoot.AdminCartLine.Quantity == nil {
 			break
@@ -11312,6 +11391,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CartListItem.UpdatedAt(childComplexity), true
+
+	case "CartPriceLimits.holdsUntil":
+		if e.ComplexityRoot.CartPriceLimits.HoldsUntil == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CartPriceLimits.HoldsUntil(childComplexity), true
+	case "CartPriceLimits.maxCutPercent":
+		if e.ComplexityRoot.CartPriceLimits.MaxCutPercent == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CartPriceLimits.MaxCutPercent(childComplexity), true
 
 	case "CascadeAttributeIndexableResult.affectedProductsCount":
 		if e.ComplexityRoot.CascadeAttributeIndexableResult.AffectedProductsCount == nil {
@@ -18245,7 +18337,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.AdminSetCartLinePrice(childComplexity, args["cartId"].(string), args["lineId"].(string), args["unitPrice"].(*int32)), true
+		return e.ComplexityRoot.Mutation.AdminSetCartLinePrice(childComplexity, args["cartId"].(string), args["lineId"].(string), args["unitPrice"].(*int32), args["reason"].(*string), args["promotionsApply"].(*bool)), true
 	case "Mutation.adminSetCustomerConsent":
 		if e.ComplexityRoot.Mutation.AdminSetCustomerConsent == nil {
 			break
@@ -24128,6 +24220,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OrderLine.Components(childComplexity), true
+	case "OrderLine.discountAmount":
+		if e.ComplexityRoot.OrderLine.DiscountAmount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLine.DiscountAmount(childComplexity), true
 	case "OrderLine.id":
 		if e.ComplexityRoot.OrderLine.ID == nil {
 			break
@@ -24146,6 +24244,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OrderLine.IsGift(childComplexity), true
+	case "OrderLine.listUnitPrice":
+		if e.ComplexityRoot.OrderLine.ListUnitPrice == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLine.ListUnitPrice(childComplexity), true
 	case "OrderLine.name":
 		if e.ComplexityRoot.OrderLine.Name == nil {
 			break
@@ -24158,18 +24262,60 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OrderLine.Options(childComplexity), true
+	case "OrderLine.parentLineId":
+		if e.ComplexityRoot.OrderLine.ParentLineID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLine.ParentLineID(childComplexity), true
+	case "OrderLine.priceReason":
+		if e.ComplexityRoot.OrderLine.PriceReason == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLine.PriceReason(childComplexity), true
+	case "OrderLine.priceRef":
+		if e.ComplexityRoot.OrderLine.PriceRef == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLine.PriceRef(childComplexity), true
+	case "OrderLine.priceSource":
+		if e.ComplexityRoot.OrderLine.PriceSource == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLine.PriceSource(childComplexity), true
+	case "OrderLine.promotionsApply":
+		if e.ComplexityRoot.OrderLine.PromotionsApply == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLine.PromotionsApply(childComplexity), true
 	case "OrderLine.quantity":
 		if e.ComplexityRoot.OrderLine.Quantity == nil {
 			break
 		}
 
 		return e.ComplexityRoot.OrderLine.Quantity(childComplexity), true
+	case "OrderLine.requiresShipping":
+		if e.ComplexityRoot.OrderLine.RequiresShipping == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLine.RequiresShipping(childComplexity), true
 	case "OrderLine.sku":
 		if e.ComplexityRoot.OrderLine.Sku == nil {
 			break
 		}
 
 		return e.ComplexityRoot.OrderLine.Sku(childComplexity), true
+	case "OrderLine.taxAmount":
+		if e.ComplexityRoot.OrderLine.TaxAmount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLine.TaxAmount(childComplexity), true
 	case "OrderLine.totalPrice":
 		if e.ComplexityRoot.OrderLine.TotalPrice == nil {
 			break
@@ -25935,6 +26081,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ProductOptionValue.IsDefault(childComplexity), true
+	case "ProductOptionValue.linePromotions":
+		if e.ComplexityRoot.ProductOptionValue.LinePromotions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProductOptionValue.LinePromotions(childComplexity), true
 	case "ProductOptionValue.priceType":
 		if e.ComplexityRoot.ProductOptionValue.PriceType == nil {
 			break
@@ -25953,6 +26105,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ProductOptionValue.Quantity(childComplexity), true
+	case "ProductOptionValue.soldAsLine":
+		if e.ComplexityRoot.ProductOptionValue.SoldAsLine == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProductOptionValue.SoldAsLine(childComplexity), true
 	case "ProductOptionValue.sortOrder":
 		if e.ComplexityRoot.ProductOptionValue.SortOrder == nil {
 			break
@@ -35666,6 +35824,8 @@ type AdminCart {
   email:         String!      # the cart's own email - a guest offer's recipient, or what a guest typed at checkout
   # Set on an offer only
   offer:         AdminCartOffer
+  # Set on a shopper's own cart only: what the store allows when a line's price is set there
+  priceLimits:   CartPriceLimits
   lines:         [AdminCartLine!]!
   subtotal:      Int!         # Σ line totals (estimate - no tax/shipping)
   itemCount:     Int!
@@ -35685,11 +35845,36 @@ type AdminCartLine {
   isSimple:    Boolean!
   components:  [AdminCartLineComponent!]!
   options:     [AdminCartLineOption!]!
-  # The admin set the price on an offer - it holds through checkout's repricing
+  # The price was set rather than read from the catalog - it holds through checkout's repricing
   priceOverride: Boolean!
+  # Where the price came from, the catalog price it replaced (null on a catalog line, and where there was none) and
+  # the note left with it
+  priceSource:   LinePriceSource!
+  listUnitPrice: Int
+  priceReason:   String!
+  # Who set a HOOK price: "plugin:<slug>" or "webhook:<name>" - empty otherwise
+  priceRef:      String!
+  # On a shopper's own cart a set price is for at most this many of the item, and holds until this moment - past
+  # it the line goes back to its catalog price at checkout. Both null on an offer's lines and on a catalog price
+  priceMaxQuantity: Float
+  priceExpiresAt:   Time
+  # Set on an add-on: the line it belongs to, which it follows in quantity and leaves the cart with
+  parentLineId: ID
+  # Whether coupons and promotions may lower this line. They leave a line alone once its price is set, unless
+  # whoever set it says otherwise - the line still counts toward what the cart holds
+  promotionsApply: Boolean!
   # A free-form line added to an offer, with no catalog product behind it
   isCustom:    Boolean!
   taxClass:    String!
+}
+
+# What the store allows when an admin sets a line's price on a shopper's own cart (sales/cart/max_price_cut_percent
+# and sales/cart/set_price_days). The price also needs a reason and the orders.set_cart_price permission
+type CartPriceLimits {
+  # The most that may come off the line's catalog price, in percent - 100 allows any price
+  maxCutPercent: Int!
+  # When a price set now stops holding - null when it holds for as long as the cart lives
+  holdsUntil: Time
 }
 
 enum CartKind {
@@ -35919,6 +36104,8 @@ input AdminCustomCartLineInput {
   unitPrice: Int!
   quantity:  Float!
   taxClass:  String     # the tax class the line is taxed by - empty for the store's default
+  # Lets coupons and promotions lower the line - they leave a charge added by hand alone unless this is true
+  promotionsApply: Boolean
 }
 
 # Option picks for an admin-entered configured line - mirrors the storefront's ProductOptionSelectionInput (server-side pricing and validation; nothing here is trusted for price).
@@ -35945,8 +36132,13 @@ extend type Mutation {
   # Offers - a cart built for one recipient and sent as a link. Always a fresh cart, never the customer's active one
   adminCreateCartOffer(input: AdminCreateCartOfferInput!): AdminCart!
   adminUpdateCartOffer(cartId: ID!, input: AdminUpdateCartOfferInput!): AdminCart!
-  # Sets a line's price on an offer - it holds through checkout. null puts a catalog line back on its catalog price
-  adminSetCartLinePrice(cartId: ID!, lineId: ID!, unitPrice: Int): AdminCart!
+  # Sets a line's price - it holds through checkout. null puts a catalog line back on its catalog price.
+  # The reason stays with the line and its order line, for whoever reads the order later.
+  # On an offer that is all. On a shopper's own cart it takes orders.set_cart_price and a reason, the price may be no
+  # lower than the cart's priceLimits allow (CART_LINE_PRICE_TOO_LOW, with floorCents in the error's extensions), and
+  # it is for the quantity the line holds: the shopper may buy fewer at it, not more
+  # promotionsApply lets coupons and promotions lower the line on top of the price set - they don't by default
+  adminSetCartLinePrice(cartId: ID!, lineId: ID!, unitPrice: Int, reason: String, promotionsApply: Boolean): AdminCart!
   adminAddCustomCartLine(cartId: ID!, input: AdminCustomCartLineInput!): AdminCart!
   # Emails the offer's link to its recipient - again on every call
   adminSendCartOffer(cartId: ID!): AdminCart!
@@ -36861,6 +37053,12 @@ type ProductOptionValue {
   title:      String!
   content:    [ProductOptionValueContent!]!
   # Optional reference to an existing SIMPLE product. When set, the value inherits the product's display data (name, SKU, default price, image) for storefront rendering; priceValue stays a markup on top of the source product's default_price (FIXED only).
+  # Sells the choice as its source product's own cart and order line, tied to the line it was picked on - an add-on
+  # with its own SKU, tax class and price (a protection plan, an installation) instead of a surcharge folded into
+  # the item's price. Needs a source product. linePromotions lets coupons and promotions lower that line - they
+  # leave an add-on alone otherwise
+  soldAsLine:     Boolean!
+  linePromotions: Boolean!
   sourceProduct: Product
   # Per-channel FIXED amounts (the markup for a linked value) replacing priceValue on those channels, only for channels the caller can see. Without one, priceValue applies only on channels selling in the product's default currency, and the value can't be picked elsewhere.
   channelPrices: [OptionChannelPrice!]!
@@ -36941,6 +37139,9 @@ input AddProductOptionValueInput {
   forcedLineQty: Float
   # Optional: id of a SIMPLE product whose data backs this value. Service rejects non-simple products + the combination of source + PERCENT price type.
   sourceProductId: ID
+  # Sell the choice as its source product's own line - see ProductOptionValue.soldAsLine. Refused without a source product
+  soldAsLine:     Boolean
+  linePromotions: Boolean
   # Initial-content row. Locale must equal the configured default locale.
   locale:     String!
   title:      String!
@@ -36960,6 +37161,9 @@ input UpdateProductOptionValueInput {
   # null = no change. Empty-string ID is interpreted as "unlink" so
   # the dashboard can clear a previously-set source product.
   sourceProductId: ID
+  # null = no change. Unlinking the source product ends it
+  soldAsLine:     Boolean
+  linePromotions: Boolean
 }
 
 # --- Mutations (require catalog.manage) ---
@@ -41183,6 +41387,13 @@ input RecordOfflinePaymentInput {
   note: String
 }
 
+# Where a line's price came from
+enum LinePriceSource {
+  CATALOG  # the catalog's price for it
+  ADMIN    # set by an admin - on an offer, a draft, a custom line or a shopper's own cart
+  HOOK     # set by a plugin or a sync webhook as the line was added or its quantity changed - priceRef names it
+}
+
 type OrderLine {
   id:          ID!
   name:        String!
@@ -41194,6 +41405,26 @@ type OrderLine {
   isGift:      Boolean!
   # A free-form charge from an offer cart - no catalog product, nothing to reserve or ship
   isCustom:    Boolean!
+  # The line's own share of the order's discount and its own tax, as the order was priced - what a refund of the
+  # line gives back. The tax is inside totalPrice where the order's prices include it (taxIncluded), on top otherwise
+  discountAmount: Int!
+  taxAmount:      Int!
+  # Where unitPrice came from, the catalog price it replaced (null on a catalog line, and where there was none) and
+  # the note left when it was set
+  priceSource:   LinePriceSource!
+  listUnitPrice: Int
+  priceReason:   String!
+  # Who set a HOOK price: "plugin:<slug>" or "webhook:<name>" - empty otherwise
+  priceRef:      String!
+  # False for a line that is nothing to ship - a service, a download, a custom charge. It doesn't hold the order
+  # back from fulfilled: the order is fulfilled once every line that does ship has
+  requiresShipping: Boolean!
+  # Set on an add-on: the line it was bought with, which it reads under. An edit removes and re-quantifies it with
+  # that line; it can be removed or refunded on its own
+  parentLineId: ID
+  # False when coupons and promotions left this line alone - its discountAmount is then only its share of a discount
+  # given on the order itself
+  promotionsApply: Boolean!
   # Custom-option picks captured at placement (engraving text, gift wrap,
   # etc.) - the immutable record of what was configured, for fulfillment.
   options:     [OrderLineOption!]!
@@ -45198,6 +45429,8 @@ func (ec *executionContext) childFields_AdminCart(ctx context.Context, field gra
 		return ec.fieldContext_AdminCart_email(ctx, field)
 	case "offer":
 		return ec.fieldContext_AdminCart_offer(ctx, field)
+	case "priceLimits":
+		return ec.fieldContext_AdminCart_priceLimits(ctx, field)
 	case "lines":
 		return ec.fieldContext_AdminCart_lines(ctx, field)
 	case "subtotal":
@@ -45324,6 +45557,22 @@ func (ec *executionContext) childFields_AdminCartLine(ctx context.Context, field
 		return ec.fieldContext_AdminCartLine_options(ctx, field)
 	case "priceOverride":
 		return ec.fieldContext_AdminCartLine_priceOverride(ctx, field)
+	case "priceSource":
+		return ec.fieldContext_AdminCartLine_priceSource(ctx, field)
+	case "listUnitPrice":
+		return ec.fieldContext_AdminCartLine_listUnitPrice(ctx, field)
+	case "priceReason":
+		return ec.fieldContext_AdminCartLine_priceReason(ctx, field)
+	case "priceRef":
+		return ec.fieldContext_AdminCartLine_priceRef(ctx, field)
+	case "priceMaxQuantity":
+		return ec.fieldContext_AdminCartLine_priceMaxQuantity(ctx, field)
+	case "priceExpiresAt":
+		return ec.fieldContext_AdminCartLine_priceExpiresAt(ctx, field)
+	case "parentLineId":
+		return ec.fieldContext_AdminCartLine_parentLineId(ctx, field)
+	case "promotionsApply":
+		return ec.fieldContext_AdminCartLine_promotionsApply(ctx, field)
 	case "isCustom":
 		return ec.fieldContext_AdminCartLine_isCustom(ctx, field)
 	case "taxClass":
@@ -47332,6 +47581,16 @@ func (ec *executionContext) childFields_CartListItem(ctx context.Context, field 
 		return ec.fieldContext_CartListItem_updatedAt(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type CartListItem", field.Name)
+}
+
+func (ec *executionContext) childFields_CartPriceLimits(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "maxCutPercent":
+		return ec.fieldContext_CartPriceLimits_maxCutPercent(ctx, field)
+	case "holdsUntil":
+		return ec.fieldContext_CartPriceLimits_holdsUntil(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CartPriceLimits", field.Name)
 }
 
 func (ec *executionContext) childFields_CascadeAttributeIndexableResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -50600,6 +50859,24 @@ func (ec *executionContext) childFields_OrderLine(ctx context.Context, field gra
 		return ec.fieldContext_OrderLine_isGift(ctx, field)
 	case "isCustom":
 		return ec.fieldContext_OrderLine_isCustom(ctx, field)
+	case "discountAmount":
+		return ec.fieldContext_OrderLine_discountAmount(ctx, field)
+	case "taxAmount":
+		return ec.fieldContext_OrderLine_taxAmount(ctx, field)
+	case "priceSource":
+		return ec.fieldContext_OrderLine_priceSource(ctx, field)
+	case "listUnitPrice":
+		return ec.fieldContext_OrderLine_listUnitPrice(ctx, field)
+	case "priceReason":
+		return ec.fieldContext_OrderLine_priceReason(ctx, field)
+	case "priceRef":
+		return ec.fieldContext_OrderLine_priceRef(ctx, field)
+	case "requiresShipping":
+		return ec.fieldContext_OrderLine_requiresShipping(ctx, field)
+	case "parentLineId":
+		return ec.fieldContext_OrderLine_parentLineId(ctx, field)
+	case "promotionsApply":
+		return ec.fieldContext_OrderLine_promotionsApply(ctx, field)
 	case "options":
 		return ec.fieldContext_OrderLine_options(ctx, field)
 	case "components":
@@ -51376,6 +51653,10 @@ func (ec *executionContext) childFields_ProductOptionValue(ctx context.Context, 
 		return ec.fieldContext_ProductOptionValue_title(ctx, field)
 	case "content":
 		return ec.fieldContext_ProductOptionValue_content(ctx, field)
+	case "soldAsLine":
+		return ec.fieldContext_ProductOptionValue_soldAsLine(ctx, field)
+	case "linePromotions":
+		return ec.fieldContext_ProductOptionValue_linePromotions(ctx, field)
 	case "sourceProduct":
 		return ec.fieldContext_ProductOptionValue_sourceProduct(ctx, field)
 	case "channelPrices":
@@ -54925,6 +55206,22 @@ func (ec *executionContext) field_Mutation_adminSetCartLinePrice_args(ctx contex
 		return nil, err
 	}
 	args["unitPrice"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "reason",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["reason"] = arg3
+	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "promotionsApply",
+		func(ctx context.Context, v any) (*bool, error) {
+			return ec.unmarshalOBoolean2ᚖbool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["promotionsApply"] = arg4
 	return args, nil
 }
 
@@ -71080,6 +71377,38 @@ func (ec *executionContext) fieldContext_AdminCart_offer(_ context.Context, fiel
 	return fc, nil
 }
 
+func (ec *executionContext) _AdminCart_priceLimits(ctx context.Context, field graphql.CollectedField, obj *model.AdminCart) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCart_priceLimits(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PriceLimits, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CartPriceLimits) graphql.Marshaler {
+			return ec.marshalOCartPriceLimits2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCartPriceLimits(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCart_priceLimits(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AdminCart",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CartPriceLimits(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _AdminCart_lines(ctx context.Context, field graphql.CollectedField, obj *model.AdminCart) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -72148,6 +72477,190 @@ func (ec *executionContext) _AdminCartLine_priceOverride(ctx context.Context, fi
 	)
 }
 func (ec *executionContext) fieldContext_AdminCartLine_priceOverride(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartLine", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartLine_priceSource(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartLine_priceSource(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PriceSource, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.LinePriceSource) graphql.Marshaler {
+			return ec.marshalNLinePriceSource2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐLinePriceSource(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartLine_priceSource(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartLine", field, false, false, errors.New("field of type LinePriceSource does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartLine_listUnitPrice(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartLine_listUnitPrice(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ListUnitPrice, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int32) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint32(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartLine_listUnitPrice(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartLine", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartLine_priceReason(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartLine_priceReason(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PriceReason, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartLine_priceReason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartLine", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartLine_priceRef(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartLine_priceRef(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PriceRef, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartLine_priceRef(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartLine", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartLine_priceMaxQuantity(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartLine_priceMaxQuantity(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PriceMaxQuantity, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartLine_priceMaxQuantity(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartLine", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartLine_priceExpiresAt(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartLine_priceExpiresAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PriceExpiresAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartLine_priceExpiresAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartLine", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartLine_parentLineId(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartLine_parentLineId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ParentLineID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartLine_parentLineId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartLine", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartLine_promotionsApply(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartLine_promotionsApply(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PromotionsApply, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartLine_promotionsApply(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AdminCartLine", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
@@ -88585,6 +89098,52 @@ func (ec *executionContext) _CartListItem_updatedAt(ctx context.Context, field g
 }
 func (ec *executionContext) fieldContext_CartListItem_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CartListItem", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _CartPriceLimits_maxCutPercent(ctx context.Context, field graphql.CollectedField, obj *model.CartPriceLimits) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CartPriceLimits_maxCutPercent(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MaxCutPercent, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CartPriceLimits_maxCutPercent(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CartPriceLimits", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _CartPriceLimits_holdsUntil(ctx context.Context, field graphql.CollectedField, obj *model.CartPriceLimits) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CartPriceLimits_holdsUntil(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.HoldsUntil, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_CartPriceLimits_holdsUntil(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CartPriceLimits", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
 func (ec *executionContext) _CascadeAttributeIndexableResult_attribute(ctx context.Context, field graphql.CollectedField, obj *model.CascadeAttributeIndexableResult) (ret graphql.Marshaler) {
@@ -117672,7 +118231,7 @@ func (ec *executionContext) _Mutation_adminSetCartLinePrice(ctx context.Context,
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().AdminSetCartLinePrice(ctx, fc.Args["cartId"].(string), fc.Args["lineId"].(string), fc.Args["unitPrice"].(*int32))
+			return ec.Resolvers.Mutation().AdminSetCartLinePrice(ctx, fc.Args["cartId"].(string), fc.Args["lineId"].(string), fc.Args["unitPrice"].(*int32), fc.Args["reason"].(*string), fc.Args["promotionsApply"].(*bool))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminCart) graphql.Marshaler {
@@ -139795,6 +140354,213 @@ func (ec *executionContext) fieldContext_OrderLine_isCustom(_ context.Context, f
 	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _OrderLine_discountAmount(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderLine_discountAmount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DiscountAmount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderLine_discountAmount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _OrderLine_taxAmount(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderLine_taxAmount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TaxAmount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderLine_taxAmount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _OrderLine_priceSource(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderLine_priceSource(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PriceSource, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.LinePriceSource) graphql.Marshaler {
+			return ec.marshalNLinePriceSource2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐLinePriceSource(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderLine_priceSource(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type LinePriceSource does not have child fields"))
+}
+
+func (ec *executionContext) _OrderLine_listUnitPrice(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderLine_listUnitPrice(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ListUnitPrice, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int32) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint32(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_OrderLine_listUnitPrice(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _OrderLine_priceReason(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderLine_priceReason(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PriceReason, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderLine_priceReason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OrderLine_priceRef(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderLine_priceRef(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PriceRef, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderLine_priceRef(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OrderLine_requiresShipping(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderLine_requiresShipping(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RequiresShipping, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderLine_requiresShipping(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _OrderLine_parentLineId(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderLine_parentLineId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ParentLineID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_OrderLine_parentLineId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _OrderLine_promotionsApply(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderLine_promotionsApply(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PromotionsApply, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderLine_promotionsApply(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _OrderLine_options(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -146923,6 +147689,52 @@ func (ec *executionContext) fieldContext_ProductOptionValue_content(_ context.Co
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _ProductOptionValue_soldAsLine(ctx context.Context, field graphql.CollectedField, obj *model.ProductOptionValue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProductOptionValue_soldAsLine(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SoldAsLine, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProductOptionValue_soldAsLine(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProductOptionValue", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _ProductOptionValue_linePromotions(ctx context.Context, field graphql.CollectedField, obj *model.ProductOptionValue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProductOptionValue_linePromotions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LinePromotions, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProductOptionValue_linePromotions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProductOptionValue", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _ProductOptionValue_sourceProduct(ctx context.Context, field graphql.CollectedField, obj *model.ProductOptionValue) (ret graphql.Marshaler) {
@@ -181317,7 +182129,7 @@ func (ec *executionContext) unmarshalInputAddProductOptionValueInput(ctx context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"optionId", "imageAssetId", "sortOrder", "priceValue", "priceType", "isDefault", "quantity", "forcedLineQty", "sourceProductId", "locale", "title"}
+	fieldsInOrder := [...]string{"optionId", "imageAssetId", "sortOrder", "priceValue", "priceType", "isDefault", "quantity", "forcedLineQty", "sourceProductId", "soldAsLine", "linePromotions", "locale", "title"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -181387,6 +182199,20 @@ func (ec *executionContext) unmarshalInputAddProductOptionValueInput(ctx context
 				return it, err
 			}
 			it.SourceProductID = data
+		case "soldAsLine":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("soldAsLine"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SoldAsLine = data
+		case "linePromotions":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("linePromotions"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.LinePromotions = data
 		case "locale":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("locale"))
 			data, err := ec.unmarshalNString2string(ctx, v)
@@ -181907,7 +182733,7 @@ func (ec *executionContext) unmarshalInputAdminCustomCartLineInput(ctx context.C
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "unitPrice", "quantity", "taxClass"}
+	fieldsInOrder := [...]string{"name", "unitPrice", "quantity", "taxClass", "promotionsApply"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -181942,6 +182768,13 @@ func (ec *executionContext) unmarshalInputAdminCustomCartLineInput(ctx context.C
 				return it, err
 			}
 			it.TaxClass = data
+		case "promotionsApply":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("promotionsApply"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PromotionsApply = data
 		}
 	}
 	return it, nil
@@ -194222,7 +195055,7 @@ func (ec *executionContext) unmarshalInputUpdateProductOptionValueInput(ctx cont
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "imageAssetId", "sortOrder", "priceValue", "priceType", "isDefault", "quantity", "forcedLineQty", "sourceProductId"}
+	fieldsInOrder := [...]string{"id", "imageAssetId", "sortOrder", "priceValue", "priceType", "isDefault", "quantity", "forcedLineQty", "sourceProductId", "soldAsLine", "linePromotions"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -194292,6 +195125,20 @@ func (ec *executionContext) unmarshalInputUpdateProductOptionValueInput(ctx cont
 				return it, err
 			}
 			it.SourceProductID = data
+		case "soldAsLine":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("soldAsLine"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SoldAsLine = data
+		case "linePromotions":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("linePromotions"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.LinePromotions = data
 		}
 	}
 	return it, nil
@@ -197203,6 +198050,11 @@ func (ec *executionContext) _AdminCart(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
+		case "priceLimits":
+			out.Values[i] = ec._AdminCart_priceLimits(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		case "lines":
 			out.Values[i] = ec._AdminCart_lines(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -197623,6 +198475,46 @@ func (ec *executionContext) _AdminCartLine(ctx context.Context, sel ast.Selectio
 			}
 		case "priceOverride":
 			out.Values[i] = ec._AdminCartLine_priceOverride(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "priceSource":
+			out.Values[i] = ec._AdminCartLine_priceSource(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "listUnitPrice":
+			out.Values[i] = ec._AdminCartLine_listUnitPrice(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "priceReason":
+			out.Values[i] = ec._AdminCartLine_priceReason(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "priceRef":
+			out.Values[i] = ec._AdminCartLine_priceRef(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "priceMaxQuantity":
+			out.Values[i] = ec._AdminCartLine_priceMaxQuantity(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "priceExpiresAt":
+			out.Values[i] = ec._AdminCartLine_priceExpiresAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "parentLineId":
+			out.Values[i] = ec._AdminCartLine_parentLineId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "promotionsApply":
+			out.Values[i] = ec._AdminCartLine_promotionsApply(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -204682,6 +205574,49 @@ func (ec *executionContext) _CartListItem(ctx context.Context, sel ast.Selection
 		case "updatedAt":
 			out.Values[i] = ec._CartListItem_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var cartPriceLimitsImplementors = []string{"CartPriceLimits"}
+
+func (ec *executionContext) _CartPriceLimits(ctx context.Context, sel ast.SelectionSet, obj *model.CartPriceLimits) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, cartPriceLimitsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CartPriceLimits")
+		case "maxCutPercent":
+			out.Values[i] = ec._CartPriceLimits_maxCutPercent(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "holdsUntil":
+			out.Values[i] = ec._CartPriceLimits_holdsUntil(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:
@@ -220386,6 +221321,51 @@ func (ec *executionContext) _OrderLine(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "discountAmount":
+			out.Values[i] = ec._OrderLine_discountAmount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "taxAmount":
+			out.Values[i] = ec._OrderLine_taxAmount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "priceSource":
+			out.Values[i] = ec._OrderLine_priceSource(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "listUnitPrice":
+			out.Values[i] = ec._OrderLine_listUnitPrice(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "priceReason":
+			out.Values[i] = ec._OrderLine_priceReason(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "priceRef":
+			out.Values[i] = ec._OrderLine_priceRef(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "requiresShipping":
+			out.Values[i] = ec._OrderLine_requiresShipping(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "parentLineId":
+			out.Values[i] = ec._OrderLine_parentLineId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "promotionsApply":
+			out.Values[i] = ec._OrderLine_promotionsApply(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "options":
 			out.Values[i] = ec._OrderLine_options(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -223379,6 +224359,16 @@ func (ec *executionContext) _ProductOptionValue(ctx context.Context, sel ast.Sel
 			}
 		case "content":
 			out.Values[i] = ec._ProductOptionValue_content(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "soldAsLine":
+			out.Values[i] = ec._ProductOptionValue_soldAsLine(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "linePromotions":
+			out.Values[i] = ec._ProductOptionValue_linePromotions(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -246651,6 +247641,16 @@ func (ec *executionContext) marshalNLibraryEmail2ᚖgithubᚗcomᚋskeletgᚋske
 	return ec._LibraryEmail(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNLinePriceSource2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐLinePriceSource(ctx context.Context, v any) (model.LinePriceSource, error) {
+	var res model.LinePriceSource
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNLinePriceSource2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐLinePriceSource(ctx context.Context, sel ast.SelectionSet, v model.LinePriceSource) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) marshalNLinkClicks2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐLinkClicksᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LinkClicks) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -253751,6 +254751,13 @@ func (ec *executionContext) marshalOCartOfferState2ᚖgithubᚗcomᚋskeletgᚋs
 		return graphql.Null
 	}
 	return v
+}
+
+func (ec *executionContext) marshalOCartPriceLimits2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCartPriceLimits(ctx context.Context, sel ast.SelectionSet, v *model.CartPriceLimits) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._CartPriceLimits(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOCategory2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCategory(ctx context.Context, sel ast.SelectionSet, v *model.Category) graphql.Marshaler {

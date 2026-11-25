@@ -73,6 +73,8 @@ type remoteCartContextLine struct {
 	// Pre-resolved by the host so a remote condition can scope by category or attribute without calling back into the API per evaluation - a callback would land on the checkout hot path, behind this provider's cache TTL, on every cart mutation Without these, "20% off Outerwear" and "buy 2 of brand=Acme" were expressible as an in-process plugin condition and NOT as a remote one
 	CategoryIDs []string          `json:"categoryIds,omitempty"`
 	Attributes  map[string]string `json:"attributes,omitempty"`
+	// No promotion may lower this line - a discount named for it is dropped
+	NoDiscount bool `json:"noDiscount,omitempty"`
 }
 
 func buildRemoteCartContext(env Environment) remoteCartContext {
@@ -81,7 +83,7 @@ func buildRemoteCartContext(env Environment) remoteCartContext {
 		lines[i] = remoteCartContextLine{
 			LineID: l.LineID.String(), ProductID: l.ProductID.String(), SKU: l.ProductSKU,
 			ProductName: l.ProductName, Quantity: l.Quantity, UnitPriceCents: l.UnitPriceCents,
-			Kind: l.ProductKind, Attributes: l.AttributeKVs,
+			Kind: l.ProductKind, Attributes: l.AttributeKVs, NoDiscount: l.NoDiscount,
 		}
 		if len(l.CategoryIDs) > 0 {
 			cats := make([]string, len(l.CategoryIDs))

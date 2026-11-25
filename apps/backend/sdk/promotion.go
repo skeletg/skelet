@@ -37,6 +37,9 @@ type PromotionCartLine struct {
 	ProductKind    string // "simple" | "configurable" | "bundle" | "grouped"
 	CategoryIDs    []uuid.UUID
 	AttributeKVs   map[string]string
+	// No promotion may lower this line's price. Core drops a discount an action puts on it, so respect it when you
+	// work out a figure from the lines
+	NoDiscount bool
 }
 
 // One per Evaluate - the snapshot getters expose running state to actions that coordinate, e.g. a cap-total action reading SubtotalDiscountCents and stopping early

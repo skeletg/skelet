@@ -36,7 +36,7 @@ func TestUnlockedOfferLinesAreProtectedOverHTTP(t *testing.T) {
 	f := h.NewStore(t, 10, 2000)
 	c := h.guestOffer(t, f)
 	unit := int64(1500)
-	if _, err := h.D.Cart.AdminSetLinePrice(h.Ctx, c.ID, c.Lines[0].ID, &unit); err != nil {
+	if _, err := h.D.Cart.AdminSetLinePrice(h.Ctx, c.ID, c.Lines[0].ID, cart.SetLinePriceInput{UnitPrice: &unit}); err != nil {
 		t.Fatal(err)
 	}
 	c, err := h.D.Cart.AdminAddCustomLine(h.Ctx, c.ID, cart.CustomLineInput{Name: "Fee", UnitPrice: 500, Quantity: 1})

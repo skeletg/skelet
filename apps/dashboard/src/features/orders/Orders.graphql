@@ -101,6 +101,15 @@ query Order($id: ID!) {
       unitPrice
       quantity
       totalPrice
+      discountAmount
+      taxAmount
+      priceSource
+      priceRef
+      listUnitPrice
+      priceReason
+      promotionsApply
+      parentLineId
+      requiresShipping
       isGift
       components {
         id

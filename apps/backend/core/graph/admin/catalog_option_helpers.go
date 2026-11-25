@@ -189,6 +189,9 @@ func toProductOptionValueModel(v catalog.ProductOptionValue, perm auth.Permitted
 		ChannelPrices: toOptionChannelPriceModels(v.ChannelPrices, perm),
 		CreatedAt:     v.CreatedAt,
 		UpdatedAt:     v.UpdatedAt,
+
+		SoldAsLine:     v.SoldAsLine,
+		LinePromotions: v.LinePromotions,
 	}
 	if v.ForcedLineQty != nil {
 		q := *v.ForcedLineQty

@@ -6,7 +6,7 @@ import { Button, ButtonLink, Notice } from "../components/ui";
 
 // What the view reads of the core's cart
 type Cart = Pick<CoreCart, "id" | "subtotal" | "totalDiscount"> & {
-  lines: Pick<CartLine, "id" | "name" | "sku" | "imageUrl" | "unitPrice" | "quantity" | "totalPrice">[];
+  lines: Pick<CartLine, "id" | "name" | "sku" | "imageUrl" | "unitPrice" | "quantity" | "totalPrice" | "listUnitPrice" | "priceMaxQuantity" | "promotionsApply" | "parentLineId">[];
 };
 type Props = { cart: Cart | null; flash?: string; currency: Currency };
 
@@ -62,7 +62,11 @@ export function CartView({ cart, flash, currency }: Props) {
 // shortcut: a line's +/- and arrows step by 1 whatever the product's quantity step, fetch the step on the line if fractional goods sell here
 function CartLine({ line: l, currency }: { line: Cart["lines"][number]; currency: Currency }) {
   return (
-    <li className="grid grid-cols-[72px_1fr_auto] gap-4 py-5 sm:grid-cols-[88px_1fr_auto]" data-line="">
+    <li
+      className={l.parentLineId ? "grid grid-cols-[72px_1fr_auto] gap-4 py-5 pl-6 sm:grid-cols-[88px_1fr_auto] sm:pl-10" : "grid grid-cols-[72px_1fr_auto] gap-4 py-5 sm:grid-cols-[88px_1fr_auto]"}
+      data-line=""
+      data-addon={l.parentLineId ? "" : undefined}
+    >
       <div className="aspect-4/5 overflow-hidden rounded-xl bg-muted">
         {l.imageUrl && <img src={l.imageUrl} alt="" width="88" height="110" loading="lazy" className="h-full w-full object-cover" />}
       </div>
@@ -71,15 +75,32 @@ function CartLine({ line: l, currency }: { line: Cart["lines"][number]; currency
         <p className="mt-0.5 text-sm text-muted-foreground">
           <Price amount={l.unitPrice} currency={currency} /> each
         </p>
+        {(l.listUnitPrice != null || l.priceMaxQuantity != null) && (
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            A price set for you
+            {l.listUnitPrice != null && l.listUnitPrice !== l.unitPrice && (
+              <>
+                {" "}- usually <Price amount={l.listUnitPrice} currency={currency} />
+              </>
+            )}
+            .{l.priceMaxQuantity != null && ` It is for up to ${l.priceMaxQuantity}.`}
+          </p>
+        )}
+        {l.promotionsApply === false && <p className="mt-0.5 text-sm text-muted-foreground">Coupons and promotions don't apply to this item.</p>}
         <div className="mt-3 flex flex-wrap items-center gap-4">
-          <form method="post" className="flex items-center gap-2" data-enhance="[data-cart]">
-            <input type="hidden" name="intent" value="update" />
-            <input type="hidden" name="lineId" value={l.id} />
-            <QuantityInput id={`qty-${l.id}`} value={l.quantity} label={`Quantity for ${l.name}`} item={l.name} autosubmit />
-            <Button variant="ghost" type="submit" className="min-h-11 px-4 text-sm js:hidden">
-              Update
-            </Button>
-          </form>
+          {l.parentLineId ? (
+            // An add-on's quantity is its item's - shown, never edited here
+            <span className="text-sm text-muted-foreground">×{l.quantity}</span>
+          ) : (
+            <form method="post" className="flex items-center gap-2" data-enhance="[data-cart]">
+              <input type="hidden" name="intent" value="update" />
+              <input type="hidden" name="lineId" value={l.id} />
+              <QuantityInput id={`qty-${l.id}`} value={l.quantity} label={`Quantity for ${l.name}`} item={l.name} autosubmit />
+              <Button variant="ghost" type="submit" className="min-h-11 px-4 text-sm js:hidden">
+                Update
+              </Button>
+            </form>
+          )}
           <form method="post" data-enhance="[data-cart]">
             <input type="hidden" name="intent" value="remove" />
             <input type="hidden" name="lineId" value={l.id} />

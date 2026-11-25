@@ -126,9 +126,12 @@ func (f fakeRepo) ListCustomerOffers(context.Context, uuid.UUID, uuid.UUID) ([]C
 	return nil, nil
 }
 func (f fakeRepo) ListExpiredOffers(context.Context, int32) ([]Cart, error) { return nil, nil }
-func (f fakeRepo) SetLinePrice(context.Context, uuid.UUID, int64, bool) (CartLine, error) {
+func (f fakeRepo) SetLinePrice(context.Context, uuid.UUID, LinePrice) (CartLine, error) {
 	return CartLine{}, nil
 }
+func (f fakeRepo) RaiseLinePriceCap(context.Context, uuid.UUID) error { return nil }
+func (f fakeRepo) CapLineQuantity(context.Context, uuid.UUID) error   { return nil }
+func (f fakeRepo) RemoveAddOnLine(context.Context, CartLine) error    { return nil }
 func (f fakeRepo) InsertCustomLine(context.Context, uuid.UUID, CustomLineInput) (CartLine, error) {
 	return CartLine{}, nil
 }

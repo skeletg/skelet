@@ -19,6 +19,7 @@ func TestPlanFulfillment(t *testing.T) {
 		shipped     map[uuid.UUID]float64
 		req         []FulfillmentLineInput
 		wantErrCode string // "" => success
+		mustShip    map[uuid.UUID]bool
 		wantFully   bool
 		wantReq     map[uuid.UUID]float64
 	}{
@@ -91,6 +92,24 @@ func TestPlanFulfillment(t *testing.T) {
 			wantErrCode: "FULFILLMENT_UNKNOWN_LINE",
 		},
 		{
+			name:      "a line that is nothing to ship doesn't hold the order back",
+			ordered:   map[uuid.UUID]float64{lineA: 2, lineB: 2},
+			shipped:   nil,
+			req:       []FulfillmentLineInput{{OrderLineID: lineA, Quantity: 2}},
+			mustShip:  map[uuid.UUID]bool{lineA: true},
+			wantFully: true,
+			wantReq:   map[uuid.UUID]float64{lineA: 2},
+		},
+		{
+			name:      "it can still be listed, and the lines that ship still decide",
+			ordered:   map[uuid.UUID]float64{lineA: 2, lineB: 2},
+			shipped:   nil,
+			req:       []FulfillmentLineInput{{OrderLineID: lineB, Quantity: 2}},
+			mustShip:  map[uuid.UUID]bool{lineA: true},
+			wantFully: false,
+			wantReq:   map[uuid.UUID]float64{lineB: 2},
+		},
+		{
 			name:        "zero quantity is rejected",
 			ordered:     map[uuid.UUID]float64{lineA: 5},
 			shipped:     nil,
@@ -108,7 +127,7 @@ func TestPlanFulfillment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, fully, err := planFulfillment(tt.ordered, tt.shipped, tt.req)
+			req, fully, err := planFulfillment(tt.ordered, tt.shipped, tt.req, tt.mustShip)
 			if tt.wantErrCode != "" {
 				if err == nil {
 					t.Fatalf("planFulfillment() = nil error, want code %q", tt.wantErrCode)

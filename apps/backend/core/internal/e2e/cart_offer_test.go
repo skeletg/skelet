@@ -51,11 +51,11 @@ func TestCartOfferMoneyPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("add line: %v", err)
 	}
-	unit := int64(1500)
-	if _, err := h.D.Cart.AdminSetLinePrice(h.Ctx, offer.ID, c.Lines[0].ID, &unit); err != nil {
+	unit, admin := int64(1500), uuid.New()
+	if _, err := h.D.Cart.AdminSetLinePrice(h.Ctx, offer.ID, c.Lines[0].ID, cart.SetLinePriceInput{UnitPrice: &unit, Reason: "Trade price", By: &admin}); err != nil {
 		t.Fatalf("set price: %v", err)
 	}
-	if _, err := h.D.Cart.AdminAddCustomLine(h.Ctx, offer.ID, cart.CustomLineInput{Name: "Setup fee", UnitPrice: 5000, Quantity: 1}); err != nil {
+	if _, err := h.D.Cart.AdminAddCustomLine(h.Ctx, offer.ID, cart.CustomLineInput{Name: "Setup fee", UnitPrice: 5000, Quantity: 1, By: &admin}); err != nil {
 		t.Fatalf("custom line: %v", err)
 	}
 	settings := cart.OfferSettings{ExpiresAt: time.Now().Add(48 * time.Hour), Locks: []string{cart.LockLines, cart.LockCoupons}, PaymentMethods: []string{"bank_transfer"}}
@@ -162,11 +162,19 @@ func TestCartOfferMoneyPath(t *testing.T) {
 	}
 	var custom, priced int
 	for _, l := range o.Lines {
+		setByAdmin := l.PriceSource == cart.PriceAdmin && l.PriceSetBy != nil && *l.PriceSetBy == admin
 		if l.IsCustom && l.ProductName == "Setup fee" && l.UnitPrice == 5000 {
 			custom++
+			if !setByAdmin || l.ListUnitPrice != nil {
+				t.Errorf("custom order line %+v, want the admin's price with no catalog price behind it", l)
+			}
 		}
 		if l.ProductSku == f.Product.SKU && l.UnitPrice == 1500 && !l.IsCustom {
 			priced++
+			// The order line says the price was set, by whom and why, and what the catalog asked instead
+			if !setByAdmin || l.PriceReason != "Trade price" || l.ListUnitPrice == nil || *l.ListUnitPrice != 2000 {
+				t.Errorf("priced order line %+v, want the admin's trade price in place of the catalog's 2000", l)
+			}
 		}
 	}
 	if custom != 1 || priced != 1 {

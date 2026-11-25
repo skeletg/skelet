@@ -130,7 +130,27 @@ type OrderLine struct {
 	// An admin's free-form charge from an offer - no catalog product, nothing reserved or shipped
 	IsCustom bool
 	// The tax class the admin gave a custom line - empty on catalog lines, which take their product's
-	TaxClass   string
+	TaxClass string
+	// The line's share of the order's discount and its own tax, as the order was priced - what a refund of it gives
+	// back and a report counts. Tax is in the price where the shop's prices include it, and on top where they don't
+	DiscountCents int64
+	TaxCents      int64
+	Position      int // the line's place on the order, so it reads in the order it was bought
+	// Where the unit price came from (cart.PriceCatalog, cart.PriceAdmin), and for a set price who set it, why, and
+	// the catalog price it replaced - nil where there was none
+	PriceSource   string
+	PriceSetBy    *uuid.UUID
+	PriceRef      string // the hook behind a price a plugin or webhook set
+	PriceReason   string
+	ListUnitPrice *int64
+	// Coupons and promotions left the line alone - an edit that spreads a discount again does too
+	NoPromotions bool
+	// The line was bought as an add-on to another - a protection plan with the item it covers. It reads under that
+	// line, an edit removes and re-quantifies it with it, and it can be refunded on its own
+	ParentLineID *uuid.UUID
+	// The line is nothing to ship - a service, a protection plan, a download, a custom charge - as its product type
+	// said when the order was placed. It doesn't hold the order back from fulfilled
+	NoShipping bool
 	Components []OrderLineComponent
 	// What the line took stock from besides or instead of itself, per line unit, snapshotted at placement
 	StockParts []OrderLineStockPart
@@ -223,6 +243,8 @@ type Repository interface {
 	OrderNumberTaken(ctx context.Context, number string) (bool, error)
 	DefaultOrderNumber(ctx context.Context) (string, error)
 	AddOrderLine(ctx context.Context, line OrderLine) (OrderLine, error)
+	// Each named line's share of the discount and its tax, the three slices in step
+	SetOrderLineMoney(ctx context.Context, orderID uuid.UUID, lineIDs []uuid.UUID, discounts, taxes []int64) error
 	AddOrderLineComponent(ctx context.Context, component OrderLineComponent) (OrderLineComponent, error)
 	AddOrderLineStockParts(ctx context.Context, orderLineID uuid.UUID, parts []OrderLineStockPart) error
 	AddOrderLineOption(ctx context.Context, option OrderLineOption) (OrderLineOption, error)

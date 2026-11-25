@@ -13,6 +13,7 @@ func PromotionLineViews(c Cart) []promotion.CartLineView { // one projection for
 			ProductName:    l.ProductName,
 			Quantity:       l.Quantity,
 			UnitPriceCents: l.UnitPrice,
+			NoDiscount:     l.NoPromotions,
 		}
 	}
 	return out

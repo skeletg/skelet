@@ -349,7 +349,43 @@ func (r *postgresRepository) ListCartLinesByCart(ctx context.Context, cartID uui
 			lines[i].Options = optByLine[lines[i].ID]
 		}
 	}
-	return lines, nil
+	return underParents(lines), nil
+}
+
+// Each add-on line right after the line it belongs to, whenever either was written - the rest stay in the order added
+func underParents(lines []CartLine) []CartLine {
+	kids := make(map[uuid.UUID][]CartLine)
+	for _, l := range lines {
+		if l.ParentLineID != nil {
+			kids[*l.ParentLineID] = append(kids[*l.ParentLineID], l)
+		}
+	}
+	if len(kids) == 0 {
+		return lines
+	}
+	out := make([]CartLine, 0, len(lines))
+	for _, l := range lines {
+		if l.ParentLineID != nil {
+			continue
+		}
+		out = append(out, l)
+		out = append(out, kids[l.ID]...)
+	}
+	return out
+}
+
+func (r *postgresRepository) RemoveAddOnLine(ctx context.Context, line CartLine) error {
+	if line.ParentLineID == nil || line.ParentValueID == nil {
+		return fmt.Errorf("remove add-on line: %s belongs to no line", line.ID)
+	}
+	// Two writes - the caller runs them in one transaction
+	if err := r.queries.DeleteCartLineOptionByValue(ctx, db.DeleteCartLineOptionByValueParams{CartLineID: *line.ParentLineID, OptionValueID: uuid.NullUUID{UUID: *line.ParentValueID, Valid: true}}); err != nil {
+		return fmt.Errorf("remove add-on pick: %w", err)
+	}
+	if err := r.queries.DeleteCartLine(ctx, line.ID); err != nil {
+		return fmt.Errorf("remove add-on line: %w", err)
+	}
+	return nil
 }
 
 func (r *postgresRepository) UpsertCartLineBySku(ctx context.Context, cartID uuid.UUID, input AddCartLineInput) (CartLine, error) {
@@ -376,6 +412,8 @@ func (r *postgresRepository) UpsertBundleCartLine(ctx context.Context, cartID uu
 		Quantity:         input.Quantity,
 		BundleHookPriced: input.HookPriced,
 		ConfigKey:        input.ConfigKey,
+		KeepSetPrice:     input.KeepSetPrice,
+		NoPromotions:     input.NoPromotions,
 	})
 	if err != nil {
 		return CartLine{}, fmt.Errorf("upsert bundle cart line: %w", err)
@@ -408,11 +446,12 @@ func (r *postgresRepository) UpsertBundleCartLine(ctx context.Context, cartID uu
 // Writes the line then replaces its option rows, OVERWRITING quantity/price/name on a SKU conflict like the bundle path (a reconfigure, not an accumulation) - several statements, so callers run it in a transaction
 func (r *postgresRepository) UpsertConfiguredCartLine(ctx context.Context, cartID uuid.UUID, input AddConfiguredLineInput) (CartLine, error) {
 	row, err := r.queries.UpsertConfiguredCartLine(ctx, db.UpsertConfiguredCartLineParams{
-		CartID:      cartID,
-		ProductName: input.ProductName,
-		ProductSku:  input.ProductSku,
-		UnitPrice:   input.UnitPrice,
-		Quantity:    input.Quantity,
+		CartID:       cartID,
+		ProductName:  input.ProductName,
+		ProductSku:   input.ProductSku,
+		UnitPrice:    input.UnitPrice,
+		Quantity:     input.Quantity,
+		KeepSetPrice: input.KeepSetPrice,
 	})
 	if err != nil {
 		return CartLine{}, fmt.Errorf("upsert configured cart line: %w", err)
@@ -445,6 +484,23 @@ func (r *postgresRepository) UpsertConfiguredCartLine(ctx context.Context, cartI
 			return CartLine{}, fmt.Errorf("insert cart line option: %w", err)
 		}
 		line.Options = append(line.Options, toCartLineOption(opt))
+	}
+	// The add-ons are this configuration's: whatever the line had go, and the ones picked now take their place
+	if err := r.queries.DeleteChildCartLines(ctx, uuid.NullUUID{UUID: row.ID, Valid: true}); err != nil {
+		return CartLine{}, fmt.Errorf("clear add-on lines: %w", err)
+	}
+	for _, a := range input.AddOns {
+		if _, err := r.queries.InsertChildCartLine(ctx, db.InsertChildCartLineParams{
+			ParentLineID:  row.ID,
+			ParentValueID: a.ValueID,
+			ProductName:   a.ProductName,
+			ProductSku:    a.ProductSku,
+			UnitPrice:     a.UnitPrice,
+			PerParent:     a.PerParent,
+			NoPromotions:  a.NoPromotions,
+		}); err != nil {
+			return CartLine{}, fmt.Errorf("insert add-on line: %w", err)
+		}
 	}
 	return line, nil
 }
@@ -675,12 +731,29 @@ func (r *postgresRepository) MarkOffersExpiredNotified(ctx context.Context, ids 
 	return toCarts(rows), nil
 }
 
-func (r *postgresRepository) SetLinePrice(ctx context.Context, lineID uuid.UUID, unitPrice int64, override bool) (CartLine, error) {
-	row, err := r.queries.SetCartLinePrice(ctx, db.SetCartLinePriceParams{ID: lineID, UnitPrice: unitPrice, PriceOverride: override})
+func (r *postgresRepository) SetLinePrice(ctx context.Context, lineID uuid.UUID, p LinePrice) (CartLine, error) {
+	row, err := r.queries.SetCartLinePrice(ctx, db.SetCartLinePriceParams{
+		ID: lineID, UnitPrice: p.UnitPrice, PriceSource: p.Source, PriceSetBy: sqlnull.UUID(p.SetBy), PriceRef: p.Ref, PriceReason: p.Reason, ListUnitPrice: sqlnull.Int64(p.ListUnitPrice),
+		PriceMaxQuantity: sqlnull.Float64(p.MaxQuantity), PriceExpiresAt: sqlnull.Time(p.ExpiresAt), NoPromotions: p.NoPromotions,
+	})
 	if err != nil {
 		return CartLine{}, fmt.Errorf("set line price: %w", err)
 	}
 	return toCartLine(row), nil
+}
+
+func (r *postgresRepository) RaiseLinePriceCap(ctx context.Context, lineID uuid.UUID) error {
+	if err := r.queries.RaiseCartLinePriceCap(ctx, lineID); err != nil {
+		return fmt.Errorf("raise line price cap: %w", err)
+	}
+	return nil
+}
+
+func (r *postgresRepository) CapLineQuantity(ctx context.Context, lineID uuid.UUID) error {
+	if err := r.queries.CapCartLineQuantity(ctx, lineID); err != nil {
+		return fmt.Errorf("cap line quantity: %w", err)
+	}
+	return nil
 }
 
 func (r *postgresRepository) InsertCustomLine(ctx context.Context, cartID uuid.UUID, in CustomLineInput) (CartLine, error) {
@@ -689,12 +762,14 @@ func (r *postgresRepository) InsertCustomLine(ctx context.Context, cartID uuid.U
 		return CartLine{}, err
 	}
 	row, err := r.queries.InsertCustomCartLine(ctx, db.InsertCustomCartLineParams{
-		CartID:      cartID,
-		ProductName: in.Name,
-		ProductSku:  CustomLineSKUPrefix + strings.ToUpper(id.String()[24:]), // the line's unique key in the cart - no catalog product carries the prefix
-		UnitPrice:   in.UnitPrice,
-		Quantity:    in.Quantity,
-		TaxClass:    in.TaxClass,
+		CartID:       cartID,
+		ProductName:  in.Name,
+		ProductSku:   CustomLineSKUPrefix + strings.ToUpper(id.String()[24:]), // the line's unique key in the cart - no catalog product carries the prefix
+		UnitPrice:    in.UnitPrice,
+		Quantity:     in.Quantity,
+		TaxClass:     in.TaxClass,
+		PriceSetBy:   sqlnull.UUID(in.By),
+		NoPromotions: !in.PromotionsApply,
 	})
 	if err != nil {
 		return CartLine{}, fmt.Errorf("add custom line: %w", err)
@@ -841,7 +916,17 @@ func toCartLine(row db.CartLine) CartLine {
 		ProductSku:       row.ProductSku,
 		UnitPrice:        row.UnitPrice,
 		Quantity:         row.Quantity,
-		PriceOverride:    row.PriceOverride,
+		PriceSource:      row.PriceSource,
+		PriceSetBy:       sqlnull.UUIDPtr(row.PriceSetBy),
+		PriceRef:         row.PriceRef,
+		PriceReason:      row.PriceReason,
+		ListUnitPrice:    sqlnull.Int64Ptr(row.ListUnitPrice),
+		PriceMaxQuantity: sqlnull.Float64Ptr(row.PriceMaxQuantity),
+		PriceExpiresAt:   sqlnull.TimePtr(row.PriceExpiresAt),
+		NoPromotions:     row.NoPromotions,
+		ParentLineID:     sqlnull.UUIDPtr(row.ParentLineID),
+		PerParent:        sqlnull.Float64Ptr(row.PerParent),
+		ParentValueID:    sqlnull.UUIDPtr(row.ParentValueID),
 		BundleHookPriced: row.BundleHookPriced,
 		ConfigKey:        row.ConfigKey,
 		IsCustom:         row.IsCustom,

@@ -133,18 +133,29 @@ INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity
 VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (cart_id, product_sku, config_key) DO UPDATE
   SET quantity     = EXCLUDED.quantity,
-      unit_price   = EXCLUDED.unit_price,
+      -- picking again prices the new picks. An admin doing it keeps a price set on the line; a shopper doing it is
+      -- choosing something else than the price was set for, so the line goes back to the catalog's
+      unit_price   = CASE WHEN cart_lines.price_source <> 'catalog' AND $6::boolean THEN cart_lines.unit_price ELSE EXCLUDED.unit_price END,
+      list_unit_price = CASE WHEN cart_lines.price_source <> 'catalog' AND $6::boolean THEN EXCLUDED.unit_price END,
+      price_source = CASE WHEN $6::boolean THEN cart_lines.price_source ELSE 'catalog' END,
+      price_set_by = CASE WHEN $6::boolean THEN cart_lines.price_set_by END,
+      price_ref = CASE WHEN $6::boolean THEN cart_lines.price_ref ELSE '' END,
+      price_reason = CASE WHEN $6::boolean THEN cart_lines.price_reason ELSE '' END,
+      price_max_quantity = CASE WHEN $6::boolean THEN cart_lines.price_max_quantity END,
+      price_expires_at = CASE WHEN $6::boolean THEN cart_lines.price_expires_at END,
+      no_promotions = $6::boolean AND cart_lines.no_promotions,
       product_name = EXCLUDED.product_name,
       updated_at   = NOW()
-RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, price_override, is_custom, tax_class, bundle_hook_priced, config_key
+RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, is_custom, tax_class, bundle_hook_priced, config_key, price_source, price_set_by, price_reason, list_unit_price, price_max_quantity, price_expires_at, no_promotions, price_ref, parent_line_id, per_parent, parent_value_id
 `
 
 type UpsertConfiguredCartLineParams struct {
-	CartID      uuid.UUID `json:"cart_id"`
-	ProductName string    `json:"product_name"`
-	ProductSku  string    `json:"product_sku"`
-	UnitPrice   int64     `json:"unit_price"`
-	Quantity    float64   `json:"quantity"`
+	CartID       uuid.UUID `json:"cart_id"`
+	ProductName  string    `json:"product_name"`
+	ProductSku   string    `json:"product_sku"`
+	UnitPrice    int64     `json:"unit_price"`
+	Quantity     float64   `json:"quantity"`
+	KeepSetPrice bool      `json:"keep_set_price"`
 }
 
 // Configured (options-bearing) cart-line upsert - like the bundle path the ON CONFLICT REPLACES rather than sums: re-adding the same SKU submits a fresh configuration, not more units of the previous one
@@ -155,6 +166,7 @@ func (q *Queries) UpsertConfiguredCartLine(ctx context.Context, arg UpsertConfig
 		arg.ProductSku,
 		arg.UnitPrice,
 		arg.Quantity,
+		arg.KeepSetPrice,
 	)
 	var i CartLine
 	err := row.Scan(
@@ -168,11 +180,21 @@ func (q *Queries) UpsertConfiguredCartLine(ctx context.Context, arg UpsertConfig
 		&i.UpdatedAt,
 		&i.IsGift,
 		&i.OfferedByRuleID,
-		&i.PriceOverride,
 		&i.IsCustom,
 		&i.TaxClass,
 		&i.BundleHookPriced,
 		&i.ConfigKey,
+		&i.PriceSource,
+		&i.PriceSetBy,
+		&i.PriceReason,
+		&i.ListUnitPrice,
+		&i.PriceMaxQuantity,
+		&i.PriceExpiresAt,
+		&i.NoPromotions,
+		&i.PriceRef,
+		&i.ParentLineID,
+		&i.PerParent,
+		&i.ParentValueID,
 	)
 	return i, err
 }

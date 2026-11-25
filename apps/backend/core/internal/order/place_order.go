@@ -38,6 +38,10 @@ type checkoutContext struct {
 	taxLines    []TaxLine // per-rule breakdown from the last computeLineTax call
 	shippingTax int64
 	fees        []Fee // what plugins charge on top, priced after shipping - computeLineTax sets each one's tax
+	// The part of the discount already known to sit on a line, by line id: the promotion engine's allocation at
+	// checkout, the stored shares on an edit. Whatever the discount holds beyond it is spread over the lines
+	discountOnLine map[uuid.UUID]int64
+	lineTax        []int64 // each cart line's tax from the last computeLineTax call, nil when core didn't tax the lines
 }
 
 // Loads and validates everything PlaceOrder needs before the tx - customer, addresses, channel country and region enforcement, payment provider, the cart with its ownership checks and subtotal, and a pre-allocated order id
@@ -249,6 +253,9 @@ func (s *Service) computeFeeTax(ctx context.Context, cc *checkoutContext) (int64
 func (s *Service) computeTax(ctx context.Context, cc *checkoutContext, totalDiscount, shippingCents int64, feesOnly bool) (int64, error) {
 	cc.taxLines, cc.shippingTax = nil, 0
 	cc.fees = withoutFeeTax(cc.fees)
+	if !feesOnly {
+		cc.lineTax = nil
+	}
 	// Tax-exempt customers pay zero core tax on every recompute path - a TaxCents plugin is still authoritative, this only gates core
 	if cc.customer.TaxExempt {
 		return 0, nil
@@ -281,10 +288,11 @@ func (s *Service) computeTax(ctx context.Context, cc *checkoutContext, totalDisc
 		}
 	}
 
-	lines := allocateLineTaxInputs(cc.cart.Lines, cc.subtotal, totalDiscount, classByLine)
-	if feesOnly {
-		lines = nil
+	var lines []tax.LineTaxInput
+	if !feesOnly {
+		lines = allocateLineTaxInputs(cc.cart.Lines, cc.discountShares(totalDiscount), classByLine)
 	}
+	goods := len(lines)
 	shippingLine := -1
 	if shippingCents > 0 && !feesOnly {
 		class, taxable := "", true
@@ -316,6 +324,12 @@ func (s *Service) computeTax(ctx context.Context, cc *checkoutContext, totalDisc
 	})
 	if err != nil {
 		return 0, fmt.Errorf("compute tax: %w", err)
+	}
+	if !feesOnly && len(res.Lines) >= goods {
+		cc.lineTax = make([]int64, goods)
+		for i := range goods {
+			cc.lineTax[i] = res.Lines[i].TotalCents
+		}
 	}
 	if shippingLine >= 0 && len(res.Lines) > shippingLine {
 		cc.shippingTax = res.Lines[shippingLine].TotalCents
@@ -350,41 +364,11 @@ func (s *Service) computeTax(ctx context.Context, cc *checkoutContext, totalDisc
 	return res.TotalCents, nil
 }
 
-// Distributes a whole-order discount across lines proportional to each subtotal in integer cents, with the remainder landing on the last non-empty line so shares sum exactly
-// Pure, and shared by the placement tax math and the return-refund basis so both round identically
-func allocateLineDiscount(lineSubs []int64, subtotal, totalDiscount int64) []int64 {
-	out := make([]int64, len(lineSubs))
-	var allocated int64
-	last := -1
-	for i, lineSub := range lineSubs {
-		var d int64
-		if subtotal > 0 {
-			d = totalDiscount * lineSub / subtotal
-		}
-		out[i] = d
-		allocated += d
-		if lineSub > 0 {
-			last = i
-		}
-	}
-	// Floor division never over-allocates, so the remainder ≥0 lands on the last non-empty line
-	if rem := totalDiscount - allocated; rem > 0 && last >= 0 {
-		out[last] += rem
-	}
-	return out
-}
-
-// Distributes the discount across lines and pairs each post-discount taxable amount with its tax class - pure, so table-testable, and classByLine must be len(lines)
-func allocateLineTaxInputs(lines []cart.CartLine, subtotal, totalDiscount int64, classByLine []string) []tax.LineTaxInput {
-	lineSubs := make([]int64, len(lines))
-	for i, l := range lines {
-		lineSubs[i] = money.LineTotal(l.UnitPrice, l.Quantity)
-	}
-	discounts := allocateLineDiscount(lineSubs, subtotal, totalDiscount)
+// Pairs each line's amount after its share of the discount with its tax class - pure, so table-testable, and discounts and classByLine must be len(lines)
+func allocateLineTaxInputs(lines []cart.CartLine, discounts []int64, classByLine []string) []tax.LineTaxInput {
 	out := make([]tax.LineTaxInput, len(lines))
-	for i := range lines {
-		taxable := max(lineSubs[i]-discounts[i], 0)
-		out[i] = tax.LineTaxInput{ProductTaxClass: classByLine[i], TaxableCents: taxable}
+	for i, sub := range lineSubtotals(lines) {
+		out[i] = tax.LineTaxInput{ProductTaxClass: classByLine[i], TaxableCents: max(sub-discounts[i], 0)}
 	}
 	return out
 }
@@ -461,8 +445,16 @@ func rateRequestFromCheckout(cc *checkoutContext, discount int64) shippingpkg.Ra
 	}
 }
 
+// A bundle a hook priced keeps its own flag on the cart - the order line says a hook priced it all the same
+func linePriceSource(l cart.CartLine) string {
+	if l.BundleHookPriced && !l.PriceSet() {
+		return cart.PriceHook
+	}
+	return l.PriceSource
+}
+
 // Writes every cart line onto the order, copying bundle components with quantities already pre-multiplied and option picks, so the order is a complete immutable record of what was configured and paid for
-func (s *Service) persistOrderLines(ctx context.Context, orderR Repository, orderID uuid.UUID, channelID uuid.UUID, lines []cart.CartLine) error {
+func (s *Service) persistOrderLines(ctx context.Context, orderR Repository, orderID uuid.UUID, channelID uuid.UUID, lines []cart.CartLine, shares lineShares) error {
 	// Snapshot unit COGS at placement in ONE batch (was 3 queries/line) - Best-effort
 	// - an unresolvable SKU is absent from the map and stored NULL, not a failure
 	var costBySKU map[string]int64
@@ -475,7 +467,8 @@ func (s *Service) persistOrderLines(ctx context.Context, orderR Repository, orde
 			costBySKU = m
 		}
 	}
-	for _, l := range lines {
+	noShipping := s.noShipping(ctx, lines)
+	for i, l := range lines {
 		var costCents *int64
 		if c, ok := costBySKU[l.ProductSku]; ok && c > 0 {
 			cc := c
@@ -484,17 +477,28 @@ func (s *Service) persistOrderLines(ctx context.Context, orderR Repository, orde
 		// Reuse the cart line's id - the reservations from the order.placing hook link order_line_id to it through a deferred FK checked at commit, and ConvertCart serializes placement so ids reach order_lines once
 		// Draft lines have no id, so one is generated
 		orderLine, err := orderR.AddOrderLine(ctx, OrderLine{
-			ID:          l.ID,
-			OrderID:     orderID,
-			ProductName: l.ProductName,
-			ProductSku:  l.ProductSku,
-			UnitPrice:   l.UnitPrice,
-			Quantity:    l.Quantity,
-			TotalPrice:  money.LineTotal(l.UnitPrice, l.Quantity),
-			CostCents:   costCents,
-			IsGift:      l.IsGift,
-			IsCustom:    l.IsCustom,
-			TaxClass:    l.TaxClass,
+			ID:            l.ID,
+			OrderID:       orderID,
+			ProductName:   l.ProductName,
+			ProductSku:    l.ProductSku,
+			UnitPrice:     l.UnitPrice,
+			Quantity:      l.Quantity,
+			TotalPrice:    money.LineTotal(l.UnitPrice, l.Quantity),
+			CostCents:     costCents,
+			IsGift:        l.IsGift,
+			IsCustom:      l.IsCustom,
+			TaxClass:      l.TaxClass,
+			Position:      i,
+			DiscountCents: shares.discount[i],
+			TaxCents:      shares.tax[i],
+			PriceSource:   linePriceSource(l),
+			PriceSetBy:    l.PriceSetBy,
+			PriceRef:      l.PriceRef,
+			PriceReason:   l.PriceReason,
+			ListUnitPrice: l.ListUnitPrice,
+			NoPromotions:  l.NoPromotions,
+			ParentLineID:  l.ParentLineID,
+			NoShipping:    noShipping[i],
 		})
 		if err != nil {
 			return fmt.Errorf("add order line: %w", err)

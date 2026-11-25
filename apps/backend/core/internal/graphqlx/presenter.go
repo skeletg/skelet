@@ -71,6 +71,17 @@ func Presenter(s Surface, opts ...Option) graphql.ErrorPresenterFunc {
 			gqlErr.Extensions["request_id"] = rid
 		}
 
+		// What an error says about itself beyond its code - the totals a refused placement would have charged, say.
+		// The error's author chose them for the caller, so both surfaces get them, and none replaces a field set above
+		var detailed interface{ ErrorExtensions() map[string]any }
+		if errors.As(err, &detailed) {
+			for k, v := range detailed.ErrorExtensions() {
+				if _, taken := gqlErr.Extensions[k]; !taken {
+					gqlErr.Extensions[k] = v
+				}
+			}
+		}
+
 		// Dev-only "why forbidden" details - the auth guards return a denial type implementing this anonymous interface, and probing it here keeps graphqlx free of an auth import
 		if cfg.devDetails {
 			var denial interface {

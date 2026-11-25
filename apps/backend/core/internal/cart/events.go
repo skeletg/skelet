@@ -12,10 +12,37 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/syncveto"
 )
 
+// hookPrice is how a hook prices a line through its event. Whoever runs a handler names itself first (ActingAs - the
+// plugin host and the webhook dispatcher do), and a price set through the setter or a webhook's answer records who
+// was acting. A price a hook sets is a set price: it holds, is for the quantity it priced, and coupons and promotions
+// leave it alone unless the hook says they apply
+type hookPrice struct {
+	actor           string
+	priced          bool
+	pricedBy        string
+	promotionsApply bool
+}
+
+// ActingAs names who the next handler is, "plugin:<slug>" or "webhook:<name>" - empty once it has run
+func (h *hookPrice) ActingAs(actor string) { h.actor = actor }
+
+func (h *hookPrice) setPriced() { h.priced, h.pricedBy = true, h.actor }
+
+// The price the hook leaves on a line, once the event's price is known - ok is false when no hook moved it off what
+// core would have charged
+func (h *hookPrice) linePrice(unit, coreUnit int64) (LinePrice, bool) {
+	if !h.priced && unit == coreUnit {
+		return LinePrice{}, false
+	}
+	return LinePrice{UnitPrice: unit, Source: PriceHook, Ref: h.pricedBy, ListUnitPrice: &coreUnit, NoPromotions: !h.promotionsApply}, true
+}
+
 type cartLineResponse struct { // shared sync-webhook response for the "-ing" events - reject/veto plus the price and quantity overrides the in-process seams offer, and across multiple webhooks the last writer wins as in the plugin handler chain
 	syncveto.Response
 	UnitPriceCents *int64   `json:"unitPriceCents"`
 	Quantity       *float64 `json:"quantity"`
+	// Lets coupons and promotions lower a line whose price this answer set - they don't unless it says so
+	PromotionsApply *bool `json:"promotionsApply"`
 }
 
 func parseCartLineResponse(body []byte) (cartLineResponse, error) {
@@ -26,8 +53,8 @@ func parseCartLineResponse(body []byte) (cartLineResponse, error) {
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return resp, err
 	}
-	if resp.UnitPriceCents != nil && *resp.UnitPriceCents < 0 {
-		return resp, fmt.Errorf("webhook response unitPriceCents must be >= 0, got %d", *resp.UnitPriceCents)
+	if resp.UnitPriceCents != nil && (*resp.UnitPriceCents < 0 || *resp.UnitPriceCents > MaxLinePriceCents) {
+		return resp, fmt.Errorf("webhook response unitPriceCents must be from 0 to %d, got %d", int64(MaxLinePriceCents), *resp.UnitPriceCents)
 	}
 	if resp.Quantity != nil && *resp.Quantity <= 0 {
 		return resp, fmt.Errorf("webhook response quantity must be > 0, got %v", *resp.Quantity)
@@ -109,6 +136,7 @@ type LineAdding struct { // fires BEFORE a simple line is upserted - sync handle
 	Quantity    *float64 // mutable: nil = "use input quantity"
 	// Linked option sources the line also takes, per line unit, so the stock guard can check them
 	StockParts []CartLineStockPart `json:"-"`
+	hookPrice
 }
 
 func (*LineAdding) Type() string                { return EventLineAdding }
@@ -124,9 +152,13 @@ func (e *LineAdding) ApplyWebhookResponse(body []byte) (bool, string, error) { /
 	}
 	if resp.UnitPriceCents != nil {
 		e.UnitPrice = resp.UnitPriceCents
+		e.setPriced()
 	}
 	if resp.Quantity != nil {
 		e.Quantity = resp.Quantity
+	}
+	if resp.PromotionsApply != nil {
+		e.promotionsApply = *resp.PromotionsApply
 	}
 	return false, "", nil
 }
@@ -156,6 +188,8 @@ type BundleAdding struct { // fires BEFORE a bundle line is upserted, like LineA
 	Quantity    *float64 // mutable
 	// The components the bundle takes, per bundle unit, so the stock guard can check them - the bundle itself holds no stock
 	StockParts []CartLineStockPart `json:"-"`
+	// A hook that prices the bundle may let coupons and promotions lower it - they don't unless it says so
+	promotionsApply bool
 }
 
 func (*BundleAdding) Type() string                { return EventBundleAdding }
@@ -175,6 +209,9 @@ func (e *BundleAdding) ApplyWebhookResponse(body []byte) (bool, string, error) {
 	if resp.Quantity != nil {
 		e.Quantity = resp.Quantity
 	}
+	if resp.PromotionsApply != nil {
+		e.promotionsApply = *resp.PromotionsApply
+	}
 	return false, "", nil
 }
 
@@ -193,20 +230,23 @@ type BundleAdded struct { // fires AFTER the upsert, async
 func (*BundleAdded) Type() string                { return EventBundleAdded }
 func (e *BundleAdded) EventChannelID() uuid.UUID { return e.ChannelID }
 
-type LineUpdating struct { // fires BEFORE a line's quantity changes, sync - a plugin can reject or override the new quantity
+type LineUpdating struct { // fires BEFORE a line's quantity changes, sync - a plugin can reject, override the new quantity, or price the line at it
 	CartID     uuid.UUID
 	ChannelID  uuid.UUID
 	CustomerID *uuid.UUID
 	LineID     uuid.UUID
-	ProductSku string              // the line's SKU, so a stock guard can resolve the product; empty when the emitter couldn't hydrate it
-	Quantity   *float64            // mutable; absolute new line quantity
+	ProductSku string   // the line's SKU, so a stock guard can resolve the product; empty when the emitter couldn't hydrate it
+	Quantity   *float64 // mutable; absolute new line quantity
+	// mutable: the unit price the line will have at the new quantity - a hook that sets it prices the line, as on an add
+	UnitPrice  *int64
 	StockParts []CartLineStockPart `json:"-"`
+	hookPrice
 }
 
 func (*LineUpdating) Type() string                { return EventLineUpdating }
 func (e *LineUpdating) EventChannelID() uuid.UUID { return e.ChannelID }
 
-func (e *LineUpdating) ApplyWebhookResponse(body []byte) (bool, string, error) { // response {reject, reason, quantity} - quantity overrides the absolute new line quantity
+func (e *LineUpdating) ApplyWebhookResponse(body []byte) (bool, string, error) { // response {reject, reason, quantity, unitPriceCents, promotionsApply} - quantity overrides the absolute new line quantity, unitPriceCents prices the line at it
 	resp, err := parseCartLineResponse(body)
 	if err != nil {
 		return false, "", err
@@ -216,6 +256,13 @@ func (e *LineUpdating) ApplyWebhookResponse(body []byte) (bool, string, error) {
 	}
 	if resp.Quantity != nil {
 		e.Quantity = resp.Quantity
+	}
+	if resp.UnitPriceCents != nil {
+		e.UnitPrice = resp.UnitPriceCents
+		e.setPriced()
+	}
+	if resp.PromotionsApply != nil {
+		e.promotionsApply = *resp.PromotionsApply
 	}
 	return false, "", nil
 }

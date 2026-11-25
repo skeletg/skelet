@@ -287,13 +287,31 @@ func (c Checkout) ShippingCountry() string {
 
 // A BUNDLE line carries the bundle total with picks in Components, one row per component - simple lines leave it empty
 type CartLine struct {
-	ID            uuid.UUID
-	CartID        uuid.UUID
-	ProductName   string
-	ProductSku    string
-	UnitPrice     int64
-	Quantity      float64
-	PriceOverride bool // an admin set the price on an offer - repricing leaves it alone
+	ID          uuid.UUID
+	CartID      uuid.UUID
+	ProductName string
+	ProductSku  string
+	UnitPrice   int64
+	Quantity    float64
+	// Where the price came from: PriceCatalog, or who set it - a set price holds through repricing (PriceHeld)
+	PriceSource   string
+	PriceSetBy    *uuid.UUID // the admin behind a set price
+	PriceRef      string     // the hook behind one: "plugin:<slug>" or "webhook:<name>"
+	PriceReason   string
+	ListUnitPrice *int64 // the catalog price a set price replaced - nil on a catalog line, and where there was none
+	// A price set on a shopper's own cart is for at most this many and until this moment - nil on an offer's lines,
+	// which the recipient can't change and the offer's own expiry covers
+	PriceMaxQuantity *float64
+	PriceExpiresAt   *time.Time
+	// Coupons and promotions leave the line alone - the default once its price is set, and for whoever set it to lift.
+	// The line still counts toward what the cart holds
+	NoPromotions bool
+	// The line belongs to another - an add-on picked as one of its options, sold as a line of its own. It goes when
+	// its parent goes and holds PerParent of itself for each of the parent, so its quantity is never edited directly.
+	// ParentValueID is the option choice on the parent it stands for
+	ParentLineID  *uuid.UUID
+	PerParent     *float64
+	ParentValueID *uuid.UUID
 	// A cart.bundle.adding hook set the bundle's price - checkout refreshes the components but keeps that price
 	BundleHookPriced bool
 	// Names a bundle line's picks, so one bundle can sit in the cart in several configurations - empty on every other line
@@ -397,6 +415,58 @@ type CartLineComponent struct {
 	CreatedAt         time.Time
 }
 
+// Where a line's price can come from. A catalog line is priced again from the catalog whenever checkout reads the
+// cart; every other source is a price someone set, which holds
+const (
+	PriceCatalog = "catalog"
+	PriceAdmin   = "admin"
+	// A plugin's handler or a sync webhook set it, answering cart.line.adding or cart.line.updating
+	PriceHook = "hook"
+)
+
+// MaxPriceReason is how long the note on a set price may be
+const MaxPriceReason = 200
+
+// PriceHeld is whether the line's price was set rather than read from the catalog, and still stands - repricing
+// leaves it alone. A set price past its expiry no longer holds: the next reprice puts the line back on the catalog's
+func (l CartLine) PriceHeld() bool { return l.PriceHeldAt(time.Now()) }
+
+func (l CartLine) PriceHeldAt(now time.Time) bool {
+	return l.PriceSet() && (l.PriceExpiresAt == nil || now.Before(*l.PriceExpiresAt))
+}
+
+// PriceSet is whether someone set the line's price, lapsed or not
+func (l CartLine) PriceSet() bool { return l.PriceSource != "" && l.PriceSource != PriceCatalog }
+
+// PriceQuantityErr refuses a quantity past what the line's set price is for - the shopper's own limit, never an admin's
+func (l CartLine) PriceQuantityErr(quantity float64) error {
+	if l.PriceHeld() && l.PriceMaxQuantity != nil && quantity > *l.PriceMaxQuantity {
+		return &PriceQuantityError{Max: *l.PriceMaxQuantity}
+	}
+	return nil
+}
+
+// LinePrice is a price put on a line, and what is kept about it
+type LinePrice struct {
+	UnitPrice     int64
+	Source        string
+	SetBy         *uuid.UUID
+	Ref           string
+	Reason        string
+	ListUnitPrice *int64
+	MaxQuantity   *float64
+	ExpiresAt     *time.Time
+	NoPromotions  bool
+}
+
+// linePrice is what a line keeps about its set price, to put on the line it is copied to
+func (l CartLine) linePrice() LinePrice {
+	return LinePrice{
+		UnitPrice: l.UnitPrice, Source: l.PriceSource, SetBy: l.PriceSetBy, Ref: l.PriceRef, Reason: l.PriceReason, ListUnitPrice: l.ListUnitPrice,
+		MaxQuantity: l.PriceMaxQuantity, ExpiresAt: l.PriceExpiresAt, NoPromotions: l.NoPromotions,
+	}
+}
+
 type AddCartLineInput struct {
 	ProductName string
 	ProductSku  string
@@ -412,6 +482,10 @@ type AddBundleLineInput struct {
 	Components  []AddCartLineComponentInput
 	HookPriced  bool
 	ConfigKey   string // the picks' key - a line rewritten in place passes the key it already has
+	// Coupons and promotions leave the line alone - a hook priced it and didn't say they apply
+	NoPromotions bool
+	// Whether a price set on the line this replaces stays - true for everything but a shopper picking again
+	KeepSetPrice bool
 }
 
 type AddConfiguredLineInput struct {
@@ -420,6 +494,21 @@ type AddConfiguredLineInput struct {
 	UnitPrice   int64
 	Quantity    float64
 	Options     []CartLineOption
+	// Whether a price set on the line this replaces stays - true for everything but a shopper picking again
+	KeepSetPrice bool
+	// The picks sold as lines of their own under this one - they replace whatever add-ons the line had
+	AddOns []LineAddOn
+}
+
+// LineAddOn is an option choice sold as its source product's own line, under the line it was picked on
+type LineAddOn struct {
+	ValueID      uuid.UUID // the choice on the parent
+	ProductID    uuid.UUID
+	ProductSku   string
+	ProductName  string
+	UnitPrice    int64
+	PerParent    float64 // how many of it go with each of the parent
+	NoPromotions bool
 }
 
 type SavedItem struct { // parked off the cart via save-for-later - cart-scoped and guest-capable, simple lines only in v1
@@ -480,7 +569,13 @@ type Repository interface {
 	ListCustomerOffers(ctx context.Context, customerID, channelID uuid.UUID) ([]Cart, error)
 	ListExpiredOffers(ctx context.Context, limit int32) ([]Cart, error)
 	MarkOffersExpiredNotified(ctx context.Context, ids []uuid.UUID) ([]Cart, error)
-	SetLinePrice(ctx context.Context, lineID uuid.UUID, unitPrice int64, override bool) (CartLine, error)
+	SetLinePrice(ctx context.Context, lineID uuid.UUID, p LinePrice) (CartLine, error)
+	// The set price of a line is for at least the quantity the line holds now
+	RaiseLinePriceCap(ctx context.Context, lineID uuid.UUID) error
+	// A line holds no more than its set price is for
+	CapLineQuantity(ctx context.Context, lineID uuid.UUID) error
+	// Removes an add-on line and the pick it stood for on its parent
+	RemoveAddOnLine(ctx context.Context, line CartLine) error
 	InsertCustomLine(ctx context.Context, cartID uuid.UUID, in CustomLineInput) (CartLine, error)
 
 	ListCarts(ctx context.Context, f CartFilter) ([]CartListItem, error)
@@ -572,6 +667,9 @@ type CustomLineInput struct {
 	UnitPrice int64
 	Quantity  float64
 	TaxClass  string
+	By        *uuid.UUID // the admin adding it
+	// Whether coupons and promotions may lower it - not unless the admin says so, like any price set by hand
+	PromotionsApply bool
 }
 
 // AssistedCreditWindow is how long an assistant's or agent's help counts toward the order a cart becomes - long enough for a
