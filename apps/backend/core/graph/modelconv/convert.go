@@ -344,8 +344,10 @@ func OrderLineModel(l order.OrderLine) *model.OrderLine {
 		PriceRef:        l.PriceRef,
 		PromotionsApply: !l.NoPromotions,
 		ParentLineID:    idPtr(l.ParentLineID),
-		Options:         options,
-		Components:      components,
+
+		RequiresShipping: !l.NoShipping,
+		Options:          options,
+		Components:       components,
 	}
 }
 

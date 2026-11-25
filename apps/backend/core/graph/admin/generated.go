@@ -3425,24 +3425,25 @@ type ComplexityRoot struct {
 	}
 
 	OrderLine struct {
-		Components      func(childComplexity int) int
-		DiscountAmount  func(childComplexity int) int
-		ID              func(childComplexity int) int
-		IsCustom        func(childComplexity int) int
-		IsGift          func(childComplexity int) int
-		ListUnitPrice   func(childComplexity int) int
-		Name            func(childComplexity int) int
-		Options         func(childComplexity int) int
-		ParentLineID    func(childComplexity int) int
-		PriceReason     func(childComplexity int) int
-		PriceRef        func(childComplexity int) int
-		PriceSource     func(childComplexity int) int
-		PromotionsApply func(childComplexity int) int
-		Quantity        func(childComplexity int) int
-		Sku             func(childComplexity int) int
-		TaxAmount       func(childComplexity int) int
-		TotalPrice      func(childComplexity int) int
-		UnitPrice       func(childComplexity int) int
+		Components       func(childComplexity int) int
+		DiscountAmount   func(childComplexity int) int
+		ID               func(childComplexity int) int
+		IsCustom         func(childComplexity int) int
+		IsGift           func(childComplexity int) int
+		ListUnitPrice    func(childComplexity int) int
+		Name             func(childComplexity int) int
+		Options          func(childComplexity int) int
+		ParentLineID     func(childComplexity int) int
+		PriceReason      func(childComplexity int) int
+		PriceRef         func(childComplexity int) int
+		PriceSource      func(childComplexity int) int
+		PromotionsApply  func(childComplexity int) int
+		Quantity         func(childComplexity int) int
+		RequiresShipping func(childComplexity int) int
+		Sku              func(childComplexity int) int
+		TaxAmount        func(childComplexity int) int
+		TotalPrice       func(childComplexity int) int
+		UnitPrice        func(childComplexity int) int
 	}
 
 	OrderLineComponent struct {
@@ -24297,6 +24298,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OrderLine.Quantity(childComplexity), true
+	case "OrderLine.requiresShipping":
+		if e.ComplexityRoot.OrderLine.RequiresShipping == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLine.RequiresShipping(childComplexity), true
 	case "OrderLine.sku":
 		if e.ComplexityRoot.OrderLine.Sku == nil {
 			break
@@ -41409,6 +41416,9 @@ type OrderLine {
   priceReason:   String!
   # Who set a HOOK price: "plugin:<slug>" or "webhook:<name>" - empty otherwise
   priceRef:      String!
+  # False for a line that is nothing to ship - a service, a download, a custom charge. It doesn't hold the order
+  # back from fulfilled: the order is fulfilled once every line that does ship has
+  requiresShipping: Boolean!
   # Set on an add-on: the line it was bought with, which it reads under. An edit removes and re-quantifies it with
   # that line; it can be removed or refunded on its own
   parentLineId: ID
@@ -50861,6 +50871,8 @@ func (ec *executionContext) childFields_OrderLine(ctx context.Context, field gra
 		return ec.fieldContext_OrderLine_priceReason(ctx, field)
 	case "priceRef":
 		return ec.fieldContext_OrderLine_priceRef(ctx, field)
+	case "requiresShipping":
+		return ec.fieldContext_OrderLine_requiresShipping(ctx, field)
 	case "parentLineId":
 		return ec.fieldContext_OrderLine_parentLineId(ctx, field)
 	case "promotionsApply":
@@ -140480,6 +140492,29 @@ func (ec *executionContext) fieldContext_OrderLine_priceRef(_ context.Context, f
 	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _OrderLine_requiresShipping(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderLine_requiresShipping(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RequiresShipping, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderLine_requiresShipping(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _OrderLine_parentLineId(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -221313,6 +221348,11 @@ func (ec *executionContext) _OrderLine(ctx context.Context, sel ast.SelectionSet
 			}
 		case "priceRef":
 			out.Values[i] = ec._OrderLine_priceRef(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "requiresShipping":
+			out.Values[i] = ec._OrderLine_requiresShipping(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

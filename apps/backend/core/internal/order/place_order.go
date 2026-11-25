@@ -467,6 +467,7 @@ func (s *Service) persistOrderLines(ctx context.Context, orderR Repository, orde
 			costBySKU = m
 		}
 	}
+	noShipping := s.noShipping(ctx, lines)
 	for i, l := range lines {
 		var costCents *int64
 		if c, ok := costBySKU[l.ProductSku]; ok && c > 0 {
@@ -497,6 +498,7 @@ func (s *Service) persistOrderLines(ctx context.Context, orderR Repository, orde
 			ListUnitPrice: l.ListUnitPrice,
 			NoPromotions:  l.NoPromotions,
 			ParentLineID:  l.ParentLineID,
+			NoShipping:    noShipping[i],
 		})
 		if err != nil {
 			return fmt.Errorf("add order line: %w", err)

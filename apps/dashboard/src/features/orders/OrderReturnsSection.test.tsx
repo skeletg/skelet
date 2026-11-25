@@ -127,3 +127,50 @@ describe('a whole-only kit', () => {
     expect(screen.queryByRole('checkbox', { name: 'Return Mug on its own' })).toBeNull()
   })
 })
+
+// What this pins: an add-on bought with an item is suggested when the item comes back, and goes with it only if
+// staff say so - never on its own account
+describe('returning an item that has an add-on', () => {
+  const withPlan = {
+    id: 'o3', channelId: 'c1', status: 'FULFILLED', currencyCode: 'EUR', returns: [],
+    lines: [
+      { id: 'l1', name: 'Rain jacket', sku: 'JACKET', quantity: 2, components: [], parentLineId: null },
+      { id: 'l2', name: 'Protection plan', sku: 'PLAN', quantity: 2, components: [], parentLineId: 'l1' },
+    ],
+  } as never
+  const open = async () => {
+    const sent: Record<string, unknown>[] = []
+    renderDialog(<OrderReturnsSection order={withPlan} />, [
+      meMock(),
+      { request: { query: RequestReturnDocument, variables: recorder(sent) }, result: { data: { requestReturn: { __typename: 'OrderReturn', id: 'r9' } } } },
+      { request: { query: OrderDocument, variables: () => true }, result: { data: { order: null } }, maxUsageCount: 3 },
+      { request: { query: OrdersPagedDocument, variables: () => true }, result: { data: { ordersPaged: { __typename: 'OrderPage', totalCount: 0, items: [] } } }, maxUsageCount: 3 },
+    ])
+    fireEvent.click(await screen.findByRole('button', { name: 'New return' }, SLOW))
+    return sent
+  }
+  const lines = (sent: Record<string, unknown>[]) => (sent[0].input as { lines: unknown[] }).lines
+
+  it('leaves the add-on out unless it is included', async () => {
+    const sent = await open()
+    expect(screen.queryByText(/was bought with this item/)).toBeNull()
+    fireEvent.click(screen.getAllByRole('checkbox')[0])
+    expect(screen.getByText(/Protection plan was bought with this item/)).toBeDefined()
+    fireEvent.click(screen.getByRole('button', { name: 'Open return' }))
+    await vi.waitFor(() => expect(sent).toHaveLength(1), SLOW)
+    expect(lines(sent)).toEqual([{ orderLineId: 'l1', componentId: null, quantity: 2 }])
+  })
+
+  it('includes it at the quantity that goes with the item, on a click', async () => {
+    const sent = await open()
+    fireEvent.click(screen.getAllByRole('checkbox')[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Include 2' }))
+    expect(screen.queryByText(/was bought with this item/)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Open return' }))
+    await vi.waitFor(() => expect(sent).toHaveLength(1), SLOW)
+    expect(lines(sent)).toEqual([
+      { orderLineId: 'l1', componentId: null, quantity: 2 },
+      { orderLineId: 'l2', componentId: null, quantity: 2 },
+    ])
+  })
+})

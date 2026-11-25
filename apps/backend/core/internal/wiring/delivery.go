@@ -12,6 +12,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/delivery"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/remoteprovider"
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 )
@@ -19,6 +20,7 @@ import (
 type deliveryDeps struct {
 	fx.In
 	Delivery  *delivery.Service
+	Order     *order.Service
 	Shipping  *shipping.Service
 	Inventory *inventory.Service
 	Provider  *remoteprovider.Service
@@ -29,6 +31,7 @@ type deliveryDeps struct {
 func wireDelivery(d deliveryDeps) {
 	d.Delivery.SetCarrierKinds(carrierKinds{d.Shipping})
 	d.Delivery.SetRemoteProviders(d.Provider, d.Invoker)
+	d.Order.SetShippingNeedLookup(orderShippingNeeds{d.Delivery}) // a line that is nothing to ship doesn't hold its order back from fulfilled
 	registerInventoryPointSource(d.Inventory)
 }
 
@@ -156,4 +159,19 @@ func pickupHoursSummary(raw json.RawMessage, timezone string) string {
 		return ""
 	}
 	return strings.Join(rows, " · ") + " (" + timezone + ")"
+}
+
+// The product types' "requires shipping" answer, by SKU, for the order's lines
+type orderShippingNeeds struct{ delivery *delivery.Service }
+
+func (n orderShippingNeeds) SKUsRequireShipping(ctx context.Context, skus []string) (map[string]bool, error) {
+	profiles, err := n.delivery.LineProfiles(ctx, skus)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]bool, len(profiles))
+	for sku, p := range profiles {
+		out[sku] = p.RequiresShipping
+	}
+	return out, nil
 }

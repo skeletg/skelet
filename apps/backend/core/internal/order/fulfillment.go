@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
@@ -57,7 +59,8 @@ func (s *Service) CreateFulfillment(ctx context.Context, in CreateFulfillmentInp
 	}
 
 	// Validate quantities against the unshipped remainder and learn whether this completes the order - pure, so it's unit-tested
-	reqByLine, fully, err := planFulfillment(ordered, shipped, in.Lines)
+	mustShip := linesToShip(o.Lines)
+	reqByLine, fully, err := planFulfillment(ordered, shipped, in.Lines, mustShip)
 	if err != nil {
 		return Order{}, err
 	}
@@ -92,7 +95,7 @@ func (s *Service) CreateFulfillment(ctx context.Context, in CreateFulfillmentInp
 		if err != nil {
 			return err
 		}
-		if reqByLine, fully, err = planFulfillment(ordered, lockedShipped, in.Lines); err != nil {
+		if reqByLine, fully, err = planFulfillment(ordered, lockedShipped, in.Lines, mustShip); err != nil {
 			return err
 		}
 		newStatus = OrderStatusPartiallyFulfilled
@@ -181,7 +184,47 @@ func (s *Service) ShippedByOrderLine(ctx context.Context, orderID uuid.UUID) (ma
 
 // Validates a shipment against ordered and already-shipped quantities, returning the deduped per-line amounts and whether this completes every line - pure, so the guards and fully-shipped derivation are unit-testable
 // `shipped` excludes cancelled shipments, which is the caller's job
-func planFulfillment(ordered, shipped map[uuid.UUID]float64, lines []FulfillmentLineInput) (reqByLine map[uuid.UUID]float64, fully bool, err error) {
+// The lines that have to ship before the order is fulfilled. A line that is nothing to ship - a service bought with
+// an item, a custom charge - isn't one of them, though a fulfillment may still list it. An order with nothing to ship
+// at all answers nil: every line then counts, as it always did
+func linesToShip(lines []OrderLine) map[uuid.UUID]bool {
+	out := make(map[uuid.UUID]bool, len(lines))
+	for _, l := range lines {
+		if !l.NoShipping {
+			out[l.ID] = true
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// Which of an order's lines are nothing to ship, in the lines' order. A custom line never is; a product the lookup
+// doesn't name, or can't be asked about, ships
+func (s *Service) noShipping(ctx context.Context, lines []cart.CartLine) []bool {
+	out := make([]bool, len(lines))
+	var ships map[string]bool
+	if s.shippingNeeds != nil {
+		skus := make([]string, 0, len(lines))
+		for _, l := range lines {
+			if !l.IsCustom {
+				skus = append(skus, l.ProductSku)
+			}
+		}
+		var err error
+		if ships, err = s.shippingNeeds.SKUsRequireShipping(ctx, skus); err != nil {
+			slog.WarnContext(ctx, "order: which lines ship", "err", err)
+		}
+	}
+	for i, l := range lines {
+		needs, known := ships[l.ProductSku]
+		out[i] = l.IsCustom || (known && !needs)
+	}
+	return out
+}
+
+func planFulfillment(ordered, shipped map[uuid.UUID]float64, lines []FulfillmentLineInput, mustShip map[uuid.UUID]bool) (reqByLine map[uuid.UUID]float64, fully bool, err error) {
 	reqByLine = make(map[uuid.UUID]float64, len(lines))
 	for _, fl := range lines {
 		ord, ok := ordered[fl.OrderLineID]
@@ -196,9 +239,12 @@ func planFulfillment(ordered, shipped map[uuid.UUID]float64, lines []Fulfillment
 			return nil, false, apperr.New("FULFILLMENT_OVERSHIP", apperr.ClassConflict, "fulfillment exceeds the unshipped quantity for a line")
 		}
 	}
-	// Fully shipped iff every ordered line is now covered
+	// Fully shipped iff every line that has to ship is now covered
 	fully = true
 	for lineID, ord := range ordered {
+		if mustShip != nil && !mustShip[lineID] {
+			continue
+		}
 		if shipped[lineID]+reqByLine[lineID] < ord {
 			fully = false
 			break

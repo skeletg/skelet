@@ -148,7 +148,10 @@ type OrderLine struct {
 	// The line was bought as an add-on to another - a protection plan with the item it covers. It reads under that
 	// line, an edit removes and re-quantifies it with it, and it can be refunded on its own
 	ParentLineID *uuid.UUID
-	Components   []OrderLineComponent
+	// The line is nothing to ship - a service, a protection plan, a download, a custom charge - as its product type
+	// said when the order was placed. It doesn't hold the order back from fulfilled
+	NoShipping bool
+	Components []OrderLineComponent
 	// What the line took stock from besides or instead of itself, per line unit, snapshotted at placement
 	StockParts []OrderLineStockPart
 	Options    []OrderLineOption

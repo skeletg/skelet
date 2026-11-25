@@ -236,6 +236,7 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 				Quantity:    a.qty,
 				TotalPrice:  money.LineTotal(a.unit, a.qty),
 				Position:    position,
+				NoShipping:  s.noShipping(ctx, []cart.CartLine{{ProductSku: a.sku}})[0],
 			})
 			if err != nil {
 				return err

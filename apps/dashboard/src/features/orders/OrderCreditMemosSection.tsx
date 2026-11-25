@@ -1,4 +1,4 @@
-import { useState, useId } from 'react'
+import { Fragment, useState, useId } from 'react'
 import { useLazyQuery, useMutation, useQuery } from '@apollo/client/react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -25,6 +25,8 @@ import {
 import { DetailPageSection } from '@/components/layout/detail-page'
 import { SectionNote } from './SectionNote'
 import { currencyDecimals, formatCents, toMinor } from '@/lib/format'
+import { cn } from '@/lib/utils'
+import { addOnQuantity, addOnsOf } from './addOns'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import {
   CreditMemosDocument,
@@ -259,8 +261,16 @@ export function OrderCreditMemosSection({ order }: { order: OrderData }) {
                   const left = remaining.get(l.id) ?? 0
                   if (left <= 0) return null
                   const draft = lines[l.id] ?? { checked: false, quantity: '' }
+                  // Add-ons bought with this line that could still be credited and aren't ticked - offered, never assumed
+                  const suggested = draft.checked
+                    ? addOnsOf(order.lines, l.id)
+                        .filter((a) => !lines[a.id]?.checked)
+                        .map((a) => ({ line: a, quantity: Math.min(addOnQuantity(a, l, Number(draft.quantity)), remaining.get(a.id) ?? 0) }))
+                        .filter((s) => s.quantity > 0)
+                    : []
                   return (
-                    <div key={l.id} className="flex items-center gap-3 p-2">
+                    <Fragment key={l.id}>
+                    <div className={cn('flex items-center gap-3 p-2', l.parentLineId && 'pl-8')}>
                       <Checkbox
                         checked={draft.checked}
                         onCheckedChange={(checked) =>
@@ -292,6 +302,20 @@ export function OrderCreditMemosSection({ order }: { order: OrderData }) {
                         }
                       />
                     </div>
+                    {suggested.map((s) => (
+                      <div key={`suggest-${s.line.id}`} className="flex items-center gap-3 bg-info-soft p-2 pl-8 text-sm">
+                        <span className="min-w-0 flex-1">{s.line.name} was bought with this item. It isn't refunded unless you include it.</span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setLines((prev) => ({ ...prev, [s.line.id]: { checked: true, quantity: String(s.quantity) } }))}
+                        >
+                          Include {s.quantity}
+                        </Button>
+                      </div>
+                    ))}
+                    </Fragment>
                   )
                 })}
               </div>

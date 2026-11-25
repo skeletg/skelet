@@ -66,11 +66,12 @@ type Service struct {
 	stages      func(ctx context.Context, channelID uuid.UUID) []Stage
 	allStages   func() []Stage
 	// Baseline calculators - each runs only when the matching OrderPlacing pointer is still nil after the sync chain, i.e. no plugin took the seam - Nil means no baseline
-	tax        *tax.Service
-	shipping   *shippingpkg.Service
-	promotion  *promotion.Service
-	taxClasses ProductTaxClassLookup
-	costs      ProductCostLookup
+	tax           *tax.Service
+	shipping      *shippingpkg.Service
+	promotion     *promotion.Service
+	taxClasses    ProductTaxClassLookup
+	shippingNeeds ShippingNeedLookup
+	costs         ProductCostLookup
 	// Computes order tax via an external endpoint before core (remote_tax.go)
 	remoteTax RemoteTaxSource
 	fees      FeeSource
@@ -179,6 +180,11 @@ type ProductTaxClassLookup interface {
 	ProductTaxClassesBySKUs(ctx context.Context, skus []string) (map[string]string, error)
 }
 
+// Says which products are something to ship, by SKU. A SKU it doesn't name ships
+type ShippingNeedLookup interface {
+	SKUsRequireShipping(ctx context.Context, skus []string) (map[string]bool, error)
+}
+
 // Batch-resolves SKUs to unit COGS for the margin snapshot - nil or absent means a NULL cost
 type ProductCostLookup interface {
 	ProductCostsBySKUs(ctx context.Context, skus []string) (map[string]int64, error)
@@ -246,6 +252,7 @@ func (s *Service) SetProductPricer(p ProductPricer)                 { s.pricer =
 func (s *Service) SetInventoryEditor(e InventoryEditor)             { s.inventoryEditor = e }
 func (s *Service) SetGiftStockChecker(c GiftStockChecker)           { s.giftStock = c }
 func (s *Service) SetProductTaxClassLookup(l ProductTaxClassLookup) { s.taxClasses = l }
+func (s *Service) SetShippingNeedLookup(l ShippingNeedLookup)       { s.shippingNeeds = l }
 func (s *Service) SetProductCostLookup(l ProductCostLookup)         { s.costs = l }
 func (s *Service) SetKitComponentLookup(l KitComponentLookup)       { s.kits = l }
 func (s *Service) SetCountryValidator(v CountryValidator)           { s.countries = v }

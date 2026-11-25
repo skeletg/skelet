@@ -484,7 +484,7 @@ export function OrderDetail() {
                         {shippedByLine.get(l.id) ? (
                           qtyLabel(shippedByLine.get(l.id) ?? 0, l.quantity)
                         ) : (
-                          <span className="text-muted-foreground">-</span>
+                          <span className="text-muted-foreground">{l.requiresShipping ? '-' : 'not shipped'}</span>
                         )}
                       </TableCell>
                     )}

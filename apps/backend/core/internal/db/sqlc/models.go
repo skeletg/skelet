@@ -1911,30 +1911,31 @@ type OrderFulfillmentLine struct {
 }
 
 type OrderLine struct {
-	ID              uuid.UUID     `json:"id"`
-	OrderID         uuid.UUID     `json:"order_id"`
-	ProductName     string        `json:"product_name"`
-	ProductSku      string        `json:"product_sku"`
-	UnitPrice       int64         `json:"unit_price"`
-	Quantity        float64       `json:"quantity"`
-	TotalPrice      int64         `json:"total_price"`
-	CreatedAt       time.Time     `json:"created_at"`
-	DiscountCents   int64         `json:"discount_cents"`
-	IsGift          bool          `json:"is_gift"`
-	OfferedByRuleID uuid.NullUUID `json:"offered_by_rule_id"`
-	RemovedAt       sql.NullTime  `json:"removed_at"`
-	CostCents       sql.NullInt64 `json:"cost_cents"`
-	IsCustom        bool          `json:"is_custom"`
-	TaxClass        string        `json:"tax_class"`
-	TaxCents        int64         `json:"tax_cents"`
-	Position        int32         `json:"position"`
-	PriceSource     string        `json:"price_source"`
-	PriceSetBy      uuid.NullUUID `json:"price_set_by"`
-	PriceReason     string        `json:"price_reason"`
-	ListUnitPrice   sql.NullInt64 `json:"list_unit_price"`
-	NoPromotions    bool          `json:"no_promotions"`
-	PriceRef        string        `json:"price_ref"`
-	ParentLineID    uuid.NullUUID `json:"parent_line_id"`
+	ID               uuid.UUID     `json:"id"`
+	OrderID          uuid.UUID     `json:"order_id"`
+	ProductName      string        `json:"product_name"`
+	ProductSku       string        `json:"product_sku"`
+	UnitPrice        int64         `json:"unit_price"`
+	Quantity         float64       `json:"quantity"`
+	TotalPrice       int64         `json:"total_price"`
+	CreatedAt        time.Time     `json:"created_at"`
+	DiscountCents    int64         `json:"discount_cents"`
+	IsGift           bool          `json:"is_gift"`
+	OfferedByRuleID  uuid.NullUUID `json:"offered_by_rule_id"`
+	RemovedAt        sql.NullTime  `json:"removed_at"`
+	CostCents        sql.NullInt64 `json:"cost_cents"`
+	IsCustom         bool          `json:"is_custom"`
+	TaxClass         string        `json:"tax_class"`
+	TaxCents         int64         `json:"tax_cents"`
+	Position         int32         `json:"position"`
+	PriceSource      string        `json:"price_source"`
+	PriceSetBy       uuid.NullUUID `json:"price_set_by"`
+	PriceReason      string        `json:"price_reason"`
+	ListUnitPrice    sql.NullInt64 `json:"list_unit_price"`
+	NoPromotions     bool          `json:"no_promotions"`
+	PriceRef         string        `json:"price_ref"`
+	ParentLineID     uuid.NullUUID `json:"parent_line_id"`
+	RequiresShipping bool          `json:"requires_shipping"`
 }
 
 type OrderLineComponent struct {

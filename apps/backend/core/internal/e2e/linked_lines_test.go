@@ -157,3 +157,60 @@ func TestAnAddOnIsItsOwnLineFromCartToRefund(t *testing.T) {
 	}
 	h.Settle(t)
 }
+
+// Scenario: the jacket ships, the protection plan bought with it is a service - nothing to ship. Shipping the jacket
+// alone fulfils the order. The plan's line says it doesn't ship, so it never held the order at partially fulfilled
+func TestAServiceAddOnDoesNotHoldTheOrderBackFromFulfilled(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 20, 10_000)
+	planSKU := h.splitProduct(t, f, true, nil, 1_500)
+	var planID uuid.UUID
+	if err := h.D.DB.QueryRowContext(h.Ctx, `SELECT id FROM catalog_products WHERE sku = $1`, planSKU).Scan(&planID); err != nil {
+		t.Fatalf("find the plan: %v", err)
+	}
+	opt, err := h.D.Catalog.AddProductOption(h.Ctx, catalog.AddProductOptionInput{
+		ProductID: f.Product.ID, InputType: catalog.OptionInputDropdown, Locale: "en", Title: "Protection",
+	})
+	if err != nil {
+		t.Fatalf("add option: %v", err)
+	}
+	val, err := h.D.Catalog.AddProductOptionValue(h.Ctx, catalog.AddProductOptionValueInput{
+		OptionID: opt.ID, Locale: "en", Title: "Two years", PriceType: catalog.OptionPriceFixed, SourceProductID: &planID, Quantity: 1, SoldAsLine: true,
+	})
+	if err != nil {
+		t.Fatalf("add the plan as a choice: %v", err)
+	}
+	c, err := h.D.Cart.CreateGuestCart(h.Ctx, f.Channel.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.D.Cart.AddConfiguredToCart(h.Ctx, c.ID, nil, cart.AddConfiguredToCartInput{
+		ProductSku: f.Product.SKU, Quantity: 1, Options: []cart.CartLineOptionInput{{OptionID: opt.ID, ValueIDs: []uuid.UUID{val.ID}}},
+	}); err != nil {
+		t.Fatalf("add the jacket with its plan: %v", err)
+	}
+	o, err := h.TryPlace(t, f.Channel, c.ID)
+	if err != nil {
+		t.Fatalf("place: %v", err)
+	}
+	h.Settle(t)
+	lines := h.OrderLines(t, o.ID)
+	if len(lines) != 2 || !lines[0].RequiresShipping || lines[1].RequiresShipping {
+		t.Fatalf("order lines %+v, want the jacket to ship and the plan not to", lines)
+	}
+	for _, status := range []string{"confirmed", "processing"} {
+		if _, err := h.D.Order.UpdateStatus(h.Ctx, o.ID, status); err != nil {
+			t.Fatalf("advance to %s: %v", status, err)
+		}
+	}
+	shipped, err := h.D.Order.CreateFulfillment(h.Ctx, order.CreateFulfillmentInput{
+		OrderID: o.ID, Lines: []order.FulfillmentLineInput{{OrderLineID: lines[0].ID, Quantity: 1}},
+	})
+	if err != nil {
+		t.Fatalf("ship the jacket: %v", err)
+	}
+	if shipped.Status != order.OrderStatusFulfilled {
+		t.Errorf("after shipping the jacket the order is %q, want fulfilled - the plan is nothing to ship", shipped.Status)
+	}
+	h.Settle(t)
+}

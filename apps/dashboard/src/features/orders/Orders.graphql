@@ -109,6 +109,7 @@ query Order($id: ID!) {
       priceReason
       promotionsApply
       parentLineId
+      requiresShipping
       isGift
       components {
         id

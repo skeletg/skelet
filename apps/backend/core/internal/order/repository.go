@@ -929,6 +929,8 @@ func (r *postgresRepository) AddOrderLine(ctx context.Context, line OrderLine) (
 		ListUnitPrice: sqlnull.Int64(line.ListUnitPrice),
 		NoPromotions:  line.NoPromotions,
 		ParentLineID:  sqlnull.UUID(line.ParentLineID),
+
+		RequiresShipping: !line.NoShipping,
 	})
 	if err != nil {
 		return OrderLine{}, fmt.Errorf("add order line: %w", err)
@@ -1421,6 +1423,7 @@ func toOrderLine(row db.OrderLine) OrderLine {
 		ListUnitPrice: sqlnull.Int64Ptr(row.ListUnitPrice),
 		NoPromotions:  row.NoPromotions,
 		ParentLineID:  sqlnull.UUIDPtr(row.ParentLineID),
+		NoShipping:    !row.RequiresShipping,
 		CreatedAt:     row.CreatedAt,
 	}
 }

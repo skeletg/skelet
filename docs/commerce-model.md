@@ -243,6 +243,19 @@ choice says they apply (`line_promotions`). The same product bought on its own
 is a separate line. Lines list with each add-on right after its item
 (`cart.underParents`, and `order_lines.position`).
 
+**Lines that don't ship**: an order line records whether it is something to
+ship (`order_lines.requires_shipping`), read from its product type when the
+order is placed or the line is added - a custom line never is. An order is
+`fulfilled` once every line that ships has shipped; a service or a download
+bought beside the goods doesn't hold it at `partially_fulfilled`. A fulfillment
+may still list such a line, and an order with nothing to ship at all is
+fulfilled the old way, when every line is covered.
+
+**Returning an item with an add-on**: the add-on is its own order line, so it
+is never returned or refunded as a side effect. When staff tick an item in the
+return or credit memo dialog, each of its add-ons not already ticked is offered
+with the quantity that goes with what is coming back, one click to include.
+
 **Lines promotions leave alone**: `cart_lines.no_promotions` (and the order
 line's) marks a line no coupon or promotion may lower - the default once a price
 is set by hand, lifted per line by whoever set it. The promotion engine sees

@@ -7931,6 +7931,7 @@ export type OrderLine = {
   priceSource: LinePriceSource;
   promotionsApply: Scalars['Boolean']['output'];
   quantity: Scalars['Float']['output'];
+  requiresShipping: Scalars['Boolean']['output'];
   sku: Scalars['String']['output'];
   taxAmount: Scalars['Int']['output'];
   totalPrice: Scalars['Int']['output'];

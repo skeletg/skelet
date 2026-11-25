@@ -3871,24 +3871,25 @@ type OrderFee struct {
 }
 
 type OrderLine struct {
-	ID              string                `json:"id"`
-	Name            string                `json:"name"`
-	Sku             string                `json:"sku"`
-	UnitPrice       int32                 `json:"unitPrice"`
-	Quantity        float64               `json:"quantity"`
-	TotalPrice      int32                 `json:"totalPrice"`
-	IsGift          bool                  `json:"isGift"`
-	IsCustom        bool                  `json:"isCustom"`
-	DiscountAmount  int32                 `json:"discountAmount"`
-	TaxAmount       int32                 `json:"taxAmount"`
-	PriceSource     LinePriceSource       `json:"priceSource"`
-	ListUnitPrice   *int32                `json:"listUnitPrice,omitempty"`
-	PriceReason     string                `json:"priceReason"`
-	PriceRef        string                `json:"priceRef"`
-	ParentLineID    *string               `json:"parentLineId,omitempty"`
-	PromotionsApply bool                  `json:"promotionsApply"`
-	Options         []*OrderLineOption    `json:"options"`
-	Components      []*OrderLineComponent `json:"components"`
+	ID               string                `json:"id"`
+	Name             string                `json:"name"`
+	Sku              string                `json:"sku"`
+	UnitPrice        int32                 `json:"unitPrice"`
+	Quantity         float64               `json:"quantity"`
+	TotalPrice       int32                 `json:"totalPrice"`
+	IsGift           bool                  `json:"isGift"`
+	IsCustom         bool                  `json:"isCustom"`
+	DiscountAmount   int32                 `json:"discountAmount"`
+	TaxAmount        int32                 `json:"taxAmount"`
+	PriceSource      LinePriceSource       `json:"priceSource"`
+	ListUnitPrice    *int32                `json:"listUnitPrice,omitempty"`
+	PriceReason      string                `json:"priceReason"`
+	PriceRef         string                `json:"priceRef"`
+	RequiresShipping bool                  `json:"requiresShipping"`
+	ParentLineID     *string               `json:"parentLineId,omitempty"`
+	PromotionsApply  bool                  `json:"promotionsApply"`
+	Options          []*OrderLineOption    `json:"options"`
+	Components       []*OrderLineComponent `json:"components"`
 }
 
 type OrderLineComponent struct {
