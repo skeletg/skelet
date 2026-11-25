@@ -158,6 +158,8 @@ type AddProductOptionValueInput struct {
 	Quantity        *float64                `json:"quantity,omitempty"`
 	ForcedLineQty   *float64                `json:"forcedLineQty,omitempty"`
 	SourceProductID *string                 `json:"sourceProductId,omitempty"`
+	SoldAsLine      *bool                   `json:"soldAsLine,omitempty"`
+	LinePromotions  *bool                   `json:"linePromotions,omitempty"`
 	Locale          string                  `json:"locale"`
 	Title           string                  `json:"title"`
 }
@@ -322,6 +324,7 @@ type AdminCartLine struct {
 	PriceRef         string                    `json:"priceRef"`
 	PriceMaxQuantity *float64                  `json:"priceMaxQuantity,omitempty"`
 	PriceExpiresAt   *time.Time                `json:"priceExpiresAt,omitempty"`
+	ParentLineID     *string                   `json:"parentLineId,omitempty"`
 	PromotionsApply  bool                      `json:"promotionsApply"`
 	IsCustom         bool                      `json:"isCustom"`
 	TaxClass         string                    `json:"taxClass"`
@@ -3882,6 +3885,7 @@ type OrderLine struct {
 	ListUnitPrice   *int32                `json:"listUnitPrice,omitempty"`
 	PriceReason     string                `json:"priceReason"`
 	PriceRef        string                `json:"priceRef"`
+	ParentLineID    *string               `json:"parentLineId,omitempty"`
 	PromotionsApply bool                  `json:"promotionsApply"`
 	Options         []*OrderLineOption    `json:"options"`
 	Components      []*OrderLineComponent `json:"components"`
@@ -4302,20 +4306,22 @@ type ProductOptionRuleLabelInput struct {
 }
 
 type ProductOptionValue struct {
-	ID            string                       `json:"id"`
-	SortOrder     int32                        `json:"sortOrder"`
-	PriceValue    int32                        `json:"priceValue"`
-	PriceType     ProductOptionPriceType       `json:"priceType"`
-	IsDefault     bool                         `json:"isDefault"`
-	ForcedLineQty *float64                     `json:"forcedLineQty,omitempty"`
-	Quantity      float64                      `json:"quantity"`
-	Title         string                       `json:"title"`
-	Content       []*ProductOptionValueContent `json:"content"`
-	SourceProduct *Product                     `json:"sourceProduct,omitempty"`
-	ChannelPrices []*OptionChannelPrice        `json:"channelPrices"`
-	CreatedAt     time.Time                    `json:"createdAt"`
-	UpdatedAt     time.Time                    `json:"updatedAt"`
-	Image         *OptionImage                 `json:"image,omitempty"`
+	ID             string                       `json:"id"`
+	SortOrder      int32                        `json:"sortOrder"`
+	PriceValue     int32                        `json:"priceValue"`
+	PriceType      ProductOptionPriceType       `json:"priceType"`
+	IsDefault      bool                         `json:"isDefault"`
+	ForcedLineQty  *float64                     `json:"forcedLineQty,omitempty"`
+	Quantity       float64                      `json:"quantity"`
+	Title          string                       `json:"title"`
+	Content        []*ProductOptionValueContent `json:"content"`
+	SoldAsLine     bool                         `json:"soldAsLine"`
+	LinePromotions bool                         `json:"linePromotions"`
+	SourceProduct  *Product                     `json:"sourceProduct,omitempty"`
+	ChannelPrices  []*OptionChannelPrice        `json:"channelPrices"`
+	CreatedAt      time.Time                    `json:"createdAt"`
+	UpdatedAt      time.Time                    `json:"updatedAt"`
+	Image          *OptionImage                 `json:"image,omitempty"`
 }
 
 type ProductOptionValueContent struct {
@@ -6355,6 +6361,8 @@ type UpdateProductOptionValueInput struct {
 	Quantity        *float64                `json:"quantity,omitempty"`
 	ForcedLineQty   *float64                `json:"forcedLineQty,omitempty"`
 	SourceProductID *string                 `json:"sourceProductId,omitempty"`
+	SoldAsLine      *bool                   `json:"soldAsLine,omitempty"`
+	LinePromotions  *bool                   `json:"linePromotions,omitempty"`
 }
 
 type UpdateProductTypeInput struct {

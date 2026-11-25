@@ -159,7 +159,12 @@ type ProductOptionValue struct {
 	// Picking this value forces the cart LINE quantity ("Set of 4" -> 4) and locks it against manual edits, but only while the owning option is visible
 	ForcedLineQty *float64
 	// A media-library picture the storefront shows the choice as - nil for none
-	ImageAssetID    *uuid.UUID
+	ImageAssetID *uuid.UUID
+	// The choice is sold as its source product's own cart and order line, tied to the line it was picked on - an
+	// add-on with its own SKU, tax class and price, rather than a surcharge folded into the item's. Needs a source product
+	SoldAsLine bool
+	// Coupons and promotions may lower that line - they leave an add-on alone otherwise
+	LinePromotions  bool
 	Title           string // resolved
 	AllContent      []ProductOptionValueContent
 	SourceProductID *uuid.UUID
@@ -240,6 +245,8 @@ type AddProductOptionValueInput struct {
 	SourceProductID *uuid.UUID
 	ForcedLineQty   *float64
 	ImageAssetID    *uuid.UUID
+	SoldAsLine      bool
+	LinePromotions  bool
 	Locale          string
 	Title           string
 }
@@ -257,6 +264,9 @@ type UpdateProductOptionValueInput struct {
 	ForcedLineQty *float64
 	// Pointer-to-uuid sets, pointer-to-zero clears, nil is no change
 	ImageAssetID *uuid.UUID
+	// nil is no change - a choice whose source product is unlinked stops being sold as a line whatever this says
+	SoldAsLine     *bool
+	LinePromotions *bool
 }
 
 type UpsertProductOptionValueContentInput struct {
@@ -282,6 +292,7 @@ var (
 	ErrOptionValuePercentOnLinked     = errors.New("PERCENT price type is not allowed on values linked to a source product")
 	ErrOptionPriceIncomplete          = errors.New("price_value and price_type must be set together")
 	ErrInvalidForcedLineQty           = errors.New("forced line quantity must be a whole number between 1 and the line cap")
+	ErrSoldAsLineNeedsProduct         = errors.New("only a choice backed by a product can be sold as its own line")
 	ErrOptionHasNoContent             = errors.New("product option has no content rows")
 	ErrOptionChannelPriceNotFixed     = errors.New("only a FIXED surcharge takes a per-channel amount - a PERCENT one already follows the channel price")
 	ErrOptionChannelPriceRange        = errors.New("per-channel surcharge is out of range")

@@ -446,6 +446,11 @@ type CartLine {
   priceMaxQuantity: Float
   # False when coupons and promotions don't lower this line - say so, or a shopper wonders why their code skipped it
   promotionsApply:  Boolean!
+  # Set on an add-on - a protection plan, an installation - picked as one of another line's options and sold as a
+  # line of its own. Show it under that line, without a quantity control: its quantity follows the parent's, and
+  # updateCartLine on it is refused with CART_LINE_FOLLOWS_PARENT. Removing it takes the pick off the parent, unless
+  # the option needs a choice (CART_ADD_ON_REQUIRED). Lines come ordered with each add-on right after its parent
+  parentLineId:     ID
 }
 
 # Snapshotted custom-option pick on a cart line. Option/value IDs reference the product's option structure at add time; priceDelta is the cents this pick added to the line's unit price (already included in unitPrice).

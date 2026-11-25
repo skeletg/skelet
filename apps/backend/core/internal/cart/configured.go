@@ -54,6 +54,7 @@ func (s *Service) addConfiguredLine(ctx context.Context, cart Cart, input AddCon
 	if err != nil {
 		return Cart{}, err
 	}
+	addOns := lineAddOns(res, options)
 	quantity := input.Quantity // a picked value may force this ("Set of 4" -> 4), and it replaces the request BEFORE tier pricing so breaks apply to what's actually charged
 	if forcedQty != nil {
 		if err := validQuantity(*forcedQty); err != nil {
@@ -84,7 +85,7 @@ func (s *Service) addConfiguredLine(ctx context.Context, cart Cart, input AddCon
 			ProductName: name,
 			UnitPrice:   &unitPrice,
 			Quantity:    &quantity,
-			StockParts:  OptionStockParts(options),
+			StockParts:  append(OptionStockParts(options), addOnStockParts(addOns)...),
 		}
 		if err := s.bus.PublishSync(ctx, adding); err != nil {
 			return Cart{}, fmt.Errorf("add to cart rejected: %w", err)
@@ -104,6 +105,7 @@ func (s *Service) addConfiguredLine(ctx context.Context, cart Cart, input AddCon
 			Quantity:     quantity,
 			Options:      options,
 			KeepSetPrice: keepSetPrice,
+			AddOns:       addOns,
 		})
 		if err != nil {
 			return err

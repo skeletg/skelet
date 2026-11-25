@@ -30,7 +30,7 @@ func (s *Service) SaveForLater(ctx context.Context, cartID, lineID uuid.UUID, ca
 	if err != nil {
 		return Cart{}, err
 	}
-	if len(line.Components) > 0 || len(line.Options) > 0 {
+	if len(line.Components) > 0 || len(line.Options) > 0 || line.IsAddOn() {
 		return Cart{}, ErrLineNotSaveable
 	}
 	if err := s.inTx(ctx, func(r Repository) error {

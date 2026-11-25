@@ -35,6 +35,7 @@ import { LoadError } from '@/shared/errors/LoadError'
 import { EntityChannelForbidden, EntityWrongChannel } from '@/shared/errors/ChannelScopeError'
 import { isForbiddenError } from '@/shared/errors/isForbiddenError'
 import { useConfigScope } from '@/lib/config-scope'
+import { cn } from '@/lib/utils'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { priceRefLabel } from '@/shared/priceRef'
 import type { OrderCheckoutFieldType, OrderStatus } from '@/graphql/schema.types'
@@ -432,7 +433,8 @@ export function OrderDetail() {
               <TableBody>
                 {order.lines.map((l) => (
                   <TableRow key={l.id}>
-                    <TableCell className="font-medium">
+                    <TableCell className={cn('font-medium', l.parentLineId && 'pl-8')}>
+                      {l.parentLineId && <span className="mr-1 text-muted-foreground" aria-label="Add-on to the line above">↳</span>}
                       {l.name}
                       {l.isGift && (
                         <Badge variant="outline" className="ml-2 text-[10px] uppercase tracking-wider">

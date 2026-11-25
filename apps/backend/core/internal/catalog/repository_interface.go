@@ -334,7 +334,7 @@ type OptionRepository interface {
 	ListProductOptionsByProductID(ctx context.Context, productID uuid.UUID) ([]ProductOption, error)
 	ListProductOptionsByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]ProductOption, error)
 	UpdateProductOption(ctx context.Context, id uuid.UUID, params UpdateProductOptionFields) (ProductOption, error)
-	UpdateProductOptionValue(ctx context.Context, id uuid.UUID, sortOrder, priceValue int32, priceType ProductOptionPriceType, isDefault bool, sourceProductID *uuid.UUID, quantity float64, forcedLineQty *float64, imageAssetID *uuid.UUID) (ProductOptionValue, error)
+	UpdateProductOptionValue(ctx context.Context, id uuid.UUID, sortOrder, priceValue int32, priceType ProductOptionPriceType, isDefault bool, sourceProductID *uuid.UUID, quantity float64, forcedLineQty *float64, imageAssetID *uuid.UUID, soldAsLine, linePromotions bool) (ProductOptionValue, error)
 	MediaAssetReady(ctx context.Context, id uuid.UUID) (bool, error)
 	UpsertProductOptionContent(ctx context.Context, input UpsertProductOptionContentInput) (ProductOptionContent, error)
 	UpsertProductOptionValueContent(ctx context.Context, input UpsertProductOptionValueContentInput) (ProductOptionValueContent, error)

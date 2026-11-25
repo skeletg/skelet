@@ -459,6 +459,7 @@ type ComplexityRoot struct {
 		ListUnitPrice     func(childComplexity int) int
 		Name              func(childComplexity int) int
 		Options           func(childComplexity int) int
+		ParentLineID      func(childComplexity int) int
 		PriceMaxQuantity  func(childComplexity int) int
 		PromotionsApply   func(childComplexity int) int
 		Quantity          func(childComplexity int) int
@@ -1047,15 +1048,16 @@ type ComplexityRoot struct {
 	}
 
 	OrderLine struct {
-		Components func(childComplexity int) int
-		ID         func(childComplexity int) int
-		IsGift     func(childComplexity int) int
-		Name       func(childComplexity int) int
-		Options    func(childComplexity int) int
-		Quantity   func(childComplexity int) int
-		Sku        func(childComplexity int) int
-		TotalPrice func(childComplexity int) int
-		UnitPrice  func(childComplexity int) int
+		Components   func(childComplexity int) int
+		ID           func(childComplexity int) int
+		IsGift       func(childComplexity int) int
+		Name         func(childComplexity int) int
+		Options      func(childComplexity int) int
+		ParentLineID func(childComplexity int) int
+		Quantity     func(childComplexity int) int
+		Sku          func(childComplexity int) int
+		TotalPrice   func(childComplexity int) int
+		UnitPrice    func(childComplexity int) int
 	}
 
 	OrderLineComponent struct {
@@ -1279,6 +1281,7 @@ type ComplexityRoot struct {
 		PriceType     func(childComplexity int) int
 		PriceValue    func(childComplexity int) int
 		Quantity      func(childComplexity int) int
+		SoldAsLine    func(childComplexity int) int
 		SourceProduct func(childComplexity int) int
 		Title         func(childComplexity int) int
 	}
@@ -3699,6 +3702,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CartLine.Options(childComplexity), true
+	case "CartLine.parentLineId":
+		if e.ComplexityRoot.CartLine.ParentLineID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CartLine.ParentLineID(childComplexity), true
 	case "CartLine.priceMaxQuantity":
 		if e.ComplexityRoot.CartLine.PriceMaxQuantity == nil {
 			break
@@ -6732,6 +6741,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OrderLine.Options(childComplexity), true
+	case "OrderLine.parentLineId":
+		if e.ComplexityRoot.OrderLine.ParentLineID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLine.ParentLineID(childComplexity), true
 	case "OrderLine.quantity":
 		if e.ComplexityRoot.OrderLine.Quantity == nil {
 			break
@@ -7796,6 +7811,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ProductCustomOptionValue.Quantity(childComplexity), true
+	case "ProductCustomOptionValue.soldAsLine":
+		if e.ComplexityRoot.ProductCustomOptionValue.SoldAsLine == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProductCustomOptionValue.SoldAsLine(childComplexity), true
 	case "ProductCustomOptionValue.sourceProduct":
 		if e.ComplexityRoot.ProductCustomOptionValue.SourceProduct == nil {
 			break
@@ -10554,6 +10575,11 @@ type CartLine {
   priceMaxQuantity: Float
   # False when coupons and promotions don't lower this line - say so, or a shopper wonders why their code skipped it
   promotionsApply:  Boolean!
+  # Set on an add-on - a protection plan, an installation - picked as one of another line's options and sold as a
+  # line of its own. Show it under that line, without a quantity control: its quantity follows the parent's, and
+  # updateCartLine on it is refused with CART_LINE_FOLLOWS_PARENT. Removing it takes the pick off the parent, unless
+  # the option needs a choice (CART_ADD_ON_REQUIRED). Lines come ordered with each add-on right after its parent
+  parentLineId:     ID
 }
 
 # Snapshotted custom-option pick on a cart line. Option/value IDs reference the product's option structure at add time; priceDelta is the cents this pick added to the line's unit price (already included in unitPrice).
@@ -10998,6 +11024,9 @@ type ProductCustomOptionValue {
   isDefault:  Boolean!
   # Picking this value forces the cart line quantity to this amount and locks it (qty edits fail with PRODUCT_OPTION_QTY_FORCED). The PDP should submit this quantity and tell the customer.
   forcedLineQty: Float
+  # Picking this value adds its source product to the cart as a line of its own, tied to this product's line - say so
+  # on the product page ("added as a separate item"). Its price is then not part of this product's unit price
+  soldAsLine: Boolean!
   # When this value is backed by an existing SIMPLE product, the linked product (slim stand-in: id/slug/sku/name/defaultPrice/currency). Null for free-form values and for sources this channel doesn't sell. priceValue stays a markup on top of the source product's channel price.
   sourceProduct: Product
 }
@@ -11892,6 +11921,8 @@ type OrderLine {
   options:     [OrderLineOption!]!
   # A bundle line's picked components, as snapshotted at checkout. Empty for every other line
   components:  [OrderLineComponent!]!
+  # Set on an add-on: the line it was bought with - show it under that line
+  parentLineId: ID
 }
 
 type OrderLineComponent {
@@ -13515,6 +13546,8 @@ func (ec *executionContext) childFields_CartLine(ctx context.Context, field grap
 		return ec.fieldContext_CartLine_priceMaxQuantity(ctx, field)
 	case "promotionsApply":
 		return ec.fieldContext_CartLine_promotionsApply(ctx, field)
+	case "parentLineId":
+		return ec.fieldContext_CartLine_parentLineId(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type CartLine", field.Name)
 }
@@ -14517,6 +14550,8 @@ func (ec *executionContext) childFields_OrderLine(ctx context.Context, field gra
 		return ec.fieldContext_OrderLine_options(ctx, field)
 	case "components":
 		return ec.fieldContext_OrderLine_components(ctx, field)
+	case "parentLineId":
+		return ec.fieldContext_OrderLine_parentLineId(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type OrderLine", field.Name)
 }
@@ -14943,6 +14978,8 @@ func (ec *executionContext) childFields_ProductCustomOptionValue(ctx context.Con
 		return ec.fieldContext_ProductCustomOptionValue_isDefault(ctx, field)
 	case "forcedLineQty":
 		return ec.fieldContext_ProductCustomOptionValue_forcedLineQty(ctx, field)
+	case "soldAsLine":
+		return ec.fieldContext_ProductCustomOptionValue_soldAsLine(ctx, field)
 	case "sourceProduct":
 		return ec.fieldContext_ProductCustomOptionValue_sourceProduct(ctx, field)
 	}
@@ -25346,6 +25383,29 @@ func (ec *executionContext) _CartLine_promotionsApply(ctx context.Context, field
 }
 func (ec *executionContext) fieldContext_CartLine_promotionsApply(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CartLine", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _CartLine_parentLineId(ctx context.Context, field graphql.CollectedField, obj *model1.CartLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CartLine_parentLineId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ParentLineID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_CartLine_parentLineId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CartLine", field, false, false, errors.New("field of type ID does not have child fields"))
 }
 
 func (ec *executionContext) _CartLineComponent_id(ctx context.Context, field graphql.CollectedField, obj *model1.CartLineComponent) (ret graphql.Marshaler) {
@@ -37261,6 +37321,29 @@ func (ec *executionContext) fieldContext_OrderLine_components(_ context.Context,
 	return fc, nil
 }
 
+func (ec *executionContext) _OrderLine_parentLineId(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderLine_parentLineId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ParentLineID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_OrderLine_parentLineId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
 func (ec *executionContext) _OrderLineComponent_id(ctx context.Context, field graphql.CollectedField, obj *model.OrderLineComponent) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -41493,6 +41576,29 @@ func (ec *executionContext) _ProductCustomOptionValue_forcedLineQty(ctx context.
 }
 func (ec *executionContext) fieldContext_ProductCustomOptionValue_forcedLineQty(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("ProductCustomOptionValue", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _ProductCustomOptionValue_soldAsLine(ctx context.Context, field graphql.CollectedField, obj *model1.ProductCustomOptionValue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProductCustomOptionValue_soldAsLine(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SoldAsLine, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProductCustomOptionValue_soldAsLine(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProductCustomOptionValue", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _ProductCustomOptionValue_sourceProduct(ctx context.Context, field graphql.CollectedField, obj *model1.ProductCustomOptionValue) (ret graphql.Marshaler) {
@@ -55005,6 +55111,11 @@ func (ec *executionContext) _CartLine(ctx context.Context, sel ast.SelectionSet,
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "parentLineId":
+			out.Values[i] = ec._CartLine_parentLineId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -59367,6 +59478,11 @@ func (ec *executionContext) _OrderLine(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "parentLineId":
+			out.Values[i] = ec._OrderLine_parentLineId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -62048,6 +62164,11 @@ func (ec *executionContext) _ProductCustomOptionValue(ctx context.Context, sel a
 		case "forcedLineQty":
 			out.Values[i] = ec._ProductCustomOptionValue_forcedLineQty(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "soldAsLine":
+			out.Values[i] = ec._ProductCustomOptionValue_soldAsLine(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "sourceProduct":

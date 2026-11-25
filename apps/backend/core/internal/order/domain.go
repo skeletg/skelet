@@ -145,6 +145,9 @@ type OrderLine struct {
 	ListUnitPrice *int64
 	// Coupons and promotions left the line alone - an edit that spreads a discount again does too
 	NoPromotions bool
+	// The line was bought as an add-on to another - a protection plan with the item it covers. It reads under that
+	// line, an edit removes and re-quantifies it with it, and it can be refunded on its own
+	ParentLineID *uuid.UUID
 	Components   []OrderLineComponent
 	// What the line took stock from besides or instead of itself, per line unit, snapshotted at placement
 	StockParts []OrderLineStockPart

@@ -112,6 +112,26 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 		qtyByID[u.OrderLineID] = u.Quantity
 	}
 
+	// An add-on goes with its item: removed when it is, and as many per item as it was sold with. Its own quantity
+	// isn't edited - removing it on its own is
+	for _, l := range o.Lines {
+		if l.ParentLineID == nil {
+			continue
+		}
+		parent, ok := byID[*l.ParentLineID]
+		if !ok {
+			continue
+		}
+		if _, edited := qtyByID[l.ID]; edited {
+			return Order{}, apperr.New("ORDER_EDIT_FOLLOWS_PARENT", apperr.ClassValidation, "an add-on's quantity follows the item it was bought with - edit that line, or remove the add-on")
+		}
+		if removed[parent.ID] {
+			removed[l.ID] = true
+		} else if q, ok := qtyByID[parent.ID]; ok && !removed[l.ID] && parent.Quantity > 0 {
+			qtyByID[l.ID] = l.Quantity * q / parent.Quantity
+		}
+	}
+
 	// Resolve added-line pricing server-side, before opening the transaction
 	type resolvedAdd struct {
 		sku, name string

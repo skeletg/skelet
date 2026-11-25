@@ -146,7 +146,7 @@ ON CONFLICT (cart_id, product_sku, config_key) DO UPDATE
       no_promotions = $6::boolean AND cart_lines.no_promotions,
       product_name = EXCLUDED.product_name,
       updated_at   = NOW()
-RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, is_custom, tax_class, bundle_hook_priced, config_key, price_source, price_set_by, price_reason, list_unit_price, price_max_quantity, price_expires_at, no_promotions, price_ref
+RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, is_custom, tax_class, bundle_hook_priced, config_key, price_source, price_set_by, price_reason, list_unit_price, price_max_quantity, price_expires_at, no_promotions, price_ref, parent_line_id, per_parent, parent_value_id
 `
 
 type UpsertConfiguredCartLineParams struct {
@@ -192,6 +192,9 @@ func (q *Queries) UpsertConfiguredCartLine(ctx context.Context, arg UpsertConfig
 		&i.PriceExpiresAt,
 		&i.NoPromotions,
 		&i.PriceRef,
+		&i.ParentLineID,
+		&i.PerParent,
+		&i.ParentValueID,
 	)
 	return i, err
 }

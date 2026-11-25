@@ -43,6 +43,7 @@ fragment CartFull on Cart {
     listUnitPrice
     priceMaxQuantity
     promotionsApply
+    parentLineId
     components {
       id
       optionId

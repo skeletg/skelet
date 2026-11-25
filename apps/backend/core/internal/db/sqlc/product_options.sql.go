@@ -89,10 +89,11 @@ func (q *Queries) CreateProductOption(ctx context.Context, arg CreateProductOpti
 
 const createProductOptionValue = `-- name: CreateProductOptionValue :one
 INSERT INTO catalog_product_option_values (
-    option_id, sort_order, price_value, price_type, is_default, source_product_id, quantity, forced_line_qty, image_asset_id
+    option_id, sort_order, price_value, price_type, is_default, source_product_id, quantity, forced_line_qty, image_asset_id,
+    sold_as_line, line_promotions
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, option_id, sort_order, price_value, price_type, is_default, created_at, updated_at, source_product_id, quantity, forced_line_qty, image_asset_id
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+RETURNING id, option_id, sort_order, price_value, price_type, is_default, created_at, updated_at, source_product_id, quantity, forced_line_qty, image_asset_id, sold_as_line, line_promotions
 `
 
 type CreateProductOptionValueParams struct {
@@ -105,6 +106,8 @@ type CreateProductOptionValueParams struct {
 	Quantity        float64                       `json:"quantity"`
 	ForcedLineQty   sql.NullFloat64               `json:"forced_line_qty"`
 	ImageAssetID    uuid.NullUUID                 `json:"image_asset_id"`
+	SoldAsLine      bool                          `json:"sold_as_line"`
+	LinePromotions  bool                          `json:"line_promotions"`
 }
 
 func (q *Queries) CreateProductOptionValue(ctx context.Context, arg CreateProductOptionValueParams) (CatalogProductOptionValue, error) {
@@ -118,6 +121,8 @@ func (q *Queries) CreateProductOptionValue(ctx context.Context, arg CreateProduc
 		arg.Quantity,
 		arg.ForcedLineQty,
 		arg.ImageAssetID,
+		arg.SoldAsLine,
+		arg.LinePromotions,
 	)
 	var i CatalogProductOptionValue
 	err := row.Scan(
@@ -133,6 +138,8 @@ func (q *Queries) CreateProductOptionValue(ctx context.Context, arg CreateProduc
 		&i.Quantity,
 		&i.ForcedLineQty,
 		&i.ImageAssetID,
+		&i.SoldAsLine,
+		&i.LinePromotions,
 	)
 	return i, err
 }
@@ -268,7 +275,7 @@ func (q *Queries) GetProductOptionByIDForUpdate(ctx context.Context, id uuid.UUI
 }
 
 const getProductOptionValueByID = `-- name: GetProductOptionValueByID :one
-SELECT id, option_id, sort_order, price_value, price_type, is_default, created_at, updated_at, source_product_id, quantity, forced_line_qty, image_asset_id FROM catalog_product_option_values WHERE id = $1
+SELECT id, option_id, sort_order, price_value, price_type, is_default, created_at, updated_at, source_product_id, quantity, forced_line_qty, image_asset_id, sold_as_line, line_promotions FROM catalog_product_option_values WHERE id = $1
 `
 
 func (q *Queries) GetProductOptionValueByID(ctx context.Context, id uuid.UUID) (CatalogProductOptionValue, error) {
@@ -287,6 +294,8 @@ func (q *Queries) GetProductOptionValueByID(ctx context.Context, id uuid.UUID) (
 		&i.Quantity,
 		&i.ForcedLineQty,
 		&i.ImageAssetID,
+		&i.SoldAsLine,
+		&i.LinePromotions,
 	)
 	return i, err
 }
@@ -488,7 +497,7 @@ func (q *Queries) ListProductOptionValueContentByValueIDs(ctx context.Context, v
 }
 
 const listProductOptionValuesByOptionID = `-- name: ListProductOptionValuesByOptionID :many
-SELECT id, option_id, sort_order, price_value, price_type, is_default, created_at, updated_at, source_product_id, quantity, forced_line_qty, image_asset_id FROM catalog_product_option_values
+SELECT id, option_id, sort_order, price_value, price_type, is_default, created_at, updated_at, source_product_id, quantity, forced_line_qty, image_asset_id, sold_as_line, line_promotions FROM catalog_product_option_values
 WHERE option_id = $1
 ORDER BY sort_order, id
 `
@@ -515,6 +524,8 @@ func (q *Queries) ListProductOptionValuesByOptionID(ctx context.Context, optionI
 			&i.Quantity,
 			&i.ForcedLineQty,
 			&i.ImageAssetID,
+			&i.SoldAsLine,
+			&i.LinePromotions,
 		); err != nil {
 			return nil, err
 		}
@@ -530,7 +541,7 @@ func (q *Queries) ListProductOptionValuesByOptionID(ctx context.Context, optionI
 }
 
 const listProductOptionValuesByOptionIDs = `-- name: ListProductOptionValuesByOptionIDs :many
-SELECT id, option_id, sort_order, price_value, price_type, is_default, created_at, updated_at, source_product_id, quantity, forced_line_qty, image_asset_id FROM catalog_product_option_values
+SELECT id, option_id, sort_order, price_value, price_type, is_default, created_at, updated_at, source_product_id, quantity, forced_line_qty, image_asset_id, sold_as_line, line_promotions FROM catalog_product_option_values
 WHERE option_id = ANY($1::uuid[])
 ORDER BY option_id, sort_order, id
 `
@@ -557,6 +568,8 @@ func (q *Queries) ListProductOptionValuesByOptionIDs(ctx context.Context, option
 			&i.Quantity,
 			&i.ForcedLineQty,
 			&i.ImageAssetID,
+			&i.SoldAsLine,
+			&i.LinePromotions,
 		); err != nil {
 			return nil, err
 		}
@@ -749,9 +762,11 @@ SET sort_order        = $2,
     quantity          = $7,
     forced_line_qty   = $8,
     image_asset_id    = $9,
+    sold_as_line      = $10,
+    line_promotions   = $11,
     updated_at        = NOW()
 WHERE id = $1
-RETURNING id, option_id, sort_order, price_value, price_type, is_default, created_at, updated_at, source_product_id, quantity, forced_line_qty, image_asset_id
+RETURNING id, option_id, sort_order, price_value, price_type, is_default, created_at, updated_at, source_product_id, quantity, forced_line_qty, image_asset_id, sold_as_line, line_promotions
 `
 
 type UpdateProductOptionValueParams struct {
@@ -764,6 +779,8 @@ type UpdateProductOptionValueParams struct {
 	Quantity        float64                       `json:"quantity"`
 	ForcedLineQty   sql.NullFloat64               `json:"forced_line_qty"`
 	ImageAssetID    uuid.NullUUID                 `json:"image_asset_id"`
+	SoldAsLine      bool                          `json:"sold_as_line"`
+	LinePromotions  bool                          `json:"line_promotions"`
 }
 
 func (q *Queries) UpdateProductOptionValue(ctx context.Context, arg UpdateProductOptionValueParams) (CatalogProductOptionValue, error) {
@@ -777,6 +794,8 @@ func (q *Queries) UpdateProductOptionValue(ctx context.Context, arg UpdateProduc
 		arg.Quantity,
 		arg.ForcedLineQty,
 		arg.ImageAssetID,
+		arg.SoldAsLine,
+		arg.LinePromotions,
 	)
 	var i CatalogProductOptionValue
 	err := row.Scan(
@@ -792,6 +811,8 @@ func (q *Queries) UpdateProductOptionValue(ctx context.Context, arg UpdateProduc
 		&i.Quantity,
 		&i.ForcedLineQty,
 		&i.ImageAssetID,
+		&i.SoldAsLine,
+		&i.LinePromotions,
 	)
 	return i, err
 }

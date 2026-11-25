@@ -438,6 +438,10 @@ func toCartLineModel(l cart.CartLine) *frontmodel.CartLine {
 		IsCustom:        l.IsCustom,
 		PromotionsApply: !l.NoPromotions,
 	}
+	if l.ParentLineID != nil {
+		parent := l.ParentLineID.String()
+		line.ParentLineID = &parent
+	}
 	if l.PriceHeld() { // a set price that still stands - a lapsed one is about to be the catalog's again
 		if l.ListUnitPrice != nil {
 			list := int32(*l.ListUnitPrice)

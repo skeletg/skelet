@@ -669,6 +669,9 @@ type CartLine struct {
 	PriceExpiresAt   sql.NullTime    `json:"price_expires_at"`
 	NoPromotions     bool            `json:"no_promotions"`
 	PriceRef         string          `json:"price_ref"`
+	ParentLineID     uuid.NullUUID   `json:"parent_line_id"`
+	PerParent        sql.NullFloat64 `json:"per_parent"`
+	ParentValueID    uuid.NullUUID   `json:"parent_value_id"`
 }
 
 type CartLineComponent struct {
@@ -983,6 +986,8 @@ type CatalogProductOptionValue struct {
 	Quantity        float64                       `json:"quantity"`
 	ForcedLineQty   sql.NullFloat64               `json:"forced_line_qty"`
 	ImageAssetID    uuid.NullUUID                 `json:"image_asset_id"`
+	SoldAsLine      bool                          `json:"sold_as_line"`
+	LinePromotions  bool                          `json:"line_promotions"`
 }
 
 type CatalogProductOptionValueChannelPrice struct {
@@ -1929,6 +1934,7 @@ type OrderLine struct {
 	ListUnitPrice   sql.NullInt64 `json:"list_unit_price"`
 	NoPromotions    bool          `json:"no_promotions"`
 	PriceRef        string        `json:"price_ref"`
+	ParentLineID    uuid.NullUUID `json:"parent_line_id"`
 }
 
 type OrderLineComponent struct {

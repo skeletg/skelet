@@ -140,6 +140,9 @@ func copyLines(ctx context.Context, r Repository, destID uuid.UUID, lines []Cart
 		}
 	}
 	for _, l := range lines {
+		if l.IsAddOn() { // goes with its parent below, or not at all
+			continue
+		}
 		if snapshotted[l.ProductSku+"\x00"+l.ConfigKey] {
 			continue
 		}
@@ -172,6 +175,7 @@ func copyLines(ctx context.Context, r Repository, destID uuid.UUID, lines []Cart
 				Quantity:     l.Quantity,
 				Options:      l.Options,
 				KeepSetPrice: true,
+				AddOns:       addOnsOf(l, lines),
 			})
 		default:
 			copied, err = r.UpsertCartLineBySku(ctx, destID, AddCartLineInput{

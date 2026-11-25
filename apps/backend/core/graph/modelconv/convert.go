@@ -286,6 +286,14 @@ func LinePriceSource(source string) model.LinePriceSource {
 	return model.LinePriceSourceCatalog
 }
 
+func idPtr(id *uuid.UUID) *string {
+	if id == nil {
+		return nil
+	}
+	s := id.String()
+	return &s
+}
+
 func int32Ptr(v *int64) *int32 {
 	if v == nil {
 		return nil
@@ -335,6 +343,7 @@ func OrderLineModel(l order.OrderLine) *model.OrderLine {
 		PriceReason:     l.PriceReason,
 		PriceRef:        l.PriceRef,
 		PromotionsApply: !l.NoPromotions,
+		ParentLineID:    idPtr(l.ParentLineID),
 		Options:         options,
 		Components:      components,
 	}

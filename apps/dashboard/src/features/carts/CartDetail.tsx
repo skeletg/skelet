@@ -48,6 +48,7 @@ import { OfferEditor } from './offer/OfferEditor'
 import { OfferStateBadge } from './offer/OfferStateBadge'
 import { CartStatusBadges } from './CartStatusBadges'
 import { PluginAside, PluginSections } from '@/plugins/detail-sections'
+import { cn } from '@/lib/utils'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
 import { SaveRegistryContext, useSaveRegistry } from '@/shared/saving/saveRegistry'
@@ -287,13 +288,18 @@ export function CartDetail() {
             ) : (
               <div className="grid gap-2">
                 {cart.lines.map((l) => (
-                  <div key={l.id} className="flex items-center gap-3 rounded border px-3 py-2">
+                  <div key={l.id} className={cn('flex items-center gap-3 rounded border px-3 py-2', l.parentLineId && 'ml-6 border-dashed')}>
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium">
                         {l.name}
                         {!l.isSimple && (
                           <Badge variant="secondary" className="ml-2 text-[9px] uppercase">
                             {l.isCustom ? 'custom' : l.components.length > 0 ? 'bundle' : 'configured'}
+                          </Badge>
+                        )}
+                        {l.parentLineId && (
+                          <Badge variant="outline" className="ml-2 text-[9px] uppercase">
+                            add-on
                           </Badge>
                         )}
                         {l.priceOverride && !l.isCustom && (
@@ -367,7 +373,7 @@ export function CartDetail() {
                         )}
                       </div>
                     )}
-                    {isActive && (l.isSimple || l.isCustom) ? (
+                    {isActive && (l.isSimple || l.isCustom) && !l.parentLineId ? (
                       <QtyInput
                         key={`${l.id}:${l.quantity}`}
                         initial={l.quantity}

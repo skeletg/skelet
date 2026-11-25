@@ -55,6 +55,7 @@ fragment OrderSummaryFields on Order {
     unitPrice
     quantity
     totalPrice
+    parentLineId
     options {
       id
       inputType

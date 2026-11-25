@@ -59,6 +59,7 @@ fragment CartFields on AdminCart {
     priceMaxQuantity
     priceExpiresAt
     promotionsApply
+    parentLineId
     isCustom
     taxClass
     components {

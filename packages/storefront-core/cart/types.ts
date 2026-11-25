@@ -41,6 +41,9 @@ export type CartLine = {
   priceMaxQuantity?: number | null;
   // False when coupons and promotions don't lower this line
   promotionsApply?: boolean;
+  // Set on an add-on - a protection plan, an installation - sold as its own line under the line it was picked on.
+  // It comes right after that line, its quantity follows it, and it has no quantity control of its own
+  parentLineId?: string | null;
   components: CartLineComponent[];
   options: CartLineOption[];
   // A charge the store added to an offer by hand - no product page, nothing to deliver

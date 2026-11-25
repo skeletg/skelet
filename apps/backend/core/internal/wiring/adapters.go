@@ -423,6 +423,8 @@ func (a CartCatalogAdapter) appendCartOptions(ctx context.Context, ch channel.Ch
 				vc.SourceUnavailable = !ok
 			}
 			vc.ForcedLineQty = v.ForcedLineQty
+			vc.SoldAsLine, vc.LinePromotions = v.SoldAsLine && v.SourceProductID != nil, v.LinePromotions
+			vc.SourceSKU, vc.SourceName = v.SourceProductSKU, v.SourceProductName
 			cfg.Values = append(cfg.Values, vc)
 		}
 		res.Options = append(res.Options, cfg)

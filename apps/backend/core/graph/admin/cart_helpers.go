@@ -98,6 +98,7 @@ func toAdminCartModel(c cart.Cart, email, name *string, currency string) *model.
 			PriceMaxQuantity: l.PriceMaxQuantity,
 			PriceExpiresAt:   l.PriceExpiresAt,
 			PromotionsApply:  !l.NoPromotions,
+			ParentLineID:     lineIDPtr(l.ParentLineID),
 			IsCustom:         l.IsCustom,
 			TaxClass:         l.TaxClass,
 		}
@@ -205,4 +206,12 @@ func (r *Resolver) mapCart(ctx context.Context, c cart.Cart) *model.AdminCart {
 		m.PriceLimits = &model.CartPriceLimits{MaxCutPercent: int32(*cut), HoldsUntil: until}
 	}
 	return m
+}
+
+func lineIDPtr(id *uuid.UUID) *string {
+	if id == nil {
+		return nil
+	}
+	s := id.String()
+	return &s
 }

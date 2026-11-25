@@ -225,6 +225,24 @@ shopper edits may not pass (an admin's quantity raises it), and
 the line back on the catalog's. Copies (guest merge, handoff, duplicate) carry a
 set price with its line and cap the quantity at what it is for.
 
+**Add-on lines**: a product option choice backed by a product can be sold as
+that product's own line (`catalog_product_option_values.sold_as_line`) - a
+protection plan, an installation, a refill. Picking it adds nothing to the
+item's unit price and takes no stock through it; instead the cart gets a line
+for the product itself, tied to the item's line (`cart_lines.parent_line_id`)
+with `per_parent` of it for each of the item. It has its own SKU, price and tax
+class, reserves its own stock, and is its own order line
+(`order_lines.parent_line_id`), so it is taxed at its own rate and refunded on
+its own. It follows its item: the same quantity ratio through every cart and
+order edit, gone when the item goes, copied with it when carts merge. Its own
+quantity is never edited (`CART_LINE_FOLLOWS_PARENT`); removing it takes the
+pick off the item, unless that option needs a choice (`CART_ADD_ON_REQUIRED`).
+Its price is the one it was picked at, kept like an option's surcharge rather
+than repriced at checkout. Coupons and promotions leave it alone unless the
+choice says they apply (`line_promotions`). The same product bought on its own
+is a separate line. Lines list with each add-on right after its item
+(`cart.underParents`, and `order_lines.position`).
+
 **Lines promotions leave alone**: `cart_lines.no_promotions` (and the order
 line's) marks a line no coupon or promotion may lower - the default once a price
 is set by hand, lifted per line by whoever set it. The promotion engine sees

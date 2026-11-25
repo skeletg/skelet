@@ -389,6 +389,8 @@ func cloneOption(ctx context.Context, r OptionRepository, id uuid.UUID, owner Op
 				ForcedLineQty:   v.ForcedLineQty,
 				SourceProductID: v.SourceProductID,
 				ImageAssetID:    v.ImageAssetID,
+				SoldAsLine:      v.SoldAsLine,
+				LinePromotions:  v.LinePromotions,
 				Locale:          vInitial.Locale,
 				Title:           vInitial.Title,
 			})
@@ -465,6 +467,9 @@ func (s *optionService) AddProductOptionValue(ctx context.Context, input AddProd
 	}
 	if err := validateForcedLineQty(input.ForcedLineQty); err != nil {
 		return ProductOptionValue{}, err
+	}
+	if input.SoldAsLine && (input.SourceProductID == nil || *input.SourceProductID == uuid.Nil) {
+		return ProductOptionValue{}, ErrSoldAsLineNeedsProduct
 	}
 	if !input.PriceType.IsKnown() {
 		return ProductOptionValue{}, fmt.Errorf("%w: %q", ErrInvalidProductOptionPriceType, string(input.PriceType))
@@ -601,6 +606,18 @@ func (s *optionService) UpdateProductOptionValue(ctx context.Context, input Upda
 	if err := validatePercentRange(finalPriceType, finalPriceValue); err != nil {
 		return ProductOptionValue{}, err
 	}
+	// Asked for without a product to sell is refused; a choice whose product was just unlinked simply stops being one
+	if input.SoldAsLine != nil && *input.SoldAsLine && finalSourceProductID == nil {
+		return ProductOptionValue{}, ErrSoldAsLineNeedsProduct
+	}
+	finalSoldAsLine, finalLinePromotions := current.SoldAsLine, current.LinePromotions
+	if input.SoldAsLine != nil {
+		finalSoldAsLine = *input.SoldAsLine
+	}
+	if input.LinePromotions != nil {
+		finalLinePromotions = *input.LinePromotions
+	}
+	finalSoldAsLine = finalSoldAsLine && finalSourceProductID != nil
 	finalImage, err := s.nextOptionImage(ctx, current.ImageAssetID, input.ImageAssetID)
 	if err != nil {
 		return ProductOptionValue{}, err
@@ -613,7 +630,7 @@ func (s *optionService) UpdateProductOptionValue(ctx context.Context, input Upda
 				return err
 			}
 		}
-		updated, err = r.UpdateProductOptionValue(ctx, current.ID, finalSortOrder, finalPriceValue, finalPriceType, finalIsDefault, finalSourceProductID, finalQuantity, finalForcedLineQty, finalImage)
+		updated, err = r.UpdateProductOptionValue(ctx, current.ID, finalSortOrder, finalPriceValue, finalPriceType, finalIsDefault, finalSourceProductID, finalQuantity, finalForcedLineQty, finalImage, finalSoldAsLine, finalLinePromotions)
 		return err
 	})
 	return updated, s.announcedForOption(ctx, current.OptionID, err)

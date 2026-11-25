@@ -120,7 +120,7 @@ export function OrderDetailView({
             // don't print the same string twice
             const showSku = name !== line.sku;
             return (
-            <li key={line.id} className="flex items-start gap-3 py-3">
+            <li key={line.id} className={line.parentLineId ? "flex items-start gap-3 py-3 pl-6" : "flex items-start gap-3 py-3"} data-addon={line.parentLineId ? "" : undefined}>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold">{name}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">

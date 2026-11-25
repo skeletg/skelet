@@ -214,6 +214,7 @@ func (r *mutationResolver) AddProductOptionValue(ctx context.Context, input mode
 		Title:      input.Title,
 	}
 	domain.ForcedLineQty = input.ForcedLineQty
+	domain.SoldAsLine, domain.LinePromotions = boolOrFalse(input.SoldAsLine), boolOrFalse(input.LinePromotions)
 	if input.SourceProductID != nil && *input.SourceProductID != "" {
 		spid, err := parseID(*input.SourceProductID, "source product")
 		if err != nil {
@@ -250,6 +251,9 @@ func (r *mutationResolver) UpdateProductOptionValue(ctx context.Context, input m
 		IsDefault:     input.IsDefault,
 		Quantity:      input.Quantity,
 		ForcedLineQty: input.ForcedLineQty,
+
+		SoldAsLine:     input.SoldAsLine,
+		LinePromotions: input.LinePromotions,
 	}
 	if input.PriceType != nil {
 		t := catalog.ProductOptionPriceType(strings.ToLower(string(*input.PriceType)))

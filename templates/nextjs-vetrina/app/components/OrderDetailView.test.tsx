@@ -34,3 +34,20 @@ it("labels tax as included when the prices already held it", () => {
   expect(screen.getByText("Includes tax")).toBeInTheDocument();
   expect(screen.queryByText("Tax")).not.toBeInTheDocument();
 });
+
+// What this pins: an add-on bought with an item - a protection plan - reads under that item on the order, as a line of its own
+it("shows an add-on under the line it was bought with", () => {
+  const order = {
+    id: "o1", number: "ORD-1", status: "PENDING", paymentStatus: "PAID", paymentProvider: "manual", paymentInstructions: null,
+    subtotal: 11500, shippingAmount: 0, discountAmount: 0, taxAmount: 0, total: 11500, giftCardAmount: 0, storeCreditAmount: 0, amountDue: 0,
+    currencyCode: "USD", customerNote: null, carrier: "", trackingNumber: "", trackingUrl: null, createdAt: "2026-10-30T10:00:00Z",
+    billingAddress: address, shippingAddress: address,
+    lines: [
+      { id: "l1", name: "Rain jacket", sku: "JACKET", unitPrice: 10000, quantity: 1, totalPrice: 10000, options: [], components: [], parentLineId: null },
+      { id: "l2", name: "Protection plan", sku: "PLAN", unitPrice: 1500, quantity: 1, totalPrice: 1500, options: [], components: [], parentLineId: "l1" },
+    ],
+  } as unknown as OrderDetailOrder;
+  renderWithIntl(<OrderDetailView order={order} />);
+  expect(screen.getByText("Rain jacket").closest("li")?.hasAttribute("data-addon")).toBe(false);
+  expect(screen.getByText("Protection plan").closest("li")?.hasAttribute("data-addon")).toBe(true);
+});

@@ -306,6 +306,12 @@ type CartLine struct {
 	// Coupons and promotions leave the line alone - the default once its price is set, and for whoever set it to lift.
 	// The line still counts toward what the cart holds
 	NoPromotions bool
+	// The line belongs to another - an add-on picked as one of its options, sold as a line of its own. It goes when
+	// its parent goes and holds PerParent of itself for each of the parent, so its quantity is never edited directly.
+	// ParentValueID is the option choice on the parent it stands for
+	ParentLineID  *uuid.UUID
+	PerParent     *float64
+	ParentValueID *uuid.UUID
 	// A cart.bundle.adding hook set the bundle's price - checkout refreshes the components but keeps that price
 	BundleHookPriced bool
 	// Names a bundle line's picks, so one bundle can sit in the cart in several configurations - empty on every other line
@@ -490,6 +496,19 @@ type AddConfiguredLineInput struct {
 	Options     []CartLineOption
 	// Whether a price set on the line this replaces stays - true for everything but a shopper picking again
 	KeepSetPrice bool
+	// The picks sold as lines of their own under this one - they replace whatever add-ons the line had
+	AddOns []LineAddOn
+}
+
+// LineAddOn is an option choice sold as its source product's own line, under the line it was picked on
+type LineAddOn struct {
+	ValueID      uuid.UUID // the choice on the parent
+	ProductID    uuid.UUID
+	ProductSku   string
+	ProductName  string
+	UnitPrice    int64
+	PerParent    float64 // how many of it go with each of the parent
+	NoPromotions bool
 }
 
 type SavedItem struct { // parked off the cart via save-for-later - cart-scoped and guest-capable, simple lines only in v1
@@ -555,6 +574,8 @@ type Repository interface {
 	RaiseLinePriceCap(ctx context.Context, lineID uuid.UUID) error
 	// A line holds no more than its set price is for
 	CapLineQuantity(ctx context.Context, lineID uuid.UUID) error
+	// Removes an add-on line and the pick it stood for on its parent
+	RemoveAddOnLine(ctx context.Context, line CartLine) error
 	InsertCustomLine(ctx context.Context, cartID uuid.UUID, in CustomLineInput) (CartLine, error)
 
 	ListCarts(ctx context.Context, f CartFilter) ([]CartListItem, error)

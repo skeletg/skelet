@@ -61,6 +61,9 @@ func (s *Service) AdminUpdateCartLine(ctx context.Context, cartID, lineID uuid.U
 	if err != nil {
 		return Cart{}, err
 	}
+	if line.IsAddOn() {
+		return Cart{}, ErrLineFollowsParent
+	}
 	repricedUnit, err := s.validateQuantityEdit(ctx, cart, line, quantity) // the console must not break the forced-qty invariant or the ordering bounds either
 	if err != nil {
 		return Cart{}, err
@@ -79,10 +82,11 @@ func (s *Service) AdminRemoveFromCart(ctx context.Context, cartID, lineID uuid.U
 	if err != nil {
 		return Cart{}, err
 	}
-	if err := verifyLineInCart(ctx, s.repo, lineID, cart.ID); err != nil {
+	line, err := lineInCart(ctx, s.repo, lineID, cart.ID)
+	if err != nil {
 		return Cart{}, err
 	}
-	if err := s.repo.RemoveCartLine(ctx, lineID); err != nil {
+	if err := s.removeLine(ctx, cart, line); err != nil {
 		return Cart{}, fmt.Errorf("remove cart line: %w", err)
 	}
 	return loadCartWithLines(ctx, s.repo, cart.ID)

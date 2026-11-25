@@ -275,6 +275,7 @@ type CartLine struct {
 	ListUnitPrice     *int32               `json:"listUnitPrice,omitempty"`
 	PriceMaxQuantity  *float64             `json:"priceMaxQuantity,omitempty"`
 	PromotionsApply   bool                 `json:"promotionsApply"`
+	ParentLineID      *string              `json:"parentLineId,omitempty"`
 }
 
 type CartLineComponent struct {
@@ -601,6 +602,7 @@ type ProductCustomOptionValue struct {
 	Quantity      float64                   `json:"quantity"`
 	IsDefault     bool                      `json:"isDefault"`
 	ForcedLineQty *float64                  `json:"forcedLineQty,omitempty"`
+	SoldAsLine    bool                      `json:"soldAsLine"`
 	SourceProduct *model.Product            `json:"sourceProduct,omitempty"`
 }
 

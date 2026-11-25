@@ -43,7 +43,7 @@ export function CartSidebar({
   const items = cart ? mergePendingRemovals(cart.lines, pendingRemovals) : [];
 
   const renderLine = (line: CartLine) => (
-    <li key={line.id} className="p-4">
+    <li key={line.id} className={line.parentLineId ? "py-3 pl-8 pr-4" : "p-4"} data-addon={line.parentLineId ? "" : undefined}>
       <div className="flex items-start gap-3">
         {line.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -91,7 +91,11 @@ export function CartSidebar({
       </div>
 
       <div className="mt-2 flex items-center justify-between">
-        <CartQuantity lineId={line.id} quantity={line.quantity} size="sm" />
+        {line.parentLineId ? (
+          <span className="text-xs tabular-nums text-muted-foreground">×{line.quantity}</span>
+        ) : (
+          <CartQuantity lineId={line.id} quantity={line.quantity} size="sm" />
+        )}
         <button
           type="button"
           onClick={() => removeLine(line.id)}

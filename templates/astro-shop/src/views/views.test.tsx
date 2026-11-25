@@ -55,6 +55,18 @@ describe("CartView", () => {
     expect(container.textContent).toContain("−$4.00");
     expect(screen.getByRole("link", { name: "Checkout" }).getAttribute("href")).toBe("/checkout");
   });
+  it("shows an add-on under its item, with the item's quantity and no control of its own", () => {
+    const withPlan = [lines[0], { id: "plan", name: "Protection plan", sku: "PLAN", imageUrl: null, unitPrice: 300, quantity: lines[0].quantity, totalPrice: 300 * lines[0].quantity, parentLineId: lines[0].id }];
+    const { container } = render(<CartView cart={{ id: "c1", subtotal: 3900, totalDiscount: 0, lines: withPlan }} currency={usd} />);
+    const [item, addOn] = [...container.querySelectorAll("[data-line]")];
+    expect(item.hasAttribute("data-addon")).toBe(false);
+    expect(item.querySelector('input[name="intent"][value="update"]')).not.toBeNull();
+    expect(addOn.hasAttribute("data-addon")).toBe(true);
+    expect(addOn.querySelector('input[name="intent"][value="update"]')).toBeNull();
+    expect(addOn.textContent).toContain(`×${lines[0].quantity}`);
+    expect(addOn.querySelector('input[name="intent"][value="remove"]')).not.toBeNull();
+  });
+
   it("says when the store set a line's price, with what it usually costs and how many it is for", () => {
     const set = [{ ...lines[0], unitPrice: 800, listUnitPrice: 1000, priceMaxQuantity: 2, promotionsApply: false }, { ...lines[1], promotionsApply: true }];
     const { container } = render(<CartView cart={{ id: "c1", subtotal: 3900, totalDiscount: 0, lines: set }} currency={usd} />);

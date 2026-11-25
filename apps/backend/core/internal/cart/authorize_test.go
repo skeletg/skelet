@@ -131,6 +131,7 @@ func (f fakeRepo) SetLinePrice(context.Context, uuid.UUID, LinePrice) (CartLine,
 }
 func (f fakeRepo) RaiseLinePriceCap(context.Context, uuid.UUID) error { return nil }
 func (f fakeRepo) CapLineQuantity(context.Context, uuid.UUID) error   { return nil }
+func (f fakeRepo) RemoveAddOnLine(context.Context, CartLine) error    { return nil }
 func (f fakeRepo) InsertCustomLine(context.Context, uuid.UUID, CustomLineInput) (CartLine, error) {
 	return CartLine{}, nil
 }

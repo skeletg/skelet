@@ -166,11 +166,13 @@ export type AddProductOptionValueInput = {
   forcedLineQty?: InputMaybe<Scalars['Float']['input']>;
   imageAssetId?: InputMaybe<Scalars['ID']['input']>;
   isDefault?: InputMaybe<Scalars['Boolean']['input']>;
+  linePromotions?: InputMaybe<Scalars['Boolean']['input']>;
   locale: Scalars['String']['input'];
   optionId: Scalars['ID']['input'];
   priceType?: InputMaybe<ProductOptionPriceType>;
   priceValue?: InputMaybe<Scalars['Int']['input']>;
   quantity?: InputMaybe<Scalars['Float']['input']>;
+  soldAsLine?: InputMaybe<Scalars['Boolean']['input']>;
   sortOrder?: InputMaybe<Scalars['Int']['input']>;
   sourceProductId?: InputMaybe<Scalars['ID']['input']>;
   title: Scalars['String']['input'];
@@ -338,6 +340,7 @@ export type AdminCartLine = {
   listUnitPrice?: Maybe<Scalars['Int']['output']>;
   name: Scalars['String']['output'];
   options: Array<AdminCartLineOption>;
+  parentLineId?: Maybe<Scalars['ID']['output']>;
   priceExpiresAt?: Maybe<Scalars['Time']['output']>;
   priceMaxQuantity?: Maybe<Scalars['Float']['output']>;
   priceOverride: Scalars['Boolean']['output'];
@@ -7922,6 +7925,7 @@ export type OrderLine = {
   listUnitPrice?: Maybe<Scalars['Int']['output']>;
   name: Scalars['String']['output'];
   options: Array<OrderLineOption>;
+  parentLineId?: Maybe<Scalars['ID']['output']>;
   priceReason: Scalars['String']['output'];
   priceRef: Scalars['String']['output'];
   priceSource: LinePriceSource;
@@ -8482,9 +8486,11 @@ export type ProductOptionValue = {
   id: Scalars['ID']['output'];
   image?: Maybe<OptionImage>;
   isDefault: Scalars['Boolean']['output'];
+  linePromotions: Scalars['Boolean']['output'];
   priceType: ProductOptionPriceType;
   priceValue: Scalars['Int']['output'];
   quantity: Scalars['Float']['output'];
+  soldAsLine: Scalars['Boolean']['output'];
   sortOrder: Scalars['Int']['output'];
   sourceProduct?: Maybe<Product>;
   title: Scalars['String']['output'];
@@ -12430,9 +12436,11 @@ export type UpdateProductOptionValueInput = {
   id: Scalars['ID']['input'];
   imageAssetId?: InputMaybe<Scalars['ID']['input']>;
   isDefault?: InputMaybe<Scalars['Boolean']['input']>;
+  linePromotions?: InputMaybe<Scalars['Boolean']['input']>;
   priceType?: InputMaybe<ProductOptionPriceType>;
   priceValue?: InputMaybe<Scalars['Int']['input']>;
   quantity?: InputMaybe<Scalars['Float']['input']>;
+  soldAsLine?: InputMaybe<Scalars['Boolean']['input']>;
   sortOrder?: InputMaybe<Scalars['Int']['input']>;
   sourceProductId?: InputMaybe<Scalars['ID']['input']>;
 };

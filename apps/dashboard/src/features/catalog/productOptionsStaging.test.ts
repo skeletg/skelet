@@ -462,3 +462,34 @@ describe('pictures', () => {
     expect(opsToDiff([withPicture], [{ kind: 'update-option', id: 'o1', image: pic }])).toEqual([])
   })
 })
+
+// A linked choice can be sold as its product's own line - the flag has to survive staging, merging and the review
+describe('a choice sold as its own line', () => {
+  const plan = { id: 'p1', sku: 'PLAN', name: 'Protection plan' } as NonNullable<AddValueOp['sourceProduct']>
+
+  it('is staged with the choice and shown on it', () => {
+    const [o] = applyOps([option()], [addValue({ optionRef: 'o1', sourceProductId: 'p1', sourceProduct: plan, soldAsLine: true, linePromotions: false })])
+    expect(o.values[0]).toMatchObject({ soldAsLine: true, linePromotions: false })
+  })
+
+  it('folds a later edit into the staged add, and applies one to a saved choice', () => {
+    const merged = reduceOps([
+      addValue({ optionRef: 'o1', sourceProductId: 'p1', sourceProduct: plan, soldAsLine: true }),
+      { kind: 'update-value', id: 'tmp_v1', linePromotions: true },
+    ])
+    expect(merged).toHaveLength(1)
+    expect(merged[0]).toMatchObject({ kind: 'add-value', soldAsLine: true, linePromotions: true })
+
+    const saved = option({ values: [{ id: 'v1', sortOrder: 0, priceValue: 0, priceType: 'FIXED', isDefault: false, quantity: 1, title: 'Two years', sourceProduct: plan, soldAsLine: false }] } as Partial<ProductOption>)
+    const [after] = applyOps([saved], [{ kind: 'update-value', id: 'v1', soldAsLine: true }])
+    expect(after.values[0].soldAsLine).toBe(true)
+  })
+
+  it('reads in the review as what the choice is sold as', () => {
+    const saved = option({ values: [{ id: 'v1', sortOrder: 0, priceValue: 0, priceType: 'FIXED', isDefault: false, quantity: 1, title: 'Two years', sourceProduct: plan, soldAsLine: false, linePromotions: false }] } as Partial<ProductOption>)
+    const rows = opsToDiff([saved], [{ kind: 'update-value', id: 'v1', soldAsLine: true, linePromotions: true }])
+    const text = JSON.stringify(rows)
+    expect(text).toContain('its own line')
+    expect(text).toContain('promotions on its line')
+  })
+})

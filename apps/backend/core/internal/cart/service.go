@@ -330,7 +330,7 @@ func (s *Service) CurrentLinePrices(ctx context.Context, c Cart) map[uuid.UUID]i
 		return out
 	}
 	for _, l := range c.Lines {
-		if l.PriceHeld() || l.IsCustom {
+		if l.PriceHeld() || l.IsCustom || l.IsAddOn() {
 			continue
 		}
 		if len(l.Components) > 0 {
@@ -416,6 +416,14 @@ func (s *Service) AddToCart(ctx context.Context, cartID uuid.UUID, callerID *uui
 	return loadCartWithLines(ctx, s.repo, cart.ID)
 }
 
+// An add-on leaves with the pick it stood for; any other line simply goes, and its add-ons with it
+func (s *Service) removeLine(ctx context.Context, c Cart, line CartLine) error {
+	if line.IsAddOn() {
+		return s.removeAddOn(ctx, c, line)
+	}
+	return s.repo.RemoveCartLine(ctx, line.ID)
+}
+
 // The plain upsert, and the hook's price put on the line it made - together or not at all. No hook, no transaction
 func (s *Service) upsertPlainLine(ctx context.Context, cartID uuid.UUID, input AddCartLineInput, hook *LinePrice) (CartLine, error) {
 	if hook == nil {
@@ -462,7 +470,7 @@ func (s *Service) prepareSimpleAdd(ctx context.Context, c Cart, sku string, quan
 	total := quantity
 	var onto *CartLine
 	for _, l := range lines {
-		if l.ProductSku != sku {
+		if l.ProductSku != sku || l.IsAddOn() { // the same product as someone's add-on is a line of its own
 			continue
 		}
 		if len(l.Options) > 0 || len(l.Components) > 0 { // the plain upsert would sum quantity but reset the price with the snapshot rows still attached
@@ -564,6 +572,9 @@ func (s *Service) UpdateCartLine(ctx context.Context, cartID, lineID uuid.UUID, 
 	if err := checkProtectedOfferLine(cart, lineID, ""); err != nil {
 		return Cart{}, err
 	}
+	if line.IsAddOn() { // its quantity is its parent's
+		return Cart{}, ErrLineFollowsParent
+	}
 	repricedUnit, err := s.validateQuantityEdit(ctx, cart, line, quantity)
 	if err != nil {
 		return Cart{}, err
@@ -651,7 +662,7 @@ func (s *Service) RemoveFromCart(ctx context.Context, cartID, lineID uuid.UUID, 
 			return Cart{}, fmt.Errorf("remove from cart rejected: %w", err)
 		}
 	}
-	if err := s.repo.RemoveCartLine(ctx, lineID); err != nil {
+	if err := s.removeLine(ctx, cart, line); err != nil {
 		return Cart{}, fmt.Errorf("remove from cart: %w", err)
 	}
 	if s.bus != nil {
@@ -756,6 +767,9 @@ func (s *Service) RepriceCartLines(ctx context.Context, c Cart) Cart {
 	for i := range c.Lines {
 		l := &c.Lines[i]
 		if l.PriceHeld() || l.IsCustom { // a set price is the price
+			continue
+		}
+		if l.IsAddOn() { // priced as its parent's option was picked, and kept like an option's surcharge
 			continue
 		}
 		if l.PriceSet() { // set once, and lapsed: the line is the catalog's again, priced below like any other

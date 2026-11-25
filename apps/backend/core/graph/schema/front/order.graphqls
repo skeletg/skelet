@@ -75,6 +75,8 @@ type OrderLine {
   options:     [OrderLineOption!]!
   # A bundle line's picked components, as snapshotted at checkout. Empty for every other line
   components:  [OrderLineComponent!]!
+  # Set on an add-on: the line it was bought with - show it under that line
+  parentLineId: ID
 }
 
 type OrderLineComponent {

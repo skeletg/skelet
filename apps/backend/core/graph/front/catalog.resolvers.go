@@ -328,6 +328,7 @@ func (r *productResolver) Options(ctx context.Context, obj *model.Product) ([]*m
 				PriceType:  string(v.PriceType),
 				Quantity:   v.Quantity,
 				IsDefault:  v.IsDefault,
+				SoldAsLine: v.SoldAsLine,
 			}
 			if v.ForcedLineQty != nil {
 				q := *v.ForcedLineQty

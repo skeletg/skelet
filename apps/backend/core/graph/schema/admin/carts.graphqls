@@ -48,6 +48,8 @@ type AdminCartLine {
   # it the line goes back to its catalog price at checkout. Both null on an offer's lines and on a catalog price
   priceMaxQuantity: Float
   priceExpiresAt:   Time
+  # Set on an add-on: the line it belongs to, which it follows in quantity and leaves the cart with
+  parentLineId: ID
   # Whether coupons and promotions may lower this line. They leave a line alone once its price is set, unless
   # whoever set it says otherwise - the line still counts toward what the cart holds
   promotionsApply: Boolean!

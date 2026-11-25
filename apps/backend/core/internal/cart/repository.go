@@ -349,7 +349,43 @@ func (r *postgresRepository) ListCartLinesByCart(ctx context.Context, cartID uui
 			lines[i].Options = optByLine[lines[i].ID]
 		}
 	}
-	return lines, nil
+	return underParents(lines), nil
+}
+
+// Each add-on line right after the line it belongs to, whenever either was written - the rest stay in the order added
+func underParents(lines []CartLine) []CartLine {
+	kids := make(map[uuid.UUID][]CartLine)
+	for _, l := range lines {
+		if l.ParentLineID != nil {
+			kids[*l.ParentLineID] = append(kids[*l.ParentLineID], l)
+		}
+	}
+	if len(kids) == 0 {
+		return lines
+	}
+	out := make([]CartLine, 0, len(lines))
+	for _, l := range lines {
+		if l.ParentLineID != nil {
+			continue
+		}
+		out = append(out, l)
+		out = append(out, kids[l.ID]...)
+	}
+	return out
+}
+
+func (r *postgresRepository) RemoveAddOnLine(ctx context.Context, line CartLine) error {
+	if line.ParentLineID == nil || line.ParentValueID == nil {
+		return fmt.Errorf("remove add-on line: %s belongs to no line", line.ID)
+	}
+	// Two writes - the caller runs them in one transaction
+	if err := r.queries.DeleteCartLineOptionByValue(ctx, db.DeleteCartLineOptionByValueParams{CartLineID: *line.ParentLineID, OptionValueID: uuid.NullUUID{UUID: *line.ParentValueID, Valid: true}}); err != nil {
+		return fmt.Errorf("remove add-on pick: %w", err)
+	}
+	if err := r.queries.DeleteCartLine(ctx, line.ID); err != nil {
+		return fmt.Errorf("remove add-on line: %w", err)
+	}
+	return nil
 }
 
 func (r *postgresRepository) UpsertCartLineBySku(ctx context.Context, cartID uuid.UUID, input AddCartLineInput) (CartLine, error) {
@@ -448,6 +484,23 @@ func (r *postgresRepository) UpsertConfiguredCartLine(ctx context.Context, cartI
 			return CartLine{}, fmt.Errorf("insert cart line option: %w", err)
 		}
 		line.Options = append(line.Options, toCartLineOption(opt))
+	}
+	// The add-ons are this configuration's: whatever the line had go, and the ones picked now take their place
+	if err := r.queries.DeleteChildCartLines(ctx, uuid.NullUUID{UUID: row.ID, Valid: true}); err != nil {
+		return CartLine{}, fmt.Errorf("clear add-on lines: %w", err)
+	}
+	for _, a := range input.AddOns {
+		if _, err := r.queries.InsertChildCartLine(ctx, db.InsertChildCartLineParams{
+			ParentLineID:  row.ID,
+			ParentValueID: a.ValueID,
+			ProductName:   a.ProductName,
+			ProductSku:    a.ProductSku,
+			UnitPrice:     a.UnitPrice,
+			PerParent:     a.PerParent,
+			NoPromotions:  a.NoPromotions,
+		}); err != nil {
+			return CartLine{}, fmt.Errorf("insert add-on line: %w", err)
+		}
 	}
 	return line, nil
 }
@@ -871,6 +924,9 @@ func toCartLine(row db.CartLine) CartLine {
 		PriceMaxQuantity: sqlnull.Float64Ptr(row.PriceMaxQuantity),
 		PriceExpiresAt:   sqlnull.TimePtr(row.PriceExpiresAt),
 		NoPromotions:     row.NoPromotions,
+		ParentLineID:     sqlnull.UUIDPtr(row.ParentLineID),
+		PerParent:        sqlnull.Float64Ptr(row.PerParent),
+		ParentValueID:    sqlnull.UUIDPtr(row.ParentValueID),
 		BundleHookPriced: row.BundleHookPriced,
 		ConfigKey:        row.ConfigKey,
 		IsCustom:         row.IsCustom,
